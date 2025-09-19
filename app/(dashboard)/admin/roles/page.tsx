@@ -215,7 +215,7 @@ export default function AdminRolesPage() {
 
     const filtered = roles.filter(role =>
       Object.values(role).some(value =>
-        value.toString().toLowerCase().includes(query.toLowerCase())
+        String(value).toLowerCase().includes(query.toLowerCase())
       )
     )
     setFilteredRoles(filtered)
@@ -259,7 +259,7 @@ export default function AdminRolesPage() {
         <div className="p-6">
           <div className="text-center">
             <h2 className="text-xl font-semibold text-gray-900 mb-2">Access Denied</h2>
-            <p className="text-gray-600">You don't have permission to view roles.</p>
+            <p className="text-gray-600">You don&apos;t have permission to view roles.</p>
           </div>
         </div>
       }

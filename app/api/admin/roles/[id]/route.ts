@@ -149,7 +149,7 @@ export async function PUT(
           action: 'Update',
           entityName: 'Role',
           entityId: params.id,
-          oldValues: {
+          previousValues: {
             name: existingRole.name,
             description: existingRole.description
           },
@@ -260,7 +260,7 @@ export async function DELETE(
           action: 'Delete',
           entityName: 'Role',
           entityId: params.id,
-          oldValues: {
+          previousValues: {
             code: existingRole.code,
             name: existingRole.name,
             description: existingRole.description

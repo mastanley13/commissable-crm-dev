@@ -302,7 +302,7 @@ export function ContactDetailsModal({ isOpen, contact, loading = false, error, o
               <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-10 text-center text-sm text-gray-500">
                 {error ?? "Contact details are not available."}
               </div>
-            ) : (
+            ) : contact ? (
               <div className="space-y-8">
                 <div className="rounded-2xl border border-gray-200 bg-gray-50 p-6 shadow-sm">
                   <div className="grid gap-8 lg:grid-cols-2">
@@ -482,6 +482,10 @@ export function ContactDetailsModal({ isOpen, contact, loading = false, error, o
                     </div>
                   )}
                 </div>
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-10 text-center text-sm text-gray-500">
+                Contact details are not available.
               </div>
             )}
           </div>

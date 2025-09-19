@@ -65,14 +65,14 @@ export async function POST(request: NextRequest) {
             }
           },
           update: {
-            value: value ? JSON.stringify(value) : null,
+            value: value ? JSON.stringify(value) : undefined,
             description,
             scope
           },
           create: {
             tenantId,
             key,
-            value: value ? JSON.stringify(value) : null,
+            value: value ? JSON.stringify(value) : undefined,
             description,
             scope
           }
@@ -81,7 +81,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({
           data: {
             key: setting.key,
-            value: setting.value ? JSON.parse(setting.value) : null,
+            value: setting.value,
             description: setting.description,
             scope: setting.scope
           }

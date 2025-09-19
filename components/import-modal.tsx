@@ -424,8 +424,8 @@ export function ImportModal({ entityType, isOpen, onClose, onSuccess }: ImportMo
                     <h4 className="text-sm font-medium text-blue-900">Mapping Tips</h4>
                     <ul className="mt-2 text-sm text-blue-800 space-y-1">
                       <li>• Required fields are marked with an asterisk (*)</li>
-                      <li>• You can skip optional fields if they're not in your CSV</li>
-                      <li>• Column names don't need to match exactly</li>
+                      <li>• You can skip optional fields if they&apos;re not in your CSV</li>
+                      <li>• Column names don&apos;t need to match exactly</li>
                     </ul>
                   </div>
                 </div>

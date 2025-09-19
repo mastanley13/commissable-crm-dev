@@ -143,13 +143,15 @@ export async function POST(request: NextRequest) {
         const tenantId = req.user.tenantId
         const userId = req.user.id
 
-    const accountTypeExists = await prisma.accountType.findFirst({
-      where: { id: accountTypeId, tenantId },
-      select: { id: true }
-    })
+    if (accountTypeId) {
+      const accountTypeExists = await prisma.accountType.findFirst({
+        where: { id: accountTypeId, tenantId },
+        select: { id: true }
+      })
 
-    if (!accountTypeExists) {
-      return NextResponse.json({ error: "Invalid account type" }, { status: 400 })
+      if (!accountTypeExists) {
+        return NextResponse.json({ error: "Invalid account type" }, { status: 400 })
+      }
     }
 
     const parentAccountId = coerceOptionalId(payload.parentAccountId)
@@ -178,10 +180,10 @@ export async function POST(request: NextRequest) {
     const account = await prisma.account.create({
       data: {
         tenantId,
-        accountTypeId,
-        parentAccountId,
-        ownerId,
-        industryId,
+        accountTypeId: accountTypeId!,
+        ...(parentAccountId && { parentAccountId }),
+        ...(ownerId && { ownerId }),
+        ...(industryId && { industryId }),
         accountName,
         accountLegalName:
           typeof payload.accountLegalName === "string" && payload.accountLegalName.trim().length > 0

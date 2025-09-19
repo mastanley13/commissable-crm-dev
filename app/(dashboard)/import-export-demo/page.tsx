@@ -223,7 +223,7 @@ export default function ImportExportDemoPage() {
               <div>
                 <h4 className="font-medium text-gray-900 mb-2">Import Process:</h4>
                 <ol className="list-decimal list-inside space-y-1 ml-4">
-                  <li>Click the "Import" button in the table header</li>
+                  <li>Click the &quot;Import&quot; button in the table header</li>
                   <li>Download the template to see the required format</li>
                   <li>Upload your CSV or Excel file</li>
                   <li>Map CSV columns to system fields</li>
@@ -235,7 +235,7 @@ export default function ImportExportDemoPage() {
               <div>
                 <h4 className="font-medium text-gray-900 mb-2">Export Process:</h4>
                 <ol className="list-decimal list-inside space-y-1 ml-4">
-                  <li>Click the "Export" button in the table header</li>
+                  <li>Click the &quot;Export&quot; button in the table header</li>
                   <li>Select export format (CSV or Excel)</li>
                   <li>Choose which columns to include</li>
                   <li>Apply current table filters if desired</li>

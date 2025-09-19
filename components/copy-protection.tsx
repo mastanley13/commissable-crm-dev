@@ -90,9 +90,9 @@ export function CopyProtectionWrapper({ children, className = "" }: CopyProtecti
 
     // Disable text selection via CSS
     container.style.userSelect = 'none'
-    container.style.webkitUserSelect = 'none'
-    container.style.mozUserSelect = 'none'
-    container.style.msUserSelect = 'none'
+    ;(container.style as any).webkitUserSelect = 'none'
+    ;(container.style as any).mozUserSelect = 'none'
+    ;(container.style as any).msUserSelect = 'none'
 
     // Add watermark overlay
     const watermark = document.createElement('div')
@@ -132,9 +132,9 @@ export function CopyProtectionWrapper({ children, className = "" }: CopyProtecti
       
       // Reset styles
       container.style.userSelect = ''
-      container.style.webkitUserSelect = ''
-      container.style.mozUserSelect = ''
-      container.style.msUserSelect = ''
+      ;(container.style as any).webkitUserSelect = ''
+      ;(container.style as any).mozUserSelect = ''
+      ;(container.style as any).msUserSelect = ''
     }
   }, [shouldEnableCopyProtection])
 

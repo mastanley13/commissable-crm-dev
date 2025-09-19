@@ -323,10 +323,35 @@ export default function ContactsPage() {
     setPagination(prev => ({ ...prev, pageSize, page: 1 }))
   }
 
+  const buildContactDetail = useCallback((contact: ContactRow): ContactDetail => {
+    // Split fullName into firstName and lastName
+    const nameParts = contact.fullName.split(' ')
+    const firstName = nameParts[0] || ''
+    const lastName = nameParts.slice(1).join(' ') || ''
+
+    return {
+      id: contact.id,
+      suffix: contact.suffix || undefined,
+      firstName,
+      lastName,
+      accountName: contact.accountName,
+      jobTitle: contact.jobTitle || undefined,
+      contactType: contact.contactType || undefined,
+      active: contact.active,
+      emailAddress: contact.emailAddress || undefined,
+      workPhone: contact.workPhone || undefined,
+      workPhoneExt: contact.extension || undefined,
+      mobilePhone: contact.mobile || undefined,
+      activities: [], // Will be loaded separately
+      opportunities: [], // Will be loaded separately
+      groups: [] // Will be loaded separately
+    }
+  }, [])
+
   const handleRowClick = useCallback((contact: ContactRow) => {
     const detail = buildContactDetail(contact)
     setSelectedContactDetail(detail)
-  }, [])
+  }, [buildContactDetail])
 
   const handleCloseContactDetail = useCallback(() => {
     setSelectedContactDetail(null)

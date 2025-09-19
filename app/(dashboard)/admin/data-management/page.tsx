@@ -391,7 +391,7 @@ export default function DataManagementPage() {
                 Access Restricted
               </h3>
               <p className="text-yellow-800 text-sm">
-                You don't have permission to access the Data Management Center. 
+                You don&apos;t have permission to access the Data Management Center. 
                 Please contact your administrator for access.
               </p>
             </div>

@@ -30,12 +30,12 @@ export async function logAudit(params: AuditLogParams): Promise<void> {
         entityName: params.entityName,
         entityId: params.entityId,
         requestId: params.requestId,
-        changedFields: params.changedFields ? JSON.stringify(params.changedFields) : null,
-        previousValues: params.previousValues ? JSON.stringify(params.previousValues) : null,
-        newValues: params.newValues ? JSON.stringify(params.newValues) : null,
+        changedFields: params.changedFields ? JSON.stringify(params.changedFields) : undefined, 
+        previousValues: params.previousValues ? JSON.stringify(params.previousValues) : undefined,
+        newValues: params.newValues ? JSON.stringify(params.newValues) : undefined,
         ipAddress: params.ipAddress,
         userAgent: params.userAgent,
-        metadata: params.metadata ? JSON.stringify(params.metadata) : null
+        metadata: params.metadata ? JSON.stringify(params.metadata) : undefined
       }
     })
   } catch (error) {
