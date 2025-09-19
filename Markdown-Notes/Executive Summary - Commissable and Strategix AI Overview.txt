@@ -1,0 +1,58 @@
+﻿Commissable CRM Development: Contract Documentation Overview 
+Project Scope and Structure 
+This document package outlines the development of Commissable's CRM system, comprising 500+ fields 
+across 13 modules, to be delivered over an 8-week timeline through four discrete milestones. The six 
+documents provide comprehensive specifications, technical requirements, and contractual terms necessary for successful project execution. 
+Document Purposes and Applications 
+Document 1: Foundation & Architecture 
+Establishes the technical infrastructure, development stack (with flexibility for vendor preferences), and 
+security framework. Defines the four-tier permission system (Admin, Sales, Management, Accounting) and 
+core platform requirements. This document serves as the technical reference point for all architectural 
+decisions. 
+Document 2: Milestone 1 Specifications (Weeks 1-2) 
+Details the Accounts and Contacts modules containing 140+ fields. Specifies the dynamic table 
+framework, role-based access controls, and audit logging requirements. These foundational modules 
+establish the data structure and user interface patterns that will be replicated throughout the system. 
+Document 3: Milestone 2 Specifications (Weeks 3-4) 
+Covers Opportunities (85+ fields) and Products (25+ fields) modules. Defines the 8-stage sales pipeline, 
+commission split calculations, and cascading product selection logic. Includes database scaffolding for 
+revenue schedules without implementation logic, preparing the structure for Milestone 3. 
+Document 4: Milestone 3 Specifications (Weeks 5-6) 
+Implements the Revenue Schedules and Reconciliation modules (150+ fields). This milestone delivers the 
+financial reconciliation engine, including deposit matching algorithms, FLEX schedule creation for 
+exceptions, and dual-mode schedule generation (automatic and manual). This represents the most 
+complex technical component of the system. 
+Document 5: Milestone 4 Specifications (Weeks 7-8) 
+Completes the supporting modules: Groups, Reports, Tickets, and Activities. Finalizes Admin and Settings 
+modules with comprehensive configuration options. Includes user acceptance testing, training delivery, and go-live preparation activities. 
+Document 6: Payment Structure & Protection Mechanisms 
+Defines commercial terms, including milestone-based payment structure, service level agreements, and 
+mutual protections. Contains sections for vendor completion regarding technical specifications, hosting 
+requirements, and support commitments. Establishes termination rights and refund provisions 
+(15%/30%/65% scale for delays exceeding 30 days). 
+Implementation Approach 
+The project follows a progressive development model with bi-weekly milestone deliveries. Each milestone produces functional modules that undergo user acceptance testing before payment release. This 
+approach enables continuous validation and reduces implementation risk. 
+The documentation structure supports both parties through clearly defined acceptance criteria, specific 
+field requirements, and measurable performance standards. Technical decisions requiring vendor input are explicitly marked, ensuring alignment before development begins. 
+Key Contract Provisions 
+• Milestone payments tied to specific deliverables and field counts 
+• Service level agreements for issue resolution during development and warranty period 
+• Commissable retains termination rights with 10-day notice 
+• Non-solicitation clauses protecting both parties' employees and customers 
+• 90-day warranty period covering bug fixes and performance issues 
+• Vendor provides development infrastructure; Commissable provides production environment 
+Project Success Factors 
+Success requires coordination between Commissable providing test data and business process expertise, 
+and the vendor delivering technical implementation per specifications. The documents establish clear responsibilities, acceptance criteria, and communication protocols to facilitate this coordination. 
+The reconciliation engine in Milestone 3 represents the core value proposition, automating currently 
+manual processes and providing the foundation for SaaS scalability. The phased approach allows for 
+validation of basic functionality before implementing complex financial logic. 
+Next Steps 
+1. Vendor completes technical specification sections in Document 6 
+2. Parties agree on total contract value 
+3. Contract execution and initial payment of $3,000 
+4. Week 1 commences with infrastructure setup and Accounts module development 
+The comprehensive documentation package provides the framework for transforming Commissable's 
+requirements into a functional SaaS platform while protecting both parties' interests throughout the development process. 
+Documentation Package: 6 Documents | 8-Week Timeline | 4 Milestones | 500+ Fields
