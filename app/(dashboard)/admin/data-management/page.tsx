@@ -19,6 +19,7 @@ import {
   TrendingUp
 } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
+import { DebugPermissions } from '@/components/debug-permissions'
 
 const dataManagementOptions = [
   {
@@ -181,6 +182,9 @@ export default function DataManagementPage() {
         searchPlaceholder="Search data management options..."
         showCreateButton={false}
       />
+      
+      {/* DEBUG COMPONENT - TEMPORARY */}
+      <DebugPermissions />
       
       <div className="flex-1 p-6">
         <div className="mb-8">
