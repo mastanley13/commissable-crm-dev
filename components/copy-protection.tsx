@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from 'react'
 import { useAuth } from '@/lib/auth-context'
-import { useSystemSettings } from '@/hooks/useSystemSettings'
+import { useSystemSettingsWithPermission } from '@/hooks/useSystemSettings'
 
 interface CopyProtectionWrapperProps {
   children: React.ReactNode
@@ -15,11 +15,17 @@ interface CopyProtectionWrapperProps {
  */
 export function CopyProtectionWrapper({ children, className = "" }: CopyProtectionWrapperProps) {
   const { user } = useAuth()
-  const { isCopyProtectionEnabled } = useSystemSettings()
+  const { hasPermission, isCopyProtectionEnabled, loading } = useSystemSettingsWithPermission()
   const containerRef = useRef<HTMLDivElement>(null)
 
+  const roleEnforcedCopyProtection = user?.role?.code === 'Accounting'
+
   // Check if copy protection should be enabled
-  const shouldEnableCopyProtection = isCopyProtectionEnabled
+  const shouldEnableCopyProtection = loading
+    ? roleEnforcedCopyProtection
+    : hasPermission
+      ? isCopyProtectionEnabled
+      : roleEnforcedCopyProtection
 
   useEffect(() => {
     if (!shouldEnableCopyProtection || !containerRef.current) {
@@ -185,7 +191,7 @@ export function CopyProtectionWrapper({ children, className = "" }: CopyProtecti
       {shouldEnableCopyProtection && (
         <div className="copy-protection-indicator">
           <div className="absolute top-2 right-2 bg-red-100 text-red-800 text-xs px-2 py-1 rounded-full border border-red-200">
-            🔒 Copy Protected
+            Copy Protected
           </div>
         </div>
       )}
@@ -212,3 +218,4 @@ export function useCopyProtection() {
 export function shouldEnableCopyProtection(userRole?: string): boolean {
   return userRole === 'Accounting'
 }
+
