@@ -1,74 +1,25 @@
+'use client'
+
 import Link from 'next/link'
-import { Building2, Users, Target, Calendar, Package, GitCompare, Users2, FileText } from 'lucide-react'
-import { DashboardClientWrapper } from '@/components/dashboard-client-wrapper'
+import { Building2, Users, Target, Package, FileText } from 'lucide-react'
 
 const quickStats = [
-  {
-    name: 'Total Accounts',
-    value: '11',
-    icon: Building2,
-    href: '/accounts',
-    color: 'bg-blue-500'
-  },
-  {
-    name: 'Total Contacts',
-    value: '17',
-    icon: Building2,
-    href: '/contacts',
-    color: 'bg-green-500'
-  },
-  {
-    name: 'Opportunities',
-    value: '23',
-    icon: Target,
-    href: '/opportunities',
-    color: 'bg-purple-500'
-  },
-  {
-    name: 'Products',
-    value: '45',
-    icon: Package,
-    href: '/products',
-    color: 'bg-orange-500'
-  }
+  { name: 'Total Accounts', value: '11', icon: Building2, href: '/accounts', color: 'bg-blue-500' },
+  { name: 'Total Contacts', value: '17', icon: Users, href: '/contacts', color: 'bg-green-500' },
+  { name: 'Opportunities', value: '23', icon: Target, href: '/opportunities', color: 'bg-purple-500' },
+  { name: 'Products', value: '45', icon: Package, href: '/products', color: 'bg-orange-500' }
 ]
 
 const recentActivity = [
-  {
-    id: 1,
-    type: 'account',
-    description: 'New account "Tech Corp" was created',
-    time: '2 hours ago',
-    user: 'John Doe'
-  },
-  {
-    id: 2,
-    type: 'contact',
-    description: 'Contact "Jane Smith" was updated',
-    time: '4 hours ago',
-    user: 'Sarah Wilson'
-  },
-  {
-    id: 3,
-    type: 'opportunity',
-    description: 'Opportunity "Q1 Sales Deal" moved to closing',
-    time: '6 hours ago',
-    user: 'Mike Johnson'
-  },
-  {
-    id: 4,
-    type: 'task',
-    description: 'Follow-up call scheduled with ABC Company',
-    time: '1 day ago',
-    user: 'Lisa Brown'
-  }
+  { id: 1, type: 'account', description: 'New account "Tech Corp" was created', time: '2 hours ago', user: 'John Doe' },
+  { id: 2, type: 'contact', description: 'Contact "Jane Smith" was updated', time: '4 hours ago', user: 'Sarah Wilson' },
+  { id: 3, type: 'opportunity', description: 'Opportunity "Q1 Sales Deal" moved to closing', time: '6 hours ago', user: 'Mike Johnson' },
+  { id: 4, type: 'task', description: 'Follow-up call scheduled with ABC Company', time: '1 day ago', user: 'Lisa Brown' }
 ]
 
 export default function DashboardPage() {
   return (
-    <DashboardClientWrapper>
-      <div className="p-6 space-y-6">
-      {/* Welcome Section */}
+    <div className="p-6 space-y-6">
       <div className="bg-white rounded-lg border border-gray-200 p-6">
         <h1 className="text-2xl font-bold text-gray-900 mb-2">Welcome to Commissable CRM</h1>
         <p className="text-gray-600">
@@ -76,9 +27,8 @@ export default function DashboardPage() {
         </p>
       </div>
 
-      {/* Quick Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {quickStats.map((stat) => (
+        {quickStats.map(stat => (
           <Link
             key={stat.name}
             href={stat.href}
@@ -97,19 +47,17 @@ export default function DashboardPage() {
         ))}
       </div>
 
-      {/* Recent Activity & Quick Actions */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Recent Activity */}
         <div className="bg-white rounded-lg border border-gray-200 p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Recent Activity</h2>
           <div className="space-y-4">
-            {recentActivity.map((activity) => (
+            {recentActivity.map(activity => (
               <div key={activity.id} className="flex items-start space-x-3">
                 <div className="w-2 h-2 bg-primary-600 rounded-full mt-2 flex-shrink-0"></div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-gray-900">{activity.description}</p>
                   <p className="text-xs text-gray-500 mt-1">
-                    {activity.time} • by {activity.user}
+                    {activity.time} - by {activity.user}
                   </p>
                 </div>
               </div>
@@ -119,11 +67,10 @@ export default function DashboardPage() {
             href="/activities"
             className="block mt-4 text-sm text-primary-600 hover:text-primary-700 font-medium"
           >
-            View all activities →
+            {"View all activities ->"}
           </Link>
         </div>
 
-        {/* Quick Actions */}
         <div className="bg-white rounded-lg border border-gray-200 p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
           <div className="grid grid-cols-2 gap-3">
@@ -159,14 +106,12 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Charts Section */}
       <div className="bg-white rounded-lg border border-gray-200 p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Performance Overview</h2>
         <div className="h-64 flex items-center justify-center bg-gray-50 rounded-lg">
           <p className="text-gray-500">Charts and analytics will be displayed here</p>
         </div>
       </div>
-      </div>
-    </DashboardClientWrapper>
+    </div>
   )
 }
