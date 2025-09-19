@@ -1,0 +1,441 @@
+﻿CRM Development Contract 
+Document 2: Milestone 1 - Core Foundation Specifications 
+✩ Milestone 1 Overview 
+Purpose: Build the foundation of your CRM with customer and contact management 
+Timeline: Weeks 1-2 of 8-week project 
+Payment: 25% of total contract value 
+Field Count: 140+ fields across two modules 
+What Gets Built in Milestone 1 
+Two Complete Modules: 
+1. Accounts Module - Your customer database (70+ fields) 
+2. Contacts Module - People at those companies (65+ fields) 
+Core Features: 
+• Dynamic table system with customizable columns 
+• Role-based access control (3 user types) 
+• Complete audit logging 
+Import/export capabilities (role-dependent) 
+• Related records linking 
+Module 1: ACCOUNTS (Fields 01.XX.XXX) 
+Account List View - What Users See First 
+Field Range: 01.01.000 - 01.01.008 
+This is your main customer list showing all active and inactive accounts. 
+Field Label 
+Account Name 
+Account Legal Name 
+Account Type 
+Account_Name 
+Account_Legal_Name 
+Account_Type 
+Account Owner 
+Account Owner 
+Shipping Street 
+Text 
+Shipping Street 2 
+Text 
+Shipping City 
+Shipping State 
+Shipping City 
+Shipping_State 
+Text 
+Field Name 
+Shipping_Street 
+Shipping_Street_2 
+Format 
+Text (proper case) 
+Contact lookup 
+Example 
+Algave LLC 
+Ford 
+Customer 
+Rob Hosef 
+1 Main Street 
+Suite 100 
+Woodstock 
+Text (proper case) 
+Dropdown 
+2-letter dropdown 
+GA 
+Shipping Zip 
+Shipping Zip 
+Max 12 digits 
+32081 
+Key Features: 
+• Click any account name to view details 
+• 
+Toggle between active/inactive accounts 
+• Sort by any column 
+• Dynamic column selection 
+Creating New Accounts 
+Field Range: 01.02.000 - 01.02.020 
+Required Fields (Must Complete): 
+• Account Name 
+• Account Legal Name 
+• Account Type 
+• Active Status (defaults to Yes) 
+• Account Owner (defaults to current user) 
+Optional Information: 
+• Parent Account (for subsidiaries) 
+• Industry (dropdown list A-Z) 
+• Website URL (validated format) 
+• Description (long text) 
+Address Fields: 
+Shipping Address: 
+• Street, Street 2, City, State, Zip, Country 
+Billing Address: 
+• Street, Street 2, City, State, Zip, Country 
+Account Detail Page Layout 
+Field Ranges: 01.03.XXX - 01.09.XXX 
+The detail page shows everything about an account with these sections: 
+Left Column (01.03.XXX): 
+• Basic account information 
+• All fields from creation form 
+• Inline editing capability 
+• Auto-save functionality 
+Right Column (01.04.XXX): 
+• Complete address information 
+Both billing and shipping 
+• Map integration ready 
+• Copy address feature 
+Bottom Section Tabs: 
+Contacts Tab (01.05.XXX - 01.06.XXX): 
+• List of all people at this company 
+• Add new contacts with popup form 
+• Fields include: 
+• Full Name (auto-concatenated) 
+• Work Phone (xxx-xxx-xxxx format) 
+• Mobile, Email, Job Title 
+• Contact Type (inherited from account) 
+Opportunities Tab (01.07.XXX - 01.08.XXX): 
+• All sales opportunities for this account 
+• Quick-add new opportunity 
+• Shows: Close Date, Stage, Owner, Value 
+Groups Tab (01.09.000 - 01.09.014): 
+• Organize accounts into groups 
+• Public/Private settings 
+• Group owner management 
+Activities Tab (01.09.070 - 01.09.084): 
+• Complete activity timeline 
+• 
+Types: Call, Meeting, ToDo, Note, Other 
+• Quick-add activities 
+• Sort by date or type 
+Module 2: CONTACTS (Fields 02.XX.XXX) 
+Contact List View 
+Field Range: 02.01.000 - 02.01.007 
+Main list of all contacts across all accounts. 
+Field Name 
+Format 
+Field Label 
+Suffix 
+Full Name 
+Work Phone 
+Extension 
+Suffix 
+Full Name 
+Work_Phone 
+Extension 
+Dropdown 
+Auto-concatenated 
+XXX-XXX-XXXX 
+Numeric 
+Contact Type 
+Contact_Type 
+From account 
+Email Address 
+Email Address 
+Email format 
+Job Title 
+Job_Title 
+Text 
+Mobile 
+Mobile 
+XXX-XXX-XXXX 
+Creating New Contacts 
+Field Range: 02.02.000 - 02.02.012 
+Example 
+Mr. 
+Jim Ford 
+678-453-5556 
+124 
+Customer 
+jim@ford.com 
+CEO 
+678-453-5557 
+Required Fields: 
+• First Name 
+• Last Name 
+• Account Name (which company they work for) 
+Optional Fields: 
+• Suffix (Mr., Mr., Mrs., Dr.) 
+• Job Title 
+• Work Phone & Extension 
+• Mobile Phone 
+• Email Address 
+• Description 
+Auto-Populated: 
+• Ship To Address (from account) 
+• Bill To Address (from account) 
+• Contact Type (from account type) 
+Contact Detail Page 
+Field Ranges: 02.03.XXX - 02.09.XXX 
+Complete contact information with tabs for: 
+Main Information (02.03.XXX): 
+• All contact details 
+• Related account information 
+• Communication preferences 
+Activities Tab (02.04.XXX): 
+• Activity history 
+• Task management 
+• Notes and attachments 
+Opportunities Tab (02.06.XXX): 
+• Sales opportunities involving this contact 
+• Role in each opportunity 
+Groups Tab (02.07.XXX): 
+• Group memberships 
+• Permission levels 
+Database Structure 
+Account Table Schema 
+sql 
+CREATE TABLE accounts ( 
+id 
+- Core Fields 
+tenant_id 
+UUID PRIMARY KEY, 
+UUID NOT NULL, 
+account_name VARCHAR(255) NOT NULL, 
+account_legal_name VARCHAR(255), 
+account_type_id UUID NOT NULL, 
+active 
+account_owner 
+BOOLEAN DEFAULT true, 
+UUID NOT NULL, 
+-- Business Info 
+parent_account 
+UUID, 
+industry 
+VARCHAR(255), 
+website_url 
+VARCHAR(255), 
+description 
+TEXT, 
+—— 
+- Shipping Address 
+shipping_street VARCHAR(255), 
+shipping_street_2 VARCHAR(255), 
+shipping_city VARCHAR(100), 
+shipping_state VARCHAR(10), 
+shipping_zip VARCHAR(12), 
+shipping_country VARCHAR(100), 
+-- Billing Address 
+billing_street VARCHAR(255), 
+billing_street_2 
+VARCHAR(255), 
+billing_city VARCHAR(100), 
+billing_state VARCHAR(10), 
+billing_zip 
+VARCHAR(12), 
+billing_country 
+-- System Fields 
+—— 
+created at 
+VARCHAR(100), 
+TIMESTAMPTZ DEFAULT NOW(), 
+TIMESTAMPTZ DEFAULT NOW(), 
+UUID NOT NULL, 
+updated_at 
+created_by 
+updated_by 
+UUID 
+); 
+Contact Table Schema 
+sql 
+CREATE TABLE contacts ( 
+- Core Fields 
+UUID PRIMARY KEY, 
+UUID NOT NULL, 
+id 
+tenant_id 
+account_id 
+UUID NOT NULL, 
+- Name Fields 
+suffix 
+VARCHAR(10), 
+first_name 
+VARCHAR(100) NOT NULL, 
+last_name 
+VARCHAR(100) NOT NULL, 
+full_name 
+VARCHAR(255) GENERATED, 
+—— 
+- Contact Info 
+job_title 
+VARCHAR(100), 
+work_phone VARCHAR(20), 
+extension VARCHAR(10), 
+mobile 
+VARCHAR(20), 
+email_address VARCHAR(255), 
+-- System Fields 
+active 
+BOOLEAN DEFAULT true, 
+description 
+TEXT, 
+created_at 
+updated_at 
+TIMESTAMPTZ DEFAULT NOW(), 
+TIMESTAMPTZ DEFAULT NOW() 
+); 
+✔ Dynamic Table Features 
+Every data table in the system includes: 
+Column Management 
+• Show/Hide: Check boxes to display columns 
+• Reorder: Drag and drop columns 
+• Resize: Adjustable width (80-400px) 
+• Sort: Click headers to sort 
+• Filter: Type-specific filtering 
+User Preferences 
+• Column settings saved per user 
+• Sort preferences remembered 
+• Filter combinations stored 
+• Export formats saved 
+Performance Requirements 
+• Load 1,000 records in < 2 seconds 
+• Column operations < 300ms 
+• Search results < 500ms 
+• Form saves < 3 seconds 
+Role-Based Access for Milestone 1 
+Salesperson Access 
+Accounts: 
+View/edit assigned accounts only 
+Create new accounts 
+Cannot delete accounts 
+• Cannot export account lists 
+• Cannot see all accounts 
+Contacts: 
+View/edit contacts at assigned accounts 
+Create new contacts 
+Cannot access other accounts' contacts 
+Cannot export contact lists 
+Sales Management Access 
+Full Control: 
+All accounts and contacts 
+Bulk operations 
+✔ Import/export capabilities 
+• 
+User reassignment 
+Delete permissions 
+Accounting Access 
+Read-Only: 
+• 
+View all accounts and contacts 
+Access for reconciliation 
+Cannot modify records 
+Cannot export data 
+Copy protection enabled 
+Admin Access 
+System Control: 
+All modules and features 
+User/role management 
+System configuration 
+Audit log access 
+Full import/export rights 
+Acceptance Criteria 
+Data Validation 
+All required fields enforce validation 
+Email format: proper@email.com 
+Phone format: 678-453-5555 
+URL format: https://website.com 
+State: 2-letter codes only 
+Zip: Maximum 12 characters 
+Field Relationships 
+Contact Type inherits from Account Type 
+Addresses populate from Account to Contact 
+Parent Account relationships work 
+Account Owner shows only House contacts 
+Performance Metrics 
+Test 
+Load 1,000 accounts 
+Search contacts 
+Save new account 
+Column operations 
+Security Testing 
+Salesperson cannot see unassigned accounts 
+Export restrictions work properly 
+Copy protection blocks Ctrl+C 
+Audit log captures all changes 
+Session timeouts function correctly 
+Testing Checklist 
+Account Module (70+ fields) 
+List view displays correctly 
+All 20 creation fields work 
+Detail page shows all sections 
+Contacts tab functions 
+Opportunities tab loads 
+Activities track properly Groups assignment works 
+Contact Module (65+ fields) 
+List view with dynamic columns 
+Contact creation form validates 
+Auto-population from account 
+Full name concatenation 
+Email validation works 
+Phone formatting applies 
+All tabs load correctly 
+Requirement 
+< 2 seconds 
+< 500ms 
+< 3 seconds 
+< 300ms 
+Status 
+[] 
+[] 
+[] 
+[] 
+Integration Points 
+Account-Contact relationships 
+Contact Type inheritance 
+Address field population 
+Activity creation and display 
+Group membership management 
+✔ Milestone 1 Completion 
+Acceptance Criteria (Per Vendor Proposal) 
+Table column preferences persist per user across sessions 
+Clicking Account/Contact hyperlinks reliably opens detail pages 
+Role restrictions verified (e.g., Accounting cannot delete Accounts) Audit log captures create/update/delete for Accounts/Contacts 
+Payment Trigger 
+Milestone 1 payment (25% of contract) releases when: 
+• Accounts & Contacts fully functional with DB-driven fields 
+• Dynamic tables with persistent user preferences 
+• Detail pages with all tabs operational 
+• RBAC enforced for all 4 roles 
+• Audit logging capturing all changes 
+• Written sign-off provided 
+Deliverables 
+• Working Accounts module with all fields 
+• Working Contacts module with all fields 
+• Dynamic table framework 
+• Role-based security 
+• Audit logging system 
+• Import templates (CSV format) 
+• User documentation for both modules 
+Notes for Development Team 
+Priority Items 
+1. Set up database schema first 
+2. Build dynamic table framework (reusable) 
+3. Implement RBAC foundation 
+4. Create account module 
+5. Create contact module 
+6. Add audit logging 
+7. Test with all three roles 
+Common Field Patterns 
+• Dropdowns: Always sort A-Z 
+• Dates: YYYY-MM-DD format 
+• Currency: X.XX, negativesas (X.XX) 
+• Percentages: X.XX% format 
+• Phone: xxx-xxx-xxxx with validation 
+Watch Points 
+• Contact Type must inherit from Account Type 
+• Account Owner limited to House contacts 
+• Full Name is auto-concatenated 
+• Addresses auto-populate to contacts 
+• Export restrictions crucial for Salesperson role 
+End of Document 2 - Proceed to Document 3 for Opportunities and Products modules
