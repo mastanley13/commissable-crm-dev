@@ -6,8 +6,10 @@ import { DynamicTable, Column } from '@/components/dynamic-table'
 import { PermissionGate } from '@/components/auth/permission-gate'
 import { RoleEditModal, Role } from '@/components/role-edit-modal'
 import { Edit, Trash2, Shield, Users } from 'lucide-react'
+import { useAuth } from '@/lib/auth-context'
 
 export default function AdminRolesPage() {
+  const { refreshAuth } = useAuth()
   const [roles, setRoles] = useState<any[]>([])
   const [filteredRoles, setFilteredRoles] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -260,6 +262,25 @@ export default function AdminRolesPage() {
           <div className="text-center">
             <h2 className="text-xl font-semibold text-gray-900 mb-2">Access Denied</h2>
             <p className="text-gray-600">You don&apos;t have permission to view roles.</p>
+            <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <p className="text-sm text-yellow-800">
+                <strong>Debug Info:</strong> This page requires admin.roles.read OR admin.permissions.read permissions.
+              </p>
+              <div className="flex gap-2 mt-2">
+                <button 
+                  onClick={() => refreshAuth()} 
+                  className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
+                >
+                  Refresh Permissions
+                </button>
+                <button 
+                  onClick={() => window.location.reload()} 
+                  className="px-3 py-1 bg-yellow-600 text-white rounded text-sm hover:bg-yellow-700"
+                >
+                  Refresh Page
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       }

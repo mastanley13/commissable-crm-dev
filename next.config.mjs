@@ -6,8 +6,8 @@ const nextConfig = {
   },
   // Ensure lucide-react is transpiled by Next to avoid runtime interop issues
   transpilePackages: ['lucide-react'],
-  // Vercel optimizations
-  output: 'standalone',
+  // Vercel optimizations - remove standalone output to fix manifest file issue
+  // output: 'standalone',
   // Enable SWC minification for better performance
   swcMinify: true,
   // Optimize images for Vercel
