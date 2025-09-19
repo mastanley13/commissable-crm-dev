@@ -6,6 +6,7 @@ import { withPermissions, createErrorResponse } from "@/lib/api-auth"
 import { logAccountAudit } from "@/lib/audit"
 import { validateAccountData, createValidationErrorResponse, normalizeEmail, normalizeState, formatPhoneNumber } from "@/lib/validation"
 import { revalidatePath } from "next/cache"
+export const dynamic = 'force-dynamic';
 
 type AddressInput = {
   line1: string
@@ -238,3 +239,4 @@ export async function POST(request: NextRequest) {
     }
   )
 }
+

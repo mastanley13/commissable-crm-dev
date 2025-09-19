@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { withPermissions, createApiResponse, createErrorResponse } from '@/lib/api-auth'
 import { prisma } from '@/lib/db'
+export const dynamic = 'force-dynamic';
 
 // GET /api/admin/roles/[id] - Get role details
 export async function GET(
@@ -272,3 +273,4 @@ export async function DELETE(
     }
   )
 }
+

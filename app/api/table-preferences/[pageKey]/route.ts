@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
 import { resolveTenantId, resolveUserId } from "@/lib/server-utils"
+export const dynamic = 'force-dynamic';
 
 export async function GET(
   request: NextRequest,
@@ -88,3 +89,4 @@ export async function POST(
     return NextResponse.json({ error: "Failed to save table preferences" }, { status: 500 })
   }
 }
+

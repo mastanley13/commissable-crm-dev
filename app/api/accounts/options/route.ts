@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
 import { resolveTenantId } from "@/lib/server-utils"
+export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   try {
@@ -40,3 +41,4 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Failed to load account options" }, { status: 500 })
   }
 }
+

@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db"
 import { withPermissions, createErrorResponse } from "@/lib/api-auth"
 import { logContactAudit } from "@/lib/audit"
 import { revalidatePath } from "next/cache"
+export const dynamic = 'force-dynamic';
 
 function mapContactToDetail(contact: any) {
   return {
@@ -383,3 +384,4 @@ export async function DELETE(
     }
   )
 }
+

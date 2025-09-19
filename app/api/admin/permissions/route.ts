@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { withPermissions, createApiResponse, createErrorResponse } from '@/lib/api-auth'
 import { prisma } from '@/lib/db'
+export const dynamic = 'force-dynamic';
 
 // GET /api/admin/permissions - List all permissions
 export async function GET(request: NextRequest) {
