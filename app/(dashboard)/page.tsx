@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { Building2, Users, Target, Calendar, Package, GitCompare, Users2, FileText } from 'lucide-react'
+import { DashboardClientWrapper } from '@/components/dashboard-client-wrapper'
 
 const quickStats = [
   {
@@ -65,7 +66,8 @@ const recentActivity = [
 
 export default function DashboardPage() {
   return (
-    <div className="p-6 space-y-6">
+    <DashboardClientWrapper>
+      <div className="p-6 space-y-6">
       {/* Welcome Section */}
       <div className="bg-white rounded-lg border border-gray-200 p-6">
         <h1 className="text-2xl font-bold text-gray-900 mb-2">Welcome to Commissable CRM</h1>
@@ -164,6 +166,7 @@ export default function DashboardPage() {
           <p className="text-gray-500">Charts and analytics will be displayed here</p>
         </div>
       </div>
-    </div>
+      </div>
+    </DashboardClientWrapper>
   )
 }
