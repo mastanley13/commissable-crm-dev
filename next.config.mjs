@@ -1,9 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  experimental: {
-    // Help Next/Webpack interop with certain ESM packages in dev
-    esmExternals: 'loose',
-  },
+  // experimental: {
+  //   // Help Next/Webpack interop with certain ESM packages in dev
+  //   esmExternals: 'loose',
+  // },
   // Ensure lucide-react is transpiled by Next to avoid runtime interop issues
   transpilePackages: ['lucide-react'],
   // Vercel optimizations - remove standalone output to fix manifest file issue

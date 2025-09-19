@@ -1,4 +1,5 @@
 import {
+  LayoutDashboard,
   Building2,
   Users,
   Target,
@@ -22,6 +23,7 @@ export interface NavItem {
 }
 
 export const navigation: NavItem[] = [
+  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Accounts', href: '/accounts', icon: Building2 },
   { name: 'Contacts', href: '/contacts', icon: Building2 },
   { name: 'Opportunities', href: '/opportunities', icon: Target },

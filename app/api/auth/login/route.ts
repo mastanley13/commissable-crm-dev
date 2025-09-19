@@ -131,9 +131,20 @@ export async function POST(request: NextRequest) {
       expires: expiresAt,
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
       path: '/'
     })
+
+    console.log('🔍 Login Debug:')
+    console.log('  Session token created:', sessionToken.substring(0, 10) + '...')
+    console.log('  Cookie expires:', expiresAt)
+    console.log('  User permissions:', user.role?.permissions.length || 0)
+    
+    const dataMgmtPerms = user.role?.permissions.filter(rp => 
+      rp.permission.code.includes('data_management')
+    ) || []
+    console.log('  Data Management Permissions:', dataMgmtPerms.length)
+    dataMgmtPerms.forEach(rp => console.log('    ✅', rp.permission.code))
 
     return response
 

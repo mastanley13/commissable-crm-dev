@@ -4,7 +4,7 @@ import { useAuth } from '@/lib/auth-context'
 import { useEffect } from 'react'
 
 export function DebugPermissions() {
-  const { hasAnyPermission, hasPermission, user } = useAuth()
+  const { hasAnyPermission, hasPermission, user, refreshAuth } = useAuth()
   
   useEffect(() => {
     console.log('🔍 PERMISSION DEBUG:')
@@ -52,6 +52,18 @@ export function DebugPermissions() {
         <p>Has admin.data_management: {hasPermission('admin.data_management') ? '✅' : '❌'}</p>
         <p>Has admin.data_management.view: {hasPermission('admin.data_management.view') ? '✅' : '❌'}</p>
         <p>Can Access Data Management: {(hasPermission('admin.data_management') || hasPermission('admin.data_management.view')) ? '✅' : '❌'}</p>
+        
+        <div className="mt-3">
+          <button 
+            onClick={() => {
+              console.log('🔄 Forcing auth refresh...')
+              refreshAuth()
+            }}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-xs font-medium"
+          >
+            🔄 Refresh Auth Data
+          </button>
+        </div>
       </div>
     </div>
   )
