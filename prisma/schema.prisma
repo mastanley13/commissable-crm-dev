@@ -3,8 +3,11 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  // Used by your app in Vercel (Accelerate proxy)
+  url       = env("DATABASE_URL")
+  // Used by you locally/CI for migrate/Studio (direct DB)
+  directUrl = env("DIRECT_URL")
 }
 
 model Tenant {

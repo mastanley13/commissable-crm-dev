@@ -5,6 +5,7 @@ import { withPermissions, createErrorResponse } from "@/lib/api-auth"
 import { logContactAudit } from "@/lib/audit"
 import { validateContactData, createValidationErrorResponse, normalizeEmail, formatPhoneNumber } from "@/lib/validation"
 import { revalidatePath } from "next/cache"
+export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic';
 
 function mapContactToListRow(contact: any) {

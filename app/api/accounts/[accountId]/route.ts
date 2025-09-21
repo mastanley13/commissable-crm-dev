@@ -5,6 +5,7 @@ import { withPermissions, createErrorResponse } from "@/lib/api-auth"
 import { mapAccountToListRow, accountIncludeForList } from "../helpers"
 import { logAccountAudit } from "@/lib/audit"
 import { revalidatePath } from "next/cache"
+export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic';
 
 function mapAddressForDetail(address: any | null) {

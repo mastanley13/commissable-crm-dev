@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { withPermissions, createApiResponse, createErrorResponse } from '@/lib/api-auth'
 import { prisma } from '@/lib/db'
 import { hashPassword } from '@/lib/auth'
+export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic';
 
 // GET /api/admin/users - List users
