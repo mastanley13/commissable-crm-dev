@@ -92,7 +92,7 @@ const TABS: { id: "activities" | "opportunities" | "groups"; label: string }[] =
 ]
 
 const fieldLabelClass = "text-xs font-semibold uppercase tracking-wide text-gray-500"
-const fieldBoxClass = "flex min-h-[28px] items-center justify-between rounded border border-gray-300 bg-white px-2.5 py-1.5 text-sm text-gray-900"
+const fieldBoxClass = "flex min-h-[28px] items-center justify-between rounded-lg border-2 border-gray-400 bg-white px-2.5 py-1.5 text-sm text-gray-900 shadow-sm"
 
 function ReadOnlySwitch({ value }: { value: boolean }) {
   return (
@@ -329,7 +329,7 @@ export function ContactDetailsView({ contact, loading = false, error, onBack, on
               </div>
             ) : contact ? (
               <div className="space-y-4">
-                <div className="bg-white p-4 rounded-lg border border-gray-200">
+                <div className="rounded-2xl border-2 border-gray-400 bg-gray-50 p-4 shadow-sm">
                   <div className="grid gap-3 lg:grid-cols-2">
                     <div className="space-y-2.5">
                       <FieldRow
@@ -436,13 +436,13 @@ export function ContactDetailsView({ contact, loading = false, error, onBack, on
                   </div>
                   <div className="mt-3">
                     <div className={fieldLabelClass}>Description</div>
-                    <div className="mt-1 rounded border border-gray-300 bg-white px-2.5 py-1.5 text-sm text-gray-700">
+                    <div className="mt-1 rounded-lg border-2 border-gray-400 bg-white px-2.5 py-1.5 text-sm text-gray-700 shadow-sm">
                       {contact.description || "No description provided."}
                     </div>
                   </div>
                   <div className="mt-3">
                     <div className={fieldLabelClass}>Notes</div>
-                    <div className="mt-1 rounded border border-gray-300 bg-white px-2.5 py-1.5 text-sm text-gray-700">
+                    <div className="mt-1 rounded-lg border-2 border-gray-400 bg-white px-2.5 py-1.5 text-sm text-gray-700 shadow-sm">
                       {contact.notes || "No notes provided."}
                     </div>
                   </div>

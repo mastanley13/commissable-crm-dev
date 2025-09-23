@@ -106,7 +106,7 @@ const TABS: { id: TabKey; label: string }[] = [
 ]
 
 const fieldLabelClass = "text-xs font-semibold uppercase tracking-wide text-gray-500"
-const fieldBoxClass = "flex min-h-[32px] items-center justify-between rounded-lg border-2 border-gray-400 bg-white px-2 py-1 text-sm text-gray-900 shadow-sm"
+const fieldBoxClass = "flex min-h-[28px] items-center justify-between rounded-lg border-2 border-gray-400 bg-white px-2.5 py-1.5 text-sm text-gray-900 shadow-sm"
 
 function ReadOnlySwitch({ value }: { value: boolean }) {
   return (
@@ -141,7 +141,7 @@ function ReadOnlyCheckbox({ checked }: { checked: boolean }) {
 
 function FieldRow({ label, value }: { label: string; value: ReactNode }) {
   return (
-    <div className="grid items-start gap-2 sm:grid-cols-[150px,1fr]">
+    <div className="grid items-start gap-1.5 sm:grid-cols-[120px,1fr]">
       <span className={fieldLabelClass}>{label}</span>
       <div>{value}</div>
     </div>
@@ -154,34 +154,34 @@ interface TabToolbarProps {
 
 function TabToolbar({ suffix }: TabToolbarProps) {
   return (
-    <div className="flex flex-col gap-3 rounded-lg border border-gray-200 bg-gray-50 p-4 lg:flex-row lg:items-center lg:justify-between">
-      <div className="flex flex-wrap items-center gap-2">
-        <button className="flex items-center gap-1.5 rounded-md bg-primary-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-primary-700">
-          <Plus className="h-4 w-4" />
+    <div className="flex flex-col gap-1.5 rounded-xl border-2 border-gray-400 bg-gray-50 p-2.5 lg:flex-row lg:items-center lg:justify-between">
+      <div className="flex flex-wrap items-center gap-1.5">
+        <button className="flex items-center gap-1 rounded-full bg-primary-600 px-2.5 py-1 text-sm font-semibold text-white shadow-sm transition hover:bg-primary-700">
+          <Plus className="h-3.5 w-3.5" />
           Create New
         </button>
         <div className="relative">
-          <Search className="pointer-events-none absolute left-3 top-2 h-4 w-4 text-gray-400" />
+          <Search className="pointer-events-none absolute left-2.5 top-1.5 h-3.5 w-3.5 text-gray-400" />
           <input
             readOnly
-            className="w-36 rounded-full border border-gray-300 bg-white py-1.5 pl-9 pr-3 text-sm text-gray-700 focus:outline-none"
+            className="w-32 rounded-full border border-gray-300 bg-white py-1 pl-7 pr-2.5 text-sm text-gray-700 focus:outline-none"
             placeholder="Search Here"
           />
         </div>
-        <button className="flex items-center gap-1 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-gray-800">
+        <button className="flex items-center gap-1 rounded-full border border-gray-300 bg-white px-2.5 py-1 text-sm font-medium text-gray-600 hover:text-gray-800">
           <span>Filter By Column</span>
-          <Settings className="h-4 w-4" />
+          <Settings className="h-3.5 w-3.5" />
         </button>
-        <button className="flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-600 hover:border-primary-400 hover:text-primary-600">
-          <Filter className="h-4 w-4" />
+        <button className="flex items-center gap-1 rounded-full border border-gray-300 bg-white px-2.5 py-1 text-sm font-medium text-gray-600 hover:border-primary-400 hover:text-primary-600">
+          <Filter className="h-3.5 w-3.5" />
           Apply Filter
         </button>
       </div>
-      <div className="flex items-center gap-1.5">
-        <button className="rounded-md bg-primary-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-primary-700">
+      <div className="flex items-center gap-1">
+        <button className="rounded-full bg-primary-600 px-2.5 py-1 text-sm font-semibold text-white shadow-sm hover:bg-primary-700">
           Active
         </button>
-        <button className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-600 hover:border-primary-400 hover:text-primary-600">
+        <button className="rounded-full border border-gray-300 bg-white px-2.5 py-1 text-sm font-semibold text-gray-600 hover:border-primary-400 hover:text-primary-600">
           Show All
         </button>
         {suffix}
@@ -226,9 +226,9 @@ export function AccountDetailsView({ account, loading = false, error, onBack, on
   }
 
   return (
-    <div className="px-4 py-6 sm:px-6 lg:px-8">
+    <div className="px-4 py-4 sm:px-6 lg:px-8">
       <div className="mx-auto w-full max-w-7xl">
-        <div className="flex items-start justify-between gap-4 border-b border-gray-200 pb-6 mb-6">
+        <div className="flex items-start justify-between gap-4 border-b border-gray-200 pb-4 mb-4">
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-primary-600">Account Detail</p>
               <h2 className="mt-1 text-2xl font-semibold text-gray-900">{account?.accountName ?? "Account information"}</h2>
@@ -445,16 +445,16 @@ export function AccountDetailsView({ account, loading = false, error, onBack, on
                 </div>
 
                 <div className="flex flex-col gap-3">
-                  <div className="flex flex-wrap gap-2 border-b-2 border-gray-400">
+                  <div className="flex flex-wrap gap-1 border-b border-gray-200">
                     {TABS.map(tab => (
                       <button
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id)}
                         className={cn(
-                          "rounded-t-lg px-3 py-1.5 text-sm font-semibold transition",
+                          "px-3 py-1.5 text-sm font-medium transition border-b-2",
                           activeTab === tab.id
-                            ? "border-2 border-b-white border-gray-400 bg-white text-primary-700 shadow-sm"
-                            : "text-gray-500 hover:text-primary-600"
+                            ? "border-primary-600 text-primary-700 bg-primary-50"
+                            : "border-transparent text-gray-500 hover:text-primary-600 hover:border-gray-300"
                         )}
                       >
                         {tab.label}
@@ -463,7 +463,7 @@ export function AccountDetailsView({ account, loading = false, error, onBack, on
                   </div>
 
                   {activeTab === "contacts" && (
-                    <div className="flex flex-col gap-3">
+                    <div className="flex flex-col gap-2">
                       <TabToolbar />
                       <DynamicTable
                         columns={[
@@ -565,7 +565,7 @@ export function AccountDetailsView({ account, loading = false, error, onBack, on
                   )}
 
                   {activeTab === "opportunities" && (
-                    <div className="flex flex-col gap-3">
+                    <div className="flex flex-col gap-2">
                       <TabToolbar />
                       <DynamicTable
                         columns={[
@@ -642,7 +642,7 @@ export function AccountDetailsView({ account, loading = false, error, onBack, on
                   )}
 
                   {activeTab === "groups" && (
-                    <div className="flex flex-col gap-3">
+                    <div className="flex flex-col gap-2">
                       <TabToolbar
                         suffix={
                           <button className="text-sm font-semibold text-primary-600 transition hover:text-primary-700">
@@ -706,7 +706,7 @@ export function AccountDetailsView({ account, loading = false, error, onBack, on
                   )}
 
                   {activeTab === "activities" && (
-                    <div className="flex flex-col gap-3">
+                    <div className="flex flex-col gap-2">
                       <TabToolbar
                         suffix={
                           <div className="flex items-center gap-1 rounded-full border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-600">
