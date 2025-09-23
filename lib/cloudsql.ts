@@ -1,6 +1,6 @@
 import { promises as fs } from 'fs'
 import { dirname } from 'path'
-import { Connector } from '@google-cloud/cloud-sql-connector'
+import { Connector, AuthTypes, IpAddressTypes } from '@google-cloud/cloud-sql-connector'
 import { GoogleAuth } from 'google-auth-library'
 
 let proxyStarted = false
@@ -29,6 +29,8 @@ async function startProxy() {
   connector = new Connector({ auth: auth as any })
   await connector.startLocalProxy({
     instanceConnectionName,
+    authType: AuthTypes.PASSWORD,
+    ipType: IpAddressTypes.PUBLIC,
     listenOptions: { path: socketPath },
   })
   proxyStarted = true
