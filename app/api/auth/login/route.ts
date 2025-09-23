@@ -2,8 +2,23 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { verifyPassword, createUserSession, setSessionCookie } from '@/lib/auth'
 import { resolveTenantId } from '@/lib/server-utils'
+import type { Prisma } from '@prisma/client'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic';
+
+type UserWithRolePermissions = Prisma.UserGetPayload<{
+  include: {
+    role: {
+      include: {
+        permissions: {
+          include: {
+            permission: true
+          }
+        }
+      }
+    }
+  }
+}>
 
 export async function POST(request: NextRequest) {
   try {
@@ -38,7 +53,7 @@ export async function POST(request: NextRequest) {
           }
         }
       }
-    })
+    }) as UserWithRolePermissions | null
 
     if (!user) {
       return NextResponse.json(
@@ -157,3 +172,5 @@ export async function POST(request: NextRequest) {
     )
   }
 }
+
+

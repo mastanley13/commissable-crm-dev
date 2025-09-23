@@ -4,9 +4,9 @@ generator client {
 
 datasource db {
   provider  = "postgresql"
-  // Used by your app in Vercel (Accelerate proxy)
+  // DATABASE_URL is supplied directly (local dev) or dynamically by the Cloud SQL connector.
   url       = env("DATABASE_URL")
-  // Used by you locally/CI for migrate/Studio (direct DB)
+  // DIRECT_URL supports CLI tooling (migrate/Studio) when the connector is enabled.
   directUrl = env("DIRECT_URL")
 }
 
@@ -1061,3 +1061,4 @@ enum SystemSettingScope {
   Tenant
   Global
 }
+
