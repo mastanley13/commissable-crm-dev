@@ -5,6 +5,7 @@ import { withPermissions, createErrorResponse } from "@/lib/api-auth"
 import { mapAccountToListRow, accountIncludeForList } from "../helpers"
 import { logAccountAudit } from "@/lib/audit"
 import { revalidatePath } from "next/cache"
+import { checkDeletionConstraints, softDeleteEntity, permanentDeleteEntity, restoreEntity } from "@/lib/deletion"
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic';
 
@@ -76,7 +77,7 @@ function mapAccountActivityRow(accountName: string, activity: any) {
 
   return {
     id: activity.id,
-    active: activity.status !== "Completed" && activity.status !== "Cancelled",
+    active: activity.status === 'Open',
     activityDate: activity.dueDate ?? activity.createdAt,
     activityType: activity.activityType,
     activityStatus: activity.status,
@@ -233,6 +234,37 @@ export async function PATCH(
       hasChanges = true
     }
 
+    // Handle restore operation
+    if (payload?.action === "restore") {
+      const result = await restoreEntity('Account', accountId, tenantId, userId)
+      
+      if (!result.success) {
+        return NextResponse.json({ error: result.error }, { status: 400 })
+      }
+
+      await logAccountAudit(
+        AuditAction.Update,
+        accountId,
+        userId,
+        tenantId,
+        request,
+        { status: existing.status },
+        { status: AccountStatus.Active, action: 'restore' }
+      )
+
+      // Invalidate cache
+      revalidatePath('/accounts')
+      revalidatePath('/dashboard')
+      revalidatePath(`/accounts/${accountId}`)
+
+      const updated = await prisma.account.findFirst({
+        where: { id: accountId },
+        include: accountIncludeForList
+      })
+
+      return NextResponse.json({ data: updated ? mapAccountToListRow(updated) : null })
+    }
+
     if (!hasChanges) {
       return NextResponse.json({ error: "No valid fields provided" }, { status: 400 })
     }
@@ -281,20 +313,73 @@ export async function DELETE(
           return NextResponse.json({ error: "Account id is required" }, { status: 400 })
         }
 
+        const url = new URL(request.url)
+        const stage = url.searchParams.get('stage') || 'soft'
+        const bypassConstraints = url.searchParams.get('bypassConstraints') === 'true'
+
         const tenantId = req.user.tenantId
+        const userId = req.user.id
 
         const existing = await prisma.account.findFirst({
           where: { id: accountId, tenantId },
-          select: { id: true, accountName: true, accountLegalName: true }
+          select: { id: true, accountName: true, accountLegalName: true, status: true }
         })
 
         if (!existing) {
           return NextResponse.json({ error: "Account not found" }, { status: 404 })
         }
 
-        const userId = req.user.id
+        if (stage === 'check') {
+          // Just check constraints without performing deletion
+          const constraints = await checkDeletionConstraints('Account', accountId, tenantId)
+          return NextResponse.json({ constraints })
+        }
 
-        await prisma.account.delete({ where: { id: accountId } })
+        if (stage === 'permanent') {
+          // Permanent deletion - requires admin permissions
+          if (!(req.user as any).permissions?.includes('accounts.permanent_delete')) {
+            return NextResponse.json({ error: "Insufficient permissions for permanent deletion" }, { status: 403 })
+          }
+
+          const result = await permanentDeleteEntity('Account', accountId, tenantId, userId)
+          
+          if (!result.success) {
+            return NextResponse.json({ error: result.error }, { status: 400 })
+          }
+
+          await logAccountAudit(
+            AuditAction.Delete,
+            accountId,
+            userId,
+            tenantId,
+            request,
+            {
+              accountName: existing.accountName,
+              accountLegalName: existing.accountLegalName,
+              stage: 'permanent'
+            },
+            undefined
+          )
+
+          // Invalidate cache
+          revalidatePath('/accounts')
+          revalidatePath('/dashboard')
+
+          return NextResponse.json({ success: true, stage: 'permanent' })
+        }
+
+        // Default: Soft deletion
+        const result = await softDeleteEntity('Account', accountId, tenantId, userId, bypassConstraints)
+        
+        if (!result.success) {
+          if (result.constraints) {
+            return NextResponse.json({ 
+              success: false, 
+              constraints: result.constraints 
+            }, { status: 409 })
+          }
+          return NextResponse.json({ error: result.error }, { status: 400 })
+        }
 
         await logAccountAudit(
           AuditAction.Delete,
@@ -304,16 +389,19 @@ export async function DELETE(
           request,
           {
             accountName: existing.accountName,
-            accountLegalName: existing.accountLegalName
+            accountLegalName: existing.accountLegalName,
+            stage: 'soft',
+            bypassConstraints
           },
-          undefined
+          { status: AccountStatus.Inactive }
         )
 
-        // Invalidate cache to ensure UI updates immediately
+        // Invalidate cache
         revalidatePath('/accounts')
         revalidatePath('/dashboard')
+        revalidatePath(`/accounts/${accountId}`)
 
-        return NextResponse.json({ success: true })
+        return NextResponse.json({ success: true, stage: 'soft' })
       } catch (error) {
         console.error("Failed to delete account", error)
         return NextResponse.json({ error: "Failed to delete account" }, { status: 500 })

@@ -7,7 +7,7 @@ import { useToasts } from "./toast"
 interface ContactOptions {
   accountTypes: Array<{ value: string; label: string; code: string }>
   owners: Array<{ value: string; label: string; firstName: string; lastName: string }>
-  accounts: Array<{ value: string; label: string; accountNumber?: string }>
+  accounts: Array<{ value: string; label: string; accountNumber?: string; accountTypeId: string; accountTypeName: string }>
   contactMethods: Array<{ value: string; label: string }>
 }
 
@@ -35,7 +35,8 @@ interface ContactFormData {
   emailAddress: string
   
   // Classification
-  contactType: string
+  accountTypeId: string
+  contactTypeName: string
   active: boolean
   
   // Additional fields
@@ -76,7 +77,8 @@ export function ContactCreateModal({ isOpen, onClose, onSuccess, options }: Cont
     emailAddress: "",
     
     // Classification
-    contactType: "",
+    accountTypeId: "",
+    contactTypeName: "",
     active: true,
     
     // Additional fields
@@ -122,7 +124,8 @@ export function ContactCreateModal({ isOpen, onClose, onSuccess, options }: Cont
         emailAddress: "",
         
         // Classification
-        contactType: "",
+        accountTypeId: "",
+        contactTypeName: "",
         active: true,
         
         // Additional fields
@@ -148,9 +151,33 @@ export function ContactCreateModal({ isOpen, onClose, onSuccess, options }: Cont
     }
   }, [isOpen])
 
+  useEffect(() => {
+    if (!formData.accountId || !options?.accounts) {
+      return
+    }
+
+    const selectedAccount = options.accounts.find(account => account.value === formData.accountId)
+    const nextAccountTypeId = selectedAccount?.accountTypeId ?? ""
+    const nextContactTypeName = selectedAccount?.accountTypeName ?? ""
+
+    if (nextAccountTypeId !== formData.accountTypeId || nextContactTypeName !== formData.contactTypeName) {
+      setFormData(prev => ({
+        ...prev,
+        accountTypeId: nextAccountTypeId,
+        contactTypeName: nextContactTypeName
+      }))
+    }
+  }, [formData.accountId, formData.accountTypeId, formData.contactTypeName, options?.accounts])
+
   const handleInputChange = (field: keyof ContactFormData, value: string | boolean) => {
     setFormData(prev => {
       const newData = { ...prev, [field]: value }
+      
+      if (field === "accountId" && typeof value === "string") {
+        const selectedAccount = options?.accounts.find(account => account.value === value)
+        newData.accountTypeId = selectedAccount?.accountTypeId ?? ""
+        newData.contactTypeName = selectedAccount?.accountTypeName ?? ""
+      }
       
       // Handle "Same as Ship" functionality
       if (field === "sameAsShip" && value === true) {
@@ -177,6 +204,13 @@ export function ContactCreateModal({ isOpen, onClose, onSuccess, options }: Cont
       return
     }
 
+    if (!formData.accountTypeId) {
+      const errorMsg = "Selected account does not have a contact type configured"
+      setError(errorMsg)
+      showError("Validation Error", errorMsg)
+      return
+    }
+
     setLoading(true)
     setError(null)
 
@@ -195,7 +229,8 @@ export function ContactCreateModal({ isOpen, onClose, onSuccess, options }: Cont
         workPhoneExt: formData.extension || undefined,
         mobilePhone: formData.mobilePhone || undefined,
         emailAddress: formData.emailAddress || undefined,
-        accountTypeId: formData.contactType || undefined,
+        accountTypeId: formData.accountTypeId || undefined,
+        contactType: formData.contactTypeName || undefined,
         
         // Flags
         isPrimary: formData.active,
@@ -261,10 +296,10 @@ export function ContactCreateModal({ isOpen, onClose, onSuccess, options }: Cont
             </div>
           )}
 
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             {/* Left Column - Contact Details */}
-            <div className="space-y-4">
-              <div className="grid grid-cols-3 gap-4">
+            <div className="space-y-3">
+              <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="mb-1 block text-sm font-medium text-gray-700">Suffix</label>
                   <select
@@ -369,18 +404,14 @@ export function ContactCreateModal({ isOpen, onClose, onSuccess, options }: Cont
               <div className="grid grid-cols-5 gap-3">
                 <div className="col-span-3">
                   <label className="mb-1 block text-sm font-medium text-gray-700">Contact Type</label>
-                  <select
-                    value={formData.contactType}
-                    onChange={(e) => handleInputChange("contactType", e.target.value)}
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                  >
-                    <option value="">Select</option>
-                    {options?.accountTypes.map(type => (
-                      <option key={type.value} value={type.value}>
-                        {type.label}
-                      </option>
-                    ))}
-                  </select>
+                  <input
+                    type="text"
+                    value={formData.contactTypeName || ""}
+                    readOnly
+                    placeholder={formData.accountId ? "Inherited from account" : "Select an account first"}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm bg-gray-100 text-gray-700"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">Contact Type inherits from the selected account.</p>
                 </div>
                 <div className="col-span-2">
                   <label className="mb-1 block text-sm font-medium text-gray-700">Active (Y/N)</label>
@@ -447,23 +478,20 @@ export function ContactCreateModal({ isOpen, onClose, onSuccess, options }: Cont
                       className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                     />
                   </div>
-                  <div className="grid grid-cols-3 gap-3">
-                    <div className="col-span-2">
-                      <label className="mb-1 block text-xs font-medium text-gray-600">Shipping City *</label>
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-gray-600">City / State / ZIP *</label>
+                    <div className="grid grid-cols-[2fr,1fr,1fr] gap-2">
                       <input
                         type="text"
                         value={formData.shippingCity}
                         onChange={(e) => handleInputChange("shippingCity", e.target.value)}
-                        placeholder="Shipping City"
-                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        placeholder="City"
+                        className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                       />
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-xs font-medium text-gray-600">State</label>
                       <select
                         value={formData.shippingState}
                         onChange={(e) => handleInputChange("shippingState", e.target.value)}
-                        className="w-full rounded-lg border border-gray-300 px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        className="w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                       >
                         <option value="">- State -</option>
                         <option value="AL">AL</option>
@@ -517,19 +545,16 @@ export function ContactCreateModal({ isOpen, onClose, onSuccess, options }: Cont
                         <option value="WI">WI</option>
                         <option value="WY">WY</option>
                       </select>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="mb-1 block text-xs font-medium text-gray-600">Shipping Zip</label>
                       <input
                         type="text"
                         value={formData.shippingZip}
                         onChange={(e) => handleInputChange("shippingZip", e.target.value)}
-                        placeholder="Shipping Zip"
-                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        placeholder="ZIP"
+                        className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                       />
                     </div>
+                  </div>
+                  <div>
                     <div>
                       <label className="mb-1 block text-xs font-medium text-gray-600">Country</label>
                       <select
@@ -582,25 +607,22 @@ export function ContactCreateModal({ isOpen, onClose, onSuccess, options }: Cont
                       className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-gray-100"
                     />
                   </div>
-                  <div className="grid grid-cols-3 gap-3">
-                    <div className="col-span-2">
-                      <label className="mb-1 block text-xs font-medium text-gray-600">Billing City {formData.sameAsShip ? "" : "*"}</label>
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-gray-600">City / State / ZIP {formData.sameAsShip ? "" : "*"}</label>
+                    <div className="grid grid-cols-[2fr,1fr,1fr] gap-2">
                       <input
                         type="text"
                         value={formData.billingCity}
                         onChange={(e) => handleInputChange("billingCity", e.target.value)}
-                        placeholder="Billing City"
+                        placeholder="City"
                         disabled={formData.sameAsShip}
-                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-gray-100"
+                        className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-gray-100"
                       />
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-xs font-medium text-gray-600">State</label>
                       <select
                         value={formData.billingState}
                         onChange={(e) => handleInputChange("billingState", e.target.value)}
                         disabled={formData.sameAsShip}
-                        className="w-full rounded-lg border border-gray-300 px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-gray-100"
+                        className="w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-gray-100"
                       >
                         <option value="">- State -</option>
                         <option value="AL">AL</option>
@@ -654,20 +676,17 @@ export function ContactCreateModal({ isOpen, onClose, onSuccess, options }: Cont
                         <option value="WI">WI</option>
                         <option value="WY">WY</option>
                       </select>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="mb-1 block text-xs font-medium text-gray-600">Billing Zip</label>
                       <input
                         type="text"
                         value={formData.billingZip}
                         onChange={(e) => handleInputChange("billingZip", e.target.value)}
-                        placeholder="Billing Zip"
+                        placeholder="ZIP"
                         disabled={formData.sameAsShip}
-                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-gray-100"
+                        className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-gray-100"
                       />
                     </div>
+                  </div>
+                  <div>
                     <div>
                       <label className="mb-1 block text-xs font-medium text-gray-600">Country</label>
                       <select
@@ -708,3 +727,16 @@ export function ContactCreateModal({ isOpen, onClose, onSuccess, options }: Cont
     </div>
   )
 }
+
+
+
+
+
+
+
+
+
+
+
+
+

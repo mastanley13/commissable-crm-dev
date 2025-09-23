@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { ListHeader } from "@/components/list-header";
 import { DynamicTable, Column } from "@/components/dynamic-table";
 import { useTablePreferences } from "@/hooks/useTablePreferences";
@@ -9,8 +10,8 @@ import {
   AccountFormValues,
 } from "@/components/account-create-modal";
 import { ColumnChooserModal } from "@/components/column-chooser-modal";
-import { ConfirmDialog } from "@/components/confirm-dialog";
-import { AccountDetailsModal, AccountDetail } from "@/components/account-details-modal";
+import { TwoStageDeleteDialog } from "@/components/two-stage-delete-dialog";
+import { DeletionConstraint } from "@/lib/deletion";
 import { CopyProtectionWrapper } from "@/components/copy-protection";
 
 
@@ -52,9 +53,9 @@ const accountColumns: Column[] = [
   {
     id: "action",
     label: "Action",
-    width: 90,
-    minWidth: 80,
-    maxWidth: 140,
+    width: 120,
+    minWidth: 100,
+    maxWidth: 160,
     type: "action",
   },
   {
@@ -175,7 +176,7 @@ export default function AccountsPage() {
   const [activeFilter, setActiveFilter] = useState<"all" | "active">("all");
   const [showCreateModal, setShowCreateModal] = useState<boolean>(false);
   const [showColumnSettings, setShowColumnSettings] = useState<boolean>(false);
-  const [columnFilter, setColumnFilter] = useState<ColumnFilterState>(null);
+  const [columnFilters, setColumnFilters] = useState<ColumnFilterState[]>([]);
   const [sortConfig, setSortConfig] = useState<{
     columnId: keyof AccountRow;
     direction: "asc" | "desc";
@@ -183,14 +184,9 @@ export default function AccountsPage() {
   const [updatingAccountIds, setUpdatingAccountIds] = useState<Set<string>>(
     new Set(),
   );
-  const [accountPendingDeletion, setAccountPendingDeletion] =
-    useState<AccountRow | null>(null);
-  const [deleteLoading, setDeleteLoading] = useState<boolean>(false);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
-  const [showAccountDetailModal, setShowAccountDetailModal] = useState(false);
-  const [selectedAccountDetail, setSelectedAccountDetail] = useState<AccountDetail | null>(null);
-  const [accountDetailLoading, setAccountDetailLoading] = useState(false);
-  const [accountDetailError, setAccountDetailError] = useState<string | null>(null);
+  const [accountToDelete, setAccountToDelete] = useState<AccountRow | null>(null);
+  const [showDeleteDialog, setShowDeleteDialog] = useState<boolean>(false);
+  const router = useRouter();
 
   const {
     columns: preferenceColumns,
@@ -208,21 +204,28 @@ export default function AccountsPage() {
     (
       records: AccountRow[],
       status: "all" | "active",
-      columnFilterState: ColumnFilterState,
+      columnFilterState: ColumnFilterState[],
     ) => {
       let next =
         status === "active"
           ? records.filter((record) => record.active)
           : [...records];
 
-      if (columnFilterState && columnFilterState.value.trim().length > 0) {
-        const filterValue = columnFilterState.value.trim().toLowerCase();
-        next = next.filter((record) => {
-          const recordValue = record[columnFilterState.columnId];
-          if (recordValue === undefined || recordValue === null) {
-            return false;
+      if (Array.isArray(columnFilterState) && columnFilterState.length > 0) {
+        columnFilterState.forEach((filter) => {
+          if (!filter) return;
+          const trimmed = filter.value.trim().toLowerCase();
+          if (trimmed.length === 0) {
+            return;
           }
-          return String(recordValue).toLowerCase().includes(filterValue);
+
+          next = next.filter((record) => {
+            const recordValue = record[filter.columnId];
+            if (recordValue === undefined || recordValue === null) {
+              return false;
+            }
+            return String(recordValue).toLowerCase().includes(trimmed);
+          });
         });
       }
 
@@ -277,35 +280,13 @@ export default function AccountsPage() {
     setSortConfig({ columnId: columnId as keyof AccountRow, direction });
   };
 
-  const handleRowClick = useCallback(async (account: AccountRow) => {
-    setAccountDetailError(null);
-    setAccountDetailLoading(true);
-    setShowAccountDetailModal(true);
-    try {
-      const response = await fetch(`/api/accounts/${account.id}`);
-      if (!response.ok) {
-        const body = await response.json().catch(() => null);
-        const message = body?.error ?? "Unable to load account details";
-        throw new Error(message);
-      }
+  const handleRowClick = useCallback(
+    (account: AccountRow) => {
+      router.push(`/accounts/${account.id}`);
+    },
+    [router],
+  );
 
-      const payload = await response.json();
-      setSelectedAccountDetail(payload.data as AccountDetail);
-    } catch (err) {
-      console.error(err);
-      const message = err instanceof Error ? err.message : "Unable to load account details";
-      setAccountDetailError(message);
-      setSelectedAccountDetail(null);
-    } finally {
-      setAccountDetailLoading(false);
-    }
-  }, []);
-
-  const handleCloseAccountDetails = useCallback(() => {
-    setShowAccountDetailModal(false);
-    setSelectedAccountDetail(null);
-    setAccountDetailError(null);
-  }, []);
   const handleCreateAccountClick = () => {
     setShowCreateModal(true);
   };
@@ -371,28 +352,32 @@ export default function AccountsPage() {
     setActiveFilter(filter === "active" ? "active" : "all");
   };
 
-  const handleColumnFilter = useCallback(
-    (filter: { columnId: string; value: string } | null) => {
-      if (!filter || !filter.columnId) {
-        setColumnFilter(null);
+  const handleColumnFilters = useCallback(
+    (filters: { columnId: string; value: string }[]) => {
+      if (!Array.isArray(filters) || filters.length === 0) {
+        setColumnFilters([]);
         setSortConfig(null);
         return;
       }
 
-      if (!filterOptions.some((option) => option.id === filter.columnId)) {
-        setColumnFilter(null);
+      const sanitized = filters
+        .filter((filter) => filterOptions.some((option) => option.id === filter.columnId))
+        .map((filter) => ({
+          columnId: filter.columnId as FilterableColumnKey,
+          value: (filter.value ?? "").trim(),
+        }))
+        .filter((filter) => filter.value.length > 0);
+
+      setColumnFilters(sanitized);
+
+      if (sanitized.length === 0) {
         setSortConfig(null);
         return;
       }
 
-      const trimmedValue = (filter.value ?? "").trim();
-
-      setColumnFilter({
-        columnId: filter.columnId as FilterableColumnKey,
-        value: trimmedValue,
-      });
+      const lastFilter = sanitized[sanitized.length - 1];
       setSortConfig({
-        columnId: filter.columnId as keyof AccountRow,
+        columnId: lastFilter.columnId,
         direction: "desc",
       });
     },
@@ -457,57 +442,117 @@ export default function AccountsPage() {
   );
 
   const requestAccountDeletion = useCallback((account: AccountRow) => {
-    setAccountPendingDeletion(account);
-    setDeleteError(null);
+    setAccountToDelete(account);
+    setShowDeleteDialog(true);
   }, []);
 
-  const confirmDeleteAccount = useCallback(async () => {
-    if (!accountPendingDeletion) {
-      return;
-    }
-
-    setDeleteLoading(true);
-    setDeleteError(null);
-
+  const handleSoftDelete = useCallback(async (
+    accountId: string, 
+    bypassConstraints?: boolean
+  ): Promise<{ success: boolean, constraints?: DeletionConstraint[], error?: string }> => {
     try {
-      const response = await fetch(
-        `/api/accounts/${accountPendingDeletion.id}`,
-        {
-          method: "DELETE",
-        },
-      );
+      const url = `/api/accounts/${accountId}?stage=soft${bypassConstraints ? '&bypassConstraints=true' : ''}`;
+      const response = await fetch(url, { method: "DELETE" });
 
       if (!response.ok) {
-        const message = await response
-          .json()
-          .then((data: any) => data?.error ?? "Failed to delete account")
-          .catch(() => "Failed to delete account");
-        throw new Error(message);
+        const data = await response.json();
+        if (response.status === 409 && data.constraints) {
+          return { success: false, constraints: data.constraints };
+        }
+        return { success: false, error: data.error || "Failed to delete account" };
       }
 
+      // Update the account status in the local state
       setAccounts((previous) =>
-        previous.filter((account) => account.id !== accountPendingDeletion.id),
+        previous.map((account) =>
+          account.id === accountId 
+            ? { ...account, active: false }
+            : account
+        )
       );
-      setAccountPendingDeletion(null);
+
+      return { success: true };
     } catch (err) {
       console.error(err);
-      setDeleteError(
-        err instanceof Error ? err.message : "Unable to delete account",
-      );
-    } finally {
-      setDeleteLoading(false);
+      return { 
+        success: false, 
+        error: err instanceof Error ? err.message : "Unable to delete account" 
+      };
     }
-  }, [accountPendingDeletion]);
+  }, []);
 
-  const cancelDeleteAccount = () => {
-    if (!deleteLoading) {
-      setAccountPendingDeletion(null);
-      setDeleteError(null);
+  const handlePermanentDelete = useCallback(async (
+    accountId: string
+  ): Promise<{ success: boolean, error?: string }> => {
+    try {
+      const response = await fetch(`/api/accounts/${accountId}?stage=permanent`, {
+        method: "DELETE"
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        return { success: false, error: data.error || "Failed to permanently delete account" };
+      }
+
+      // Remove the account from local state
+      setAccounts((previous) =>
+        previous.filter((account) => account.id !== accountId)
+      );
+
+      return { success: true };
+    } catch (err) {
+      console.error(err);
+      return { 
+        success: false, 
+        error: err instanceof Error ? err.message : "Unable to permanently delete account" 
+      };
     }
+  }, []);
+
+  const handleRestore = useCallback(async (
+    accountId: string
+  ): Promise<{ success: boolean, error?: string }> => {
+    try {
+      const response = await fetch(`/api/accounts/${accountId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "restore" })
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        return { success: false, error: data.error || "Failed to restore account" };
+      }
+
+      const payload = await response.json();
+      const restoredAccount = payload.data;
+
+      if (restoredAccount) {
+        // Update the account in local state
+        setAccounts((previous) =>
+          previous.map((account) =>
+            account.id === accountId ? restoredAccount : account
+          )
+        );
+      }
+
+      return { success: true };
+    } catch (err) {
+      console.error(err);
+      return { 
+        success: false, 
+        error: err instanceof Error ? err.message : "Unable to restore account" 
+      };
+    }
+  }, []);
+
+  const closeDeleteDialog = () => {
+    setShowDeleteDialog(false);
+    setAccountToDelete(null);
   };
 
   const filteredAccounts = useMemo(() => {
-    const filtered = applyFilters(accounts, activeFilter, columnFilter);
+    const filtered = applyFilters(accounts, activeFilter, columnFilters);
 
     if (!sortConfig) {
       return filtered;
@@ -523,7 +568,7 @@ export default function AccountsPage() {
       if (aValue > bValue) return direction === "asc" ? 1 : -1;
       return 0;
     });
-  }, [accounts, activeFilter, columnFilter, sortConfig, applyFilters]);
+  }, [accounts, activeFilter, columnFilters, sortConfig, applyFilters]);
 
   const tableLoading = loading || preferenceLoading;
 
@@ -576,13 +621,17 @@ export default function AccountsPage() {
           render: (_value: unknown, row: AccountRow) => (
             <button
               type="button"
-              className="rounded-md border border-red-200 px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50 hover:text-red-700"
+              className={`rounded-md border px-2 py-1 text-xs font-medium transition-colors ${
+                row.active 
+                  ? "border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+                  : "border-gray-300 text-gray-600 hover:bg-gray-50 hover:text-gray-700"
+              }`}
               onClick={(event) => {
                 event.stopPropagation();
                 requestAccountDeletion(row);
               }}
             >
-              Delete
+              {row.active ? "Delete" : "Manage"}
             </button>
           ),
         };
@@ -606,12 +655,8 @@ export default function AccountsPage() {
         onCreateClick={handleCreateAccountClick}
         onSettingsClick={() => setShowColumnSettings(true)}
         filterColumns={filterOptions}
-        onApplyColumnFilter={handleColumnFilter}
-        columnFilter={
-          columnFilter
-            ? { columnId: columnFilter.columnId, value: columnFilter.value }
-            : null
-        }
+        columnFilters={columnFilters.filter((f): f is NonNullable<typeof f> => f !== null)}
+        onColumnFiltersChange={handleColumnFilters}
         statusFilter={activeFilter}
         hasUnsavedTableChanges={hasUnsavedChanges}
         isSavingTableChanges={preferenceSaving}
@@ -620,12 +665,12 @@ export default function AccountsPage() {
       />
 
       {(error || preferenceError) && (
-        <div className="px-6 text-sm text-red-600">
+        <div className="px-4 text-sm text-red-600">
           {error || preferenceError}
         </div>
       )}
 
-      <div className="flex-1 p-6 min-h-0">
+      <div className="flex-1 p-4 min-h-0">
         <DynamicTable
           columns={tableColumns}
           data={filteredAccounts}
@@ -636,15 +681,6 @@ export default function AccountsPage() {
           onColumnsChange={handleColumnsChange}
         />
       </div>
-
-
-      <AccountDetailsModal
-        isOpen={showAccountDetailModal}
-        account={selectedAccountDetail}
-        loading={accountDetailLoading}
-        error={accountDetailError}
-        onClose={handleCloseAccountDetails}
-      />
 
       <AccountCreateModal
         isOpen={showCreateModal}
@@ -662,19 +698,25 @@ export default function AccountsPage() {
         }}
       />
 
-      <ConfirmDialog
-        isOpen={accountPendingDeletion !== null}
-        title="Delete Account"
-        description={`Are you sure you want to delete ${accountPendingDeletion?.accountName ?? "this account"}? This action cannot be undone.`}
-        confirmLabel="Delete"
-        onConfirm={confirmDeleteAccount}
-        onCancel={cancelDeleteAccount}
-        loading={deleteLoading}
-        error={deleteError}
+      <TwoStageDeleteDialog
+        isOpen={showDeleteDialog}
+        onClose={closeDeleteDialog}
+        entity="Account"
+        entityName={accountToDelete?.accountName || "Unknown Account"}
+        entityId={accountToDelete?.id || ""}
+        isDeleted={!accountToDelete?.active}
+        onSoftDelete={handleSoftDelete}
+        onPermanentDelete={handlePermanentDelete}
+        onRestore={handleRestore}
+        userCanPermanentDelete={true} // TODO: Check user permissions
       />
     </CopyProtectionWrapper>
   );
 }
+
+
+
+
 
 
 

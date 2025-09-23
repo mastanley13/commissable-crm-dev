@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run lint)",
+      "Bash(npm run build:*)",
+      "Bash(grep:*)",
+      "Bash(find:*)",
+      "Bash(npx prisma migrate dev:*)",
+      "Bash(npx prisma:*)",
+      "Bash(psql:*)",
+      "Bash(node:*)",
+      "Bash(git checkout:*)",
+      "Bash(rm:*)",
+      "Bash(npm run dev:*)"
+    ],
+    "deny": []
+  }
+}

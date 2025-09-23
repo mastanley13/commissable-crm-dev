@@ -49,7 +49,13 @@ export async function GET(request: NextRequest) {
         select: {
           id: true,
           accountName: true,
-          accountNumber: true
+          accountNumber: true,
+          accountTypeId: true,
+          accountType: {
+            select: {
+              name: true
+            }
+          }
         },
         orderBy: { accountName: "asc" }
       })
@@ -70,7 +76,9 @@ export async function GET(request: NextRequest) {
       accounts: accounts.map(account => ({
         value: account.id,
         label: account.accountName,
-        accountNumber: account.accountNumber
+        accountNumber: account.accountNumber,
+        accountTypeId: account.accountTypeId,
+        accountTypeName: account.accountType ? account.accountType.name : ""
       })),
       contactMethods: [
         { value: "Email", label: "Email" },
@@ -87,4 +95,5 @@ export async function GET(request: NextRequest) {
     }, { status: 500 })
   }
 }
+
 

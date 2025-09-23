@@ -69,7 +69,7 @@ function mapContactActivityRow(activity: any) {
 
   return {
     id: activity.id,
-    active: activity.status !== "Completed" && activity.status !== "Cancelled",
+    active: activity.status === 'Open',
     activityDate: activity.dueDate ?? activity.createdAt,
     activityType: activity.activityType,
     activityStatus: activity.status,
@@ -217,8 +217,95 @@ export async function PATCH(
       return NextResponse.json({ error: "Contact not found" }, { status: 404 })
     }
 
+    // Handle restore action
+    if (body.action === "restore") {
+      const restoredContact = await prisma.contact.update({
+        where: { id: contactId },
+        data: {
+          deletedAt: null,
+          deletedById: null,
+          updatedById: userId
+        },
+        include: {
+          accountType: { select: { name: true } },
+          account: { select: { accountName: true } },
+          owner: { select: { firstName: true, lastName: true } },
+          reportsTo: { select: { firstName: true, lastName: true } },
+          mailingAddress: true
+        }
+      })
+
+      // Log audit event for contact restore
+      await logContactAudit(
+        AuditAction.Update,
+        contactId,
+        userId,
+        tenantId,
+        request,
+        { deletedAt: existingContact.deletedAt },
+        { deletedAt: null },
+        "Contact restored"
+      )
+
+      // Invalidate cache
+      revalidatePath('/contacts')
+      revalidatePath('/dashboard')
+      revalidatePath(`/contacts/${contactId}`)
+      if (restoredContact.accountId) {
+        revalidatePath(`/accounts/${restoredContact.accountId}`)
+      }
+
+      return NextResponse.json({
+        data: mapContactToDetail(restoredContact),
+        message: "Contact restored successfully"
+      })
+    }
+
     const updateData: Record<string, any> = {
       updatedById: userId
+    }
+
+    if (body.contactType !== undefined && body.accountId === undefined) {
+      return NextResponse.json({ error: "Contact type inherits from the selected account and cannot be modified directly" }, { status: 422 })
+    }
+
+    if (body.accountTypeId !== undefined && body.accountId === undefined) {
+      return NextResponse.json({ error: "Contact type inherits from the selected account and cannot be modified directly" }, { status: 422 })
+    }
+
+    if (body.accountId !== undefined) {
+      const account = await prisma.account.findFirst({
+        where: {
+          id: body.accountId,
+          tenantId
+        },
+        select: {
+          id: true,
+          accountTypeId: true,
+          accountType: {
+            select: {
+              name: true,
+              isAssignableToContacts: true
+            }
+          }
+        }
+      })
+
+      if (!account) {
+        return createErrorResponse("Account not found", 404)
+      }
+
+      if (!account.accountTypeId) {
+        return createErrorResponse("Selected account does not have an account type configured", 422)
+      }
+
+      if (account.accountType && account.accountType.isAssignableToContacts === false) {
+        return createErrorResponse("Selected account type cannot be assigned to contacts", 422)
+      }
+
+      updateData.accountId = body.accountId
+      updateData.accountTypeId = account.accountTypeId
+      updateData.contactType = account.accountType?.name ?? existingContact.contactType ?? null
     }
 
     if (body.firstName || body.lastName) {
@@ -234,7 +321,6 @@ export async function PATCH(
     if (body.middleName !== undefined) updateData.middleName = body.middleName
     if (body.jobTitle !== undefined) updateData.jobTitle = body.jobTitle
     if (body.department !== undefined) updateData.department = body.department
-    if (body.contactType !== undefined) updateData.contactType = body.contactType
     if (body.workPhone !== undefined) updateData.workPhone = body.workPhone
     if (body.workPhoneExt !== undefined) updateData.workPhoneExt = body.workPhoneExt
     if (body.mobilePhone !== undefined) updateData.mobilePhone = body.mobilePhone
@@ -254,7 +340,6 @@ export async function PATCH(
     if (body.description !== undefined) updateData.description = body.description
     if (body.notes !== undefined) updateData.notes = body.notes
     if (body.syncAddressWithAccount !== undefined) updateData.syncAddressWithAccount = body.syncAddressWithAccount
-    if (body.accountTypeId !== undefined) updateData.accountTypeId = body.accountTypeId
     if (body.ownerId !== undefined) updateData.ownerId = body.ownerId
     if (body.reportsToContactId !== undefined) updateData.reportsToContactId = body.reportsToContactId
 
@@ -332,11 +417,20 @@ export async function DELETE(
       try {
         const contactId = params.id
         const tenantId = req.user.tenantId
+        const userId = req.user.id
+        const url = new URL(request.url)
+        const stage = url.searchParams.get('stage') || 'soft'
+        const bypassConstraints = url.searchParams.get('bypassConstraints') === 'true'
 
         const existingContact = await prisma.contact.findFirst({
           where: {
             id: contactId,
             tenantId
+          },
+          include: {
+            activities: { select: { id: true } },
+            opportunities: { select: { id: true } },
+            groupMembers: { select: { id: true } }
           }
         })
 
@@ -344,40 +438,147 @@ export async function DELETE(
           return NextResponse.json({ error: "Contact not found" }, { status: 404 })
         }
 
-        const userId = req.user.id
+        if (stage === 'soft') {
+          // Check for dependencies unless bypassing constraints
+          if (!bypassConstraints) {
+            const constraints = []
+            
+            if (existingContact.activities.length > 0) {
+              constraints.push({
+                type: 'activities',
+                count: existingContact.activities.length,
+                message: `This contact has ${existingContact.activities.length} associated activities`
+              })
+            }
+            
+            if (existingContact.opportunities.length > 0) {
+              constraints.push({
+                type: 'opportunities', 
+                count: existingContact.opportunities.length,
+                message: `This contact has ${existingContact.opportunities.length} associated opportunities`
+              })
+            }
+            
+            if (existingContact.groupMembers.length > 0) {
+              constraints.push({
+                type: 'groups',
+                count: existingContact.groupMembers.length, 
+                message: `This contact belongs to ${existingContact.groupMembers.length} groups`
+              })
+            }
 
-        await prisma.contact.delete({ where: { id: contactId } })
+            if (constraints.length > 0) {
+              return NextResponse.json({
+                error: "Contact has dependencies that must be handled first",
+                constraints
+              }, { status: 409 })
+            }
+          }
 
-        // Log audit event for contact deletion
-        await logContactAudit(
-          AuditAction.Delete,
-          contactId,
-          userId,
-          tenantId,
-          request,
-          {
-            firstName: existingContact.firstName,
-            lastName: existingContact.lastName,
-            fullName: existingContact.fullName,
-            jobTitle: existingContact.jobTitle,
-            emailAddress: existingContact.emailAddress,
-            workPhone: existingContact.workPhone,
-            mobilePhone: existingContact.mobilePhone,
-            accountId: existingContact.accountId
-          },
-          undefined
-        )
+          // Perform soft delete
+          await prisma.contact.update({
+            where: { id: contactId },
+            data: {
+              deletedAt: new Date(),
+              deletedById: userId,
+              updatedById: userId
+            }
+          })
 
-        // Invalidate cache to ensure UI updates immediately
-        revalidatePath('/contacts')
-        revalidatePath('/dashboard')
-        if (existingContact.accountId) {
-          revalidatePath(`/accounts/${existingContact.accountId}`)
+          // Log audit event for soft deletion
+          await logContactAudit(
+            AuditAction.Delete,
+            contactId,
+            userId,
+            tenantId,
+            request,
+            {
+              firstName: existingContact.firstName,
+              lastName: existingContact.lastName,
+              fullName: existingContact.fullName,
+              jobTitle: existingContact.jobTitle,
+              emailAddress: existingContact.emailAddress,
+              workPhone: existingContact.workPhone,
+              mobilePhone: existingContact.mobilePhone,
+              accountId: existingContact.accountId,
+              deletedAt: null
+            },
+            { deletedAt: new Date() },
+            "Contact soft deleted"
+          )
+
+          // Invalidate cache
+          revalidatePath('/contacts')
+          revalidatePath('/dashboard')
+          if (existingContact.accountId) {
+            revalidatePath(`/accounts/${existingContact.accountId}`)
+          }
+
+          return NextResponse.json({
+            message: "Contact soft deleted successfully"
+          })
+
+        } else if (stage === 'permanent') {
+          // Check if contact is already soft deleted
+          if (!existingContact.deletedAt) {
+            return NextResponse.json({ 
+              error: "Contact must be soft deleted before permanent deletion" 
+            }, { status: 400 })
+          }
+
+          // Perform permanent deletion with cascades
+          await prisma.$transaction(async (tx) => {
+            // Delete associated activities
+            await tx.activity.deleteMany({
+              where: { contactId: contactId, tenantId }
+            })
+
+            // Remove from groups
+            await tx.groupMember.deleteMany({
+              where: { contactId: contactId, tenantId }
+            })
+
+            // Delete the contact permanently
+            await tx.contact.delete({
+              where: { id: contactId }
+            })
+          })
+
+          // Log audit event for permanent deletion
+          await logContactAudit(
+            AuditAction.Delete,
+            contactId,
+            userId,
+            tenantId,
+            request,
+            {
+              firstName: existingContact.firstName,
+              lastName: existingContact.lastName,
+              fullName: existingContact.fullName,
+              jobTitle: existingContact.jobTitle,
+              emailAddress: existingContact.emailAddress,
+              workPhone: existingContact.workPhone,
+              mobilePhone: existingContact.mobilePhone,
+              accountId: existingContact.accountId,
+              deletedAt: existingContact.deletedAt
+            },
+            undefined,
+            "Contact permanently deleted"
+          )
+
+          // Invalidate cache
+          revalidatePath('/contacts')
+          revalidatePath('/dashboard')
+          if (existingContact.accountId) {
+            revalidatePath(`/accounts/${existingContact.accountId}`)
+          }
+
+          return NextResponse.json({
+            message: "Contact permanently deleted successfully"
+          })
         }
 
-        return NextResponse.json({
-          message: "Contact deleted successfully"
-        })
+        return NextResponse.json({ error: "Invalid deletion stage" }, { status: 400 })
       } catch (error) {
         console.error("Failed to delete contact", error)
         return NextResponse.json({ error: "Failed to delete contact" }, { status: 500 })
@@ -385,4 +586,8 @@ export async function DELETE(
     }
   )
 }
+
+
+
+
 

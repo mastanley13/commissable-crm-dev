@@ -1,12 +1,17 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { Search, Plus, Settings, ChevronDown, Upload, Download } from "lucide-react";
+import { useEffect, useMemo, useState, type ChangeEvent } from "react";
+import { Search, Plus, Settings, ChevronDown, Upload, Download, X } from "lucide-react";
 import { TableChangeNotification } from "./table-change-notification";
 
 interface FilterColumnOption {
   id: string;
   label: string;
+}
+
+interface ColumnFilter {
+  columnId: string;
+  value: string;
 }
 
 interface ListHeaderProps {
@@ -18,10 +23,8 @@ interface ListHeaderProps {
   onCreateClick?: () => void;
   onSettingsClick?: () => void;
   filterColumns?: FilterColumnOption[];
-  onApplyColumnFilter?: (
-    filter: { columnId: string; value: string } | null,
-  ) => void;
-  columnFilter?: { columnId: string; value: string } | null;
+  columnFilters?: ColumnFilter[];
+  onColumnFiltersChange?: (filters: ColumnFilter[]) => void;
   statusFilter?: "all" | "active";
   // Table change notification props
   hasUnsavedTableChanges?: boolean;
@@ -55,8 +58,8 @@ export function ListHeader({
   onCreateClick,
   onSettingsClick,
   filterColumns,
-  onApplyColumnFilter,
-  columnFilter,
+  columnFilters,
+  onColumnFiltersChange,
   statusFilter,
   hasUnsavedTableChanges,
   isSavingTableChanges,
@@ -71,10 +74,9 @@ export function ListHeader({
   const [activeFilter, setActiveFilter] = useState<"all" | "active">(
     statusFilter ?? "all",
   );
-  const [selectedColumn, setSelectedColumn] = useState(
-    columnFilter?.columnId ?? "",
-  );
-  const [filterValue, setFilterValue] = useState(columnFilter?.value ?? "");
+  const [selectedColumn, setSelectedColumn] = useState("");
+  const [filterValue, setFilterValue] = useState("");
+  const [activeColumnFilters, setActiveColumnFilters] = useState<ColumnFilter[]>(columnFilters ?? []);
 
   const columnOptions = useMemo(() => {
     if (Array.isArray(filterColumns) && filterColumns.length > 0) {
@@ -83,6 +85,10 @@ export function ListHeader({
     return DEFAULT_FILTER_COLUMNS;
   }, [filterColumns]);
 
+  const columnLabelMap = useMemo(() => {
+    return new Map(columnOptions.map(option => [option.id, option.label]));
+  }, [columnOptions]);
+
   useEffect(() => {
     if (statusFilter && statusFilter !== activeFilter) {
       setActiveFilter(statusFilter);
@@ -90,17 +96,10 @@ export function ListHeader({
   }, [statusFilter, activeFilter]);
 
   useEffect(() => {
-    if (!columnFilter) {
-      setSelectedColumn("");
-      setFilterValue("");
-      return;
-    }
+    setActiveColumnFilters(columnFilters ?? []);
+  }, [columnFilters]);
 
-    setSelectedColumn(columnFilter.columnId);
-    setFilterValue(columnFilter.value);
-  }, [columnFilter]);
-
-  const handleSearch = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleSearch = (event: ChangeEvent<HTMLInputElement>) => {
     const query = event.target.value;
     setSearchQuery(query);
     onSearch?.(query);
@@ -113,20 +112,47 @@ export function ListHeader({
 
   const handleApplyFilter = () => {
     if (!selectedColumn) {
-      onApplyColumnFilter?.(null);
       return;
     }
 
-    onApplyColumnFilter?.({ columnId: selectedColumn, value: filterValue });
+    const trimmedValue = filterValue.trim();
+
+    setActiveColumnFilters(previous => {
+      const withoutSelected = previous.filter(filter => filter.columnId !== selectedColumn);
+      const next = trimmedValue.length > 0
+        ? [...withoutSelected, { columnId: selectedColumn, value: trimmedValue }]
+        : withoutSelected;
+
+      onColumnFiltersChange?.(next);
+      return next;
+    });
+
+    setSelectedColumn("");
+    setFilterValue("");
   };
 
   const handleClearFilter = () => {
     setSelectedColumn("");
     setFilterValue("");
-    onApplyColumnFilter?.(null);
+    setActiveColumnFilters(previous => {
+      if (previous.length > 0) {
+        onColumnFiltersChange?.([]);
+      }
+      return [];
+    });
   };
 
-  const hasActiveColumnFilter = Boolean(columnFilter);
+  const handleRemoveFilter = (columnId: string) => {
+    setActiveColumnFilters(previous => {
+      const next = previous.filter(filter => filter.columnId !== columnId);
+      if (next.length !== previous.length) {
+        onColumnFiltersChange?.(next);
+      }
+      return next;
+    });
+  };
+
+  const hasActiveColumnFilter = activeColumnFilters.length > 0;
 
   return (
     <div className="bg-white border-b border-gray-200 px-6 py-4">
@@ -194,13 +220,37 @@ export function ListHeader({
                 </button>
 
                 {hasActiveColumnFilter && (
-                  <button
-                    type="button"
-                    onClick={handleClearFilter}
-                    className="text-sm font-medium text-primary-600 hover:text-primary-700"
-                  >
-                    Clear
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      onClick={handleClearFilter}
+                      className="text-sm font-medium text-primary-600 hover:text-primary-700"
+                    >
+                      Clear
+                    </button>
+                    <div className="flex w-full flex-wrap items-center gap-2 pt-2">
+                      {activeColumnFilters.map(filter => {
+                        const label = columnLabelMap.get(filter.columnId) ?? filter.columnId;
+                        return (
+                          <span
+                            key={filter.columnId}
+                            className="inline-flex items-center gap-2 rounded-full border border-primary-200 bg-primary-50 px-3 py-1 text-xs text-primary-700"
+                          >
+                            <span className="font-semibold text-primary-800">{label}</span>
+                            <span className="max-w-[8rem] truncate text-primary-600">{filter.value}</span>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveFilter(filter.columnId)}
+                              className="rounded-full text-primary-600 transition-colors hover:text-primary-800"
+                              aria-label={`Remove ${label} filter`}
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          </span>
+                        );
+                      })}
+                    </div>
+                  </>
                 )}
               </>
             )}
@@ -271,3 +321,11 @@ export function ListHeader({
     </div>
   );
 }
+
+
+
+
+
+
+
+

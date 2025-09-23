@@ -600,7 +600,7 @@ export const activitiesData = [
     contactName: 'Customer TestPerson1',
     accountName: 'Testing Account 1',
     dueDate: '2025-09-15',
-    status: 'Scheduled',
+    status: 'Open',
     assignedTo: 'House Repname'
   },
   {
@@ -620,7 +620,7 @@ export const activitiesData = [
     contactName: 'Sample Contact',
     accountName: 'QA Account Name',
     dueDate: '2025-09-20',
-    status: 'Scheduled',
+    status: 'Open',
     assignedTo: 'Test-Housename'
   }
 ]

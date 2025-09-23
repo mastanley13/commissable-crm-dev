@@ -42,7 +42,8 @@ function applyPreferences(columns: Column[], preference: TablePreferencePayload 
     orderedColumns = orderedColumns.map(column => {
       const width = preference.columnWidths?.[column.id]
       if (typeof width === "number" && width > 0) {
-        return { ...column, width }
+        // Normalize width to integer to avoid sub-pixel gaps
+        return { ...column, width: Math.round(width) }
       }
       return column
     })
@@ -156,7 +157,8 @@ export function useTablePreferences(
         body: JSON.stringify({
           columnOrder: updatedColumns.map(column => column.id),
           columnWidths: updatedColumns.reduce<Record<string, number>>((acc, column) => {
-            acc[column.id] = column.width
+            // Normalize width to integer to avoid sub-pixel gaps
+            acc[column.id] = Math.round(column.width)
             return acc
           }, {}),
           hiddenColumns: updatedColumns.filter(column => column.hidden).map(column => column.id)

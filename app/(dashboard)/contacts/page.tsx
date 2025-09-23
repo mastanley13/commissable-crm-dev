@@ -1,11 +1,13 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
+import { useRouter } from "next/navigation"
 import { ListHeader } from "@/components/list-header"
 import { DynamicTable, Column } from "@/components/dynamic-table"
 import { ContactCreateModal } from "@/components/contact-create-modal"
-import { ContactDetailsModal, ContactDetail } from "@/components/contact-details-modal"
 import { ColumnChooserModal } from "@/components/column-chooser-modal"
+import { TwoStageDeleteDialog } from "@/components/two-stage-delete-dialog"
+import { DeletionConstraint } from "@/lib/deletion"
 import { useToasts } from "@/components/toast"
 import { useTablePreferences } from "@/hooks/useTablePreferences"
 import { formatPhoneNumber } from "@/lib/utils"
@@ -34,12 +36,15 @@ interface ContactRow {
   isDecisionMaker: boolean
   preferredContactMethod: string
   createdAt: string
+  // Deletion status
+  deletedAt: string | null
+  isDeleted: boolean
 }
 
 interface ContactOptions {
   accountTypes: Array<{ value: string; label: string; code: string }>
   owners: Array<{ value: string; label: string; firstName: string; lastName: string }>
-  accounts: Array<{ value: string; label: string; accountNumber?: string }>
+  accounts: Array<{ value: string; label: string; accountNumber?: string; accountTypeId: string; accountTypeName: string }>
   contactMethods: Array<{ value: string; label: string }>
 }
 
@@ -64,20 +69,40 @@ const contactColumns: Column[] = [
   {
     id: "select",
     label: "Select",
-    width: 80,
-    minWidth: 60,
-    maxWidth: 100,
+    width: 100,
+    minWidth: 80,
+    maxWidth: 120,
     type: "checkbox",
     accessor: "select"
   },
   {
+    id: "action",
+    label: "Actions",
+    width: 120,
+    minWidth: 100,
+    maxWidth: 160,
+    type: "action",
+    sortable: false,
+    resizable: true
+  },
+  {
     id: "active",
-    label: "Primary",
-    width: 80,
-    minWidth: 60,
-    maxWidth: 100,
+    label: "Active",
+    width: 100,
+    minWidth: 80,
+    maxWidth: 120,
     type: "toggle",
     accessor: "active"
+  },
+  {
+    id: "suffix",
+    label: "Suffix",
+    width: 100,
+    minWidth: 80,
+    maxWidth: 120,
+    sortable: true,
+    type: "text",
+    accessor: "suffix"
   },
   {
     id: "fullName",
@@ -207,7 +232,9 @@ export default function ContactsPage() {
   const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showColumnSettings, setShowColumnSettings] = useState(false)
-  const [selectedContactDetail, setSelectedContactDetail] = useState<ContactDetail | null>(null)
+  const [contactToDelete, setContactToDelete] = useState<ContactRow | null>(null)
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const router = useRouter()
   
   const { showSuccess, showError, ToastContainer } = useToasts()
 
@@ -257,7 +284,7 @@ export default function ContactsPage() {
       const payload = await response.json()
       const rows: ContactRow[] = (Array.isArray(payload?.data) ? payload.data : []).map((row: any) => ({
         ...row,
-        select: selectedContacts.includes(row.id)
+        select: false
       }))
 
       setContacts(rows)
@@ -271,7 +298,7 @@ export default function ContactsPage() {
     } finally {
       setLoading(false)
     }
-  }, [pagination.page, pagination.pageSize, searchQuery, sortBy, sortDir, filters, selectedContacts, showError])
+  }, [pagination.page, pagination.pageSize, searchQuery, sortBy, sortDir, filters, showError])
 
   const loadOptions = useCallback(async () => {
     try {
@@ -323,39 +350,9 @@ export default function ContactsPage() {
     setPagination(prev => ({ ...prev, pageSize, page: 1 }))
   }
 
-  const buildContactDetail = useCallback((contact: ContactRow): ContactDetail => {
-    // Split fullName into firstName and lastName
-    const nameParts = contact.fullName.split(' ')
-    const firstName = nameParts[0] || ''
-    const lastName = nameParts.slice(1).join(' ') || ''
-
-    return {
-      id: contact.id,
-      suffix: contact.suffix || undefined,
-      firstName,
-      lastName,
-      accountName: contact.accountName,
-      jobTitle: contact.jobTitle || undefined,
-      contactType: contact.contactType || undefined,
-      active: contact.active,
-      emailAddress: contact.emailAddress || undefined,
-      workPhone: contact.workPhone || undefined,
-      workPhoneExt: contact.extension || undefined,
-      mobilePhone: contact.mobile || undefined,
-      activities: [], // Will be loaded separately
-      opportunities: [], // Will be loaded separately
-      groups: [] // Will be loaded separately
-    }
-  }, [])
-
   const handleRowClick = useCallback((contact: ContactRow) => {
-    const detail = buildContactDetail(contact)
-    setSelectedContactDetail(detail)
-  }, [buildContactDetail])
-
-  const handleCloseContactDetail = useCallback(() => {
-    setSelectedContactDetail(null)
-  }, [])
+    router.push(`/contacts/${contact.id}`)
+  }, [router])
 
 
   const handleCreateContact = () => {
@@ -380,13 +377,22 @@ export default function ContactsPage() {
     setPagination(prev => ({ ...prev, page: 1 }))
   }
 
-  const handleContactSelect = (contactId: string, selected: boolean) => {
-    setSelectedContacts(prev => 
-      selected 
-        ? [...prev, contactId]
-        : prev.filter(id => id !== contactId)
-    )
-  }
+  const handleContactSelect = useCallback((contactId: string, selected: boolean) => {
+    setSelectedContacts(prev => {
+      if (selected) {
+        if (prev.includes(contactId)) {
+          return prev
+        }
+        return [...prev, contactId]
+      }
+
+      if (!prev.includes(contactId)) {
+        return prev
+      }
+
+      return prev.filter(id => id !== contactId)
+    })
+  }, [])
 
   const handleSelectAll = (selected: boolean) => {
     if (selected) {
@@ -396,8 +402,148 @@ export default function ContactsPage() {
     }
   }
 
+  const requestContactDeletion = useCallback((contact: ContactRow) => {
+    setContactToDelete(contact)
+    setShowDeleteDialog(true)
+  }, [])
+
+  const handleSoftDelete = useCallback(async (
+    contactId: string, 
+    bypassConstraints?: boolean
+  ): Promise<{ success: boolean, constraints?: DeletionConstraint[], error?: string }> => {
+    try {
+      const url = `/api/contacts/${contactId}?stage=soft${bypassConstraints ? '&bypassConstraints=true' : ''}`;
+      const response = await fetch(url, { method: "DELETE" });
+
+      if (!response.ok) {
+        const data = await response.json();
+        if (response.status === 409 && data.constraints) {
+          return { success: false, constraints: data.constraints };
+        }
+        return { success: false, error: data.error || "Failed to delete contact" };
+      }
+
+      // Update the contact status in the local state
+      setContacts((previous) =>
+        previous.map((contact) =>
+          contact.id === contactId 
+            ? { ...contact, isDeleted: true, deletedAt: new Date().toISOString() }
+            : contact
+        )
+      );
+
+      showSuccess("Contact deleted", "The contact has been soft deleted and can be restored if needed.");
+      return { success: true };
+    } catch (err) {
+      console.error(err);
+      return { 
+        success: false, 
+        error: err instanceof Error ? err.message : "Unable to delete contact" 
+      };
+    }
+  }, [showSuccess]);
+
+  const handlePermanentDelete = useCallback(async (
+    contactId: string
+  ): Promise<{ success: boolean, error?: string }> => {
+    try {
+      const response = await fetch(`/api/contacts/${contactId}?stage=permanent`, {
+        method: "DELETE"
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        return { success: false, error: data.error || "Failed to permanently delete contact" };
+      }
+
+      // Remove the contact from local state
+      setContacts((previous) =>
+        previous.filter((contact) => contact.id !== contactId)
+      );
+
+      showSuccess("Contact permanently deleted", "The contact has been permanently removed from the system.");
+      return { success: true };
+    } catch (err) {
+      console.error(err);
+      return { 
+        success: false, 
+        error: err instanceof Error ? err.message : "Unable to permanently delete contact" 
+      };
+    }
+  }, [showSuccess]);
+
+  const handleRestore = useCallback(async (
+    contactId: string
+  ): Promise<{ success: boolean, error?: string }> => {
+    try {
+      const response = await fetch(`/api/contacts/${contactId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "restore" })
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        return { success: false, error: data.error || "Failed to restore contact" };
+      }
+
+      const payload = await response.json();
+      const restoredContact = payload.data;
+
+      if (restoredContact) {
+        // Update the contact in local state
+        setContacts((previous) =>
+          previous.map((contact) =>
+            contact.id === contactId 
+              ? { ...contact, isDeleted: false, deletedAt: null }
+              : contact
+          )
+        );
+      }
+
+      showSuccess("Contact restored", "The contact has been successfully restored.");
+      return { success: true };
+    } catch (err) {
+      console.error(err);
+      return { 
+        success: false, 
+        error: err instanceof Error ? err.message : "Unable to restore contact" 
+      };
+    }
+  }, [showSuccess]);
+
+  const closeDeleteDialog = () => {
+    setShowDeleteDialog(false);
+    setContactToDelete(null);
+  };
+
   const tableLoading = loading || preferenceLoading
-  const tableColumns = useMemo(() => preferenceColumns, [preferenceColumns])
+  const tableColumns = useMemo(() => {
+    return preferenceColumns.map((column) => {
+      if (column.id === "action") {
+        return {
+          ...column,
+          render: (_value: unknown, row: ContactRow) => (
+            <button
+              type="button"
+              className={`rounded-md border px-2 py-1 text-xs font-medium transition-colors ${
+                row.isDeleted 
+                  ? "border-gray-300 text-gray-600 hover:bg-gray-50 hover:text-gray-700"
+                  : "border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+              }`}
+              onClick={(event) => {
+                event.stopPropagation();
+                requestContactDeletion(row);
+              }}
+            >
+              {row.isDeleted ? "Manage" : "Delete"}
+            </button>
+          ),
+        };
+      }
+      return column;
+    });
+  }, [preferenceColumns, requestContactDeletion])
   
   // Get hidden columns by comparing all columns with visible ones
   const hiddenColumns = useMemo(() => {
@@ -408,7 +554,7 @@ export default function ContactsPage() {
 
   return (
     <CopyProtectionWrapper className="dashboard-page-container">
-      <div className="bg-white border-b border-gray-200 px-6 py-4">
+      <div className="bg-white border-b border-gray-200 px-4 py-3">
         <div className="flex items-center justify-between gap-4">
           {/* Left side - Search */}
           <div className="flex items-center flex-1 max-w-md">
@@ -477,10 +623,10 @@ export default function ContactsPage() {
       </div>
 
       {(error || preferenceError) && (
-        <div className="px-6 text-sm text-red-600">{error || preferenceError}</div>
+        <div className="px-4 text-sm text-red-600">{error || preferenceError}</div>
       )}
 
-      <div className="flex-1 p-6 min-h-0">
+      <div className="flex-1 p-4 min-h-0">
         <DynamicTable
           columns={tableColumns}
           data={contacts}
@@ -495,14 +641,9 @@ export default function ContactsPage() {
           selectedItems={selectedContacts}
           onItemSelect={handleContactSelect}
           onSelectAll={handleSelectAll}
+          autoSizeColumns={false} // Explicitly disable auto-sizing to prevent conflicts
         />
       </div>
-
-      <ContactDetailsModal
-        isOpen={selectedContactDetail !== null}
-        contact={selectedContactDetail}
-        onClose={handleCloseContactDetail}
-      />
 
       <ContactCreateModal
         isOpen={showCreateModal}
@@ -521,10 +662,27 @@ export default function ContactsPage() {
         }}
       />
 
+      <TwoStageDeleteDialog
+        isOpen={showDeleteDialog}
+        onClose={closeDeleteDialog}
+        entity="Contact"
+        entityName={contactToDelete?.fullName || "Unknown Contact"}
+        entityId={contactToDelete?.id || ""}
+        isDeleted={contactToDelete?.isDeleted || false}
+        onSoftDelete={handleSoftDelete}
+        onPermanentDelete={handlePermanentDelete}
+        onRestore={handleRestore}
+        userCanPermanentDelete={true} // TODO: Check user permissions
+      />
+
       <ToastContainer />
     </CopyProtectionWrapper>
   )
 }
+
+
+
+
 
 
 

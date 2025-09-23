@@ -113,7 +113,7 @@ body {
   min-height: 48px;
   min-width: 100px;
   border-right: 1px solid #f1f5f9;
-  overflow: hidden;
+  overflow: visible; /* Changed from hidden to allow resizer to be visible */
   text-overflow: ellipsis;
   white-space: nowrap;
 }

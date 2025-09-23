@@ -85,6 +85,12 @@ cd C:\cloud-sql-proxy
 
 # Launch the proxy (replace with your actual connection details)
 .\cloud_sql_proxy.exe -instances=groovy-design-471709-d1:us-central1:commissable-sql=tcp:5432
+
+OR
+
+.\cloud_sql_proxy.exe groovy-design-471709-d1:us-central1:commissable-sql --port 5432 --debug-logs
+
+
 ```
 
 ### Method 2: Background Launch

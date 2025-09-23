@@ -56,7 +56,9 @@ export function Sidebar() {
       <nav className="flex-1 py-4 overflow-visible">
         <ul className="relative space-y-3 overflow-visible">
           {navigation.map((item) => {
-            const isActive = pathname === item.href
+            // Enhanced active state detection - highlights module even on detail pages
+            const isActive = pathname === item.href || 
+              (item.href !== '/dashboard' && pathname.startsWith(item.href + '/'))
             const Icon = item.icon
 
             return (
