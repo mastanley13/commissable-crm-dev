@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import { useState, useEffect } from "react"
 import { X, Save, Loader2 } from "lucide-react"
@@ -16,6 +16,7 @@ interface ContactCreateModalProps {
   onClose: () => void
   onSuccess: () => void
   options?: ContactOptions
+  defaultAccountId?: string
 }
 
 interface ContactFormData {
@@ -59,15 +60,15 @@ interface ContactFormData {
   sameAsShip: boolean
 }
 
-export function ContactCreateModal({ isOpen, onClose, onSuccess, options }: ContactCreateModalProps) {
-  const [formData, setFormData] = useState<ContactFormData>({
+function buildInitialContactForm(defaultAccountId?: string): ContactFormData {
+  return {
     // Name fields
     suffix: "",
     firstName: "",
     lastName: "",
     
     // Account and job info
-    accountId: "",
+    accountId: defaultAccountId ?? "",
     jobTitle: "",
     
     // Contact information
@@ -99,57 +100,21 @@ export function ContactCreateModal({ isOpen, onClose, onSuccess, options }: Cont
     billingZip: "",
     billingCountry: "United States",
     sameAsShip: false
-  })
+  }
+}
+
+export function ContactCreateModal({ isOpen, onClose, onSuccess, options, defaultAccountId }: ContactCreateModalProps) {
+  const [formData, setFormData] = useState<ContactFormData>(() => buildInitialContactForm(defaultAccountId))
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const { showSuccess, showError } = useToasts()
 
   useEffect(() => {
     if (isOpen) {
-      // Reset form when modal opens
-      setFormData({
-        // Name fields
-        suffix: "",
-        firstName: "",
-        lastName: "",
-        
-        // Account and job info
-        accountId: "",
-        jobTitle: "",
-        
-        // Contact information
-        workPhone: "",
-        extension: "",
-        mobilePhone: "",
-        emailAddress: "",
-        
-        // Classification
-        accountTypeId: "",
-        contactTypeName: "",
-        active: true,
-        
-        // Additional fields
-        description: "",
-        
-        // Address fields
-        shippingStreet: "",
-        shippingStreet2: "",
-        shippingCity: "",
-        shippingState: "",
-        shippingZip: "",
-        shippingCountry: "United States",
-        
-        billingStreet: "",
-        billingStreet2: "",
-        billingCity: "",
-        billingState: "",
-        billingZip: "",
-        billingCountry: "United States",
-        sameAsShip: false
-      })
+      setFormData(buildInitialContactForm(defaultAccountId))
       setError(null)
     }
-  }, [isOpen])
+  }, [isOpen, defaultAccountId])
 
   useEffect(() => {
     if (!formData.accountId || !options?.accounts) {
@@ -727,6 +692,13 @@ export function ContactCreateModal({ isOpen, onClose, onSuccess, options }: Cont
     </div>
   )
 }
+
+
+
+
+
+
+
 
 
 

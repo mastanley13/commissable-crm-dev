@@ -46,6 +46,8 @@ export interface ActivityListItem {
   assigneeId: string | null
   assigneeName: string | null
   creatorName: string
+  updatedById: string | null
+  updatedByName: string | null
   attachments: ActivityAttachmentSummary[]
   active: boolean
 }
@@ -116,6 +118,7 @@ const ACTIVITY_INCLUDE = {
   revenueSchedule: { select: { id: true, scheduleNumber: true } },
   assignee: { select: { id: true, fullName: true } },
   creator: { select: { id: true, fullName: true } },
+  updater: { select: { id: true, fullName: true } },
   attachments: {
     include: {
       uploadedBy: { select: { fullName: true } }
@@ -158,6 +161,8 @@ function mapActivity(activity: ActivityWithRelations): ActivityDetail {
     assigneeId: activity.assigneeId,
     assigneeName: activity.assignee?.fullName ?? null,
     creatorName: activity.creator?.fullName ?? 'System',
+    updatedById: activity.updatedById,
+    updatedByName: activity.updater?.fullName ?? null,
     attachments: activity.attachments.map(mapAttachment),
     active: activity.status === ActivityStatus.Open,
     location: activity.location ?? null,
@@ -395,7 +400,8 @@ export async function updateActivity(input: UpdateActivityInput): Promise<Activi
         accountId: input.accountId ?? existing.accountId,
         contactId: input.contactId ?? existing.contactId,
         opportunityId: input.opportunityId ?? existing.opportunityId,
-        revenueScheduleId: input.revenueScheduleId ?? existing.revenueScheduleId
+        revenueScheduleId: input.revenueScheduleId ?? existing.revenueScheduleId,
+        updatedById: input.userId
       }
     })
 

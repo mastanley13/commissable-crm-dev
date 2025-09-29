@@ -1,9 +1,10 @@
-"use client"
+﻿"use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { AccountDetailsView, AccountDetail } from "@/components/account-details-view"
 import { CopyProtectionWrapper } from "@/components/copy-protection"
+import { useBreadcrumbs } from "@/lib/breadcrumb-context"
 
 export default function AccountDetailPage() {
   const params = useParams()
@@ -18,24 +19,24 @@ export default function AccountDetailPage() {
   const [account, setAccount] = useState<AccountDetail | null>(null)
   const [loading, setLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
+  const { setBreadcrumbs } = useBreadcrumbs()
 
-  useEffect(() => {
-    if (!accountId) {
-      setAccount(null)
-      setLoading(false)
-      setError("Account id is missing")
-      return
-    }
+  const fetchAccount = useCallback(
+    async (signal?: AbortSignal) => {
+      if (!accountId) {
+        setAccount(null)
+        setError("Account id is missing")
+        setLoading(false)
+        return
+      }
 
-    const controller = new AbortController()
-
-    async function loadAccountDetail() {
       setLoading(true)
       setError(null)
+
       try {
         const response = await fetch(`/api/accounts/${accountId}`, {
-          signal: controller.signal,
-          cache: "no-store"
+          cache: "no-store",
+          signal
         })
 
         if (!response.ok) {
@@ -48,24 +49,47 @@ export default function AccountDetailPage() {
         const detail = payload?.data ?? null
         setAccount(detail)
       } catch (err) {
-        if (controller.signal.aborted) return
+        if (signal?.aborted) {
+          return
+        }
         console.error(err)
         const message = err instanceof Error ? err.message : "Unable to load account details"
         setAccount(null)
         setError(message)
       } finally {
-        if (!controller.signal.aborted) {
+        if (!signal?.aborted) {
           setLoading(false)
         }
       }
-    }
+    },
+    [accountId]
+  )
 
-    loadAccountDetail()
+  useEffect(() => {
+    const controller = new AbortController()
+    fetchAccount(controller.signal)
 
     return () => {
       controller.abort()
     }
-  }, [accountId])
+  }, [fetchAccount])
+
+  useEffect(() => {
+    if (account) {
+      setBreadcrumbs([
+        { name: 'Home', href: '/dashboard' },
+        { name: 'Accounts', href: '/accounts' },
+        { name: 'Account Details', href: `/accounts/${account.id}` },
+        { name: account.accountName || 'Account', current: true }
+      ])
+    } else {
+      setBreadcrumbs(null)
+    }
+
+    return () => {
+      setBreadcrumbs(null)
+    }
+  }, [account, setBreadcrumbs])
 
   const handleBack = () => {
     router.push("/accounts")
@@ -73,7 +97,13 @@ export default function AccountDetailPage() {
 
   return (
     <CopyProtectionWrapper className="min-h-screen bg-slate-50">
-      <AccountDetailsView account={account} loading={loading} error={error} onBack={handleBack} />
+      <AccountDetailsView
+        account={account}
+        loading={loading}
+        error={error}
+        onBack={handleBack}
+        onRefresh={() => fetchAccount()}
+      />
     </CopyProtectionWrapper>
   )
 }

@@ -1,10 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import { ListHeader } from '@/components/list-header'
-import { DynamicTable, Column } from '@/components/dynamic-table'
+import { DynamicTable, Column, PaginationInfo } from '@/components/dynamic-table'
+import { ColumnChooserModal } from '@/components/column-chooser-modal'
+import { useTablePreferences } from '@/hooks/useTablePreferences'
+import { TableChangeNotification } from '@/components/table-change-notification'
 import { ticketsData } from '@/lib/mock-data'
-import { Edit, Trash2 } from 'lucide-react'
+import { Edit, Trash2, Settings } from 'lucide-react'
 
 const ticketColumns: Column[] = [
   {
@@ -100,6 +103,22 @@ export default function TicketsPage() {
   const [filteredTickets, setFilteredTickets] = useState(ticketsData)
   const [loading, setLoading] = useState(false)
   const [selectedTickets, setSelectedTickets] = useState<number[]>([])
+  const [showColumnSettings, setShowColumnSettings] = useState(false)
+  const [currentPage, setCurrentPage] = useState<number>(1)
+  const [pageSize, setPageSize] = useState<number>(25)
+
+  const {
+    columns: preferenceColumns,
+    loading: preferenceLoading,
+    error: preferenceError,
+    saving: preferenceSaving,
+    hasUnsavedChanges,
+    lastSaved,
+    handleColumnsChange,
+    handleHiddenColumnsChange,
+    saveChanges,
+    saveChangesOnModalClose,
+  } = useTablePreferences("tickets:list", ticketColumns)
 
   const handleSearch = (query: string) => {
     if (!query.trim()) {
@@ -128,10 +147,10 @@ export default function TicketsPage() {
     setFilteredTickets(sorted)
   }
 
-  const handleRowClick = (ticket: any) => {
+  const handleRowClick = useCallback((ticket: any) => {
     console.log('Ticket clicked:', ticket)
     // Navigate to ticket detail page or open modal
-  }
+  }, [])
 
   const handleCreateTicket = () => {
     console.log('Create new ticket')
@@ -162,33 +181,166 @@ export default function TicketsPage() {
     }
   }
 
+  // Pagination handlers
+  const handlePageChange = useCallback((page: number) => {
+    setCurrentPage(page)
+  }, [])
+
+  const handlePageSizeChange = useCallback((newPageSize: number) => {
+    setPageSize(newPageSize)
+    setCurrentPage(1) // Reset to first page when page size changes
+  }, [])
+
+  // Calculate paginated data
+  const paginatedTickets = useMemo(() => {
+    const startIndex = (currentPage - 1) * pageSize
+    const endIndex = startIndex + pageSize
+    return filteredTickets.slice(startIndex, endIndex)
+  }, [filteredTickets, currentPage, pageSize])
+
+  // Calculate pagination info
+  const paginationInfo = useMemo((): PaginationInfo => {
+    const totalItems = filteredTickets.length
+    const totalPages = Math.ceil(totalItems / pageSize)
+
+    return {
+      page: currentPage,
+      totalPages,
+      pageSize,
+      total: totalItems,
+    }
+  }, [filteredTickets.length, currentPage, pageSize])
+
+  const tableLoading = loading || preferenceLoading
+  const tableColumns = useMemo(() => {
+    return preferenceColumns.map((column) => {
+      if (column.id === 'actions') {
+        return {
+          ...column,
+          render: () => (
+            <div className="flex gap-1">
+              <button className="text-blue-500 hover:text-blue-700 p-1 rounded transition-colors">
+                <Edit className="h-4 w-4" />
+              </button>
+              <button className="text-red-500 hover:text-red-700 p-1 rounded transition-colors">
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </div>
+          ),
+        };
+      }
+      return column;
+    });
+  }, [preferenceColumns])
+  
+  // Get hidden columns by comparing all columns with visible ones
+  const hiddenColumns = useMemo(() => {
+    return ticketColumns
+      .filter(col => !tableColumns.some(visibleCol => visibleCol.id === col.id))
+      .map(col => col.id)
+  }, [tableColumns])
+
   // Update tickets data to include selection state
-  const ticketsWithSelection = filteredTickets.map(ticket => ({
+  const ticketsWithSelection = paginatedTickets.map(ticket => ({
     ...ticket,
     select: selectedTickets.includes(ticket.id)
   }))
 
   return (
-    <div className="h-full flex flex-col">
-      {/* List Header */}
-      <ListHeader
-        searchPlaceholder="Search Here"
-        onSearch={handleSearch}
-        onFilterChange={handleFilterChange}
-        onCreateClick={handleCreateTicket}
-      />
+    <div className="dashboard-page-container">
+      <div className="bg-white border-b border-gray-200 px-4 py-3">
+        <div className="flex items-center justify-between gap-4">
+          {/* Left side - Search */}
+          <div className="flex items-center flex-1 max-w-md">
+            <div className="relative w-full">
+              <input
+                type="text"
+                placeholder="Search tickets..."
+                onChange={(e) => handleSearch(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all"
+              />
+            </div>
+          </div>
+
+          {/* Table Change Notification - Always show */}
+          <div className="flex items-center">
+            <TableChangeNotification
+              hasUnsavedChanges={hasUnsavedChanges || false}
+              isSaving={preferenceSaving || false}
+              lastSaved={lastSaved || undefined}
+              onSave={saveChanges}
+            />
+          </div>
+
+          {/* Center - Controls */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleCreateTicket}
+              className="inline-flex items-center px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 transition-colors"
+            >
+              Create New
+            </button>
+            
+            <button
+              onClick={() => setShowColumnSettings(true)}
+              className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors"
+              title="Column Settings"
+            >
+              <Settings className="h-4 w-4" />
+            </button>
+          </div>
+
+          {/* Right side - Filters */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => handleFilterChange("active")}
+              className="px-3 py-1.5 text-sm font-medium rounded-lg transition-colors bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"
+            >
+              Active
+            </button>
+            <button
+              onClick={() => handleFilterChange("all")}
+              className="px-3 py-1.5 text-sm font-medium rounded-lg transition-colors bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"
+            >
+              Show All
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {preferenceError && (
+        <div className="px-4 text-sm text-red-600">{preferenceError}</div>
+      )}
 
       {/* Table */}
-      <div className="flex-1 p-6">
+      <div className="flex-1 p-4 min-h-0">
         <DynamicTable
-          columns={ticketColumns}
+          columns={tableColumns}
           data={ticketsWithSelection}
           onSort={handleSort}
           onRowClick={handleRowClick}
-          loading={loading}
+          loading={tableLoading}
           emptyMessage="No tickets found"
+          onColumnsChange={handleColumnsChange}
+          selectedItems={selectedTickets.map(String)}
+          onItemSelect={(id, selected) => handleSelectTicket(Number(id), selected)}
+          onSelectAll={handleSelectAll}
+          autoSizeColumns={false}
+          pagination={paginationInfo}
+          onPageChange={handlePageChange}
+          onPageSizeChange={handlePageSizeChange}
         />
       </div>
+
+      <ColumnChooserModal
+        isOpen={showColumnSettings}
+        columns={preferenceColumns}
+        onApply={handleColumnsChange}
+        onClose={async () => {
+          setShowColumnSettings(false)
+          await saveChangesOnModalClose()
+        }}
+      />
     </div>
   )
 }

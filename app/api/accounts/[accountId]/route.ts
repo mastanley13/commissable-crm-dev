@@ -9,6 +9,24 @@ import { checkDeletionConstraints, softDeleteEntity, permanentDeleteEntity, rest
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic';
 
+function formatGroupLabel(value?: string | null) {
+  if (!value) return ""
+  return value
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/_/g, ' ')
+    .split(' ')
+    .filter(Boolean)
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ')
+}
+
+function formatVisibilityLabel(value?: string | null) {
+  if (!value) return ""
+  return value.charAt(0).toUpperCase() + value.slice(1).toLowerCase()
+}
+
+
+
 function mapAddressForDetail(address: any | null) {
   if (!address) {
     return null
@@ -21,6 +39,21 @@ function mapAddressForDetail(address: any | null) {
     state: address.state ?? "",
     postalCode: address.postalCode ?? "",
     country: address.country ?? ""
+  }
+}
+
+function mapActivityAttachmentSummary(attachment: any) {
+  const uploadedByName = attachment.uploadedBy
+    ? `${attachment.uploadedBy.firstName ?? ""} ${attachment.uploadedBy.lastName ?? ""}`.trim()
+    : ""
+
+  return {
+    id: attachment.id,
+    fileName: attachment.fileName,
+    fileSize: attachment.fileSize ?? 0,
+    mimeType: attachment.mimeType ?? "application/octet-stream",
+    uploadedAt: attachment.uploadedAt,
+    uploadedByName: uploadedByName || "Unknown"
   }
 }
 
@@ -62,9 +95,10 @@ function mapAccountGroupRow(member: any) {
 
   return {
     id: member.group.id,
-    active: true,
+    active: member.group.isActive !== false,
     groupName: member.group.name,
-    visibility: member.group.visibility,
+    groupType: formatGroupLabel(member.group.groupType),
+    visibility: formatVisibilityLabel(member.group.visibility),
     description: member.group.description ?? "",
     owner: ownerName
   }
@@ -75,6 +109,16 @@ function mapAccountActivityRow(accountName: string, activity: any) {
     ? `${activity.creator.firstName ?? ""} ${activity.creator.lastName ?? ""}`.trim()
     : ""
 
+  const attachments = Array.isArray(activity.attachments)
+    ? activity.attachments.map(mapActivityAttachmentSummary)
+    : []
+
+  const attachmentCount = attachments.length
+  const attachmentLabel = attachmentCount === 0
+    ? "None"
+    : `${attachmentCount} file${attachmentCount === 1 ? "" : "s"}`
+  const primaryFileName = attachments[0]?.fileName ?? ""
+
   return {
     id: activity.id,
     active: activity.status === 'Open',
@@ -83,9 +127,10 @@ function mapAccountActivityRow(accountName: string, activity: any) {
     activityStatus: activity.status,
     description: activity.subject,
     accountName,
-    attachment: "-",
-    fileName: "-",
-    createdBy: creatorName
+    attachment: attachmentLabel,
+    fileName: primaryFileName,
+    createdBy: creatorName,
+    attachments
   }
 }
 
@@ -152,7 +197,12 @@ export async function GET(
       prisma.activity.findMany({
         where: { tenantId, accountId },
         include: {
-          creator: { select: { firstName: true, lastName: true } }
+          creator: { select: { firstName: true, lastName: true } },
+          attachments: {
+            include: {
+              uploadedBy: { select: { firstName: true, lastName: true } }
+            }
+          }
         },
         orderBy: [
           { dueDate: "desc" },

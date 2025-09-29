@@ -1,9 +1,10 @@
-"use client"
+﻿"use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { ContactDetailsView, ContactDetail } from "@/components/contact-details-view"
 import { CopyProtectionWrapper } from "@/components/copy-protection"
+import { useBreadcrumbs } from "@/lib/breadcrumb-context"
 
 export default function ContactDetailPage() {
   const params = useParams()
@@ -18,23 +19,23 @@ export default function ContactDetailPage() {
   const [contact, setContact] = useState<ContactDetail | null>(null)
   const [loading, setLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
+  const { setBreadcrumbs } = useBreadcrumbs()
 
-  useEffect(() => {
-    if (!contactId) {
-      setContact(null)
-      setLoading(false)
-      setError("Contact id is missing")
-      return
-    }
+  const fetchContact = useCallback(
+    async (signal?: AbortSignal) => {
+      if (!contactId) {
+        setContact(null)
+        setError("Contact id is missing")
+        setLoading(false)
+        return
+      }
 
-    const controller = new AbortController()
-
-    async function loadContactDetail() {
       setLoading(true)
       setError(null)
+
       try {
         const response = await fetch(`/api/contacts/${contactId}`, {
-          signal: controller.signal,
+          signal,
           cache: "no-store"
         })
 
@@ -48,24 +49,52 @@ export default function ContactDetailPage() {
         const detail = payload?.data ?? null
         setContact(detail)
       } catch (err) {
-        if (controller.signal.aborted) return
+        if (signal?.aborted) return
         console.error(err)
         const message = err instanceof Error ? err.message : "Unable to load contact details"
         setContact(null)
         setError(message)
       } finally {
-        if (!controller.signal.aborted) {
+        if (!signal?.aborted) {
           setLoading(false)
         }
       }
+    },
+    [contactId]
+  )
+
+  useEffect(() => {
+    if (!contactId) {
+      setContact(null)
+      setLoading(false)
+      setError("Contact id is missing")
+      return
     }
 
-    loadContactDetail()
+    const controller = new AbortController()
+    fetchContact(controller.signal)
 
     return () => {
       controller.abort()
     }
-  }, [contactId])
+  }, [contactId, fetchContact])
+
+  useEffect(() => {
+    if (contact) {
+      setBreadcrumbs([
+        { name: 'Home', href: '/dashboard' },
+        { name: 'Contacts', href: '/contacts' },
+        { name: 'Contact Details', href: `/contacts/${contact.id}` },
+        { name: contact.firstName ? `${contact.firstName} ${contact.lastName}`.trim() : contact.accountName || 'Contact', current: true }
+      ])
+    } else {
+      setBreadcrumbs(null)
+    }
+
+    return () => {
+      setBreadcrumbs(null)
+    }
+  }, [contact, setBreadcrumbs])
 
   const handleBack = () => {
     router.push("/contacts")
@@ -77,12 +106,13 @@ export default function ContactDetailPage() {
 
   return (
     <CopyProtectionWrapper className="min-h-screen bg-slate-50">
-      <ContactDetailsView 
-        contact={contact} 
-        loading={loading} 
-        error={error} 
+      <ContactDetailsView
+        contact={contact}
+        loading={loading}
+        error={error}
         onBack={handleBack}
         onContactUpdated={handleContactUpdated}
+        onRefresh={fetchContact}
       />
     </CopyProtectionWrapper>
   )

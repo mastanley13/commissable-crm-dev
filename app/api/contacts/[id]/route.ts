@@ -7,6 +7,22 @@ import { revalidatePath } from "next/cache"
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic';
 
+function formatGroupLabel(value?: string | null) {
+  if (!value) return ""
+  return value
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/_/g, ' ')
+    .split(' ')
+    .filter(Boolean)
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ')
+}
+
+function formatVisibilityLabel(value?: string | null) {
+  if (!value) return ""
+  return value.charAt(0).toUpperCase() + value.slice(1).toLowerCase()
+}
+
 function mapContactToDetail(contact: any) {
   return {
     id: contact.id,
@@ -62,10 +78,35 @@ function mapContactToDetail(contact: any) {
   }
 }
 
+function mapActivityAttachmentSummary(attachment: any) {
+  const uploadedByName = attachment.uploadedBy
+    ? `${attachment.uploadedBy.firstName ?? ""} ${attachment.uploadedBy.lastName ?? ""}`.trim()
+    : ""
+
+  return {
+    id: attachment.id,
+    fileName: attachment.fileName,
+    fileSize: attachment.fileSize ?? 0,
+    mimeType: attachment.mimeType ?? "application/octet-stream",
+    uploadedAt: attachment.uploadedAt,
+    uploadedByName: uploadedByName || "Unknown"
+  }
+}
+
 function mapContactActivityRow(activity: any) {
   const creatorName = activity.creator
     ? `${activity.creator.firstName ?? ""} ${activity.creator.lastName ?? ""}`.trim()
     : ""
+
+  const attachments = Array.isArray(activity.attachments)
+    ? activity.attachments.map(mapActivityAttachmentSummary)
+    : []
+
+  const attachmentCount = attachments.length
+  const attachmentLabel = attachmentCount === 0
+    ? "None"
+    : `${attachmentCount} file${attachmentCount === 1 ? "" : "s"}`
+  const primaryFileName = attachments[0]?.fileName ?? ""
 
   return {
     id: activity.id,
@@ -75,9 +116,10 @@ function mapContactActivityRow(activity: any) {
     activityStatus: activity.status,
     description: activity.subject,
     accountName: activity.account?.accountName ?? "",
-    attachment: "-",
-    fileName: "-",
-    createdBy: creatorName
+    attachment: attachmentLabel,
+    fileName: primaryFileName,
+    createdBy: creatorName,
+    attachments
   }
 }
 
@@ -105,9 +147,10 @@ function mapContactGroupRow(member: any) {
 
   return {
     id: member.group.id,
-    active: true,
+    active: member.group.isActive !== false,
     groupName: member.group.name,
-    visibility: member.group.visibility,
+    groupType: formatGroupLabel(member.group.groupType),
+    visibility: formatVisibilityLabel(member.group.visibility),
     description: member.group.description ?? "",
     owner: ownerName
   }
@@ -148,7 +191,12 @@ export async function GET(
         where: { tenantId, contactId: contact.id },
         include: {
           creator: { select: { firstName: true, lastName: true } },
-          account: { select: { accountName: true } }
+          account: { select: { accountName: true } },
+          attachments: {
+            include: {
+              uploadedBy: { select: { firstName: true, lastName: true } }
+            }
+          }
         },
         orderBy: [
           { dueDate: "desc" },
@@ -586,8 +634,6 @@ export async function DELETE(
     }
   )
 }
-
-
 
 
 

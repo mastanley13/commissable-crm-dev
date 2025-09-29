@@ -2,6 +2,8 @@
 import { ActivityStatus, ActivityType } from '@prisma/client'
 import { withPermissions, createErrorResponse } from '@/lib/api-auth'
 import { getActivityById, updateActivity, deleteActivity } from '@/lib/activity-service'
+import { hasPermission } from '@/lib/auth'
+import { prisma } from '@/lib/db'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -17,11 +19,61 @@ function parseDate(value: unknown): Date | null {
   return Number.isNaN(date.getTime()) ? null : date
 }
 
+const VIEW_PERMISSIONS = [
+  'activities.manage',
+  'activities.edit.all',
+  'activities.view.all',
+  'activities.edit.assigned',
+  'activities.view.assigned',
+  'activities.create'
+]
+
+async function ensureViewAccess(
+  user: import('@/lib/auth').AuthUser,
+  activityId: string
+) {
+  const hasGlobal =
+    hasPermission(user, 'activities.manage') ||
+    hasPermission(user, 'activities.edit.all') ||
+    hasPermission(user, 'activities.view.all')
+
+  if (hasGlobal) {
+    return true
+  }
+
+  const activity = await prisma.activity.findFirst({
+    where: { id: activityId, tenantId: user.tenantId },
+    select: { assigneeId: true, creatorId: true }
+  })
+
+  if (!activity) {
+    return { error: createErrorResponse('Activity not found', 404) }
+  }
+
+  const isAssignee = Boolean(activity.assigneeId && activity.assigneeId === user.id)
+  const isCreator = activity.creatorId === user.id
+
+  if (isAssignee && (hasPermission(user, 'activities.view.assigned') || hasPermission(user, 'activities.edit.assigned'))) {
+    return true
+  }
+
+  if (isCreator && (hasPermission(user, 'activities.create') || hasPermission(user, 'activities.edit.assigned'))) {
+    return true
+  }
+
+  return { error: createErrorResponse('Insufficient permissions', 403) }
+}
+
 export async function GET(request: NextRequest, { params }: { params: { activityId: string } }) {
   return withPermissions(
     request,
-    ['activities.manage', 'activities.read'],
+    VIEW_PERMISSIONS,
     async req => {
+      const access = await ensureViewAccess(req.user, params.activityId)
+      if (access !== true) {
+        return access.error
+      }
+
       const activity = await getActivityById(params.activityId, req.user.tenantId)
       if (!activity) {
         return createErrorResponse('Activity not found', 404)

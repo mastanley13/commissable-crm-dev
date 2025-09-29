@@ -1,0 +1,307 @@
+"use client"
+
+import { useEffect, useMemo, useState } from "react"
+import { Loader2, X } from "lucide-react"
+import { useToasts } from "@/components/toast"
+
+interface SelectOption {
+  value: string
+  label: string
+}
+
+interface ContactGroupFormState {
+  groupName: string
+  groupType: string
+  visibility: string
+  owner: string
+  isActive: boolean
+  description: string
+  addContactAsMember: boolean
+}
+
+export interface ContactGroupCreateModalProps {
+  isOpen: boolean
+  contactName?: string
+  accountId?: string
+  contactId?: string
+  onClose: () => void
+  onSuccess?: () => void
+}
+
+const createInitialState = (): ContactGroupFormState => ({
+  groupName: "",
+  groupType: "SalesTeam",
+  visibility: "Private",
+  owner: "",
+  isActive: true,
+  description: "",
+  addContactAsMember: true
+})
+
+const GROUP_TYPE_OPTIONS: SelectOption[] = [
+  { value: "SalesTeam", label: "Sales Team" },
+  { value: "AccountGroup", label: "Account Group" },
+  { value: "SupportTeam", label: "Support Team" },
+  { value: "Management", label: "Management" }
+]
+
+const VISIBILITY_OPTIONS: SelectOption[] = [
+  { value: "Private", label: "Private" },
+  { value: "Shared", label: "Shared" },
+  { value: "Public", label: "Public" }
+]
+
+export function ContactGroupCreateModal({ isOpen, contactName, accountId, contactId, onClose, onSuccess }: ContactGroupCreateModalProps) {
+  const [form, setForm] = useState<ContactGroupFormState>(() => createInitialState())
+  const [loading, setLoading] = useState(false)
+  const [ownerOptions, setOwnerOptions] = useState<SelectOption[]>([])
+  const [ownersLoading, setOwnersLoading] = useState(false)
+  const { showError, showSuccess } = useToasts()
+
+  useEffect(() => {
+    if (!isOpen) {
+      return
+    }
+
+    setForm(createInitialState())
+  }, [isOpen])
+
+  useEffect(() => {
+    if (!isOpen) {
+      return
+    }
+
+    let cancelled = false
+
+    async function loadOwners() {
+      setOwnersLoading(true)
+      try {
+        const response = await fetch("/api/admin/users?limit=100", { cache: "no-store" })
+        if (!response.ok) {
+          throw new Error("Request failed")
+        }
+        const payload = await response.json().catch(() => null)
+        const users: any[] = Array.isArray(payload?.data?.users) ? payload.data.users : []
+        if (cancelled) return
+        const options = users.map(user => ({
+          value: user.id,
+          label: user.fullName || user.email
+        }))
+        setOwnerOptions(options)
+        setForm(prev => (prev.owner || !options[0] ? prev : { ...prev, owner: options[0].value }))
+      } catch (error) {
+        if (!cancelled) {
+          setOwnerOptions([])
+        }
+      } finally {
+        if (!cancelled) {
+          setOwnersLoading(false)
+        }
+      }
+    }
+
+    loadOwners()
+
+    return () => {
+      cancelled = true
+    }
+  }, [isOpen])
+
+  const canSubmit = useMemo(() => {
+    return Boolean(form.groupName.trim() && form.owner)
+  }, [form.groupName, form.owner])
+
+  const handleClose = () => {
+    setForm(createInitialState())
+    onClose()
+  }
+
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (!canSubmit) {
+      showError("Missing information", "Please provide a group name and owner.")
+      return
+    }
+
+    const payload: Record<string, unknown> = {
+      name: form.groupName.trim(),
+      groupType: form.groupType,
+      visibility: form.visibility,
+      ownerId: form.owner,
+      description: form.description.trim() || null,
+      isActive: form.isActive,
+      addContactAsMember: form.addContactAsMember
+    }
+
+    if (accountId) {
+      payload.accountId = accountId
+    }
+    if (form.addContactAsMember && contactId) {
+      payload.contactId = contactId
+    }
+
+    setLoading(true)
+    try {
+      const response = await fetch("/api/groups", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(payload)
+      })
+
+      if (!response.ok) {
+        const errorPayload = await response.json().catch(() => null)
+        throw new Error(errorPayload?.error ?? "Unable to create group")
+      }
+
+      showSuccess("Group created", form.addContactAsMember && contactName
+        ? `${contactName} has been added to the new group.`
+        : "The group has been created.")
+      onSuccess?.()
+      handleClose()
+    } catch (error) {
+      console.error("Failed to create group", error)
+      showError("Unable to create group", error instanceof Error ? error.message : "Unknown error")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  if (!isOpen) {
+    return null
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+      <div className="w-full max-w-3xl rounded-2xl bg-white shadow-xl">
+        <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
+          <div>
+            <p className="text-xs font-semibold uppercase text-primary-600">Create Group</p>
+            <h2 className="text-lg font-semibold text-gray-900">New Group for {contactName ?? "this contact"}</h2>
+            <p className="text-sm text-gray-500">Organize contacts into segments for collaboration and reporting.</p>
+          </div>
+          <button
+            type="button"
+            onClick={handleClose}
+            className="rounded p-1 text-gray-500 transition hover:bg-gray-100 hover:text-gray-700"
+            aria-label="Close"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="max-h-[80vh] overflow-y-auto px-6 py-5">
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="md:col-span-2">
+              <label className="mb-1 block text-sm font-medium text-gray-700">Group Name<span className="ml-1 text-red-500">*</span></label>
+              <input
+                type="text"
+                value={form.groupName}
+                onChange={event => setForm(prev => ({ ...prev, groupName: event.target.value }))}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                placeholder="Customer Advisory Board"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">Group Type</label>
+              <select
+                value={form.groupType}
+                onChange={event => setForm(prev => ({ ...prev, groupType: event.target.value }))}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
+              >
+                {GROUP_TYPE_OPTIONS.map(option => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">Visibility</label>
+              <select
+                value={form.visibility}
+                onChange={event => setForm(prev => ({ ...prev, visibility: event.target.value }))}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
+              >
+                {VISIBILITY_OPTIONS.map(option => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">Group Owner<span className="ml-1 text-red-500">*</span></label>
+              <select
+                value={form.owner}
+                onChange={event => setForm(prev => ({ ...prev, owner: event.target.value }))}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                disabled={ownersLoading}
+                required
+              >
+                <option value="">{ownersLoading ? "Loading owners..." : "Select owner"}</option>
+                {ownerOptions.map(option => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+            </div>
+
+            <label className="flex items-center gap-2 md:col-span-2">
+              <input
+                type="checkbox"
+                checked={form.isActive}
+                onChange={event => setForm(prev => ({ ...prev, isActive: event.target.checked }))}
+                className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+              />
+              <span className="text-sm text-gray-700">Mark group as active</span>
+            </label>
+
+            <label className="flex items-center gap-2 md:col-span-2">
+              <input
+                type="checkbox"
+                checked={form.addContactAsMember}
+                onChange={event => setForm(prev => ({ ...prev, addContactAsMember: event.target.checked }))}
+                className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                disabled={!contactId}
+              />
+              <span className="text-sm text-gray-700">Automatically add {contactName ?? "this contact"} as a member</span>
+            </label>
+
+            <div className="md:col-span-2">
+              <label className="mb-1 block text-sm font-medium text-gray-700">Description</label>
+              <textarea
+                rows={4}
+                value={form.description}
+                onChange={event => setForm(prev => ({ ...prev, description: event.target.value }))}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                placeholder="Describe the purpose of this group or collaboration space."
+              />
+            </div>
+          </div>
+
+          <div className="mt-6 flex items-center justify-end gap-3 border-t border-gray-200 pt-4">
+            <button
+              type="button"
+              onClick={handleClose}
+              className="rounded-full border border-gray-300 px-5 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+              disabled={loading}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="flex items-center gap-2 rounded-full bg-primary-600 px-6 py-2 text-sm font-semibold text-white transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-primary-400"
+              disabled={loading || !canSubmit}
+            >
+              {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+              Save Group
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+

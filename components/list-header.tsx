@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type ChangeEvent } from "react";
-import { Search, Plus, Settings, ChevronDown, Upload, Download, X } from "lucide-react";
+import { Search, Settings, ChevronDown, X, Upload, Download } from "lucide-react";
 import { TableChangeNotification } from "./table-change-notification";
 
 interface FilterColumnOption {
@@ -12,6 +12,20 @@ interface FilterColumnOption {
 interface ColumnFilter {
   columnId: string;
   value: string;
+  operator?: "equals" | "contains" | "starts_with" | "ends_with";
+}
+
+interface FilterGroup {
+  id: string;
+  logic: "AND" | "OR";
+  filters: ColumnFilter[];
+}
+
+interface SavedFilterSet {
+  id: string;
+  name: string;
+  filterGroups: FilterGroup[];
+  searchQuery?: string;
 }
 
 interface ListHeaderProps {
@@ -26,12 +40,14 @@ interface ListHeaderProps {
   columnFilters?: ColumnFilter[];
   onColumnFiltersChange?: (filters: ColumnFilter[]) => void;
   statusFilter?: "all" | "active";
-  // Table change notification props
+  savedFilterSets?: SavedFilterSet[];
+  onSaveFilterSet?: (name: string) => void;
+  onLoadFilterSet?: (filterSet: SavedFilterSet) => void;
+  onDeleteFilterSet?: (id: string) => void;
   hasUnsavedTableChanges?: boolean;
   isSavingTableChanges?: boolean;
   lastTableSaved?: Date;
   onSaveTableChanges?: () => void;
-  // Import/Export props
   onImport?: () => void;
   onExport?: () => void;
   canImport?: boolean;
@@ -61,6 +77,10 @@ export function ListHeader({
   columnFilters,
   onColumnFiltersChange,
   statusFilter,
+  savedFilterSets,
+  onSaveFilterSet,
+  onLoadFilterSet,
+  onDeleteFilterSet,
   hasUnsavedTableChanges,
   isSavingTableChanges,
   lastTableSaved,
@@ -77,6 +97,8 @@ export function ListHeader({
   const [selectedColumn, setSelectedColumn] = useState("");
   const [filterValue, setFilterValue] = useState("");
   const [activeColumnFilters, setActiveColumnFilters] = useState<ColumnFilter[]>(columnFilters ?? []);
+  const [showSavedFilters, setShowSavedFilters] = useState(false);
+  const [saveFilterName, setSaveFilterName] = useState("");
 
   const columnOptions = useMemo(() => {
     if (Array.isArray(filterColumns) && filterColumns.length > 0) {
@@ -111,29 +133,37 @@ export function ListHeader({
   };
 
   const handleApplyFilter = () => {
-    if (!selectedColumn) {
+    if (!selectedColumn || !filterValue.trim()) {
       return;
     }
 
     const trimmedValue = filterValue.trim();
+    const lowerValue = trimmedValue.toLowerCase();
+    const nextFilter: ColumnFilter = {
+      columnId: selectedColumn,
+      value: trimmedValue,
+      operator: "contains",
+    };
 
     setActiveColumnFilters(previous => {
-      const withoutSelected = previous.filter(filter => filter.columnId !== selectedColumn);
-      const next = trimmedValue.length > 0
-        ? [...withoutSelected, { columnId: selectedColumn, value: trimmedValue }]
-        : withoutSelected;
+      const exists = previous.some(filter =>
+        filter.columnId === nextFilter.columnId &&
+        filter.value.trim().toLowerCase() === lowerValue,
+      );
 
+      if (exists) {
+        setFilterValue("");
+        return previous;
+      }
+
+      const next = [...previous, nextFilter];
       onColumnFiltersChange?.(next);
+      setFilterValue("");
       return next;
     });
-
-    setSelectedColumn("");
-    setFilterValue("");
   };
 
-  const handleClearFilter = () => {
-    setSelectedColumn("");
-    setFilterValue("");
+  const handleClearFilters = () => {
     setActiveColumnFilters(previous => {
       if (previous.length > 0) {
         onColumnFiltersChange?.([]);
@@ -142,190 +172,295 @@ export function ListHeader({
     });
   };
 
-  const handleRemoveFilter = (columnId: string) => {
+  const handleRemoveColumnFilter = (columnId: string) => {
     setActiveColumnFilters(previous => {
       const next = previous.filter(filter => filter.columnId !== columnId);
-      if (next.length !== previous.length) {
-        onColumnFiltersChange?.(next);
-      }
+      onColumnFiltersChange?.(next);
       return next;
     });
   };
 
-  const hasActiveColumnFilter = activeColumnFilters.length > 0;
+  const groupedColumnFilters = useMemo(() => {
+    const groups = new Map<string, { columnId: string; label: string; values: string[] }>();
+
+    for (const filter of activeColumnFilters) {
+      const key = filter.columnId;
+      const label = columnLabelMap.get(filter.columnId) ?? filter.columnId;
+      const entry = groups.get(key);
+      const normalizedValue = filter.value.trim();
+
+      if (!entry) {
+        groups.set(key, { columnId: key, label, values: normalizedValue ? [normalizedValue] : [] });
+      } else if (normalizedValue && !entry.values.includes(normalizedValue)) {
+        entry.values.push(normalizedValue);
+      }
+    }
+
+    return Array.from(groups.values());
+  }, [activeColumnFilters, columnLabelMap]);
+
+  const handleSaveCurrentFilters = () => {
+    if (!saveFilterName.trim()) {
+      return;
+    }
+
+    onSaveFilterSet?.(saveFilterName.trim());
+    setSaveFilterName("");
+    setShowSavedFilters(false);
+  };
+
+  const handleLoadFilterSet = (filterSet: SavedFilterSet) => {
+    if (filterSet.searchQuery) {
+      setSearchQuery(filterSet.searchQuery);
+      onSearch?.(filterSet.searchQuery);
+    }
+
+    const flattened = filterSet.filterGroups?.flatMap(group => group.filters ?? []) ?? [];
+    setActiveColumnFilters(flattened);
+    onColumnFiltersChange?.(flattened);
+
+    onLoadFilterSet?.(filterSet);
+    setShowSavedFilters(false);
+  };
+
+  const handleRemoveSavedFilter = (id: string) => {
+    onDeleteFilterSet?.(id);
+  };
+
+  const hasFiltersApplied = groupedColumnFilters.length > 0;
 
   return (
-    <div className="bg-white border-b border-gray-200 px-6 py-4">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex items-center gap-4 flex-1">
-          {title && (
-            <h1 className="text-lg font-semibold text-gray-900">{title}</h1>
-          )}
-          <div className="relative w-full max-w-md">
+    <div className="bg-white border-b border-gray-200 px-6 py-2">
+      {title && (
+        <div className="mb-2 flex items-center justify-between">
+          <h2 className="text-base font-semibold text-gray-900">{title}</h2>
+        </div>
+      )}
+
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-1 items-center gap-2">
+          <div className="relative">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
             <input
               type="text"
               placeholder={searchPlaceholder}
               value={searchQuery}
               onChange={handleSearch}
-              className="w-full rounded-lg border border-gray-300 py-2 pl-10 pr-4 text-sm outline-none transition-all focus:border-primary-500 focus:ring-2 focus:ring-primary-500"
+              className="w-64 rounded border border-gray-300 py-1.5 pl-10 pr-4 text-sm outline-none transition-all focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
             />
           </div>
+
+          {columnOptions.length > 0 && (
+            <>
+              <div className="relative">
+                <select
+                  value={selectedColumn}
+                  onChange={(event) => setSelectedColumn(event.target.value)}
+                  className="appearance-none rounded border border-gray-300 bg-white px-3 py-1.5 pr-8 text-sm outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
+                >
+                  <option value="">Filter By Column</option>
+                  {columnOptions.map(option => (
+                    <option key={option.id} value={option.id}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-3 w-3 -translate-y-1/2 text-gray-400" />
+              </div>
+
+              <input
+                type="text"
+                value={filterValue}
+                onChange={(event) => setFilterValue(event.target.value)}
+                placeholder="Enter filter value"
+                className="w-40 rounded border border-gray-300 px-3 py-1.5 text-sm outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
+              />
+
+              <button
+                type="button"
+                onClick={handleApplyFilter}
+                disabled={!selectedColumn || !filterValue.trim()}
+                className="rounded bg-primary-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Apply Filter
+              </button>
+
+              {savedFilterSets && savedFilterSets.length > 0 && (
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setShowSavedFilters(previous => !previous)}
+                    className="rounded px-2 py-1.5 text-xs font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
+                  >
+                    Saved
+                  </button>
+                  {showSavedFilters && (
+                    <div className="absolute left-0 top-full z-50 mt-1 w-64 rounded border border-gray-200 bg-white shadow-lg">
+                      <div className="p-3 space-y-3">
+                        <div>
+                          <label className="mb-1 block text-xs font-medium text-gray-700">Save Current Filters</label>
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              value={saveFilterName}
+                              onChange={(event) => setSaveFilterName(event.target.value)}
+                              placeholder="Enter filter name..."
+                              className="flex-1 rounded border border-gray-300 px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-primary-500"
+                            />
+                            <button
+                              type="button"
+                              onClick={handleSaveCurrentFilters}
+                              disabled={!saveFilterName.trim()}
+                              className="rounded bg-primary-600 px-2 py-1 text-sm text-white transition-colors hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              Save
+                            </button>
+                          </div>
+                        </div>
+
+                        {savedFilterSets.length > 0 && (
+                          <div className="border-t border-gray-200 pt-3">
+                            <label className="mb-2 block text-xs font-medium text-gray-700">Load Saved Filters</label>
+                            <div className="space-y-1">
+                              {savedFilterSets.map(filterSet => (
+                                <div key={filterSet.id} className="flex items-center justify-between">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleLoadFilterSet(filterSet)}
+                                    className="flex-1 rounded px-2 py-1 text-left text-sm text-gray-700 hover:bg-gray-100"
+                                  >
+                                    {filterSet.name}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveSavedFilter(filterSet.id)}
+                                    className="rounded p-1 text-red-600 hover:text-red-800"
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {hasFiltersApplied && (
+                <button
+                  type="button"
+                  onClick={handleClearFilters}
+                  className="px-2 text-xs font-medium text-gray-600 hover:text-gray-800"
+                >
+                  Clear
+                </button>
+              )}
+            </>
+          )}
+
+          {hasFiltersApplied && (
+            <div className="ml-2 flex flex-wrap items-center gap-2">
+              {groupedColumnFilters.map(group => (
+                <span
+                  key={group.columnId}
+                  className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs"
+                >
+                  <span className="font-medium text-blue-900">{group.label}:</span>
+                  <span className="text-blue-700">{group.values.join(", ")}</span>
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveColumnFilter(group.columnId)}
+                    className="ml-1 text-blue-600 hover:text-blue-800"
+                    aria-label={`Remove filter for ${group.label}`}
+                  >
+                    <X className="h-2.5 w-2.5" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
         </div>
 
-        {/* Table Change Notification - Always show when table preferences are loaded */}
-        <div className="flex items-center">
+        <div className="flex items-center gap-2">
           <TableChangeNotification
             hasUnsavedChanges={hasUnsavedTableChanges || false}
             isSaving={isSavingTableChanges || false}
             lastSaved={lastTableSaved}
             onSave={onSaveTableChanges}
           />
-        </div>
 
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:gap-4">
-          <div className="flex items-center gap-2">
-            {columnOptions.length > 0 && (
-              <>
-                <div className="relative">
-                  <select
-                    value={selectedColumn}
-                    onChange={(event) => setSelectedColumn(event.target.value)}
-                    className="appearance-none rounded-lg border border-gray-300 bg-white px-3 py-2 pr-8 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500"
-                  >
-                    <option value="">Filter By Column</option>
-                    {columnOptions.map((option) => (
-                      <option key={option.id} value={option.id}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                </div>
-
-                <input
-                  type="text"
-                  value={filterValue}
-                  onChange={(event) => setFilterValue(event.target.value)}
-                  placeholder="Enter filter value"
-                  className="rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500"
-                />
-
+          {(canImport || canExport) && (
+            <div className="flex items-center gap-1">
+              {canImport && (
                 <button
                   type="button"
-                  onClick={handleApplyFilter}
-                  className="inline-flex items-center rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary-700"
+                  onClick={onImport}
+                  disabled={!onImport}
+                  className="flex items-center gap-1 rounded border border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  Apply Filter
+                  <Upload className="h-3.5 w-3.5 text-gray-500" />
+                  <span>Import</span>
                 </button>
+              )}
+              {canExport && (
+                <button
+                  type="button"
+                  onClick={onExport}
+                  disabled={!onExport}
+                  className="flex items-center gap-1 rounded border border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Download className="h-3.5 w-3.5 text-gray-500" />
+                  <span>Export</span>
+                </button>
+              )}
+            </div>
+          )}
+          <button
+            onClick={() => handleStatusFilterChange("active")}
+            className={`rounded px-3 py-1.5 text-sm font-medium transition-colors ${
+              activeFilter === "active"
+                ? "bg-primary-600 text-white"
+                : "border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+            }`}
+          >
+            Active
+          </button>
+          <button
+            onClick={() => handleStatusFilterChange("all")}
+            className={`rounded px-3 py-1.5 text-sm font-medium transition-colors ${
+              activeFilter === "all"
+                ? "bg-primary-600 text-white"
+                : "border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+            }`}
+          >
+            Show All
+          </button>
 
-                {hasActiveColumnFilter && (
-                  <>
-                    <button
-                      type="button"
-                      onClick={handleClearFilter}
-                      className="text-sm font-medium text-primary-600 hover:text-primary-700"
-                    >
-                      Clear
-                    </button>
-                    <div className="flex w-full flex-wrap items-center gap-2 pt-2">
-                      {activeColumnFilters.map(filter => {
-                        const label = columnLabelMap.get(filter.columnId) ?? filter.columnId;
-                        return (
-                          <span
-                            key={filter.columnId}
-                            className="inline-flex items-center gap-2 rounded-full border border-primary-200 bg-primary-50 px-3 py-1 text-xs text-primary-700"
-                          >
-                            <span className="font-semibold text-primary-800">{label}</span>
-                            <span className="max-w-[8rem] truncate text-primary-600">{filter.value}</span>
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveFilter(filter.columnId)}
-                              className="rounded-full text-primary-600 transition-colors hover:text-primary-800"
-                              aria-label={`Remove ${label} filter`}
-                            >
-                              <X className="h-3.5 w-3.5" />
-                            </button>
-                          </span>
-                        );
-                      })}
-                    </div>
-                  </>
-                )}
-              </>
-            )}
-
-            {canImport && onImport && (
-              <button
-                onClick={onImport}
-                className="inline-flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-green-700"
-              >
-                <Upload className="h-4 w-4" />
-                Import
-              </button>
-            )}
-
-            {canExport && onExport && (
-              <button
-                onClick={onExport}
-                className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
-              >
-                <Download className="h-4 w-4" />
-                Export
-              </button>
-            )}
-
-            {showCreateButton && (
-              <button
-                onClick={onCreateClick}
-                className="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary-700"
-              >
-                <Plus className="h-4 w-4" />
-                Create New
-              </button>
-            )}
-
+          {showCreateButton && (
             <button
-              type="button"
-              onClick={onSettingsClick}
-              className="rounded-lg p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+              onClick={onCreateClick}
+              className="rounded bg-primary-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-primary-700"
             >
-              <Settings className="h-4 w-4" />
+              Create New
             </button>
-          </div>
+          )}
 
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => handleStatusFilterChange("active")}
-              className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-                activeFilter === "active"
-                  ? "bg-primary-100 text-primary-700 border border-primary-300"
-                  : "bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"
-              }`}
-            >
-              Active
-            </button>
-            <button
-              onClick={() => handleStatusFilterChange("all")}
-              className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-                activeFilter === "all"
-                  ? "bg-primary-100 text-primary-700 border border-primary-300"
-                  : "bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"
-              }`}
-            >
-              Show All
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={onSettingsClick}
+            className="rounded p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+          >
+            <Settings className="h-4 w-4" />
+          </button>
         </div>
       </div>
     </div>
   );
 }
 
-
-
-
-
-
+export type { ColumnFilter, FilterGroup, SavedFilterSet, FilterColumnOption };
 
 

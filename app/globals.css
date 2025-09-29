@@ -85,7 +85,7 @@ body {
 /* Table grid styles - simplified and fixed */
 .table-grid {
   display: grid;
-  width: max-content;
+  width: 100%;
   min-width: 100%;
   /* Remove conflicting overflow properties */
 }
@@ -96,6 +96,20 @@ body {
   z-index: 10;
   background: white;
   border-bottom: 1px solid #e2e8f0;
+}
+
+.table-header .table-cell {
+  min-height: auto;
+  align-items: flex-start;
+  padding-top: 16px;
+  padding-bottom: 16px;
+}
+
+.table-header-content {
+  flex: 1;
+  min-width: 0; /* Allows flex shrinking */
+  overflow: hidden;
+  justify-content: space-between;
 }
 
 .table-row {
@@ -111,11 +125,12 @@ body {
   display: flex;
   align-items: center;
   min-height: 48px;
-  min-width: 100px;
+  width: 100%;
   border-right: 1px solid #f1f5f9;
   overflow: visible; /* Changed from hidden to allow resizer to be visible */
   text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal; /* Allow text wrapping */
+  word-wrap: break-word;
 }
 
 .table-cell:last-child {
@@ -129,6 +144,7 @@ body {
   top: 0;
   bottom: 0;
   width: 4px;
+  z-index: 1;
   cursor: col-resize;
   background: transparent;
 }
@@ -174,5 +190,19 @@ body {
   .table-cell {
     padding: 8px 12px;
     min-height: 40px;
+  }
+
+  .table-header .table-cell {
+    min-height: auto;
+    align-items: flex-start;
+    padding-top: 12px;
+    padding-bottom: 12px;
+  }
+
+  .table-header-content {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    justify-content: space-between;
   }
 }

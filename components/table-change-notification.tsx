@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Save, Check, AlertCircle } from "lucide-react"
+import { Save, Check, AlertCircle, Clock } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 interface TableChangeNotificationProps {
@@ -31,15 +31,16 @@ export function TableChangeNotification({
   }, [hasUnsavedChanges])
 
   if (!hasUnsavedChanges && !isSaving) {
-    // Show saved state when no changes
+    // Show compact saved badge
     return (
-      <div className={cn("flex items-center gap-2 text-sm text-green-600", className)}>
-        <div className="flex items-center gap-1.5">
-          <Check className="h-4 w-4 text-green-500" />
-          <span>Current table state has already been saved/updated to your settings</span>
+      <div className={cn("flex items-center", className)} title="Table settings are saved and up to date">
+        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-200">
+          <Check className="h-3 w-3" />
+          <span>Saved</span>
         </div>
         {lastSaved && (
-          <span className="text-xs text-gray-400">
+          <span className="ml-2 text-xs text-gray-500" title={`Last saved: ${lastSaved.toLocaleString()}`}>
+            <Clock className="h-3 w-3 inline mr-1" />
             {formatLastSaved(lastSaved)}
           </span>
         )}
@@ -48,42 +49,46 @@ export function TableChangeNotification({
   }
 
   if (isSaving) {
-    // Show saving state
+    // Show compact saving badge
     return (
-      <div className={cn("flex items-center gap-2 text-sm text-blue-600", className)}>
-        <div className="flex items-center gap-1.5">
-          <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-600 border-t-transparent" />
-          <span>Saving changes...</span>
+      <div className={cn("flex items-center", className)} title="Saving table settings...">
+        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200">
+          <div className="animate-spin rounded-full h-3 w-3 border border-blue-600 border-t-transparent" />
+          <span>Saving</span>
         </div>
       </div>
     )
   }
 
-  // Show unsaved changes with ping effect
+  // Show compact unsaved changes badge with ping effect
   return (
-    <div className={cn("relative", className)}>
-      <div className={cn(
-        "flex items-center gap-2 text-sm text-amber-600 transition-all duration-300",
-        showPing && "animate-pulse"
-      )}>
+    <div className={cn("flex items-center gap-2", className)}>
+      <div
+        className={cn(
+          "relative inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800 border border-amber-200 transition-all duration-300",
+          showPing && "animate-pulse"
+        )}
+        title="You have unsaved table changes"
+      >
         <div className="relative">
-          <AlertCircle className="h-4 w-4" />
+          <AlertCircle className="h-3 w-3" />
           {showPing && (
             <div className="absolute inset-0 animate-ping">
-              <AlertCircle className="h-4 w-4 text-amber-400" />
+              <AlertCircle className="h-3 w-3 text-amber-400" />
             </div>
           )}
         </div>
-        <span>Unsaved table changes</span>
+        <span>Unsaved</span>
       </div>
-      
+
       {onSave && (
         <button
           onClick={onSave}
-          className="ml-3 inline-flex items-center gap-1.5 rounded-md bg-amber-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2"
+          className="inline-flex items-center gap-1.5 rounded-md bg-amber-600 px-2.5 py-1 text-xs font-medium text-white transition-colors hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2"
+          title="Save your table changes now"
         >
           <Save className="h-3 w-3" />
-          Save Now
+          Save
         </button>
       )}
     </div>

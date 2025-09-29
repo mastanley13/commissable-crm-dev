@@ -1,6 +1,7 @@
 import { Sidebar } from '@/components/sidebar'
 import { Topbar } from '@/components/topbar'
 import { ProtectedRoute } from '@/components/auth/protected-route'
+import { BreadcrumbProvider } from '@/lib/breadcrumb-context'
 
 export default function DashboardLayout({
   children,
@@ -15,13 +16,15 @@ export default function DashboardLayout({
 
         {/* Main content */}
         <div id="main-content-root" className="relative z-10 flex-1 flex flex-col overflow-hidden">
-          {/* Top bar */}
-          <Topbar />
+          <BreadcrumbProvider>
+            {/* Top bar */}
+            <Topbar />
 
-          {/* Page content */}
-          <main className="flex-1 overflow-y-auto relative">
-            {children}
-          </main>
+            {/* Page content */}
+            <main className="flex-1 overflow-y-auto relative">
+              {children}
+            </main>
+          </BreadcrumbProvider>
 
           {/* Footer */}
           <footer className="bg-white border-t border-gray-200 px-6 py-3">

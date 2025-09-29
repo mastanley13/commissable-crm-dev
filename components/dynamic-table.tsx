@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState, useRef, useCallback, useMemo, useEffect } from "react"
-import { ChevronUp, ChevronDown, Trash2, ChevronLeft, ChevronRight } from "lucide-react"
+import { ChevronUp, ChevronDown, Trash2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 const getRowId = (row: any): string | undefined => row?.id ?? row?.uuid ?? row?.key
@@ -44,6 +44,8 @@ export interface TableProps {
   onItemSelect?: (itemId: string, selected: boolean, row: any) => void
   onSelectAll?: (selected: boolean) => void
   autoSizeColumns?: boolean // Enable automatic column sizing on mount
+  fillContainerWidth?: boolean // Stretch columns to match parent width
+  alwaysShowPagination?: boolean // Always render pagination controls
 }
 
 export function DynamicTable({
@@ -61,18 +63,18 @@ export function DynamicTable({
   selectedItems = [],
   onItemSelect,
   onSelectAll,
-  autoSizeColumns = false // Changed default to false to prevent conflicts
+  autoSizeColumns = false, // Changed default to false to prevent conflicts
+  fillContainerWidth = false,
+  alwaysShowPagination = false
 }: TableProps) {
   const [columns, setColumnsState] = useState<Column[]>(() => initialColumns.map(column => ({ ...column })))
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: "asc" | "desc" } | null>(null)
   const [draggedColumn, setDraggedColumn] = useState<string | null>(null)
   const [resizing, setResizing] = useState<{ columnId: string; startX: number; startWidth: number } | null>(null)
-  const [canScrollLeft, setCanScrollLeft] = useState(false)
-  const [canScrollRight, setCanScrollRight] = useState(false)
   const [isManuallyResized, setIsManuallyResized] = useState(false) // Track manual resize state
+  const [measuredContainerWidth, setMeasuredContainerWidth] = useState<number | null>(null)
 
   const tableRef = useRef<HTMLDivElement>(null)
-  const scrollContainerRef = useRef<HTMLDivElement>(null)
   const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const selectAllRef = useRef<HTMLInputElement | null>(null)
   const lastInteractedIndexRef = useRef<number | null>(null)
@@ -102,10 +104,47 @@ export function DynamicTable({
     }
   }, [data.length, selectedItems.length])
 
+  useEffect(() => {
+    if (!fillContainerWidth) {
+      return
+    }
+
+    const gridElement = tableRef.current
+    const parent = gridElement?.parentElement
+    if (!parent) {
+      return
+    }
+
+    const updateWidth = () => {
+      setMeasuredContainerWidth(parent.clientWidth)
+    }
+
+    updateWidth()
+
+    let observer: ResizeObserver | null = null
+
+    if (typeof ResizeObserver === "function") {
+      observer = new ResizeObserver(entries => {
+        for (const entry of entries) {
+          setMeasuredContainerWidth(entry.contentRect.width)
+        }
+      })
+      observer.observe(parent)
+    } else if (typeof window !== "undefined") {
+      window.addEventListener("resize", updateWidth)
+    }
+
+    return () => {
+      if (observer) {
+        observer.disconnect()
+      } else if (typeof window !== "undefined") {
+        window.removeEventListener("resize", updateWidth)
+      }
+    }
+  }, [fillContainerWidth])
+
   // Calculate optimal width for a column based on content
   const calculateOptimalWidth = useCallback((column: Column) => {
-    if (!tableRef.current) return column.width
-
     // Create a temporary span to measure text width
     const tempSpan = document.createElement('span')
     tempSpan.style.visibility = 'hidden'
@@ -113,9 +152,10 @@ export function DynamicTable({
     tempSpan.style.fontSize = '14px'
     tempSpan.style.fontFamily = 'Inter, -apple-system, BlinkMacSystemFont, Segoe UI, Roboto'
     tempSpan.style.fontWeight = '500'
-    tempSpan.style.whiteSpace = 'nowrap'
+    tempSpan.style.whiteSpace = 'normal'
+    tempSpan.style.wordWrap = 'break-word'
     tempSpan.style.padding = '12px 16px'
-    
+
     document.body.appendChild(tempSpan)
 
     try {
@@ -142,9 +182,9 @@ export function DynamicTable({
 
       // Add some padding and respect min/max constraints
       const paddedWidth = maxWidth + 24 + typeAdjustment // Extra padding for resizer and spacing
-      const minWidth = column.minWidth ?? (column.type === "action" ? 80 : column.type === "toggle" ? 100 : 120)
+      const minWidth = column.minWidth ?? (column.type === "action" ? 80 : column.type === "toggle" ? 100 : 100)
       const maxWidth_constraint = column.maxWidth ?? 600
-      
+
       // Normalize to integer to avoid sub-pixel gaps
       return Math.round(Math.max(minWidth, Math.min(paddedWidth, maxWidth_constraint)))
     } finally {
@@ -182,18 +222,8 @@ export function DynamicTable({
 
   // Initialize columns with optimal widths
   React.useEffect(() => {
-    const initializedColumns = initialColumns.map(column => ({ ...column }))
-    setColumnsState(initializedColumns)
-    
-    // Auto-size after a short delay to ensure DOM is ready, but only if not manually resized
-    const timer = setTimeout(() => {
-      if (data.length > 0 && autoSizeColumns && !isManuallyResized) {
-        autoSizeColumnsFunc()
-      }
-    }, 100)
-    
-    return () => clearTimeout(timer)
-  }, [initialColumns, isManuallyResized])
+    setColumnsState(initialColumns.map(column => ({ ...column })))
+  }, [initialColumns])
 
   // Re-calculate optimal widths when data changes significantly
   React.useEffect(() => {
@@ -246,88 +276,6 @@ export function DynamicTable({
   }, [columns, data, calculateOptimalWidth, debouncedUpdate])
 
 
-  // Handle scroll state updates with improved logic
-  const updateScrollState = useCallback(() => {
-    if (!scrollContainerRef.current) return
-    
-    const container = scrollContainerRef.current
-    const { scrollLeft, scrollWidth, clientWidth } = container
-    
-    // More reliable scroll detection
-    const hasHorizontalScroll = scrollWidth > clientWidth + 1 // Add small buffer
-    const isAtStart = scrollLeft <= 1
-    const isAtEnd = scrollLeft >= scrollWidth - clientWidth - 1
-    
-    setCanScrollLeft(hasHorizontalScroll && !isAtStart)
-    setCanScrollRight(hasHorizontalScroll && !isAtEnd)
-  }, [])
-
-  // Update scroll state when columns change with better timing
-  useEffect(() => {
-    // Use requestAnimationFrame for better timing
-    const updateScroll = () => {
-      requestAnimationFrame(() => {
-        updateScrollState()
-      })
-    }
-    
-    const timer = setTimeout(updateScroll, 50)
-    return () => clearTimeout(timer)
-  }, [columns, updateScrollState])
-
-  // Scroll control functions with improved behavior
-  const scrollLeft = useCallback(() => {
-    if (scrollContainerRef.current) {
-      const container = scrollContainerRef.current
-      const scrollAmount = Math.min(200, container.clientWidth * 0.5)
-      container.scrollBy({ left: -scrollAmount, behavior: 'smooth' })
-    }
-  }, [])
-
-  const scrollRight = useCallback(() => {
-    if (scrollContainerRef.current) {
-      const container = scrollContainerRef.current
-      const scrollAmount = Math.min(200, container.clientWidth * 0.5)
-      container.scrollBy({ left: scrollAmount, behavior: 'smooth' })
-    }
-  }, [])
-
-  // Keyboard navigation
-  const handleKeyDown = useCallback((event: KeyboardEvent) => {
-    if (event.target !== scrollContainerRef.current) return
-    
-    if (event.key === 'ArrowLeft' && event.ctrlKey) {
-      event.preventDefault()
-      scrollLeft()
-    } else if (event.key === 'ArrowRight' && event.ctrlKey) {
-      event.preventDefault()
-      scrollRight()
-    }
-  }, [scrollLeft, scrollRight])
-
-  // Set up scroll event listener with throttling
-  useEffect(() => {
-    const container = scrollContainerRef.current
-    if (!container) return
-
-    let timeoutId: NodeJS.Timeout
-    const throttledUpdateScrollState = () => {
-      clearTimeout(timeoutId)
-      timeoutId = setTimeout(updateScrollState, 16) // ~60fps
-    }
-
-    updateScrollState()
-    container.addEventListener('scroll', throttledUpdateScrollState)
-    container.addEventListener('keydown', handleKeyDown)
-    window.addEventListener('resize', throttledUpdateScrollState)
-
-    return () => {
-      clearTimeout(timeoutId)
-      container.removeEventListener('scroll', throttledUpdateScrollState)
-      container.removeEventListener('keydown', handleKeyDown)
-      window.removeEventListener('resize', throttledUpdateScrollState)
-    }
-  }, [updateScrollState, handleKeyDown])
 
   const visibleColumns = useMemo(() => columns.filter(column => !column.hidden), [columns])
   const columnCount = Math.max(visibleColumns.length, 1)
@@ -338,12 +286,44 @@ export function DynamicTable({
       return { gridTemplate: "1fr", totalTableWidth: 0, shouldUseFullWidth: true }
     }
 
-    const containerWidth = scrollContainerRef.current?.clientWidth || 1200
+    const fallbackWidth = 1200
+    const computedWidth = fillContainerWidth
+      ? (() => {
+          if (measuredContainerWidth && measuredContainerWidth > 0) {
+            return measuredContainerWidth
+          }
+
+          const parentWidth = tableRef.current?.parentElement?.clientWidth ?? 0
+          if (parentWidth > 0) {
+            return parentWidth
+          }
+
+          return fallbackWidth
+        })()
+      : fallbackWidth
+
+    const containerWidth = Math.max(computedWidth, fallbackWidth)
     const totalFixedWidth = visibleColumns.reduce((total, col) => total + col.width, 0)
+
+    const formatTrack = (width: number, index: number, total: number, column?: Column) => {
+      const rounded = Math.max(1, Math.round(width))
+      if (fillContainerWidth && total > 0 && index === total - 1) {
+        const minWidth = column?.minWidth ? Math.max(column.minWidth, rounded) : rounded
+        return `minmax(${minWidth}px, 1fr)`
+      }
+      return `${rounded}px`
+    }
+
+    const resolveMaxWidth = (column: Column, fallback: number) => {
+      if (fillContainerWidth) {
+        return containerWidth
+      }
+      return column.maxWidth ?? fallback
+    }
     
     // If total width is less than container, distribute extra space proportionally
-    // Temporarily disabled automatic width distribution to fix overlap issue
-    if (false && totalFixedWidth < containerWidth) {
+    // Only if user hasn't manually resized columns to preserve their preferences
+    if (totalFixedWidth < containerWidth && !isManuallyResized) {
       const extraSpace = containerWidth - totalFixedWidth
       const flexibleColumns = visibleColumns.filter(col => col.resizable !== false)
       
@@ -371,13 +351,17 @@ export function DynamicTable({
           
           // Respect min/max constraints with more conservative max width
           const minWidth = col.minWidth ?? 80
-          const maxWidth = col.maxWidth ?? Math.min(400, containerWidth * 0.25) // Reduced max width
+          const maxWidth = resolveMaxWidth(col, Math.min(400, containerWidth * 0.25))
           
           return Math.max(minWidth, Math.min(newWidth, maxWidth))
         })
         
+        const gridTemplate = adjustedColumns
+          .map((width, index) => formatTrack(width, index, adjustedColumns.length))
+          .join(" ")
+
         return {
-          gridTemplate: adjustedColumns.map(width => `${Math.round(width)}px`).join(" "),
+          gridTemplate,
           totalTableWidth: containerWidth,
           shouldUseFullWidth: true
         }
@@ -385,12 +369,44 @@ export function DynamicTable({
     }
     
     // Use original widths if no adjustment needed or not possible
-    return {
-      gridTemplate: visibleColumns.map(col => `${Math.round(col.width)}px`).join(" "),
-      totalTableWidth: totalFixedWidth,
-      shouldUseFullWidth: totalFixedWidth >= containerWidth
+    // If there's extra space, distribute it proportionally to fill the container
+    // Only if user hasn't manually resized columns to preserve their preferences
+    let finalColumns = visibleColumns
+    if (totalFixedWidth < containerWidth && !isManuallyResized) {
+      const extraSpace = containerWidth - totalFixedWidth
+      const flexibleColumns = visibleColumns.filter(col => col.resizable !== false)
+
+      if (flexibleColumns.length > 0) {
+        const totalFlexibleWidth = flexibleColumns.reduce((sum, col) => sum + col.width, 0)
+        finalColumns = visibleColumns.map(col => {
+          if (col.resizable === false) return col
+
+          const proportion = col.width / totalFlexibleWidth
+          const additionalWidth = extraSpace * proportion
+          const newWidth = col.width + additionalWidth
+
+          // Respect constraints
+          const minWidth = col.minWidth ?? 80
+          const maxWidth = resolveMaxWidth(col, 600)
+
+          return {
+            ...col,
+            width: Math.max(minWidth, Math.min(newWidth, maxWidth))
+          }
+        })
+      }
     }
-  }, [visibleColumns])
+
+    const gridTemplate = finalColumns
+      .map((col, index) => formatTrack(col.width, index, finalColumns.length, col))
+      .join(" ")
+
+    return {
+      gridTemplate,
+      totalTableWidth: containerWidth,
+      shouldUseFullWidth: true
+    }
+  }, [visibleColumns, isManuallyResized, fillContainerWidth, measuredContainerWidth])
 
   const isRowSelected = useCallback((row: any) => {
     const rowId = getRowId(row)
@@ -658,6 +674,15 @@ export function DynamicTable({
     }
   }, [handleCheckboxClick, selectedItems])
 
+  const shouldRenderPagination = Boolean(pagination && (alwaysShowPagination || data.length > 0))
+  const paginationStart = pagination
+    ? (data.length > 0 ? (pagination.page - 1) * pagination.pageSize + 1 : 0)
+    : 0
+  const paginationEnd = pagination
+    ? (data.length > 0 ? Math.min(pagination.page * pagination.pageSize, pagination.total) : 0)
+    : 0
+  const effectiveTotalPages = pagination ? Math.max(pagination.totalPages, 1) : 0
+
   if (loading) {
     return (
       <div className="bg-white rounded-lg border-2 border-gray-400">
@@ -671,37 +696,12 @@ export function DynamicTable({
 
   return (
     <div className={cn("bg-white rounded-lg border-2 border-gray-400 flex flex-col", className)}>
-      {/* Scroll Controls */}
+      {/* Table container */}
       <div className="relative flex-1 min-h-0">
-        {/* Left scroll button */}
-        {canScrollLeft && (
-          <button
-            onClick={scrollLeft}
-            className="absolute left-2 top-1/2 -translate-y-1/2 z-20 bg-white border-2 border-gray-400 rounded-full p-2 shadow-md hover:bg-gray-50 transition-colors"
-            title="Scroll left"
-          >
-            <ChevronLeft className="h-4 w-4 text-gray-600" />
-          </button>
-        )}
-
-        {/* Right scroll button */}
-        {canScrollRight && (
-          <button
-            onClick={scrollRight}
-            className="absolute right-2 top-1/2 -translate-y-1/2 z-20 bg-white border-2 border-gray-400 rounded-full p-2 shadow-md hover:bg-gray-50 transition-colors"
-            title="Scroll right"
-          >
-            <ChevronRight className="h-4 w-4 text-gray-600" />
-          </button>
-        )}
-
-        {/* Scrollable table container */}
         <div
-          ref={scrollContainerRef}
-          className="table-scroll-container overflow-x-auto overflow-y-visible focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-inset"
-          tabIndex={0}
+          className="table-scroll-container overflow-x-auto overflow-y-visible"
           role="table"
-          aria-label="Data table with horizontal scrolling"
+          aria-label="Data table"
         >
           <div
             ref={tableRef}
@@ -718,7 +718,7 @@ export function DynamicTable({
               <div
                 key={column.id}
                 className={cn(
-                  "table-cell bg-gray-50 font-medium text-gray-900 relative select-none",
+                  "table-cell bg-blue-100 font-medium text-gray-900 relative select-none",
                   column.sortable && column.id !== "select" && "cursor-pointer hover:bg-gray-100"
                 )}
                 draggable
@@ -728,7 +728,7 @@ export function DynamicTable({
                 onClick={() => column.id !== "select" && handleSort(column)}
               >
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-1 min-w-0 table-header-content">
                     {column.id === "select" && onSelectAll ? (
                       <div className="flex items-center gap-3">
                         <input
@@ -742,12 +742,12 @@ export function DynamicTable({
                             onSelectAll(event.target.checked)
                           }}
                         />
-                        <div className="flex flex-col leading-tight">
-                          <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                        <div className="flex flex-col leading-tight flex-1 min-w-0">
+                          <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 break-words">
                             Select All
                           </span>
                           {selectedItems.length > 0 && (
-                            <span className="text-xs text-gray-400">
+                            <span className="text-xs text-gray-400 break-words">
                               {selectedItems.length} selected
                             </span>
                           )}
@@ -755,7 +755,7 @@ export function DynamicTable({
                       </div>
                     ) : (
                       <>
-                        <span className="truncate">{column.label}</span>
+                        <span className="break-words leading-tight flex-1 min-w-0">{column.label}</span>
                         {column.sortable && sortConfig?.key === column.id && (
                           sortConfig.direction === "asc" ? (
                             <ChevronUp className="h-4 w-4 text-gray-400" />
@@ -836,10 +836,13 @@ export function DynamicTable({
             )
           })
         )}
+          </div>
+        </div>
       </div>
 
-      {visibleColumns.length > 0 && data.length > 0 && pagination && (
-        <div className="px-4 py-2 border-t-2 border-gray-400 bg-gray-50">
+      {/* Pagination Footer - moved outside grid container */}
+      {shouldRenderPagination && pagination && (
+        <div className="px-4 py-2 border-t-2 border-gray-400 bg-gray-50 w-full">
           <div className="flex items-center justify-between text-sm text-gray-700">
             <div className="flex items-center gap-2">
               <button
@@ -851,37 +854,47 @@ export function DynamicTable({
               </button>
 
               <div className="flex items-center gap-1">
-                {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
-                  let pageNum: number
-                  if (pagination.totalPages <= 5) {
-                    pageNum = i + 1
-                  } else if (pagination.page <= 3) {
-                    pageNum = i + 1
-                  } else if (pagination.page >= pagination.totalPages - 2) {
-                    pageNum = pagination.totalPages - 4 + i
-                  } else {
-                    pageNum = pagination.page - 2 + i
+                {(() => {
+                  const totalPages = effectiveTotalPages || 1
+                  const length = Math.min(5, totalPages)
+                  const buttons: JSX.Element[] = []
+
+                  for (let i = 0; i < length; i++) {
+                    let pageNum: number
+                    if (totalPages <= 5) {
+                      pageNum = i + 1
+                    } else if (pagination.page <= 3) {
+                      pageNum = i + 1
+                    } else if (pagination.page >= totalPages - 2) {
+                      pageNum = totalPages - 4 + i
+                    } else {
+                      pageNum = pagination.page - 2 + i
+                    }
+
+                    pageNum = Math.max(pageNum, 1)
+
+                    buttons.push(
+                      <button
+                        key={pageNum}
+                        className={`px-2 py-1 rounded transition-colors ${
+                          pageNum === pagination.page
+                            ? "bg-primary-600 text-white"
+                            : "text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+                        }`}
+                        onClick={() => onPageChange?.(pageNum)}
+                      >
+                        {pageNum}
+                      </button>
+                    )
                   }
 
-                  return (
-                    <button
-                      key={pageNum}
-                      className={`px-2 py-1 rounded transition-colors ${
-                        pageNum === pagination.page
-                          ? "bg-primary-600 text-white"
-                          : "text-gray-500 hover:text-gray-700 hover:bg-gray-100"
-                      }`}
-                      onClick={() => onPageChange?.(pageNum)}
-                    >
-                      {pageNum}
-                    </button>
-                  )
-                })}
+                  return buttons
+                })()}
               </div>
 
               <button
                 className="px-2 py-1 text-gray-500 hover:text-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                disabled={pagination.page >= pagination.totalPages}
+                disabled={pagination.page >= (effectiveTotalPages || 1)}
                 onClick={() => onPageChange?.(pagination.page + 1)}
               >
                 Next
@@ -889,8 +902,7 @@ export function DynamicTable({
             </div>
             <div className="flex items-center gap-4">
               <span>
-                Showing {(pagination.page - 1) * pagination.pageSize + 1} to {" "}
-                {Math.min(pagination.page * pagination.pageSize, pagination.total)} of {" "}
+                Showing {paginationStart} to {paginationEnd} of {" "}
                 {pagination.total} entries
               </span>
               <div className="flex items-center gap-2">
@@ -910,20 +922,28 @@ export function DynamicTable({
             </div>
           </div>
         </div>
-        )}
-      </div>
-
-      {/* Scroll indicator */}
-      {(canScrollLeft || canScrollRight) && (
-        <div className="flex justify-center py-2 border-t-2 border-gray-400 bg-gray-50">
-          <div className="flex items-center gap-2 text-xs text-gray-500">
-            <ChevronLeft className="h-3 w-3" />
-            <span>Scroll horizontally to see more columns</span>
-            <ChevronRight className="h-3 w-3" />
-          </div>
-        </div>
       )}
-    </div>
     </div>
   )
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

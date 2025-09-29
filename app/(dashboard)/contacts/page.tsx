@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
-import { ListHeader } from "@/components/list-header"
+import { ListHeader, type ColumnFilter as ListColumnFilter } from "@/components/list-header"
 import { DynamicTable, Column } from "@/components/dynamic-table"
 import { ContactCreateModal } from "@/components/contact-create-modal"
 import { ColumnChooserModal } from "@/components/column-chooser-modal"
@@ -11,9 +11,7 @@ import { DeletionConstraint } from "@/lib/deletion"
 import { useToasts } from "@/components/toast"
 import { useTablePreferences } from "@/hooks/useTablePreferences"
 import { formatPhoneNumber } from "@/lib/utils"
-import { TableChangeNotification } from "@/components/table-change-notification"
 import { CopyProtectionWrapper } from "@/components/copy-protection"
-import { Settings } from "lucide-react"
 
 interface ContactRow {
   id: string
@@ -213,6 +211,19 @@ const contactColumns: Column[] = [
   }
 ]
 
+const contactFilterOptions = [
+  { id: "fullName", label: "Full Name" },
+  { id: "suffix", label: "Suffix" },
+  { id: "accountName", label: "Account" },
+  { id: "jobTitle", label: "Job Title" },
+  { id: "contactType", label: "Contact Type" },
+  { id: "ownerName", label: "Owner" },
+  { id: "emailAddress", label: "Email" },
+  { id: "mobile", label: "Mobile" },
+  { id: "workPhone", label: "Work Phone" },
+  { id: "extension", label: "Extension" }
+] as const;
+
 export default function ContactsPage() {
   const [contacts, setContacts] = useState<ContactRow[]>([])
   const [loading, setLoading] = useState<boolean>(true)
@@ -228,6 +239,7 @@ export default function ContactsPage() {
   const [sortBy, setSortBy] = useState<string>("createdAt")
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc")
   const [filters, setFilters] = useState<Filters>({})
+  const [columnFilters, setColumnFilters] = useState<ListColumnFilter[]>([])
   const [selectedContacts, setSelectedContacts] = useState<string[]>([])
   const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null)
   const [showCreateModal, setShowCreateModal] = useState(false)
@@ -275,6 +287,18 @@ export default function ContactsPage() {
       if (filters.isPrimary !== undefined) params.set("isPrimary", filters.isPrimary.toString())
       if (filters.isDecisionMaker !== undefined) params.set("isDecisionMaker", filters.isDecisionMaker.toString())
       if (filters.preferredContactMethod) params.set("preferredContactMethod", filters.preferredContactMethod)
+      if (columnFilters.length > 0) {
+        const serializedFilters = columnFilters
+          .map(filter => ({
+            columnId: filter.columnId,
+            value: typeof filter.value === "string" ? filter.value.trim() : "",
+            operator: filter.operator
+          }))
+          .filter(filter => filter.columnId && filter.value.length > 0)
+        if (serializedFilters.length > 0) {
+          params.set("columnFilters", JSON.stringify(serializedFilters))
+        }
+      }
 
       const response = await fetch(`/api/contacts?${params.toString()}`, { cache: "no-store" })
       if (!response.ok) {
@@ -298,7 +322,7 @@ export default function ContactsPage() {
     } finally {
       setLoading(false)
     }
-  }, [pagination.page, pagination.pageSize, searchQuery, sortBy, sortDir, filters, showError])
+  }, [pagination.page, pagination.pageSize, searchQuery, sortBy, sortDir, filters, columnFilters, showError])
 
   const loadOptions = useCallback(async () => {
     try {
@@ -365,17 +389,39 @@ export default function ContactsPage() {
     showSuccess("Contact created successfully", "The new contact has been added to your contacts list.")
   }
 
-  const handleFilterChange = (filter: string) => {
-    if (filter === "primary") {
-      setFilters(prev => ({ ...prev, isPrimary: true }))
-    } else {
-      setFilters(prev => {
-        const { isPrimary, ...rest } = prev
-        return rest
-      })
-    }
+  const handleStatusFilterChange = (filter: string) => {
     setPagination(prev => ({ ...prev, page: 1 }))
+
+    if (filter === "active") {
+      setFilters(prev => ({ ...prev, isPrimary: true }))
+      return
+    }
+
+    setFilters(prev => {
+      const { isPrimary, ...rest } = prev
+      return rest
+    })
   }
+
+  const handleColumnFiltersChange = useCallback((filters: ListColumnFilter[]) => {
+    setPagination(prev => ({ ...prev, page: 1 }))
+
+    if (!Array.isArray(filters) || filters.length === 0) {
+      setColumnFilters([])
+      return
+    }
+
+    const sanitized = filters
+      .filter(filter => filter && typeof filter.columnId === "string")
+      .map(filter => ({
+        columnId: filter.columnId,
+        value: typeof filter.value === "string" ? filter.value.trim() : "",
+        operator: filter.operator
+      }))
+      .filter(filter => filter.columnId && filter.value.length > 0) as ListColumnFilter[]
+
+    setColumnFilters(sanitized)
+  }, [])
 
   const handleContactSelect = useCallback((contactId: string, selected: boolean) => {
     setSelectedContacts(prev => {
@@ -554,73 +600,21 @@ export default function ContactsPage() {
 
   return (
     <CopyProtectionWrapper className="dashboard-page-container">
-      <div className="bg-white border-b border-gray-200 px-4 py-3">
-        <div className="flex items-center justify-between gap-4">
-          {/* Left side - Search */}
-          <div className="flex items-center flex-1 max-w-md">
-            <div className="relative w-full">
-              <input
-                type="text"
-                placeholder="Search contacts..."
-                onChange={(e) => handleSearch(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all"
-              />
-            </div>
-          </div>
-
-          {/* Table Change Notification - Always show */}
-          <div className="flex items-center">
-            <TableChangeNotification
-              hasUnsavedChanges={hasUnsavedChanges || false}
-              isSaving={preferenceSaving || false}
-              lastSaved={lastSaved || undefined}
-              onSave={saveChanges}
-            />
-          </div>
-
-          {/* Center - Controls */}
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleCreateContact}
-              className="inline-flex items-center px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 transition-colors"
-            >
-              Create New
-            </button>
-            
-            <button
-              onClick={() => setShowColumnSettings(true)}
-              className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors"
-              title="Column Settings"
-            >
-              <Settings className="h-4 w-4" />
-            </button>
-          </div>
-
-          {/* Right side - Filters */}
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => handleFilterChange("primary")}
-              className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-                filters.isPrimary
-                  ? 'bg-primary-100 text-primary-700 border border-primary-300'
-                  : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-              }`}
-            >
-              Primary
-            </button>
-            <button
-              onClick={() => handleFilterChange("all")}
-              className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-                !filters.isPrimary
-                  ? 'bg-primary-100 text-primary-700 border border-primary-300'
-                  : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-              }`}
-            >
-              Show All
-            </button>
-          </div>
-        </div>
-      </div>
+      <ListHeader
+        searchPlaceholder="Search contacts..."
+        onSearch={handleSearch}
+        onFilterChange={handleStatusFilterChange}
+        onCreateClick={handleCreateContact}
+        onSettingsClick={() => setShowColumnSettings(true)}
+        filterColumns={contactFilterOptions}
+        columnFilters={columnFilters}
+        onColumnFiltersChange={handleColumnFiltersChange}
+        statusFilter={filters.isPrimary ? "active" : "all"}
+        hasUnsavedTableChanges={hasUnsavedChanges}
+        isSavingTableChanges={preferenceSaving}
+        lastTableSaved={lastSaved || undefined}
+        onSaveTableChanges={saveChanges}
+      />
 
       {(error || preferenceError) && (
         <div className="px-4 text-sm text-red-600">{error || preferenceError}</div>
@@ -641,6 +635,7 @@ export default function ContactsPage() {
           selectedItems={selectedContacts}
           onItemSelect={handleContactSelect}
           onSelectAll={handleSelectAll}
+          fillContainerWidth
           autoSizeColumns={false} // Explicitly disable auto-sizing to prevent conflicts
         />
       </div>
@@ -679,17 +674,3 @@ export default function ContactsPage() {
     </CopyProtectionWrapper>
   )
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-

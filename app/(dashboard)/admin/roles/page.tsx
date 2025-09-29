@@ -1,12 +1,72 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { ListHeader } from '@/components/list-header'
-import { DynamicTable, Column } from '@/components/dynamic-table'
+import { DynamicTable, Column, PaginationInfo } from '@/components/dynamic-table'
+import { ColumnChooserModal } from '@/components/column-chooser-modal'
+import { useTablePreferences } from '@/hooks/useTablePreferences'
+import { TableChangeNotification } from '@/components/table-change-notification'
 import { PermissionGate } from '@/components/auth/permission-gate'
 import { RoleEditModal, Role } from '@/components/role-edit-modal'
 import { Edit, Trash2, Shield, Users } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
+
+// Define columns outside component for useTablePreferences
+const roleColumns: Column[] = [
+  {
+    id: 'active',
+    label: 'Active',
+    width: 80,
+    minWidth: 60,
+    maxWidth: 100,
+    type: 'toggle',
+    accessor: 'active'
+  },
+  {
+    id: 'actions',
+    label: 'Actions',
+    width: 100,
+    minWidth: 80,
+    maxWidth: 120,
+    type: 'action'
+  },
+  {
+    id: 'roleName',
+    label: 'Role Name',
+    width: 200,
+    minWidth: 150,
+    maxWidth: 300,
+    sortable: true,
+    type: 'text'
+  },
+  {
+    id: 'permissions',
+    label: 'Permissions',
+    width: 200,
+    minWidth: 150,
+    maxWidth: 300,
+    sortable: true,
+    type: 'text'
+  },
+  {
+    id: 'userCount',
+    label: 'User Count',
+    width: 120,
+    minWidth: 100,
+    maxWidth: 150,
+    sortable: true,
+    type: 'text'
+  },
+  {
+    id: 'description',
+    label: 'Description',
+    width: 300,
+    minWidth: 200,
+    maxWidth: 500,
+    sortable: true,
+    type: 'text'
+  }
+]
 
 export default function AdminRolesPage() {
   const { refreshAuth } = useAuth()
@@ -18,6 +78,22 @@ export default function AdminRolesPage() {
   const [editModalOpen, setEditModalOpen] = useState(false)
   const [modalLoading, setModalLoading] = useState(false)
   const [modalError, setModalError] = useState<string | null>(null)
+  const [showColumnSettings, setShowColumnSettings] = useState(false)
+  const [currentPage, setCurrentPage] = useState<number>(1)
+  const [pageSize, setPageSize] = useState<number>(25)
+
+  const {
+    columns: preferenceColumns,
+    loading: preferenceLoading,
+    error: preferenceError,
+    saving: preferenceSaving,
+    hasUnsavedChanges,
+    lastSaved,
+    handleColumnsChange,
+    handleHiddenColumnsChange,
+    saveChanges,
+    saveChangesOnModalClose,
+  } = useTablePreferences("admin:roles", roleColumns)
 
   useEffect(() => {
     fetchRoles()
@@ -113,101 +189,63 @@ export default function AdminRolesPage() {
     setModalError(null)
   }
 
-  // Define columns inside component to access handler functions
-  const roleColumns: Column[] = [
-    {
-      id: 'active',
-      label: 'Active',
-      width: 80,
-      minWidth: 60,
-      maxWidth: 100,
-      type: 'toggle',
-      accessor: 'active'
-    },
-    {
-      id: 'actions',
-      label: 'Actions',
-      width: 100,
-      minWidth: 80,
-      maxWidth: 120,
-      type: 'action',
-      render: (value, row) => (
-        <div className="flex gap-1">
-          <button 
-            onClick={(e) => {
-              e.stopPropagation()
-              handleEditRole(row.id)
-            }}
-            className="text-blue-500 hover:text-blue-700 p-1 rounded transition-colors"
-            title="Edit role"
-          >
-            <Edit className="h-4 w-4" />
-          </button>
-          <button 
-            onClick={(e) => {
-              e.stopPropagation()
-              // TODO: Implement delete functionality
-              console.log('Delete role:', row.id)
-            }}
-            className="text-red-500 hover:text-red-700 p-1 rounded transition-colors"
-            title="Delete role"
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
-        </div>
-      )
-    },
-    {
-      id: 'roleName',
-      label: 'Role Name',
-      width: 200,
-      minWidth: 150,
-      maxWidth: 300,
-      sortable: true,
-      type: 'text',
-      render: (value) => (
-        <div className="flex items-center gap-2">
-          <Shield className="h-4 w-4 text-blue-600" />
-          <span className="text-blue-600 hover:text-blue-800 cursor-pointer font-medium">
-            {value}
-          </span>
-        </div>
-      )
-    },
-    {
-      id: 'permissions',
-      label: 'Permissions',
-      width: 200,
-      minWidth: 150,
-      maxWidth: 300,
-      sortable: true,
-      type: 'text'
-    },
-    {
-      id: 'userCount',
-      label: 'User Count',
-      width: 120,
-      minWidth: 100,
-      maxWidth: 150,
-      sortable: true,
-      type: 'text',
-      render: (value) => (
-        <div className="flex items-center gap-1">
-          <Users className="h-4 w-4 text-gray-500" />
-          <span>{value}</span>
-        </div>
-      )
-    },
-    {
-      id: 'description',
-      label: 'Description',
-      width: 300,
-      minWidth: 200,
-      maxWidth: 500,
-      sortable: true,
-      type: 'text'
+  // Update columns with render functions that access component functions
+  const tableColumns = preferenceColumns.map(column => {
+    if (column.id === 'actions') {
+      return {
+        ...column,
+        render: (value: any, row: any) => (
+          <div className="flex gap-1">
+            <button 
+              onClick={(e) => {
+                e.stopPropagation()
+                handleEditRole(row.id)
+              }}
+              className="text-blue-500 hover:text-blue-700 p-1 rounded transition-colors"
+              title="Edit role"
+            >
+              <Edit className="h-4 w-4" />
+            </button>
+            <button 
+              onClick={(e) => {
+                e.stopPropagation()
+                console.log('Delete role:', row.id)
+              }}
+              className="text-red-500 hover:text-red-700 p-1 rounded transition-colors"
+              title="Delete role"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          </div>
+        )
+      }
     }
-  ]
+    if (column.id === 'roleName') {
+      return {
+        ...column,
+        render: (value: any) => (
+          <div className="flex items-center gap-2">
+            <Shield className="h-4 w-4 text-blue-600" />
+            <span className="text-blue-600 hover:text-blue-800 cursor-pointer font-medium">
+              {value}
+            </span>
+          </div>
+        )
+      }
+    }
+    if (column.id === 'userCount') {
+      return {
+        ...column,
+        render: (value: any) => (
+          <div className="flex items-center gap-1">
+            <Users className="h-4 w-4 text-gray-500" />
+            <span>{value}</span>
+          </div>
+        )
+      }
+    }
+    return column
+  })
 
   const handleSearch = (query: string) => {
     if (!query.trim()) {
@@ -254,6 +292,36 @@ export default function AdminRolesPage() {
     }
   }
 
+  // Pagination handlers
+  const handlePageChange = useCallback((page: number) => {
+    setCurrentPage(page)
+  }, [])
+
+  const handlePageSizeChange = useCallback((newPageSize: number) => {
+    setPageSize(newPageSize)
+    setCurrentPage(1) // Reset to first page when page size changes
+  }, [])
+
+  // Calculate paginated data
+  const paginatedRoles = useMemo(() => {
+    const startIndex = (currentPage - 1) * pageSize
+    const endIndex = startIndex + pageSize
+    return filteredRoles.slice(startIndex, endIndex)
+  }, [filteredRoles, currentPage, pageSize])
+
+  // Calculate pagination info
+  const paginationInfo = useMemo((): PaginationInfo => {
+    const totalItems = filteredRoles.length
+    const totalPages = Math.ceil(totalItems / pageSize)
+
+    return {
+      page: currentPage,
+      totalPages,
+      pageSize,
+      total: totalItems,
+    }
+  }, [filteredRoles.length, currentPage, pageSize])
+
   return (
     <PermissionGate
       permissions={["admin.roles.read", "admin.permissions.read"]}
@@ -292,12 +360,23 @@ export default function AdminRolesPage() {
           onSearch={handleSearch}
           onFilterChange={handleFilterChange}
           onCreateClick={handleCreateRole}
+          onSettingsClick={() => setShowColumnSettings(true)}
         />
 
+        {/* Table Change Notification */}
+        {hasUnsavedChanges && (
+          <TableChangeNotification
+            hasUnsavedChanges={hasUnsavedChanges}
+            isSaving={preferenceSaving}
+            lastSaved={lastSaved || undefined}
+            onSave={saveChanges}
+          />
+        )}
+
         {/* Error Message */}
-        {error && (
+        {(error || preferenceError) && (
           <div className="mx-6 mt-4 p-4 bg-red-50 border border-red-200 rounded-md">
-            <p className="text-red-700">{error}</p>
+            <p className="text-red-700">{error || preferenceError}</p>
             <button onClick={fetchRoles} className="mt-2 text-red-600 hover:text-red-800 font-medium">Try again</button>
           </div>
         )}
@@ -305,14 +384,29 @@ export default function AdminRolesPage() {
         {/* Table */}
         <div className="flex-1 p-6">
           <DynamicTable
-            columns={roleColumns}
-            data={filteredRoles}
+            columns={tableColumns}
+            data={paginatedRoles}
             onSort={handleSort}
             onRowClick={handleRowClick}
-            loading={loading}
+            onColumnsChange={handleColumnsChange}
+            loading={loading || preferenceLoading}
             emptyMessage="No roles found"
+            pagination={paginationInfo}
+            onPageChange={handlePageChange}
+            onPageSizeChange={handlePageSizeChange}
           />
         </div>
+
+        {/* Column Chooser Modal */}
+        <ColumnChooserModal
+          isOpen={showColumnSettings}
+          columns={preferenceColumns}
+          onApply={handleColumnsChange}
+          onClose={async () => {
+            setShowColumnSettings(false)
+            await saveChangesOnModalClose()
+          }}
+        />
 
         {/* Role Edit Modal */}
         <RoleEditModal

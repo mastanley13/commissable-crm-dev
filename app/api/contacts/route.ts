@@ -44,6 +44,108 @@ const SORTABLE_FIELDS = {
   createdAt: "createdAt",
   contactType: "accountType.name"
 }
+interface ColumnFilterInput {
+  columnId: string
+  value: string
+  operator?: string
+}
+
+interface FilterGroupInput {
+  logic?: "AND" | "OR"
+  filters?: ColumnFilterInput[]
+}
+
+function makeStringFilter(operator: string | undefined, value: string) {
+  const normalized = (operator ?? "contains").toLowerCase();
+  switch (normalized) {
+    case "equals":
+      return { equals: value, mode: "insensitive" as const };
+    case "starts_with":
+      return { startsWith: value, mode: "insensitive" as const };
+    case "ends_with":
+      return { endsWith: value, mode: "insensitive" as const };
+    default:
+      return { contains: value, mode: "insensitive" as const };
+  }
+}
+
+function buildNestedCondition(path: string[], operator: string | undefined, value: string) {
+  return path.reduceRight((acc, key) => ({ [key]: acc }), makeStringFilter(operator, value));
+}
+
+function buildFilterCondition(filter: ColumnFilterInput | null | undefined) {
+  if (!filter || typeof filter.columnId !== "string" || typeof filter.value !== "string") {
+    return null;
+  }
+
+  const trimmedValue = filter.value.trim();
+  if (!trimmedValue) {
+    return null;
+  }
+
+  const operator = filter.operator;
+
+  switch (filter.columnId) {
+    case "fullName":
+    case "suffix":
+    case "jobTitle":
+    case "emailAddress":
+      return buildNestedCondition([filter.columnId], operator, trimmedValue);
+    case "accountName":
+      return buildNestedCondition(["account", "accountName"], operator, trimmedValue);
+    case "contactType":
+      return buildNestedCondition(["accountType", "name"], operator, trimmedValue);
+    case "mobile":
+      return buildNestedCondition(["mobilePhone"], operator, trimmedValue);
+    case "workPhone":
+      return buildNestedCondition(["workPhone"], operator, trimmedValue);
+    case "extension":
+      return buildNestedCondition(["workPhoneExt"], operator, trimmedValue);
+    case "ownerName": {
+      const nested = makeStringFilter(operator, trimmedValue);
+      return {
+        OR: [
+          { owner: { firstName: nested } },
+          { owner: { lastName: nested } },
+        ],
+      };
+    }
+    default:
+      return null;
+  }
+}
+
+function buildGroupCondition(group: FilterGroupInput | null | undefined) {
+  if (!group || !Array.isArray(group.filters)) {
+    return null;
+  }
+
+  const conditions = group.filters
+    .map(buildFilterCondition)
+    .filter((condition): condition is Record<string, unknown> => Boolean(condition));
+
+  if (conditions.length === 0) {
+    return null;
+  }
+
+  const logic = (group.logic ?? "AND").toUpperCase() === "OR" ? "OR" : "AND";
+  return logic === "OR" ? { OR: conditions } : { AND: conditions };
+}
+
+function parseJsonArray<T>(value: string | null): T[] {
+  if (!value) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    console.warn("Failed to parse filter payload", error);
+    return [];
+  }
+}
+
 
 export async function GET(request: NextRequest) {
   return withPermissions(
@@ -74,6 +176,11 @@ export async function GET(request: NextRequest) {
         const isPrimary = searchParams.get("isPrimary")
         const isDecisionMaker = searchParams.get("isDecisionMaker")
         const preferredContactMethod = searchParams.get("preferredContactMethod")
+        const columnFiltersParam = searchParams.get("columnFilters")
+        const filterGroupsParam = searchParams.get("filterGroups")
+
+        const columnFiltersInput = parseJsonArray<ColumnFilterInput>(columnFiltersParam)
+        const filterGroupsInput = parseJsonArray<FilterGroupInput>(filterGroupsParam)
         const includeDeleted = searchParams.get("includeDeleted") === "true"
 
         // Build where clause
@@ -112,9 +219,70 @@ export async function GET(request: NextRequest) {
           whereClause.preferredContactMethod = preferredContactMethod
         }
 
+        const additionalConditions: any[] = []
+        const groupedColumnFilters = new Map<string, ColumnFilterInput[]>()
+
+        for (const filterInput of columnFiltersInput) {
+          if (!filterInput || typeof filterInput.columnId !== "string") {
+            continue
+          }
+
+          const key = filterInput.columnId
+
+          if (!groupedColumnFilters.has(key)) {
+            groupedColumnFilters.set(key, [])
+          }
+
+          groupedColumnFilters.get(key)!.push(filterInput)
+        }
+
+        for (const filtersForColumn of groupedColumnFilters.values()) {
+          const conditions = filtersForColumn
+            .map(buildFilterCondition)
+            .filter((condition): condition is Record<string, unknown> => Boolean(condition))
+            .flatMap((condition) => {
+              if (
+                condition &&
+                typeof condition === "object" &&
+                'OR' in condition &&
+                Array.isArray((condition as any).OR) &&
+                Object.keys(condition).length === 1
+              ) {
+                return (condition as any).OR as Record<string, unknown>[]
+              }
+
+              return [condition]
+            })
+
+          if (conditions.length === 0) {
+            continue
+          }
+
+          if (conditions.length === 1) {
+            additionalConditions.push(conditions[0])
+          } else {
+            additionalConditions.push({ OR: conditions })
+          }
+        }
+
+        for (const groupInput of filterGroupsInput) {
+          const condition = buildGroupCondition(groupInput)
+          if (condition) {
+            additionalConditions.push(condition)
+          }
+        }
+
+        if (additionalConditions.length > 0) {
+          whereClause.AND = [
+            ...(Array.isArray(whereClause.AND) ? whereClause.AND : []),
+            ...additionalConditions
+          ]
+        }
+
         // Build orderBy clause
         let orderBy: any = {}
         if (sortField === "accountType.name") {
+
           orderBy = { accountType: { name: sortDir } }
         } else {
           orderBy[sortField] = sortDir

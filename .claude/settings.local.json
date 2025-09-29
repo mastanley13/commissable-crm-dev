@@ -11,7 +11,10 @@
       "Bash(node:*)",
       "Bash(git checkout:*)",
       "Bash(rm:*)",
-      "Bash(npm run dev:*)"
+      "Bash(npm run dev:*)",
+      "Bash(npx tsc:*)",
+      "Bash(type:*)",
+      "Bash(wc:*)"
     ],
     "deny": []
   }

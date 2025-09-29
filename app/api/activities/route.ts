@@ -14,7 +14,7 @@ function parseEnumValue<T>(value: string | null, allowed: readonly T[]): T | und
 export async function GET(request: NextRequest) {
   return withPermissions(
     request,
-    ['activities.manage', 'activities.read'],
+    ['activities.manage', 'activities.read', 'accounts.manage', 'contacts.manage'],
     async req => {
       const searchParams = request.nextUrl.searchParams
       const tenantId = req.user.tenantId
@@ -61,7 +61,7 @@ function parseDate(value: unknown): Date | null {
 export async function POST(request: NextRequest) {
   return withPermissions(
     request,
-    ['activities.manage'],
+    ['activities.manage', 'accounts.manage', 'contacts.manage'],
     async req => {
       try {
         const payload = await request.json()

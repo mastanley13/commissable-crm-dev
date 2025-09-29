@@ -1,11 +1,28 @@
-﻿"use client"
+"use client"
 
-import { ReactNode, useCallback, useEffect, useState } from "react"
-import { Loader2, Filter, Plus, Search, Settings, Trash2 } from "lucide-react"
+import Link from "next/link"
+import { ReactNode, useCallback, useEffect, useState, useMemo } from "react"
+import { Loader2, Filter, Paperclip, Plus, Search, Settings, Trash2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { TwoStageDeleteDialog } from "./two-stage-delete-dialog"
 import { DeletionConstraint } from "@/lib/deletion"
-import { DynamicTable, Column } from "./dynamic-table"
+import { DynamicTable, Column, PaginationInfo } from "./dynamic-table"
+import { useToasts } from "./toast"
+import { ActivityNoteCreateModal } from "./activity-note-create-modal"
+import { ContactOpportunityCreateModal } from "./contact-opportunity-create-modal"
+import { ContactGroupCreateModal } from "./contact-group-create-modal"
+import { ListHeader, type ColumnFilter } from "./list-header"
+import { useTablePreferences } from "@/hooks/useTablePreferences"
+import { applySimpleFilters } from "@/lib/filter-utils"
+
+export interface ActivityAttachmentRow {
+  id: string
+  fileName: string
+  fileSize: number
+  mimeType: string
+  uploadedAt?: string | Date
+  uploadedByName?: string
+}
 
 export interface ContactActivityRow {
   id: string
@@ -18,6 +35,7 @@ export interface ContactActivityRow {
   fileName?: string | null
   createdBy?: string
   activityType?: string
+  attachments?: ActivityAttachmentRow[]
 }
 
 export interface ContactOpportunityRow {
@@ -35,6 +53,7 @@ export interface ContactGroupRow {
   id: string
   active: boolean
   groupName: string
+  groupType?: string
   visibility?: string
   description?: string
   owner?: string
@@ -42,6 +61,7 @@ export interface ContactGroupRow {
 
 export interface ContactDetail {
   id: string
+  accountId?: string
   suffix?: string
   prefix?: string
   firstName: string
@@ -75,6 +95,36 @@ export interface ContactDetail {
   deletedAt?: string | null
 }
 
+function AttachmentChipList({
+  activityId,
+  attachments
+}: {
+  activityId: string
+  attachments?: ActivityAttachmentRow[]
+}) {
+  if (!attachments || attachments.length === 0) {
+    return <span className="text-xs text-gray-500">None</span>
+  }
+
+    return (
+    <div className="flex flex-wrap gap-2 overflow-hidden">
+      {attachments.map(attachment => (
+        <a
+          key={attachment.id}
+          href={`/api/activities/${activityId}/attachments/${attachment.id}`}
+          className="inline-flex min-w-0 max-w-full items-center gap-1 rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-primary-600 transition hover:border-primary-400 hover:bg-primary-50 hover:text-primary-700 sm:max-w-[220px]"
+          target="_blank"
+          rel="noopener noreferrer"
+          title={attachment.uploadedByName ? `${attachment.fileName}\nUploaded by ${attachment.uploadedByName}` : attachment.fileName}
+        >
+          <Paperclip className="h-3 w-3" />
+          <span className="truncate max-w-full" title={attachment.fileName}>{attachment.fileName}</span>
+        </a>
+      ))}
+    </div>
+  )
+}
+
 interface ContactDetailsViewProps {
   contact: ContactDetail | null
   loading?: boolean
@@ -82,6 +132,7 @@ interface ContactDetailsViewProps {
   onBack: () => void
   onEdit?: (contact: ContactDetail) => void
   onContactUpdated?: (contact: ContactDetail) => void
+  onRefresh?: () => Promise<void> | void
 }
 
 
@@ -94,8 +145,200 @@ const TABS: { id: "activities" | "opportunities" | "groups"; label: string }[] =
 const fieldLabelClass = "text-xs font-semibold uppercase tracking-wide text-gray-500"
 const fieldBoxClass = "flex min-h-[28px] items-center justify-between rounded-lg border-2 border-gray-400 bg-white px-2.5 py-1.5 text-sm text-gray-900 shadow-sm"
 
+const CONTACT_ACTIVITY_TABLE_BASE_COLUMNS: Column[] = [
+  {
+    id: "active",
+    label: "Active",
+    width: 120,
+    minWidth: 100,
+    maxWidth: 150,
+    sortable: true,
+    type: "toggle",
+    accessor: "active"
+  },
+  {
+    id: "activityDate",
+    label: "Activity Date",
+    width: 150,
+    minWidth: 120,
+    maxWidth: 200,
+    sortable: true,
+    accessor: "activityDate"
+  },
+  {
+    id: "activityStatus",
+    label: "Activity Status",
+    width: 150,
+    minWidth: 120,
+    maxWidth: 200,
+    sortable: true,
+    accessor: "activityStatus"
+  },
+  {
+    id: "description",
+    label: "Description",
+    width: 250,
+    minWidth: 200,
+    maxWidth: 400,
+    sortable: true,
+    accessor: "description"
+  },
+  {
+    id: "accountName",
+    label: "Account Name",
+    width: 180,
+    minWidth: 150,
+    maxWidth: 250,
+    sortable: true,
+    accessor: "accountName"
+  },
+  {
+    id: "attachment",
+    label: "Attachment",
+    width: 120,
+    minWidth: 100,
+    maxWidth: 150,
+    sortable: true,
+    accessor: "attachment"
+  },
+  {
+    id: "fileName",
+    label: "File Name",
+    width: 220,
+    minWidth: 180,
+    maxWidth: 280,
+    sortable: true,
+    accessor: "fileName"
+  },
+  {
+    id: "createdBy",
+    label: "Created By",
+    width: 150,
+    minWidth: 120,
+    maxWidth: 200,
+    sortable: true,
+    accessor: "createdBy"
+  }
+]
+
+const CONTACT_OPPORTUNITY_TABLE_BASE_COLUMNS: Column[] = [
+  {
+    id: "active",
+    label: "Active",
+    width: 120,
+    minWidth: 100,
+    maxWidth: 150,
+    sortable: true,
+    type: "toggle",
+    accessor: "active"
+  },
+  {
+    id: "orderIdHouse",
+    label: "Order ID - House",
+    width: 150,
+    minWidth: 120,
+    maxWidth: 200,
+    sortable: true,
+    accessor: "orderIdHouse"
+  },
+  {
+    id: "opportunityName",
+    label: "Opportunity Name",
+    width: 250,
+    minWidth: 200,
+    maxWidth: 350,
+    sortable: true,
+    accessor: "opportunityName"
+  },
+  {
+    id: "stage",
+    label: "Opportunity Stage",
+    width: 180,
+    minWidth: 150,
+    maxWidth: 220,
+    sortable: true,
+    accessor: "stage"
+  },
+  {
+    id: "owner",
+    label: "Owner",
+    width: 150,
+    minWidth: 120,
+    maxWidth: 200,
+    sortable: true,
+    accessor: "owner"
+  },
+  {
+    id: "estimatedCloseDate",
+    label: "Estimated Close Date",
+    width: 180,
+    minWidth: 150,
+    maxWidth: 220,
+    sortable: true,
+    accessor: "estimatedCloseDate"
+  },
+  {
+    id: "referredBy",
+    label: "Referred By",
+    width: 150,
+    minWidth: 120,
+    maxWidth: 200,
+    sortable: true,
+    accessor: "referredBy"
+  }
+]
+
+const CONTACT_GROUP_TABLE_BASE_COLUMNS: Column[] = [
+  {
+    id: "active",
+    label: "Active",
+    width: 120,
+    minWidth: 100,
+    maxWidth: 150,
+    sortable: true,
+    type: "toggle",
+    accessor: "active"
+  },
+  {
+    id: "groupName",
+    label: "Group Name",
+    width: 220,
+    minWidth: 160,
+    maxWidth: 320,
+    sortable: true,
+    accessor: "groupName"
+  },
+  {
+    id: "visibility",
+    label: "Public/Private",
+    width: 180,
+    minWidth: 140,
+    maxWidth: 240,
+    sortable: true,
+    accessor: "visibility"
+  },
+  {
+    id: "description",
+    label: "Group Description",
+    width: 260,
+    minWidth: 200,
+    maxWidth: 400,
+    sortable: true,
+    accessor: "description"
+  },
+  {
+    id: "owner",
+    label: "Group Owner",
+    width: 200,
+    minWidth: 150,
+    maxWidth: 260,
+    sortable: true,
+    accessor: "owner"
+  }
+]
+
 function ReadOnlySwitch({ value }: { value: boolean }) {
-  return (
+    return (
     <span
       className={cn(
         "relative inline-flex h-6 w-11 items-center rounded-full transition-colors",
@@ -113,7 +356,7 @@ function ReadOnlySwitch({ value }: { value: boolean }) {
 }
 
 function FieldRow({ label, value }: { label: string; value: ReactNode }) {
-  return (
+    return (
     <div className="grid items-start gap-1.5 sm:grid-cols-[120px,1fr]">
       <span className={fieldLabelClass}>{label}</span>
       <div>{value}</div>
@@ -121,11 +364,27 @@ function FieldRow({ label, value }: { label: string; value: ReactNode }) {
   )
 }
 
-function TabToolbar() {
-  return (
+interface TabToolbarProps {
+  onCreateNew?: () => void
+  disabled?: boolean
+  activeFilter?: "active" | "all"
+  onFilterChange?: (filter: "active" | "all") => void
+}
+
+function TabToolbar({ onCreateNew, disabled, activeFilter = "active", onFilterChange }: TabToolbarProps) {
+  const handleFilterChange = (filter: "active" | "all") => {
+    onFilterChange?.(filter)
+  }
+
+    return (
     <div className="flex flex-col gap-1.5 rounded-xl border-2 border-gray-400 bg-gray-50 p-2.5 lg:flex-row lg:items-center lg:justify-between">
       <div className="flex flex-wrap items-center gap-1.5">
-        <button className="flex items-center gap-1 rounded-full bg-primary-600 px-2.5 py-1 text-sm font-semibold text-white shadow-sm transition hover:bg-primary-700">
+        <button
+          type="button"
+          onClick={onCreateNew}
+          disabled={disabled}
+          className="flex items-center gap-1 rounded-full bg-primary-600 px-2.5 py-1 text-sm font-semibold text-white shadow-sm transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-primary-400"
+        >
           <Plus className="h-3.5 w-3.5" />
           Create New
         </button>
@@ -147,27 +406,92 @@ function TabToolbar() {
         </button>
       </div>
       <div className="flex items-center gap-1">
-        <button className="rounded-full bg-primary-600 px-2.5 py-1 text-sm font-semibold text-white shadow-sm hover:bg-primary-700">
-          Active
-        </button>
-        <button className="rounded-full border border-gray-300 bg-white px-2.5 py-1 text-sm font-semibold text-gray-600 hover:border-primary-400 hover:text-primary-600">
-          Show All
-        </button>
+        {/* iOS-style Segmented Control for Active/Show All */}
+        <div className="inline-flex rounded-lg bg-gray-100 p-1 shadow-inner">
+          <button
+            onClick={() => handleFilterChange("active")}
+            className={`rounded-md px-3 py-1.5 text-sm font-medium transition-all duration-200 ${
+              activeFilter === "active"
+                ? "bg-white text-gray-900 shadow-sm"
+                : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+            }`}
+          >
+            Active
+          </button>
+          <button
+            onClick={() => handleFilterChange("all")}
+            className={`rounded-md px-3 py-1.5 text-sm font-medium transition-all duration-200 ${
+              activeFilter === "all"
+                ? "bg-white text-gray-900 shadow-sm"
+                : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+            }`}
+          >
+            Show All
+          </button>
+        </div>
       </div>
     </div>
   )
 }
 
 
-export function ContactDetailsView({ contact, loading = false, error, onBack, onEdit, onContactUpdated }: ContactDetailsViewProps) {
+export function ContactDetailsView({ contact, loading = false, error, onBack, onEdit, onContactUpdated, onRefresh }: ContactDetailsViewProps) {
   const [activeTab, setActiveTab] = useState<"activities" | "opportunities" | "groups">("activities")
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [isDeleted, setIsDeleted] = useState(false)
+  const { showError } = useToasts()
+  const [activityModalOpen, setActivityModalOpen] = useState(false)
+  const [opportunityModalOpen, setOpportunityModalOpen] = useState(false)
+  const [groupModalOpen, setGroupModalOpen] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
+  const [activeFilter, setActiveFilter] = useState<"active" | "all">("active")
+  const [activitiesCurrentPage, setActivitiesCurrentPage] = useState(1)
+  const [activitiesPageSize, setActivitiesPageSize] = useState(10)
+  const [opportunitiesCurrentPage, setOpportunitiesCurrentPage] = useState(1)
+  const [opportunitiesPageSize, setOpportunitiesPageSize] = useState(10)
+  const [groupsCurrentPage, setGroupsCurrentPage] = useState(1)
+  const [groupsPageSize, setGroupsPageSize] = useState(10)
+  const [activitiesSearchQuery, setActivitiesSearchQuery] = useState("")
+  const [activitiesColumnFilters, setActivitiesColumnFilters] = useState<ColumnFilter[]>([])
+  const [opportunitiesSearchQuery, setOpportunitiesSearchQuery] = useState("")
+  const [opportunitiesColumnFilters, setOpportunitiesColumnFilters] = useState<ColumnFilter[]>([])
+  const [groupsSearchQuery, setGroupsSearchQuery] = useState("")
+  const [groupsColumnFilters, setGroupsColumnFilters] = useState<ColumnFilter[]>([])
 
   useEffect(() => {
     setActiveTab("activities")
     setIsDeleted(Boolean(contact?.deletedAt))
   }, [contact?.id, contact?.deletedAt])
+
+  useEffect(() => {
+    setActivityModalOpen(false)
+    setOpportunityModalOpen(false)
+    setGroupModalOpen(false)
+  }, [contact?.id])
+
+  const contactDisplayName = contact ? [contact.firstName, contact.lastName].filter(Boolean).join(" ") : ""
+
+  const createButtonDisabled = !contact || refreshing || loading || isDeleted
+
+  const handleCreateNewClick = useCallback(() => {
+    if (!contact || isDeleted) {
+      return
+    }
+
+    switch (activeTab) {
+      case "activities":
+        setActivityModalOpen(true)
+        break
+      case "opportunities":
+        setOpportunityModalOpen(true)
+        break
+      case "groups":
+        setGroupModalOpen(true)
+        break
+      default:
+        break
+    }
+  }, [activeTab, contact, isDeleted])
 
   const handleDelete = () => {
     setShowDeleteDialog(true)
@@ -264,20 +588,365 @@ export function ContactDetailsView({ contact, loading = false, error, onBack, on
     setShowDeleteDialog(false);
   };
 
+  const handlePostCreate = useCallback(async () => {
+    if (!onRefresh) {
+      return;
+    }
+
+    try {
+      setRefreshing(true);
+      await Promise.resolve(onRefresh());
+    } catch (error) {
+      console.error("Failed to refresh contact details", error);
+      showError("Unable to refresh contact data", "Please reload the page if the list does not update.");
+    } finally {
+      setRefreshing(false);
+    }
+  }, [onRefresh, showError]);
+
   const hasContact = Boolean(contact)
 
   const formatDate = (value?: string | Date | null) => {
-    if (!value) return "—"
+    if (!value) return "--"
     const dateValue = value instanceof Date ? value : new Date(value)
     if (Number.isNaN(dateValue.getTime())) {
-      return "—"
+      return "--"
     }
     return dateValue.toLocaleDateString()
   }
 
-  return (
+  const activitiesFilterColumns = useMemo(() => [
+    { id: "activityDate", label: "Activity Date" },
+    { id: "activityType", label: "Activity Type" },
+    { id: "activityStatus", label: "Activity Status" },
+    { id: "description", label: "Description" },
+    { id: "accountName", label: "Account Name" },
+    { id: "createdBy", label: "Created By" }
+  ], [])
+
+  const opportunitiesFilterColumns = useMemo(() => [
+    { id: "orderIdHouse", label: "Order ID - House" },
+    { id: "opportunityName", label: "Opportunity Name" },
+    { id: "stage", label: "Opportunity Stage" },
+    { id: "owner", label: "Owner" },
+    { id: "estimatedCloseDate", label: "Estimated Close Date" },
+    { id: "referredBy", label: "Referred By" },
+  ], [])
+
+  const groupsFilterColumns = useMemo(() => [
+    { id: "groupName", label: "Group Name" },
+    { id: "visibility", label: "Public/Private" },
+    { id: "description", label: "Group Description" },
+    { id: "owner", label: "Group Owner" }
+  ], [])
+
+  const {
+    columns: activityPreferenceColumns,
+    loading: activityPreferencesLoading,
+    saving: activityPreferencesSaving,
+    hasUnsavedChanges: activityHasUnsavedChanges,
+    lastSaved: activityLastSaved,
+    handleColumnsChange: handleActivityTableColumnsChange,
+    saveChanges: saveActivityTablePreferences,
+  } = useTablePreferences("contact-details:activities", CONTACT_ACTIVITY_TABLE_BASE_COLUMNS)
+
+  const {
+    columns: contactOpportunityPreferenceColumns,
+    loading: contactOpportunityPreferencesLoading,
+    saving: contactOpportunityPreferencesSaving,
+    hasUnsavedChanges: contactOpportunityHasUnsavedChanges,
+    lastSaved: contactOpportunityLastSaved,
+    handleColumnsChange: handleContactOpportunityTableColumnsChange,
+    saveChanges: saveContactOpportunityTablePreferences,
+  } = useTablePreferences("contact-details:opportunities", CONTACT_OPPORTUNITY_TABLE_BASE_COLUMNS)
+
+  const {
+    columns: contactGroupPreferenceColumns,
+    loading: contactGroupPreferencesLoading,
+    saving: contactGroupPreferencesSaving,
+    hasUnsavedChanges: contactGroupHasUnsavedChanges,
+    lastSaved: contactGroupLastSaved,
+    handleColumnsChange: handleContactGroupTableColumnsChange,
+    saveChanges: saveContactGroupTablePreferences,
+  } = useTablePreferences("contact-details:groups", CONTACT_GROUP_TABLE_BASE_COLUMNS)
+
+  const handleActivitiesSearch = useCallback((query: string) => {
+    setActivitiesSearchQuery(query)
+  }, [])
+
+  const handleActivitiesColumnFiltersChange = useCallback((filters: ColumnFilter[]) => {
+    setActivitiesColumnFilters(filters)
+  }, [])
+
+  const contactActivityTableColumns = useMemo(() => {
+    return activityPreferenceColumns.map(column => {
+      if (column.id === "activityDate") {
+        return { ...column, render: (value?: string | Date | null) => formatDate(value) }
+      }
+      if (column.id === "description") {
+        return {
+          ...column,
+          render: (value: string, row: ContactActivityRow) => (
+            row.id ? (
+              <Link
+                href={`/activities/${row.id}`}
+                className="block max-w-[360px] truncate text-primary-600 transition hover:text-primary-700 hover:underline"
+              >
+                {value || "View activity"}
+              </Link>
+            ) : (
+              <span className="text-gray-500">{value || "�"}</span>
+            )
+          )
+        }
+      }
+      if (column.id === "fileName") {
+        return {
+          ...column,
+          render: (_: unknown, row: ContactActivityRow) => (
+            <AttachmentChipList activityId={row.id} attachments={row.attachments} />
+          )
+        }
+      }
+      if (column.id === "attachment") {
+        return {
+          ...column,
+          render: (_: unknown, row: ContactActivityRow) => (
+            <span className="text-xs font-medium text-gray-700">
+              {row.attachments?.length ? `${row.attachments.length} file${row.attachments.length === 1 ? "" : "s"}` : "None"}
+            </span>
+          )
+        }
+      }
+      return column
+    })
+  }, [activityPreferenceColumns])
+
+  const handleOpportunitiesSearch = useCallback((query: string) => {
+    setOpportunitiesSearchQuery(query)
+  }, [])
+
+  const handleOpportunitiesColumnFiltersChange = useCallback((filters: ColumnFilter[]) => {
+    setOpportunitiesColumnFilters(filters)
+  }, [])
+
+  const contactOpportunityTableColumns = useMemo(() => {
+    return contactOpportunityPreferenceColumns.map(column => {
+      if (column.id === "estimatedCloseDate") {
+        return { ...column, render: (value?: string | Date | null) => formatDate(value) }
+      }
+      return column
+    })
+  }, [contactOpportunityPreferenceColumns])
+
+  const handleGroupsSearch = useCallback((query: string) => {
+    setGroupsSearchQuery(query)
+  }, [])
+
+  const handleGroupsColumnFiltersChange = useCallback((filters: ColumnFilter[]) => {
+    setGroupsColumnFilters(filters)
+  }, [])
+
+  const contactGroupTableColumns = useMemo(() => {
+    return contactGroupPreferenceColumns.map(column => {
+      if (column.id === "groupName") {
+        return {
+          ...column,
+          render: (value?: string) => (
+            <span className="font-medium text-primary-600">{value || "--"}</span>
+          )
+        }
+      }
+      if (column.id === "visibility") {
+        return {
+          ...column,
+          render: (value?: string) => {
+            const displayValue = value || "--"
+            if (displayValue === "--") {
+              return <span className="text-gray-500">--</span>
+            }
+            return (
+              <span className="inline-flex items-center rounded-full bg-primary-50 px-2 py-0.5 text-xs font-semibold text-primary-700">
+                {displayValue}
+              </span>
+            )
+          }
+        }
+      }
+      return column
+    })
+  }, [contactGroupPreferenceColumns])
+
+  const filteredActivities = useMemo(() => {
+    let rows: ContactActivityRow[] = contact?.activities ?? []
+    if (activeFilter === "active") {
+      rows = rows.filter(row => row.active)
+    }
+    const query = activitiesSearchQuery.trim().toLowerCase()
+    if (query.length > 0) {
+      rows = rows.filter(row => {
+        return [
+          row.activityType,
+          row.activityStatus,
+          row.description,
+          row.accountName,
+          row.fileName,
+          row.createdBy
+        ]
+          .filter((value): value is string => typeof value === "string" && value.length > 0)
+          .some(value => value.toLowerCase().includes(query))
+      })
+    }
+    if (activitiesColumnFilters.length > 0) {
+      rows = applySimpleFilters(rows as unknown as Record<string, unknown>[], activitiesColumnFilters) as unknown as ContactActivityRow[]
+    }
+    return rows
+  }, [contact?.activities, activeFilter, activitiesSearchQuery, activitiesColumnFilters])
+
+  const filteredOpportunities = useMemo(() => {
+    let rows: ContactOpportunityRow[] = contact?.opportunities ?? []
+    if (activeFilter === "active") {
+      rows = rows.filter(row => row.active)
+    }
+    const query = opportunitiesSearchQuery.trim().toLowerCase()
+    if (query.length > 0) {
+      rows = rows.filter(row => {
+        const values = [
+          row.orderIdHouse,
+          row.opportunityName,
+          row.stage,
+          row.owner,
+          row.referredBy,
+          row.estimatedCloseDate ? new Date(row.estimatedCloseDate as any).toLocaleDateString() : undefined,
+        ]
+        return values
+          .filter((value): value is string => typeof value === "string" && value.length > 0)
+          .some(value => value.toLowerCase().includes(query))
+      })
+    }
+    if (opportunitiesColumnFilters.length > 0) {
+      rows = applySimpleFilters(rows as unknown as Record<string, unknown>[], opportunitiesColumnFilters) as unknown as ContactOpportunityRow[]
+    }
+    return rows
+  }, [contact?.opportunities, activeFilter, opportunitiesSearchQuery, opportunitiesColumnFilters])
+
+  const filteredGroups = useMemo(() => {
+    let rows: ContactGroupRow[] = contact?.groups ?? []
+    if (activeFilter === "active") {
+      rows = rows.filter(row => row.active)
+    }
+    const query = groupsSearchQuery.trim().toLowerCase()
+    if (query.length > 0) {
+      rows = rows.filter(row => {
+        return [row.groupName, row.visibility, row.description, row.owner]
+          .filter((value): value is string => typeof value === "string" && value.length > 0)
+          .some(value => value.toLowerCase().includes(query))
+      })
+    }
+    if (groupsColumnFilters.length > 0) {
+      rows = applySimpleFilters(rows as unknown as Record<string, unknown>[], groupsColumnFilters) as unknown as ContactGroupRow[]
+    }
+    return rows
+  }, [contact?.groups, activeFilter, groupsSearchQuery, groupsColumnFilters])
+
+  const paginatedActivities = useMemo(() => {
+    const start = (activitiesCurrentPage - 1) * activitiesPageSize
+    return filteredActivities.slice(start, start + activitiesPageSize)
+  }, [filteredActivities, activitiesCurrentPage, activitiesPageSize])
+
+  const paginatedOpportunities = useMemo(() => {
+    const start = (opportunitiesCurrentPage - 1) * opportunitiesPageSize
+    return filteredOpportunities.slice(start, start + opportunitiesPageSize)
+  }, [filteredOpportunities, opportunitiesCurrentPage, opportunitiesPageSize])
+
+  const paginatedGroups = useMemo(() => {
+    const start = (groupsCurrentPage - 1) * groupsPageSize
+    return filteredGroups.slice(start, start + groupsPageSize)
+  }, [filteredGroups, groupsCurrentPage, groupsPageSize])
+
+  const activitiesPagination: PaginationInfo = useMemo(() => {
+    const total = filteredActivities.length
+    const totalPages = Math.max(Math.ceil(total / activitiesPageSize), 1)
+    return {
+      page: activitiesCurrentPage,
+      pageSize: activitiesPageSize,
+      total,
+      totalPages
+    }
+  }, [filteredActivities.length, activitiesCurrentPage, activitiesPageSize])
+
+  const opportunitiesPagination: PaginationInfo = useMemo(() => {
+    const total = filteredOpportunities.length
+    const totalPages = Math.max(Math.ceil(total / opportunitiesPageSize), 1)
+    return {
+      page: opportunitiesCurrentPage,
+      pageSize: opportunitiesPageSize,
+      total,
+      totalPages
+    }
+  }, [filteredOpportunities.length, opportunitiesCurrentPage, opportunitiesPageSize])
+
+  const groupsPagination: PaginationInfo = useMemo(() => {
+    const total = filteredGroups.length
+    const totalPages = Math.max(Math.ceil(total / groupsPageSize), 1)
+    return {
+      page: groupsCurrentPage,
+      pageSize: groupsPageSize,
+      total,
+      totalPages
+    }
+  }, [filteredGroups.length, groupsCurrentPage, groupsPageSize])
+
+  useEffect(() => {
+    const maxPage = Math.max(Math.ceil(filteredActivities.length / activitiesPageSize), 1)
+    if (activitiesCurrentPage > maxPage) {
+      setActivitiesCurrentPage(maxPage)
+    }
+  }, [filteredActivities.length, activitiesPageSize, activitiesCurrentPage])
+
+  useEffect(() => {
+    const maxPage = Math.max(Math.ceil(filteredOpportunities.length / opportunitiesPageSize), 1)
+    if (opportunitiesCurrentPage > maxPage) {
+      setOpportunitiesCurrentPage(maxPage)
+    }
+  }, [filteredOpportunities.length, opportunitiesPageSize, opportunitiesCurrentPage])
+
+  useEffect(() => {
+    const maxPage = Math.max(Math.ceil(filteredGroups.length / groupsPageSize), 1)
+    if (groupsCurrentPage > maxPage) {
+      setGroupsCurrentPage(maxPage)
+    }
+  }, [filteredGroups.length, groupsPageSize, groupsCurrentPage])
+
+  const handleActivitiesPageChange = (page: number) => {
+    setActivitiesCurrentPage(page)
+  }
+
+  const handleActivitiesPageSizeChange = (size: number) => {
+    setActivitiesPageSize(size)
+    setActivitiesCurrentPage(1)
+  }
+
+  const handleOpportunitiesPageChange = (page: number) => {
+    setOpportunitiesCurrentPage(page)
+  }
+
+  const handleOpportunitiesPageSizeChange = (size: number) => {
+    setOpportunitiesPageSize(size)
+    setOpportunitiesCurrentPage(1)
+  }
+
+  const handleGroupsPageChange = (page: number) => {
+    setGroupsCurrentPage(page)
+  }
+
+  const handleGroupsPageSizeChange = (size: number) => {
+    setGroupsPageSize(size)
+    setGroupsCurrentPage(1)
+  }
+    return (
     <div className="px-4 py-4 sm:px-6 lg:px-8">
-      <div className="mx-auto w-full max-w-7xl">
+      <div className="mx-auto w-full max-w-none">
         <div className="flex items-start justify-between gap-4 border-b border-gray-200 pb-4 mb-4">
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-primary-600">Contact Detail</p>
@@ -365,11 +1034,11 @@ export function ContactDetailsView({ contact, loading = false, error, onBack, on
                       />
                       <FieldRow
                         label="Job Title"
-                        value={<div className={fieldBoxClass}>{contact.jobTitle || "—"}</div>}
+                        value={<div className={fieldBoxClass}>{contact.jobTitle || "--"}</div>}
                       />
                       <FieldRow
                         label="Department"
-                        value={<div className={fieldBoxClass}>{contact.department || "—"}</div>}
+                        value={<div className={fieldBoxClass}>{contact.department || "--"}</div>}
                       />
                       <FieldRow
                         label="Active (Y/N)"
@@ -401,15 +1070,15 @@ export function ContactDetailsView({ contact, loading = false, error, onBack, on
                     
                       <FieldRow
                         label="Contact Type"
-                        value={<div className={fieldBoxClass}>{contact.contactType || "—"}</div>}
+                        value={<div className={fieldBoxClass}>{contact.contactType || "--"}</div>}
                       />
                       <FieldRow
                         label="Email Address"
-                        value={<div className={fieldBoxClass}>{contact.emailAddress || "—"}</div>}
+                        value={<div className={fieldBoxClass}>{contact.emailAddress || "--"}</div>}
                       />
                       <FieldRow
                         label="Alternate Email"
-                        value={<div className={fieldBoxClass}>{contact.alternateEmail || "—"}</div>}
+                        value={<div className={fieldBoxClass}>{contact.alternateEmail || "--"}</div>}
                       />
                       <FieldRow
                         label="Work Phone"
@@ -422,15 +1091,15 @@ export function ContactDetailsView({ contact, loading = false, error, onBack, on
                       />
                       <FieldRow
                         label="Mobile"
-                        value={<div className={fieldBoxClass}>{contact.mobilePhone || "—"}</div>}
+                        value={<div className={fieldBoxClass}>{contact.mobilePhone || "--"}</div>}
                       />
                       <FieldRow
                         label="Other Phone"
-                        value={<div className={fieldBoxClass}>{contact.otherPhone || "—"}</div>}
+                        value={<div className={fieldBoxClass}>{contact.otherPhone || "--"}</div>}
                       />
                       <FieldRow
                         label="Fax"
-                        value={<div className={fieldBoxClass}>{contact.fax || "—"}</div>}
+                        value={<div className={fieldBoxClass}>{contact.fax || "--"}</div>}
                       />
                     </div>
                   </div>
@@ -450,29 +1119,29 @@ export function ContactDetailsView({ contact, loading = false, error, onBack, on
                     <div className="space-y-2.5">
                       <FieldRow
                         label="Assistant Name"
-                        value={<div className={fieldBoxClass}>{contact.assistantName || "—"}</div>}
+                        value={<div className={fieldBoxClass}>{contact.assistantName || "--"}</div>}
                       />
                       <FieldRow
                         label="Assistant Phone"
-                        value={<div className={fieldBoxClass}>{contact.assistantPhone || "—"}</div>}
+                        value={<div className={fieldBoxClass}>{contact.assistantPhone || "--"}</div>}
                       />
                       <FieldRow
                         label="LinkedIn URL"
-                        value={<div className={fieldBoxClass}>{contact.linkedinUrl || "—"}</div>}
+                        value={<div className={fieldBoxClass}>{contact.linkedinUrl || "--"}</div>}
                       />
                     </div>
                     <div className="space-y-2.5">
                       <FieldRow
                         label="Website URL"
-                        value={<div className={fieldBoxClass}>{contact.websiteUrl || "—"}</div>}
+                        value={<div className={fieldBoxClass}>{contact.websiteUrl || "--"}</div>}
                       />
                       <FieldRow
                         label="Birthdate"
-                        value={<div className={fieldBoxClass}>{contact.birthdate ? formatDate(contact.birthdate) : "—"}</div>}
+                        value={<div className={fieldBoxClass}>{contact.birthdate ? formatDate(contact.birthdate) : "--"}</div>}
                       />
                       <FieldRow
                         label="Anniversary"
-                        value={<div className={fieldBoxClass}>{contact.anniversary ? formatDate(contact.anniversary) : "—"}</div>}
+                        value={<div className={fieldBoxClass}>{contact.anniversary ? formatDate(contact.anniversary) : "--"}</div>}
                       />
                     </div>
                   </div>
@@ -498,221 +1167,99 @@ export function ContactDetailsView({ contact, loading = false, error, onBack, on
 
                   {activeTab === "activities" && (
                     <div className="flex flex-col gap-2">
-                      <TabToolbar />
+                      <ListHeader
+                        onCreateClick={handleCreateNewClick}
+                        onFilterChange={setActiveFilter as unknown as (filter: string) => void}
+                        statusFilter={activeFilter}
+                        onSearch={handleActivitiesSearch}
+                        filterColumns={activitiesFilterColumns}
+                        columnFilters={activitiesColumnFilters}
+                        onColumnFiltersChange={handleActivitiesColumnFiltersChange}
+                        hasUnsavedTableChanges={activityHasUnsavedChanges}
+                        isSavingTableChanges={activityPreferencesSaving}
+                        lastTableSaved={activityLastSaved ?? undefined}
+                        onSaveTableChanges={saveActivityTablePreferences}
+                        showCreateButton={Boolean(contact) && !isDeleted && !loading}
+                        searchPlaceholder="Search activities"
+                      />
                       <DynamicTable
-                        columns={[
-                          {
-                            id: "active",
-                            label: "Active",
-                            width: 120,
-                            minWidth: 100,
-                            maxWidth: 150,
-                            sortable: true,
-                            type: "toggle",
-                            accessor: "active"
-                          },
-                          {
-                            id: "activityDate",
-                            label: "Activity Date",
-                            width: 150,
-                            minWidth: 120,
-                            maxWidth: 200,
-                            sortable: true,
-                            accessor: "activityDate",
-                            render: (value) => formatDate(value)
-                          },
-                          {
-                            id: "activityStatus",
-                            label: "Activity Status",
-                            width: 150,
-                            minWidth: 120,
-                            maxWidth: 200,
-                            sortable: true,
-                            accessor: "activityStatus"
-                          },
-                          {
-                            id: "description",
-                            label: "Description",
-                            width: 250,
-                            minWidth: 200,
-                            maxWidth: 400,
-                            sortable: true,
-                            accessor: "description"
-                          },
-                          {
-                            id: "accountName",
-                            label: "Account Name",
-                            width: 180,
-                            minWidth: 150,
-                            maxWidth: 250,
-                            sortable: true,
-                            accessor: "accountName"
-                          },
-                          {
-                            id: "attachment",
-                            label: "Attachment",
-                            width: 120,
-                            minWidth: 100,
-                            maxWidth: 150,
-                            sortable: true,
-                            accessor: "attachment"
-                          },
-                          {
-                            id: "fileName",
-                            label: "File Name",
-                            width: 150,
-                            minWidth: 120,
-                            maxWidth: 200,
-                            sortable: true,
-                            accessor: "fileName"
-                          },
-                          {
-                            id: "createdBy",
-                            label: "Created By",
-                            width: 150,
-                            minWidth: 120,
-                            maxWidth: 200,
-                            sortable: true,
-                            accessor: "createdBy"
-                          }
-                        ]}
-                        data={contact.activities}
+                        columns={contactActivityTableColumns}
+                        data={paginatedActivities}
                         emptyMessage="No activities found for this contact"
+                        onColumnsChange={handleActivityTableColumnsChange}
+                        loading={loading || activityPreferencesLoading}
+                        pagination={activitiesPagination}
+                        onPageChange={handleActivitiesPageChange}
+                        onPageSizeChange={handleActivitiesPageSizeChange}
+                        autoSizeColumns={true}
+                        fillContainerWidth
+                        alwaysShowPagination
                       />
                     </div>
                   )}
 
                   {activeTab === "opportunities" && (
                     <div className="flex flex-col gap-2">
-                      <TabToolbar />
+                      <ListHeader
+                        onCreateClick={handleCreateNewClick}
+                        onFilterChange={setActiveFilter as unknown as (filter: string) => void}
+                        statusFilter={activeFilter}
+                        onSearch={handleOpportunitiesSearch}
+                        filterColumns={opportunitiesFilterColumns}
+                        columnFilters={opportunitiesColumnFilters}
+                        onColumnFiltersChange={handleOpportunitiesColumnFiltersChange}
+                        hasUnsavedTableChanges={contactOpportunityHasUnsavedChanges}
+                        isSavingTableChanges={contactOpportunityPreferencesSaving}
+                        lastTableSaved={contactOpportunityLastSaved ?? undefined}
+                        onSaveTableChanges={saveContactOpportunityTablePreferences}
+                        showCreateButton={Boolean(contact) && !isDeleted && !loading}
+                        searchPlaceholder="Search opportunities"
+                      />
                       <DynamicTable
-                        columns={[
-                          {
-                            id: "active",
-                            label: "Active",
-                            width: 120,
-                            minWidth: 100,
-                            maxWidth: 150,
-                            sortable: true,
-                            type: "toggle",
-                            accessor: "active"
-                          },
-                          {
-                            id: "orderIdHouse",
-                            label: "Order ID - House",
-                            width: 150,
-                            minWidth: 120,
-                            maxWidth: 200,
-                            sortable: true,
-                            accessor: "orderIdHouse"
-                          },
-                          {
-                            id: "opportunityName",
-                            label: "Opportunity Name",
-                            width: 250,
-                            minWidth: 200,
-                            maxWidth: 350,
-                            sortable: true,
-                            accessor: "opportunityName"
-                          },
-                          {
-                            id: "stage",
-                            label: "Opportunity Stage",
-                            width: 180,
-                            minWidth: 150,
-                            maxWidth: 220,
-                            sortable: true,
-                            accessor: "stage"
-                          },
-                          {
-                            id: "owner",
-                            label: "Owner",
-                            width: 150,
-                            minWidth: 120,
-                            maxWidth: 200,
-                            sortable: true,
-                            accessor: "owner"
-                          },
-                          {
-                            id: "estimatedCloseDate",
-                            label: "Estimated Close Date",
-                            width: 180,
-                            minWidth: 150,
-                            maxWidth: 220,
-                            sortable: true,
-                            accessor: "estimatedCloseDate",
-                            render: (value) => formatDate(value)
-                          },
-                          {
-                            id: "referredBy",
-                            label: "Referred By",
-                            width: 150,
-                            minWidth: 120,
-                            maxWidth: 200,
-                            sortable: true,
-                            accessor: "referredBy"
-                          }
-                        ]}
-                        data={contact.opportunities}
+                        columns={contactOpportunityTableColumns}
+                        data={paginatedOpportunities}
                         emptyMessage="No opportunities found for this contact"
+                        onColumnsChange={handleContactOpportunityTableColumnsChange}
+                        loading={loading || contactOpportunityPreferencesLoading}
+                        pagination={opportunitiesPagination}
+                        onPageChange={handleOpportunitiesPageChange}
+                        onPageSizeChange={handleOpportunitiesPageSizeChange}
+                        autoSizeColumns={true}
+                        fillContainerWidth
+                        alwaysShowPagination
                       />
                     </div>
                   )}
 
                   {activeTab === "groups" && (
                     <div className="flex flex-col gap-2">
-                      <TabToolbar />
+                      <ListHeader
+                        onCreateClick={handleCreateNewClick}
+                        onFilterChange={setActiveFilter as unknown as (filter: string) => void}
+                        statusFilter={activeFilter}
+                        onSearch={handleGroupsSearch}
+                        filterColumns={groupsFilterColumns}
+                        columnFilters={groupsColumnFilters}
+                        onColumnFiltersChange={handleGroupsColumnFiltersChange}
+                        hasUnsavedTableChanges={contactGroupHasUnsavedChanges}
+                        isSavingTableChanges={contactGroupPreferencesSaving}
+                        lastTableSaved={contactGroupLastSaved ?? undefined}
+                        onSaveTableChanges={saveContactGroupTablePreferences}
+                        showCreateButton={Boolean(contact) && !isDeleted && !loading}
+                        searchPlaceholder="Search groups"
+                      />
                       <DynamicTable
-                        columns={[
-                          {
-                            id: "active",
-                            label: "Active",
-                            width: 120,
-                            minWidth: 100,
-                            maxWidth: 150,
-                            sortable: true,
-                            type: "toggle",
-                            accessor: "active"
-                          },
-                          {
-                            id: "groupName",
-                            label: "Group Name",
-                            width: 200,
-                            minWidth: 150,
-                            maxWidth: 300,
-                            sortable: true,
-                            accessor: "groupName"
-                          },
-                          {
-                            id: "visibility",
-                            label: "Public/Private",
-                            width: 150,
-                            minWidth: 120,
-                            maxWidth: 200,
-                            sortable: true,
-                            accessor: "visibility"
-                          },
-                          {
-                            id: "description",
-                            label: "Group Description",
-                            width: 250,
-                            minWidth: 200,
-                            maxWidth: 400,
-                            sortable: true,
-                            accessor: "description"
-                          },
-                          {
-                            id: "owner",
-                            label: "Group Owner",
-                            width: 180,
-                            minWidth: 150,
-                            maxWidth: 250,
-                            sortable: true,
-                            accessor: "owner"
-                          }
-                        ]}
-                        data={contact.groups}
+                        columns={contactGroupTableColumns}
+                        data={paginatedGroups}
                         emptyMessage="No groups found for this contact"
+                        onColumnsChange={handleContactGroupTableColumnsChange}
+                        loading={loading || contactGroupPreferencesLoading}
+                        pagination={groupsPagination}
+                        onPageChange={handleGroupsPageChange}
+                        onPageSizeChange={handleGroupsPageSizeChange}
+                        autoSizeColumns={true}
+                        fillContainerWidth
+                        alwaysShowPagination
                       />
                     </div>
                   )}
@@ -738,6 +1285,49 @@ export function ContactDetailsView({ contact, loading = false, error, onBack, on
         onRestore={handleRestore}
         userCanPermanentDelete={true} // TODO: Check user permissions
       />
+
+      {contact && (
+        <>
+          <ActivityNoteCreateModal
+            isOpen={activityModalOpen}
+            context="contact"
+            entityName={contactDisplayName || contact.accountName}
+            accountId={contact.accountId}
+            contactId={contact.id}
+            onClose={() => setActivityModalOpen(false)}
+            onSuccess={handlePostCreate}
+          />
+          <ContactOpportunityCreateModal
+            isOpen={opportunityModalOpen}
+            contactName={contactDisplayName}
+            accountId={contact.accountId}
+            accountName={contact.accountName}
+            onClose={() => setOpportunityModalOpen(false)}
+            onSuccess={handlePostCreate}
+          />
+          <ContactGroupCreateModal
+            isOpen={groupModalOpen}
+            contactName={contactDisplayName}
+            accountId={contact.accountId}
+            contactId={contact.id}
+            onClose={() => setGroupModalOpen(false)}
+            onSuccess={handlePostCreate}
+          />
+        </>
+      )}
     </div>
   )
 }
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { ChevronRight, Home } from 'lucide-react'
 import { navigation } from '@/lib/nav'
+import { useBreadcrumbs } from '@/lib/breadcrumb-context'
 
 export interface BreadcrumbItem {
   name: string
@@ -146,10 +147,15 @@ function capitalizeSegment(segment: string): string {
 
 export function Breadcrumb({ items, className = '' }: BreadcrumbProps) {
   const pathname = usePathname()
-  
+  const { items: contextItems } = useBreadcrumbs()
+
   const breadcrumbItems = useMemo(() => {
-    return items || generateBreadcrumbs(pathname)
-  }, [items, pathname])
+    if (items) return items
+    if (contextItems && contextItems.length > 0) {
+      return contextItems
+    }
+    return generateBreadcrumbs(pathname)
+  }, [items, contextItems, pathname])
 
   return (
     <nav 

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ListHeader } from "@/components/list-header";
-import { DynamicTable, Column } from "@/components/dynamic-table";
+import { DynamicTable, Column, PaginationInfo } from "@/components/dynamic-table";
 import { useTablePreferences } from "@/hooks/useTablePreferences";
 import {
   AccountCreateModal,
@@ -181,6 +181,8 @@ export default function AccountsPage() {
     columnId: keyof AccountRow;
     direction: "asc" | "desc";
   } | null>(null);
+  const [page, setPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(25);
   const [updatingAccountIds, setUpdatingAccountIds] = useState<Set<string>>(
     new Set(),
   );
@@ -273,11 +275,22 @@ export default function AccountsPage() {
   }, [reloadAccounts]);
 
   const handleSearch = (query: string) => {
+    setPage(1);
     reloadAccounts(query).catch(console.error);
   };
 
   const handleSort = (columnId: string, direction: "asc" | "desc") => {
+    setPage(1);
     setSortConfig({ columnId: columnId as keyof AccountRow, direction });
+  };
+
+  const handlePageChange = (nextPage: number) => {
+    setPage(Math.max(1, nextPage));
+  };
+
+  const handlePageSizeChange = (nextPageSize: number) => {
+    setPageSize(nextPageSize);
+    setPage(1);
   };
 
   const handleRowClick = useCallback(
@@ -350,10 +363,12 @@ export default function AccountsPage() {
 
   const handleStatusFilterChange = (filter: string) => {
     setActiveFilter(filter === "active" ? "active" : "all");
+    setPage(1);
   };
 
   const handleColumnFilters = useCallback(
     (filters: { columnId: string; value: string }[]) => {
+      setPage(1);
       if (!Array.isArray(filters) || filters.length === 0) {
         setColumnFilters([]);
         setSortConfig(null);
@@ -570,6 +585,32 @@ export default function AccountsPage() {
     });
   }, [accounts, activeFilter, columnFilters, sortConfig, applyFilters]);
 
+  useEffect(() => {
+    const total = filteredAccounts.length;
+    const totalPages = Math.max(1, Math.ceil(total / pageSize));
+    if (page > totalPages) {
+      setPage(totalPages);
+    } else if (page < 1 && totalPages >= 1) {
+      setPage(1);
+    }
+  }, [filteredAccounts.length, page, pageSize]);
+
+  const paginatedAccounts = useMemo(() => {
+    const startIndex = (page - 1) * pageSize;
+    return filteredAccounts.slice(startIndex, startIndex + pageSize);
+  }, [filteredAccounts, page, pageSize]);
+
+  const paginationInfo: PaginationInfo = useMemo(() => {
+    const total = filteredAccounts.length;
+    const totalPages = Math.max(1, Math.ceil(total / pageSize));
+    return {
+      page,
+      pageSize,
+      total,
+      totalPages
+    };
+  }, [filteredAccounts.length, page, pageSize]);
+
   const tableLoading = loading || preferenceLoading;
 
   const tableColumns = useMemo(() => {
@@ -673,12 +714,16 @@ export default function AccountsPage() {
       <div className="flex-1 p-4 min-h-0">
         <DynamicTable
           columns={tableColumns}
-          data={filteredAccounts}
+          data={paginatedAccounts}
           onSort={handleSort}
           onRowClick={handleRowClick}
           loading={tableLoading}
           emptyMessage="No accounts found"
           onColumnsChange={handleColumnsChange}
+          pagination={paginationInfo}
+          onPageChange={handlePageChange}
+          onPageSizeChange={handlePageSizeChange}
+          alwaysShowPagination
         />
       </div>
 

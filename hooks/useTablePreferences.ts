@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { Column } from "@/components/dynamic-table"
 
 interface TablePreferencePayload {
@@ -84,9 +84,22 @@ export function useTablePreferences(
   const [error, setError] = useState<string | null>(null)
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState<boolean>(false)
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
-  const [savedColumns, setSavedColumns] = useState<Column[]>([])
+  const [savedColumns, setSavedColumns] = useState<Column[]>(() => cloneColumns(baseColumns))
 
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const baseColumnsKey = useMemo(() => JSON.stringify(baseColumns), [baseColumns])
+  const baseColumnsRef = useRef(baseColumns)
+
+  useEffect(() => {
+    baseColumnsRef.current = baseColumns
+  }, [baseColumnsKey])
+
+  useEffect(() => {
+    const nextBaseColumns = cloneColumns(baseColumnsRef.current)
+    setColumns(nextBaseColumns)
+    setSavedColumns(nextBaseColumns.map(col => ({ ...col })))
+    setHasUnsavedChanges(false)
+  }, [baseColumnsKey])
 
   // Helper function to check if columns have changed
   const columnsHaveChanged = useCallback((current: Column[], saved: Column[]): boolean => {
@@ -109,24 +122,25 @@ export function useTablePreferences(
   const fetchPreferences = useCallback(async () => {
     setLoading(true)
     try {
-      const response = await fetch(`/api/table-preferences/${pageKey}`, {
+      const response = await fetch('/api/table-preferences/' + pageKey, {
         method: "GET",
         cache: "no-store"
       })
 
       if (!response.ok) {
-        throw new Error(`Failed to load table preferences for ${pageKey}`)
+        throw new Error('Failed to load table preferences for ' + pageKey)
       }
 
       const payload: TablePreferencePayload | null = await response.json()
-      const newColumns = applyPreferences(baseColumns, payload)
+      const base = baseColumnsRef.current
+      const newColumns = applyPreferences(base, payload)
       setColumns(newColumns)
       setSavedColumns(newColumns.map(col => ({ ...col })))
       setHasUnsavedChanges(false)
       setError(null)
     } catch (err) {
       console.error(err)
-      const fallbackColumns = cloneColumns(baseColumns)
+      const fallbackColumns = cloneColumns(baseColumnsRef.current)
       setColumns(fallbackColumns)
       setSavedColumns(fallbackColumns.map(col => ({ ...col })))
       setHasUnsavedChanges(false)
@@ -134,7 +148,7 @@ export function useTablePreferences(
     } finally {
       setLoading(false)
     }
-  }, [baseColumns, pageKey])
+  }, [pageKey, baseColumnsKey])
 
   useEffect(() => {
     fetchPreferences()

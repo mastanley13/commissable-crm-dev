@@ -1,8 +1,11 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { ListHeader } from '@/components/list-header'
-import { DynamicTable, Column } from '@/components/dynamic-table'
+import { DynamicTable, Column, PaginationInfo } from '@/components/dynamic-table'
+import { ColumnChooserModal } from '@/components/column-chooser-modal'
+import { useTablePreferences } from '@/hooks/useTablePreferences'
+import { TableChangeNotification } from '@/components/table-change-notification'
 import { PermissionGate } from '@/components/auth/permission-gate'
 import { Edit, Trash2, User, Shield } from 'lucide-react'
 
@@ -123,6 +126,22 @@ export default function AdminUsersPage() {
   const [filteredUsers, setFilteredUsers] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [showColumnSettings, setShowColumnSettings] = useState(false)
+  const [currentPage, setCurrentPage] = useState<number>(1)
+  const [pageSize, setPageSize] = useState<number>(25)
+
+  const {
+    columns: preferenceColumns,
+    loading: preferenceLoading,
+    error: preferenceError,
+    saving: preferenceSaving,
+    hasUnsavedChanges,
+    lastSaved,
+    handleColumnsChange,
+    handleHiddenColumnsChange,
+    saveChanges,
+    saveChangesOnModalClose,
+  } = useTablePreferences("admin:users", userColumns)
 
   useEffect(() => {
     fetchUsers()
@@ -196,6 +215,36 @@ export default function AdminUsersPage() {
     }
   }
 
+  // Pagination handlers
+  const handlePageChange = useCallback((page: number) => {
+    setCurrentPage(page)
+  }, [])
+
+  const handlePageSizeChange = useCallback((newPageSize: number) => {
+    setPageSize(newPageSize)
+    setCurrentPage(1) // Reset to first page when page size changes
+  }, [])
+
+  // Calculate paginated data
+  const paginatedUsers = useMemo(() => {
+    const startIndex = (currentPage - 1) * pageSize
+    const endIndex = startIndex + pageSize
+    return filteredUsers.slice(startIndex, endIndex)
+  }, [filteredUsers, currentPage, pageSize])
+
+  // Calculate pagination info
+  const paginationInfo = useMemo((): PaginationInfo => {
+    const totalItems = filteredUsers.length
+    const totalPages = Math.ceil(totalItems / pageSize)
+
+    return {
+      page: currentPage,
+      totalPages,
+      pageSize,
+      total: totalItems,
+    }
+  }, [filteredUsers.length, currentPage, pageSize])
+
   return (
     <PermissionGate
       permissions={['admin.users.read', 'accounts.manage']}
@@ -215,12 +264,23 @@ export default function AdminUsersPage() {
           onSearch={handleSearch}
           onFilterChange={handleFilterChange}
           onCreateClick={handleCreateUser}
+          onSettingsClick={() => setShowColumnSettings(true)}
         />
 
+        {/* Table Change Notification */}
+        {hasUnsavedChanges && (
+          <TableChangeNotification
+            hasUnsavedChanges={hasUnsavedChanges}
+            isSaving={preferenceSaving}
+            lastSaved={lastSaved || undefined}
+            onSave={saveChanges}
+          />
+        )}
+
         {/* Error Message */}
-        {error && (
+        {(error || preferenceError) && (
           <div className="mx-6 mt-4 p-4 bg-red-50 border border-red-200 rounded-md">
-            <p className="text-red-700">{error}</p>
+            <p className="text-red-700">{error || preferenceError}</p>
             <button
               onClick={fetchUsers}
               className="mt-2 text-red-600 hover:text-red-800 font-medium"
@@ -233,14 +293,29 @@ export default function AdminUsersPage() {
         {/* Table */}
         <div className="flex-1 p-6">
           <DynamicTable
-            columns={userColumns}
-            data={filteredUsers}
+            columns={preferenceColumns}
+            data={paginatedUsers}
             onSort={handleSort}
             onRowClick={handleRowClick}
-            loading={loading}
+            onColumnsChange={handleColumnsChange}
+            loading={loading || preferenceLoading}
             emptyMessage="No users found"
+            pagination={paginationInfo}
+            onPageChange={handlePageChange}
+            onPageSizeChange={handlePageSizeChange}
           />
         </div>
+
+        {/* Column Chooser Modal */}
+        <ColumnChooserModal
+          isOpen={showColumnSettings}
+          columns={preferenceColumns}
+          onApply={handleColumnsChange}
+          onClose={async () => {
+            setShowColumnSettings(false)
+            await saveChangesOnModalClose()
+          }}
+        />
       </div>
     </PermissionGate>
   )

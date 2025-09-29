@@ -136,6 +136,15 @@ async function seed() {
     prisma.permission.create({ data: { code: "admin.users.create", name: "Create Users", category: "Admin" } }),
     prisma.permission.create({ data: { code: "admin.users.update", name: "Update Users", category: "Admin" } }),
     prisma.permission.create({ data: { code: "admin.users.delete", name: "Delete Users", category: "Admin" } }),
+
+    // Activities (granular)
+    prisma.permission.create({ data: { code: "activities.read", name: "Read Activities", category: "Activities" } }),
+    prisma.permission.create({ data: { code: "activities.create", name: "Create Activities", category: "Activities" } }),
+    prisma.permission.create({ data: { code: "activities.update", name: "Update Activities", category: "Activities" } }),
+    prisma.permission.create({ data: { code: "activities.delete", name: "Delete Activities", category: "Activities" } }),
+    prisma.permission.create({ data: { code: "activities.export", name: "Export Activities", category: "Activities" } }),
+    // Legacy/compat for existing guards
+    prisma.permission.create({ data: { code: "activities.manage", name: "Manage Activities (legacy)", category: "Activities" } }),
   ])
 
   const [adminRole, salesMgmtRole, salesRepRole, accountingRole] = roles
@@ -150,6 +159,8 @@ async function seed() {
         "contacts.read", "contacts.create", "contacts.update", "contacts.delete", "contacts.export", "contacts.manage",
         // Finance/System
         "finance.view", "reconciliation.view", "tables.customize", "system.settings.read", "system.settings.write",
+        // Activities
+        "activities.read", "activities.create", "activities.update", "activities.delete", "activities.export", "activities.manage",
         // Admin
         "admin.roles.read", "admin.roles.create", "admin.roles.update", "admin.roles.delete",
         "admin.permissions.read",
@@ -162,6 +173,8 @@ async function seed() {
         // Full control on accounts/contacts incl. export per spec
         "accounts.read", "accounts.create", "accounts.update", "accounts.delete", "accounts.export", "accounts.manage",
         "contacts.read", "contacts.create", "contacts.update", "contacts.delete", "contacts.export", "contacts.manage",
+        // Activities
+        "activities.read", "activities.create", "activities.update", "activities.delete", "activities.export", "activities.manage",
         "tables.customize"
       ]
     },
@@ -171,6 +184,8 @@ async function seed() {
         // Limited - use manage for compatibility; granular read/create/update
         "accounts.read", "accounts.create", "accounts.update", "accounts.manage",
         "contacts.read", "contacts.create", "contacts.update", "contacts.manage",
+        // Activities
+        "activities.read", "activities.create", "activities.update", "activities.manage",
         "tables.customize"
       ]
     },
@@ -178,7 +193,7 @@ async function seed() {
       roleId: accountingRole.id,
       codes: [
         // Read-only Accounts/Contacts + Finance view and reconciliation
-        "accounts.read", "contacts.read", "finance.view", "reconciliation.view", "tables.customize"
+        "accounts.read", "contacts.read", "activities.read", "finance.view", "reconciliation.view", "tables.customize"
       ]
     },
   ]
@@ -374,6 +389,98 @@ async function seed() {
     },
   })
 
+  // Create additional sample accounts from mock data
+  const additionalAccounts = [
+    {
+      accountName: "Customer Account 1",
+      accountLegalName: "Customer Account 1 LLC",
+      accountType: "Customer",
+      ownerId: managerUser.id,
+      shippingState: "OR",
+      shippingCity: "Bend",
+      shippingZip: "234234",
+      shippingStreet: "1 Main Street",
+      phone: "555-0123",
+      description: "Sample customer account"
+    },
+    {
+      accountName: "Testing Account 1",
+      accountLegalName: "Distributor Test Account",
+      accountType: "Distributor",
+      ownerId: salesUser.id,
+      shippingState: "CA",
+      shippingCity: "Rio Linda",
+      shippingZip: "92242",
+      shippingStreet: "23 ABC Street",
+      phone: "555-0124",
+      description: "Sample distributor account"
+    },
+    {
+      accountName: "Vendor Account",
+      accountLegalName: "Vendor Account LLC",
+      accountType: "Vendor",
+      ownerId: managerUser.id,
+      shippingState: "NY",
+      shippingCity: "Accord",
+      shippingZip: "12404",
+      shippingStreet: "65 UVW Street",
+      phone: "555-0125",
+      description: "Sample vendor account"
+    },
+    {
+      accountName: "selva test account",
+      accountLegalName: "test legal data",
+      accountType: "Customer",
+      ownerId: salesUser.id,
+      shippingState: "TN",
+      shippingCity: "trichy",
+      shippingZip: "60252",
+      shippingStreet: "1 nehru street",
+      phone: "555-0126",
+      description: "Sample test account"
+    }
+  ]
+
+  for (const accountData of additionalAccounts) {
+    const accountType = await prisma.accountType.findFirst({
+      where: { tenantId: tenant.id, code: accountData.accountType.toUpperCase() }
+    })
+
+    if (accountType) {
+      const additionalAccount = await prisma.account.create({
+        data: {
+          tenantId: tenant.id,
+          accountTypeId: accountType.id,
+          industryId: techIndustry.id,
+          ownerId: accountData.ownerId,
+          createdById: adminUser.id,
+          updatedById: adminUser.id,
+          accountName: accountData.accountName,
+          accountLegalName: accountData.accountLegalName,
+          status: "Active",
+          phone: accountData.phone,
+          description: accountData.description,
+          shippingAddressId: shippingAddress.id, // Reuse the same address for simplicity
+          billingAddressId: billingAddress.id
+        }
+      })
+
+      // Create account assignments
+      await prisma.accountAssignment.createMany({
+        data: [
+          {
+            tenantId: tenant.id,
+            accountId: additionalAccount.id,
+            userId: accountData.ownerId,
+            assignmentRole: "PrimaryOwner",
+            isPrimary: true,
+            assignedById: adminUser.id
+          }
+        ]
+      })
+    }
+  }
+
   const contactAddress = await prisma.address.create({
     data: {
       tenantId: tenant.id,
@@ -518,6 +625,17 @@ async function seed() {
     },
   })
 
+  const advisoryGroup = await prisma.group.create({
+    data: {
+      tenantId: tenant.id,
+      name: "Customer Success Council",
+      groupType: "SalesTeam",
+      visibility: "Public",
+      ownerId: salesUser.id,
+      description: "Customer-facing leads collaborating on renewals",
+    },
+  })
+
   await prisma.groupMember.createMany({
     data: [
       {
@@ -530,11 +648,40 @@ async function seed() {
       {
         tenantId: tenant.id,
         groupId: teamGroup.id,
+        memberType: "Contact",
+        contactId: contact.id,
+        addedById: managerUser.id,
+      },
+      {
+        tenantId: tenant.id,
+        groupId: teamGroup.id,
         memberType: "User",
         userId: salesUser.id,
         addedById: managerUser.id,
       },
+      {
+        tenantId: tenant.id,
+        groupId: advisoryGroup.id,
+        memberType: "Account",
+        accountId: account.id,
+        addedById: managerUser.id,
+      },
+      {
+        tenantId: tenant.id,
+        groupId: advisoryGroup.id,
+        memberType: "Contact",
+        contactId: contact.id,
+        addedById: managerUser.id,
+      },
+      {
+        tenantId: tenant.id,
+        groupId: advisoryGroup.id,
+        memberType: "User",
+        userId: managerUser.id,
+        addedById: managerUser.id,
+      },
     ],
+    skipDuplicates: true,
   })
 
   await prisma.activity.create({
@@ -549,7 +696,7 @@ async function seed() {
       subject: "Discovery follow-up",
       description: "Discussed integration requirements and pricing tiers.",
       dueDate: new Date(),
-      status: "Scheduled",
+      status: "Open",
       priority: "High",
     },
   })

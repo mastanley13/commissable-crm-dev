@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import { useEffect, useMemo, useState } from 'react'
 import { X, Plus, Loader2 } from 'lucide-react'
@@ -14,6 +14,8 @@ interface ActivityCreateModalProps {
   isOpen: boolean
   onClose: () => void
   onCreated: (activityId: string) => void
+  defaultAccountId?: string
+  defaultAccountName?: string
 }
 
 interface FormState {
@@ -30,6 +32,22 @@ interface FormState {
   status: ActivityStatus
 }
 
+function buildInitialActivityForm(defaultAccountId?: string, defaultAccountName?: string): FormState {
+  return {
+    subject: '',
+    type: ActivityType.Call,
+    dueDate: '',
+    assigneeId: '',
+    description: '',
+    location: '',
+    accountId: defaultAccountId ?? '',
+    accountName: defaultAccountName ?? '',
+    contactId: '',
+    contactName: '',
+    status: ActivityStatus.Open
+  }
+}
+
 interface SearchResult {
   id: string
   title: string
@@ -41,20 +59,8 @@ const TYPE_OPTIONS: Option[] = Object.values(ActivityType).map(type => ({
   label: type
 }))
 
-export function ActivityCreateModal({ isOpen, onClose, onCreated }: ActivityCreateModalProps) {
-  const [form, setForm] = useState<FormState>({
-    subject: '',
-    type: ActivityType.Call,
-    dueDate: '',
-    assigneeId: '',
-    description: '',
-    location: '',
-    accountId: '',
-    accountName: '',
-    contactId: '',
-    contactName: '',
-    status: ActivityStatus.Open
-  })
+export function ActivityCreateModal({ isOpen, onClose, onCreated, defaultAccountId, defaultAccountName }: ActivityCreateModalProps) {
+  const [form, setForm] = useState<FormState>(() => buildInitialActivityForm(defaultAccountId, defaultAccountName))
   const [attachmentFiles, setAttachmentFiles] = useState<File[]>([])
   const [loading, setLoading] = useState(false)
   const [userOptions, setUserOptions] = useState<Option[]>([])
@@ -93,8 +99,17 @@ export function ActivityCreateModal({ isOpen, onClose, onCreated }: ActivityCrea
       setContactQuery('')
       setAccountResults([])
       setContactResults([])
+      setAttachmentFiles([])
+      return
     }
-  }, [isOpen])
+
+    setForm(buildInitialActivityForm(defaultAccountId, defaultAccountName))
+    setAccountQuery('')
+    setContactQuery('')
+    setAccountResults([])
+    setContactResults([])
+    setAttachmentFiles([])
+  }, [isOpen, defaultAccountId, defaultAccountName])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -147,19 +162,7 @@ export function ActivityCreateModal({ isOpen, onClose, onCreated }: ActivityCrea
   const isValid = useMemo(() => form.subject.trim().length > 0, [form.subject])
 
   function resetForm() {
-    setForm({
-      subject: '',
-      type: ActivityType.Call,
-      dueDate: '',
-      assigneeId: '',
-      description: '',
-      location: '',
-      accountId: '',
-      accountName: '',
-      contactId: '',
-      contactName: '',
-      status: ActivityStatus.Open
-    })
+    setForm(buildInitialActivityForm(defaultAccountId, defaultAccountName))
     setAttachmentFiles([])
     setAccountQuery('')
     setContactQuery('')
@@ -204,7 +207,11 @@ export function ActivityCreateModal({ isOpen, onClose, onCreated }: ActivityCrea
       const { data } = await response.json()
       const activityId: string | undefined = data?.id
 
-      if (activityId && attachmentFiles.length > 0) {
+      if (!activityId) {
+        throw new Error("Activity creation failed - no activity ID returned")
+      }
+
+      if (attachmentFiles.length > 0) {
         const formData = new FormData()
         attachmentFiles.forEach(file => formData.append('files', file))
         await fetch(`/api/activities/${activityId}/attachments`, {
@@ -213,12 +220,10 @@ export function ActivityCreateModal({ isOpen, onClose, onCreated }: ActivityCrea
         })
       }
 
-      if (activityId) {
-        showSuccess('Activity created', 'The activity has been created successfully.')
-        resetForm()
-        onCreated(activityId)
-        onClose()
-      }
+      showSuccess('Activity created', 'The activity has been created successfully.')
+      resetForm()
+      onCreated(activityId)
+      onClose()
     } catch (error) {
       console.error('Failed to create activity', error)
       showError('Unable to create activity', error instanceof Error ? error.message : 'Unknown error')

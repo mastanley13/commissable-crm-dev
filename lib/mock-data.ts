@@ -595,33 +595,179 @@ export const ticketsData = [
 export const activitiesData = [
   {
     id: 1,
-    activityType: 'Call',
-    subject: 'Follow up call with Testing Account 1',
-    contactName: 'Customer TestPerson1',
-    accountName: 'Testing Account 1',
-    dueDate: '2025-09-15',
-    status: 'Open',
-    assignedTo: 'House Repname'
+    sno: 1,
+    active: true,
+    activityDate: '2025-08-04',
+    activityType: 'Meeting',
+    description: 'yes',
+    accountName: 'Test Account 5',
+    attachment: true,
+    fileName: '-'
   },
   {
     id: 2,
-    activityType: 'Email',
-    subject: 'Product demo follow-up',
-    contactName: 'New Contact',
-    accountName: 'Customer Account 1',
-    dueDate: '2025-09-12',
-    status: 'Completed',
-    assignedTo: 'testfirstname testlastname'
+    sno: 2,
+    active: true,
+    activityDate: '2025-08-06',
+    activityType: 'Call',
+    description: 'Contact Activity',
+    accountName: 'Test Account 32',
+    attachment: false,
+    fileName: '-'
   },
   {
     id: 3,
+    sno: 3,
+    active: true,
+    activityDate: '2025-08-06',
+    activityType: 'Notes',
+    description: 'Test 22',
+    accountName: '-',
+    attachment: true,
+    fileName: '["uploads68b03a9a37153.docx","uploads68b03a9a37278.docx"]'
+  },
+  {
+    id: 4,
+    sno: 4,
+    active: true,
+    activityDate: '2025-08-09',
+    activityType: 'ToDo',
+    description: 'Jayaprakash',
+    accountName: 'Test Account2',
+    attachment: false,
+    fileName: '-'
+  },
+  {
+    id: 5,
+    sno: 5,
+    active: true,
+    activityDate: '2025-08-11',
+    activityType: 'Notes',
+    description: 'fgfgd',
+    accountName: 'Test Account 5',
+    attachment: true,
+    fileName: 'uploads68a822be1a39f5.pdf'
+  },
+  {
+    id: 6,
+    sno: 6,
+    active: true,
+    activityDate: '2025-08-12',
+    activityType: 'Notes',
+    description: 'ethgh',
+    accountName: 'selva test account',
+    attachment: true,
+    fileName: 'uploads68a8144a1a3a3.pdf'
+  },
+  {
+    id: 7,
+    sno: 7,
+    active: true,
+    activityDate: '2025-08-13',
     activityType: 'Meeting',
-    subject: 'Q4 Planning Session',
-    contactName: 'Sample Contact',
-    accountName: 'QA Account Name',
-    dueDate: '2025-09-20',
-    status: 'Open',
-    assignedTo: 'Test-Housename'
+    description: 'Contact Activity',
+    accountName: 'selva test account',
+    attachment: false,
+    fileName: '-'
+  },
+  {
+    id: 8,
+    sno: 8,
+    active: true,
+    activityDate: '2025-08-13',
+    activityType: 'Notes',
+    description: 'BS Activity Test 2.0',
+    accountName: '-',
+    attachment: true,
+    fileName: '["uploads68b04c6d1ce9.docx","uploads68b04c6d1a15.docx"]'
+  },
+  {
+    id: 9,
+    sno: 9,
+    active: true,
+    activityDate: '2025-08-13',
+    activityType: 'Meeting',
+    description: 'Contact Activity',
+    accountName: 'Customer Account 1',
+    attachment: false,
+    fileName: '-'
+  },
+  {
+    id: 10,
+    sno: 10,
+    active: true,
+    activityDate: '2025-08-14',
+    activityType: 'Notes',
+    description: 'fd',
+    accountName: 'Testing Account 1',
+    attachment: true,
+    fileName: 'uploads68a81503982e0.pdf'
+  },
+  {
+    id: 11,
+    sno: 11,
+    active: true,
+    activityDate: '2025-08-19',
+    activityType: 'Notes',
+    description: 'testerrr',
+    accountName: 'selva test account',
+    attachment: true,
+    fileName: 'uploads68a80dc3469f.pdf'
+  },
+  {
+    id: 12,
+    sno: 12,
+    active: true,
+    activityDate: '2025-08-20',
+    activityType: 'Call',
+    description: 'BS Activity Test 1',
+    accountName: '-',
+    attachment: false,
+    fileName: '-'
+  },
+  {
+    id: 13,
+    sno: 13,
+    active: true,
+    activityDate: '2025-08-21',
+    activityType: 'Notes',
+    description: 'Test 2',
+    accountName: '-',
+    attachment: true,
+    fileName: '["uploads68b127199b73.docx"]'
+  },
+  {
+    id: 14,
+    sno: 14,
+    active: true,
+    activityDate: '2025-08-21',
+    activityType: 'Call',
+    description: 'Test 1',
+    accountName: '-',
+    attachment: false,
+    fileName: '-'
+  },
+  {
+    id: 15,
+    sno: 15,
+    active: true,
+    activityDate: '2025-08-21',
+    activityType: 'Call',
+    description: 'fsgfsdfg',
+    accountName: 'Test Account 5',
+    attachment: false,
+    fileName: '-'
+  },
+  {
+    id: 16,
+    sno: 16,
+    active: true,
+    activityDate: '2025-08-22',
+    activityType: 'Call',
+    description: 'asdgadgasdg',
+    accountName: 'Customer Account 1',
+    attachment: false,
+    fileName: '-'
   }
 ]
 
