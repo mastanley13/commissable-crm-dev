@@ -18,25 +18,52 @@ interface ReassignmentData {
   transferCommissions: boolean;
   notifyUsers: boolean;
   reason?: string;
+  commissionOption?: 'transferToNewRep' | 'transferToHouse';
+  houseDummyRepId?: string;
 }
 
 type AssignmentRole = 'PrimaryOwner' | 'SalesSupport' | 'Finance' | 'ReadOnly';
 
-interface CommissionImpact {
+interface CommissionTransfer {
+  fromOwner: string;
+  toOwner: string;
+  amount: number;
+  effectiveDate: string;
+}
+
+interface AccountSummaryPreview {
+  id: string;
+  accountName: string;
+  currentOwnerId: string;
+  currentOwnerName: string;
+  totalRevenue: number;
+  totalCommission: number;
+  opportunityCount: number;
+  revenueScheduleCount: number;
+  activeContacts: number;
+  openActivities: number;
+  activeGroups: number;
+  openTasks: number;
+}
+
+interface ReassignmentImpact {
   totalAccounts: number;
-  totalRevenueImpact: number;
-  totalCommissionImpact: number;
-  affectedRevenueSchedules: number;
-  affectedOpportunities: number;
-  transferDetails: Array<{
-    currentOwnerId: string;
-    currentOwnerName: string;
-    accountCount: number;
-    totalRevenue: number;
-    totalCommission: number;
-  }>;
+  accountsByOwner: { [ownerId: string]: AccountSummaryPreview[] };
+  revenueImpact: {
+    totalAnnualRevenue: number;
+    monthlyRecurring: number;
+    projectedCommissions: number;
+    affectedOpportunities: number;
+  };
+  commissionTransfers: CommissionTransfer[];
   warnings: string[];
   conflicts: string[];
+  itemCounts?: {
+    activeContacts: number;
+    openActivities: number;
+    activeGroups: number;
+    openTasks: number;
+  };
 }
 
 interface User {
@@ -69,9 +96,11 @@ export function AccountReassignmentModal({
     effectiveDate: new Date(),
     transferCommissions: true,
     notifyUsers: true,
-    reason: ''
+    reason: '',
+    commissionOption: 'transferToNewRep',
+    houseDummyRepId: ''
   });
-  const [impactPreview, setImpactPreview] = useState<CommissionImpact | null>(null);
+  const [impactPreview, setImpactPreview] = useState<ReassignmentImpact | null>(null);
   const [users, setUsers] = useState<User[]>([]);
   const [specialUsers, setSpecialUsers] = useState<SpecialUser[]>([]);
   const [loading, setLoading] = useState(false);
@@ -177,7 +206,8 @@ export function AccountReassignmentModal({
           },
           commissionTransfers: [],
           warnings: ['Preview calculation failed - using mock data for demonstration'],
-          conflicts: []
+          conflicts: [],
+          itemCounts: { activeContacts: 0, openActivities: 0, activeGroups: 0, openTasks: 0 }
         });
       }
     } catch (error) {
@@ -194,7 +224,8 @@ export function AccountReassignmentModal({
         },
         commissionTransfers: [],
         warnings: ['Preview temporarily unavailable - using mock data'],
-        conflicts: []
+        conflicts: [],
+        itemCounts: { activeContacts: 0, openActivities: 0, activeGroups: 0, openTasks: 0 }
       });
     } finally {
       setPreviewLoading(false);
@@ -418,6 +449,50 @@ export function AccountReassignmentModal({
                           Notify affected users
                         </label>
                       </div>
+                      {/* Commission Option Toggles */}
+                      <fieldset className="mt-2">
+                        <legend className="block text-sm font-medium text-gray-700 mb-2">Commission Adjustment</legend>
+                        <div className="space-y-2">
+                          <label className="flex items-center gap-2 text-sm text-gray-700">
+                            <input
+                              type="radio"
+                              name="commissionOption"
+                              value="transferToNewRep"
+                              checked={reassignmentData.commissionOption === 'transferToNewRep'}
+                              onChange={() => setReassignmentData(prev => ({ ...prev, commissionOption: 'transferToNewRep' }))}
+                            />
+                            Transfer to New Representative
+                          </label>
+                          <label className="flex items-center gap-2 text-sm text-gray-700">
+                            <input
+                              type="radio"
+                              name="commissionOption"
+                              value="transferToHouse"
+                              checked={reassignmentData.commissionOption === 'transferToHouse'}
+                              onChange={() => setReassignmentData(prev => ({ ...prev, commissionOption: 'transferToHouse' }))}
+                            />
+                            Transfer to House (add Rep % to House Split)
+                          </label>
+                        </div>
+                      </fieldset>
+                      {/* House Dummy Rep Selector when House chosen */}
+                      {reassignmentData.newOwnerId === 'house' && (
+                        <div className="mt-2">
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Select House Dummy Representative</label>
+                          <select
+                            value={reassignmentData.houseDummyRepId || ''}
+                            onChange={(e) => setReassignmentData(prev => ({ ...prev, houseDummyRepId: e.target.value }))}
+                            className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          >
+                            <option value="">Select Dummy Rep</option>
+                            {specialUsers
+                              .filter(s => s.type === 'dummy')
+                              .map(s => (
+                                <option key={s.id} value={s.id}>{s.name}</option>
+                              ))}
+                          </select>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -445,19 +520,19 @@ export function AccountReassignmentModal({
                         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                           <div className="text-sm text-blue-600 font-medium">Total Revenue Impact</div>
                           <div className="text-2xl font-bold text-blue-900">
-                            {formatCurrency(impactPreview.revenueImpact?.totalAnnualRevenue || 0)}
+                            {formatCurrency((impactPreview.revenueImpact && impactPreview.revenueImpact.totalAnnualRevenue) || 0)}
                           </div>
                         </div>
                         <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                           <div className="text-sm text-green-600 font-medium">Commission Impact</div>
                           <div className="text-2xl font-bold text-green-900">
-                            {formatCurrency(impactPreview.revenueImpact?.projectedCommissions || 0)}
+                            {formatCurrency((impactPreview.revenueImpact && impactPreview.revenueImpact.projectedCommissions) || 0)}
                           </div>
                         </div>
                         <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
                           <div className="text-sm text-purple-600 font-medium">Affected Items</div>
                           <div className="text-2xl font-bold text-purple-900">
-                            {impactPreview.revenueImpact?.affectedOpportunities || 0} opportunities
+                            {(impactPreview.revenueImpact && impactPreview.revenueImpact.affectedOpportunities) || 0} opportunities
                           </div>
                         </div>
                       </div>
@@ -466,7 +541,7 @@ export function AccountReassignmentModal({
                       <div>
                         <h4 className="text-md font-medium text-gray-900 mb-3">Transfer Details</h4>
                         <div className="space-y-3">
-                          {impactPreview.commissionTransfers?.map((transfer, index) => (
+                          {(impactPreview.commissionTransfers || []).map((transfer: CommissionTransfer, index: number) => (
                             <div key={index} className="border border-gray-200 rounded-lg p-4">
                               <div className="flex justify-between items-start">
                                 <div>
@@ -481,7 +556,7 @@ export function AccountReassignmentModal({
                                 </div>
                               </div>
                             </div>
-                          )) || []}
+                          ))}
                         </div>
                       </div>
 
@@ -581,13 +656,13 @@ export function AccountReassignmentModal({
                           <div className="flex justify-between">
                             <span className="text-gray-600">Total revenue impact:</span>
                             <span className="font-medium text-green-600">
-                              {formatCurrency(impactPreview.totalRevenueImpact)}
+                              {formatCurrency((impactPreview.revenueImpact && impactPreview.revenueImpact.totalAnnualRevenue) || 0)}
                             </span>
                           </div>
                           <div className="flex justify-between">
                             <span className="text-gray-600">Commission impact:</span>
                             <span className="font-medium text-blue-600">
-                              {formatCurrency(impactPreview.totalCommissionImpact)}
+                              {formatCurrency((impactPreview.revenueImpact && impactPreview.revenueImpact.projectedCommissions) || 0)}
                             </span>
                           </div>
                         </div>

@@ -17,6 +17,7 @@ import { useToasts } from "@/components/toast";
 import { AccountEditModal } from "@/components/account-edit-modal";
 import { AccountBulkActionBar } from "@/components/account-bulk-action-bar";
 import { AccountBulkOwnerModal } from "@/components/account-bulk-owner-modal";
+import { AccountReassignmentModal } from "@/components/account-reassignment-modal";
 import { AccountBulkStatusModal } from "@/components/account-bulk-status-modal";
 import { Trash2, Edit } from "lucide-react";
 
@@ -205,6 +206,7 @@ export default function AccountsPage() {
   const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
   const [bulkDeleteTargets, setBulkDeleteTargets] = useState<AccountRow[]>([]);
   const [showBulkOwnerModal, setShowBulkOwnerModal] = useState(false);
+  const [showReassignModal, setShowReassignModal] = useState(false);
   const [showBulkStatusModal, setShowBulkStatusModal] = useState(false);
   const [bulkActionLoading, setBulkActionLoading] = useState(false);
   const [loading, setLoading] = useState<boolean>(true);
@@ -1145,8 +1147,8 @@ export default function AccountsPage() {
     const { columnId, direction } = sortConfig;
 
     return [...filtered].sort((a, b) => {
-      const aValue = a[columnId];
-      const bValue = b[columnId];
+      const aValue = (a[columnId] ?? '').toString();
+      const bValue = (b[columnId] ?? '').toString();
 
       if (aValue < bValue) return direction === "asc" ? -1 : 1;
       if (aValue > bValue) return direction === "asc" ? 1 : -1;
@@ -1301,9 +1303,44 @@ export default function AccountsPage() {
           disabled={bulkActionLoading}
           onSoftDelete={openBulkDeleteDialog}
           onExportCsv={handleBulkExportCsv}
-          onChangeOwner={() => setShowBulkOwnerModal(true)}
+          onChangeOwner={() => setShowReassignModal(true)}
           onUpdateStatus={() => setShowBulkStatusModal(true)}
         />
+      <AccountReassignmentModal
+        isOpen={showReassignModal}
+        selectedAccountIds={selectedAccounts}
+        onClose={() => setShowReassignModal(false)}
+        onConfirm={async (data) => {
+          setBulkActionLoading(true)
+          try {
+            const response = await fetch('/api/accounts/bulk-reassign', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                accountIds: selectedAccounts,
+                newOwnerId: data.newOwnerId,
+                assignmentRole: data.assignmentRole,
+                effectiveDate: data.effectiveDate.toISOString(),
+                transferCommissions: data.transferCommissions,
+                notifyUsers: data.notifyUsers,
+                reason: data.reason,
+                commissionOption: data.commissionOption,
+                houseDummyRepId: data.houseDummyRepId
+              })
+            })
+
+            if (!response.ok) {
+              const err = await response.json().catch(() => ({}))
+              throw new Error(err?.error || 'Reassignment failed')
+            }
+
+            await reloadAccounts()
+            setSelectedAccounts([])
+          } finally {
+            setBulkActionLoading(false)
+          }
+        }}
+      />
 
         <DynamicTable
           columns={tableColumns}

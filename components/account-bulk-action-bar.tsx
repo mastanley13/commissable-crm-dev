@@ -2,6 +2,7 @@
 
 import { Download, Trash2, UserCog, ToggleLeft } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { PermissionGate, RoleGate } from "@/components/auth/permission-gate"
 
 interface AccountBulkActionBarProps {
   count: number
@@ -59,15 +60,29 @@ export function AccountBulkActionBar({
           <span>Export CSV</span>
         </button>
 
-        <button
-          type="button"
-          onClick={onChangeOwner}
-          disabled={disabled}
-          className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          <UserCog className="h-4 w-4" aria-hidden="true" />
-          <span>Change Owner</span>
-        </button>
+        <RoleGate roles={["ADMIN", "SALES_MGMT"]} fallback={
+          <PermissionGate permissions={["accounts.reassign", "accounts.bulk"]}>
+            <button
+              type="button"
+              onClick={onChangeOwner}
+              disabled={disabled}
+              className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <UserCog className="h-4 w-4" aria-hidden="true" />
+              <span>Reassign Accounts</span>
+            </button>
+          </PermissionGate>
+        }>
+          <button
+            type="button"
+            onClick={onChangeOwner}
+            disabled={disabled}
+            className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <UserCog className="h-4 w-4" aria-hidden="true" />
+            <span>Reassign Accounts</span>
+          </button>
+        </RoleGate>
 
         <button
           type="button"

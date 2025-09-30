@@ -4,9 +4,7 @@ generator client {
 
 datasource db {
   provider  = "postgresql"
-  // DATABASE_URL is supplied directly (local dev) or dynamically by the Cloud SQL connector.
   url       = env("DATABASE_URL")
-  // DIRECT_URL supports CLI tooling (migrate/Studio) when the connector is enabled.
   directUrl = env("DIRECT_URL")
 }
 
@@ -24,8 +22,8 @@ model Tenant {
   accountNotes        AccountNote[]
   accountTypes        AccountType[]
   activities          Activity[]
-  activityLinks       ActivityLink[]
   activityAttachments ActivityAttachment[]
+  activityLinks       ActivityLink[]
   addresses           Address[]
   auditLogs           AuditLog[]
   contacts            Contact[]
@@ -336,7 +334,6 @@ model Contact {
   mailingAddressId       String?             @db.Uuid
   createdById            String?             @db.Uuid
   updatedById            String?             @db.Uuid
-  deletedById            String?             @db.Uuid
   suffix                 String?
   prefix                 String?
   firstName              String
@@ -368,6 +365,7 @@ model Contact {
   createdAt              DateTime            @default(now())
   updatedAt              DateTime            @updatedAt
   deletedAt              DateTime?
+  deletedById            String?             @db.Uuid
   activities             Activity[]
   account                Account             @relation(fields: [accountId], references: [id])
   accountType            AccountType?        @relation(fields: [accountTypeId], references: [id])
@@ -525,6 +523,7 @@ model RevenueSchedule {
   updatedById          String?               @db.Uuid
   createdAt            DateTime              @default(now())
   updatedAt            DateTime              @updatedAt
+  activities           Activity[]            @relation("ActivityRevenueSchedule")
   reconciliationItems  ReconciliationItem[]
   account              Account               @relation(fields: [accountId], references: [id])
   createdBy            User?                 @relation("RevenueScheduleCreatedBy", fields: [createdById], references: [id])
@@ -535,7 +534,6 @@ model RevenueSchedule {
   tenant               Tenant                @relation(fields: [tenantId], references: [id])
   updatedBy            User?                 @relation("RevenueScheduleUpdatedBy", fields: [updatedById], references: [id])
   vendor               Account?              @relation("RevenueScheduleVendor", fields: [vendorAccountId], references: [id])
-  activities           Activity[]            @relation("ActivityRevenueSchedule")
   tickets              Ticket[]
 
   @@index([tenantId, accountId])
@@ -590,6 +588,7 @@ model Group {
   memberCount Int             @default(0)
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
+  isActive    Boolean         @default(true)
   owner       User?           @relation("GroupOwner", fields: [ownerId], references: [id])
   tenant      Tenant          @relation(fields: [tenantId], references: [id])
   members     GroupMember[]
@@ -624,10 +623,8 @@ model Activity {
   accountId         String?              @db.Uuid
   contactId         String?              @db.Uuid
   opportunityId     String?              @db.Uuid
-  revenueScheduleId String?              @db.Uuid
   creatorId         String               @db.Uuid
   assigneeId        String?              @db.Uuid
-  updatedById       String?              @db.Uuid
   activityType      ActivityType
   subject           String
   description       String?
@@ -640,16 +637,18 @@ model Activity {
   completedAt       DateTime?
   createdAt         DateTime             @default(now())
   updatedAt         DateTime             @updatedAt
+  revenueScheduleId String?              @db.Uuid
+  updatedById       String?              @db.Uuid
   account           Account?             @relation(fields: [accountId], references: [id])
   assignee          User?                @relation("ActivityAssignee", fields: [assigneeId], references: [id])
   contact           Contact?             @relation(fields: [contactId], references: [id])
   creator           User                 @relation("ActivityCreator", fields: [creatorId], references: [id])
-  updater           User?                @relation("ActivityUpdater", fields: [updatedById], references: [id])
   opportunity       Opportunity?         @relation(fields: [opportunityId], references: [id])
   revenueSchedule   RevenueSchedule?     @relation("ActivityRevenueSchedule", fields: [revenueScheduleId], references: [id])
   tenant            Tenant               @relation(fields: [tenantId], references: [id])
-  links             ActivityLink[]
+  updater           User?                @relation("ActivityUpdater", fields: [updatedById], references: [id])
   attachments       ActivityAttachment[]
+  links             ActivityLink[]
 
   @@index([tenantId, accountId])
   @@index([tenantId, status, dueDate])
@@ -685,8 +684,8 @@ model ActivityAttachment {
   uploadedById String   @db.Uuid
   uploadedAt   DateTime @default(now())
   activity     Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
-  uploadedBy   User     @relation("ActivityAttachmentUploader", fields: [uploadedById], references: [id])
   tenant       Tenant   @relation(fields: [tenantId], references: [id])
+  uploadedBy   User     @relation("ActivityAttachmentUploader", fields: [uploadedById], references: [id])
 
   @@index([tenantId, activityId])
 }

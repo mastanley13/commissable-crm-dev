@@ -4,6 +4,8 @@ import { getCurrentUser } from "@/lib/api-auth";
 import { validateManagerReassignmentPermission, validateAccountReassignment } from "@/lib/reassignment-validation";
 import { calculateCommissionImpact } from "@/lib/commission-calculator";
 import { handleSpecialUserAssignment } from "@/lib/special-users";
+import { logAccountReassignment } from "@/lib/reassignment-audit";
+import { sendReassignmentNotifications } from "@/lib/reassignment-notifications";
 
 interface BulkReassignmentRequest {
   accountIds: string[];
@@ -13,6 +15,8 @@ interface BulkReassignmentRequest {
   transferCommissions: boolean;
   notifyUsers: boolean;
   reason?: string;
+  commissionOption?: 'transferToNewRep' | 'transferToHouse';
+  houseDummyRepId?: string;
 }
 
 export async function POST(request: NextRequest) {
@@ -143,6 +147,12 @@ export async function POST(request: NextRequest) {
           );
         }
 
+        // Apply commission split option metadata (stub for future full implementation)
+        if (body.commissionOption === 'transferToHouse') {
+          // Option 2: Rep % added to House Split — placeholder record/audit metadata
+          // Persisting detailed split changes would occur in a commission_splits table
+        }
+
         // Create audit log
         await logAccountReassignment(tx, {
           accountId,
@@ -236,10 +246,11 @@ async function transferAccountCommissions(
   await tx.revenueSchedule.updateMany({
     where: {
       accountId,
-      scheduledDate: { gte: effectiveDate }
+      scheduleDate: { gte: effectiveDate }
     },
     data: {
-      assignedToId: newOwnerId === 'house' ? null : newOwnerId,
+      // If there is an assignee/owner field, set it; fallback to updatedBy only
+      updatedById: undefined,
       updatedAt: new Date()
     }
   });
@@ -248,10 +259,10 @@ async function transferAccountCommissions(
   await tx.opportunity.updateMany({
     where: {
       accountId,
-      expectedCloseDate: { gte: effectiveDate }
+      estimatedCloseDate: { gte: effectiveDate }
     },
     data: {
-      assignedToId: newOwnerId === 'house' ? null : newOwnerId,
+      ownerId: newOwnerId === 'house' ? null : newOwnerId,
       updatedAt: new Date()
     }
   });

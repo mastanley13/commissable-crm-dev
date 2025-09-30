@@ -153,6 +153,7 @@ function mapAccountGroupRow(member: any) {
     groupType: formatGroupLabel(member.group.groupType),
     visibility: formatVisibilityLabel(member.group.visibility),
     description: member.group.description ?? "",
+    ownerId: member.group.ownerId ?? null,
     owner: ownerName
   }
 }
@@ -598,7 +599,3 @@ export async function DELETE(
     }
   )
 }
-
-
-
-

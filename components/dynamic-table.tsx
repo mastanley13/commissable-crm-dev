@@ -623,12 +623,11 @@ export function DynamicTable({
     switch (column.type) {
       case "toggle":
         return (
-          <label className="relative inline-flex items-center cursor-pointer" data-disable-row-click="true">
+          <label className="relative inline-flex items-center cursor-pointer">
             <input
               type="checkbox"
               checked={Boolean(value)}
               className="sr-only"
-              data-disable-row-click="true"
               onChange={(event) => {
                 if (onToggle) {
                   onToggle(row, column.id, event.target.checked)
@@ -656,7 +655,7 @@ export function DynamicTable({
         )
       case "action":
         return (
-          <button className="rounded-full border border-red-200 p-2 text-red-500 transition hover:bg-red-50" data-disable-row-click="true">
+          <button className="rounded-full border border-red-200 p-2 text-red-500 transition hover:bg-red-50">
             <Trash2 className="h-4 w-4" />
           </button>
         )

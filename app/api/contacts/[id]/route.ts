@@ -42,6 +42,7 @@ function mapContactToDetail(contact: any) {
     jobTitle: contact.jobTitle ?? "",
     department: contact.department ?? "",
     contactType: contact.contactType ?? "",
+    active: contact.deletedAt === null,
     workPhone: contact.workPhone ?? "",
     workPhoneExt: contact.workPhoneExt ?? "",
     mobilePhone: contact.mobilePhone ?? "",
@@ -74,6 +75,7 @@ function mapContactToDetail(contact: any) {
       : null,
     reportsToContactId: contact.reportsToContactId,
     reportsToContactName: contact.reportsTo ? `${contact.reportsTo.firstName ?? ""} ${contact.reportsTo.lastName ?? ""}`.trim() : "",
+    deletedAt: contact.deletedAt,
     createdAt: contact.createdAt,
     updatedAt: contact.updatedAt
   }

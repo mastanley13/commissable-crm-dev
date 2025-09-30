@@ -4,6 +4,8 @@ import Link from "next/link"
 import { ReactNode, useCallback, useEffect, useState, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { Loader2, Filter, Paperclip, Plus, Search, Settings, Trash2, Edit, ChevronDown, ChevronUp } from "lucide-react"
+import { OpportunityStatus } from "@prisma/client"
+
 import { cn } from "@/lib/utils"
 import { TwoStageDeleteDialog } from "./two-stage-delete-dialog"
 import { DeletionConstraint } from "@/lib/deletion"
@@ -19,6 +21,12 @@ import { applySimpleFilters } from "@/lib/filter-utils"
 import { ColumnChooserModal } from "./column-chooser-modal"
 import { OpportunityEditModal } from "./opportunity-edit-modal"
 import { GroupEditModal } from "./group-edit-modal"
+import { ActivityBulkActionBar } from "./activity-bulk-action-bar"
+import { ActivityBulkOwnerModal } from "./activity-bulk-owner-modal"
+import { ActivityBulkStatusModal } from "./activity-bulk-status-modal"
+import { OpportunityBulkActionBar } from "./opportunity-bulk-action-bar"
+import { OpportunityBulkOwnerModal } from "./opportunity-bulk-owner-modal"
+import { OpportunityBulkStatusModal } from "./opportunity-bulk-status-modal"
 
 export interface ActivityAttachmentRow {
   id: string
@@ -536,9 +544,15 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
   const [editingActivity, setEditingActivity] = useState<ContactActivityRow | null>(null)
   const [selectedActivities, setSelectedActivities] = useState<string[]>([])
   const [activityBulkActionLoading, setActivityBulkActionLoading] = useState(false)
+  const [showActivityBulkOwnerModal, setShowActivityBulkOwnerModal] = useState(false)
+  const [showActivityBulkStatusModal, setShowActivityBulkStatusModal] = useState(false)
   const [editingOpportunity, setEditingOpportunity] = useState<ContactOpportunityRow | null>(null)
   const [selectedOpportunities, setSelectedOpportunities] = useState<string[]>([])
   const [opportunityBulkActionLoading, setOpportunityBulkActionLoading] = useState(false)
+  const [showOpportunityBulkOwnerModal, setShowOpportunityBulkOwnerModal] = useState(false)
+  const [showOpportunityBulkStatusModal, setShowOpportunityBulkStatusModal] = useState(false)
+  const [opportunityDeleteTargets, setOpportunityDeleteTargets] = useState<ContactOpportunityRow[]>([])
+  const [opportunityOwners, setOpportunityOwners] = useState<Array<{ value: string; label: string }>>([])
   const [opportunityToDelete, setOpportunityToDelete] = useState<ContactOpportunityRow | null>(null)
   const [showOpportunityDeleteDialog, setShowOpportunityDeleteDialog] = useState(false)
   const [editingGroup, setEditingGroup] = useState<ContactGroupRow | null>(null)
@@ -554,6 +568,41 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
   }, [contact?.id, contact?.deletedAt])
 
   useEffect(() => {
+    let isCancelled = false
+
+    const loadOwners = async () => {
+      try {
+        const response = await fetch("/api/admin/users?limit=100", { cache: "no-store" })
+        if (!response.ok) {
+          throw new Error("Failed to load owners")
+        }
+        const payload = await response.json().catch(() => null)
+        const users = Array.isArray(payload?.data?.users) ? payload.data.users : []
+        if (!isCancelled) {
+          setOpportunityOwners(
+            users.map((user: any) => ({
+              value: user.id,
+              label: user.fullName || user.email || "Unassigned"
+            }))
+          )
+        }
+      } catch (error) {
+        console.error("Failed to load opportunity owners", error)
+        if (!isCancelled) {
+          setOpportunityOwners([])
+          showError("Unable to load owners", "Please try again later.")
+        }
+      }
+    }
+
+    loadOwners()
+
+    return () => {
+      isCancelled = true
+    }
+  }, [showError])
+
+  useEffect(() => {
     setActivityModalOpen(false)
     setOpportunityModalOpen(false)
     setGroupModalOpen(false)
@@ -563,6 +612,9 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
     setEditingOpportunity(null)
     setSelectedOpportunities([])
     setOpportunityBulkActionLoading(false)
+    setShowOpportunityBulkOwnerModal(false)
+    setShowOpportunityBulkStatusModal(false)
+    setOpportunityDeleteTargets([])
     setOpportunityToDelete(null)
     setShowOpportunityDeleteDialog(false)
     setEditingGroup(null)
@@ -756,6 +808,218 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
     }
   }, [refreshContactData, showError, showSuccess]);
 
+  const openActivityBulkDeleteDialog = useCallback(async () => {
+    if (selectedActivities.length === 0) {
+      showError("No activities selected", "Select at least one activity to delete.")
+      return
+    }
+    const confirmed = window.confirm(`Delete ${selectedActivities.length} selected activit${selectedActivities.length === 1 ? "y" : "ies"}? This action cannot be undone.`)
+    if (!confirmed) return
+    try {
+      setActivityBulkActionLoading(true)
+      let successCount = 0
+      let failureCount = 0
+      for (const id of selectedActivities) {
+        try {
+          const response = await fetch(`/api/activities/${id}`, { method: "DELETE" })
+          if (response.ok) {
+            successCount++
+          } else {
+            failureCount++
+          }
+        } catch {
+          failureCount++
+        }
+      }
+      if (successCount > 0) {
+        showSuccess(
+          `Deleted ${successCount} activit${successCount === 1 ? "y" : "ies"}`,
+          failureCount > 0 ? `${failureCount} failed. Try refresh and retry.` : ""
+        )
+      }
+      if (failureCount > 0 && successCount === 0) {
+        showError("Failed to delete activities", "Please refresh and try again.")
+      }
+      await refreshContactData()
+      setSelectedActivities([])
+    } finally {
+      setActivityBulkActionLoading(false)
+    }
+  }, [selectedActivities, refreshContactData, showError, showSuccess])
+
+  const handleBulkActivityExportCsv = useCallback(() => {
+    if (selectedActivities.length === 0) {
+      showError("No activities selected", "Select at least one activity to export.")
+      return
+    }
+    const rows = (contact?.activities ?? []).filter(row => selectedActivities.includes(row.id))
+    if (rows.length === 0) {
+      showError("Activities unavailable", "Unable to locate the selected activities. Refresh and try again.")
+      return
+    }
+    const headers = [
+      "Activity Date",
+      "Activity Type",
+      "Description",
+      "Account Name",
+      "File Name",
+      "Created By",
+      "Active"
+    ]
+    const escapeCsv = (value: string | null | undefined) => {
+      if (value === null || value === undefined) {
+        return ""
+      }
+      const s = String(value)
+      if (s.includes("\"") || s.includes(",") || s.includes("\n")) {
+        return "\"" + s.replace(/"/g, "\"\"") + "\""
+      }
+      return s
+    }
+    const lines = [
+      headers.join(","),
+      ...rows.map(row => [
+        row.activityDate
+          ? row.activityDate instanceof Date
+            ? row.activityDate.toLocaleDateString()
+            : new Date(row.activityDate as any).toLocaleDateString()
+          : "",
+        row.activityType,
+        row.description,
+        row.accountName,
+        row.fileName,
+        row.createdBy,
+        row.active ? "Active" : "Inactive"
+      ].map(escapeCsv).join(","))
+    ]
+    const blob = new Blob([lines.join("\r\n")], { type: "text/csv;charset=utf-8;" })
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    const timestamp = new Date().toISOString().replace(/[:T]/g, "-").split(".")[0]
+    link.href = url
+    link.download = "activities-export-" + timestamp + ".csv"
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+    showSuccess(
+      "Exported " + rows.length + " activity" + (rows.length === 1 ? "" : "ies"),
+      "Check your downloads for the CSV file."
+    )
+  }, [selectedActivities, contact?.activities, showError, showSuccess])
+
+  const openActivityBulkOwnerModal = useCallback(() => {
+    setShowActivityBulkOwnerModal(true)
+  }, [])
+
+  const openActivityBulkStatusModal = useCallback(() => {
+    setShowActivityBulkStatusModal(true)
+  }, [])
+
+  const openOpportunityBulkDeleteDialog = useCallback(() => {
+    if (selectedOpportunities.length === 0) {
+      showError("No opportunities selected", "Select at least one opportunity to delete.")
+      return
+    }
+
+    const targets = (contact?.opportunities ?? []).filter(opportunity =>
+      selectedOpportunities.includes(opportunity.id)
+    )
+
+    if (targets.length === 0) {
+      showError(
+        "Opportunities unavailable",
+        "Unable to locate the selected opportunities. Refresh and try again."
+      )
+      return
+    }
+
+    setOpportunityDeleteTargets(targets)
+    setOpportunityToDelete(null)
+    setShowOpportunityDeleteDialog(true)
+  }, [selectedOpportunities, contact?.opportunities, showError])
+
+  const handleBulkOpportunityExportCsv = useCallback(() => {
+    if (selectedOpportunities.length === 0) {
+      showError("No opportunities selected", "Select at least one opportunity to export.")
+      return
+    }
+
+    const rows = (contact?.opportunities ?? []).filter(row => selectedOpportunities.includes(row.id))
+
+    if (rows.length === 0) {
+      showError(
+        "Opportunities unavailable",
+        "Unable to locate the selected opportunities. Refresh and try again."
+      )
+      return
+    }
+
+    const headers = [
+      "Opportunity Name",
+      "Order ID - House",
+      "Stage",
+      "Status",
+      "Owner",
+      "Estimated Close Date",
+      "Lead Source"
+    ]
+
+    const escapeCsv = (value: string | null | undefined) => {
+      if (value === null || value === undefined) {
+        return ""
+      }
+      const stringValue = String(value)
+      if (stringValue.includes("\"") || stringValue.includes(",") || stringValue.includes("\n")) {
+        return "\"" + stringValue.replace(/"/g, "\"\"") + "\""
+      }
+      return stringValue
+    }
+
+    const formatCsvDate = (value: string | Date | null | undefined) => {
+      if (!value) {
+        return ""
+      }
+      const dateValue = value instanceof Date ? value : new Date(value)
+      if (Number.isNaN(dateValue.getTime())) {
+        return ""
+      }
+      return dateValue.toISOString().slice(0, 10)
+    }
+
+    const lines = [
+      headers.join(","),
+      ...rows.map(row =>
+        [
+          row.opportunityName,
+          row.orderIdHouse,
+          row.stage,
+          row.status,
+          row.owner,
+          formatCsvDate(row.estimatedCloseDate ?? null),
+          row.referredBy
+        ]
+          .map(escapeCsv)
+          .join(",")
+      )
+    ]
+
+    const blob = new Blob([lines.join("\r\n")], { type: "text/csv;charset=utf-8;" })
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    const timestamp = new Date().toISOString().replace(/[:T]/g, "-").split(".")[0]
+    link.href = url
+    link.download = "opportunities-export-" + timestamp + ".csv"
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+    showSuccess(
+      "Exported " + rows.length + " opportunity" + (rows.length === 1 ? "" : "ies"),
+      "Check your downloads for the CSV file."
+    )
+  }, [contact?.opportunities, selectedOpportunities, showError, showSuccess])
+
   const handleOpportunityEdit = useCallback((opportunity: ContactOpportunityRow) => {
     setEditingOpportunity(opportunity);
   }, []);
@@ -771,68 +1035,63 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
   }, [refreshContactData, showSuccess]);
 
   const requestOpportunityDelete = useCallback((opportunity: ContactOpportunityRow) => {
-    setOpportunityToDelete(opportunity);
-    setShowOpportunityDeleteDialog(true);
+    setOpportunityDeleteTargets([])
+    setOpportunityToDelete(opportunity)
+    setShowOpportunityDeleteDialog(true)
   }, []);
 
   const closeOpportunityDeleteDialog = useCallback(() => {
-    setShowOpportunityDeleteDialog(false);
-    setOpportunityToDelete(null);
+    setShowOpportunityDeleteDialog(false)
+    setOpportunityToDelete(null)
+    setOpportunityDeleteTargets([])
   }, []);
 
   const handleOpportunitySoftDelete = useCallback(async (
     opportunityId: string,
     bypassConstraints?: boolean
   ): Promise<{ success: boolean; constraints?: DeletionConstraint[]; error?: string }> => {
-    try {
-      const response = await fetch(`/api/opportunities/${opportunityId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ active: false, bypassConstraints: Boolean(bypassConstraints) })
-      });
-      const payload = await response.json().catch(() => null);
+    const result = await softDeleteContactOpportunity(opportunityId, bypassConstraints)
 
-      if (!response.ok) {
-        if (response.status === 409 && payload?.constraints) {
-          return { success: false, constraints: payload.constraints };
-        }
-        const message = payload?.error ?? "Failed to delete opportunity";
-        showError("Failed to delete opportunity", message);
-        return { success: false, error: message };
-      }
-
-      showSuccess("Opportunity archived", "The opportunity has been marked as inactive.");
-      await refreshContactData();
-      return { success: true };
-    } catch (error) {
-      console.error("Failed to delete opportunity", error);
-      const message = error instanceof Error ? error.message : "Unable to delete opportunity";
-      showError("Failed to delete opportunity", message);
-      return { success: false, error: message };
+    if (result.success) {
+      showSuccess("Opportunity archived", "The opportunity has been marked as inactive.")
+      await refreshContactData()
+      setSelectedOpportunities(prev => prev.filter(id => id !== opportunityId))
+      setOpportunityDeleteTargets(prev => prev.filter(target => target.id !== opportunityId))
+      return { success: true }
     }
+
+    if (result.constraints && result.constraints.length > 0) {
+      return { success: false, constraints: result.constraints }
+    }
+
+    const message = result.error ?? "Failed to delete opportunity"
+    showError("Failed to delete opportunity", message)
+    return { success: false, error: message }
   }, [refreshContactData, showError, showSuccess]);
 
   const handleOpportunityPermanentDelete = useCallback(async (
     opportunityId: string
   ): Promise<{ success: boolean; error?: string }> => {
     try {
-      const response = await fetch(`/api/opportunities/${opportunityId}`, { method: "DELETE" });
-      const payload = await response.json().catch(() => null);
+      const response = await fetch(`/api/opportunities/${opportunityId}`, { method: "DELETE" })
+      const payload = await response.json().catch(() => null)
 
       if (!response.ok) {
-        const message = payload?.error ?? "Failed to delete opportunity";
-        showError("Failed to delete opportunity", message);
-        return { success: false, error: message };
+        const message = payload?.error ?? "Failed to delete opportunity"
+        showError("Failed to delete opportunity", message)
+        return { success: false, error: message }
       }
 
-      showSuccess("Opportunity deleted", "The opportunity has been permanently removed.");
-      await refreshContactData();
-      return { success: true };
+      showSuccess("Opportunity deleted", "The opportunity has been permanently removed.")
+      await refreshContactData()
+      setSelectedOpportunities(prev => prev.filter(id => id !== opportunityId))
+      setOpportunityDeleteTargets(prev => prev.filter(target => target.id !== opportunityId))
+      return { success: true }
     } catch (error) {
-      console.error("Failed to permanently delete opportunity", error);
-      const message = error instanceof Error ? error.message : "Unable to delete opportunity";
-      showError("Failed to delete opportunity", message);
-      return { success: false, error: message };
+      console.error("Failed to permanently delete opportunity", error)
+      const message = error instanceof Error ? error.message : "Unable to delete opportunity"
+      showError("Failed to delete opportunity", message)
+      return { success: false, error: message }
     }
   }, [refreshContactData, showError, showSuccess]);
 
@@ -1325,6 +1584,12 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
   }, [filteredOpportunities]);
 
   useEffect(() => {
+    setOpportunityDeleteTargets(prev =>
+      prev.filter(target => filteredOpportunities.some(row => row.id === target.id))
+    )
+  }, [filteredOpportunities])
+
+  useEffect(() => {
     setSelectedGroups(prev => prev.filter(id => filteredGroups.some(row => row.id === id)));
   }, [filteredGroups]);
 
@@ -1463,6 +1728,83 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
     setGroupsPageSize(size)
     setGroupsCurrentPage(1)
   }
+
+  const handleBulkOpportunityOwnerUpdate = useCallback(async (ownerId: string) => {
+    if (selectedOpportunities.length === 0) {
+      showError("No opportunities selected", "Select at least one opportunity to update.")
+      return
+    }
+    setOpportunityBulkActionLoading(true)
+    try {
+      const outcomes = await Promise.allSettled(
+        selectedOpportunities.map(async (opportunityId) => {
+          const response = await fetch(`/api/opportunities/${opportunityId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ownerId })
+          })
+          if (!response.ok) {
+            const payload = await response.json().catch(() => null)
+            throw new Error(payload?.error || "Failed to update opportunity owner")
+          }
+          return opportunityId
+        })
+      )
+      const successes = outcomes.filter(r => r.status === "fulfilled").length
+      const failures = outcomes.length - successes
+      if (successes > 0) {
+        showSuccess(`Updated ${successes} opportunit${successes === 1 ? "y" : "ies"}`, "New owner assigned successfully.")
+      }
+      if (failures > 0 && successes === 0) {
+        showError("Bulk opportunity owner update failed", "Please try again.")
+      }
+      await refreshContactData()
+      setSelectedOpportunities([])
+      setShowOpportunityBulkOwnerModal(false)
+    } finally {
+      setOpportunityBulkActionLoading(false)
+    }
+  }, [selectedOpportunities, refreshContactData, showError, showSuccess])
+
+  const handleBulkOpportunityStatusUpdate = useCallback(async (status: string) => {
+    if (selectedOpportunities.length === 0) {
+      showError("No opportunities selected", "Select at least one opportunity to update.")
+      return
+    }
+    setOpportunityBulkActionLoading(true)
+    try {
+      const outcomes = await Promise.allSettled(
+        selectedOpportunities.map(async (opportunityId) => {
+          const response = await fetch(`/api/opportunities/${opportunityId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ status })
+          })
+          if (!response.ok) {
+            const payload = await response.json().catch(() => null)
+            throw new Error(payload?.error || "Failed to update opportunity status")
+          }
+          return opportunityId
+        })
+      )
+      const successes = outcomes.filter(r => r.status === "fulfilled").length
+      const failures = outcomes.length - successes
+      if (successes > 0) {
+        showSuccess(
+          `Updated status for ${successes} opportunit${successes === 1 ? "y" : "ies"}`,
+          "The status has been updated successfully."
+        )
+      }
+      if (failures > 0 && successes === 0) {
+        showError("Bulk opportunity status update failed", "Please try again.")
+      }
+      await refreshContactData()
+      setSelectedOpportunities([])
+      setShowOpportunityBulkStatusModal(false)
+    } finally {
+      setOpportunityBulkActionLoading(false)
+    }
+  }, [selectedOpportunities, refreshContactData, showError, showSuccess])
     return (
     <div className="px-4 py-4 sm:px-6 lg:px-8">
       <div className="mx-auto w-full max-w-none">
@@ -1551,15 +1893,15 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
                     </div>
                   ) : (
                     <>
-                      <div className="grid gap-2 lg:grid-cols-2">
-                    <div className="space-y-2">
+                      <div className="grid gap-4 lg:grid-cols-2">
+                    <div className="space-y-3">
                       <FieldRow
                         label="Name"
                         value={
-                          <div className="grid gap-1.5 md:grid-cols-5">
+                          <div className="grid gap-2 md:grid-cols-5">
                             <div>
                               <div className={fieldLabelClass}>Prefix</div>
-                              <div className={fieldBoxClass}>{contact.prefix || "-"}</div>
+                              <div className={fieldBoxClass}>{contact.prefix || "--"}</div>
                             </div>
                             <div>
                               <div className={fieldLabelClass}>First</div>
@@ -1567,7 +1909,7 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
                             </div>
                             <div>
                               <div className={fieldLabelClass}>Middle</div>
-                              <div className={fieldBoxClass}>{contact.middleName || "-"}</div>
+                              <div className={fieldBoxClass}>{contact.middleName || "--"}</div>
                             </div>
                             <div>
                               <div className={fieldLabelClass}>Last</div>
@@ -1575,7 +1917,7 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
                             </div>
                             <div>
                               <div className={fieldLabelClass}>Suffix</div>
-                              <div className={fieldBoxClass}>{contact.suffix || "-"}</div>
+                              <div className={fieldBoxClass}>{contact.suffix || "--"}</div>
                             </div>
                           </div>
                         }
@@ -1601,24 +1943,8 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
                           </div>
                         }
                       />
-                      <div className="grid gap-1.5 md:grid-cols-2">
-                        <div className="space-y-0.5">
-                          <span className={fieldLabelClass}>Primary Contact</span>
-                          <div className="flex items-center gap-2 rounded-lg border-2 border-gray-400 bg-white px-2 py-1 text-xs font-medium text-gray-600 shadow-sm">
-                            <ReadOnlySwitch value={Boolean(contact.isPrimary)} />
-                            <span>{contact.isPrimary ? "Yes" : "No"}</span>
-                          </div>
-                        </div>
-                        <div className="space-y-0.5">
-                          <span className={fieldLabelClass}>Decision Maker</span>
-                          <div className="flex items-center gap-2 rounded-lg border-2 border-gray-400 bg-white px-2 py-1 text-xs font-medium text-gray-600 shadow-sm">
-                            <ReadOnlySwitch value={Boolean(contact.isDecisionMaker)} />
-                            <span>{contact.isDecisionMaker ? "Yes" : "No"}</span>
-                          </div>
-                        </div>
-                      </div>
                     </div>
-                    <div className="space-y-2">
+                    <div className="space-y-3">
                       <FieldRow
                         label="Contact Type"
                         value={<div className={fieldBoxClass}>{contact.contactType || "--"}</div>}
@@ -1634,9 +1960,9 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
                       <FieldRow
                         label="Work Phone"
                         value={
-                          <div className="grid gap-1.5 md:grid-cols-[1fr,110px]">
-                            <div className={fieldBoxClass}>{contact.workPhone || "-"}</div>
-                            <div className={fieldBoxClass}>Ext {contact.workPhoneExt || "-"}</div>
+                          <div className="grid gap-2 md:grid-cols-[1fr,110px]">
+                            <div className={fieldBoxClass}>{contact.workPhone || "--"}</div>
+                            <div className={fieldBoxClass}>Ext {contact.workPhoneExt || "--"}</div>
                           </div>
                         }
                       />
@@ -1647,10 +1973,6 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
                       <FieldRow
                         label="Other Phone"
                         value={<div className={fieldBoxClass}>{contact.otherPhone || "--"}</div>}
-                      />
-                      <FieldRow
-                        label="Fax"
-                        value={<div className={fieldBoxClass}>{contact.fax || "--"}</div>}
                       />
                     </div>
                   </div>
@@ -1664,36 +1986,6 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
                     <div className={fieldLabelClass}>Notes</div>
                     <div className="mt-0.5 rounded-lg border-2 border-gray-400 bg-white px-2.5 py-1 text-sm text-gray-700 shadow-sm">
                       {contact.notes || "No notes provided."}
-                    </div>
-                  </div>
-                  <div className="mt-2 grid gap-2 lg:grid-cols-2">
-                    <div className="space-y-2">
-                      <FieldRow
-                        label="Assistant Name"
-                        value={<div className={fieldBoxClass}>{contact.assistantName || "--"}</div>}
-                      />
-                      <FieldRow
-                        label="Assistant Phone"
-                        value={<div className={fieldBoxClass}>{contact.assistantPhone || "--"}</div>}
-                      />
-                      <FieldRow
-                        label="LinkedIn URL"
-                        value={<div className={fieldBoxClass}>{contact.linkedinUrl || "--"}</div>}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <FieldRow
-                        label="Website URL"
-                        value={<div className={fieldBoxClass}>{contact.websiteUrl || "--"}</div>}
-                      />
-                      <FieldRow
-                        label="Birthdate"
-                        value={<div className={fieldBoxClass}>{contact.birthdate ? formatDate(contact.birthdate) : "--"}</div>}
-                      />
-                      <FieldRow
-                        label="Anniversary"
-                        value={<div className={fieldBoxClass}>{contact.anniversary ? formatDate(contact.anniversary) : "--"}</div>}
-                      />
                     </div>
                   </div>
                     </>
@@ -1736,6 +2028,14 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
                         showCreateButton={Boolean(contact) && !isDeleted && !loading}
                         searchPlaceholder="Search activities"
                       />
+                      <ActivityBulkActionBar
+                        count={selectedActivities.length}
+                        disabled={activityBulkActionLoading}
+                        onSoftDelete={openActivityBulkDeleteDialog}
+                        onExportCsv={handleBulkActivityExportCsv}
+                        onChangeOwner={openActivityBulkOwnerModal}
+                        onUpdateStatus={openActivityBulkStatusModal}
+                      />
                       <DynamicTable
                         columns={contactActivityTableColumns}
                         data={paginatedActivities}
@@ -1745,6 +2045,9 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
                         pagination={activitiesPagination}
                         onPageChange={handleActivitiesPageChange}
                         onPageSizeChange={handleActivitiesPageSizeChange}
+                        selectedItems={selectedActivities}
+                        onItemSelect={(id, selected) => handleActivitySelect(id, selected)}
+                        onSelectAll={handleSelectAllActivities}
                         autoSizeColumns={true}
                         fillContainerWidth
                         alwaysShowPagination
@@ -1770,6 +2073,14 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
                         showCreateButton={Boolean(contact) && !isDeleted && !loading}
                         searchPlaceholder="Search opportunities"
                       />
+                      <OpportunityBulkActionBar
+                        count={selectedOpportunities.length}
+                        disabled={opportunityBulkActionLoading}
+                        onSoftDelete={openOpportunityBulkDeleteDialog}
+                        onExportCsv={handleBulkOpportunityExportCsv}
+                        onChangeOwner={() => setShowOpportunityBulkOwnerModal(true)}
+                        onUpdateStatus={() => setShowOpportunityBulkStatusModal(true)}
+                      />
                       <DynamicTable
                         columns={contactOpportunityTableColumns}
                         data={paginatedOpportunities}
@@ -1779,6 +2090,9 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
                         pagination={opportunitiesPagination}
                         onPageChange={handleOpportunitiesPageChange}
                         onPageSizeChange={handleOpportunitiesPageSizeChange}
+                        selectedItems={selectedOpportunities}
+                        onItemSelect={(id, selected) => handleOpportunitySelect(id, selected)}
+                        onSelectAll={handleSelectAllOpportunities}
                         autoSizeColumns={true}
                         fillContainerWidth
                         alwaysShowPagination
@@ -1846,13 +2160,46 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
         isOpen={showOpportunityDeleteDialog}
         onClose={closeOpportunityDeleteDialog}
         entity="Opportunity"
-        entityName={opportunityToDelete?.opportunityName || "Unknown Opportunity"}
-        entityId={opportunityToDelete?.id || ""}
-        isDeleted={opportunityToDelete?.isDeleted || false}
+        entityName={
+          opportunityDeleteTargets.length > 0
+            ? `${opportunityDeleteTargets.length} opportunity${opportunityDeleteTargets.length === 1 ? '' : 'ies'}`
+            : opportunityToDelete?.opportunityName || "Unknown Opportunity"
+        }
+        entityId={
+          opportunityDeleteTargets.length > 0
+            ? opportunityDeleteTargets[0]?.id || ""
+            : opportunityToDelete?.id || ""
+        }
+        multipleEntities={
+          opportunityDeleteTargets.length > 0
+            ? opportunityDeleteTargets.map(opportunity => ({
+                id: opportunity.id,
+                name: opportunity.opportunityName || "Opportunity",
+                subtitle: opportunity.owner ? `Owner: ${opportunity.owner}` : undefined
+              }))
+            : undefined
+        }
+        entityLabelPlural="Opportunities"
+        isDeleted={
+          opportunityDeleteTargets.length > 0
+            ? opportunityDeleteTargets.every(opportunity => opportunity.isDeleted)
+            : opportunityToDelete?.isDeleted || false
+        }
         onSoftDelete={handleOpportunitySoftDelete}
+        onBulkSoftDelete={
+          opportunityDeleteTargets.length > 0
+            ? (entities, bypassConstraints) =>
+                executeContactOpportunityBulkSoftDelete(
+                  opportunityDeleteTargets.filter(opportunity =>
+                    entities.some(entity => entity.id === opportunity.id)
+                  ),
+                  bypassConstraints
+                )
+            : undefined
+        }
         onPermanentDelete={handleOpportunityPermanentDelete}
         onRestore={handleOpportunityRestore}
-        userCanPermanentDelete={true}
+        userCanPermanentDelete={opportunityDeleteTargets.length === 0}
       />
 
       <TwoStageDeleteDialog
@@ -1946,11 +2293,115 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
               await saveContactGroupPrefsOnModalClose()
             }}
           />
+
+          {/* Activity bulk modals */}
+          <ActivityBulkOwnerModal
+            isOpen={showActivityBulkOwnerModal}
+            owners={[]}
+            onClose={() => setShowActivityBulkOwnerModal(false)}
+            onSubmit={async (ownerId) => {
+              if (selectedActivities.length === 0) {
+                showError("No activities selected", "Select at least one activity to update.")
+                return
+              }
+              setActivityBulkActionLoading(true)
+              try {
+                const outcomes = await Promise.allSettled(
+                  selectedActivities.map(async (activityId) => {
+                    const response = await fetch(`/api/activities/${activityId}`, {
+                      method: "PATCH",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ assigneeId: ownerId })
+                    })
+                    if (!response.ok) {
+                      const payload = await response.json().catch(() => null)
+                      throw new Error(payload?.error || "Failed to update activity owner")
+                    }
+                    return activityId
+                  })
+                )
+                const successes = outcomes.filter(r => r.status === "fulfilled").length
+                const failures = outcomes.length - successes
+                if (successes > 0) {
+                  showSuccess(`Updated ${successes} activit${successes === 1 ? "y" : "ies"}`, "New owner assigned successfully.")
+                }
+                if (failures > 0 && successes === 0) {
+                  showError("Bulk activity owner update failed", "Please try again.")
+                }
+                await refreshContactData()
+                setSelectedActivities([])
+                setShowActivityBulkOwnerModal(false)
+              } finally {
+                setActivityBulkActionLoading(false)
+              }
+            }}
+            isSubmitting={activityBulkActionLoading}
+          />
+          <ActivityBulkStatusModal
+            isOpen={showActivityBulkStatusModal}
+            onClose={() => setShowActivityBulkStatusModal(false)}
+            onSubmit={async (isActive) => {
+              if (selectedActivities.length === 0) {
+                showError("No activities selected", "Select at least one activity to update.")
+                return
+              }
+              setActivityBulkActionLoading(true)
+              try {
+                const outcomes = await Promise.allSettled(
+                  selectedActivities.map(async (activityId) => {
+                    const response = await fetch(`/api/activities/${activityId}`, {
+                      method: "PATCH",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ status: isActive ? "Open" : "Completed" })
+                    })
+                    if (!response.ok) {
+                      const payload = await response.json().catch(() => null)
+                      throw new Error(payload?.error || "Failed to update activity status")
+                    }
+                    return activityId
+                  })
+                )
+                const successes = outcomes.filter(r => r.status === "fulfilled").length
+                const failures = outcomes.length - successes
+                if (successes > 0) {
+                  showSuccess(
+                    `Updated status for ${successes} activit${successes === 1 ? "y" : "ies"}`,
+                    "The status has been updated successfully."
+                  )
+                }
+                if (failures > 0 && successes === 0) {
+                  showError("Bulk activity status update failed", "Please try again.")
+                }
+                await refreshContactData()
+                setSelectedActivities([])
+                setShowActivityBulkStatusModal(false)
+              } finally {
+                setActivityBulkActionLoading(false)
+              }
+            }}
+            isSubmitting={activityBulkActionLoading}
+          />
+          <OpportunityBulkOwnerModal
+            isOpen={showOpportunityBulkOwnerModal}
+            owners={opportunityOwners}
+            onClose={() => setShowOpportunityBulkOwnerModal(false)}
+            onSubmit={handleBulkOpportunityOwnerUpdate}
+            isSubmitting={opportunityBulkActionLoading}
+          />
+          <OpportunityBulkStatusModal
+            isOpen={showOpportunityBulkStatusModal}
+            onClose={() => setShowOpportunityBulkStatusModal(false)}
+            onSubmit={handleBulkOpportunityStatusUpdate}
+            isSubmitting={opportunityBulkActionLoading}
+          />
         </>
       )}
     </div>
   )
 }
+
+
+
 
 
 

@@ -8,8 +8,8 @@ export async function POST(request: NextRequest) {
     const { user, tenantId } = await getCurrentUser();
 
     // Check permissions
-    const hasReassignPermission = await hasPermission(user, 'accounts.reassign', tenantId);
-    const hasBulkPermission = await hasPermission(user, 'accounts.bulk', tenantId);
+    const hasReassignPermission = await hasPermission(user, 'accounts.reassign');
+    const hasBulkPermission = await hasPermission(user, 'accounts.bulk');
 
     if (!hasReassignPermission || !hasBulkPermission) {
       return NextResponse.json(
@@ -92,6 +92,14 @@ interface ReassignmentImpact {
   // Warnings/Validation
   warnings: string[];
   conflicts: string[];
+
+  // Items to transfer (aggregated)
+  itemCounts: {
+    activeContacts: number;
+    openActivities: number;
+    activeGroups: number;
+    openTasks: number;
+  };
 }
 
 interface AccountSummary {
@@ -103,6 +111,10 @@ interface AccountSummary {
   totalCommission: number;
   opportunityCount: number;
   revenueScheduleCount: number;
+  activeContacts: number;
+  openActivities: number;
+  activeGroups: number;
+  openTasks: number;
 }
 
 async function calculateReassignmentImpact(
@@ -122,14 +134,19 @@ async function calculateReassignmentImpact(
       opportunities: {
         where: {
           status: { in: ['Open', 'Won'] },
-          expectedCloseDate: { gte: effectiveDate }
+          estimatedCloseDate: { gte: effectiveDate }
         }
       },
       revenueSchedules: {
         where: {
-          scheduledDate: { gte: effectiveDate }
+          scheduleDate: { gte: effectiveDate }
         }
-      }
+      },
+      contacts: true,
+      activities: {
+        where: { status: 'Open' }
+      },
+      groupMembers: true
     }
   });
 
@@ -150,19 +167,18 @@ async function calculateReassignmentImpact(
       currentOwnerId: ownerId,
       currentOwnerName: ownerName,
       totalRevenue: 0,
-      totalCommission: 0,
+      totalCommission: account.opportunities.reduce((sum, opp) => sum + Number(opp.expectedCommission || 0), 0),
       opportunityCount: account.opportunities.length,
-      revenueScheduleCount: account.revenueSchedules.length
+      revenueScheduleCount: account.revenueSchedules.length,
+      activeContacts: account.contacts.length,
+      openActivities: account.activities.length,
+      activeGroups: account.groupMembers.length,
+      openTasks: account.activities.filter(a => a.activityType === 'ToDo' && a.status === 'Open').length
     };
 
-    // Calculate revenue from revenue schedules
+    // Calculate revenue/commission from revenue schedules (expectedCommission)
     accountSummary.totalRevenue = account.revenueSchedules.reduce((sum, rs) => {
-      return sum + (rs.projectedAmount || 0);
-    }, 0);
-
-    // Calculate commission from opportunities
-    accountSummary.totalCommission = account.opportunities.reduce((sum, opp) => {
-      return sum + (opp.expectedCommission || 0);
+      return sum + Number(rs.expectedCommission || 0);
     }, 0);
 
     accountsByOwner[ownerId].push(accountSummary);
@@ -185,6 +201,15 @@ async function calculateReassignmentImpact(
   const affectedOpportunities = Object.values(accountsByOwner).flat().reduce((sum, account) => {
     return sum + account.opportunityCount;
   }, 0);
+
+  // Aggregate item counts
+  const aggregatedCounts = Object.values(accountsByOwner).flat().reduce((acc, account) => {
+    acc.activeContacts += account.activeContacts;
+    acc.openActivities += account.openActivities;
+    acc.activeGroups += account.activeGroups;
+    acc.openTasks += account.openTasks;
+    return acc;
+  }, { activeContacts: 0, openActivities: 0, activeGroups: 0, openTasks: 0 });
 
   // Calculate commission transfers
   const commissionTransfers = Object.entries(accountsByOwner).map(([ownerId, ownerAccounts]) => {
@@ -243,6 +268,7 @@ async function calculateReassignmentImpact(
     commissionTransfers,
 
     warnings,
-    conflicts
+    conflicts,
+    itemCounts: aggregatedCounts
   };
 }

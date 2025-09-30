@@ -19,7 +19,6 @@ export interface AccountFormValues {
   accountTypeId: string
   ownerId: string
   industryId: string
-  websiteUrl: string
   description: string
   active: boolean
   billingSameAsShipping: boolean
@@ -120,7 +119,6 @@ const createInitialForm = (account: AccountRow | null): AccountFormValues => {
       accountTypeId: "",
       ownerId: "",
       industryId: "",
-      websiteUrl: "",
       description: "",
       active: true,
       billingSameAsShipping: false,
@@ -150,7 +148,6 @@ const createInitialForm = (account: AccountRow | null): AccountFormValues => {
     accountTypeId: "",
     ownerId: "",
     industryId: "",
-    websiteUrl: "",
     description: "",
     active: account.active,
     billingSameAsShipping: false,
@@ -259,7 +256,6 @@ export function AccountEditModal({ isOpen, onClose, onSuccess, account }: Accoun
           accountTypeId: accountData.accountTypeId || "",
           ownerId: accountData.ownerId || "",
           industryId: accountData.industryId || "",
-          websiteUrl: accountData.websiteUrl || "",
           description: accountData.description || "",
           active: accountData.active,
           billingSameAsShipping: accountData.billingSameAsShipping || false,
@@ -381,7 +377,6 @@ export function AccountEditModal({ isOpen, onClose, onSuccess, account }: Accoun
       accountTypeId: trimValue(form.accountTypeId),
       ownerId: trimValue(form.ownerId),
       industryId: trimValue(form.industryId),
-      websiteUrl: trimValue(form.websiteUrl),
       description: form.description.trim(),
       shippingAddress: {
         line1: trimValue(form.shippingAddress.line1),
@@ -427,7 +422,6 @@ export function AccountEditModal({ isOpen, onClose, onSuccess, account }: Accoun
           accountTypeId: normalizedValues.accountTypeId,
           ownerId: normalizedValues.ownerId || undefined,
           industryId: normalizedValues.industryId || undefined,
-          websiteUrl: normalizedValues.websiteUrl || undefined,
           description: normalizedValues.description || undefined,
           active: normalizedValues.active,
           billingSameAsShipping: normalizedValues.billingSameAsShipping,
@@ -598,16 +592,6 @@ export function AccountEditModal({ isOpen, onClose, onSuccess, account }: Accoun
                 </select>
               </div>
 
-              <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Website URL</label>
-                <input
-                  type="url"
-                  value={form.websiteUrl}
-                  onChange={handleFieldChange("websiteUrl")}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                  placeholder="www.commissable.com"
-                />
-              </div>
 
               <div>
                 <label className="mb-1 block text-sm font-medium text-gray-700">Description</label>
