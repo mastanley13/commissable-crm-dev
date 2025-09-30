@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import { ArrowLeft, Calendar, Clock, Loader2, MapPin, Paperclip, User } from "lucide-react"
+import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 
 export interface ActivityAttachmentSummary {
@@ -50,7 +51,6 @@ interface ActivityDetailViewProps {
   activity: ActivityDetailRecord | null
   loading?: boolean
   error?: string | null
-  onBack: () => void
   onRefresh?: () => void
 }
 
@@ -177,7 +177,13 @@ function ContextLinks({ activity }: { activity: ActivityDetailRecord }) {
   )
 }
 
-export function ActivityDetailView({ activity, loading, error, onBack, onRefresh }: ActivityDetailViewProps) {
+export function ActivityDetailView({ activity, loading, error, onRefresh }: ActivityDetailViewProps) {
+  const router = useRouter()
+
+  const handleBack = () => {
+    router.push("/activities")
+  }
+
   if (loading) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
@@ -216,7 +222,7 @@ export function ActivityDetailView({ activity, loading, error, onBack, onRefresh
       <div className="flex items-center justify-between">
         <button
           type="button"
-          onClick={onBack}
+          onClick={handleBack}
           className="inline-flex items-center gap-2 rounded-full border border-gray-300 px-4 py-1.5 text-sm font-medium text-gray-700 transition hover:border-primary-300 hover:text-primary-600"
         >
           <ArrowLeft className="h-4 w-4" />

@@ -4,6 +4,11 @@ import { useState, useEffect } from 'react'
 import { AlertTriangle, Trash2, RotateCcw, Shield, X, ChevronRight } from 'lucide-react'
 import { DeletionConstraint } from '@/lib/deletion'
 
+interface DeleteDialogEntitySummary {
+  id: string
+  name: string
+  subtitle?: string
+}
 export interface TwoStageDeleteDialogProps {
   isOpen: boolean
   onClose: () => void
@@ -15,6 +20,9 @@ export interface TwoStageDeleteDialogProps {
   onPermanentDelete: (entityId: string) => Promise<{ success: boolean, error?: string }>
   onRestore?: (entityId: string) => Promise<{ success: boolean, error?: string }>
   userCanPermanentDelete?: boolean
+  multipleEntities?: DeleteDialogEntitySummary[]
+  entityLabelPlural?: string
+  onBulkSoftDelete?: (entities: DeleteDialogEntitySummary[], bypassConstraints?: boolean) => Promise<{ success: boolean, constraints?: DeletionConstraint[], error?: string }>
 }
 
 type DialogStage = 'initial' | 'constraints' | 'confirm-soft' | 'confirm-permanent' | 'loading' | 'success' | 'error'
@@ -29,12 +37,19 @@ export function TwoStageDeleteDialog({
   onSoftDelete,
   onPermanentDelete,
   onRestore,
-  userCanPermanentDelete = false
+  userCanPermanentDelete = false,
+  multipleEntities,
+  entityLabelPlural,
+  onBulkSoftDelete
 }: TwoStageDeleteDialogProps) {
   const [stage, setStage] = useState<DialogStage>('initial')
   const [constraints, setConstraints] = useState<DeletionConstraint[]>([])
   const [error, setError] = useState<string>('')
   const [bypassConstraints, setBypassConstraints] = useState(false)
+  const hasMultipleEntities = Array.isArray(multipleEntities) && multipleEntities.length > 0
+  const pluralLabel = entityLabelPlural ?? `${entity}${entity.endsWith('s') ? 'es' : 's'}`
+  const lowerPluralLabel = pluralLabel.toLowerCase()
+  const effectiveEntityName = hasMultipleEntities ? `${multipleEntities?.length || 0} ${pluralLabel}` : entityName
 
   // Reset state when dialog opens/closes
   useEffect(() => {
@@ -53,7 +68,17 @@ export function TwoStageDeleteDialog({
     setError('')
 
     try {
-      const result = await onSoftDelete(entityId, bypassConstraints)
+      let result
+      if (hasMultipleEntities) {
+        if (!onBulkSoftDelete || !multipleEntities) {
+          setError('Bulk delete handler is missing')
+          setStage('error')
+          return
+        }
+        result = await onBulkSoftDelete(multipleEntities, bypassConstraints)
+      } else {
+        result = await onSoftDelete(entityId, bypassConstraints)
+      }
       
       if (result.success) {
         setStage('success')
@@ -120,6 +145,61 @@ export function TwoStageDeleteDialog({
   }
 
   const renderInitialStage = () => {
+    if (hasMultipleEntities) {
+      return (
+        <div className="p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="flex-shrink-0 w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+              <Trash2 className="h-5 w-5 text-red-600" />
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900">
+                Delete {pluralLabel}
+              </h3>
+              <p className="text-sm text-gray-600">
+                This action will deactivate the selected {lowerPluralLabel}. You can restore them later if needed.
+              </p>
+            </div>
+          </div>
+
+          <div className="bg-gray-50 rounded-lg p-4 mb-6">
+            <p className="text-sm text-gray-600 mb-2">
+              Selected {pluralLabel} ({multipleEntities!.length})
+            </p>
+            <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+              {multipleEntities!.map(item => (
+                <div
+                  key={item.id}
+                  className="rounded border border-gray-200 bg-white px-3 py-2"
+                >
+                  <p className="font-medium text-gray-900">{item.name}</p>
+                  <p className="text-xs text-gray-500">ID: {item.id.slice(0, 8)}...</p>
+                  {item.subtitle && (
+                    <p className="text-xs text-gray-500 mt-1">{item.subtitle}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-3">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => setStage('confirm-soft')}
+              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+            >
+              Delete
+            </button>
+          </div>
+        </div>
+      )
+    }
+
     if (isDeleted) {
       return (
         <div className="p-6">
@@ -140,7 +220,7 @@ export function TwoStageDeleteDialog({
           <div className="bg-gray-50 rounded-lg p-4 mb-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="font-medium text-gray-900">{entityName}</p>
+                <p className="font-medium text-gray-900">{effectiveEntityName}</p>
                 <p className="text-sm text-gray-600">Status: Deleted</p>
               </div>
               <div className="text-sm text-gray-500">
@@ -193,7 +273,7 @@ export function TwoStageDeleteDialog({
         <div className="bg-gray-50 rounded-lg p-4 mb-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="font-medium text-gray-900">{entityName}</p>
+              <p className="font-medium text-gray-900">{effectiveEntityName}</p>
               <p className="text-sm text-gray-600">{entity}</p>
             </div>
             <div className="text-sm text-gray-500">
@@ -219,7 +299,6 @@ export function TwoStageDeleteDialog({
       </div>
     )
   }
-
   const renderConstraintsStage = () => (
     <div className="p-6">
       <div className="flex items-center gap-3 mb-4">
@@ -231,7 +310,7 @@ export function TwoStageDeleteDialog({
             Deletion Constraints
           </h3>
           <p className="text-sm text-gray-600">
-            This {entity.toLowerCase()} has dependencies that may prevent deletion.
+            This {hasMultipleEntities ? lowerPluralLabel : entity.toLowerCase()} has dependencies that may prevent deletion.
           </p>
         </div>
       </div>
@@ -286,6 +365,93 @@ export function TwoStageDeleteDialog({
   )
 
   const renderConfirmationStage = (type: 'soft' | 'permanent' | 'restore') => {
+    if (hasMultipleEntities) {
+      const configs = {
+        soft: {
+          title: 'Confirm Deletion',
+          icon: <Trash2 className="h-5 w-5 text-red-600" />,
+          bgColor: 'bg-red-100',
+          description: `This will deactivate the selected ${lowerPluralLabel}. You can restore them later if needed.`,
+          action: 'Delete',
+          actionClass: 'bg-red-600 hover:bg-red-700',
+          onConfirm: handleSoftDelete
+        },
+        permanent: {
+          title: 'Confirm Permanent Deletion',
+          icon: <Shield className="h-5 w-5 text-red-600" />,
+          bgColor: 'bg-red-100',
+          description: `This will permanently remove the selected ${lowerPluralLabel}. This action cannot be undone.`,
+          action: 'Delete Permanently',
+          actionClass: 'bg-red-700 hover:bg-red-800',
+          onConfirm: handlePermanentDelete
+        },
+        restore: {
+          title: `Restore ${pluralLabel}`,
+          icon: <RotateCcw className="h-5 w-5 text-green-600" />,
+          bgColor: 'bg-green-100',
+          description: `This will reactivate the selected ${lowerPluralLabel} and make them available again.`,
+          action: 'Restore',
+          actionClass: 'bg-green-600 hover:bg-green-700',
+          onConfirm: handleRestore
+        }
+      }
+
+      const config = configs[type]
+
+      return (
+        <div className="p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <div className={`flex-shrink-0 w-10 h-10 ${config.bgColor} rounded-full flex items-center justify-center`}>
+              {config.icon}
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900">
+                {config.title}
+              </h3>
+              <p className="text-sm text-gray-600">
+                {config.description}
+              </p>
+            </div>
+          </div>
+
+          <div className="bg-gray-50 rounded-lg p-4 mb-6">
+            <p className="text-sm text-gray-600 mb-2">
+              Selected {pluralLabel} ({multipleEntities!.length})
+            </p>
+            <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+              {multipleEntities!.map(item => (
+                <div
+                  key={item.id}
+                  className="rounded border border-gray-200 bg-white px-3 py-2"
+                >
+                  <p className="font-medium text-gray-900">{item.name}</p>
+                  <p className="text-xs text-gray-500">ID: {item.id.slice(0, 8)}...</p>
+                  {item.subtitle && (
+                    <p className="text-xs text-gray-500 mt-1">{item.subtitle}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-3">
+            <button
+              onClick={() => setStage('initial')}
+              className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={config.onConfirm}
+              className={`px-4 py-2 text-white rounded-lg transition-colors ${config.actionClass}`}
+            >
+              {config.action}
+            </button>
+          </div>
+        </div>
+      )
+    }
+
     const configs = {
       soft: {
         title: `Confirm Delete ${entity}`,
@@ -337,7 +503,7 @@ export function TwoStageDeleteDialog({
         <div className="bg-gray-50 rounded-lg p-4 mb-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="font-medium text-gray-900">{entityName}</p>
+              <p className="font-medium text-gray-900">{effectiveEntityName}</p>
               <p className="text-sm text-gray-600">{entity}</p>
             </div>
           </div>
@@ -360,7 +526,6 @@ export function TwoStageDeleteDialog({
       </div>
     )
   }
-
   const renderLoadingStage = () => (
     <div className="p-6">
       <div className="flex items-center justify-center gap-3 py-8">
@@ -436,3 +601,25 @@ export function TwoStageDeleteDialog({
     </div>
   )
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -91,9 +91,6 @@ export default function AccountDetailPage() {
     }
   }, [account, setBreadcrumbs])
 
-  const handleBack = () => {
-    router.push("/accounts")
-  }
 
   return (
     <CopyProtectionWrapper className="min-h-screen bg-slate-50">
@@ -101,7 +98,6 @@ export default function AccountDetailPage() {
         account={account}
         loading={loading}
         error={error}
-        onBack={handleBack}
         onRefresh={() => fetchAccount()}
       />
     </CopyProtectionWrapper>

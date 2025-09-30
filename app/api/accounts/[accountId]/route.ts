@@ -3,9 +3,78 @@ import { AccountStatus, AuditAction } from "@prisma/client"
 import { prisma } from "@/lib/db"
 import { withPermissions, createErrorResponse } from "@/lib/api-auth"
 import { mapAccountToListRow, accountIncludeForList } from "../helpers"
+import { mapOpportunityToRow } from "../../opportunities/helpers"
 import { logAccountAudit } from "@/lib/audit"
 import { revalidatePath } from "next/cache"
 import { checkDeletionConstraints, softDeleteEntity, permanentDeleteEntity, restoreEntity } from "@/lib/deletion"
+
+type AddressInput = {
+  line1: string
+  city: string
+  line2?: string
+  state?: string
+  postalCode?: string
+  country?: string
+}
+
+function parseAddress(raw: unknown): AddressInput | null {
+  if (!raw || typeof raw !== "object") {
+    return null
+  }
+
+  const candidate = raw as Record<string, unknown>
+  const line1 = typeof candidate.line1 === "string" ? candidate.line1.trim() : ""
+  const city = typeof candidate.city === "string" ? candidate.city.trim() : ""
+
+  if (!line1 || !city) {
+    return null
+  }
+
+  const line2 = typeof candidate.line2 === "string" ? candidate.line2.trim() : ""
+  const state = typeof candidate.state === "string" ? candidate.state.trim() : ""
+  const postalCode = typeof candidate.postalCode === "string" ? candidate.postalCode.trim() : ""
+  const country = typeof candidate.country === "string" ? candidate.country.trim() : ""
+
+  return {
+    line1,
+    city,
+    line2: line2 || undefined,
+    state: state || undefined,
+    postalCode: postalCode || undefined,
+    country: country || undefined
+  }
+}
+
+async function createOrUpdateAddressRecord(tenantId: string, input: AddressInput | null, existingId?: string | null): Promise<string | null> {
+  if (!input) {
+    return null
+  }
+
+  const addressData = {
+    tenantId,
+    line1: input.line1,
+    line2: input.line2 ?? null,
+    city: input.city,
+    state: input.state ?? null,
+    postalCode: input.postalCode ?? null,
+    country: input.country ?? null
+  }
+
+  if (existingId) {
+    // Update existing address
+    const address = await prisma.address.update({
+      where: { id: existingId },
+      data: addressData
+    })
+    return address.id
+  } else {
+    // Create new address
+    const address = await prisma.address.create({
+      data: addressData
+    })
+    return address.id
+  }
+}
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic';
 
@@ -71,22 +140,6 @@ function mapAccountContactRow(contact: any) {
   }
 }
 
-function mapAccountOpportunityRow(opportunity: any) {
-  const ownerName = opportunity.owner
-    ? `${opportunity.owner.firstName ?? ""} ${opportunity.owner.lastName ?? ""}`.trim()
-    : ""
-
-  return {
-    id: opportunity.id,
-    active: opportunity.status === "Open" || opportunity.status === "OnHold",
-    orderIdHouse: opportunity.id.slice(0, 8).toUpperCase(),
-    opportunityName: opportunity.name,
-    stage: opportunity.stage,
-    owner: ownerName,
-    estimatedCloseDate: opportunity.estimatedCloseDate,
-    referredBy: opportunity.leadSource
-  }
-}
 
 function mapAccountGroupRow(member: any) {
   const ownerName = member.group.owner
@@ -232,7 +285,7 @@ export async function GET(
         Boolean(account.shippingSyncBilling) ||
         (!account.billingAddressId && Boolean(account.shippingAddressId)),
       contacts: contacts.map(mapAccountContactRow),
-      opportunities: opportunities.map(mapAccountOpportunityRow),
+      opportunities: opportunities.map(mapOpportunityToRow),
       groups: groupMembers.map(mapAccountGroupRow),
       activities: activities.map(activity => mapAccountActivityRow(account.accountName, activity))
     }
@@ -264,23 +317,109 @@ export async function PATCH(
         const tenantId = req.user.tenantId
         const userId = req.user.id
 
-    const existing = await prisma.account.findFirst({
-      where: { id: accountId, tenantId },
-      select: { id: true, status: true }
-    })
-
-    if (!existing) {
-      return NextResponse.json({ error: "Account not found" }, { status: 404 })
-    }
-
     const data: Record<string, any> = {
       updatedById: userId
     }
 
     let hasChanges = false
 
+    // Handle basic account fields
+    if (typeof payload?.accountName === "string" && payload.accountName.trim()) {
+      data.accountName = payload.accountName.trim()
+      hasChanges = true
+    }
+
+    if (typeof payload?.accountLegalName === "string") {
+      data.accountLegalName = payload.accountLegalName.trim() || null
+      hasChanges = true
+    }
+
+    if (typeof payload?.parentAccountId === "string") {
+      data.parentAccountId = payload.parentAccountId.trim() || null
+      hasChanges = true
+    }
+
+    if (typeof payload?.accountTypeId === "string" && payload.accountTypeId.trim()) {
+      data.accountTypeId = payload.accountTypeId.trim()
+      hasChanges = true
+    }
+
+    if (typeof payload?.ownerId === "string") {
+      data.ownerId = payload.ownerId.trim() || null
+      hasChanges = true
+    }
+
+    if (typeof payload?.industryId === "string") {
+      data.industryId = payload.industryId.trim() || null
+      hasChanges = true
+    }
+
+    if (typeof payload?.websiteUrl === "string") {
+      data.websiteUrl = payload.websiteUrl.trim() || null
+      hasChanges = true
+    }
+
+    if (typeof payload?.description === "string") {
+      data.description = payload.description.trim() || null
+      hasChanges = true
+    }
+
     if (typeof payload?.active === "boolean") {
       data.status = payload.active ? AccountStatus.Active : AccountStatus.Inactive
+      hasChanges = true
+    }
+
+    // Get existing account with addresses for address updates
+    const existingAccount = await prisma.account.findFirst({
+      where: { id: accountId, tenantId },
+      select: { 
+        id: true, 
+        status: true, 
+        shippingAddressId: true, 
+        billingAddressId: true,
+        shippingSyncBilling: true
+      }
+    })
+
+    if (!existingAccount) {
+      return NextResponse.json({ error: "Account not found" }, { status: 404 })
+    }
+
+    // Handle address updates
+    let shippingAddressId = existingAccount.shippingAddressId
+    let billingAddressId = existingAccount.billingAddressId
+    let shippingSyncBilling = existingAccount.shippingSyncBilling
+
+    if (payload?.shippingAddress && typeof payload.shippingAddress === "object") {
+      const shippingAddressInput = parseAddress(payload.shippingAddress)
+      if (shippingAddressInput) {
+        shippingAddressId = await createOrUpdateAddressRecord(tenantId, shippingAddressInput, existingAccount.shippingAddressId)
+        if (shippingAddressId) {
+          data.shippingAddressId = shippingAddressId
+          hasChanges = true
+        }
+      }
+    }
+
+    if (payload?.billingAddress && typeof payload.billingAddress === "object") {
+      const billingAddressInput = parseAddress(payload.billingAddress)
+      if (billingAddressInput) {
+        billingAddressId = await createOrUpdateAddressRecord(tenantId, billingAddressInput, existingAccount.billingAddressId)
+        if (billingAddressId) {
+          data.billingAddressId = billingAddressId
+          hasChanges = true
+        }
+      }
+    }
+
+    // Handle billing sync with shipping
+    if (typeof payload?.billingSameAsShipping === "boolean") {
+      shippingSyncBilling = payload.billingSameAsShipping
+      data.shippingSyncBilling = shippingSyncBilling
+      
+      if (shippingSyncBilling && shippingAddressId) {
+        data.billingAddressId = shippingAddressId
+      }
       hasChanges = true
     }
 
@@ -298,7 +437,7 @@ export async function PATCH(
         userId,
         tenantId,
         request,
-        { status: existing.status },
+        { status: existingAccount.status },
         { status: AccountStatus.Active, action: 'restore' }
       )
 
@@ -331,7 +470,7 @@ export async function PATCH(
           userId,
           tenantId,
           request,
-          { status: existing.status },
+          { status: existingAccount.status },
           { status: updated.status }
         )
 
@@ -459,4 +598,7 @@ export async function DELETE(
     }
   )
 }
+
+
+
 

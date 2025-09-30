@@ -14,7 +14,11 @@
       "Bash(npm run dev:*)",
       "Bash(npx tsc:*)",
       "Bash(type:*)",
-      "Bash(wc:*)"
+      "Bash(wc:*)",
+      "Bash(ls:*)",
+      "Bash(rg:*)",
+      "Bash(file:*)",
+      "Bash(sed:*)"
     ],
     "deny": []
   }

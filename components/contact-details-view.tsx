@@ -2,7 +2,8 @@
 
 import Link from "next/link"
 import { ReactNode, useCallback, useEffect, useState, useMemo } from "react"
-import { Loader2, Filter, Paperclip, Plus, Search, Settings, Trash2 } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { Loader2, Filter, Paperclip, Plus, Search, Settings, Trash2, Edit, ChevronDown, ChevronUp } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { TwoStageDeleteDialog } from "./two-stage-delete-dialog"
 import { DeletionConstraint } from "@/lib/deletion"
@@ -14,6 +15,9 @@ import { ContactGroupCreateModal } from "./contact-group-create-modal"
 import { ListHeader, type ColumnFilter } from "./list-header"
 import { useTablePreferences } from "@/hooks/useTablePreferences"
 import { applySimpleFilters } from "@/lib/filter-utils"
+import { ColumnChooserModal } from "./column-chooser-modal"
+import { OpportunityEditModal } from "./opportunity-edit-modal"
+import { GroupEditModal } from "./group-edit-modal"
 
 export interface ActivityAttachmentRow {
   id: string
@@ -41,12 +45,15 @@ export interface ContactActivityRow {
 export interface ContactOpportunityRow {
   id: string
   active: boolean
+  status?: string
   orderIdHouse?: string
   opportunityName: string
   stage?: string
   owner?: string
+  ownerId?: string | null
   estimatedCloseDate?: string | Date | null
   referredBy?: string
+  isDeleted?: boolean
 }
 
 export interface ContactGroupRow {
@@ -57,6 +64,7 @@ export interface ContactGroupRow {
   visibility?: string
   description?: string
   owner?: string
+  isDeleted?: boolean
 }
 
 export interface ContactDetail {
@@ -129,7 +137,6 @@ interface ContactDetailsViewProps {
   contact: ContactDetail | null
   loading?: boolean
   error?: string | null
-  onBack: () => void
   onEdit?: (contact: ContactDetail) => void
   onContactUpdated?: (contact: ContactDetail) => void
   onRefresh?: () => Promise<void> | void
@@ -143,7 +150,7 @@ const TABS: { id: "activities" | "opportunities" | "groups"; label: string }[] =
 ]
 
 const fieldLabelClass = "text-xs font-semibold uppercase tracking-wide text-gray-500"
-const fieldBoxClass = "flex min-h-[28px] items-center justify-between rounded-lg border-2 border-gray-400 bg-white px-2.5 py-1.5 text-sm text-gray-900 shadow-sm"
+const fieldBoxClass = "flex min-h-[24px] items-center justify-between rounded-lg border-2 border-gray-400 bg-white px-2 py-1 text-sm text-gray-900 shadow-sm"
 
 const CONTACT_ACTIVITY_TABLE_BASE_COLUMNS: Column[] = [
   {
@@ -218,6 +225,16 @@ const CONTACT_ACTIVITY_TABLE_BASE_COLUMNS: Column[] = [
     maxWidth: 200,
     sortable: true,
     accessor: "createdBy"
+  },
+  {
+    id: "actions",
+    label: "Actions",
+    width: 120,
+    minWidth: 100,
+    maxWidth: 150,
+    sortable: false,
+    resizable: false,
+    hideable: false
   }
 ]
 
@@ -285,6 +302,16 @@ const CONTACT_OPPORTUNITY_TABLE_BASE_COLUMNS: Column[] = [
     maxWidth: 200,
     sortable: true,
     accessor: "referredBy"
+  },
+  {
+    id: "actions",
+    label: "Actions",
+    width: 120,
+    minWidth: 100,
+    maxWidth: 150,
+    sortable: false,
+    resizable: false,
+    hideable: false
   }
 ]
 
@@ -334,6 +361,16 @@ const CONTACT_GROUP_TABLE_BASE_COLUMNS: Column[] = [
     maxWidth: 260,
     sortable: true,
     accessor: "owner"
+  },
+  {
+    id: "actions",
+    label: "Actions",
+    width: 120,
+    minWidth: 100,
+    maxWidth: 150,
+    sortable: false,
+    resizable: false,
+    hideable: false
   }
 ]
 
@@ -435,11 +472,22 @@ function TabToolbar({ onCreateNew, disabled, activeFilter = "active", onFilterCh
 }
 
 
-export function ContactDetailsView({ contact, loading = false, error, onBack, onEdit, onContactUpdated, onRefresh }: ContactDetailsViewProps) {
+export function ContactDetailsView({ contact, loading = false, error, onEdit, onContactUpdated, onRefresh }: ContactDetailsViewProps) {
+  const router = useRouter()
   const [activeTab, setActiveTab] = useState<"activities" | "opportunities" | "groups">("activities")
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [isDeleted, setIsDeleted] = useState(false)
+  const [detailsExpanded, setDetailsExpanded] = useState(true)
   const { showError } = useToasts()
+
+  const handleBack = () => {
+    router.push("/contacts")
+  }
+
+  const toggleDetails = () => {
+    setDetailsExpanded(!detailsExpanded)
+  }
+
   const [activityModalOpen, setActivityModalOpen] = useState(false)
   const [opportunityModalOpen, setOpportunityModalOpen] = useState(false)
   const [groupModalOpen, setGroupModalOpen] = useState(false)
@@ -457,6 +505,16 @@ export function ContactDetailsView({ contact, loading = false, error, onBack, on
   const [opportunitiesColumnFilters, setOpportunitiesColumnFilters] = useState<ColumnFilter[]>([])
   const [groupsSearchQuery, setGroupsSearchQuery] = useState("")
   const [groupsColumnFilters, setGroupsColumnFilters] = useState<ColumnFilter[]>([])
+  const [showActivitiesColumnSettings, setShowActivitiesColumnSettings] = useState(false)
+  const [showOpportunitiesColumnSettings, setShowOpportunitiesColumnSettings] = useState(false)
+  const [showGroupsColumnSettings, setShowGroupsColumnSettings] = useState(false)
+  const [editingOpportunity, setEditingOpportunity] = useState<ContactOpportunityRow | null>(null)
+  const [opportunityToDelete, setOpportunityToDelete] = useState<ContactOpportunityRow | null>(null)
+  const [showOpportunityDeleteDialog, setShowOpportunityDeleteDialog] = useState(false)
+  const [editingGroup, setEditingGroup] = useState<ContactGroupRow | null>(null)
+  const [showGroupEditModal, setShowGroupEditModal] = useState(false)
+  const [groupToDelete, setGroupToDelete] = useState<ContactGroupRow | null>(null)
+  const [showGroupDeleteDialog, setShowGroupDeleteDialog] = useState(false)
 
   useEffect(() => {
     setActiveTab("activities")
@@ -541,7 +599,7 @@ export function ContactDetailsView({ contact, loading = false, error, onBack, on
       }
 
       // Redirect back to contacts list since contact no longer exists
-      onBack();
+      router.push("/contacts");
       return { success: true };
     } catch (err) {
       console.error(err);
@@ -550,7 +608,7 @@ export function ContactDetailsView({ contact, loading = false, error, onBack, on
         error: err instanceof Error ? err.message : "Unable to permanently delete contact" 
       };
     }
-  }, [onBack]);
+  }, [router]);
 
   const handleRestore = useCallback(async (
     contactId: string
@@ -588,7 +646,7 @@ export function ContactDetailsView({ contact, loading = false, error, onBack, on
     setShowDeleteDialog(false);
   };
 
-  const handlePostCreate = useCallback(async () => {
+  const refreshContactData = useCallback(async () => {
     if (!onRefresh) {
       return;
     }
@@ -603,6 +661,264 @@ export function ContactDetailsView({ contact, loading = false, error, onBack, on
       setRefreshing(false);
     }
   }, [onRefresh, showError]);
+
+  const handlePostCreate = useCallback(async () => {
+    await refreshContactData();
+  }, [refreshContactData]);
+  const handleActivityEdit = useCallback((activity: ContactActivityRow) => {
+    if (!activity?.id) {
+      showError("Activity unavailable", "Unable to locate this activity record.");
+      return;
+    }
+
+    router.push(`/activities/${activity.id}`);
+  }, [router, showError]);
+
+  const handleActivityDelete = useCallback(async (activity: ContactActivityRow) => {
+    if (!activity?.id) {
+      showError("Activity unavailable", "Unable to locate this activity record.");
+      return;
+    }
+
+    const confirmationLabel = activity.description?.trim()?.slice(0, 60) || activity.activityStatus || activity.activityType || "this activity";
+    if (!window.confirm(`Delete ${confirmationLabel}? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/activities/${activity.id}`, { method: "DELETE" });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(payload?.error ?? "Failed to delete activity");
+      }
+
+      showSuccess("Activity deleted", "The activity has been removed.");
+      await refreshContactData();
+    } catch (error) {
+      console.error("Failed to delete activity", error);
+      const message = error instanceof Error ? error.message : "Unable to delete activity";
+      showError("Failed to delete activity", message);
+    }
+  }, [refreshContactData, showError, showSuccess]);
+
+  const handleOpportunityEdit = useCallback((opportunity: ContactOpportunityRow) => {
+    setEditingOpportunity(opportunity);
+  }, []);
+
+  const handleCloseOpportunityEditModal = useCallback(() => {
+    setEditingOpportunity(null);
+  }, []);
+
+  const handleOpportunityEditSuccess = useCallback(async () => {
+    setEditingOpportunity(null);
+    showSuccess("Opportunity updated", "The opportunity changes have been saved.");
+    await refreshContactData();
+  }, [refreshContactData, showSuccess]);
+
+  const requestOpportunityDelete = useCallback((opportunity: ContactOpportunityRow) => {
+    setOpportunityToDelete(opportunity);
+    setShowOpportunityDeleteDialog(true);
+  }, []);
+
+  const closeOpportunityDeleteDialog = useCallback(() => {
+    setShowOpportunityDeleteDialog(false);
+    setOpportunityToDelete(null);
+  }, []);
+
+  const handleOpportunitySoftDelete = useCallback(async (
+    opportunityId: string,
+    bypassConstraints?: boolean
+  ): Promise<{ success: boolean; constraints?: DeletionConstraint[]; error?: string }> => {
+    try {
+      const response = await fetch(`/api/opportunities/${opportunityId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ active: false, bypassConstraints: Boolean(bypassConstraints) })
+      });
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        if (response.status === 409 && payload?.constraints) {
+          return { success: false, constraints: payload.constraints };
+        }
+        const message = payload?.error ?? "Failed to delete opportunity";
+        showError("Failed to delete opportunity", message);
+        return { success: false, error: message };
+      }
+
+      showSuccess("Opportunity archived", "The opportunity has been marked as inactive.");
+      await refreshContactData();
+      return { success: true };
+    } catch (error) {
+      console.error("Failed to delete opportunity", error);
+      const message = error instanceof Error ? error.message : "Unable to delete opportunity";
+      showError("Failed to delete opportunity", message);
+      return { success: false, error: message };
+    }
+  }, [refreshContactData, showError, showSuccess]);
+
+  const handleOpportunityPermanentDelete = useCallback(async (
+    opportunityId: string
+  ): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const response = await fetch(`/api/opportunities/${opportunityId}`, { method: "DELETE" });
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        const message = payload?.error ?? "Failed to delete opportunity";
+        showError("Failed to delete opportunity", message);
+        return { success: false, error: message };
+      }
+
+      showSuccess("Opportunity deleted", "The opportunity has been permanently removed.");
+      await refreshContactData();
+      return { success: true };
+    } catch (error) {
+      console.error("Failed to permanently delete opportunity", error);
+      const message = error instanceof Error ? error.message : "Unable to delete opportunity";
+      showError("Failed to delete opportunity", message);
+      return { success: false, error: message };
+    }
+  }, [refreshContactData, showError, showSuccess]);
+
+  const handleOpportunityRestore = useCallback(async (
+    opportunityId: string
+  ): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const response = await fetch(`/api/opportunities/${opportunityId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ active: true })
+      });
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        const message = payload?.error ?? "Failed to restore opportunity";
+        showError("Failed to restore opportunity", message);
+        return { success: false, error: message };
+      }
+
+      showSuccess("Opportunity restored", "The opportunity has been reactivated.");
+      await refreshContactData();
+      return { success: true };
+    } catch (error) {
+      console.error("Failed to restore opportunity", error);
+      const message = error instanceof Error ? error.message : "Unable to restore opportunity";
+      showError("Failed to restore opportunity", message);
+      return { success: false, error: message };
+    }
+  }, [refreshContactData, showError, showSuccess]);
+
+  const handleGroupEdit = useCallback((group: ContactGroupRow) => {
+    setEditingGroup(group);
+    setShowGroupEditModal(true);
+  }, []);
+
+  const handleGroupEditModalClose = useCallback(() => {
+    setShowGroupEditModal(false);
+    setEditingGroup(null);
+  }, []);
+
+  const handleGroupEditSuccess = useCallback(async () => {
+    setShowGroupEditModal(false);
+    setEditingGroup(null);
+    showSuccess("Group updated", "The group has been updated.");
+    await refreshContactData();
+  }, [refreshContactData, showSuccess]);
+
+  const requestGroupDelete = useCallback((group: ContactGroupRow) => {
+    setGroupToDelete(group);
+    setShowGroupDeleteDialog(true);
+  }, []);
+
+  const closeGroupDeleteDialog = useCallback(() => {
+    setShowGroupDeleteDialog(false);
+    setGroupToDelete(null);
+  }, []);
+
+  const handleGroupSoftDelete = useCallback(async (
+    groupId: string,
+    bypassConstraints?: boolean
+  ): Promise<{ success: boolean; constraints?: DeletionConstraint[]; error?: string }> => {
+    try {
+      const response = await fetch(`/api/groups/${groupId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isActive: false, bypassConstraints: Boolean(bypassConstraints) })
+      });
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        if (response.status === 409 && payload?.constraints) {
+          return { success: false, constraints: payload.constraints };
+        }
+        const message = payload?.error ?? "Failed to delete group";
+        showError("Failed to delete group", message);
+        return { success: false, error: message };
+      }
+
+      showSuccess("Group archived", "The group has been marked as inactive.");
+      await refreshContactData();
+      return { success: true };
+    } catch (error) {
+      console.error("Failed to delete group", error);
+      const message = error instanceof Error ? error.message : "Unable to delete group";
+      showError("Failed to delete group", message);
+      return { success: false, error: message };
+    }
+  }, [refreshContactData, showError, showSuccess]);
+
+  const handleGroupPermanentDelete = useCallback(async (
+    groupId: string
+  ): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const response = await fetch(`/api/groups/${groupId}`, { method: "DELETE" });
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        const message = payload?.error ?? "Failed to delete group";
+        showError("Failed to delete group", message);
+        return { success: false, error: message };
+      }
+
+      showSuccess("Group deleted", "The group has been permanently removed.");
+      await refreshContactData();
+      return { success: true };
+    } catch (error) {
+      console.error("Failed to permanently delete group", error);
+      const message = error instanceof Error ? error.message : "Unable to delete group";
+      showError("Failed to delete group", message);
+      return { success: false, error: message };
+    }
+  }, [refreshContactData, showError, showSuccess]);
+
+  const handleGroupRestore = useCallback(async (
+    groupId: string
+  ): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const response = await fetch(`/api/groups/${groupId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isActive: true })
+      });
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        const message = payload?.error ?? "Failed to restore group";
+        showError("Failed to restore group", message);
+        return { success: false, error: message };
+      }
+
+      showSuccess("Group restored", "The group has been reactivated.");
+      await refreshContactData();
+      return { success: true };
+    } catch (error) {
+      console.error("Failed to restore group", error);
+      const message = error instanceof Error ? error.message : "Unable to restore group";
+      showError("Failed to restore group", message);
+      return { success: false, error: message };
+    }
+  }, [refreshContactData, showError, showSuccess]);
 
   const hasContact = Boolean(contact)
 
@@ -648,6 +964,7 @@ export function ContactDetailsView({ contact, loading = false, error, onBack, on
     lastSaved: activityLastSaved,
     handleColumnsChange: handleActivityTableColumnsChange,
     saveChanges: saveActivityTablePreferences,
+    saveChangesOnModalClose: saveActivityPrefsOnModalClose,
   } = useTablePreferences("contact-details:activities", CONTACT_ACTIVITY_TABLE_BASE_COLUMNS)
 
   const {
@@ -658,6 +975,7 @@ export function ContactDetailsView({ contact, loading = false, error, onBack, on
     lastSaved: contactOpportunityLastSaved,
     handleColumnsChange: handleContactOpportunityTableColumnsChange,
     saveChanges: saveContactOpportunityTablePreferences,
+    saveChangesOnModalClose: saveContactOpportunityPrefsOnModalClose,
   } = useTablePreferences("contact-details:opportunities", CONTACT_OPPORTUNITY_TABLE_BASE_COLUMNS)
 
   const {
@@ -668,6 +986,7 @@ export function ContactDetailsView({ contact, loading = false, error, onBack, on
     lastSaved: contactGroupLastSaved,
     handleColumnsChange: handleContactGroupTableColumnsChange,
     saveChanges: saveContactGroupTablePreferences,
+    saveChangesOnModalClose: saveContactGroupPrefsOnModalClose,
   } = useTablePreferences("contact-details:groups", CONTACT_GROUP_TABLE_BASE_COLUMNS)
 
   const handleActivitiesSearch = useCallback((query: string) => {
@@ -695,7 +1014,7 @@ export function ContactDetailsView({ contact, loading = false, error, onBack, on
                 {value || "View activity"}
               </Link>
             ) : (
-              <span className="text-gray-500">{value || "�"}</span>
+              <span className="text-gray-500">{value || "--"}</span>
             )
           )
         }
@@ -718,9 +1037,40 @@ export function ContactDetailsView({ contact, loading = false, error, onBack, on
           )
         }
       }
+      if (column.id === "actions") {
+        return {
+          ...column,
+          render: (_: unknown, row: ContactActivityRow) => (
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                className="text-primary-600 transition hover:text-primary-700"
+                title="Edit activity"
+                onClick={event => {
+                  event.stopPropagation()
+                  handleActivityEdit(row)
+                }}
+              >
+                <Edit className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                className="text-red-500 transition hover:text-red-700"
+                title="Delete activity"
+                onClick={event => {
+                  event.stopPropagation()
+                  handleActivityDelete(row)
+                }}
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </div>
+          )
+        }
+      }
       return column
     })
-  }, [activityPreferenceColumns])
+  }, [activityPreferenceColumns, handleActivityEdit, handleActivityDelete])
 
   const handleOpportunitiesSearch = useCallback((query: string) => {
     setOpportunitiesSearchQuery(query)
@@ -735,9 +1085,40 @@ export function ContactDetailsView({ contact, loading = false, error, onBack, on
       if (column.id === "estimatedCloseDate") {
         return { ...column, render: (value?: string | Date | null) => formatDate(value) }
       }
+      if (column.id === "actions") {
+        return {
+          ...column,
+          render: (_: unknown, row: ContactOpportunityRow) => (
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                className="text-primary-600 transition hover:text-primary-700"
+                title="Edit opportunity"
+                onClick={event => {
+                  event.stopPropagation()
+                  handleOpportunityEdit(row)
+                }}
+              >
+                <Edit className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                className="text-red-500 transition hover:text-red-700"
+                title="Delete opportunity"
+                onClick={event => {
+                  event.stopPropagation()
+                  requestOpportunityDelete(row)
+                }}
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </div>
+          )
+        }
+      }
       return column
     })
-  }, [contactOpportunityPreferenceColumns])
+  }, [contactOpportunityPreferenceColumns, handleOpportunityEdit, requestOpportunityDelete])
 
   const handleGroupsSearch = useCallback((query: string) => {
     setGroupsSearchQuery(query)
@@ -773,9 +1154,40 @@ export function ContactDetailsView({ contact, loading = false, error, onBack, on
           }
         }
       }
+      if (column.id === "actions") {
+        return {
+          ...column,
+          render: (_: unknown, row: ContactGroupRow) => (
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                className="text-primary-600 transition hover:text-primary-700"
+                title="Edit group"
+                onClick={event => {
+                  event.stopPropagation()
+                  handleGroupEdit(row)
+                }}
+              >
+                <Edit className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                className="text-red-500 transition hover:text-red-700"
+                title="Delete group"
+                onClick={event => {
+                  event.stopPropagation()
+                  requestGroupDelete(row)
+                }}
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </div>
+          )
+        }
+      }
       return column
     })
-  }, [contactGroupPreferenceColumns])
+  }, [contactGroupPreferenceColumns, handleGroupEdit, requestGroupDelete])
 
   const filteredActivities = useMemo(() => {
     let rows: ContactActivityRow[] = contact?.activities ?? []
@@ -978,7 +1390,7 @@ export function ContactDetailsView({ contact, loading = false, error, onBack, on
                 </button>
               )}
               <button
-                onClick={onBack}
+                onClick={handleBack}
                 className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-600 hover:border-primary-400 hover:text-primary-600"
               >
                 Back
@@ -997,14 +1409,47 @@ export function ContactDetailsView({ contact, loading = false, error, onBack, on
                 {error ?? "Contact details are not available."}
               </div>
             ) : contact ? (
-              <div className="space-y-4">
-                <div className="rounded-2xl border-2 border-gray-400 bg-gray-50 p-4 shadow-sm">
-                  <div className="grid gap-3 lg:grid-cols-2">
-                    <div className="space-y-2.5">
+              <div className="space-y-3">
+                <div className="rounded-2xl border-2 border-gray-400 bg-gray-50 p-3 shadow-sm">
+                  {/* Header with expand/collapse toggle */}
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-base font-medium text-gray-900">Contact Information</h3>
+                    </div>
+                    <button
+                      onClick={toggleDetails}
+                      className="flex items-center gap-1 rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-200 hover:text-gray-800 transition-colors"
+                      title={detailsExpanded ? "Minimize details" : "Expand details"}
+                    >
+                      {detailsExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                      {detailsExpanded ? "Minimize" : "Expand"}
+                    </button>
+                  </div>
+
+                  {!detailsExpanded ? (
+                    <div className="space-y-2">
+                      <div className="grid grid-cols-1 gap-2">
+                        <div className="flex items-center gap-3 p-2 bg-white rounded-lg border border-gray-200">
+                          <span className="font-medium text-gray-900">{contact.firstName} {contact.lastName}</span>
+                          <span className="text-sm text-gray-500">•</span>
+                          <span className="text-sm text-gray-600">{contact.accountName}</span>
+                          {contact.jobTitle && (
+                            <>
+                              <span className="text-sm text-gray-500">•</span>
+                              <span className="text-sm text-gray-600">{contact.jobTitle}</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="grid gap-2 lg:grid-cols-2">
+                    <div className="space-y-2">
                       <FieldRow
                         label="Name"
                         value={
-                          <div className="grid gap-2 md:grid-cols-5">
+                          <div className="grid gap-1.5 md:grid-cols-5">
                             <div>
                               <div className={fieldLabelClass}>Prefix</div>
                               <div className={fieldBoxClass}>{contact.prefix || "-"}</div>
@@ -1043,31 +1488,30 @@ export function ContactDetailsView({ contact, loading = false, error, onBack, on
                       <FieldRow
                         label="Active (Y/N)"
                         value={
-                          <div className="flex items-center gap-2 rounded-lg border-2 border-gray-400 bg-white px-2.5 py-1 text-xs font-medium text-gray-600 shadow-sm">
+                          <div className="flex items-center gap-2 rounded-lg border-2 border-gray-400 bg-white px-2 py-1 text-xs font-medium text-gray-600 shadow-sm">
                             <ReadOnlySwitch value={contact.active} />
                             <span>{contact.active ? "Active" : "Inactive"}</span>
                           </div>
                         }
                       />
-                      <div className="grid gap-2 md:grid-cols-2">
-                        <div className="space-y-1">
+                      <div className="grid gap-1.5 md:grid-cols-2">
+                        <div className="space-y-0.5">
                           <span className={fieldLabelClass}>Primary Contact</span>
-                          <div className="flex items-center gap-2 rounded-lg border-2 border-gray-400 bg-white px-2.5 py-1 text-xs font-medium text-gray-600 shadow-sm">
+                          <div className="flex items-center gap-2 rounded-lg border-2 border-gray-400 bg-white px-2 py-1 text-xs font-medium text-gray-600 shadow-sm">
                             <ReadOnlySwitch value={Boolean(contact.isPrimary)} />
                             <span>{contact.isPrimary ? "Yes" : "No"}</span>
                           </div>
                         </div>
-                        <div className="space-y-1">
+                        <div className="space-y-0.5">
                           <span className={fieldLabelClass}>Decision Maker</span>
-                          <div className="flex items-center gap-2 rounded-lg border-2 border-gray-400 bg-white px-2.5 py-1 text-xs font-medium text-gray-600 shadow-sm">
+                          <div className="flex items-center gap-2 rounded-lg border-2 border-gray-400 bg-white px-2 py-1 text-xs font-medium text-gray-600 shadow-sm">
                             <ReadOnlySwitch value={Boolean(contact.isDecisionMaker)} />
                             <span>{contact.isDecisionMaker ? "Yes" : "No"}</span>
                           </div>
                         </div>
                       </div>
                     </div>
-                    <div className="space-y-2.5">
-                    
+                    <div className="space-y-2">
                       <FieldRow
                         label="Contact Type"
                         value={<div className={fieldBoxClass}>{contact.contactType || "--"}</div>}
@@ -1083,7 +1527,7 @@ export function ContactDetailsView({ contact, loading = false, error, onBack, on
                       <FieldRow
                         label="Work Phone"
                         value={
-                          <div className="grid gap-2 md:grid-cols-[1fr,110px]">
+                          <div className="grid gap-1.5 md:grid-cols-[1fr,110px]">
                             <div className={fieldBoxClass}>{contact.workPhone || "-"}</div>
                             <div className={fieldBoxClass}>Ext {contact.workPhoneExt || "-"}</div>
                           </div>
@@ -1103,20 +1547,20 @@ export function ContactDetailsView({ contact, loading = false, error, onBack, on
                       />
                     </div>
                   </div>
-                  <div className="mt-3">
+                  <div className="mt-2">
                     <div className={fieldLabelClass}>Description</div>
-                    <div className="mt-1 rounded-lg border-2 border-gray-400 bg-white px-2.5 py-1.5 text-sm text-gray-700 shadow-sm">
+                    <div className="mt-0.5 rounded-lg border-2 border-gray-400 bg-white px-2.5 py-1 text-sm text-gray-700 shadow-sm">
                       {contact.description || "No description provided."}
                     </div>
                   </div>
-                  <div className="mt-3">
+                  <div className="mt-2">
                     <div className={fieldLabelClass}>Notes</div>
-                    <div className="mt-1 rounded-lg border-2 border-gray-400 bg-white px-2.5 py-1.5 text-sm text-gray-700 shadow-sm">
+                    <div className="mt-0.5 rounded-lg border-2 border-gray-400 bg-white px-2.5 py-1 text-sm text-gray-700 shadow-sm">
                       {contact.notes || "No notes provided."}
                     </div>
                   </div>
-                  <div className="mt-3 grid gap-3 lg:grid-cols-2">
-                    <div className="space-y-2.5">
+                  <div className="mt-2 grid gap-2 lg:grid-cols-2">
+                    <div className="space-y-2">
                       <FieldRow
                         label="Assistant Name"
                         value={<div className={fieldBoxClass}>{contact.assistantName || "--"}</div>}
@@ -1130,7 +1574,7 @@ export function ContactDetailsView({ contact, loading = false, error, onBack, on
                         value={<div className={fieldBoxClass}>{contact.linkedinUrl || "--"}</div>}
                       />
                     </div>
-                    <div className="space-y-2.5">
+                    <div className="space-y-2">
                       <FieldRow
                         label="Website URL"
                         value={<div className={fieldBoxClass}>{contact.websiteUrl || "--"}</div>}
@@ -1145,6 +1589,8 @@ export function ContactDetailsView({ contact, loading = false, error, onBack, on
                       />
                     </div>
                   </div>
+                    </>
+                  )}
                 </div>
 
                 <div className="flex flex-col gap-3">
@@ -1179,6 +1625,7 @@ export function ContactDetailsView({ contact, loading = false, error, onBack, on
                         isSavingTableChanges={activityPreferencesSaving}
                         lastTableSaved={activityLastSaved ?? undefined}
                         onSaveTableChanges={saveActivityTablePreferences}
+                        onSettingsClick={() => setShowActivitiesColumnSettings(true)}
                         showCreateButton={Boolean(contact) && !isDeleted && !loading}
                         searchPlaceholder="Search activities"
                       />
@@ -1212,6 +1659,7 @@ export function ContactDetailsView({ contact, loading = false, error, onBack, on
                         isSavingTableChanges={contactOpportunityPreferencesSaving}
                         lastTableSaved={contactOpportunityLastSaved ?? undefined}
                         onSaveTableChanges={saveContactOpportunityTablePreferences}
+                        onSettingsClick={() => setShowOpportunitiesColumnSettings(true)}
                         showCreateButton={Boolean(contact) && !isDeleted && !loading}
                         searchPlaceholder="Search opportunities"
                       />
@@ -1245,6 +1693,7 @@ export function ContactDetailsView({ contact, loading = false, error, onBack, on
                         isSavingTableChanges={contactGroupPreferencesSaving}
                         lastTableSaved={contactGroupLastSaved ?? undefined}
                         onSaveTableChanges={saveContactGroupTablePreferences}
+                        onSettingsClick={() => setShowGroupsColumnSettings(true)}
                         showCreateButton={Boolean(contact) && !isDeleted && !loading}
                         searchPlaceholder="Search groups"
                       />
@@ -1286,6 +1735,32 @@ export function ContactDetailsView({ contact, loading = false, error, onBack, on
         userCanPermanentDelete={true} // TODO: Check user permissions
       />
 
+      <TwoStageDeleteDialog
+        isOpen={showOpportunityDeleteDialog}
+        onClose={closeOpportunityDeleteDialog}
+        entity="Opportunity"
+        entityName={opportunityToDelete?.opportunityName || "Unknown Opportunity"}
+        entityId={opportunityToDelete?.id || ""}
+        isDeleted={opportunityToDelete?.isDeleted || false}
+        onSoftDelete={handleOpportunitySoftDelete}
+        onPermanentDelete={handleOpportunityPermanentDelete}
+        onRestore={handleOpportunityRestore}
+        userCanPermanentDelete={true}
+      />
+
+      <TwoStageDeleteDialog
+        isOpen={showGroupDeleteDialog}
+        onClose={closeGroupDeleteDialog}
+        entity="Group"
+        entityName={groupToDelete?.groupName || "Unknown Group"}
+        entityId={groupToDelete?.id || ""}
+        isDeleted={groupToDelete?.isDeleted || false}
+        onSoftDelete={handleGroupSoftDelete}
+        onPermanentDelete={handleGroupPermanentDelete}
+        onRestore={handleGroupRestore}
+        userCanPermanentDelete={true}
+      />
+
       {contact && (
         <>
           <ActivityNoteCreateModal
@@ -1313,11 +1788,64 @@ export function ContactDetailsView({ contact, loading = false, error, onBack, on
             onClose={() => setGroupModalOpen(false)}
             onSuccess={handlePostCreate}
           />
+
+          <OpportunityEditModal
+            isOpen={Boolean(editingOpportunity)}
+            opportunityId={editingOpportunity?.id ?? null}
+            onClose={handleCloseOpportunityEditModal}
+            onSuccess={handleOpportunityEditSuccess}
+          />
+
+          <GroupEditModal
+            isOpen={showGroupEditModal}
+            group={editingGroup}
+            onClose={handleGroupEditModalClose}
+            onSuccess={handleGroupEditSuccess}
+          />
+
+          {/* Column chooser modals */}
+          <ColumnChooserModal
+            isOpen={showActivitiesColumnSettings}
+            columns={activityPreferenceColumns}
+            onApply={handleActivityTableColumnsChange}
+            onClose={async () => {
+              setShowActivitiesColumnSettings(false)
+              await saveActivityPrefsOnModalClose()
+            }}
+          />
+          <ColumnChooserModal
+            isOpen={showOpportunitiesColumnSettings}
+            columns={contactOpportunityPreferenceColumns}
+            onApply={handleContactOpportunityTableColumnsChange}
+            onClose={async () => {
+              setShowOpportunitiesColumnSettings(false)
+              await saveContactOpportunityPrefsOnModalClose()
+            }}
+          />
+          <ColumnChooserModal
+            isOpen={showGroupsColumnSettings}
+            columns={contactGroupPreferenceColumns}
+            onApply={handleContactGroupTableColumnsChange}
+            onClose={async () => {
+              setShowGroupsColumnSettings(false)
+              await saveContactGroupPrefsOnModalClose()
+            }}
+          />
         </>
       )}
     </div>
   )
 }
+
+
+
+
+
+
+
+
+
+
 
 
 

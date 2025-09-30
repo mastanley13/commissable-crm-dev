@@ -71,9 +71,6 @@ useEffect(() => {
     return () => controller.abort()
   }, [fetchActivity])
 
-  const handleBack = () => {
-    router.push("/activities")
-  }
 
   useEffect(() => {
     if (activity) {
@@ -98,7 +95,6 @@ useEffect(() => {
           activity={activity}
           loading={loading}
           error={error}
-          onBack={handleBack}
           onRefresh={() => fetchActivity()}
         />
       </div>

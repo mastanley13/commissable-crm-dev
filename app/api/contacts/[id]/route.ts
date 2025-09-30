@@ -3,6 +3,7 @@ import { AuditAction } from "@prisma/client"
 import { prisma } from "@/lib/db"
 import { withPermissions, createErrorResponse } from "@/lib/api-auth"
 import { logContactAudit } from "@/lib/audit"
+import { mapOpportunityToRow } from "../../opportunities/helpers"
 import { revalidatePath } from "next/cache"
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic';
@@ -227,7 +228,7 @@ export async function GET(
     const data = {
       ...mapContactToDetail(contact),
       activities: activities.map(mapContactActivityRow),
-      opportunities: opportunities.map(mapContactOpportunityRow),
+      opportunities: opportunities.map(mapOpportunityToRow),
       groups: groupMemberships.map(mapContactGroupRow)
     }
 
@@ -634,6 +635,10 @@ export async function DELETE(
     }
   )
 }
+
+
+
+
 
 
 

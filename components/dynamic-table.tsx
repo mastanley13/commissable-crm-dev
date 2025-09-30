@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState, useRef, useCallback, useMemo, useEffect } from "react"
-import { ChevronUp, ChevronDown, Trash2 } from "lucide-react"
+import { ChevronUp, ChevronDown, Trash2, Check } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 const getRowId = (row: any): string | undefined => row?.id ?? row?.uuid ?? row?.key
@@ -43,6 +43,7 @@ export interface TableProps {
   selectedItems?: string[]
   onItemSelect?: (itemId: string, selected: boolean, row: any) => void
   onSelectAll?: (selected: boolean) => void
+  onToggle?: (row: any, columnId: string, value: boolean) => void
   autoSizeColumns?: boolean // Enable automatic column sizing on mount
   fillContainerWidth?: boolean // Stretch columns to match parent width
   alwaysShowPagination?: boolean // Always render pagination controls
@@ -63,6 +64,7 @@ export function DynamicTable({
   selectedItems = [],
   onItemSelect,
   onSelectAll,
+  onToggle,
   autoSizeColumns = false, // Changed default to false to prevent conflicts
   fillContainerWidth = false,
   alwaysShowPagination = false
@@ -621,12 +623,28 @@ export function DynamicTable({
     switch (column.type) {
       case "toggle":
         return (
-          <label className="relative inline-flex items-center cursor-pointer">
-            <input type="checkbox" checked={Boolean(value)} readOnly className="sr-only" />
+          <label className="relative inline-flex items-center cursor-pointer" data-disable-row-click="true">
+            <input
+              type="checkbox"
+              checked={Boolean(value)}
+              className="sr-only"
+              data-disable-row-click="true"
+              onChange={(event) => {
+                if (onToggle) {
+                  onToggle(row, column.id, event.target.checked)
+                }
+              }}
+            />
             <div
               className={`w-10 h-5 rounded-full transition-colors ${
                 value ? "bg-blue-600" : "bg-gray-300"
               }`}
+              onClick={(event) => {
+                event.preventDefault()
+                if (onToggle) {
+                  onToggle(row, column.id, !value)
+                }
+              }}
             >
               <div
                 className={`w-4 h-4 bg-white rounded-full shadow-sm transition-transform transform ${
@@ -638,7 +656,7 @@ export function DynamicTable({
         )
       case "action":
         return (
-          <button className="text-red-500 hover:text-red-700 p-1 rounded transition-colors">
+          <button className="rounded-full border border-red-200 p-2 text-red-500 transition hover:bg-red-50" data-disable-row-click="true">
             <Trash2 className="h-4 w-4" />
           </button>
         )
@@ -646,15 +664,29 @@ export function DynamicTable({
         const rowId = getRowId(row)
         const checked = rowId ? selectedItems.includes(rowId) : Boolean(value)
         return (
-          <input
-            type="checkbox"
-            className="w-4 h-4 text-primary-600 bg-gray-100 border-gray-300 rounded focus:ring-primary-500"
-            checked={checked}
-            aria-label={rowId ? `Select row ${rowId}` : `Select row ${index + 1}`}
+          <label
+            className="flex cursor-pointer items-center justify-center"
             data-disable-row-click="true"
-            onClick={event => handleCheckboxClick(event, row, index, checked)}
-            onChange={() => {}}
-          />
+          >
+            <input
+              type="checkbox"
+              className="sr-only"
+              checked={checked}
+              aria-label={rowId ? `Select row ${rowId}` : `Select row ${index + 1}`}
+              onClick={event => handleCheckboxClick(event, row, index, checked)}
+              onChange={() => {}}
+            />
+            <span
+              className={cn(
+                "flex h-4 w-4 items-center justify-center rounded border transition-colors",
+                checked
+                  ? "border-primary-500 bg-primary-600 text-white"
+                  : "border-gray-300 bg-white text-transparent"
+              )}
+            >
+              <Check className="h-3 w-3" aria-hidden="true" />
+            </span>
+          </label>
         )
       }
       case "email":
@@ -672,7 +704,7 @@ export function DynamicTable({
       default:
         return <span className="truncate">{value}</span>
     }
-  }, [handleCheckboxClick, selectedItems])
+  }, [handleCheckboxClick, selectedItems, onToggle])
 
   const shouldRenderPagination = Boolean(pagination && (alwaysShowPagination || data.length > 0))
   const paginationStart = pagination
@@ -926,6 +958,7 @@ export function DynamicTable({
     </div>
   )
 }
+
 
 
 

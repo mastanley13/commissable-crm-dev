@@ -12,6 +12,11 @@ import { useToasts } from "@/components/toast"
 import { useTablePreferences } from "@/hooks/useTablePreferences"
 import { formatPhoneNumber } from "@/lib/utils"
 import { CopyProtectionWrapper } from "@/components/copy-protection"
+import { ContactBulkActionBar } from "@/components/contact-bulk-action-bar"
+import { ContactBulkOwnerModal } from "@/components/contact-bulk-owner-modal"
+import { ContactBulkStatusModal } from "@/components/contact-bulk-status-modal"
+import { ContactEditModal } from "@/components/contact-edit-modal"
+import { Trash2, Edit } from "lucide-react"
 
 interface ContactRow {
   id: string
@@ -76,9 +81,9 @@ const contactColumns: Column[] = [
   {
     id: "action",
     label: "Actions",
-    width: 120,
-    minWidth: 100,
-    maxWidth: 160,
+    width: 100,
+    minWidth: 80,
+    maxWidth: 120,
     type: "action",
     sortable: false,
     resizable: true
@@ -222,7 +227,7 @@ const contactFilterOptions = [
   { id: "mobile", label: "Mobile" },
   { id: "workPhone", label: "Work Phone" },
   { id: "extension", label: "Extension" }
-] as const;
+];
 
 export default function ContactsPage() {
   const [contacts, setContacts] = useState<ContactRow[]>([])
@@ -241,11 +246,17 @@ export default function ContactsPage() {
   const [filters, setFilters] = useState<Filters>({})
   const [columnFilters, setColumnFilters] = useState<ListColumnFilter[]>([])
   const [selectedContacts, setSelectedContacts] = useState<string[]>([])
+  const [bulkDeleteTargets, setBulkDeleteTargets] = useState<ContactRow[]>([])
+  const [showBulkOwnerModal, setShowBulkOwnerModal] = useState(false)
+  const [showBulkStatusModal, setShowBulkStatusModal] = useState(false)
+  const [bulkActionLoading, setBulkActionLoading] = useState(false)
   const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showColumnSettings, setShowColumnSettings] = useState(false)
   const [contactToDelete, setContactToDelete] = useState<ContactRow | null>(null)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [contactToEdit, setContactToEdit] = useState<ContactRow | null>(null)
+  const [showEditModal, setShowEditModal] = useState(false)
   const router = useRouter()
   
   const { showSuccess, showError, ToastContainer } = useToasts()
@@ -448,46 +459,550 @@ export default function ContactsPage() {
     }
   }
 
-  const requestContactDeletion = useCallback((contact: ContactRow) => {
-    setContactToDelete(contact)
+  const openBulkDeleteDialog = useCallback(() => {
+    if (selectedContacts.length === 0) {
+      showError("No contacts selected", "Select at least one contact to delete.")
+      return
+    }
+
+    const targets = contacts.filter(contact => selectedContacts.includes(contact.id))
+
+    if (targets.length === 0) {
+      showError(
+        "Contacts unavailable",
+        "Unable to locate the selected contacts. Refresh the page and try again."
+      )
+      return
+    }
+
+    setBulkDeleteTargets(targets)
+    setContactToDelete(null)
     setShowDeleteDialog(true)
+  }, [contacts, selectedContacts, showError])
+
+  const softDeleteContactRequest = useCallback(async (
+    contactId: string,
+    bypassConstraints?: boolean
+  ): Promise<{ success: boolean; constraints?: DeletionConstraint[]; error?: string }> => {
+    try {
+      const url = `/api/contacts/${contactId}?stage=soft${bypassConstraints ? "&bypassConstraints=true" : ""}`
+      const response = await fetch(url, { method: "DELETE" })
+
+      if (!response.ok) {
+        let data: any = null
+        try {
+          data = await response.json()
+        } catch (_) {
+          // Ignore JSON parse errors
+        }
+
+        if (response.status === 409 && Array.isArray(data?.constraints)) {
+          return { success: false, constraints: data.constraints as DeletionConstraint[] }
+        }
+
+        const message = typeof data?.error === 'string' && data.error.length > 0
+          ? data.error
+          : 'Failed to delete contact'
+
+        return { success: false, error: message }
+      }
+
+      return { success: true }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to delete contact'
+      return { success: false, error: message }
+    }
+  }, [])
+
+  const deactivateContactRequest = useCallback(async (
+    contactId: string
+  ): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const response = await fetch(`/api/contacts/${contactId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isPrimary: false })
+      })
+
+      if (!response.ok) {
+        let data: any = null
+        try {
+          data = await response.json()
+        } catch (_) {
+          // Ignore JSON parse errors
+        }
+
+        const message = typeof data?.error === "string" && data.error.length > 0
+          ? data.error
+          : "Failed to update contact status"
+
+        return { success: false, error: message }
+      }
+
+      return { success: true }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to update contact status"
+      return { success: false, error: message }
+    }
   }, [])
 
   const handleSoftDelete = useCallback(async (
-    contactId: string, 
+    contactId: string,
     bypassConstraints?: boolean
-  ): Promise<{ success: boolean, constraints?: DeletionConstraint[], error?: string }> => {
-    try {
-      const url = `/api/contacts/${contactId}?stage=soft${bypassConstraints ? '&bypassConstraints=true' : ''}`;
-      const response = await fetch(url, { method: "DELETE" });
+  ): Promise<{ success: boolean; constraints?: DeletionConstraint[]; error?: string }> => {
+    const result = await softDeleteContactRequest(contactId, bypassConstraints)
 
-      if (!response.ok) {
-        const data = await response.json();
-        if (response.status === 409 && data.constraints) {
-          return { success: false, constraints: data.constraints };
-        }
-        return { success: false, error: data.error || "Failed to delete contact" };
-      }
-
-      // Update the contact status in the local state
-      setContacts((previous) =>
-        previous.map((contact) =>
-          contact.id === contactId 
+    if (result.success) {
+      setContacts(previous =>
+        previous.map(contact =>
+          contact.id === contactId
             ? { ...contact, isDeleted: true, deletedAt: new Date().toISOString() }
             : contact
         )
-      );
+      )
 
-      showSuccess("Contact deleted", "The contact has been soft deleted and can be restored if needed.");
-      return { success: true };
-    } catch (err) {
-      console.error(err);
-      return { 
-        success: false, 
-        error: err instanceof Error ? err.message : "Unable to delete contact" 
-      };
+      showSuccess("Contact deleted", "The contact has been soft deleted and can be restored if needed.")
     }
-  }, [showSuccess]);
+
+    return result
+  }, [setContacts, showSuccess, softDeleteContactRequest])
+  const executeBulkSoftDelete = useCallback(async (
+    targets: ContactRow[],
+    bypassConstraints?: boolean
+  ): Promise<{ success: boolean; constraints?: DeletionConstraint[]; error?: string }> => {
+    if (!targets || targets.length === 0) {
+      return { success: false, error: "No contacts selected" }
+    }
+
+    setBulkActionLoading(true)
+
+    try {
+      const deactivationCandidates = targets.filter(contact => contact.active && !contact.isDeleted)
+      const deletionCandidates = targets.filter(contact => !contact.active || contact.isDeleted)
+
+      const deactivatedIds: string[] = []
+      const deactivationFailures: Array<{ contact: ContactRow; message: string }> = []
+
+      if (deactivationCandidates.length > 0) {
+        const outcomes = await Promise.allSettled(
+          deactivationCandidates.map(contact => deactivateContactRequest(contact.id))
+        )
+
+        outcomes.forEach((result, index) => {
+          const contact = deactivationCandidates[index]
+          if (result.status === "fulfilled" && result.value.success) {
+            deactivatedIds.push(contact.id)
+          } else {
+            const errorMessage =
+              result.status === "fulfilled"
+                ? result.value.error || "Failed to deactivate contact"
+                : result.reason instanceof Error
+                  ? result.reason.message
+                  : "Failed to deactivate contact"
+
+            deactivationFailures.push({
+              contact,
+              message: errorMessage
+            })
+          }
+        })
+
+        if (deactivatedIds.length > 0) {
+          const deactivatedSet = new Set(deactivatedIds)
+          setContacts(previous =>
+            previous.map(contact =>
+              deactivatedSet.has(contact.id)
+                ? { ...contact, active: false, isPrimary: false }
+                : contact
+            )
+          )
+
+          showSuccess(
+            `Marked ${deactivatedIds.length} contact${deactivatedIds.length === 1 ? "" : "s"} inactive`,
+            "Inactive contacts can be deleted if needed."
+          )
+        }
+      }
+
+      const deletionSuccessIds: string[] = []
+      const constraintResults: Array<{ contact: ContactRow; constraints: DeletionConstraint[] }> = []
+      const deletionFailures: Array<{ contact: ContactRow; message: string }> = []
+
+      for (const contact of deletionCandidates) {
+        const result = await softDeleteContactRequest(contact.id, bypassConstraints)
+
+        if (result.success) {
+          deletionSuccessIds.push(contact.id)
+        } else if (result.constraints && result.constraints.length > 0) {
+          constraintResults.push({ contact, constraints: result.constraints })
+        } else {
+          deletionFailures.push({
+            contact,
+            message: result.error || "Failed to delete contact"
+          })
+        }
+      }
+
+      if (deletionSuccessIds.length > 0) {
+        const successSet = new Set(deletionSuccessIds)
+        const deletedTimestamp = new Date().toISOString()
+
+        setContacts(previous =>
+          previous.map(contact =>
+            successSet.has(contact.id)
+              ? { ...contact, isDeleted: true, deletedAt: deletedTimestamp }
+              : contact
+          )
+        )
+
+        showSuccess(
+          `Soft deleted ${deletionSuccessIds.length} contact${deletionSuccessIds.length === 1 ? "" : "s"}`,
+          "Deleted contacts can be restored later from their detail page."
+        )
+      }
+
+      const failureIds = [
+        ...constraintResults.map(item => item.contact.id),
+        ...deletionFailures.map(item => item.contact.id),
+        ...deactivationFailures.map(item => item.contact.id)
+      ]
+      const failureIdSet = new Set(failureIds)
+
+      setSelectedContacts(prev => prev.filter(id => failureIdSet.has(id)))
+      setBulkDeleteTargets(targets.filter(contact => failureIdSet.has(contact.id)))
+
+      if (deactivationFailures.length > 0 || deletionFailures.length > 0) {
+        const failureMessage = [
+          ...deletionFailures.map(item => `${item.contact.fullName || "Contact"}: ${item.message}`),
+          ...deactivationFailures.map(item => `${item.contact.fullName || "Contact"}: ${item.message}`)
+        ].join("; ")
+        if (failureMessage.length > 0) {
+          showError("Bulk delete failed", failureMessage)
+        }
+      }
+
+      if (constraintResults.length > 0) {
+        const aggregatedConstraints = constraintResults.flatMap(item =>
+          item.constraints.map(constraint => ({
+            ...constraint,
+            message: `${item.contact.fullName || "Contact"}: ${constraint.message}`
+          }))
+        )
+
+        return { success: false, constraints: aggregatedConstraints }
+      }
+
+      if (deletionFailures.length > 0 || deactivationFailures.length > 0) {
+        const failureMessage = [
+          ...deletionFailures.map(item => `${item.contact.fullName || "Contact"}: ${item.message}`),
+          ...deactivationFailures.map(item => `${item.contact.fullName || "Contact"}: ${item.message}`)
+        ].join("; ")
+
+        return { success: false, error: failureMessage }
+      }
+
+      return { success: deactivatedIds.length > 0 || deletionSuccessIds.length > 0 }
+    } catch (error) {
+      console.error("Bulk soft delete failed", error)
+      const message = error instanceof Error ? error.message : "Unable to delete selected contacts."
+      showError("Bulk delete failed", message)
+      return { success: false, error: message }
+    } finally {
+      setBulkActionLoading(false)
+    }
+  }, [deactivateContactRequest, setBulkActionLoading, setBulkDeleteTargets, setContacts, setSelectedContacts, showError, showSuccess, softDeleteContactRequest])
+
+  const handleBulkExportCsv = useCallback(() => {
+    if (selectedContacts.length === 0) {
+      showError("No contacts selected", "Select at least one contact to export.")
+      return
+    }
+
+    const rows = contacts.filter(contact => selectedContacts.includes(contact.id))
+
+    if (rows.length === 0) {
+      showError(
+        "Contacts not available",
+        "The selected contacts are not on the current page. Reload the page before exporting."
+      )
+      return
+    }
+
+    const headers = [
+      "Full Name",
+      "Email",
+      "Job Title",
+      "Account",
+      "Contact Type",
+      "Mobile Phone",
+      "Work Phone",
+      "Owner",
+      "Active",
+      "Preferred Contact Method"
+    ]
+
+    const escapeCsv = (value: string | null | undefined) => {
+      if (value === null || value === undefined) {
+        return ""
+      }
+      const stringValue = String(value)
+      if (stringValue.includes("\"") || stringValue.includes(",") || stringValue.includes("\n")) {
+        return `"${stringValue.replace(/"/g, '""')}"`
+      }
+      return stringValue
+    }
+
+    const lines = [
+      headers.join(","),
+      ...rows.map(row =>
+        [
+          row.fullName,
+          row.emailAddress,
+          row.jobTitle,
+          row.accountName,
+          row.contactType,
+          formatPhoneNumber(row.mobile),
+          formatPhoneNumber(row.workPhone),
+          row.ownerName,
+          row.isPrimary ? "Active" : "Inactive",
+          row.preferredContactMethod
+        ].map(escapeCsv).join(",")
+      )
+    ]
+
+    const blob = new Blob([lines.join("\r\n")], { type: "text/csv;charset=utf-8;" })
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    const timestamp = new Date().toISOString().replace(/[:T]/g, "-").split(".")[0]
+    link.href = url
+    link.download = `contacts-export-${timestamp}.csv`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+
+    showSuccess(
+      `Exported ${rows.length} contact${rows.length === 1 ? "" : "s"}`,
+      "Check your downloads for the CSV file."
+    )
+  }, [contacts, selectedContacts, showError, showSuccess])
+
+  const handleBulkOwnerUpdate = useCallback(async (ownerId: string | null) => {
+    if (selectedContacts.length === 0) {
+      showError("No contacts selected", "Select at least one contact to update.")
+      return
+    }
+
+    setBulkActionLoading(true)
+
+    try {
+      const outcomes = await Promise.allSettled(
+        selectedContacts.map(async (contactId) => {
+          const response = await fetch(`/api/contacts/${contactId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ownerId })
+          })
+
+          if (!response.ok) {
+            const data = await response.json().catch(() => null)
+            throw new Error(data?.error || "Failed to update contact owner")
+          }
+
+          return contactId
+        })
+      )
+
+      const successes: string[] = []
+      const failures: Array<{ contactId: string; message: string }> = []
+
+      outcomes.forEach((result, index) => {
+        const contactId = selectedContacts[index]
+        if (result.status === "fulfilled") {
+          successes.push(contactId)
+        } else {
+          const message =
+            result.reason instanceof Error ? result.reason.message : "Unexpected error"
+          failures.push({ contactId, message })
+        }
+      })
+
+      if (successes.length > 0) {
+        const successSet = new Set(successes)
+        const ownerOption = ownerId ? options?.owners.find(owner => owner.value === ownerId) : undefined
+        const ownerNameForData = ownerOption?.label ?? ""
+        const ownerNameForToast = ownerId ? (ownerNameForData || "Selected owner") : "Unassigned"
+
+        setContacts(previous =>
+          previous.map(contact =>
+            successSet.has(contact.id)
+              ? {
+                  ...contact,
+                  ownerId: ownerId ?? "",
+                  ownerName: ownerNameForData
+                }
+              : contact
+          )
+        )
+
+        showSuccess(
+          `Updated ${successes.length} contact${successes.length === 1 ? "" : "s"}`,
+          `New owner: ${ownerNameForToast}.`
+        )
+      }
+
+      if (failures.length > 0) {
+        const nameMap = new Map(contacts.map(contact => [contact.id, contact.fullName || "Contact"]))
+        const detail = failures
+          .map(item => `${nameMap.get(item.contactId) || "Contact"}: ${item.message}`)
+          .join("; ")
+        showError("Failed to update owner for some contacts", detail)
+      }
+
+      const remaining = failures.map(item => item.contactId)
+      setSelectedContacts(remaining)
+      if (failures.length === 0) {
+        setShowBulkOwnerModal(false)
+      }
+    } catch (error) {
+      console.error("Bulk owner update failed", error)
+      showError(
+        "Bulk owner update failed",
+        error instanceof Error ? error.message : "Unable to update contact owners."
+      )
+    } finally {
+      setBulkActionLoading(false)
+    }
+  }, [contacts, options, selectedContacts, showError, showSuccess])
+
+  const handleToggleContactStatus = useCallback(async (contact: ContactRow, newStatus: boolean) => {
+    try {
+      const response = await fetch(`/api/contacts/${contact.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isPrimary: newStatus })
+      })
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => null)
+        throw new Error(data?.error || "Failed to update contact status")
+      }
+
+      // Update local state immediately
+      setContacts(previous =>
+        previous.map(c =>
+          c.id === contact.id
+            ? { ...c, isPrimary: newStatus, active: newStatus }
+            : c
+        )
+      )
+
+      const label = newStatus ? "active" : "inactive"
+      showSuccess(
+        `Contact marked as ${label}`,
+        "The Active toggle has been updated."
+      )
+    } catch (error) {
+      console.error("Failed to update contact status", error)
+      showError(
+        "Failed to update contact status",
+        error instanceof Error ? error.message : "Unable to update contact status."
+      )
+      // Revert the local state change on error
+      setContacts(previous =>
+        previous.map(c =>
+          c.id === contact.id
+            ? { ...c, isPrimary: !newStatus, active: !newStatus }
+            : c
+        )
+      )
+    }
+  }, [showError, showSuccess])
+
+  const handleBulkStatusUpdate = useCallback(async (isPrimary: boolean) => {
+    if (selectedContacts.length === 0) {
+      showError("No contacts selected", "Select at least one contact to update.")
+      return
+    }
+
+    setBulkActionLoading(true)
+
+    try {
+      const outcomes = await Promise.allSettled(
+        selectedContacts.map(async (contactId) => {
+          const response = await fetch(`/api/contacts/${contactId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ isPrimary })
+          })
+
+          if (!response.ok) {
+            const data = await response.json().catch(() => null)
+            throw new Error(data?.error || "Failed to update contact status")
+          }
+
+          return contactId
+        })
+      )
+
+      const successes: string[] = []
+      const failures: Array<{ contactId: string; message: string }> = []
+
+      outcomes.forEach((result, index) => {
+        const contactId = selectedContacts[index]
+        if (result.status === "fulfilled") {
+          successes.push(contactId)
+        } else {
+          const message =
+            result.reason instanceof Error ? result.reason.message : "Unexpected error"
+          failures.push({ contactId, message })
+        }
+      })
+
+      if (successes.length > 0) {
+        const successSet = new Set(successes)
+        setContacts(previous =>
+          previous.map(contact =>
+            successSet.has(contact.id)
+              ? { ...contact, isPrimary, active: isPrimary }
+              : contact
+          )
+        )
+        const label = isPrimary ? "active" : "inactive"
+        showSuccess(
+          `Marked ${successes.length} contact${successes.length === 1 ? "" : "s"} as ${label}`,
+          "The Active toggle has been updated."
+        )
+      }
+
+      if (failures.length > 0) {
+        const nameMap = new Map(contacts.map(contact => [contact.id, contact.fullName || "Contact"]))
+        const detail = failures
+          .map(item => `${nameMap.get(item.contactId) || "Contact"}: ${item.message}`)
+          .join("; ")
+        showError("Failed to update status for some contacts", detail)
+      }
+
+      const remaining = failures.map(item => item.contactId)
+      setSelectedContacts(remaining)
+      if (failures.length === 0) {
+        setShowBulkStatusModal(false)
+      }
+    } catch (error) {
+      console.error("Bulk status update failed", error)
+      showError(
+        "Bulk status update failed",
+        error instanceof Error ? error.message : "Unable to update contact status."
+      )
+    } finally {
+      setBulkActionLoading(false)
+    }
+  }, [contacts, selectedContacts, showError, showSuccess])
+  const requestContactDeletion = useCallback((contact: ContactRow) => {
+    setBulkDeleteTargets([])
+    setContactToDelete(contact)
+    setShowDeleteDialog(true)
+  }, [])
 
   const handlePermanentDelete = useCallback(async (
     contactId: string
@@ -559,9 +1074,26 @@ export default function ContactsPage() {
   }, [showSuccess]);
 
   const closeDeleteDialog = () => {
-    setShowDeleteDialog(false);
-    setContactToDelete(null);
-  };
+    setShowDeleteDialog(false)
+    setContactToDelete(null)
+    setBulkDeleteTargets([])
+  }
+
+  const requestContactEdit = useCallback((contact: ContactRow) => {
+    setContactToEdit(contact)
+    setShowEditModal(true)
+  }, [])
+
+  const handleEditSuccess = useCallback(() => {
+    setShowEditModal(false)
+    setContactToEdit(null)
+    loadContacts()
+  }, [loadContacts])
+
+  const closeEditModal = () => {
+    setShowEditModal(false)
+    setContactToEdit(null)
+  }
 
   const tableLoading = loading || preferenceLoading
   const tableColumns = useMemo(() => {
@@ -570,26 +1102,40 @@ export default function ContactsPage() {
         return {
           ...column,
           render: (_value: unknown, row: ContactRow) => (
-            <button
-              type="button"
-              className={`rounded-md border px-2 py-1 text-xs font-medium transition-colors ${
-                row.isDeleted 
-                  ? "border-gray-300 text-gray-600 hover:bg-gray-50 hover:text-gray-700"
-                  : "border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
-              }`}
-              onClick={(event) => {
-                event.stopPropagation();
-                requestContactDeletion(row);
-              }}
-            >
-              {row.isDeleted ? "Manage" : "Delete"}
-            </button>
+            <div className="flex gap-1">
+              <button
+                type="button"
+                className="text-blue-500 hover:text-blue-700 p-1 rounded transition-colors"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  requestContactEdit(row);
+                }}
+                aria-label="Edit contact"
+              >
+                <Edit className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                className={`p-1 rounded transition-colors ${
+                  row.isDeleted
+                    ? "text-gray-400 hover:text-gray-600"
+                    : "text-red-500 hover:text-red-700"
+                }`}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  requestContactDeletion(row);
+                }}
+                aria-label={row.isDeleted ? "Manage contact" : "Delete contact"}
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </div>
           ),
         };
       }
       return column;
     });
-  }, [preferenceColumns, requestContactDeletion])
+  }, [preferenceColumns, requestContactEdit, requestContactDeletion])
   
   // Get hidden columns by comparing all columns with visible ones
   const hiddenColumns = useMemo(() => {
@@ -621,6 +1167,14 @@ export default function ContactsPage() {
       )}
 
       <div className="flex-1 p-4 min-h-0">
+        <ContactBulkActionBar
+          count={selectedContacts.length}
+          disabled={bulkActionLoading}
+          onSoftDelete={openBulkDeleteDialog}
+          onExportCsv={handleBulkExportCsv}
+          onChangeOwner={() => setShowBulkOwnerModal(true)}
+          onUpdateStatus={() => setShowBulkStatusModal(true)}
+        />
         <DynamicTable
           columns={tableColumns}
           data={contacts}
@@ -635,16 +1189,43 @@ export default function ContactsPage() {
           selectedItems={selectedContacts}
           onItemSelect={handleContactSelect}
           onSelectAll={handleSelectAll}
+          onToggle={(row, columnId, value) => {
+            if (columnId === "active") {
+              handleToggleContactStatus(row, value)
+            }
+          }}
           fillContainerWidth
           autoSizeColumns={false} // Explicitly disable auto-sizing to prevent conflicts
         />
       </div>
+
+      <ContactBulkOwnerModal
+        isOpen={showBulkOwnerModal}
+        owners={options?.owners ?? []}
+        onClose={() => setShowBulkOwnerModal(false)}
+        onSubmit={handleBulkOwnerUpdate}
+        isSubmitting={bulkActionLoading}
+      />
+
+      <ContactBulkStatusModal
+        isOpen={showBulkStatusModal}
+        onClose={() => setShowBulkStatusModal(false)}
+        onSubmit={handleBulkStatusUpdate}
+        isSubmitting={bulkActionLoading}
+      />
 
       <ContactCreateModal
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
         onSuccess={handleCreateSuccess}
         options={options || undefined}
+      />
+
+      <ContactEditModal
+        isOpen={showEditModal}
+        onClose={closeEditModal}
+        onSuccess={handleEditSuccess}
+        contact={contactToEdit}
       />
 
       <ColumnChooserModal
@@ -661,16 +1242,85 @@ export default function ContactsPage() {
         isOpen={showDeleteDialog}
         onClose={closeDeleteDialog}
         entity="Contact"
-        entityName={contactToDelete?.fullName || "Unknown Contact"}
-        entityId={contactToDelete?.id || ""}
-        isDeleted={contactToDelete?.isDeleted || false}
+        entityName={
+          bulkDeleteTargets.length > 0
+            ? `${bulkDeleteTargets.length} contact${bulkDeleteTargets.length === 1 ? "" : "s"}`
+            : contactToDelete?.fullName || "Unknown Contact"
+        }
+        entityId={
+          bulkDeleteTargets.length > 0
+            ? bulkDeleteTargets[0]?.id || ""
+            : contactToDelete?.id || ""
+        }
+        multipleEntities={
+          bulkDeleteTargets.length > 0
+            ? bulkDeleteTargets.map(contact => ({
+                id: contact.id,
+                name: contact.fullName || "Unknown Contact"
+              }))
+            : undefined
+        }
+        entityLabelPlural="Contacts"
+        isDeleted={
+          bulkDeleteTargets.length > 0
+            ? bulkDeleteTargets.every(contact => contact.isDeleted)
+            : contactToDelete?.isDeleted || false
+        }
         onSoftDelete={handleSoftDelete}
+        onBulkSoftDelete={
+          bulkDeleteTargets.length > 0
+            ? async (entities, bypassConstraints) =>
+                executeBulkSoftDelete(
+                  bulkDeleteTargets.filter(contact =>
+                    entities.some(entity => entity.id === contact.id)
+                  ),
+                  bypassConstraints
+                )
+            : undefined
+        }
         onPermanentDelete={handlePermanentDelete}
         onRestore={handleRestore}
         userCanPermanentDelete={true} // TODO: Check user permissions
       />
-
       <ToastContainer />
     </CopyProtectionWrapper>
   )
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

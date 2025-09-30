@@ -96,9 +96,6 @@ export default function ContactDetailPage() {
     }
   }, [contact, setBreadcrumbs])
 
-  const handleBack = () => {
-    router.push("/contacts")
-  }
 
   const handleContactUpdated = (updatedContact: ContactDetail) => {
     setContact(updatedContact)
@@ -110,7 +107,6 @@ export default function ContactDetailPage() {
         contact={contact}
         loading={loading}
         error={error}
-        onBack={handleBack}
         onContactUpdated={handleContactUpdated}
         onRefresh={fetchContact}
       />

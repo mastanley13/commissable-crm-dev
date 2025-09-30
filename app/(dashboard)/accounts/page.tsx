@@ -13,20 +13,31 @@ import { ColumnChooserModal } from "@/components/column-chooser-modal";
 import { TwoStageDeleteDialog } from "@/components/two-stage-delete-dialog";
 import { DeletionConstraint } from "@/lib/deletion";
 import { CopyProtectionWrapper } from "@/components/copy-protection";
+import { useToasts } from "@/components/toast";
+import { AccountEditModal } from "@/components/account-edit-modal";
+import { AccountBulkActionBar } from "@/components/account-bulk-action-bar";
+import { AccountBulkOwnerModal } from "@/components/account-bulk-owner-modal";
+import { AccountBulkStatusModal } from "@/components/account-bulk-status-modal";
+import { Trash2, Edit } from "lucide-react";
 
 
 interface AccountRow {
   id: string;
+  select: boolean;
   active: boolean;
+  status: string;
   accountName: string;
   accountLegalName: string;
   accountType: string;
+  accountTypeId: string | null;
   accountOwner: string;
+  accountOwnerId: string | null;
   shippingState: string;
   shippingCity: string;
   shippingZip: string;
   shippingStreet: string;
   shippingStreet2: string;
+  isDeleted: boolean;
 }
 
 type FilterableColumnKey =
@@ -40,7 +51,23 @@ type FilterableColumnKey =
   | "shippingStreet"
   | "shippingStreet2";
 
+interface AccountOptions {
+  accountTypes: Array<{ id: string; name: string }>;
+  industries: Array<{ id: string; name: string }>;
+  parentAccounts: Array<{ id: string; accountName: string }>;
+  owners: Array<{ id: string; fullName: string }>;
+}
+
 const accountColumns: Column[] = [
+  {
+    id: "select",
+    label: "Select",
+    width: 100,
+    minWidth: 80,
+    maxWidth: 120,
+    type: "checkbox",
+    accessor: "select",
+  },
   {
     id: "active",
     label: "Active",
@@ -52,10 +79,10 @@ const accountColumns: Column[] = [
   },
   {
     id: "action",
-    label: "Action",
-    width: 120,
-    minWidth: 100,
-    maxWidth: 160,
+    label: "Actions",
+    width: 100,
+    minWidth: 80,
+    maxWidth: 120,
     type: "action",
   },
   {
@@ -170,25 +197,30 @@ type ColumnFilterState = {
 } | null;
 
 export default function AccountsPage() {
+  const router = useRouter();
+  const { showSuccess, showError, ToastContainer } = useToasts();
+
   const [accounts, setAccounts] = useState<AccountRow[]>([]);
+  const [accountOptions, setAccountOptions] = useState<AccountOptions | null>(null);
+  const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
+  const [bulkDeleteTargets, setBulkDeleteTargets] = useState<AccountRow[]>([]);
+  const [showBulkOwnerModal, setShowBulkOwnerModal] = useState(false);
+  const [showBulkStatusModal, setShowBulkStatusModal] = useState(false);
+  const [bulkActionLoading, setBulkActionLoading] = useState(false);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeFilter, setActiveFilter] = useState<"all" | "active">("all");
+  const [activeFilter, setActiveFilter] = useState<'all' | 'active'>('all');
   const [showCreateModal, setShowCreateModal] = useState<boolean>(false);
   const [showColumnSettings, setShowColumnSettings] = useState<boolean>(false);
   const [columnFilters, setColumnFilters] = useState<ColumnFilterState[]>([]);
-  const [sortConfig, setSortConfig] = useState<{
-    columnId: keyof AccountRow;
-    direction: "asc" | "desc";
-  } | null>(null);
+  const [sortConfig, setSortConfig] = useState<{ columnId: keyof AccountRow; direction: 'asc' | 'desc' } | null>(null);
   const [page, setPage] = useState<number>(1);
   const [pageSize, setPageSize] = useState<number>(25);
-  const [updatingAccountIds, setUpdatingAccountIds] = useState<Set<string>>(
-    new Set(),
-  );
+  const [updatingAccountIds, setUpdatingAccountIds] = useState<Set<string>>(new Set());
   const [accountToDelete, setAccountToDelete] = useState<AccountRow | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState<boolean>(false);
-  const router = useRouter();
+  const [accountToEdit, setAccountToEdit] = useState<AccountRow | null>(null);
+  const [showEditModal, setShowEditModal] = useState<boolean>(false);
 
   const {
     columns: preferenceColumns,
@@ -200,7 +232,7 @@ export default function AccountsPage() {
     handleColumnsChange,
     saveChanges,
     saveChangesOnModalClose,
-  } = useTablePreferences("accounts:list", accountColumns);
+  } = useTablePreferences('accounts:list', accountColumns);
 
   const applyFilters = useCallback(
     (
@@ -236,6 +268,19 @@ export default function AccountsPage() {
     [],
   );
 
+  const loadOptions = useCallback(async () => {
+    try {
+      const response = await fetch("/api/accounts/options", { cache: "no-store" });
+      if (!response.ok) {
+        throw new Error("Failed to load account options");
+      }
+      const data = await response.json();
+      setAccountOptions(data);
+    } catch (err) {
+      console.error("Failed to load account options", err);
+    }
+  }, []);
+
   const reloadAccounts = useCallback(async (query?: string) => {
     setLoading(true);
     try {
@@ -260,10 +305,14 @@ export default function AccountsPage() {
         : [];
 
       setAccounts(rows);
+      setSelectedAccounts(prev => prev.filter(id => rows.some(row => row.id === id)));
+      setBulkDeleteTargets(prev => prev.filter(account => rows.some(row => row.id === account.id)));
       setError(null);
     } catch (err) {
       console.error(err);
       setAccounts([]);
+      setSelectedAccounts([]);
+      setBulkDeleteTargets([]);
       setError("Unable to load accounts");
     } finally {
       setLoading(false);
@@ -273,6 +322,10 @@ export default function AccountsPage() {
   useEffect(() => {
     reloadAccounts().catch(console.error);
   }, [reloadAccounts]);
+
+  useEffect(() => {
+    loadOptions().catch(console.error);
+  }, [loadOptions]);
 
   const handleSearch = (query: string) => {
     setPage(1);
@@ -308,6 +361,311 @@ export default function AccountsPage() {
     setShowCreateModal(false);
   };
 
+  const handleAccountSelect = useCallback((accountId: string, selected: boolean) => {
+    setSelectedAccounts((previous) => {
+      if (selected) {
+        if (previous.includes(accountId)) {
+          return previous;
+        }
+        return [...previous, accountId];
+      }
+
+      if (!previous.includes(accountId)) {
+        return previous;
+      }
+
+      return previous.filter((id) => id !== accountId);
+    });
+  }, []);
+
+  const handleSelectAll = useCallback((selected: boolean) => {
+    if (selected) {
+      setSelectedAccounts(accounts.map((account) => account.id));
+      return;
+    }
+    setSelectedAccounts([]);
+  }, [accounts]);
+
+
+  const openBulkDeleteDialog = useCallback(() => {
+    if (selectedAccounts.length === 0) {
+      showError("No accounts selected", "Select at least one account to delete.");
+      return;
+    }
+
+    const targets = accounts.filter((account) => selectedAccounts.includes(account.id));
+
+    if (targets.length === 0) {
+      showError(
+        "Accounts unavailable",
+        "Unable to locate the selected accounts. Refresh the page and try again."
+      );
+      return;
+    }
+
+    setBulkDeleteTargets(targets);
+    setAccountToDelete(null);
+    setShowDeleteDialog(true);
+  }, [accounts, selectedAccounts, showError]);
+
+  const handleBulkExportCsv = useCallback(() => {
+    if (selectedAccounts.length === 0) {
+      showError("No accounts selected", "Select at least one account to export.");
+      return;
+    }
+
+    const rows = accounts.filter((account) => selectedAccounts.includes(account.id));
+
+    if (rows.length === 0) {
+      showError(
+        "Accounts unavailable",
+        "Unable to locate the selected accounts. Refresh the page and try again."
+      );
+      return;
+    }
+
+    const headers = [
+      "Account Name",
+      "Account Legal Name",
+      "Account Type",
+      "Owner",
+      "Status",
+      "Shipping City",
+      "Shipping State",
+      "Shipping Zip",
+      "Shipping Street",
+      "Shipping Street 2",
+    ];
+
+    const escapeCsv = (value: string | null | undefined) => {
+      if (value === null || value === undefined) {
+        return "";
+      }
+
+      const stringValue = String(value);
+      if (stringValue.includes("\"") || stringValue.includes(",") || stringValue.includes("\n") || stringValue.includes("\r")) {
+        return `"${stringValue.replace(/"/g, '""')}"`;
+      }
+
+      return stringValue;
+    };
+
+    const lines = [
+      headers.join(","),
+      ...rows.map((row) =>
+        [
+          row.accountName,
+          row.accountLegalName,
+          row.accountType,
+          row.accountOwner,
+          row.status,
+          row.shippingCity,
+          row.shippingState,
+          row.shippingZip,
+          row.shippingStreet,
+          row.shippingStreet2,
+        ]
+          .map(escapeCsv)
+          .join(","),
+      ),
+    ];
+
+    const blob = new Blob([lines.join("\r\n")], { type: "text/csv;charset=utf-8;" });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const timestamp = new Date().toISOString().replace(/[:T]/g, "-").split(".")[0];
+    link.href = url;
+    link.download = `accounts-export-${timestamp}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+
+    showSuccess(
+      `Exported ${rows.length} account${rows.length === 1 ? "" : "s"}`,
+      "Check your downloads for the CSV file."
+    );
+  }, [accounts, selectedAccounts, showError, showSuccess]);
+
+  const handleBulkOwnerUpdate = useCallback(async (ownerId: string | null) => {
+    if (selectedAccounts.length === 0) {
+      showError("No accounts selected", "Select at least one account to update.");
+      return;
+    }
+
+    setBulkActionLoading(true);
+
+    try {
+      const outcomes = await Promise.allSettled(
+        selectedAccounts.map(async (accountId) => {
+          const response = await fetch(`/api/accounts/${accountId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ownerId }),
+          });
+
+          if (!response.ok) {
+            const data = await response.json().catch(() => null);
+            throw new Error(data?.error || "Failed to update account owner");
+          }
+
+          return accountId;
+        })
+      );
+
+      const successes: string[] = [];
+      const failures: Array<{ accountId: string; message: string }> = [];
+
+      outcomes.forEach((result, index) => {
+        const accountId = selectedAccounts[index];
+        if (result.status === "fulfilled") {
+          successes.push(accountId);
+        } else {
+          const message =
+            result.reason instanceof Error ? result.reason.message : "Unexpected error";
+          failures.push({ accountId, message });
+        }
+      });
+
+      if (successes.length > 0) {
+        const successSet = new Set(successes);
+        const ownerOption = ownerId
+          ? accountOptions?.owners.find((owner) => owner.id === ownerId)
+          : undefined;
+        const ownerName = ownerOption?.fullName ?? "";
+        const toastLabel = ownerId ? ownerName || "Selected owner" : "Unassigned";
+
+        setAccounts((previous) =>
+          previous.map((account) =>
+            successSet.has(account.id)
+              ? {
+                  ...account,
+                  accountOwnerId: ownerId,
+                  accountOwner: ownerId ? ownerName : "",
+                }
+              : account
+          )
+        );
+
+        showSuccess(
+          `Updated ${successes.length} account${successes.length === 1 ? "" : "s"}`,
+          `New owner: ${toastLabel}.`
+        );
+      }
+
+      if (failures.length > 0) {
+        const nameMap = new Map(
+          accounts.map((account) => [account.id, account.accountName || "Account"])
+        );
+        const detail = failures
+          .map(({ accountId, message }) => `${nameMap.get(accountId) || "Account"}: ${message}`)
+          .join("; ");
+        showError("Failed to update owner for some accounts", detail);
+      }
+
+      const remaining = failures.map(({ accountId }) => accountId);
+      setSelectedAccounts(remaining);
+      if (failures.length === 0) {
+        setShowBulkOwnerModal(false);
+      }
+    } catch (error) {
+      console.error("Bulk owner update failed", error);
+      showError(
+        "Bulk owner update failed",
+        error instanceof Error ? error.message : "Unable to update account owners."
+      );
+    } finally {
+      setBulkActionLoading(false);
+    }
+  }, [accounts, accountOptions, selectedAccounts, showError, showSuccess]);
+
+  const handleBulkStatusUpdate = useCallback(async (isActive: boolean) => {
+    if (selectedAccounts.length === 0) {
+      showError("No accounts selected", "Select at least one account to update.");
+      return;
+    }
+
+    setBulkActionLoading(true);
+
+    try {
+      const outcomes = await Promise.allSettled(
+        selectedAccounts.map(async (accountId) => {
+          const response = await fetch(`/api/accounts/${accountId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ active: isActive }),
+          });
+
+          if (!response.ok) {
+            const data = await response.json().catch(() => null);
+            throw new Error(data?.error || "Failed to update account status");
+          }
+
+          return accountId;
+        })
+      );
+
+      const successes: string[] = [];
+      const failures: Array<{ accountId: string; message: string }> = [];
+
+      outcomes.forEach((result, index) => {
+        const accountId = selectedAccounts[index];
+        if (result.status === "fulfilled") {
+          successes.push(accountId);
+        } else {
+          const message =
+            result.reason instanceof Error ? result.reason.message : "Unexpected error";
+          failures.push({ accountId, message });
+        }
+      });
+
+      if (successes.length > 0) {
+        const successSet = new Set(successes);
+        setAccounts((previous) =>
+          previous.map((account) =>
+            successSet.has(account.id)
+              ? {
+                  ...account,
+                  active: isActive,
+                  status: isActive ? "Active" : "Inactive",
+                  isDeleted: !isActive,
+                }
+              : account
+          )
+        );
+
+        const label = isActive ? "active" : "inactive";
+        showSuccess(
+          `Marked ${successes.length} account${successes.length === 1 ? "" : "s"} as ${label}`,
+          "The Active toggle has been updated."
+        );
+      }
+
+      if (failures.length > 0) {
+        const nameMap = new Map(
+          accounts.map((account) => [account.id, account.accountName || "Account"])
+        );
+        const detail = failures
+          .map(({ accountId, message }) => `${nameMap.get(accountId) || "Account"}: ${message}`)
+          .join("; ");
+        showError("Failed to update status for some accounts", detail);
+      }
+
+      const remaining = failures.map(({ accountId }) => accountId);
+      setSelectedAccounts(remaining);
+      if (failures.length === 0) {
+        setShowBulkStatusModal(false);
+      }
+    } catch (error) {
+      console.error("Bulk status update failed", error);
+      showError(
+        "Bulk status update failed",
+        error instanceof Error ? error.message : "Unable to update account status."
+      );
+    } finally {
+      setBulkActionLoading(false);
+    }
+  }, [accounts, selectedAccounts, showError, showSuccess]);
   const handleSubmitNewAccount = useCallback(
     async (values: AccountFormValues) => {
       try {
@@ -461,40 +819,245 @@ export default function AccountsPage() {
     setShowDeleteDialog(true);
   }, []);
 
-  const handleSoftDelete = useCallback(async (
-    accountId: string, 
+  const requestAccountEdit = useCallback((account: AccountRow) => {
+    setAccountToEdit(account);
+    setShowEditModal(true);
+  }, []);
+
+  const handleEditSuccess = useCallback(() => {
+    setShowEditModal(false);
+    setAccountToEdit(null);
+    reloadAccounts().catch(console.error);
+  }, [reloadAccounts]);
+
+  const softDeleteAccountRequest = useCallback(async (
+    accountId: string,
     bypassConstraints?: boolean
-  ): Promise<{ success: boolean, constraints?: DeletionConstraint[], error?: string }> => {
+  ): Promise<{ success: boolean; constraints?: DeletionConstraint[]; error?: string }> => {
     try {
-      const url = `/api/accounts/${accountId}?stage=soft${bypassConstraints ? '&bypassConstraints=true' : ''}`;
+      const url = `/api/accounts/${accountId}?stage=soft${bypassConstraints ? "&bypassConstraints=true" : ""}`;
       const response = await fetch(url, { method: "DELETE" });
 
       if (!response.ok) {
-        const data = await response.json();
-        if (response.status === 409 && data.constraints) {
-          return { success: false, constraints: data.constraints };
+        let data: any = null;
+        try {
+          data = await response.json();
+        } catch (_) {
+          // ignore json parse errors
         }
-        return { success: false, error: data.error || "Failed to delete account" };
-      }
 
-      // Update the account status in the local state
-      setAccounts((previous) =>
-        previous.map((account) =>
-          account.id === accountId 
-            ? { ...account, active: false }
-            : account
-        )
-      );
+        if (response.status === 409 && Array.isArray(data?.constraints)) {
+          return { success: false, constraints: data.constraints as DeletionConstraint[] };
+        }
+
+        const message = typeof data?.error === "string" && data.error.length > 0
+          ? data.error
+          : "Failed to delete account";
+
+        return { success: false, error: message };
+      }
 
       return { success: true };
     } catch (err) {
-      console.error(err);
-      return { 
-        success: false, 
-        error: err instanceof Error ? err.message : "Unable to delete account" 
-      };
+      const message = err instanceof Error ? err.message : "Unable to delete account";
+      return { success: false, error: message };
     }
   }, []);
+  const deactivateAccountRequest = useCallback(async (accountId: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const response = await fetch(`/api/accounts/${accountId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ active: false })
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        const message = typeof data?.error === "string" && data.error.length > 0
+          ? data.error
+          : "Failed to deactivate account";
+        return { success: false, error: message };
+      }
+
+      return { success: true };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to deactivate account";
+      return { success: false, error: message };
+    }
+  }, []);
+
+  const handleSoftDelete = useCallback(async (
+    accountId: string,
+    bypassConstraints?: boolean
+  ): Promise<{ success: boolean; constraints?: DeletionConstraint[]; error?: string }> => {
+    const result = await softDeleteAccountRequest(accountId, bypassConstraints);
+
+    if (result.success) {
+      setAccounts((previous) =>
+        previous.map((account) =>
+          account.id === accountId
+            ? { ...account, active: false, status: "Inactive", isDeleted: true }
+            : account
+        )
+      );
+      setSelectedAccounts((prev) => prev.filter((id) => id !== accountId));
+      showSuccess("Account deleted", "The account has been soft deleted and can be restored if needed.");
+    }
+
+    return result;
+  }, [setAccounts, setSelectedAccounts, showSuccess, softDeleteAccountRequest]);
+
+  const executeBulkSoftDelete = useCallback(
+    async (
+      targets: AccountRow[],
+      bypassConstraints?: boolean
+    ): Promise<{ success: boolean; constraints?: DeletionConstraint[]; error?: string }> => {
+      if (!targets || targets.length === 0) {
+        showError("No accounts selected", "Select at least one account to delete.");
+        return { success: false, error: "No accounts selected" };
+      }
+
+      setBulkActionLoading(true);
+
+      try {
+        const deactivateCandidates = targets.filter((account) => account.active);
+        const deletionCandidates = targets.filter((account) => !account.active);
+
+        const deactivatedIds: string[] = [];
+        const deactivationFailures: Array<{ account: AccountRow; message: string }> = [];
+
+        if (deactivateCandidates.length > 0) {
+          const results = await Promise.allSettled(
+            deactivateCandidates.map((account) => deactivateAccountRequest(account.id))
+          );
+
+          results.forEach((result, index) => {
+            const account = deactivateCandidates[index];
+            if (result.status === "fulfilled" && result.value.success) {
+              deactivatedIds.push(account.id);
+            } else {
+              const message =
+                result.status === "fulfilled"
+                  ? result.value.error || "Failed to deactivate account"
+                  : result.reason instanceof Error
+                    ? result.reason.message
+                    : "Failed to deactivate account";
+
+              deactivationFailures.push({ account, message });
+            }
+          });
+
+          if (deactivatedIds.length > 0) {
+            const updatedAccounts = new Set(deactivatedIds);
+            setAccounts((previous) =>
+              previous.map((account) =>
+                updatedAccounts.has(account.id)
+                  ? { ...account, active: false, status: "Inactive", isDeleted: true }
+                  : account
+              )
+            );
+
+            showSuccess(
+              `Marked ${deactivatedIds.length} account${deactivatedIds.length === 1 ? "" : "s"} inactive`,
+              "Inactive accounts can be deleted if needed."
+            );
+          }
+        }
+
+        const softDeleteSuccessIds: string[] = [];
+        const softDeleteFailures: Array<{ account: AccountRow; message: string }> = [];
+        const constraintResults: Array<{ account: AccountRow; constraints: DeletionConstraint[] }> = [];
+
+        for (const account of deletionCandidates) {
+          const result = await softDeleteAccountRequest(account.id, bypassConstraints);
+
+          if (result.success) {
+            softDeleteSuccessIds.push(account.id);
+          } else if (result.constraints && result.constraints.length > 0) {
+            constraintResults.push({ account, constraints: result.constraints });
+          } else {
+            softDeleteFailures.push({
+              account,
+              message: result.error || "Failed to delete account",
+            });
+          }
+        }
+
+        if (softDeleteSuccessIds.length > 0) {
+          const successSet = new Set(softDeleteSuccessIds);
+          setAccounts((previous) =>
+            previous.map((account) =>
+              successSet.has(account.id)
+                ? { ...account, active: false, status: "Inactive", isDeleted: true }
+                : account
+            )
+          );
+
+          showSuccess(
+            `Soft deleted ${softDeleteSuccessIds.length} account${softDeleteSuccessIds.length === 1 ? "" : "s"}`,
+            "Deleted accounts can be restored later if needed."
+          );
+        }
+
+        const failureIds = [
+          ...deactivationFailures.map(({ account }) => account.id),
+          ...softDeleteFailures.map(({ account }) => account.id),
+          ...constraintResults.map(({ account }) => account.id),
+        ];
+        const failureIdSet = new Set(failureIds);
+
+        setSelectedAccounts((previous) => previous.filter((id) => failureIdSet.has(id)));
+        setBulkDeleteTargets(targets.filter((account) => failureIdSet.has(account.id)));
+
+        if (deactivationFailures.length > 0 || softDeleteFailures.length > 0) {
+          const message = [
+            ...deactivationFailures.map(({ account, message }) => `${account.accountName || "Account"}: ${message}`),
+            ...softDeleteFailures.map(({ account, message }) => `${account.accountName || "Account"}: ${message}`),
+          ]
+            .filter(Boolean)
+            .join("; ");
+
+          if (message.length > 0) {
+            showError("Bulk delete failed", message);
+          }
+        }
+
+        if (constraintResults.length > 0) {
+          const aggregatedConstraints = constraintResults.flatMap(({ account, constraints }) =>
+            constraints.map((constraint) => ({
+              ...constraint,
+              message: `${account.accountName || "Account"}: ${constraint.message}`,
+            }))
+          );
+
+          return { success: false, constraints: aggregatedConstraints };
+        }
+
+        if (failureIds.length > 0) {
+          return { success: false, error: "Some accounts could not be deleted." };
+        }
+
+        return { success: deactivatedIds.length > 0 || softDeleteSuccessIds.length > 0 };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Unable to delete selected accounts.";
+        showError("Bulk delete failed", message);
+        return { success: false, error: message };
+      } finally {
+        setBulkActionLoading(false);
+      }
+    },
+    [
+      deactivateAccountRequest,
+      softDeleteAccountRequest,
+      setAccounts,
+      setBulkActionLoading,
+      setBulkDeleteTargets,
+      setSelectedAccounts,
+      showError,
+      showSuccess,
+    ],
+  );
+
 
   const handlePermanentDelete = useCallback(async (
     accountId: string
@@ -564,6 +1127,12 @@ export default function AccountsPage() {
   const closeDeleteDialog = () => {
     setShowDeleteDialog(false);
     setAccountToDelete(null);
+    setBulkDeleteTargets([]);
+  };
+
+  const closeEditModal = () => {
+    setShowEditModal(false);
+    setAccountToEdit(null);
   };
 
   const filteredAccounts = useMemo(() => {
@@ -660,20 +1229,34 @@ export default function AccountsPage() {
         return {
           ...column,
           render: (_value: unknown, row: AccountRow) => (
-            <button
-              type="button"
-              className={`rounded-md border px-2 py-1 text-xs font-medium transition-colors ${
-                row.active 
-                  ? "border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
-                  : "border-gray-300 text-gray-600 hover:bg-gray-50 hover:text-gray-700"
-              }`}
-              onClick={(event) => {
-                event.stopPropagation();
-                requestAccountDeletion(row);
-              }}
-            >
-              {row.active ? "Delete" : "Manage"}
-            </button>
+            <div className="flex gap-1">
+              <button
+                type="button"
+                className="text-blue-500 hover:text-blue-700 p-1 rounded transition-colors"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  requestAccountEdit(row);
+                }}
+                aria-label="Edit account"
+              >
+                <Edit className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                className={`p-1 rounded transition-colors ${
+                  row.active
+                    ? "text-red-500 hover:text-red-700"
+                    : "text-gray-400 hover:text-gray-600"
+                }`}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  requestAccountDeletion(row);
+                }}
+                aria-label={row.active ? "Delete account" : "Manage account"}
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </div>
           ),
         };
       }
@@ -684,6 +1267,7 @@ export default function AccountsPage() {
     preferenceColumns,
     updatingAccountIds,
     handleToggleActive,
+    requestAccountEdit,
     requestAccountDeletion,
   ]);
 
@@ -712,6 +1296,15 @@ export default function AccountsPage() {
       )}
 
       <div className="flex-1 p-4 min-h-0">
+        <AccountBulkActionBar
+          count={selectedAccounts.length}
+          disabled={bulkActionLoading}
+          onSoftDelete={openBulkDeleteDialog}
+          onExportCsv={handleBulkExportCsv}
+          onChangeOwner={() => setShowBulkOwnerModal(true)}
+          onUpdateStatus={() => setShowBulkStatusModal(true)}
+        />
+
         <DynamicTable
           columns={tableColumns}
           data={paginatedAccounts}
@@ -723,9 +1316,35 @@ export default function AccountsPage() {
           pagination={paginationInfo}
           onPageChange={handlePageChange}
           onPageSizeChange={handlePageSizeChange}
+          selectedItems={selectedAccounts}
+          onItemSelect={handleAccountSelect}
+          onSelectAll={handleSelectAll}
+          onToggle={(row, columnId, value) => {
+            if (columnId === "active") {
+              handleToggleActive(row as AccountRow, value);
+            }
+          }}
           alwaysShowPagination
         />
       </div>
+
+      <AccountBulkOwnerModal
+        isOpen={showBulkOwnerModal}
+        owners={(accountOptions?.owners ?? []).map((owner) => ({
+          value: owner.id,
+          label: owner.fullName || "Unknown Owner",
+        }))}
+        onClose={() => setShowBulkOwnerModal(false)}
+        onSubmit={handleBulkOwnerUpdate}
+        isSubmitting={bulkActionLoading}
+      />
+
+      <AccountBulkStatusModal
+        isOpen={showBulkStatusModal}
+        onClose={() => setShowBulkStatusModal(false)}
+        onSubmit={handleBulkStatusUpdate}
+        isSubmitting={bulkActionLoading}
+      />
 
       <AccountCreateModal
         isOpen={showCreateModal}
@@ -743,21 +1362,65 @@ export default function AccountsPage() {
         }}
       />
 
+      <AccountEditModal
+        isOpen={showEditModal}
+        onClose={closeEditModal}
+        onSuccess={handleEditSuccess}
+        account={accountToEdit}
+      />
+
       <TwoStageDeleteDialog
         isOpen={showDeleteDialog}
         onClose={closeDeleteDialog}
         entity="Account"
-        entityName={accountToDelete?.accountName || "Unknown Account"}
-        entityId={accountToDelete?.id || ""}
-        isDeleted={!accountToDelete?.active}
+        entityName={
+          bulkDeleteTargets.length > 0
+            ? `${bulkDeleteTargets.length} account${bulkDeleteTargets.length === 1 ? "" : "s"}`
+            : accountToDelete?.accountName || "Unknown Account"
+        }
+        entityId={
+          bulkDeleteTargets.length > 0
+            ? bulkDeleteTargets[0]?.id || ""
+            : accountToDelete?.id || ""
+        }
+        multipleEntities={
+          bulkDeleteTargets.length > 0
+            ? bulkDeleteTargets.map((account) => ({
+                id: account.id,
+                name: account.accountName || "Unknown Account",
+              }))
+            : undefined
+        }
+        entityLabelPlural="Accounts"
+        isDeleted={
+          bulkDeleteTargets.length > 0
+            ? bulkDeleteTargets.every((account) => !account.active)
+            : accountToDelete ? !accountToDelete.active : false
+        }
         onSoftDelete={handleSoftDelete}
+        onBulkSoftDelete={
+          bulkDeleteTargets.length > 0
+            ? (entities, bypassConstraints) =>
+                executeBulkSoftDelete(
+                  bulkDeleteTargets.filter((account) =>
+                    entities.some((entity) => entity.id === account.id)
+                  ),
+                  bypassConstraints
+                )
+            : undefined
+        }
         onPermanentDelete={handlePermanentDelete}
         onRestore={handleRestore}
         userCanPermanentDelete={true} // TODO: Check user permissions
       />
+      <ToastContainer />
     </CopyProtectionWrapper>
   );
 }
+
+
+
+
 
 
 

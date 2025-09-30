@@ -15,7 +15,7 @@ function isValidLeadSource(value: string): value is LeadSource {
 }
 
 export async function POST(request: NextRequest) {
-  return withPermissions(request, ["opportunities.manage", "accounts.manage", "contacts.manage"], async (req) => {
+  return withPermissions(request, ["opportunities.create", "opportunities.manage", "accounts.manage", "accounts.create", "contacts.manage"], async (req) => {
     try {
       const payload = await request.json().catch(() => null)
 
