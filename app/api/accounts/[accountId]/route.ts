@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
-import { AccountStatus, AuditAction } from "@prisma/client"
+import { AccountStatus, AuditAction, ActivityStatus } from "@prisma/client"
+import { isActivityOpen } from "@/lib/activity-status"
 import type { Prisma } from "@prisma/client"
 import { prisma } from "@/lib/db"
 import { withPermissions, createErrorResponse } from "@/lib/api-auth"
@@ -189,7 +190,7 @@ function mapAccountActivityRow(accountName: string, activity: any) {
 
   return {
     id: activity.id,
-    active: activity.status === 'Open',
+    active: isActivityOpen(activity.status as ActivityStatus),
     activityDate: activity.dueDate ?? activity.createdAt,
     activityType: activity.activityType,
     activityStatus: activity.status,

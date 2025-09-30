@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { ActivityStatus, OpportunityStatus, ActivityType } from "@prisma/client";
+import { OpportunityStatus, ActivityType } from "@prisma/client";
+import { OPEN_ACTIVITY_STATUSES, isActivityOpen } from "@/lib/activity-status";
 import { getCurrentUser } from "@/lib/api-auth";
 import { hasPermission } from "@/lib/auth";
 
@@ -145,7 +146,7 @@ async function calculateReassignmentImpact(
       },
       contacts: true,
       activities: {
-        where: { status: ActivityStatus.Open }
+        where: { status: { in: OPEN_ACTIVITY_STATUSES as any } }
       },
       groupMembers: true
     }
@@ -174,7 +175,7 @@ async function calculateReassignmentImpact(
       activeContacts: account.contacts.length,
       openActivities: account.activities.length,
       activeGroups: account.groupMembers.length,
-      openTasks: account.activities.filter(a => a.activityType === ActivityType.ToDo && a.status === ActivityStatus.Open).length
+      openTasks: account.activities.filter(a => a.activityType === ActivityType.ToDo && isActivityOpen(a.status as any)).length
     };
 
     // Calculate revenue/commission from revenue schedules (expectedCommission)

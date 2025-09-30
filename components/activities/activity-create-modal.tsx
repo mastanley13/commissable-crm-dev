@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { X, Plus, Loader2 } from 'lucide-react'
 import { ActivityStatus, ActivityType } from '@prisma/client'
+import { DEFAULT_OPEN_ACTIVITY_STATUS } from '@/lib/activity-status'
 import { useToasts } from '@/components/toast'
 
 interface Option {
@@ -44,7 +45,7 @@ function buildInitialActivityForm(defaultAccountId?: string, defaultAccountName?
     accountName: defaultAccountName ?? '',
     contactId: '',
     contactName: '',
-    status: ActivityStatus.Open
+    status: DEFAULT_OPEN_ACTIVITY_STATUS
   }
 }
 
@@ -318,8 +319,9 @@ export function ActivityCreateModal({ isOpen, onClose, onCreated, defaultAccount
                 onChange={event => setForm(prev => ({ ...prev, status: event.target.value as ActivityStatus }))}
                 className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
               >
-                <option value={ActivityStatus.Open}>Open</option>
-                <option value={ActivityStatus.Completed}>Completed</option>
+                {Object.values(ActivityStatus).map(status => (
+                  <option key={status} value={status}>{status}</option>
+                ))}
               </select>
             </div>
             <div className="col-span-1">

@@ -1,5 +1,6 @@
 ﻿import { NextRequest, NextResponse } from 'next/server'
 import { ActivityEntityType, ActivityStatus, ActivityType } from '@prisma/client'
+import { DEFAULT_OPEN_ACTIVITY_STATUS } from '@/lib/activity-status'
 import { withPermissions, createErrorResponse } from '@/lib/api-auth'
 import { listActivities, createActivity } from '@/lib/activity-service'
 
@@ -72,8 +73,8 @@ export async function POST(request: NextRequest) {
         }
 
         const status = payload.status
-          ? parseEnumValue<ActivityStatus>(payload.status, Object.values(ActivityStatus)) ?? ActivityStatus.Open
-          : ActivityStatus.Open
+          ? (parseEnumValue<ActivityStatus>(payload.status, Object.values(ActivityStatus)) ?? DEFAULT_OPEN_ACTIVITY_STATUS)
+          : DEFAULT_OPEN_ACTIVITY_STATUS
 
         const subject = typeof payload.subject === 'string' ? payload.subject.trim() : ''
         if (!subject) {

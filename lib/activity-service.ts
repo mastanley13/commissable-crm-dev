@@ -1,4 +1,5 @@
 import { ActivityStatus, ActivityType, ActivityEntityType, Prisma, AuditAction } from '@prisma/client'
+import { OPEN_ACTIVITY_STATUSES, DEFAULT_OPEN_ACTIVITY_STATUS, isActivityOpen } from '@/lib/activity-status'
 import { prisma } from '@/lib/db'
 import { logActivityAudit } from '@/lib/audit'
 import { triggerActivityCreated, triggerActivityStatusChanged } from '@/lib/workflows'
@@ -164,7 +165,7 @@ function mapActivity(activity: ActivityWithRelations): ActivityDetail {
     updatedById: activity.updatedById,
     updatedByName: activity.updater?.fullName ?? null,
     attachments: activity.attachments.map(mapAttachment),
-    active: activity.status === ActivityStatus.Open,
+    active: isActivityOpen(activity.status),
     location: activity.location ?? null,
     links: activity.links.map(link => ({
       id: link.id,
@@ -188,7 +189,7 @@ export async function listActivities(tenantId: string, filters: ActivityListFilt
   const where: Prisma.ActivityWhereInput = { tenantId }
 
   if (!filters.includeCompleted) {
-    where.status = ActivityStatus.Open
+    where.status = { in: OPEN_ACTIVITY_STATUSES as any }
   } else if (filters.status) {
     where.status = filters.status
   }
@@ -307,7 +308,7 @@ export async function createActivity(input: CreateActivityInput): Promise<Activi
     location = null,
     dueDate = null,
     assigneeId = null,
-    status = ActivityStatus.Open,
+    status = DEFAULT_OPEN_ACTIVITY_STATUS,
     accountId = null,
     contactId = null,
     opportunityId = null,
@@ -557,9 +558,9 @@ export async function getActivityReport(tenantId: string): Promise<ActivityRepor
   start.setHours(0, 0, 0, 0)
 
   const [openCount, completedCount, overdueCount, byTypeRows, byStatusRows, byAssigneeRows] = await Promise.all([
-    prisma.activity.count({ where: { tenantId, status: ActivityStatus.Open } }),
+    prisma.activity.count({ where: { tenantId, status: { in: OPEN_ACTIVITY_STATUSES as any } } }),
     prisma.activity.count({ where: { tenantId, status: ActivityStatus.Completed } }),
-    prisma.activity.count({ where: { tenantId, status: ActivityStatus.Open, dueDate: { lt: now } } }),
+    prisma.activity.count({ where: { tenantId, status: { in: OPEN_ACTIVITY_STATUSES as any }, dueDate: { lt: now } } }),
     prisma.activity.groupBy({ where: { tenantId }, by: ['activityType'], _count: { _all: true } }),
     prisma.activity.groupBy({ where: { tenantId }, by: ['status'], _count: { _all: true } }),
     prisma.activity.groupBy({ where: { tenantId }, by: ['assigneeId'], _count: { _all: true } })

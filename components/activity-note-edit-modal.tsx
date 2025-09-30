@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { ActivityStatus, ActivityType } from "@prisma/client"
+import { DEFAULT_OPEN_ACTIVITY_STATUS } from "@/lib/activity-status"
 import { Loader2, X } from "lucide-react"
 import { useToasts } from "@/components/toast"
 
@@ -42,7 +43,7 @@ const STATUS_OPTIONS: SelectOption[] = Object.values(ActivityStatus).map(status 
 const createInitialForm = (): ActivityEditFormState => ({
   subject: "",
   type: ActivityType.Call,
-  status: ActivityStatus.Open,
+  status: DEFAULT_OPEN_ACTIVITY_STATUS,
   dueDate: "",
   assigneeId: "",
   location: "",
@@ -109,7 +110,7 @@ export function ActivityNoteEditModal({ isOpen, activityId, accountId, contactId
         setForm({
           subject: data.subject || "",
           type: (data.type as ActivityType) || ActivityType.Call,
-          status: (data.status as ActivityStatus) || ActivityStatus.Open,
+          status: (data.status as ActivityStatus) || DEFAULT_OPEN_ACTIVITY_STATUS,
           dueDate: formattedDate,
           assigneeId: data.assigneeId || "",
           location: data.location || "",

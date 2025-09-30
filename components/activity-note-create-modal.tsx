@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Loader2, Paperclip, X } from "lucide-react"
 import { ActivityStatus, ActivityType } from "@prisma/client"
+import { DEFAULT_OPEN_ACTIVITY_STATUS } from "@/lib/activity-status"
 import { useToasts } from "@/components/toast"
 
 interface SelectOption {
@@ -59,7 +60,7 @@ const STATUS_OPTIONS: SelectOption[] = Object.values(ActivityStatus).map(status 
 const createInitialState = (): ActivityNoteFormState => ({
   activitySubject: "",
   activityType: ActivityType.Call,
-  activityStatus: ActivityStatus.Open,
+  activityStatus: DEFAULT_OPEN_ACTIVITY_STATUS,
   activityDate: "",
   activityOwner: "",
   location: "",
