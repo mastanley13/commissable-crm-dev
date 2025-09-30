@@ -128,6 +128,10 @@ function mapActivityAttachmentSummary(attachment: any) {
 }
 
 
+// Define include shape without hard-typing to Prisma's generated types.
+// Some build environments (e.g., Vercel) may have a different generated client
+// that does not surface the 'attachments' relation in ActivityInclude typing.
+// Using a plain object here avoids excess property checks on object literals.
 const recentActivityInclude = {
   creator: { select: { firstName: true, lastName: true } },
   attachments: {
@@ -135,7 +139,7 @@ const recentActivityInclude = {
       uploadedBy: { select: { firstName: true, lastName: true } }
     }
   }
-} satisfies Prisma.ActivityInclude;
+} as const;
 function mapAccountContactRow(contact: any) {
   return {
     id: contact.id,
@@ -260,7 +264,8 @@ export async function GET(
       }),
       prisma.activity.findMany({
         where: { tenantId, accountId },
-        include: recentActivityInclude,
+        // Cast to any to accommodate potential client type differences during build
+        include: recentActivityInclude as any,
         orderBy: [
           { dueDate: "desc" },
           { createdAt: "desc" }

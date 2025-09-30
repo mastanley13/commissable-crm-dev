@@ -105,7 +105,7 @@ const contactActivityInclude = {
       uploadedBy: { select: { firstName: true, lastName: true } }
     }
   }
-} satisfies Prisma.ActivityInclude;
+} as const;
 function mapContactActivityRow(activity: any) {
   const creatorName = activity.creator
     ? `${activity.creator.firstName ?? ""} ${activity.creator.lastName ?? ""}`.trim()
@@ -202,7 +202,7 @@ export async function GET(
     const [activities, opportunities, groupMemberships] = await Promise.all([
       prisma.activity.findMany({
         where: { tenantId, contactId: contact.id },
-        include: contactActivityInclude,
+        include: contactActivityInclude as any,
         orderBy: [
           { dueDate: "desc" },
           { createdAt: "desc" }

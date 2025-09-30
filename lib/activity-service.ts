@@ -125,7 +125,7 @@ const ACTIVITY_INCLUDE = {
     }
   },
   links: true
-} satisfies Prisma.ActivityInclude
+} as const
 
 type ActivityWithRelations = Prisma.ActivityGetPayload<{ include: typeof ACTIVITY_INCLUDE }>
 
