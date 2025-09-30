@@ -428,6 +428,7 @@ export async function updateActivity(input: UpdateActivityInput): Promise<Activi
     input.activityId,
     input.userId,
     input.tenantId,
+    undefined,
     mapActivity(existing),
     detail
   )
@@ -466,6 +467,7 @@ export async function deleteActivity(activityId: string, tenantId: string, userI
     activityId,
     userId,
     tenantId,
+    undefined,
     mapActivity(activity),
     undefined
   )

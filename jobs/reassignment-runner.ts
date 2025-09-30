@@ -21,12 +21,27 @@ export interface BatchProgress {
   estimatedTimeRemaining?: number;
 }
 
+type ReassignmentBatchModel = {
+  findUnique: (...args: any[]) => Promise<any>
+  update: (...args: any[]) => Promise<any>
+}
+
+function getReassignmentBatchModel(): ReassignmentBatchModel {
+  const client = prisma as unknown as { reassignmentBatch?: ReassignmentBatchModel }
+  if (!client.reassignmentBatch) {
+    throw new Error("ReassignmentBatch model is not available on the Prisma client. Ensure the corresponding migrations have been applied.")
+  }
+  return client.reassignmentBatch
+}
+
 /**
  * Processes a reassignment batch in the background
  */
 export async function processReassignmentBatch(batchId: string): Promise<void> {
+  const reassignmentBatch = getReassignmentBatchModel()
+
   // Get batch details
-  const batch = await prisma.reassignmentBatch.findUnique({
+  const batch = await reassignmentBatch.findUnique({
     where: { id: batchId },
     include: { createdBy: true, tenant: true }
   });
@@ -40,7 +55,7 @@ export async function processReassignmentBatch(batchId: string): Promise<void> {
   }
 
   // Update batch status to RUNNING
-  await prisma.reassignmentBatch.update({
+  await reassignmentBatch.update({
     where: { id: batchId },
     data: {
       status: 'RUNNING',
@@ -74,7 +89,8 @@ export async function processReassignmentBatch(batchId: string): Promise<void> {
         progress.successfulChanges++;
       } catch (error) {
         progress.failedChanges++;
-        progress.errors.push(`Opportunity ${opportunity.id}: ${error.message}`);
+        const message = error instanceof Error ? error.message : String(error);
+        progress.errors.push("Opportunity " + opportunity.id + ": " + message);
       }
 
       // Update progress (in a real implementation, you'd use a progress callback)
@@ -82,7 +98,7 @@ export async function processReassignmentBatch(batchId: string): Promise<void> {
     }
 
     // Mark batch as complete
-    await prisma.reassignmentBatch.update({
+    await reassignmentBatch.update({
       where: { id: batchId },
       data: {
         status: progress.failedChanges > 0 ? 'ERROR' : 'COMPLETE',
@@ -91,12 +107,13 @@ export async function processReassignmentBatch(batchId: string): Promise<void> {
     });
 
   } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
     // Mark batch as error
-    await prisma.reassignmentBatch.update({
+    await reassignmentBatch.update({
       where: { id: batchId },
       data: {
         status: 'ERROR',
-        errorJson: { error: error.message }
+        errorJson: { error: message }
       }
     });
 
@@ -203,7 +220,8 @@ async function updateBatchProgress(batchId: string, progress: BatchProgress): Pr
  * Cancels a running batch
  */
 export async function cancelReassignmentBatch(batchId: string): Promise<void> {
-  const batch = await prisma.reassignmentBatch.findUnique({
+  const reassignmentBatch = getReassignmentBatchModel()
+  const batch = await reassignmentBatch.findUnique({
     where: { id: batchId }
   });
 
@@ -215,7 +233,7 @@ export async function cancelReassignmentBatch(batchId: string): Promise<void> {
     throw new Error(`Batch ${batchId} is not running`);
   }
 
-  await prisma.reassignmentBatch.update({
+  await reassignmentBatch.update({
     where: { id: batchId },
     data: {
       status: 'CANCELLED',
@@ -228,7 +246,8 @@ export async function cancelReassignmentBatch(batchId: string): Promise<void> {
  * Gets batch status and progress
  */
 export async function getBatchStatus(batchId: string): Promise<BatchProgress | null> {
-  const batch = await prisma.reassignmentBatch.findUnique({
+  const reassignmentBatch = getReassignmentBatchModel()
+  const batch = await reassignmentBatch.findUnique({
     where: { id: batchId },
     include: {
       changes: true,

@@ -29,7 +29,7 @@ export async function calculateCommissionImpact(
   const revenueSchedules = await prisma.revenueSchedule.findMany({
     where: {
       accountId: { in: accountIds },
-      scheduledDate: { gte: effectiveDateObj } // Future revenue only
+      scheduleDate: { gte: effectiveDateObj } // Future revenue only
     },
     include: {
       account: {
@@ -46,7 +46,7 @@ export async function calculateCommissionImpact(
     where: {
       accountId: { in: accountIds },
       status: { in: ['Open', 'Won'] },
-      expectedCloseDate: { gte: effectiveDateObj }
+      estimatedCloseDate: { gte: effectiveDateObj }
     },
     include: {
       account: {
@@ -59,11 +59,11 @@ export async function calculateCommissionImpact(
 
   // Calculate impact
   const totalRevenueImpact = revenueSchedules.reduce((sum, rs) => {
-    return sum + (rs.projectedAmount || 0);
+    return sum + (Number((rs as any).projectedAmount ?? 0));
   }, 0);
 
   const totalCommissionImpact = opportunities.reduce((sum, opp) => {
-    return sum + (opp.expectedCommission || 0);
+    return sum + Number(opp.expectedCommission ?? 0);
   }, 0);
 
   // Group by current owners to show transfer details
@@ -86,7 +86,7 @@ export async function calculateCommissionImpact(
 
     const ownerData = currentOwnerMap.get(ownerId)!;
     ownerData.accountCount.add(rs.accountId);
-    ownerData.totalRevenue += rs.projectedAmount || 0;
+    ownerData.totalRevenue += Number((rs as any).projectedAmount ?? 0);
   });
 
   // Process opportunities
@@ -106,7 +106,7 @@ export async function calculateCommissionImpact(
 
     const ownerData = currentOwnerMap.get(ownerId)!;
     ownerData.accountCount.add(opp.accountId);
-    ownerData.totalCommission += opp.expectedCommission || 0;
+    ownerData.totalCommission += Number(opp.expectedCommission ?? 0);
   });
 
   const transferDetails = Array.from(currentOwnerMap.values()).map(ownerData => ({
@@ -142,12 +142,9 @@ export async function calculateRevenueImpact(
   const revenueSchedules = await prisma.revenueSchedule.findMany({
     where: {
       accountId: { in: accountIds },
-      scheduledDate: { gte: effectiveDate },
+      scheduleDate: { gte: effectiveDate },
       tenantId
     },
-    include: {
-      revenueType: true
-    }
   });
 
   let totalAnnualRevenue = 0;
@@ -155,16 +152,14 @@ export async function calculateRevenueImpact(
   let oneTimeRevenue = 0;
 
   revenueSchedules.forEach(schedule => {
-    const amount = schedule.projectedAmount || 0;
+    const amount = Number((schedule as any).projectedAmount ?? 0);
     totalAnnualRevenue += amount;
 
-    // Categorize by revenue type
-    if (schedule.revenueType?.name?.includes('MRC')) {
+    // Categorize by schedule type
+    if (schedule.scheduleType === 'Recurring') {
       monthlyRecurring += amount;
-    } else if (schedule.revenueType?.name?.includes('NRC')) {
+    } else if (schedule.scheduleType === 'OneTime') {
       oneTimeRevenue += amount;
-    } else {
-      totalAnnualRevenue += amount; // Default to annual
     }
   });
 
@@ -188,18 +183,18 @@ export async function calculateCommissionImpactFromOpportunities(
   const opportunities = await prisma.opportunity.findMany({
     where: {
       accountId: { in: accountIds },
-      expectedCloseDate: { gte: effectiveDate },
+      estimatedCloseDate: { gte: effectiveDate },
       status: { in: ['Open', 'Won'] },
       tenantId
     }
   });
 
   const totalCommission = opportunities.reduce((sum, opp) => {
-    return sum + (opp.expectedCommission || 0);
+    return sum + Number(opp.expectedCommission ?? 0);
   }, 0);
 
   const averageCommissionRate = opportunities.length > 0
-    ? totalCommission / opportunities.reduce((sum, opp) => sum + (opp.expectedRevenue || 0), 0)
+    ? totalCommission / opportunities.reduce((sum, opp) => sum + Number((opp as any).expectedRevenue ?? 0), 0)
     : 0;
 
   return {

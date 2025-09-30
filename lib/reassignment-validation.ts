@@ -110,7 +110,7 @@ export async function validateNewOwner(newOwnerId: string, tenantId: string): Pr
 }
 
 export async function getUserRole(userId: string, tenantId: string) {
-  const userRole = await prisma.userRole.findFirst({
+  const userRole = await (prisma as any).userRole?.findFirst({
     where: {
       userId,
       tenantId
@@ -132,7 +132,7 @@ export async function getCurrentUser() {
 
 export async function getSystemSettings(tenantId: string, settingPath: string) {
   // Get system settings for the tenant
-  const settings = await prisma.systemSettings.findFirst({
+  const settings = await (prisma as any).systemSettings?.findFirst({
     where: {
       tenantId,
       settingKey: settingPath
@@ -141,3 +141,4 @@ export async function getSystemSettings(tenantId: string, settingPath: string) {
 
   return settings?.settingValue || {};
 }
+

@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { AuditAction } from "@prisma/client";
 
 interface ReassignmentAuditData {
   accountId: string;
@@ -24,8 +25,8 @@ export async function logAccountReassignment(
     data: {
       tenantId: data.tenantId,
       userId: data.reassignedById,
-      action: 'ACCOUNT_REASSIGNMENT',
-      entityType: 'ACCOUNT',
+      action: AuditAction.Update,
+      entityName: 'ACCOUNT',
       entityId: data.accountId,
 
       // Detailed change information
@@ -41,11 +42,14 @@ export async function logAccountReassignment(
 
       // Additional metadata
       metadata: {
+        eventType: 'ACCOUNT_REASSIGNMENT',
         effectiveDate: data.effectiveDate,
         reason: data.reason,
         commissionTransfer: data.commissionTransfer,
         bulkOperation: data.isBulkOperation,
         accountCount: data.accountCount,
+        targetOwner: data.newOwnerId,
+        previousOwnerId: data.previousOwnerId,
         specialAssignment: data.newOwnerId === 'house' || data.newOwnerId === 'unassigned'
       },
 
@@ -71,7 +75,6 @@ export async function logBulkAccountReassignment(
     userAgent?: string;
   }
 ): Promise<void> {
-  // Create a bulk operation record
   const bulkOperationId = `bulk_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
   for (const accountId of data.accountIds) {
@@ -92,13 +95,12 @@ export async function logBulkAccountReassignment(
     });
   }
 
-  // Log the bulk operation itself
   await tx.auditLog.create({
     data: {
       tenantId: data.tenantId,
       userId: data.reassignedById,
-      action: 'BULK_ACCOUNT_REASSIGNMENT',
-      entityType: 'BULK_OPERATION',
+      action: AuditAction.Update,
+      entityName: 'BULK_OPERATION',
       entityId: bulkOperationId,
 
       changedFields: ['multiple_accounts'],
@@ -110,6 +112,7 @@ export async function logBulkAccountReassignment(
       },
 
       metadata: {
+        eventType: 'BULK_ACCOUNT_REASSIGNMENT',
         operationType: 'bulk_reassignment',
         accountIds: data.accountIds,
         effectiveDate: data.effectiveDate,
@@ -132,9 +135,13 @@ export async function getReassignmentHistory(
   const history = await prisma.auditLog.findMany({
     where: {
       tenantId,
-      entityType: 'ACCOUNT',
+      entityName: 'ACCOUNT',
       entityId: accountId,
-      action: 'ACCOUNT_REASSIGNMENT'
+      action: AuditAction.Update,
+      metadata: {
+        path: ['eventType'],
+        equals: 'ACCOUNT_REASSIGNMENT'
+      }
     },
     include: {
       user: {
@@ -151,15 +158,20 @@ export async function getReassignmentHistory(
     take: limit
   });
 
-  return history.map(entry => ({
-    id: entry.id,
-    action: entry.action,
-    timestamp: entry.createdAt,
-    performedBy: entry.user,
-    previousValues: entry.previousValues,
-    newValues: entry.newValues,
-    metadata: entry.metadata
-  }));
+  return history.map(entry => {
+    const metadata = entry.metadata as Record<string, unknown> | null;
+    const eventType = metadata?.eventType;
+
+    return {
+      id: entry.id,
+      action: typeof eventType === 'string' ? eventType : entry.action,
+      timestamp: entry.createdAt,
+      performedBy: entry.user,
+      previousValues: entry.previousValues,
+      newValues: entry.newValues,
+      metadata: entry.metadata
+    };
+  });
 }
 
 export async function getBulkReassignmentHistory(
@@ -169,7 +181,11 @@ export async function getBulkReassignmentHistory(
   const history = await prisma.auditLog.findMany({
     where: {
       tenantId,
-      action: 'BULK_ACCOUNT_REASSIGNMENT'
+      action: AuditAction.Update,
+      metadata: {
+        path: ['eventType'],
+        equals: 'BULK_ACCOUNT_REASSIGNMENT'
+      }
     },
     include: {
       user: {
@@ -186,14 +202,19 @@ export async function getBulkReassignmentHistory(
     take: limit
   });
 
-  return history.map(entry => ({
-    id: entry.id,
-    action: entry.action,
-    timestamp: entry.createdAt,
-    performedBy: entry.user,
-    metadata: entry.metadata,
-    entityId: entry.entityId // This will be the bulk operation ID
-  }));
+  return history.map(entry => {
+    const metadata = entry.metadata as Record<string, unknown> | null;
+    const eventType = metadata?.eventType;
+
+    return {
+      id: entry.id,
+      action: typeof eventType === 'string' ? eventType : entry.action,
+      timestamp: entry.createdAt,
+      performedBy: entry.user,
+      metadata: entry.metadata,
+      entityId: entry.entityId // This will be the bulk operation ID
+    };
+  });
 }
 
 export async function getReassignmentAnalytics(
@@ -211,7 +232,21 @@ export async function getReassignmentAnalytics(
   const reassignments = await prisma.auditLog.findMany({
     where: {
       tenantId,
-      action: { in: ['ACCOUNT_REASSIGNMENT', 'BULK_ACCOUNT_REASSIGNMENT'] },
+      action: AuditAction.Update,
+      OR: [
+        {
+          metadata: {
+            path: ['eventType'],
+            equals: 'ACCOUNT_REASSIGNMENT'
+          }
+        },
+        {
+          metadata: {
+            path: ['eventType'],
+            equals: 'BULK_ACCOUNT_REASSIGNMENT'
+          }
+        }
+      ],
       createdAt: {
         gte: startDate,
         lte: endDate
@@ -227,42 +262,80 @@ export async function getReassignmentAnalytics(
     }
   });
 
-  // Count different types of reassignments
-  const totalReassignments = reassignments.filter(r => r.action === 'ACCOUNT_REASSIGNMENT').length;
-  const bulkReassignments = reassignments.filter(r => r.action === 'BULK_ACCOUNT_REASSIGNMENT').length;
+  const getMetadata = (entry: typeof reassignments[number]) =>
+    (entry.metadata as Record<string, unknown> | null) ?? null;
 
-  const houseAssignments = reassignments.filter(r =>
-    r.metadata?.targetOwner === 'house' || r.newValues?.ownerId === 'house'
+  const getEventType = (entry: typeof reassignments[number]) => {
+    const metadata = getMetadata(entry);
+    const eventType = metadata?.eventType;
+    return typeof eventType === 'string' ? eventType : undefined;
+  };
+
+  const getTargetOwner = (entry: typeof reassignments[number]) => {
+    const metadata = getMetadata(entry);
+    const targetOwner = metadata?.targetOwner;
+    return typeof targetOwner === 'string' ? targetOwner : undefined;
+  };
+
+  const getNewValues = (entry: typeof reassignments[number]) =>
+    (entry.newValues as Record<string, unknown> | null) ?? null;
+
+  const getNewOwnerId = (entry: typeof reassignments[number]) => {
+    const newValues = getNewValues(entry);
+    const ownerId = newValues?.ownerId;
+    if (typeof ownerId === 'string' || ownerId === null) {
+      return ownerId;
+    }
+    return undefined;
+  };
+
+  const totalReassignments = reassignments.filter(
+    entry => getEventType(entry) === 'ACCOUNT_REASSIGNMENT'
   ).length;
 
-  const unassignments = reassignments.filter(r =>
-    r.metadata?.targetOwner === 'unassigned' || r.newValues?.ownerId === null
+  const bulkReassignments = reassignments.filter(
+    entry => getEventType(entry) === 'BULK_ACCOUNT_REASSIGNMENT'
   ).length;
 
-  // Get top reassigned accounts
+  const houseAssignments = reassignments.filter(entry => {
+    const targetOwner = getTargetOwner(entry);
+    const ownerId = getNewOwnerId(entry);
+    return targetOwner === 'house' || ownerId === 'house';
+  }).length;
+
+  const unassignments = reassignments.filter(entry => {
+    const targetOwner = getTargetOwner(entry);
+    const ownerId = getNewOwnerId(entry);
+    return targetOwner === 'unassigned' || ownerId === null;
+  }).length;
+
   const accountReassignmentCounts = reassignments
-    .filter(r => r.action === 'ACCOUNT_REASSIGNMENT')
-    .reduce((acc, r) => {
-      acc[r.entityId] = (acc[r.entityId] || 0) + 1;
+    .filter(entry => getEventType(entry) === 'ACCOUNT_REASSIGNMENT')
+    .reduce((acc, entry) => {
+      acc[entry.entityId] = (acc[entry.entityId] || 0) + 1;
       return acc;
     }, {} as Record<string, number>);
 
   const topReassignedAccounts = Object.entries(accountReassignmentCounts)
-    .sort(([,a], [,b]) => b - a)
+    .sort(([, a], [, b]) => b - a)
     .slice(0, 10)
     .map(([accountId, count]) => ({ accountId, count }));
 
-  // Get reassignment count by user
-  const reassignmentByUser = reassignments.reduce((acc, r) => {
-    const userId = r.userId;
-    acc[userId] = (acc[userId] || 0) + 1;
+  const reassignmentByUser = reassignments.reduce((acc, entry) => {
+    const userId = entry.userId;
+    if (typeof userId !== 'string' || userId.length === 0) {
+      return acc;
+    }
+    const key = userId;
+    acc[key] = (acc[key] || 0) + 1;
     return acc;
   }, {} as Record<string, number>);
 
   const reassignmentByUserArray = Object.entries(reassignmentByUser)
     .map(([userId, count]) => ({
       userId,
-      userName: reassignments.find(r => r.userId === userId)?.user?.fullName || 'Unknown',
+      userName:
+        reassignments.find(entry => entry.userId === userId)?.user?.fullName || 'Unknown',
       count
     }))
     .sort((a, b) => b.count - a.count);
@@ -285,19 +358,14 @@ export async function createReassignmentReport(
 ): Promise<string> {
   const analytics = await getReassignmentAnalytics(tenantId, startDate, endDate);
 
-  // Create a report record
-  const report = await prisma.report.create({
-    data: {
-      tenantId,
-      name: `Account Reassignment Report ${startDate.toISOString().split('T')[0]} to ${endDate.toISOString().split('T')[0]}`,
-      type: 'REASSIGNMENT_ANALYTICS',
-      data: analytics,
-      createdById,
-      createdAt: new Date()
-    }
+  // Persistence not yet implemented; return a serialized payload instead.
+  return JSON.stringify({
+    tenantId,
+    createdById,
+    startDate: startDate.toISOString(),
+    endDate: endDate.toISOString(),
+    analytics
   });
-
-  return report.id;
 }
 
 export async function logSpecialAssignment(
@@ -315,8 +383,8 @@ export async function logSpecialAssignment(
     data: {
       tenantId: data.tenantId,
       userId: data.assignedById,
-      action: data.specialUserId === 'house' ? 'HOUSE_ASSIGNMENT' : 'ACCOUNT_UNASSIGNMENT',
-      entityType: 'ACCOUNT',
+      action: AuditAction.Update,
+      entityName: 'ACCOUNT',
       entityId: data.accountId,
 
       changedFields: ['ownerId', 'assignmentType'],
@@ -328,6 +396,7 @@ export async function logSpecialAssignment(
       },
 
       metadata: {
+        eventType: data.specialUserId === 'house' ? 'HOUSE_ASSIGNMENT' : 'ACCOUNT_UNASSIGNMENT',
         specialUserId: data.specialUserId,
         assignmentRole: data.assignmentRole,
         reason: data.reason
@@ -337,3 +406,15 @@ export async function logSpecialAssignment(
     }
   });
 }
+
+
+
+
+
+
+
+
+
+
+
+

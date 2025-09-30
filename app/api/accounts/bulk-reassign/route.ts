@@ -102,13 +102,13 @@ export async function POST(request: NextRequest) {
         // Handle special user assignments
         if (body.newOwnerId === 'house' || body.newOwnerId === 'unassigned') {
           await handleSpecialUserAssignment(
-            tx,
             accountId,
             body.newOwnerId,
             body.assignmentRole,
             tenantId,
             user.id,
-            effectiveDate
+            effectiveDate,
+            tx
           );
         } else {
           // Update/create assignment records for regular users
@@ -198,32 +198,34 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Account reassignment failed:', error);
 
-    if (error.message === 'INSUFFICIENT_PERMISSIONS') {
-      return NextResponse.json(
-        { error: 'Insufficient permissions for account reassignment' },
-        { status: 403 }
-      );
-    }
+    if (error instanceof Error) {
+      if (error.message === 'INSUFFICIENT_PERMISSIONS') {
+        return NextResponse.json(
+          { error: 'Insufficient permissions for account reassignment' },
+          { status: 403 }
+        );
+      }
 
-    if (error.message === 'MANAGER_ROLE_REQUIRED') {
-      return NextResponse.json(
-        { error: 'Manager role required for account reassignment' },
-        { status: 403 }
-      );
-    }
+      if (error.message === 'MANAGER_ROLE_REQUIRED') {
+        return NextResponse.json(
+          { error: 'Manager role required for account reassignment' },
+          { status: 403 }
+        );
+      }
 
-    if (error.message === 'ACCOUNTS_NOT_FOUND') {
-      return NextResponse.json(
-        { error: 'One or more accounts not found' },
-        { status: 404 }
-      );
-    }
+      if (error.message === 'ACCOUNTS_NOT_FOUND') {
+        return NextResponse.json(
+          { error: 'One or more accounts not found' },
+          { status: 404 }
+        );
+      }
 
-    if (error.message?.includes('CANNOT_REASSIGN_ACCOUNT')) {
-      return NextResponse.json(
-        { error: error.message },
-        { status: 400 }
-      );
+      if (error.message?.includes('CANNOT_REASSIGN_ACCOUNT')) {
+        return NextResponse.json(
+          { error: error.message },
+          { status: 400 }
+        );
+      }
     }
 
     return NextResponse.json(

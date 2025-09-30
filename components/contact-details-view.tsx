@@ -1046,6 +1046,39 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
     setOpportunityDeleteTargets([])
   }, []);
 
+  const softDeleteContactOpportunity = useCallback(async (
+    opportunityId: string,
+    bypassConstraints?: boolean
+  ): Promise<{ success: boolean; constraints?: DeletionConstraint[]; error?: string }> => {
+    try {
+      const endpoint = bypassConstraints
+        ? `/api/opportunities/${opportunityId}?bypassConstraints=true`
+        : `/api/opportunities/${opportunityId}`
+
+      const response = await fetch(endpoint, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ active: false })
+      })
+      const payload = await response.json().catch(() => null)
+
+      if (!response.ok) {
+        const constraints = (payload?.constraints ?? []) as DeletionConstraint[]
+        if (Array.isArray(constraints) && constraints.length > 0) {
+          return { success: false, constraints }
+        }
+
+        const message = payload?.error ?? "Failed to update opportunity status"
+        return { success: false, error: message }
+      }
+
+      return { success: true }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to update opportunity status"
+      return { success: false, error: message }
+    }
+  }, [])
+
   const handleOpportunitySoftDelete = useCallback(async (
     opportunityId: string,
     bypassConstraints?: boolean
@@ -1067,7 +1100,7 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
     const message = result.error ?? "Failed to delete opportunity"
     showError("Failed to delete opportunity", message)
     return { success: false, error: message }
-  }, [refreshContactData, showError, showSuccess]);
+  }, [refreshContactData, showError, showSuccess, softDeleteContactOpportunity]);
 
   const handleOpportunityPermanentDelete = useCallback(async (
     opportunityId: string
@@ -1094,6 +1127,43 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
       return { success: false, error: message }
     }
   }, [refreshContactData, showError, showSuccess]);
+
+  const executeContactOpportunityBulkSoftDelete = useCallback(async (
+    entities: Array<{ id: string; name?: string; subtitle?: string }>,
+    bypassConstraints?: boolean
+  ): Promise<{ success: boolean; constraints?: DeletionConstraint[]; error?: string }> => {
+    const results = await Promise.all(
+      entities.map(entity => softDeleteContactOpportunity(entity.id, bypassConstraints))
+    )
+
+    const successfulIds = entities
+      .filter((_, index) => results[index]?.success)
+      .map(entity => entity.id)
+
+    if (successfulIds.length > 0) {
+      await refreshContactData()
+      setSelectedOpportunities(prev => prev.filter(id => !successfulIds.includes(id)))
+      setOpportunityDeleteTargets(prev => prev.filter(target => !successfulIds.includes(target.id)))
+      showSuccess(
+        successfulIds.length === 1 ? "Opportunity archived" : "Opportunities archived",
+        successfulIds.length === 1
+          ? "The opportunity has been marked as inactive."
+          : `${successfulIds.length} opportunities have been marked as inactive.`
+      )
+    }
+
+    const constraints = results.flatMap(result => result.constraints ?? [])
+    if (constraints.length > 0) {
+      return { success: false, constraints }
+    }
+
+    const firstError = results.find(result => !result.success && !(result.constraints?.length))?.error
+    if (firstError) {
+      return { success: false, error: firstError }
+    }
+
+    return { success: successfulIds.length > 0 }
+  }, [refreshContactData, setSelectedOpportunities, setOpportunityDeleteTargets, showSuccess, softDeleteContactOpportunity])
 
   const handleOpportunityRestore = useCallback(async (
     opportunityId: string
@@ -1729,7 +1799,7 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
     setGroupsCurrentPage(1)
   }
 
-  const handleBulkOpportunityOwnerUpdate = useCallback(async (ownerId: string) => {
+  const handleBulkOpportunityOwnerUpdate = useCallback(async (ownerId: string | null) => {
     if (selectedOpportunities.length === 0) {
       showError("No opportunities selected", "Select at least one opportunity to update.")
       return
@@ -1741,7 +1811,7 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
           const response = await fetch(`/api/opportunities/${opportunityId}`, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ ownerId })
+            body: JSON.stringify({ ownerId: ownerId ?? null })
           })
           if (!response.ok) {
             const payload = await response.json().catch(() => null)
@@ -1766,46 +1836,95 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
     }
   }, [selectedOpportunities, refreshContactData, showError, showSuccess])
 
-  const handleBulkOpportunityStatusUpdate = useCallback(async (status: string) => {
+  const handleBulkOpportunityStatusUpdate = useCallback(async (isActive: boolean) => {
     if (selectedOpportunities.length === 0) {
       showError("No opportunities selected", "Select at least one opportunity to update.")
       return
     }
+
     setOpportunityBulkActionLoading(true)
+
     try {
+      const targetStatus = isActive ? OpportunityStatus.Open : OpportunityStatus.Lost
+
       const outcomes = await Promise.allSettled(
         selectedOpportunities.map(async (opportunityId) => {
           const response = await fetch(`/api/opportunities/${opportunityId}`, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ status })
+            body: JSON.stringify({ status: targetStatus })
           })
+
           if (!response.ok) {
             const payload = await response.json().catch(() => null)
-            throw new Error(payload?.error || "Failed to update opportunity status")
+            throw new Error(payload?.error ?? "Failed to update opportunity status")
           }
+
           return opportunityId
         })
       )
-      const successes = outcomes.filter(r => r.status === "fulfilled").length
-      const failures = outcomes.length - successes
-      if (successes > 0) {
-        showSuccess(
-          `Updated status for ${successes} opportunit${successes === 1 ? "y" : "ies"}`,
-          "The status has been updated successfully."
+
+      const successes: string[] = []
+      const failures: Array<{ opportunityId: string; message: string }> = []
+
+      outcomes.forEach((result, index) => {
+        const opportunityId = selectedOpportunities[index]
+        if (result.status === "fulfilled") {
+          successes.push(opportunityId)
+        } else {
+          const message =
+            result.reason instanceof Error ? result.reason.message : "Unexpected error"
+          failures.push({ opportunityId, message })
+        }
+      })
+
+      if (successes.length > 0) {
+        const label = isActive ? "active" : "inactive"
+        const summary =
+          "Marked " +
+          successes.length +
+          " opportunity" +
+          (successes.length === 1 ? "" : "ies") +
+          " as " +
+          label
+        showSuccess(summary, "The opportunity status has been updated.")
+        await refreshContactData()
+      }
+
+      if (failures.length > 0) {
+        const opportunityNameMap = new Map(
+          (contact?.opportunities ?? []).map((opportunity) => [
+            opportunity.id,
+            opportunity.opportunityName || "Opportunity"
+          ])
         )
+
+        const detail = failures
+          .map((item) => (opportunityNameMap.get(item.opportunityId) ?? "Opportunity") + ": " + item.message)
+          .join("; ")
+
+        showError("Failed to update status for some opportunities", detail)
       }
-      if (failures > 0 && successes === 0) {
-        showError("Bulk opportunity status update failed", "Please try again.")
+
+      setSelectedOpportunities(
+        failures.length > 0 ? failures.map((item) => item.opportunityId) : []
+      )
+
+      if (failures.length === 0) {
+        setShowOpportunityBulkStatusModal(false)
       }
-      await refreshContactData()
-      setSelectedOpportunities([])
-      setShowOpportunityBulkStatusModal(false)
+    } catch (error) {
+      console.error("Bulk opportunity status update failed", error)
+      showError(
+        "Bulk opportunity status update failed",
+        error instanceof Error ? error.message : "Unable to update opportunity status."
+      )
     } finally {
       setOpportunityBulkActionLoading(false)
     }
-  }, [selectedOpportunities, refreshContactData, showError, showSuccess])
-    return (
+  }, [selectedOpportunities, contact?.opportunities, refreshContactData, showError, showSuccess])
+
+  return (
     <div className="px-4 py-4 sm:px-6 lg:px-8">
       <div className="mx-auto w-full max-w-none">
         <div className="flex items-start justify-between gap-4 border-b border-gray-200 pb-4 mb-4">
@@ -1880,11 +1999,11 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
                       <div className="grid grid-cols-1 gap-2">
                         <div className="flex items-center gap-3 p-2 bg-white rounded-lg border border-gray-200">
                           <span className="font-medium text-gray-900">{contact.firstName} {contact.lastName}</span>
-                          <span className="text-sm text-gray-500">•</span>
+                          <span className="text-sm text-gray-500">â€¢</span>
                           <span className="text-sm text-gray-600">{contact.accountName}</span>
                           {contact.jobTitle && (
                             <>
-                              <span className="text-sm text-gray-500">•</span>
+                              <span className="text-sm text-gray-500">â€¢</span>
                               <span className="text-sm text-gray-600">{contact.jobTitle}</span>
                             </>
                           )}
@@ -2399,6 +2518,10 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
     </div>
   )
 }
+
+
+
+
 
 
 

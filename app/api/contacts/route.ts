@@ -70,7 +70,8 @@ function makeStringFilter(operator: string | undefined, value: string) {
 }
 
 function buildNestedCondition(path: string[], operator: string | undefined, value: string) {
-  return path.reduceRight((acc, key) => ({ [key]: acc }), makeStringFilter(operator, value));
+  const initial = makeStringFilter(operator, value) as Record<string, unknown>
+  return path.reduceRight<Record<string, unknown>>((acc, key) => ({ [key]: acc }), initial)
 }
 
 function buildFilterCondition(filter: ColumnFilterInput | null | undefined) {
@@ -236,7 +237,7 @@ export async function GET(request: NextRequest) {
           groupedColumnFilters.get(key)!.push(filterInput)
         }
 
-        for (const filtersForColumn of groupedColumnFilters.values()) {
+        for (const filtersForColumn of Array.from(groupedColumnFilters.values())) {
           const conditions = filtersForColumn
             .map(buildFilterCondition)
             .filter((condition): condition is Record<string, unknown> => Boolean(condition))
@@ -437,6 +438,10 @@ export async function POST(request: NextRequest) {
     }
   )
 }
+
+
+
+
 
 
 

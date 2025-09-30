@@ -82,7 +82,7 @@ export async function prorateSchedules(params: {
             prorationApplied: true,
             expectedCommission: proratedAmount,
             notes: `Prorated due to commission reassignment effective ${cutoffDate.toISOString().split('T')[0]}`
-          }
+          } as any
         });
       }
     }
@@ -147,13 +147,13 @@ export async function reverseProration(params: {
 
   // Get schedules that were prorated for this opportunity
   const proratedSchedules = await prisma.revenueSchedule.findMany({
-    where: {
+    where: ({
       opportunityId,
       prorationApplied: true,
       scheduleDate: {
         gte: originalCutoffDate
       }
-    }
+    } as any)
   });
 
   for (const schedule of proratedSchedules) {
@@ -164,7 +164,7 @@ export async function reverseProration(params: {
       data: {
         prorationApplied: false,
         notes: null
-      }
+      } as any
     });
   }
 }

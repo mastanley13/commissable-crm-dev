@@ -1,4 +1,4 @@
-﻿import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { withPermissions, createErrorResponse } from '@/lib/api-auth'
 import { listActivityAttachments, uploadActivityAttachment } from '@/lib/activity-service'
 import { hasPermission } from '@/lib/auth'
@@ -101,11 +101,11 @@ export async function POST(request: NextRequest, { params }: { params: { activit
         const formData = await request.formData()
         const files: File[] = []
 
-        for (const value of formData.values()) {
+        formData.forEach(value => {
           if (value instanceof File) {
             files.push(value)
           }
-        }
+        })
 
         if (files.length === 0) {
           return createErrorResponse('No files provided', 400)

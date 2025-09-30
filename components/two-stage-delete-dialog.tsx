@@ -25,7 +25,7 @@ export interface TwoStageDeleteDialogProps {
   onBulkSoftDelete?: (entities: DeleteDialogEntitySummary[], bypassConstraints?: boolean) => Promise<{ success: boolean, constraints?: DeletionConstraint[], error?: string }>
 }
 
-type DialogStage = 'initial' | 'constraints' | 'confirm-soft' | 'confirm-permanent' | 'loading' | 'success' | 'error'
+type DialogStage = 'initial' | 'constraints' | 'confirm-soft' | 'confirm-permanent' | 'confirm-restore' | 'loading' | 'success' | 'error'
 
 export function TwoStageDeleteDialog({
   isOpen,

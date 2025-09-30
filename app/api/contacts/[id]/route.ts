@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { AuditAction } from "@prisma/client"
+import type { Prisma } from "@prisma/client"
 import { prisma } from "@/lib/db"
 import { withPermissions, createErrorResponse } from "@/lib/api-auth"
 import { logContactAudit } from "@/lib/audit"
@@ -96,6 +97,15 @@ function mapActivityAttachmentSummary(attachment: any) {
   }
 }
 
+const contactActivityInclude = {
+  creator: { select: { firstName: true, lastName: true } },
+  account: { select: { accountName: true } },
+  attachments: {
+    include: {
+      uploadedBy: { select: { firstName: true, lastName: true } }
+    }
+  }
+} satisfies Prisma.ActivityInclude;
 function mapContactActivityRow(activity: any) {
   const creatorName = activity.creator
     ? `${activity.creator.firstName ?? ""} ${activity.creator.lastName ?? ""}`.trim()
@@ -192,15 +202,7 @@ export async function GET(
     const [activities, opportunities, groupMemberships] = await Promise.all([
       prisma.activity.findMany({
         where: { tenantId, contactId: contact.id },
-        include: {
-          creator: { select: { firstName: true, lastName: true } },
-          account: { select: { accountName: true } },
-          attachments: {
-            include: {
-              uploadedBy: { select: { firstName: true, lastName: true } }
-            }
-          }
-        },
+        include: contactActivityInclude,
         orderBy: [
           { dueDate: "desc" },
           { createdAt: "desc" }
@@ -264,10 +266,16 @@ export async function PATCH(
       }
     })
 
-    if (!existingContact) {
-      return NextResponse.json({ error: "Contact not found" }, { status: 404 })
-    }
+            if (!existingContact) {
+          return NextResponse.json({ error: "Contact not found" }, { status: 404 })
+        }
 
+        const opportunityCount = await prisma.opportunity.count({
+          where: {
+            tenantId,
+            accountId: existingContact.accountId
+          }
+        })
     // Handle restore action
     if (body.action === "restore") {
       const restoredContact = await prisma.contact.update({
@@ -294,8 +302,7 @@ export async function PATCH(
         tenantId,
         request,
         { deletedAt: existingContact.deletedAt },
-        { deletedAt: null },
-        "Contact restored"
+        { deletedAt: null }
       )
 
       // Invalidate cache
@@ -480,7 +487,6 @@ export async function DELETE(
           },
           include: {
             activities: { select: { id: true } },
-            opportunities: { select: { id: true } },
             groupMembers: { select: { id: true } }
           }
         })
@@ -489,6 +495,12 @@ export async function DELETE(
           return NextResponse.json({ error: "Contact not found" }, { status: 404 })
         }
 
+        const opportunityCount = await prisma.opportunity.count({
+          where: {
+            tenantId,
+            accountId: existingContact.accountId
+          }
+        })
         if (stage === 'soft') {
           // Check for dependencies unless bypassing constraints
           if (!bypassConstraints) {
@@ -502,11 +514,11 @@ export async function DELETE(
               })
             }
             
-            if (existingContact.opportunities.length > 0) {
+            if (opportunityCount > 0) {
               constraints.push({
                 type: 'opportunities', 
-                count: existingContact.opportunities.length,
-                message: `This contact has ${existingContact.opportunities.length} associated opportunities`
+                count: opportunityCount,
+                message: `This contact has ${opportunityCount} associated opportunities`
               })
             }
             
@@ -554,9 +566,8 @@ export async function DELETE(
               accountId: existingContact.accountId,
               deletedAt: null
             },
-            { deletedAt: new Date() },
-            "Contact soft deleted"
-          )
+            { deletedAt: new Date() }
+      )
 
           // Invalidate cache
           revalidatePath('/contacts')
@@ -613,9 +624,8 @@ export async function DELETE(
               accountId: existingContact.accountId,
               deletedAt: existingContact.deletedAt
             },
-            undefined,
-            "Contact permanently deleted"
-          )
+            undefined
+      )
 
           // Invalidate cache
           revalidatePath('/contacts')
@@ -637,6 +647,23 @@ export async function DELETE(
     }
   )
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

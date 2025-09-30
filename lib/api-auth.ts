@@ -12,6 +12,14 @@ export interface AuthenticatedRequest extends NextRequest {
   user: AuthUser
 }
 
+export async function getCurrentUser() {
+  const user = await getAuthenticatedUser()
+  if (!user) {
+    throw new Error('Authentication required')
+  }
+  return { user, tenantId: user.tenantId }
+}
+
 export async function withAuth<T = any>(
   request: NextRequest,
   handler: (request: AuthenticatedRequest) => Promise<Response | ApiResponse<T>>

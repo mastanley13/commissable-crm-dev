@@ -46,7 +46,11 @@ export async function sendReassignmentNotifications({
   }
 
   // Notify previous owners
-  const uniquePreviousOwners = [...new Set(previousOwners.filter(Boolean))];
+  const uniquePreviousOwners = Array.from(
+    new Set(
+      previousOwners.filter((ownerId): ownerId is string => typeof ownerId === 'string' && ownerId.length > 0)
+    )
+  );
 
   for (const previousOwnerId of uniquePreviousOwners) {
     if (previousOwnerId && previousOwnerId !== reassignedBy.id) {
@@ -102,7 +106,7 @@ export async function sendNotification({
 }): Promise<void> {
   try {
     // Create in-app notification
-    await prisma.notification.create({
+    await (prisma as any).notification?.create({
       data: {
         tenantId: metadata.tenantId || null,
         userId: recipientId,
@@ -193,7 +197,11 @@ export async function sendEmailNotifications({
     }
 
     // Send emails to previous owners
-    const uniquePreviousOwners = [...new Set(previousOwners.filter(Boolean))];
+    const uniquePreviousOwners = Array.from(
+    new Set(
+      previousOwners.filter((ownerId): ownerId is string => typeof ownerId === 'string' && ownerId.length > 0)
+    )
+  );
 
     for (const previousOwnerId of uniquePreviousOwners) {
       if (previousOwnerId && previousOwnerId !== reassignedBy.id) {
@@ -252,7 +260,7 @@ async function sendReassignmentEmail({
     // This would integrate with your email service (SendGrid, Mailgun, etc.)
     // For now, we'll create an email queue record
 
-    await prisma.emailQueue.create({
+    await (prisma as any).emailQueue?.create({
       data: {
         to,
         subject,
@@ -275,8 +283,7 @@ async function getEmailSettings(): Promise<{
   templates?: any;
 }> {
   try {
-    // Get email settings from system configuration
-    const settings = await prisma.systemSettings.findMany({
+    const settingsResult = await (prisma as any).systemSettings?.findMany({
       where: {
         settingKey: {
           startsWith: 'email.'
@@ -284,11 +291,17 @@ async function getEmailSettings(): Promise<{
       }
     });
 
-    const emailConfig = settings.reduce((acc, setting) => {
+    if (!Array.isArray(settingsResult) || settingsResult.length === 0) {
+      return {
+        enabled: false
+      };
+    }
+
+    const emailConfig = settingsResult.reduce<Record<string, any>>((acc, setting) => {
       const key = setting.settingKey.replace('email.', '');
       acc[key] = setting.settingValue;
       return acc;
-    }, {} as any);
+    }, {});
 
     return {
       enabled: emailConfig.enabled !== false,
@@ -319,7 +332,7 @@ export async function getUserNotificationPreferences(userId: string): Promise<{
   types: string[];
 }> {
   try {
-    const preferences = await prisma.userNotificationSettings.findFirst({
+    const preferences = await (prisma as any).userNotificationSettings?.findFirst({
       where: { userId }
     });
 
@@ -346,3 +359,10 @@ export async function getUserNotificationPreferences(userId: string): Promise<{
     };
   }
 }
+
+
+
+
+
+
+

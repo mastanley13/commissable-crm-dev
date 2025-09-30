@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { AccountStatus, AuditAction } from "@prisma/client"
+import type { Prisma } from "@prisma/client"
 import { prisma } from "@/lib/db"
 import { withPermissions, createErrorResponse } from "@/lib/api-auth"
 import { mapAccountToListRow, accountIncludeForList } from "../helpers"
@@ -126,6 +127,15 @@ function mapActivityAttachmentSummary(attachment: any) {
   }
 }
 
+
+const recentActivityInclude = {
+  creator: { select: { firstName: true, lastName: true } },
+  attachments: {
+    include: {
+      uploadedBy: { select: { firstName: true, lastName: true } }
+    }
+  }
+} satisfies Prisma.ActivityInclude;
 function mapAccountContactRow(contact: any) {
   return {
     id: contact.id,
@@ -250,14 +260,7 @@ export async function GET(
       }),
       prisma.activity.findMany({
         where: { tenantId, accountId },
-        include: {
-          creator: { select: { firstName: true, lastName: true } },
-          attachments: {
-            include: {
-              uploadedBy: { select: { firstName: true, lastName: true } }
-            }
-          }
-        },
+        include: recentActivityInclude,
         orderBy: [
           { dueDate: "desc" },
           { createdAt: "desc" }

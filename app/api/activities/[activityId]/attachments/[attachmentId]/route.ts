@@ -1,4 +1,4 @@
-﻿import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { withPermissions, createErrorResponse } from '@/lib/api-auth'
 import { getActivityAttachment, removeActivityAttachment } from '@/lib/activity-service'
 import { readAttachmentBuffer } from '@/lib/storage'
@@ -73,7 +73,10 @@ export async function GET(request: NextRequest, { params }: { params: { activity
 
       const allowed = await ensureDownloadAccess(req.user, attachment.activityId)
       if (allowed !== true) {
-        return allowed?.error ?? createErrorResponse('Insufficient permissions', 403)
+        if (allowed && typeof allowed === 'object' && 'error' in allowed) {
+          return allowed.error
+        }
+        return createErrorResponse('Insufficient permissions', 403)
       }
 
       const buffer = await readAttachmentBuffer(attachment.storageKey)
@@ -87,7 +90,9 @@ export async function GET(request: NextRequest, { params }: { params: { activity
         { downloadedAttachment: attachment.fileName }
       )
 
-      return new NextResponse(buffer, {
+      const responseBody = new Uint8Array(buffer)
+
+      return new NextResponse(responseBody, {
         headers: {
           'Content-Type': attachment.mimeType,
           'Content-Length': attachment.fileSize.toString(),

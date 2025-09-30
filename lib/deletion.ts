@@ -206,8 +206,7 @@ export const RelationshipChecks: Record<string, EntityRelationshipCheck> = {
         where: {
           tenantId,
           contactId,
-          status: { in: ['Open'] },
-          deletedAt: null
+          status: { in: ['Open'] }
         }
       })
 
@@ -270,8 +269,7 @@ export const RelationshipChecks: Record<string, EntityRelationshipCheck> = {
         where: {
           tenantId,
           ownerId: userId,
-          status: { in: ['Open', 'OnHold'] },
-          deletedAt: null
+          status: { in: ['Open', 'OnHold'] }
         }
       })
 
@@ -289,8 +287,7 @@ export const RelationshipChecks: Record<string, EntityRelationshipCheck> = {
         where: {
           tenantId,
           assigneeId: userId,
-          status: { in: ['Open'] },
-          deletedAt: null
+          status: { in: ['Open'] }
         }
       })
 
@@ -510,3 +507,4 @@ export async function restoreEntity(
     }
   }
 }
+

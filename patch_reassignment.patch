@@ -1,0 +1,140 @@
+diff --git a/lib/reassignment-audit.ts b/lib/reassignment-audit.ts
+index f5b6d44..268aabd 100644
+--- a/lib/reassignment-audit.ts
++++ b/lib/reassignment-audit.ts
+@@
+-import { prisma } from "@/lib/db";
++import { prisma } from "@/lib/db";
++import { AuditAction } from "@prisma/client";
+@@
+-      action: 'ACCOUNT_REASSIGNMENT',
++      action: AuditAction.Update,
+       entityType: 'ACCOUNT',
+       entityId: data.accountId,
+ 
+       // Detailed change information
+@@
+-      metadata: {
++      metadata: {
++        eventType: 'ACCOUNT_REASSIGNMENT',
+         effectiveDate: data.effectiveDate,
+         reason: data.reason,
+         commissionTransfer: data.commissionTransfer,
+         bulkOperation: data.isBulkOperation,
+         accountCount: data.accountCount,
+-        specialAssignment: data.newOwnerId === 'house' || data.newOwnerId === 'unassigned'
++        targetOwner: data.newOwnerId,
++        previousOwnerId: data.previousOwnerId,
++        specialAssignment: data.newOwnerId === 'house' || data.newOwnerId === 'unassigned'
+       },
+@@
+-      action: 'BULK_ACCOUNT_REASSIGNMENT',
++      action: AuditAction.Update,
+       entityType: 'BULK_OPERATION',
+       entityId: bulkOperationId,
+@@
+-      metadata: {
++      metadata: {
++        eventType: 'BULK_ACCOUNT_REASSIGNMENT',
+         operationType: 'bulk_reassignment',
+         accountIds: data.accountIds,
+         effectiveDate: data.effectiveDate,
+         reason: data.reason,
+         commissionTransfer: data.commissionTransfer
+       },
+@@
+-      action: 'ACCOUNT_REASSIGNMENT'
++      action: AuditAction.Update,
++      metadata: {
++        path: ['eventType'],
++        equals: 'ACCOUNT_REASSIGNMENT'
++      }
+     },
+@@
+-      action: 'BULK_ACCOUNT_REASSIGNMENT'
++      action: AuditAction.Update,
++      metadata: {
++        path: ['eventType'],
++        equals: 'BULK_ACCOUNT_REASSIGNMENT'
++      }
+     },
+@@
+-      action: { in: ['ACCOUNT_REASSIGNMENT', 'BULK_ACCOUNT_REASSIGNMENT'] },
++      action: AuditAction.Update,
++      OR: [
++        {
++          metadata: {
++            path: ['eventType'],
++            equals: 'ACCOUNT_REASSIGNMENT'
++          }
++        },
++        {
++          metadata: {
++            path: ['eventType'],
++            equals: 'BULK_ACCOUNT_REASSIGNMENT'
++          }
++        }
++      ],
+       createdAt: {
+         gte: startDate,
+         lte: endDate
+       }
+     },
+@@
+-  const totalReassignments = reassignments.filter(r => r.action === 'ACCOUNT_REASSIGNMENT').length;
+-  const bulkReassignments = reassignments.filter(r => r.action === 'BULK_ACCOUNT_REASSIGNMENT').length;
++  const getMetadata = (entry: typeof reassignments[number]) =>
++    (entry.metadata as Record<string, unknown> | null) ?? null;
++
++  const getEventType = (entry: typeof reassignments[number]) => {
++    const metadata = getMetadata(entry);
++    const eventType = metadata?.eventType;
++    return typeof eventType === 'string' ? eventType : undefined;
++  };
++
++  const totalReassignments = reassignments.filter(r => getEventType(r) === 'ACCOUNT_REASSIGNMENT').length;
++  const bulkReassignments = reassignments.filter(r => getEventType(r) === 'BULK_ACCOUNT_REASSIGNMENT').length;
+@@
+-  const houseAssignments = reassignments.filter(r =>
+-    r.metadata?.targetOwner === 'house' || r.newValues?.ownerId === 'house'
+-  ).length;
+-
+-  const unassignments = reassignments.filter(r =>
+-    r.metadata?.targetOwner === 'unassigned' || r.newValues?.ownerId === null
+-  ).length;
++  const houseAssignments = reassignments.filter(r => {
++    const metadata = getMetadata(r);
++    const targetOwner = metadata?.targetOwner;
++    const ownerId = r.newValues?.ownerId;
++    return targetOwner === 'house' || ownerId === 'house';
++  }).length;
++
++  const unassignments = reassignments.filter(r => {
++    const metadata = getMetadata(r);
++    const targetOwner = metadata?.targetOwner;
++    const ownerId = r.newValues?.ownerId;
++    return targetOwner === 'unassigned' || ownerId === null;
++  }).length;
+@@
+-    .filter(r => r.action === 'ACCOUNT_REASSIGNMENT')
++    .filter(r => getEventType(r) === 'ACCOUNT_REASSIGNMENT')
+@@
+-  const reassignmentByUser = reassignments.reduce((acc, r) => {
++  const reassignmentByUser = reassignments.reduce((acc, r) => {
+     const userId = r.userId;
+     acc[userId] = (acc[userId] || 0) + 1;
+     return acc;
+   }, {} as Record<string, number>);
+@@
+-      action: data.specialUserId === 'house' ? 'HOUSE_ASSIGNMENT' : 'ACCOUNT_UNASSIGNMENT',
++      action: AuditAction.Update,
+       entityType: 'ACCOUNT',
+       entityId: data.accountId,
+@@
+-      metadata: {
++      metadata: {
++        eventType: data.specialUserId === 'house' ? 'HOUSE_ASSIGNMENT' : 'ACCOUNT_UNASSIGNMENT',
+         specialUserId: data.specialUserId,
+         assignmentRole: data.assignmentRole,
+         reason: data.reason
+       },

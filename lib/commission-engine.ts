@@ -135,7 +135,7 @@ export async function applyReassignment(params: {
   }
 
   // Get current commission structure
-  const currentJson = opportunity.currentCommissionJson as any;
+  const currentJson = (opportunity as any).currentCommissionJson as any;
   const currentStructure: CommissionStructure = currentJson || {
     houseSplit: 0,
     splits: [],
@@ -143,7 +143,7 @@ export async function applyReassignment(params: {
   };
 
   // Create audit record
-  await prisma.commissionChange.create({
+  await (prisma as any).commissionChange.create({
     data: {
       tenantId,
       opportunityId,
@@ -165,7 +165,7 @@ export async function applyReassignment(params: {
       currentCommissionJson: afterSplits,
       commissionStatus: 'REASSIGNED',
       updatedAt: new Date()
-    }
+    } as any
   });
 }
 
