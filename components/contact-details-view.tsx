@@ -10,6 +10,7 @@ import { DeletionConstraint } from "@/lib/deletion"
 import { DynamicTable, Column, PaginationInfo } from "./dynamic-table"
 import { useToasts } from "./toast"
 import { ActivityNoteCreateModal } from "./activity-note-create-modal"
+import { ActivityNoteEditModal } from "./activity-note-edit-modal"
 import { ContactOpportunityCreateModal } from "./contact-opportunity-create-modal"
 import { ContactGroupCreateModal } from "./contact-group-create-modal"
 import { ListHeader, type ColumnFilter } from "./list-header"
@@ -154,6 +155,14 @@ const fieldBoxClass = "flex min-h-[24px] items-center justify-between rounded-lg
 
 const CONTACT_ACTIVITY_TABLE_BASE_COLUMNS: Column[] = [
   {
+    id: "select",
+    label: "Select",
+    width: 90,
+    minWidth: 70,
+    maxWidth: 110,
+    type: "checkbox",
+  },
+  {
     id: "active",
     label: "Active",
     width: 120,
@@ -240,6 +249,14 @@ const CONTACT_ACTIVITY_TABLE_BASE_COLUMNS: Column[] = [
 
 const CONTACT_OPPORTUNITY_TABLE_BASE_COLUMNS: Column[] = [
   {
+    id: "select",
+    label: "Select",
+    width: 90,
+    minWidth: 70,
+    maxWidth: 110,
+    type: "checkbox",
+  },
+  {
     id: "active",
     label: "Active",
     width: 120,
@@ -316,6 +333,14 @@ const CONTACT_OPPORTUNITY_TABLE_BASE_COLUMNS: Column[] = [
 ]
 
 const CONTACT_GROUP_TABLE_BASE_COLUMNS: Column[] = [
+  {
+    id: "select",
+    label: "Select",
+    width: 90,
+    minWidth: 70,
+    maxWidth: 110,
+    type: "checkbox",
+  },
   {
     id: "active",
     label: "Active",
@@ -478,7 +503,7 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [isDeleted, setIsDeleted] = useState(false)
   const [detailsExpanded, setDetailsExpanded] = useState(true)
-  const { showError } = useToasts()
+  const { showError, showSuccess, showInfo } = useToasts()
 
   const handleBack = () => {
     router.push("/contacts")
@@ -508,10 +533,17 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
   const [showActivitiesColumnSettings, setShowActivitiesColumnSettings] = useState(false)
   const [showOpportunitiesColumnSettings, setShowOpportunitiesColumnSettings] = useState(false)
   const [showGroupsColumnSettings, setShowGroupsColumnSettings] = useState(false)
+  const [editingActivity, setEditingActivity] = useState<ContactActivityRow | null>(null)
+  const [selectedActivities, setSelectedActivities] = useState<string[]>([])
+  const [activityBulkActionLoading, setActivityBulkActionLoading] = useState(false)
   const [editingOpportunity, setEditingOpportunity] = useState<ContactOpportunityRow | null>(null)
+  const [selectedOpportunities, setSelectedOpportunities] = useState<string[]>([])
+  const [opportunityBulkActionLoading, setOpportunityBulkActionLoading] = useState(false)
   const [opportunityToDelete, setOpportunityToDelete] = useState<ContactOpportunityRow | null>(null)
   const [showOpportunityDeleteDialog, setShowOpportunityDeleteDialog] = useState(false)
   const [editingGroup, setEditingGroup] = useState<ContactGroupRow | null>(null)
+  const [selectedGroups, setSelectedGroups] = useState<string[]>([])
+  const [groupBulkActionLoading, setGroupBulkActionLoading] = useState(false)
   const [showGroupEditModal, setShowGroupEditModal] = useState(false)
   const [groupToDelete, setGroupToDelete] = useState<ContactGroupRow | null>(null)
   const [showGroupDeleteDialog, setShowGroupDeleteDialog] = useState(false)
@@ -525,6 +557,20 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
     setActivityModalOpen(false)
     setOpportunityModalOpen(false)
     setGroupModalOpen(false)
+    setEditingActivity(null)
+    setSelectedActivities([])
+    setActivityBulkActionLoading(false)
+    setEditingOpportunity(null)
+    setSelectedOpportunities([])
+    setOpportunityBulkActionLoading(false)
+    setOpportunityToDelete(null)
+    setShowOpportunityDeleteDialog(false)
+    setEditingGroup(null)
+    setSelectedGroups([])
+    setGroupBulkActionLoading(false)
+    setShowGroupEditModal(false)
+    setGroupToDelete(null)
+    setShowGroupDeleteDialog(false)
   }, [contact?.id])
 
   const contactDisplayName = contact ? [contact.firstName, contact.lastName].filter(Boolean).join(" ") : ""
@@ -671,8 +717,17 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
       return;
     }
 
-    router.push(`/activities/${activity.id}`);
-  }, [router, showError]);
+    setEditingActivity(activity);
+  }, [showError]);
+
+  const handleCloseActivityEditModal = useCallback(() => {
+    setEditingActivity(null);
+  }, []);
+
+  const handleActivityEditSuccess = useCallback(async () => {
+    setEditingActivity(null);
+    await refreshContactData();
+  }, [refreshContactData]);
 
   const handleActivityDelete = useCallback(async (activity: ContactActivityRow) => {
     if (!activity?.id) {
@@ -1261,6 +1316,18 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
     return rows
   }, [contact?.groups, activeFilter, groupsSearchQuery, groupsColumnFilters])
 
+  useEffect(() => {
+    setSelectedActivities(prev => prev.filter(id => filteredActivities.some(row => row.id === id)));
+  }, [filteredActivities]);
+
+  useEffect(() => {
+    setSelectedOpportunities(prev => prev.filter(id => filteredOpportunities.some(row => row.id === id)));
+  }, [filteredOpportunities]);
+
+  useEffect(() => {
+    setSelectedGroups(prev => prev.filter(id => filteredGroups.some(row => row.id === id)));
+  }, [filteredGroups]);
+
   const paginatedActivities = useMemo(() => {
     const start = (activitiesCurrentPage - 1) * activitiesPageSize
     return filteredActivities.slice(start, start + activitiesPageSize)
@@ -1339,6 +1406,26 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
     setActivitiesCurrentPage(1)
   }
 
+  const handleActivitySelect = useCallback((activityId: string, selected: boolean) => {
+    setSelectedActivities(previous => {
+      if (selected) {
+        if (previous.includes(activityId)) {
+          return previous
+        }
+        return [...previous, activityId]
+      }
+      return previous.filter(id => id !== activityId)
+    })
+  }, [])
+
+  const handleSelectAllActivities = useCallback((selected: boolean) => {
+    if (selected) {
+      setSelectedActivities(paginatedActivities.map(row => row.id))
+      return
+    }
+    setSelectedActivities([])
+  }, [paginatedActivities])
+
   const handleOpportunitiesPageChange = (page: number) => {
     setOpportunitiesCurrentPage(page)
   }
@@ -1347,6 +1434,26 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
     setOpportunitiesPageSize(size)
     setOpportunitiesCurrentPage(1)
   }
+
+  const handleOpportunitySelect = useCallback((opportunityId: string, selected: boolean) => {
+    setSelectedOpportunities(previous => {
+      if (selected) {
+        if (previous.includes(opportunityId)) {
+          return previous
+        }
+        return [...previous, opportunityId]
+      }
+      return previous.filter(id => id !== opportunityId)
+    })
+  }, [])
+
+  const handleSelectAllOpportunities = useCallback((selected: boolean) => {
+    if (selected) {
+      setSelectedOpportunities(paginatedOpportunities.map(row => row.id))
+      return
+    }
+    setSelectedOpportunities([])
+  }, [paginatedOpportunities])
 
   const handleGroupsPageChange = (page: number) => {
     setGroupsCurrentPage(page)
@@ -1772,6 +1879,14 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
             onClose={() => setActivityModalOpen(false)}
             onSuccess={handlePostCreate}
           />
+          <ActivityNoteEditModal
+            isOpen={Boolean(editingActivity)}
+            activityId={editingActivity?.id ?? null}
+            accountId={contact.accountId}
+            contactId={contact.id}
+            onClose={handleCloseActivityEditModal}
+            onSuccess={handleActivityEditSuccess}
+          />
           <ContactOpportunityCreateModal
             isOpen={opportunityModalOpen}
             contactName={contactDisplayName}
@@ -1836,26 +1951,6 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
     </div>
   )
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 

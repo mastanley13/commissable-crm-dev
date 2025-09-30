@@ -36,6 +36,12 @@ import { OpportunityEditModal } from "./opportunity-edit-modal"
 import { TwoStageDeleteDialog } from "./two-stage-delete-dialog"
 import { GroupBulkOwnerModal } from "./group-bulk-owner-modal"
 import { GroupBulkStatusModal } from "./group-bulk-status-modal"
+import { ContactBulkActionBar } from "./contact-bulk-action-bar"
+import { ContactBulkOwnerModal } from "./contact-bulk-owner-modal"
+import { ContactBulkStatusModal } from "./contact-bulk-status-modal"
+import { ActivityBulkActionBar } from "./activity-bulk-action-bar"
+import { ActivityBulkOwnerModal } from "./activity-bulk-owner-modal"
+import { ActivityBulkStatusModal } from "./activity-bulk-status-modal"
 
 export interface AccountAddress {
   line1: string
@@ -56,6 +62,10 @@ export interface AccountContactRow {
   emailAddress?: string
   workPhone?: string
   extension?: string
+  owner?: string
+  isPrimary?: boolean
+  isDeleted?: boolean
+  deletedAt?: string | null
 }
 
 export interface AccountOpportunityRow {
@@ -153,6 +163,14 @@ const TABS: { id: TabKey; label: string }[] = [
 const fieldLabelClass = "text-xs font-semibold uppercase tracking-wide text-gray-500"
 const fieldBoxClass = "flex min-h-[24px] items-center justify-between rounded-lg border-2 border-gray-400 bg-white px-2 py-1 text-sm text-gray-900 shadow-sm"
 const CONTACT_TABLE_BASE_COLUMNS: Column[] = [
+  {
+    id: "select",
+    label: "Select",
+    width: 90,
+    minWidth: 80,
+    maxWidth: 120,
+    type: "checkbox",
+  },
   {
     id: "actions",
     label: "Actions",
@@ -392,6 +410,14 @@ const GROUP_TABLE_BASE_COLUMNS: Column[] = [
 
 const ACTIVITY_TABLE_BASE_COLUMNS: Column[] = [
   {
+    id: "select",
+    label: "Select",
+    width: 100,
+    minWidth: 80,
+    maxWidth: 120,
+    type: "checkbox",
+  },
+  {
     id: "actions",
     label: "Actions",
     width: 100,
@@ -597,6 +623,14 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
   const [contactModalOpen, setContactModalOpen] = useState(false)
   const [contactOptions, setContactOptions] = useState<ContactModalOptions | null>(null)
   const [contactOptionsLoading, setContactOptionsLoading] = useState(false)
+  const [contactRows, setContactRows] = useState<AccountContactRow[]>([])
+  const [contactDeleteTargets, setContactDeleteTargets] = useState<AccountContactRow[]>([])
+  const [contactToDelete, setContactToDelete] = useState<AccountContactRow | null>(null)
+  const [showContactDeleteDialog, setShowContactDeleteDialog] = useState(false)
+  const [selectedContacts, setSelectedContacts] = useState<string[]>([])
+  const [contactBulkActionLoading, setContactBulkActionLoading] = useState(false)
+  const [showContactBulkOwnerModal, setShowContactBulkOwnerModal] = useState(false)
+  const [showContactBulkStatusModal, setShowContactBulkStatusModal] = useState(false)
   const [opportunitiesColumnFilters, setOpportunitiesColumnFilters] = useState<ColumnFilter[]>([])
   const [opportunitiesSearchQuery, setOpportunitiesSearchQuery] = useState("")
   const [opportunityRows, setOpportunityRows] = useState<AccountOpportunityRow[]>([])
@@ -630,6 +664,10 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
   const [activityModalOpen, setActivityModalOpen] = useState(false)
   const [activitiesCurrentPage, setActivitiesCurrentPage] = useState(1)
   const [activitiesPageSize, setActivitiesPageSize] = useState(10)
+  const [selectedActivities, setSelectedActivities] = useState<string[]>([])
+  const [activityBulkActionLoading, setActivityBulkActionLoading] = useState(false)
+  const [showActivityBulkOwnerModal, setShowActivityBulkOwnerModal] = useState(false)
+  const [showActivityBulkStatusModal, setShowActivityBulkStatusModal] = useState(false)
   const [contactsPage, setContactsPage] = useState(1)
   const [contactsPageSize, setContactsPageSize] = useState(10)
   const [showContactsColumnSettings, setShowContactsColumnSettings] = useState(false)
@@ -638,6 +676,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
   const [showActivitiesColumnSettings, setShowActivitiesColumnSettings] = useState(false)
   const [editingGroup, setEditingGroup] = useState<AccountGroupRow | null>(null)
   const [showGroupEditModal, setShowGroupEditModal] = useState(false)
+  const accountContacts = account?.contacts
   const accountOpportunities = account?.opportunities
   useEffect(() => {
     fetch("/api/admin/users?limit=100", { cache: "no-store" })
@@ -656,7 +695,17 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
         setOpportunityOwners([])
         showError("Unable to load owners", "Please try again later")
       })
-  }, [showError])
+    }, [showError])
+
+  useEffect(() => {
+    if (Array.isArray(accountContacts)) {
+      setContactRows([...accountContacts])
+      setSelectedContacts(prev => prev.filter(id => accountContacts.some(row => row.id === id)))
+    } else {
+      setContactRows([])
+      setSelectedContacts([])
+    }
+  }, [accountContacts])
 
   useEffect(() => {
     if (Array.isArray(accountOpportunities)) {
@@ -684,6 +733,12 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
     setContactsSearchQuery("")
     setContactModalOpen(false)
     setContactOptions(null)
+    setContactRows([])
+    setSelectedContacts([])
+    setContactDeleteTargets([])
+    setContactToDelete(null)
+    setShowContactDeleteDialog(false)
+    setContactBulkActionLoading(false)
     setOpportunitiesColumnFilters([])
     setOpportunitiesSearchQuery("")
     setOpportunityModalOpen(false)
@@ -710,6 +765,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
     setActivityModalOpen(false)
     setActivitiesCurrentPage(1)
     setActivitiesPageSize(10)
+    setSelectedActivities([])
     setContactsPage(1)
     setContactsPageSize(10)
   }, [account?.id])
@@ -740,13 +796,25 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
     } finally {
       setContactOptionsLoading(false)
     }
-  }, [showError])
+    }, [showError])
+
+  useEffect(() => {
+    if (Array.isArray(accountContacts)) {
+      setContactRows([...accountContacts])
+      setSelectedContacts(prev => prev.filter(id => accountContacts.some(row => row.id === id)))
+    } else {
+      setContactRows([])
+      setSelectedContacts([])
+    }
+  }, [accountContacts])
 
   useEffect(() => {
     if (contactModalOpen && !contactOptions && !contactOptionsLoading) {
       loadContactOptions().catch(error => console.error(error))
     }
   }, [contactModalOpen, contactOptions, contactOptionsLoading, loadContactOptions])
+
+  
 
   const contactsFilterColumns = useMemo(() => [
     { id: "fullName", label: "Full Name" },
@@ -860,10 +928,9 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
 
 
   const filteredContacts = useMemo(() => {
-    if (!account) return []
-    let rows = [...account.contacts]
+    let rows = [...contactRows]
     if (activeFilter === "active") {
-      rows = rows.filter(row => row.active)
+      rows = rows.filter(row => row.active && !row.isDeleted)
     }
     const query = contactsSearchQuery.trim().toLowerCase()
     if (query.length > 0) {
@@ -885,7 +952,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
       rows = applySimpleFilters(rows as unknown as Record<string, unknown>[], contactsColumnFilters) as unknown as AccountContactRow[]
     }
     return rows
-  }, [account, activeFilter, contactsSearchQuery, contactsColumnFilters])
+  }, [contactRows, activeFilter, contactsSearchQuery, contactsColumnFilters])
 
   const handleCreateContact = useCallback(() => {
     if (!account) {
@@ -897,6 +964,385 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
       loadContactOptions().catch(error => console.error(error))
     }
   }, [account, showError, contactOptions, contactOptionsLoading, loadContactOptions])
+
+  const handleContactSelect = useCallback((contactId: string, selected: boolean) => {
+    setSelectedContacts(previous => {
+      if (selected) {
+        if (previous.includes(contactId)) return previous
+        return [...previous, contactId]
+      }
+      return previous.filter(id => id !== contactId)
+    })
+  }, [])
+
+  const handleSelectAllContacts = useCallback((selected: boolean) => {
+    if (selected) {
+      const pageSlice = filteredContacts.slice(0, contactsPageSize)
+      setSelectedContacts(pageSlice.map(row => row.id))
+      return
+    }
+    setSelectedContacts([])
+  }, [filteredContacts, contactsPageSize])
+  const softDeleteContactRequest = useCallback(async (
+    contactId: string,
+    bypassConstraints?: boolean
+  ): Promise<{ success: boolean; constraints?: DeletionConstraint[]; error?: string }> => {
+    try {
+      const url = `/api/contacts/${contactId}?stage=soft${bypassConstraints ? "&bypassConstraints=true" : ""}`
+      const response = await fetch(url, { method: "DELETE" })
+
+      if (!response.ok) {
+        let data: any = null
+        try {
+          data = await response.json()
+        } catch (_) {
+          // Ignore JSON parse errors
+        }
+
+        if (response.status === 409 && Array.isArray(data?.constraints)) {
+          return { success: false, constraints: data.constraints as DeletionConstraint[] }
+        }
+
+        const message = typeof data?.error === "string" && data.error.length > 0
+          ? data.error
+          : "Failed to delete contact"
+
+        return { success: false, error: message }
+      }
+
+      return { success: true }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to delete contact"
+      return { success: false, error: message }
+    }
+  }, [])
+
+  const deactivateContactRequest = useCallback(async (
+    contactId: string
+  ): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const response = await fetch(`/api/contacts/${contactId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isPrimary: false })
+      })
+
+      if (!response.ok) {
+        let data: any = null
+        try {
+          data = await response.json()
+        } catch (_) {
+          // Ignore JSON parse errors
+        }
+
+        const message = typeof data?.error === "string" && data.error.length > 0
+          ? data.error
+          : "Failed to update contact status"
+
+        return { success: false, error: message }
+      }
+
+      return { success: true }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to update contact status"
+      return { success: false, error: message }
+    }
+  }, [])
+
+  const handleContactSoftDelete = useCallback(async (
+    contactId: string,
+    bypassConstraints?: boolean
+  ): Promise<{ success: boolean; constraints?: DeletionConstraint[]; error?: string }> => {
+    setContactBulkActionLoading(true)
+    try {
+      const result = await softDeleteContactRequest(contactId, bypassConstraints)
+
+      if (result.success) {
+        const deletedAt = new Date().toISOString()
+        setContactRows(previous =>
+          previous.map(contact =>
+            contact.id === contactId
+              ? { ...contact, active: false, isPrimary: false, isDeleted: true, deletedAt }
+              : contact
+          )
+        )
+        setSelectedContacts(prev => prev.filter(id => id !== contactId))
+        showSuccess("Contact deleted", "The contact has been soft deleted and can be restored if needed.")
+        onRefresh?.()
+      } else if (!result.constraints && result.error) {
+        showError("Failed to delete contact", result.error)
+      }
+
+      return result
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to delete contact"
+      showError("Failed to delete contact", message)
+      return { success: false, error: message }
+    } finally {
+      setContactBulkActionLoading(false)
+    }
+  }, [softDeleteContactRequest, setContactRows, setSelectedContacts, showError, showSuccess, onRefresh])
+
+  const executeBulkContactSoftDelete = useCallback(async (
+    targets: AccountContactRow[],
+    bypassConstraints?: boolean
+  ): Promise<{ success: boolean; constraints?: DeletionConstraint[]; error?: string }> => {
+    if (!targets || targets.length === 0) {
+      return { success: false, error: "No contacts selected" }
+    }
+
+    setContactBulkActionLoading(true)
+
+    try {
+      const deactivationCandidates = targets.filter(contact => contact.active && !contact.isDeleted)
+      const deletionCandidates = targets.filter(contact => !contact.active || contact.isDeleted)
+
+      const deactivatedIds: string[] = []
+      const deactivationFailures: Array<{ contact: AccountContactRow; message: string }> = []
+
+      if (deactivationCandidates.length > 0) {
+        const outcomes = await Promise.allSettled(
+          deactivationCandidates.map(contact => deactivateContactRequest(contact.id))
+        )
+
+        outcomes.forEach((result, index) => {
+          const contact = deactivationCandidates[index]
+          if (result.status === "fulfilled" && result.value.success) {
+            deactivatedIds.push(contact.id)
+          } else {
+            const message =
+              result.status === "fulfilled"
+                ? result.value.error || "Failed to deactivate contact"
+                : result.reason instanceof Error
+                  ? result.reason.message
+                  : "Failed to deactivate contact"
+
+            deactivationFailures.push({
+              contact,
+              message
+            })
+          }
+        })
+
+        if (deactivatedIds.length > 0) {
+          const deactivatedSet = new Set(deactivatedIds)
+          setContactRows(previous =>
+            previous.map(contact =>
+              deactivatedSet.has(contact.id)
+                ? { ...contact, active: false, isPrimary: false }
+                : contact
+            )
+          )
+
+          showSuccess(
+            `Marked ${deactivatedIds.length} contact${deactivatedIds.length === 1 ? "" : "s"} inactive`,
+            "Inactive contacts can be deleted if needed."
+          )
+        }
+      }
+
+      const deletionSuccessIds: string[] = []
+      const constraintResults: Array<{ contact: AccountContactRow; constraints: DeletionConstraint[] }> = []
+      const deletionFailures: Array<{ contact: AccountContactRow; message: string }> = []
+
+      for (const contact of deletionCandidates) {
+        const result = await softDeleteContactRequest(contact.id, bypassConstraints)
+
+        if (result.success) {
+          deletionSuccessIds.push(contact.id)
+        } else if (result.constraints && result.constraints.length > 0) {
+          constraintResults.push({ contact, constraints: result.constraints })
+        } else {
+          deletionFailures.push({
+            contact,
+            message: result.error || "Failed to delete contact"
+          })
+        }
+      }
+
+      if (deletionSuccessIds.length > 0) {
+        const successSet = new Set(deletionSuccessIds)
+        const deletedTimestamp = new Date().toISOString()
+
+        setContactRows(previous =>
+          previous.map(contact =>
+            successSet.has(contact.id)
+              ? { ...contact, active: false, isPrimary: false, isDeleted: true, deletedAt: deletedTimestamp }
+              : contact
+          )
+        )
+
+        showSuccess(
+          `Soft deleted ${deletionSuccessIds.length} contact${deletionSuccessIds.length === 1 ? "" : "s"}`,
+          "Deleted contacts can be restored later from their detail page."
+        )
+      }
+
+      const failureIds = [
+        ...constraintResults.map(item => item.contact.id),
+        ...deletionFailures.map(item => item.contact.id),
+        ...deactivationFailures.map(item => item.contact.id)
+      ]
+      const failureIdSet = new Set(failureIds)
+
+      setSelectedContacts(prev => prev.filter(id => failureIdSet.has(id)))
+      setContactDeleteTargets(targets.filter(contact => failureIdSet.has(contact.id)))
+
+      if (constraintResults.length > 0) {
+        const aggregatedConstraints = constraintResults.flatMap(item =>
+          item.constraints.map(constraint => ({
+            ...constraint,
+            message: `${item.contact.fullName || "Contact"}: ${constraint.message}`
+          }))
+        )
+
+        return { success: false, constraints: aggregatedConstraints }
+      }
+
+      if (deletionFailures.length > 0 || deactivationFailures.length > 0) {
+        const failureMessage = [
+          ...deletionFailures.map(item => `${item.contact.fullName || "Contact"}: ${item.message}`),
+          ...deactivationFailures.map(item => `${item.contact.fullName || "Contact"}: ${item.message}`)
+        ].join("; ")
+
+        if (failureMessage.length > 0) {
+          showError("Bulk delete failed", failureMessage)
+        }
+
+        return { success: false, error: failureMessage }
+      }
+
+      if (deactivatedIds.length > 0 || deletionSuccessIds.length > 0) {
+        onRefresh?.()
+      }
+
+      return { success: deactivatedIds.length > 0 || deletionSuccessIds.length > 0 }
+    } catch (error) {
+      console.error("Bulk contact soft delete failed", error)
+      const message = error instanceof Error ? error.message : "Unable to delete selected contacts."
+      showError("Bulk delete failed", message)
+      return { success: false, error: message }
+    } finally {
+      setContactBulkActionLoading(false)
+    }
+  }, [deactivateContactRequest, softDeleteContactRequest, setContactRows, setSelectedContacts, setContactDeleteTargets, showError, showSuccess, onRefresh])
+
+  const handleContactPermanentDelete = useCallback(async (
+    contactId: string
+  ): Promise<{ success: boolean; error?: string }> => {
+    setContactBulkActionLoading(true)
+    try {
+      const response = await fetch(`/api/contacts/${contactId}?stage=permanent`, { method: "DELETE" })
+
+      if (!response.ok) {
+        let data: any = null
+        try {
+          data = await response.json()
+        } catch (_) {
+          // Ignore JSON parse errors
+        }
+
+        const message = typeof data?.error === "string" && data?.error.length > 0
+          ? data.error
+          : "Failed to permanently delete contact"
+
+        showError("Permanent delete failed", message)
+        return { success: false, error: message }
+      }
+
+      setContactRows(previous => previous.filter(contact => contact.id !== contactId))
+      setSelectedContacts(previous => previous.filter(id => id !== contactId))
+      showSuccess("Contact permanently deleted", "The contact has been removed from the system.")
+      onRefresh?.()
+
+      return { success: true }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to delete contact"
+      showError("Permanent delete failed", message)
+      return { success: false, error: message }
+    } finally {
+      setContactBulkActionLoading(false)
+    }
+  }, [showError, showSuccess, setContactRows, setSelectedContacts, onRefresh])
+
+  const handleContactRestore = useCallback(async (
+    contactId: string
+  ): Promise<{ success: boolean; error?: string }> => {
+    setContactBulkActionLoading(true)
+    try {
+      const response = await fetch(`/api/contacts/${contactId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "restore" })
+      })
+
+      const payload = await response.json().catch(() => null)
+
+      if (!response.ok) {
+        const message = typeof payload?.error === "string" && payload.error.length > 0
+          ? payload.error
+          : "Failed to restore contact"
+
+        showError("Restore failed", message)
+        return { success: false, error: message }
+      }
+
+      const restoredContact = payload?.data ?? null
+
+      setContactRows(previous =>
+        previous.map(contact =>
+          contact.id === contactId
+            ? restoredContact
+              ? { ...contact, ...restoredContact, isDeleted: false, deletedAt: null, active: restoredContact.active ?? true }
+              : { ...contact, isDeleted: false, deletedAt: null, active: true }
+            : contact
+        )
+      )
+      showSuccess("Contact restored", "The contact has been restored and reactivated.")
+      onRefresh?.()
+
+      return { success: true }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to restore contact"
+      showError("Restore failed", message)
+      return { success: false, error: message }
+    } finally {
+      setContactBulkActionLoading(false)
+    }
+  }, [showError, showSuccess, setContactRows, onRefresh])
+
+  const requestContactDelete = useCallback((contact: AccountContactRow) => {
+    setContactDeleteTargets([])
+    setContactToDelete(contact)
+    setShowContactDeleteDialog(true)
+  }, [])
+
+  const openContactBulkDeleteDialog = useCallback(() => {
+    if (selectedContacts.length === 0) {
+      showError("No contacts selected", "Select at least one contact to delete.")
+      return
+    }
+
+    const targets = filteredContacts.filter(row => selectedContacts.includes(row.id))
+
+    if (targets.length === 0) {
+      showError(
+        "Contacts unavailable",
+        "Unable to locate the selected contacts. Refresh the page and try again."
+      )
+      return
+    }
+
+    setContactDeleteTargets(targets)
+    setContactToDelete(null)
+    setShowContactDeleteDialog(true)
+  }, [filteredContacts, selectedContacts, showError])
+
+  const closeContactDeleteDialog = useCallback(() => {
+    setShowContactDeleteDialog(false)
+    setContactToDelete(null)
+    setContactDeleteTargets([])
+  }, [])
 
   const handleCreateOpportunity = useCallback(() => {
     if (!account) {
@@ -1696,6 +2142,453 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
     }
   }, [selectedOpportunities, opportunityRows, onRefresh, showError, showSuccess])
 
+  const handleBulkGroupOwnerUpdate = useCallback(async (ownerId: string | null) => {
+    if (selectedGroups.length === 0) {
+      showError("No groups selected", "Select at least one group to update.")
+      return
+    }
+
+    setGroupBulkActionLoading(true)
+
+    try {
+      const outcomes = await Promise.allSettled(
+        selectedGroups.map(async (groupId) => {
+          const response = await fetch(`/api/groups/${groupId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ownerId })
+          })
+
+          if (!response.ok) {
+            const payload = await response.json().catch(() => null)
+            throw new Error(payload?.error || "Failed to update group owner")
+          }
+
+          return groupId
+        })
+      )
+
+      const successes: string[] = []
+      const failures: Array<{ groupId: string; message: string }> = []
+
+      outcomes.forEach((result, index) => {
+        const groupId = selectedGroups[index]
+        if (result.status === "fulfilled") {
+          successes.push(groupId)
+        } else {
+          const message =
+            result.reason instanceof Error ? result.reason.message : "Unexpected error"
+          failures.push({ groupId, message })
+        }
+      })
+
+      if (successes.length > 0) {
+        const successSet = new Set(successes)
+        showSuccess(
+          `Updated ${successes.length} group${successes.length === 1 ? "" : "s"}`,
+          `New owner assigned successfully.`
+        )
+      }
+
+      if (failures.length > 0) {
+        const nameMap = new Map(
+          account?.groups?.map(group => [group.id, group.groupName || "Group"]) || []
+        )
+        const detail = failures
+          .map(({ groupId, message }) => `${nameMap.get(groupId) || "Group"}: ${message}`)
+          .join("; ")
+        showError("Failed to update owner for some groups", detail)
+      }
+
+      setSelectedGroups(failures.map(item => item.groupId))
+      if (failures.length === 0) {
+        setShowGroupBulkOwnerModal(false)
+      }
+      onRefresh?.()
+    } catch (error) {
+      console.error("Bulk group owner update failed", error)
+      showError(
+        "Bulk group owner update failed",
+        error instanceof Error ? error.message : "Unable to update group owners."
+      )
+    } finally {
+      setGroupBulkActionLoading(false)
+    }
+  }, [selectedGroups, account?.groups, onRefresh, showError, showSuccess])
+
+  const handleBulkGroupStatusUpdate = useCallback(async (isActive: boolean) => {
+    if (selectedGroups.length === 0) {
+      showError("No groups selected", "Select at least one group to update.")
+      return
+    }
+
+    setGroupBulkActionLoading(true)
+
+    try {
+      const outcomes = await Promise.allSettled(
+        selectedGroups.map(async (groupId) => {
+          const response = await fetch(`/api/groups/${groupId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ isActive })
+          })
+
+          if (!response.ok) {
+            const payload = await response.json().catch(() => null)
+            throw new Error(payload?.error || "Failed to update group status")
+          }
+
+          return groupId
+        })
+      )
+
+      const successes: string[] = []
+      const failures: Array<{ groupId: string; message: string }> = []
+
+      outcomes.forEach((result, index) => {
+        const groupId = selectedGroups[index]
+        if (result.status === "fulfilled") {
+          successes.push(groupId)
+        } else {
+          const message =
+            result.reason instanceof Error ? result.reason.message : "Unexpected error"
+          failures.push({ groupId, message })
+        }
+      })
+
+      if (successes.length > 0) {
+        const successSet = new Set(successes)
+        const label = isActive ? "active" : "inactive"
+        showSuccess(
+          `Marked ${successes.length} group${successes.length === 1 ? "" : "s"} as ${label}`,
+          "The status has been updated successfully."
+        )
+      }
+
+      if (failures.length > 0) {
+        const nameMap = new Map(
+          account?.groups?.map(group => [group.id, group.groupName || "Group"]) || []
+        )
+        const detail = failures
+          .map(({ groupId, message }) => `${nameMap.get(groupId) || "Group"}: ${message}`)
+          .join("; ")
+        showError("Failed to update status for some groups", detail)
+      }
+
+      setSelectedGroups(failures.map(item => item.groupId))
+      if (failures.length === 0) {
+        setShowGroupBulkStatusModal(false)
+      }
+      onRefresh?.()
+    } catch (error) {
+      console.error("Bulk group status update failed", error)
+      showError(
+        "Bulk group status update failed",
+        error instanceof Error ? error.message : "Unable to update group status."
+      )
+    } finally {
+      setGroupBulkActionLoading(false)
+    }
+  }, [selectedGroups, account?.groups, onRefresh, showError, showSuccess])
+
+  const handleBulkActivityOwnerUpdate = useCallback(async (ownerId: string | null) => {
+    if (selectedActivities.length === 0) {
+      showError("No activities selected", "Select at least one activity to update.")
+      return
+    }
+
+    setActivityBulkActionLoading(true)
+
+    try {
+      const outcomes = await Promise.allSettled(
+        selectedActivities.map(async (activityId) => {
+          const response = await fetch(`/api/activities/${activityId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ assigneeId: ownerId })
+          })
+
+          if (!response.ok) {
+            const payload = await response.json().catch(() => null)
+            throw new Error(payload?.error || "Failed to update activity owner")
+          }
+
+          return activityId
+        })
+      )
+
+      const successes: string[] = []
+      const failures: Array<{ activityId: string; message: string }> = []
+
+      outcomes.forEach((result, index) => {
+        const activityId = selectedActivities[index]
+        if (result.status === "fulfilled") {
+          successes.push(activityId)
+        } else {
+          const message =
+            result.reason instanceof Error ? result.reason.message : "Unexpected error"
+          failures.push({ activityId, message })
+        }
+      })
+
+      if (successes.length > 0) {
+        const successSet = new Set(successes)
+        showSuccess(
+          `Updated ${successes.length} activit${successes.length === 1 ? "y" : "ies"}`,
+          `New owner assigned successfully.`
+        )
+      }
+
+      if (failures.length > 0) {
+        const nameMap = new Map(
+          account?.activities?.map(activity => [activity.id, activity.description || "Activity"]) || []
+        )
+        const detail = failures
+          .map(({ activityId, message }) => `${nameMap.get(activityId) || "Activity"}: ${message}`)
+          .join("; ")
+        showError("Failed to update owner for some activities", detail)
+      }
+
+      setSelectedActivities(failures.map(item => item.activityId))
+      if (failures.length === 0) {
+        setShowActivityBulkOwnerModal(false)
+      }
+      onRefresh?.()
+    } catch (error) {
+      console.error("Bulk activity owner update failed", error)
+      showError(
+        "Bulk activity owner update failed",
+        error instanceof Error ? error.message : "Unable to update activity owners."
+      )
+    } finally {
+      setActivityBulkActionLoading(false)
+    }
+  }, [selectedActivities, account?.activities, onRefresh, showError, showSuccess])
+
+  const handleBulkActivityStatusUpdate = useCallback(async (isActive: boolean) => {
+    if (selectedActivities.length === 0) {
+      showError("No activities selected", "Select at least one activity to update.")
+      return
+    }
+
+    setActivityBulkActionLoading(true)
+
+    try {
+      const outcomes = await Promise.allSettled(
+        selectedActivities.map(async (activityId) => {
+          const response = await fetch(`/api/activities/${activityId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ status: isActive ? "Open" : "Completed" })
+          })
+
+          if (!response.ok) {
+            const payload = await response.json().catch(() => null)
+            throw new Error(payload?.error || "Failed to update activity status")
+          }
+
+          return activityId
+        })
+      )
+
+      const successes: string[] = []
+      const failures: Array<{ activityId: string; message: string }> = []
+
+      outcomes.forEach((result, index) => {
+        const activityId = selectedActivities[index]
+        if (result.status === "fulfilled") {
+          successes.push(activityId)
+        } else {
+          const message =
+            result.reason instanceof Error ? result.reason.message : "Unexpected error"
+          failures.push({ activityId, message })
+        }
+      })
+
+      if (successes.length > 0) {
+        const successSet = new Set(successes)
+        const label = isActive ? "open" : "completed"
+        showSuccess(
+          `Marked ${successes.length} activit${successes.length === 1 ? "y" : "ies"} as ${label}`,
+          "The status has been updated successfully."
+        )
+      }
+
+      if (failures.length > 0) {
+        const nameMap = new Map(
+          account?.activities?.map(activity => [activity.id, activity.description || "Activity"]) || []
+        )
+        const detail = failures
+          .map(({ activityId, message }) => `${nameMap.get(activityId) || "Activity"}: ${message}`)
+          .join("; ")
+        showError("Failed to update status for some activities", detail)
+      }
+
+      setSelectedActivities(failures.map(item => item.activityId))
+      if (failures.length === 0) {
+        setShowActivityBulkStatusModal(false)
+      }
+      onRefresh?.()
+    } catch (error) {
+      console.error("Bulk activity status update failed", error)
+      showError(
+        "Bulk activity status update failed",
+        error instanceof Error ? error.message : "Unable to update activity status."
+      )
+    } finally {
+      setActivityBulkActionLoading(false)
+    }
+  }, [selectedActivities, account?.activities, onRefresh, showError, showSuccess])
+
+  const handleBulkContactOwnerUpdate = useCallback(async (ownerId: string | null) => {
+    if (selectedContacts.length === 0) {
+      showError("No contacts selected", "Select at least one contact to update.")
+      return
+    }
+
+    setContactBulkActionLoading(true)
+
+    try {
+      const outcomes = await Promise.allSettled(
+        selectedContacts.map(async (contactId) => {
+          const response = await fetch(`/api/contacts/${contactId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ownerId })
+          })
+
+          if (!response.ok) {
+            const payload = await response.json().catch(() => null)
+            throw new Error(payload?.error || "Failed to update contact owner")
+          }
+
+          return contactId
+        })
+      )
+
+      const successes: string[] = []
+      const failures: Array<{ contactId: string; message: string }> = []
+
+      outcomes.forEach((result, index) => {
+        const contactId = selectedContacts[index]
+        if (result.status === "fulfilled") {
+          successes.push(contactId)
+        } else {
+          const message =
+            result.reason instanceof Error ? result.reason.message : "Unexpected error"
+          failures.push({ contactId, message })
+        }
+      })
+
+      if (successes.length > 0) {
+        const successSet = new Set(successes)
+        showSuccess(
+          `Updated ${successes.length} contact${successes.length === 1 ? "" : "s"}`,
+          `New owner assigned successfully.`
+        )
+      }
+
+      if (failures.length > 0) {
+        const nameMap = new Map(
+          contactRows.map(contact => [contact.id, contact.fullName || "Contact"])
+        )
+        const detail = failures
+          .map(({ contactId, message }) => `${nameMap.get(contactId) || "Contact"}: ${message}`)
+          .join("; ")
+        showError("Failed to update owner for some contacts", detail)
+      }
+
+      setSelectedContacts(failures.map(item => item.contactId))
+      if (failures.length === 0) {
+        setShowContactBulkOwnerModal(false)
+      }
+      onRefresh?.()
+    } catch (error) {
+      console.error("Bulk contact owner update failed", error)
+      showError(
+        "Bulk contact owner update failed",
+        error instanceof Error ? error.message : "Unable to update contact owners."
+      )
+    } finally {
+      setContactBulkActionLoading(false)
+    }
+  }, [selectedContacts, contactRows, onRefresh, showError, showSuccess])
+
+  const handleBulkContactStatusUpdate = useCallback(async (isActive: boolean) => {
+    if (selectedContacts.length === 0) {
+      showError("No contacts selected", "Select at least one contact to update.")
+      return
+    }
+
+    setContactBulkActionLoading(true)
+
+    try {
+      const outcomes = await Promise.allSettled(
+        selectedContacts.map(async (contactId) => {
+          const response = await fetch(`/api/contacts/${contactId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ active: isActive })
+          })
+
+          if (!response.ok) {
+            const payload = await response.json().catch(() => null)
+            throw new Error(payload?.error || "Failed to update contact status")
+          }
+
+          return contactId
+        })
+      )
+
+      const successes: string[] = []
+      const failures: Array<{ contactId: string; message: string }> = []
+
+      outcomes.forEach((result, index) => {
+        const contactId = selectedContacts[index]
+        if (result.status === "fulfilled") {
+          successes.push(contactId)
+        } else {
+          const message =
+            result.reason instanceof Error ? result.reason.message : "Unexpected error"
+          failures.push({ contactId, message })
+        }
+      })
+
+      if (successes.length > 0) {
+        const successSet = new Set(successes)
+        const label = isActive ? "active" : "inactive"
+        showSuccess(
+          `Marked ${successes.length} contact${successes.length === 1 ? "" : "s"} as ${label}`,
+          "The status has been updated successfully."
+        )
+      }
+
+      if (failures.length > 0) {
+        const nameMap = new Map(
+          contactRows.map(contact => [contact.id, contact.fullName || "Contact"])
+        )
+        const detail = failures
+          .map(({ contactId, message }) => `${nameMap.get(contactId) || "Contact"}: ${message}`)
+          .join("; ")
+        showError("Failed to update status for some contacts", detail)
+      }
+
+      setSelectedContacts(failures.map(item => item.contactId))
+      if (failures.length === 0) {
+        setShowContactBulkStatusModal(false)
+      }
+      onRefresh?.()
+    } catch (error) {
+      console.error("Bulk contact status update failed", error)
+      showError(
+        "Bulk contact status update failed",
+        error instanceof Error ? error.message : "Unable to update contact status."
+      )
+    } finally {
+      setContactBulkActionLoading(false)
+    }
+  }, [selectedContacts, contactRows, onRefresh, showError, showSuccess])
+
   const handleOpportunityEdit = useCallback((opportunity: AccountOpportunityRow) => {
     setEditingOpportunity(opportunity)
   }, [])
@@ -1723,10 +2616,14 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
               >
                 <Edit className="h-4 w-4" />
               </button>
-              <button
+                            <button
                 type="button"
                 className="text-red-500 transition hover:text-red-700"
                 aria-label="Delete contact"
+                onClick={event => {
+                  event.stopPropagation()
+                  requestContactDelete(row)
+                }}
               >
                 <Trash2 className="h-4 w-4" />
               </button>
@@ -2127,14 +3024,25 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
     setActivitiesCurrentPage(1)
   }
 
-  const activityTableColumns = useMemo(() => {
-    return activityPreferenceColumns.map(column => {
-      if (column.id === "activityDate") {
-        return { ...column, render: (value?: string | Date | null) => formatDate(value) }
+  const handleActivitySelect = useCallback((activityId: string, selected: boolean) => {
+    setSelectedActivities(previous => {
+      if (selected) {
+        if (previous.includes(activityId)) return previous
+        return [...previous, activityId]
       }
-      return column
+      return previous.filter(id => id !== activityId)
     })
-  }, [activityPreferenceColumns])
+  }, [])
+
+  const handleSelectAllActivities = useCallback((selected: boolean) => {
+    if (selected) {
+      setSelectedActivities(paginatedActivities.map(row => row.id))
+      return
+    }
+    setSelectedActivities([])
+  }, [paginatedActivities])
+
+  
 
   const hasAccount = Boolean(account)
 
@@ -2441,6 +3349,42 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                         showCreateButton={Boolean(account)}
                         searchPlaceholder="Search contacts"
                       />
+                      <ContactBulkActionBar
+                        count={selectedContacts.length}
+                        disabled={contactBulkActionLoading}
+                        onSoftDelete={openContactBulkDeleteDialog}
+                        onExportCsv={() => {
+                          if (selectedContacts.length === 0) {
+                            showError("No contacts selected", "Select at least one contact to export.")
+                            return
+                          }
+                          const rows = filteredContacts.filter(row => selectedContacts.includes(row.id))
+                          const headers = ["Suffix","Full Name","Job Title","Contact Type","Email","Work Phone","Extension","Active"]
+                          const escapeCsv = (value: string | null | undefined) => {
+                            if (value === null || value === undefined) return ""
+                            const s = String(value)
+                            if (s.includes("\"") || s.includes(",") || s.includes("\n")) return `"${s.replace(/\"/g,'""')}"`
+                            return s
+                          }
+                          const lines = [
+                            headers.join(","),
+                            ...rows.map(r => [r.suffix, r.fullName, r.jobTitle, r.contactType, r.emailAddress, r.workPhone, r.extension, r.active ? "Active" : "Inactive"].map(escapeCsv).join(","))
+                          ]
+                          const blob = new Blob([lines.join("\r\n")], { type: "text/csv;charset=utf-8;" })
+                          const url = window.URL.createObjectURL(blob)
+                          const a = document.createElement("a")
+                          const ts = new Date().toISOString().replace(/[:T]/g, "-").split(".")[0]
+                          a.href = url
+                          a.download = `contacts-export-${ts}.csv`
+                          document.body.appendChild(a)
+                          a.click()
+                          document.body.removeChild(a)
+                          window.URL.revokeObjectURL(url)
+                          showSuccess(`Exported ${rows.length} contact${rows.length === 1 ? "" : "s"}`, "Check your downloads for the CSV file.")
+                        }}
+                        onChangeOwner={() => setShowContactBulkOwnerModal(true)}
+                        onUpdateStatus={() => setShowContactBulkStatusModal(true)}
+                      />
                       <DynamicTable
                         columns={contactTableColumns}
                         data={filteredContacts.slice(0, contactsPageSize)}
@@ -2450,6 +3394,9 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                         pagination={{ page: contactsPage, pageSize: contactsPageSize, total: filteredContacts.length, totalPages: Math.max(Math.ceil(filteredContacts.length / contactsPageSize), 1) }}
                         onPageChange={(p) => setContactsPage(p)}
                         onPageSizeChange={(s) => { setContactsPageSize(s); setContactsPage(1) }}
+                        selectedItems={selectedContacts}
+                        onItemSelect={handleContactSelect}
+                        onSelectAll={handleSelectAllContacts}
                         autoSizeColumns={true}
                         fillContainerWidth
                         alwaysShowPagination
@@ -2569,6 +3516,62 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                         showCreateButton={Boolean(account)}
                         searchPlaceholder="Search activities"
                       />
+                      <ActivityBulkActionBar
+                        count={selectedActivities.length}
+                        disabled={activityBulkActionLoading}
+                        onSoftDelete={openContactBulkDeleteDialog}
+                        onExportCsv={() => {
+                          if (selectedActivities.length === 0) {
+                            showError("No activities selected", "Select at least one activity to export.")
+                            return
+                          }
+                          const rows = paginatedActivities.filter(row => selectedActivities.includes(row.id))
+                          if (rows.length === 0) {
+                            showError("Activities unavailable", "Unable to locate the selected activities. Refresh and try again.")
+                            return
+                          }
+                          const headers = [
+                            "Activity Date",
+                            "Activity Type",
+                            "Description",
+                            "Account Name",
+                            "File Name",
+                            "Created By",
+                            "Active"
+                          ]
+                          const escapeCsv = (value: string | null | undefined) => {
+                            if (value === null || value === undefined) return ""
+                            const s = String(value)
+                            if (s.includes("\"") || s.includes(",") || s.includes("\n")) return `"${s.replace(/\"/g, '""')}"`
+                            return s
+                          }
+                          const lines = [
+                            headers.join(","),
+                            ...rows.map(row => [
+                              row.activityDate ? (row.activityDate instanceof Date ? row.activityDate.toLocaleDateString() : new Date(row.activityDate).toLocaleDateString()) : "",
+                              row.activityType,
+                              row.description,
+                              row.accountName,
+                              row.fileName,
+                              row.createdBy,
+                              row.active ? "Active" : "Inactive"
+                            ].map(escapeCsv).join(","))
+                          ]
+                          const blob = new Blob([lines.join("\r\n")], { type: "text/csv;charset=utf-8;" })
+                          const url = window.URL.createObjectURL(blob)
+                          const link = document.createElement("a")
+                          const timestamp = new Date().toISOString().replace(/[:T]/g, "-").split(".")[0]
+                          link.href = url
+                          link.download = `activities-export-${timestamp}.csv`
+                          document.body.appendChild(link)
+                          link.click()
+                          document.body.removeChild(link)
+                          window.URL.revokeObjectURL(url)
+                          showSuccess(`Exported ${rows.length} activity${rows.length === 1 ? "" : "ies"}`, "Check your downloads for the CSV file.")
+                        }}
+                        onChangeOwner={() => setShowActivityBulkOwnerModal(true)}
+                        onUpdateStatus={() => setShowActivityBulkStatusModal(true)}
+                      />
                       <DynamicTable
                         columns={activityTableColumns}
                         data={paginatedActivities}
@@ -2578,6 +3581,9 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                         pagination={activitiesPagination}
                         onPageChange={handleActivitiesPageChange}
                         onPageSizeChange={handleActivitiesPageSizeChange}
+                        selectedItems={selectedActivities}
+                        onItemSelect={handleActivitySelect}
+                        onSelectAll={handleSelectAllActivities}
                         autoSizeColumns={true}
                         fillContainerWidth
                         alwaysShowPagination
@@ -2597,6 +3603,64 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
           onSuccess={handleContactCreated}
           options={(contactOptions ?? undefined) as any}
           defaultAccountId={account?.id}
+        />
+        <ContactBulkOwnerModal
+          isOpen={showContactBulkOwnerModal}
+          owners={(contactOptions?.owners ?? []).map(o => ({ value: o.value, label: o.label }))}
+          onClose={() => setShowContactBulkOwnerModal(false)}
+          onSubmit={handleBulkContactOwnerUpdate}
+          isSubmitting={contactBulkActionLoading}
+        />
+        <ContactBulkStatusModal
+          isOpen={showContactBulkStatusModal}
+          onClose={() => setShowContactBulkStatusModal(false)}
+          onSubmit={handleBulkContactStatusUpdate}
+          isSubmitting={contactBulkActionLoading}
+        />
+        <TwoStageDeleteDialog
+          isOpen={showContactDeleteDialog}
+          onClose={closeContactDeleteDialog}
+          entity="Contact"
+          entityName={
+            contactDeleteTargets.length > 0
+              ? `${contactDeleteTargets.length} contact${contactDeleteTargets.length === 1 ? "" : "s"}`
+              : contactToDelete?.fullName || "Unknown Contact"
+          }
+          entityId={
+            contactDeleteTargets.length > 0
+              ? contactDeleteTargets[0]?.id || ""
+              : contactToDelete?.id || ""
+          }
+          multipleEntities={
+            contactDeleteTargets.length > 0
+              ? contactDeleteTargets.map(contact => ({
+                  id: contact.id,
+                  name: contact.fullName || "Contact",
+                  subtitle: contact.emailAddress
+                }))
+              : undefined
+          }
+          entityLabelPlural="Contacts"
+          isDeleted={
+            contactDeleteTargets.length > 0
+              ? contactDeleteTargets.every(contact => contact.isDeleted)
+              : contactToDelete?.isDeleted || false
+          }
+          onSoftDelete={handleContactSoftDelete}
+          onBulkSoftDelete={
+            contactDeleteTargets.length > 0
+              ? (entities, bypassConstraints) =>
+                  executeBulkContactSoftDelete(
+                    contactDeleteTargets.filter(contact =>
+                      entities.some(entity => entity.id === contact.id)
+                    ),
+                    bypassConstraints
+                  )
+              : undefined
+          }
+          onPermanentDelete={handleContactPermanentDelete}
+          onRestore={handleContactRestore}
+          userCanPermanentDelete={true}
         />
         {account && (
           <OpportunityCreateModal
@@ -2634,6 +3698,20 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
           />
         )}
 
+        <ActivityBulkOwnerModal
+          isOpen={showActivityBulkOwnerModal}
+          owners={opportunityOwners}
+          onClose={() => setShowActivityBulkOwnerModal(false)}
+          onSubmit={handleBulkActivityOwnerUpdate}
+          isSubmitting={activityBulkActionLoading}
+        />
+        <ActivityBulkStatusModal
+          isOpen={showActivityBulkStatusModal}
+          onClose={() => setShowActivityBulkStatusModal(false)}
+          onSubmit={handleBulkActivityStatusUpdate}
+          isSubmitting={activityBulkActionLoading}
+        />
+
         <OpportunityBulkOwnerModal
           isOpen={showOpportunityBulkOwnerModal}
           owners={opportunityOwners}
@@ -2657,64 +3735,13 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
           isOpen={showGroupBulkOwnerModal}
           owners={opportunityOwners}
           onClose={() => setShowGroupBulkOwnerModal(false)}
-          onSubmit={async (ownerId) => {
-            if (selectedGroups.length === 0) return
-            setGroupBulkActionLoading(true)
-            try {
-              await Promise.all(
-                selectedGroups.map(async id => {
-                  const res = await fetch(`/api/groups/${id}`, {
-                    method: "PATCH",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ ownerId })
-                  })
-                  if (!res.ok) {
-                    const payload = await res.json().catch(() => null)
-                    throw new Error(payload?.error || "Failed to update owner")
-                  }
-                })
-              )
-              setShowGroupBulkOwnerModal(false)
-              onRefresh?.()
-            } catch (error) {
-              console.error(error)
-              // surface error toast via shared hook
-              showError("Bulk owner update failed", error instanceof Error ? error.message : "Unexpected error")
-            } finally {
-              setGroupBulkActionLoading(false)
-            }
-          }}
+          onSubmit={handleBulkGroupOwnerUpdate}
           isSubmitting={groupBulkActionLoading}
         />
         <GroupBulkStatusModal
           isOpen={showGroupBulkStatusModal}
           onClose={() => setShowGroupBulkStatusModal(false)}
-          onSubmit={async (isActive: boolean) => {
-            if (selectedGroups.length === 0) return
-            setGroupBulkActionLoading(true)
-            try {
-              await Promise.all(
-                selectedGroups.map(async id => {
-                  const res = await fetch(`/api/groups/${id}`, {
-                    method: "PATCH",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ isActive })
-                  })
-                  if (!res.ok) {
-                    const payload = await res.json().catch(() => null)
-                    throw new Error(payload?.error || "Failed to update status")
-                  }
-                })
-              )
-              setShowGroupBulkStatusModal(false)
-              onRefresh?.()
-            } catch (error) {
-              console.error(error)
-              showError("Bulk status update failed", error instanceof Error ? error.message : "Unexpected error")
-            } finally {
-              setGroupBulkActionLoading(false)
-            }
-          }}
+          onSubmit={handleBulkGroupStatusUpdate}
           isSubmitting={groupBulkActionLoading}
         />
         <TwoStageDeleteDialog
@@ -2921,24 +3948,3 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
     </div>
   )
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
