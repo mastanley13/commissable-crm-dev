@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { OpportunityStatus } from "@prisma/client";
 
 export interface CommissionImpact {
   totalAccounts: number;
@@ -45,7 +46,7 @@ export async function calculateCommissionImpact(
   const opportunities = await prisma.opportunity.findMany({
     where: {
       accountId: { in: accountIds },
-      status: { in: ['Open', 'Won'] },
+      status: { in: [OpportunityStatus.Open, OpportunityStatus.Won] },
       estimatedCloseDate: { gte: effectiveDateObj }
     },
     include: {
@@ -184,7 +185,7 @@ export async function calculateCommissionImpactFromOpportunities(
     where: {
       accountId: { in: accountIds },
       estimatedCloseDate: { gte: effectiveDate },
-      status: { in: ['Open', 'Won'] },
+      status: { in: [OpportunityStatus.Open, OpportunityStatus.Won] },
       tenantId
     }
   });
