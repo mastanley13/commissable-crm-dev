@@ -1927,44 +1927,6 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
   return (
     <div className="px-4 py-4 sm:px-6 lg:px-8">
       <div className="mx-auto w-full max-w-none">
-        <div className="flex items-start justify-between gap-4 border-b border-gray-200 pb-4 mb-4">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-primary-600">Contact Detail</p>
-              <h2 className="mt-1 text-2xl font-semibold text-gray-900">
-                {contact ? `${contact.firstName} ${contact.lastName}` : "Contact information"}
-              </h2>
-              <p className="mt-1 text-sm text-gray-500">{contact?.accountName ?? ""}</p>
-              <p className="mt-1 text-sm text-gray-500">{contact?.jobTitle || (!loading && hasContact ? "No job title" : "")}</p>
-            </div>
-            <div className="flex flex-wrap items-center gap-3">
-              {contact && (
-                <button
-                  onClick={handleDelete}
-                  className={`rounded-md px-4 py-2 text-sm font-medium transition ${
-                    isDeleted
-                      ? "border border-gray-300 text-gray-600 hover:border-gray-400 hover:text-gray-700"
-                      : "border border-red-300 text-red-600 hover:border-red-400 hover:text-red-700"
-                  }`}
-                >
-                  {isDeleted ? "Manage" : "Delete"}
-                </button>
-              )}
-              {onEdit && contact && !isDeleted && (
-                <button
-                  onClick={() => onEdit(contact)}
-                  className="rounded-md bg-primary-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-primary-700"
-                >
-                  Update
-                </button>
-              )}
-              <button
-                onClick={handleBack}
-                className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-600 hover:border-primary-400 hover:text-primary-600"
-              >
-                Back
-              </button>
-            </div>
-        </div>
 
         <div>
             {loading ? (
@@ -1979,19 +1941,47 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
             ) : contact ? (
               <div className="space-y-3">
                 <div className="rounded-2xl border-2 border-gray-400 bg-gray-50 p-3 shadow-sm">
-                  {/* Header with expand/collapse toggle */}
+                  {/* Header with title and controls */}
                   <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-3">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-primary-600">Contact Detail</p>
                       <h3 className="text-base font-medium text-gray-900">Contact Information</h3>
                     </div>
-                    <button
-                      onClick={toggleDetails}
-                      className="flex items-center gap-1 rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-200 hover:text-gray-800 transition-colors"
-                      title={detailsExpanded ? "Minimize details" : "Expand details"}
-                    >
-                      {detailsExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-                      {detailsExpanded ? "Minimize" : "Expand"}
-                    </button>
+                    <div className="flex items-center gap-2">
+                      {contact && (
+                        <button
+                          onClick={handleDelete}
+                          className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
+                            isDeleted
+                              ? "border border-gray-300 text-gray-600 hover:border-gray-400 hover:text-gray-700"
+                              : "border border-red-300 text-red-600 hover:border-red-400 hover:text-red-700"
+                          }`}
+                        >
+                          {isDeleted ? "Manage" : "Delete"}
+                        </button>
+                      )}
+                      {onEdit && contact && !isDeleted && (
+                        <button
+                          onClick={() => onEdit(contact)}
+                          className="rounded-md bg-primary-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-primary-700"
+                        >
+                          Update
+                        </button>
+                      )}
+                      <button
+                        onClick={handleBack}
+                        className="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-600 hover:border-primary-400 hover:text-primary-600"
+                      >
+                        Back
+                      </button>
+                      <button
+                        onClick={toggleDetails}
+                        className="flex items-center gap-1 rounded-md bg-gray-200 px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-300 hover:text-gray-800 transition-colors"
+                        title={detailsExpanded ? "Minimize details" : "Expand details"}
+                      >
+                        {detailsExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                      </button>
+                    </div>
                   </div>
 
                   {!detailsExpanded ? (

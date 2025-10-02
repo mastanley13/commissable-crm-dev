@@ -160,8 +160,8 @@ const TABS: { id: TabKey; label: string }[] = [
   { id: "activities", label: "Activities & Notes" }
 ]
 
-const fieldLabelClass = "text-xs font-semibold uppercase tracking-wide text-gray-500"
-const fieldBoxClass = "flex min-h-[24px] items-center justify-between rounded-lg border-2 border-gray-400 bg-white px-2 py-1 text-sm text-gray-900 shadow-sm"
+const fieldLabelClass = "text-xs font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap"
+const fieldBoxClass = "flex min-h-[20px] items-center justify-between rounded-lg border-2 border-gray-400 bg-white px-2 py-0.5 text-sm text-gray-900 shadow-sm whitespace-nowrap overflow-hidden text-ellipsis"
 const CONTACT_TABLE_BASE_COLUMNS: Column[] = [
   {
     id: "select",
@@ -553,7 +553,7 @@ function ReadOnlyCheckbox({ checked }: { checked: boolean }) {
 
 function FieldRow({ label, value }: { label: string; value: ReactNode }) {
   return (
-    <div className="grid items-start gap-1.5 sm:grid-cols-[120px,1fr]">
+    <div className="grid items-center gap-2 sm:grid-cols-[140px,1fr]">
       <span className={fieldLabelClass}>{label}</span>
       <div>{value}</div>
     </div>
@@ -3055,41 +3055,10 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
   }
 
   return (
-    <div className="px-4 py-4 sm:px-6 lg:px-8">
-      <div className="mx-auto w-full max-w-none">
-        <div className="flex items-start justify-between gap-4 border-b border-gray-200 pb-4 mb-4">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-primary-600">Account Detail</p>
-              <h2 className="mt-1 text-2xl font-semibold text-gray-900">{account?.accountName ?? "Account information"}</h2>
-              <p className="mt-1 text-sm text-gray-500">
-                {account?.accountLegalName || (!loading && hasAccount ? "No legal name on file" : "")}
-              </p>
-              {hasAccount && account?.shippingAddress && (
-                <p className="mt-2 text-sm text-gray-500">
-                  Ship To: {account.shippingAddress.line1}
-                  {shippingSummary ? ` - ${shippingSummary}` : ""}
-                </p>
-              )}
-            </div>
-            <div className="flex flex-wrap items-center gap-3">
-              {onEdit && account && (
-                <button
-                  onClick={() => onEdit(account)}
-                  className="rounded-md bg-primary-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-primary-700"
-                >
-                  Update
-                </button>
-              )}
-              <button
-                onClick={handleBack}
-                className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-600 hover:border-primary-400 hover:text-primary-600"
-              >
-                Back
-              </button>
-            </div>
-        </div>
+    <div className="flex flex-col h-screen overflow-hidden">
 
-        <div>
+      <div className="flex-1 overflow-auto px-4 sm:px-6 lg:px-8">
+        <div className="mt-1">
             {loading ? (
               <div className="flex h-full flex-col items-center justify-center gap-3 text-sm text-gray-500">
                 <Loader2 className="h-6 w-6 animate-spin text-primary-600" />
@@ -3100,21 +3069,28 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                 {error ?? "Account details are not available."}
               </div>
             ) : account ? (
-              <div className="space-y-3">
-                <div className="rounded-2xl border-2 border-gray-400 bg-gray-50 p-2 shadow-sm">
-                  {/* Header with expand/collapse toggle */}
+              <div className="space-y-2">
+                <div className="rounded-2xl bg-gray-100 p-3 shadow-sm">
+                  {/* Header with title and expand/collapse toggle */}
                   <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-primary-600">Account Detail</p>
                     <div className="flex items-center gap-2">
-                      <h3 className="text-base font-medium text-gray-900">Account Information</h3>
+                      {onEdit && account && (
+                        <button
+                          onClick={() => onEdit(account)}
+                          className="rounded-md bg-primary-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-primary-700"
+                        >
+                          Update
+                        </button>
+                      )}
+                      <button
+                        onClick={toggleDetails}
+                        className="flex items-center gap-1 rounded-md bg-gray-200 px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-300 hover:text-gray-800 transition-colors"
+                        title={detailsExpanded ? "Minimize details" : "Expand details"}
+                      >
+                        {detailsExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                      </button>
                     </div>
-                    <button
-                      onClick={toggleDetails}
-                      className="flex items-center gap-1 rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-200 hover:text-gray-800 transition-colors"
-                      title={detailsExpanded ? "Minimize details" : "Expand details"}
-                    >
-                      {detailsExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-                      {detailsExpanded ? "Minimize" : "Expand"}
-                    </button>
                   </div>
 
                   {!detailsExpanded ? (
@@ -3139,11 +3115,19 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                     </div>
                   ) : (
                     <>
-                      <div className="grid gap-2 lg:grid-cols-[1.1fr,0.9fr]">
-                    <div className="space-y-2">
+                      <div className="grid gap-6 lg:grid-cols-2">
+                    <div className="space-y-1.5">
                       <FieldRow
                         label="Account Name"
-                        value={<div className={fieldBoxClass}>{account.accountName}</div>}
+                        value={
+                          <div className="flex flex-wrap items-center gap-2">
+                            <div className={cn(fieldBoxClass, "flex-1")}>{account.accountName}</div>
+                            <div className="flex items-center gap-2 rounded-lg border-2 border-gray-400 bg-white px-2 py-0.5 text-xs font-medium text-gray-600 shadow-sm">
+                              <span>Active (Y/N)</span>
+                              <ReadOnlySwitch value={account.active} />
+                            </div>
+                          </div>
+                        }
                       />
                       <FieldRow
                         label="Account Legal Name"
@@ -3161,15 +3145,9 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                       <FieldRow
                         label="Account Type"
                         value={
-                          <div className="flex flex-wrap items-center gap-2">
-                            <div className={cn(fieldBoxClass, "justify-between")}>
-                              <span>{account.accountType || "-"}</span>
-                              <ChevronDown className="h-4 w-4 text-gray-400" />
-                            </div>
-                            <div className="flex items-center gap-2.5 rounded-lg border-2 border-gray-400 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 shadow-sm">
-                              <span>Active (Y/N)</span>
-                              <ReadOnlySwitch value={account.active} />
-                            </div>
+                          <div className={cn(fieldBoxClass, "justify-between")}>
+                            <span>{account.accountType || "-"}</span>
+                            <ChevronDown className="h-4 w-4 text-gray-400" />
                           </div>
                         }
                       />
@@ -3182,19 +3160,6 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                           </div>
                         }
                       />
-                      <div className="grid gap-1.5 sm:grid-cols-2">
-                        <div className="space-y-1.5">
-                          <span className={fieldLabelClass}>Industry</span>
-                          <div className={cn(fieldBoxClass, "justify-between")}>
-                            <span>{account.industry || "-"}</span>
-                            <ChevronDown className="h-4 w-4 text-gray-400" />
-                          </div>
-                        </div>
-                        <div className="space-y-1.5">
-                          <span className={fieldLabelClass}>Order ID - House</span>
-                          <div className={fieldBoxClass}>{account.orderIdHouse || "-"}</div>
-                        </div>
-                      </div>
                       <FieldRow
                         label="Website URL"
                         value={<div className={fieldBoxClass}>{account.websiteUrl || ""}</div>}
@@ -3202,53 +3167,40 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                       <FieldRow
                         label="Description"
                         value={
-                          <div className="rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700">
+                          <div className="rounded border border-gray-300 bg-white px-2 py-1 text-sm text-gray-700">
                             {account.description || "No description provided."}
                           </div>
                         }
                       />
                     </div>
 
-                    <div className="space-y-2">
-                      <div className="rounded-xl border-2 border-gray-400 bg-white p-3 shadow-sm">
-                        <div className="mb-2 flex items-center justify-between">
+                    <div className="space-y-1.5">
+                      <div>
+                        <div className="mb-1 flex items-center justify-between">
                           <h3 className="text-sm font-semibold text-gray-800">Ship To Address</h3>
                           <span className="text-xs font-semibold uppercase tracking-wide text-primary-600">Default</span>
                         </div>
                         {account.shippingAddress ? (
-                          <div className="space-y-1.5 text-sm text-gray-700">
-                            <div className="space-y-1">
-                              <div className={fieldLabelClass}>Street</div>
-                              <div className={fieldBoxClass}>{account.shippingAddress.line1}</div>
-                            </div>
+                          <div className="space-y-1 text-sm text-gray-700">
+                            <FieldRow
+                              label="Street"
+                              value={<div className={fieldBoxClass}>{account.shippingAddress.line1}</div>}
+                            />
                             {account.shippingAddress.line2 && (
-                              <div className="space-y-1.5">
-                                <div className={fieldLabelClass}>Street 2</div>
-                                <div className={fieldBoxClass}>{account.shippingAddress.line2}</div>
-                              </div>
+                              <FieldRow
+                                label="Street 2"
+                                value={<div className={fieldBoxClass}>{account.shippingAddress.line2}</div>}
+                              />
                             )}
-                            <div className="grid gap-1.5 md:grid-cols-[1.2fr,0.45fr,0.55fr]">
-                              <div className="space-y-1.5">
-                                <div className={fieldLabelClass}>City</div>
+                            <div className="grid items-center gap-2 sm:grid-cols-[140px,1fr]">
+                              <span className={fieldLabelClass}>City, State, Zip</span>
+                              <div className="grid gap-1 grid-cols-[2fr,1fr,1fr]">
                                 <div className={fieldBoxClass}>{account.shippingAddress.city}</div>
-                              </div>
-                              <div className="space-y-1.5">
-                                <div className={fieldLabelClass}>State</div>
                                 <div className={cn(fieldBoxClass, "justify-between")}>
                                   <span>{account.shippingAddress.state || "-"}</span>
                                   <ChevronDown className="h-4 w-4 text-gray-400" />
                                 </div>
-                              </div>
-                              <div className="space-y-1.5">
-                                <div className={fieldLabelClass}>Zip</div>
                                 <div className={fieldBoxClass}>{account.shippingAddress.postalCode || "-"}</div>
-                              </div>
-                            </div>
-                            <div className="space-y-1.5">
-                              <div className={fieldLabelClass}>Country</div>
-                              <div className={cn(fieldBoxClass, "justify-between")}>
-                                <span>{account.shippingAddress.country || "-"}</span>
-                                <ChevronDown className="h-4 w-4 text-gray-400" />
                               </div>
                             </div>
                           </div>
@@ -3257,8 +3209,8 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                         )}
                       </div>
 
-                      <div className="rounded-xl border-2 border-gray-400 bg-white p-4 shadow-sm">
-                        <div className="mb-2 flex items-center justify-between">
+                      <div>
+                        <div className="mb-1 flex items-center justify-between">
                           <h3 className="text-sm font-semibold text-gray-800">Bill To Address</h3>
                           <label className="flex items-center gap-2 text-xs text-gray-600">
                             <ReadOnlyCheckbox checked={Boolean(account.billingSameAsShipping)} />
@@ -3266,41 +3218,37 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                           </label>
                         </div>
                         {account.billingAddress ? (
-                          <div className="space-y-1.5 text-sm text-gray-700">
-                            <div className="space-y-1">
-                              <div className={fieldLabelClass}>Street</div>
-                              <div className={fieldBoxClass}>{account.billingAddress.line1}</div>
-                            </div>
+                          <div className="space-y-1 text-sm text-gray-700">
+                            <FieldRow
+                              label="Street"
+                              value={<div className={fieldBoxClass}>{account.billingAddress.line1}</div>}
+                            />
                             {account.billingAddress.line2 && (
-                              <div className="space-y-1.5">
-                                <div className={fieldLabelClass}>Street 2</div>
-                                <div className={fieldBoxClass}>{account.billingAddress.line2}</div>
-                              </div>
+                              <FieldRow
+                                label="Street 2"
+                                value={<div className={fieldBoxClass}>{account.billingAddress.line2}</div>}
+                              />
                             )}
-                            <div className="grid gap-1.5 md:grid-cols-[1.2fr,0.45fr,0.55fr]">
-                              <div className="space-y-1.5">
-                                <div className={fieldLabelClass}>City</div>
+                            <div className="grid items-center gap-2 sm:grid-cols-[140px,1fr]">
+                              <span className={fieldLabelClass}>City, State, Zip</span>
+                              <div className="grid gap-1 grid-cols-[2fr,1fr,1fr]">
                                 <div className={fieldBoxClass}>{account.billingAddress.city}</div>
-                              </div>
-                              <div className="space-y-1.5">
-                                <div className={fieldLabelClass}>State</div>
                                 <div className={cn(fieldBoxClass, "justify-between")}>
                                   <span>{account.billingAddress.state || "-"}</span>
                                   <ChevronDown className="h-4 w-4 text-gray-400" />
                                 </div>
-                              </div>
-                              <div className="space-y-1.5">
-                                <div className={fieldLabelClass}>Zip</div>
                                 <div className={fieldBoxClass}>{account.billingAddress.postalCode || "-"}</div>
                               </div>
                             </div>
-                            <div className="space-y-1.5">
-                              <div className={fieldLabelClass}>Country</div>
-                              <div className={cn(fieldBoxClass, "justify-between")}>
-                                <span>{account.billingAddress.country || "-"}</span>
-                                <ChevronDown className="h-4 w-4 text-gray-400" />
-                              </div>
-                            </div>
+                            <FieldRow
+                              label="Country"
+                              value={
+                                <div className={cn(fieldBoxClass, "justify-between")}>
+                                  <span>{account.billingAddress.country || "-"}</span>
+                                  <ChevronDown className="h-4 w-4 text-gray-400" />
+                                </div>
+                              }
+                            />
                           </div>
                         ) : (
                           <p className="text-sm text-gray-500">No billing address on file.</p>

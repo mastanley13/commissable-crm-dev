@@ -144,14 +144,17 @@ const recentActivityInclude = {
 function mapAccountContactRow(contact: any) {
   return {
     id: contact.id,
-    active: Boolean(contact.isPrimary),
+    active: !contact.deletedAt, // Contact is active if not soft deleted
     suffix: contact.suffix ?? "",
     fullName: contact.fullName,
     jobTitle: contact.jobTitle ?? "",
     contactType: contact.accountType?.name ?? contact.contactType ?? "",
     emailAddress: contact.emailAddress ?? "",
     workPhone: contact.workPhone ?? "",
-    extension: contact.workPhoneExt ?? ""
+    extension: contact.workPhoneExt ?? "",
+    isPrimary: Boolean(contact.isPrimary), // Keep isPrimary as a separate field
+    isDeleted: Boolean(contact.deletedAt),
+    deletedAt: contact.deletedAt
   }
 }
 
@@ -240,10 +243,13 @@ export async function GET(
 
     const [contacts, opportunities, groupMembers, activities] = await Promise.all([
       prisma.contact.findMany({
-        where: { tenantId, accountId },
+        where: { 
+          tenantId, 
+          accountId,
+          deletedAt: null  // Only fetch non-deleted contacts
+        },
         include: { accountType: { select: { name: true } } },
-        orderBy: { createdAt: "desc" },
-        take: 5
+        orderBy: { createdAt: "desc" }
       }),
       prisma.opportunity.findMany({
         where: { tenantId, accountId },

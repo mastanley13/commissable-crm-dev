@@ -749,8 +749,8 @@ export function DynamicTable({
               <div
                 key={column.id}
                 className={cn(
-                  "table-cell bg-blue-100 font-medium text-gray-900 relative select-none",
-                  column.sortable && column.id !== "select" && "cursor-pointer hover:bg-gray-100"
+                  "table-cell bg-gradient-to-b from-gray-50 to-gray-100 font-semibold text-gray-900 relative select-none border-b-2 border-gray-300",
+                  column.sortable && column.id !== "select" && "cursor-pointer hover:from-gray-100 hover:to-gray-200"
                 )}
                 draggable
                 onDragStart={event => handleDragStart(event, column.id)}
@@ -777,11 +777,6 @@ export function DynamicTable({
                           <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 break-words">
                             Select All
                           </span>
-                          {selectedItems.length > 0 && (
-                            <span className="text-xs text-gray-400 break-words">
-                              {selectedItems.length} selected
-                            </span>
-                          )}
                         </div>
                       </div>
                     ) : (
