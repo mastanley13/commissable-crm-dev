@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { ReactNode, useCallback, useEffect, useState, useMemo } from "react"
+import { ReactNode, useCallback, useEffect, useState, useMemo, useRef, useLayoutEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Loader2, Filter, Paperclip, Plus, Search, Settings, Trash2, Edit, ChevronDown, ChevronUp } from "lucide-react"
 import { OpportunityStatus } from "@prisma/client"
@@ -512,6 +512,71 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
   const [isDeleted, setIsDeleted] = useState(false)
   const [detailsExpanded, setDetailsExpanded] = useState(true)
   const { showError, showSuccess, showInfo } = useToasts()
+
+  // Table height management
+  const tableAreaRef = useRef<HTMLDivElement | null>(null)
+  const [tableAreaMaxHeight, setTableAreaMaxHeight] = useState<number>()
+  const TABLE_CONTAINER_PADDING = 16
+  const TABLE_BODY_FOOTER_RESERVE = 96
+  const TABLE_BODY_MIN_HEIGHT = 160
+
+  const measureTableAreaHeight = useCallback(() => {
+    const container = tableAreaRef.current
+    if (!container) return
+    const rect = container.getBoundingClientRect()
+    const available = window.innerHeight - rect.top - TABLE_CONTAINER_PADDING
+    if (!Number.isFinite(available)) return
+    const nextHeight = Math.max(Math.floor(available), 0)
+    setTableAreaMaxHeight(nextHeight)
+  }, [])
+
+  const tableAreaRefCallback = useCallback((node: HTMLDivElement | null) => {
+    tableAreaRef.current = node
+    if (node) {
+      window.requestAnimationFrame(() => {
+        measureTableAreaHeight()
+      })
+    }
+  }, [measureTableAreaHeight])
+
+  useLayoutEffect(() => {
+    measureTableAreaHeight()
+  }, [measureTableAreaHeight, activeTab, detailsExpanded, loading])
+
+  useEffect(() => {
+    const handleResize = () => measureTableAreaHeight()
+    window.addEventListener("resize", handleResize)
+    return () => window.removeEventListener("resize", handleResize)
+  }, [measureTableAreaHeight])
+
+  const tableBodyMaxHeight = useMemo(() => {
+    if (tableAreaMaxHeight == null) return undefined
+    const maxBodyWithinContainer = Math.max(tableAreaMaxHeight - 16, 0)
+    const preferredBodyHeight = Math.max(
+      tableAreaMaxHeight - TABLE_BODY_FOOTER_RESERVE,
+      Math.floor(tableAreaMaxHeight * 0.6),
+      0
+    )
+    const boundedPreferredHeight = Math.min(preferredBodyHeight, maxBodyWithinContainer)
+    if (boundedPreferredHeight >= TABLE_BODY_MIN_HEIGHT) {
+      return boundedPreferredHeight
+    }
+    const minTarget = Math.min(TABLE_BODY_MIN_HEIGHT, maxBodyWithinContainer)
+    return Math.max(boundedPreferredHeight, minTarget)
+  }, [tableAreaMaxHeight])
+
+  const tableContainerStyle = useMemo(() => {
+    if (tableAreaMaxHeight == null) return undefined
+    const cappedHeight = Math.max(tableAreaMaxHeight, 0)
+    return {
+      height: cappedHeight,
+      maxHeight: cappedHeight,
+      minHeight: Math.min(
+        TABLE_BODY_MIN_HEIGHT + TABLE_BODY_FOOTER_RESERVE,
+        cappedHeight
+      )
+    }
+  }, [tableAreaMaxHeight])
 
   const handleBack = () => {
     router.push("/contacts")
@@ -2141,22 +2206,30 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
                         onChangeOwner={openActivityBulkOwnerModal}
                         onUpdateStatus={openActivityBulkStatusModal}
                       />
-                      <DynamicTable
-                        columns={contactActivityTableColumns}
-                        data={paginatedActivities}
-                        emptyMessage="No activities found for this contact"
-                        onColumnsChange={handleActivityTableColumnsChange}
-                        loading={loading || activityPreferencesLoading}
-                        pagination={activitiesPagination}
-                        onPageChange={handleActivitiesPageChange}
-                        onPageSizeChange={handleActivitiesPageSizeChange}
-                        selectedItems={selectedActivities}
-                        onItemSelect={(id, selected) => handleActivitySelect(id, selected)}
-                        onSelectAll={handleSelectAllActivities}
-                        autoSizeColumns={true}
-                        fillContainerWidth
-                        alwaysShowPagination
-                      />
+                      <div
+                        className="flex flex-1 min-h-0 flex-col overflow-hidden rounded-lg"
+                        ref={tableAreaRefCallback}
+                        style={tableContainerStyle}
+                      >
+                        <DynamicTable
+                          className="flex flex-col"
+                          columns={contactActivityTableColumns}
+                          data={paginatedActivities}
+                          emptyMessage="No activities found for this contact"
+                          onColumnsChange={handleActivityTableColumnsChange}
+                          loading={loading || activityPreferencesLoading}
+                          pagination={activitiesPagination}
+                          onPageChange={handleActivitiesPageChange}
+                          onPageSizeChange={handleActivitiesPageSizeChange}
+                          selectedItems={selectedActivities}
+                          onItemSelect={(id, selected) => handleActivitySelect(id, selected)}
+                          onSelectAll={handleSelectAllActivities}
+                          autoSizeColumns={true}
+                          fillContainerWidth
+                          maxBodyHeight={tableBodyMaxHeight}
+                          alwaysShowPagination
+                        />
+                      </div>
                     </div>
                   )}
 
@@ -2182,22 +2255,30 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
                         onChangeOwner={() => setShowOpportunityBulkOwnerModal(true)}
                         onUpdateStatus={() => setShowOpportunityBulkStatusModal(true)}
                       />
-                      <DynamicTable
-                        columns={contactOpportunityTableColumns}
-                        data={paginatedOpportunities}
-                        emptyMessage="No opportunities found for this contact"
-                        onColumnsChange={handleContactOpportunityTableColumnsChange}
-                        loading={loading || contactOpportunityPreferencesLoading}
-                        pagination={opportunitiesPagination}
-                        onPageChange={handleOpportunitiesPageChange}
-                        onPageSizeChange={handleOpportunitiesPageSizeChange}
-                        selectedItems={selectedOpportunities}
-                        onItemSelect={(id, selected) => handleOpportunitySelect(id, selected)}
-                        onSelectAll={handleSelectAllOpportunities}
-                        autoSizeColumns={true}
-                        fillContainerWidth
-                        alwaysShowPagination
-                      />
+                      <div
+                        className="flex flex-1 min-h-0 flex-col overflow-hidden rounded-lg"
+                        ref={tableAreaRefCallback}
+                        style={tableContainerStyle}
+                      >
+                        <DynamicTable
+                          className="flex flex-col"
+                          columns={contactOpportunityTableColumns}
+                          data={paginatedOpportunities}
+                          emptyMessage="No opportunities found for this contact"
+                          onColumnsChange={handleContactOpportunityTableColumnsChange}
+                          loading={loading || contactOpportunityPreferencesLoading}
+                          pagination={opportunitiesPagination}
+                          onPageChange={handleOpportunitiesPageChange}
+                          onPageSizeChange={handleOpportunitiesPageSizeChange}
+                          selectedItems={selectedOpportunities}
+                          onItemSelect={(id, selected) => handleOpportunitySelect(id, selected)}
+                          onSelectAll={handleSelectAllOpportunities}
+                          autoSizeColumns={true}
+                          fillContainerWidth
+                          maxBodyHeight={tableBodyMaxHeight}
+                          alwaysShowPagination
+                        />
+                      </div>
                     </div>
                   )}
 
@@ -2215,19 +2296,27 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
                         showCreateButton={Boolean(contact) && !isDeleted && !loading}
                         searchPlaceholder="Search groups"
                       />
-                      <DynamicTable
-                        columns={contactGroupTableColumns}
-                        data={paginatedGroups}
-                        emptyMessage="No groups found for this contact"
-                        onColumnsChange={handleContactGroupTableColumnsChange}
-                        loading={loading || contactGroupPreferencesLoading}
-                        pagination={groupsPagination}
-                        onPageChange={handleGroupsPageChange}
-                        onPageSizeChange={handleGroupsPageSizeChange}
-                        autoSizeColumns={true}
-                        fillContainerWidth
-                        alwaysShowPagination
-                      />
+                      <div
+                        className="flex flex-1 min-h-0 flex-col overflow-hidden rounded-lg"
+                        ref={tableAreaRefCallback}
+                        style={tableContainerStyle}
+                      >
+                        <DynamicTable
+                          className="flex flex-col"
+                          columns={contactGroupTableColumns}
+                          data={paginatedGroups}
+                          emptyMessage="No groups found for this contact"
+                          onColumnsChange={handleContactGroupTableColumnsChange}
+                          loading={loading || contactGroupPreferencesLoading}
+                          pagination={groupsPagination}
+                          onPageChange={handleGroupsPageChange}
+                          onPageSizeChange={handleGroupsPageSizeChange}
+                          autoSizeColumns={true}
+                          fillContainerWidth
+                          maxBodyHeight={tableBodyMaxHeight}
+                          alwaysShowPagination
+                        />
+                      </div>
                     </div>
                   )}
                 </div>

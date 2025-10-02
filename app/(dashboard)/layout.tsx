@@ -27,9 +27,9 @@ export default function DashboardLayout({
           </BreadcrumbProvider>
 
           {/* Footer */}
-          <footer className="bg-white border-t border-gray-200 px-6 py-3">
+          <footer className="bg-white border-t border-gray-200 px-6 py-1">
             <div className="flex items-center justify-center">
-              <p className="text-sm text-gray-500">© 2024 Commissable</p>
+              <p className="text-xs text-gray-500">© 2024 Commissable</p>
             </div>
           </footer>
         </div>

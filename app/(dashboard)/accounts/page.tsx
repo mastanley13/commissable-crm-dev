@@ -62,7 +62,7 @@ interface AccountOptions {
 const accountColumns: Column[] = [
   {
     id: "multi-action",
-    label: "Select All",
+    label: "Actions",
     width: 200,
     minWidth: 180,
     maxWidth: 240,

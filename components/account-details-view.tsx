@@ -3415,7 +3415,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                         style={tableContainerStyle}
                       >
                         <DynamicTable
-                        className="flex h-full flex-col"
+                        className="flex flex-col"
                         columns={contactTableColumns}
                         data={filteredContacts.slice(0, contactsPageSize)}
                         emptyMessage="No contacts found for this account"
@@ -3468,7 +3468,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                         style={tableContainerStyle}
                       >
                         <DynamicTable
-                        className="flex h-full flex-col"
+                        className="flex flex-col"
                         columns={opportunityTableColumns}
                         data={paginatedOpportunities}
                         emptyMessage="No opportunities found for this account"
@@ -3526,7 +3526,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                         style={tableContainerStyle}
                       >
                         <DynamicTable
-                        className="flex h-full flex-col"
+                        className="flex flex-col"
                         columns={groupTableColumns}
                         data={paginatedGroups}
                         emptyMessage="No groups found for this account"
@@ -3627,7 +3627,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                         style={tableContainerStyle}
                       >
                         <DynamicTable
-                        className="flex h-full flex-col"
+                        className="flex flex-col"
                         columns={activityTableColumns}
                         data={paginatedActivities}
                         emptyMessage="No activities found for this account"

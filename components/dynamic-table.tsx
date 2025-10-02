@@ -49,6 +49,7 @@ export interface TableProps {
   alwaysShowPagination?: boolean // Always render pagination controls
   hideSelectAllLabel?: boolean // Hide the 'Select All' label in the select column header
   selectHeaderLabel?: string // Text label to show next to the select-all checkbox
+  maxBodyHeight?: number // Maximum height for the table body with scroll
 }
 
 export function DynamicTable({
@@ -69,9 +70,10 @@ export function DynamicTable({
   onToggle,
   autoSizeColumns = false, // Changed default to false to prevent conflicts
   fillContainerWidth = false,
-  alwaysShowPagination = false
-  , hideSelectAllLabel = false
-  , selectHeaderLabel
+  alwaysShowPagination = false,
+  hideSelectAllLabel = false,
+  selectHeaderLabel,
+  maxBodyHeight
 }: TableProps) {
   const SortTriangles = useCallback(({ direction }: { direction: "asc" | "desc" | null }) => {
     const base = "w-2.5 h-2.5"
@@ -754,11 +756,12 @@ export function DynamicTable({
   }
 
   return (
-    <div className={cn("bg-white rounded-lg border-2 border-gray-400 flex flex-col", className)}>
+    <div className={cn("bg-white rounded-lg border-2 border-gray-400", maxBodyHeight ? "flex flex-col" : "flex flex-col flex-1", className)}>
       {/* Table container */}
-      <div className="relative flex-1 min-h-0">
+      <div className="relative" style={maxBodyHeight ? { flex: '0 1 auto', minHeight: 0 } : { flex: '1 1 0%', minHeight: 0 }}>
         <div
-          className="table-scroll-container overflow-x-auto overflow-y-visible"
+          className="table-scroll-container overflow-x-auto"
+          style={maxBodyHeight ? { maxHeight: `${maxBodyHeight}px`, overflowY: 'auto' } : { overflowY: 'visible' }}
           role="table"
           aria-label="Data table"
         >
@@ -913,7 +916,7 @@ export function DynamicTable({
 
       {/* Pagination Footer - moved outside grid container */}
       {shouldRenderPagination && pagination && (
-        <div className="px-4 py-2 border-t-2 border-gray-400 bg-gray-50 w-full">
+        <div className="px-4 py-2 border-t-2 border-gray-400 bg-gray-50 w-full flex-shrink-0">
           <div className="flex items-center justify-between text-sm text-gray-700">
             <div className="flex items-center gap-2">
               <button

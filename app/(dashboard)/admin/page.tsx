@@ -33,13 +33,13 @@ const adminSections = [
     icon: Key,
     color: 'bg-red-500'
   },
-  {
-    title: 'Data Management',
-    description: 'Import/export data and manage backups',
-    href: '/admin/data-management',
-    icon: Database,
-    color: 'bg-green-500'
-  },
+  // {
+  //   title: 'Data Management',
+  //   description: 'Import/export data and manage backups',
+  //   href: '/admin/data-management',
+  //   icon: Database,
+  //   color: 'bg-green-500'
+  // },
   {
     title: 'Audit Logs',
     description: 'View system activity and user actions',
