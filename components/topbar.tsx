@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type ChangeEvent, type KeyboardEvent } from "react"
 import { usePathname, useRouter } from "next/navigation"
-import { Search, Plus, RotateCcw, MessageSquare, Settings, ChevronLeft, Bell, Loader2 } from "lucide-react"
+import { Search, RotateCcw, MessageSquare, Settings, ChevronLeft, Bell, Loader2 } from "lucide-react"
 import { Breadcrumb } from "@/components/breadcrumb"
 
 type SearchSuggestion = {
@@ -265,9 +265,8 @@ export function Topbar() {
         </div>
 
         <div className="ml-auto flex items-center space-x-3">
-          <button className="inline-flex items-center rounded-lg bg-primary-900 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-primary-800">
-            <Plus className="mr-1.5 h-4 w-4" />
-            Add
+          <button className="rounded bg-primary-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-primary-700">
+            Create New
           </button>
 
           <button className="rounded-lg p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600">

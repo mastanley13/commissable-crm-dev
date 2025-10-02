@@ -160,7 +160,7 @@ const TABS: { id: TabKey; label: string }[] = [
   { id: "activities", label: "Activities & Notes" }
 ]
 
-const fieldLabelClass = "text-xs font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap"
+const fieldLabelClass = "text-xs font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap flex items-center"
 const fieldBoxClass = "flex min-h-[20px] items-center justify-between rounded-lg border-2 border-gray-400 bg-white px-2 py-0.5 text-sm text-gray-900 shadow-sm whitespace-nowrap overflow-hidden text-ellipsis"
 const CONTACT_TABLE_BASE_COLUMNS: Column[] = [
   {
