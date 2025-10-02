@@ -243,7 +243,7 @@ export default function ContactsPage() {
   const [searchQuery, setSearchQuery] = useState<string>("")
   const [sortBy, setSortBy] = useState<string>("createdAt")
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc")
-  const [filters, setFilters] = useState<Filters>({})
+  const [filters, setFilters] = useState<Filters>({ isPrimary: true })
   const [columnFilters, setColumnFilters] = useState<ListColumnFilter[]>([])
   const [selectedContacts, setSelectedContacts] = useState<string[]>([])
   const [bulkDeleteTargets, setBulkDeleteTargets] = useState<ContactRow[]>([])
@@ -1156,10 +1156,6 @@ export default function ContactsPage() {
         columnFilters={columnFilters}
         onColumnFiltersChange={handleColumnFiltersChange}
         statusFilter={filters.isPrimary ? "active" : "all"}
-        hasUnsavedTableChanges={hasUnsavedChanges}
-        isSavingTableChanges={preferenceSaving}
-        lastTableSaved={lastSaved || undefined}
-        onSaveTableChanges={saveChanges}
       />
 
       {(error || preferenceError) && (

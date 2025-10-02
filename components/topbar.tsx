@@ -2,9 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type ChangeEvent, type KeyboardEvent } from "react"
 import { usePathname, useRouter } from "next/navigation"
-import Link from "next/link"
-import { Search, Plus, RotateCcw, MessageSquare, Settings, ChevronLeft, Bell, LogOut, User, Loader2 } from "lucide-react"
-import { useAuth } from "@/lib/auth-context"
+import { Search, Plus, RotateCcw, MessageSquare, Settings, ChevronLeft, Bell, Loader2 } from "lucide-react"
 import { Breadcrumb } from "@/components/breadcrumb"
 
 type SearchSuggestion = {
@@ -19,7 +17,6 @@ export function Topbar() {
   const pathname = usePathname()
   const router = useRouter()
   const [searchQuery, setSearchQuery] = useState("")
-  const [showUserMenu, setShowUserMenu] = useState(false)
   const [suggestions, setSuggestions] = useState<SearchSuggestion[]>([])
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [loadingSuggestions, setLoadingSuggestions] = useState(false)
@@ -27,7 +24,6 @@ export function Topbar() {
   const searchDebounceRef = useRef<NodeJS.Timeout | null>(null)
   const suggestionsAbortController = useRef<AbortController | null>(null)
   const searchContainerRef = useRef<HTMLDivElement | null>(null)
-  const { user, logout } = useAuth()
 
   const resetSuggestions = useCallback(() => {
     setSuggestions([])
@@ -290,55 +286,6 @@ export function Topbar() {
           <button className="rounded-lg p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600">
             <Settings className="h-4 w-4" />
           </button>
-
-          <div className="relative">
-            <button
-              onClick={() => setShowUserMenu(!showUserMenu)}
-              className="flex items-center space-x-2 rounded-lg p-2 text-gray-700 transition-colors hover:bg-gray-100 hover:text-gray-900"
-            >
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-600">
-                <User className="h-4 w-4 text-white" />
-              </div>
-              {user && (
-                <div className="hidden text-left md:block">
-                  <div className="text-sm font-medium">{user.fullName}</div>
-                  <div className="text-xs text-gray-500">{user.role?.name}</div>
-                </div>
-              )}
-            </button>
-
-            {showUserMenu && (
-              <div className="absolute right-0 mt-2 w-48 rounded-md border border-gray-200 bg-white py-1 shadow-lg">
-                {user && (
-                  <>
-                    <div className="border-b border-gray-100 px-4 py-2">
-                      <div className="text-sm font-medium text-gray-900">{user.fullName}</div>
-                      <div className="text-sm text-gray-500">{user.email}</div>
-                      <div className="text-xs text-gray-400">{user.role?.name}</div>
-                    </div>
-                    <Link
-                      href="/settings"
-                      className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                      onClick={() => setShowUserMenu(false)}
-                    >
-                      <Settings className="mr-2 h-4 w-4" />
-                      Settings
-                    </Link>
-                    <button
-                      onClick={() => {
-                        setShowUserMenu(false)
-                        logout()
-                      }}
-                      className="flex w-full items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                    >
-                      <LogOut className="mr-2 h-4 w-4" />
-                      Sign out
-                    </button>
-                  </>
-                )}
-              </div>
-            )}
-          </div>
         </div>
       </div>
     </div>

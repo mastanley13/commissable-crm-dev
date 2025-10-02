@@ -15,13 +15,13 @@ export default function DashboardLayout({
         <Sidebar />
 
         {/* Main content */}
-        <div id="main-content-root" className="relative z-10 flex-1 flex flex-col overflow-hidden">
+        <div id="main-content-root" className="relative z-10 flex-1 flex flex-col overflow-hidden min-h-0">
           <BreadcrumbProvider>
             {/* Top bar */}
             <Topbar />
 
             {/* Page content */}
-            <main className="flex-1 overflow-y-auto relative">
+            <main className="flex-1 min-h-0 overflow-hidden relative">
               {children}
             </main>
           </BreadcrumbProvider>

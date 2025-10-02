@@ -19,7 +19,8 @@
       "Bash(rg:*)",
       "Bash(file:*)",
       "Bash(sed:*)",
-      "Bash(npx tsx:*)"
+      "Bash(npx tsx:*)",
+      "Bash(cd:*)"
     ],
     "deny": []
   }

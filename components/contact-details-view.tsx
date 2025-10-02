@@ -2129,10 +2129,6 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
                         filterColumns={activitiesFilterColumns}
                         columnFilters={activitiesColumnFilters}
                         onColumnFiltersChange={handleActivitiesColumnFiltersChange}
-                        hasUnsavedTableChanges={activityHasUnsavedChanges}
-                        isSavingTableChanges={activityPreferencesSaving}
-                        lastTableSaved={activityLastSaved ?? undefined}
-                        onSaveTableChanges={saveActivityTablePreferences}
                         onSettingsClick={() => setShowActivitiesColumnSettings(true)}
                         showCreateButton={Boolean(contact) && !isDeleted && !loading}
                         searchPlaceholder="Search activities"
@@ -2174,10 +2170,6 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
                         filterColumns={opportunitiesFilterColumns}
                         columnFilters={opportunitiesColumnFilters}
                         onColumnFiltersChange={handleOpportunitiesColumnFiltersChange}
-                        hasUnsavedTableChanges={contactOpportunityHasUnsavedChanges}
-                        isSavingTableChanges={contactOpportunityPreferencesSaving}
-                        lastTableSaved={contactOpportunityLastSaved ?? undefined}
-                        onSaveTableChanges={saveContactOpportunityTablePreferences}
                         onSettingsClick={() => setShowOpportunitiesColumnSettings(true)}
                         showCreateButton={Boolean(contact) && !isDeleted && !loading}
                         searchPlaceholder="Search opportunities"
@@ -2219,10 +2211,6 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
                         filterColumns={groupsFilterColumns}
                         columnFilters={groupsColumnFilters}
                         onColumnFiltersChange={handleGroupsColumnFiltersChange}
-                        hasUnsavedTableChanges={contactGroupHasUnsavedChanges}
-                        isSavingTableChanges={contactGroupPreferencesSaving}
-                        lastTableSaved={contactGroupLastSaved ?? undefined}
-                        onSaveTableChanges={saveContactGroupTablePreferences}
                         onSettingsClick={() => setShowGroupsColumnSettings(true)}
                         showCreateButton={Boolean(contact) && !isDeleted && !loading}
                         searchPlaceholder="Search groups"

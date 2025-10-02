@@ -26,9 +26,11 @@ export function ColumnChooserModal({ isOpen, columns, onApply, onClose }: Column
   const [availableColumns, setAvailableColumns] = useState<ColumnItem[]>([])
   const [selectedColumns, setSelectedColumns] = useState<ColumnItem[]>([])
   const [draggedItem, setDraggedItem] = useState<ColumnItem | null>(null)
+  const [initialized, setInitialized] = useState(false)
 
+  // Only initialize modal state when it opens, not when columns change
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !initialized) {
       const columnItems: ColumnItem[] = columns.map((column, index) => ({
         id: column.id,
         label: column.label,
@@ -42,8 +44,12 @@ export function ColumnChooserModal({ isOpen, columns, onApply, onClose }: Column
 
       setAvailableColumns(available)
       setSelectedColumns(selected)
+      setInitialized(true)
+    } else if (!isOpen && initialized) {
+      // Reset initialized flag when modal closes
+      setInitialized(false)
     }
-  }, [isOpen, columns])
+  }, [isOpen, columns, initialized])
 
   const moveToSelected = (columnItem: ColumnItem) => {
     if (!columnItem.hideable) return
@@ -80,10 +86,14 @@ export function ColumnChooserModal({ isOpen, columns, onApply, onClose }: Column
     })
   }
 
-  const handleDragStart = (e: React.DragEvent, item: ColumnItem, source: 'available' | 'selected') => {
+  const handleDragStart = (e: React.DragEvent, item: ColumnItem, source: 'available' | 'selected', index?: number) => {
+    if (!item.hideable) {
+      e.preventDefault()
+      return
+    }
     setDraggedItem(item)
     e.dataTransfer.effectAllowed = 'move'
-    e.dataTransfer.setData('text/plain', JSON.stringify({ item, source }))
+    e.dataTransfer.setData('text/plain', JSON.stringify({ item, source, index }))
   }
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -93,23 +103,87 @@ export function ColumnChooserModal({ isOpen, columns, onApply, onClose }: Column
 
   const handleDropOnAvailable = (e: React.DragEvent) => {
     e.preventDefault()
-    if (!draggedItem) return
 
-    const data = JSON.parse(e.dataTransfer.getData('text/plain'))
-    if (data.source === 'selected') {
-      moveToAvailable(data.item)
+    try {
+      const data = JSON.parse(e.dataTransfer.getData('text/plain'))
+
+      if (!data || !data.item || !data.source) {
+        setDraggedItem(null)
+        return
+      }
+
+      if (data.source === 'selected') {
+        moveToAvailable(data.item)
+      }
+    } catch (error) {
+      console.error('Failed to parse drag data:', error)
     }
+
     setDraggedItem(null)
   }
 
   const handleDropOnSelected = (e: React.DragEvent) => {
     e.preventDefault()
-    if (!draggedItem) return
 
-    const data = JSON.parse(e.dataTransfer.getData('text/plain'))
-    if (data.source === 'available') {
-      moveToSelected(data.item)
+    try {
+      const data = JSON.parse(e.dataTransfer.getData('text/plain'))
+
+      if (!data || !data.item || !data.source) {
+        setDraggedItem(null)
+        return
+      }
+
+      if (data.source === 'available') {
+        moveToSelected(data.item)
+      }
+    } catch (error) {
+      console.error('Failed to parse drag data:', error)
     }
+
+    setDraggedItem(null)
+  }
+
+  const handleDropOnSelectedItem = (e: React.DragEvent, targetItem: ColumnItem, targetIndex: number) => {
+    e.preventDefault()
+    e.stopPropagation()
+
+    try {
+      const data = JSON.parse(e.dataTransfer.getData('text/plain'))
+
+      if (!data || !data.item || !data.source) {
+        setDraggedItem(null)
+        return
+      }
+
+      // If dragging from available to selected, add it at the target position
+      if (data.source === 'available') {
+        setAvailableColumns(prev => prev.filter(col => col.id !== data.item.id))
+        setSelectedColumns(prev => {
+          const newSelected = [...prev]
+          newSelected.splice(targetIndex, 0, { ...data.item, hidden: false })
+          return newSelected
+        })
+      }
+      // If dragging within selected, reorder
+      else if (data.source === 'selected') {
+        const sourceIndex = data.index
+        if (sourceIndex !== undefined && sourceIndex !== targetIndex) {
+          setSelectedColumns(prev => {
+            const newSelected = [...prev]
+            const [movedItem] = newSelected.splice(sourceIndex, 1)
+            newSelected.splice(targetIndex, 0, movedItem)
+            return newSelected
+          })
+        }
+      }
+    } catch (error) {
+      console.error('Failed to parse drag data:', error)
+    }
+
+    setDraggedItem(null)
+  }
+
+  const handleDragEnd = () => {
     setDraggedItem(null)
   }
 
@@ -130,6 +204,7 @@ export function ColumnChooserModal({ isOpen, columns, onApply, onClose }: Column
       ...availableColumns.map(item => updatedColumns.find(col => col.id === item.id)!)
     ].filter(Boolean)
 
+    // Apply changes (will trigger auto-save via useTablePreferences)
     onApply(reorderedColumns)
     onClose()
   }
@@ -175,14 +250,16 @@ export function ColumnChooserModal({ isOpen, columns, onApply, onClose }: Column
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    {availableColumns.map((column) => (
+                    {availableColumns.map((column, index) => (
                       <div
                         key={column.id}
                         draggable={column.hideable}
-                        onDragStart={(e) => handleDragStart(e, column, 'available')}
+                        onDragStart={(e) => handleDragStart(e, column, 'available', index)}
+                        onDragEnd={handleDragEnd}
                         className={cn(
-                          "flex items-center justify-between p-3 bg-white rounded border border-gray-200 cursor-pointer hover:bg-gray-50",
-                          column.hideable ? "cursor-grab active:cursor-grabbing" : "cursor-not-allowed opacity-50"
+                          "flex items-center justify-between p-3 bg-white rounded border border-gray-200 hover:bg-gray-50 transition-all",
+                          column.hideable ? "cursor-grab active:cursor-grabbing" : "cursor-not-allowed opacity-50",
+                          draggedItem?.id === column.id && "opacity-50 scale-95"
                         )}
                         onClick={() => column.hideable && moveToSelected(column)}
                       >
@@ -228,10 +305,14 @@ export function ColumnChooserModal({ isOpen, columns, onApply, onClose }: Column
                       <div
                         key={column.id}
                         draggable={column.hideable}
-                        onDragStart={(e) => handleDragStart(e, column, 'selected')}
+                        onDragStart={(e) => handleDragStart(e, column, 'selected', index)}
+                        onDragOver={column.hideable ? handleDragOver : undefined}
+                        onDrop={(e) => handleDropOnSelectedItem(e, column, index)}
+                        onDragEnd={handleDragEnd}
                         className={cn(
-                          "flex items-center justify-between p-3 bg-white rounded border border-gray-200",
-                          column.hideable ? "cursor-grab active:cursor-grabbing" : "cursor-not-allowed opacity-75"
+                          "flex items-center justify-between p-3 bg-white rounded border border-gray-200 transition-all",
+                          column.hideable ? "cursor-grab active:cursor-grabbing hover:border-blue-400" : "cursor-not-allowed opacity-75",
+                          draggedItem?.id === column.id && "opacity-50 scale-95"
                         )}
                       >
                         <div className="flex items-center gap-2">
@@ -287,8 +368,8 @@ export function ColumnChooserModal({ isOpen, columns, onApply, onClose }: Column
           {/* Instructions */}
           <div className="mt-4 p-3 bg-blue-50 rounded-lg">
             <p className="text-sm text-blue-800">
-              <strong>Tips:</strong> Drag columns between lists or use the arrow buttons.
-              Click on available columns to add them. Required columns cannot be removed.
+              <strong>Tips:</strong> Drag columns between lists or drag within Selected Columns to reorder.
+              Use arrow buttons for fine control. Click available columns to add them. Required columns cannot be removed.
             </p>
           </div>
         </div>

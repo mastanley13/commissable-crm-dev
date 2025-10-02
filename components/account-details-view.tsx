@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { ReactNode, useCallback, useEffect, useMemo, useState } from "react"
+import { ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import {
   ChevronDown,
@@ -166,17 +166,17 @@ const CONTACT_TABLE_BASE_COLUMNS: Column[] = [
   {
     id: "select",
     label: "Select",
-    width: 90,
-    minWidth: 80,
-    maxWidth: 120,
+    width: 70,
+    minWidth: 60,
+    maxWidth: 100,
     type: "checkbox",
   },
   {
     id: "actions",
     label: "Actions",
-    width: 90,
-    minWidth: 80,
-    maxWidth: 110,
+    width: 70,
+    minWidth: 60,
+    maxWidth: 100,
     sortable: false,
     resizable: false,
     type: "action",
@@ -184,9 +184,9 @@ const CONTACT_TABLE_BASE_COLUMNS: Column[] = [
   {
     id: "active",
     label: "Active",
-    width: 120,
-    minWidth: 100,
-    maxWidth: 150,
+    width: 100,
+    minWidth: 80,
+    maxWidth: 130,
     sortable: true,
     type: "toggle",
     accessor: "active",
@@ -608,6 +608,69 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
   const { showSuccess, showError } = useToasts()
   const [activeTab, setActiveTab] = useState<TabKey>("contacts")
   const [detailsExpanded, setDetailsExpanded] = useState(true)
+  const tableAreaRef = useRef<HTMLDivElement | null>(null)
+  const [tableAreaMaxHeight, setTableAreaMaxHeight] = useState<number>()
+  const TABLE_CONTAINER_PADDING = 16
+  const TABLE_BODY_FOOTER_RESERVE = 96
+  const TABLE_BODY_MIN_HEIGHT = 160
+
+  const measureTableAreaHeight = useCallback(() => {
+    const container = tableAreaRef.current
+    if (!container) return
+    const rect = container.getBoundingClientRect()
+    const available = window.innerHeight - rect.top - TABLE_CONTAINER_PADDING
+    if (!Number.isFinite(available)) return
+    const nextHeight = Math.max(Math.floor(available), 0)
+    setTableAreaMaxHeight(nextHeight)
+  }, [])
+
+  const tableAreaRefCallback = useCallback((node: HTMLDivElement | null) => {
+    tableAreaRef.current = node
+    if (node) {
+      window.requestAnimationFrame(() => {
+        measureTableAreaHeight()
+      })
+    }
+  }, [measureTableAreaHeight])
+
+  useLayoutEffect(() => {
+    measureTableAreaHeight()
+  }, [measureTableAreaHeight, activeTab, detailsExpanded, loading])
+
+  useEffect(() => {
+    const handleResize = () => measureTableAreaHeight()
+    window.addEventListener("resize", handleResize)
+    return () => window.removeEventListener("resize", handleResize)
+  }, [measureTableAreaHeight])
+
+  const tableBodyMaxHeight = useMemo(() => {
+    if (tableAreaMaxHeight == null) return undefined
+    const maxBodyWithinContainer = Math.max(tableAreaMaxHeight - 16, 0)
+    const preferredBodyHeight = Math.max(
+      tableAreaMaxHeight - TABLE_BODY_FOOTER_RESERVE,
+      Math.floor(tableAreaMaxHeight * 0.6),
+      0
+    )
+    const boundedPreferredHeight = Math.min(preferredBodyHeight, maxBodyWithinContainer)
+    if (boundedPreferredHeight >= TABLE_BODY_MIN_HEIGHT) {
+      return boundedPreferredHeight
+    }
+    const minTarget = Math.min(TABLE_BODY_MIN_HEIGHT, maxBodyWithinContainer)
+    return Math.max(boundedPreferredHeight, minTarget)
+  }, [tableAreaMaxHeight])
+
+  const tableContainerStyle = useMemo(() => {
+    if (tableAreaMaxHeight == null) return undefined
+    const cappedHeight = Math.max(tableAreaMaxHeight, 0)
+    return {
+      height: cappedHeight,
+      maxHeight: cappedHeight,
+      minHeight: Math.min(
+        TABLE_BODY_MIN_HEIGHT + TABLE_BODY_FOOTER_RESERVE,
+        cappedHeight
+      )
+    }
+  }, [tableAreaMaxHeight])
 
   const handleBack = () => {
     router.push("/accounts")
@@ -617,7 +680,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
     setDetailsExpanded(!detailsExpanded)
   }
   const [activityFilter, setActivityFilter] = useState<string>("All")
-  const [activeFilter, setActiveFilter] = useState<"active" | "all">("active")
+  const [activeFilter, setActiveFilter] = useState<"active" | "inactive">("active")
   const [contactsColumnFilters, setContactsColumnFilters] = useState<ColumnFilter[]>([])
   const [contactsSearchQuery, setContactsSearchQuery] = useState("")
   const [contactModalOpen, setContactModalOpen] = useState(false)
@@ -931,6 +994,8 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
     let rows = [...contactRows]
     if (activeFilter === "active") {
       rows = rows.filter(row => row.active && !row.isDeleted)
+    } else if (activeFilter === "inactive") {
+      rows = rows.filter(row => !row.active && !row.isDeleted)
     }
     const query = contactsSearchQuery.trim().toLowerCase()
     if (query.length > 0) {
@@ -983,6 +1048,9 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
     }
     setSelectedContacts([])
   }, [filteredContacts, contactsPageSize])
+
+  const contactsPageRows = useMemo(() => filteredContacts.slice(0, contactsPageSize), [filteredContacts, contactsPageSize])
+  const allContactsOnPageSelected = useMemo(() => contactsPageRows.length > 0 && contactsPageRows.every(row => selectedContacts.includes(row.id)), [contactsPageRows, selectedContacts])
   const softDeleteContactRequest = useCallback(async (
     contactId: string,
     bypassConstraints?: boolean
@@ -1460,6 +1528,8 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
     let rows = [...opportunityRows]
     if (activeFilter === "active") {
       rows = rows.filter(row => row.active)
+    } else if (activeFilter === "inactive") {
+      rows = rows.filter(row => !row.active)
     }
     const query = opportunitiesSearchQuery.trim().toLowerCase()
     if (query.length > 0) {
@@ -2786,6 +2856,8 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
     let rows = [...account.groups]
     if (activeFilter === "active") {
       rows = rows.filter(row => row.active)
+    } else if (activeFilter === "inactive") {
+      rows = rows.filter(row => !row.active)
     }
     const query = groupsSearchQuery.trim().toLowerCase()
     if (query.length > 0) {
@@ -2975,6 +3047,8 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
     let rows = [...account.activities]
     if (activeFilter === "active") {
       rows = rows.filter(row => row.active)
+    } else if (activeFilter === "inactive") {
+      rows = rows.filter(row => !row.active)
     }
     const query = activitiesSearchQuery.trim().toLowerCase()
     if (query.length > 0) {
@@ -3055,10 +3129,10 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
   }
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden">
+    <div className="flex h-screen flex-col overflow-hidden">
 
-      <div className="flex-1 overflow-auto px-4 sm:px-6 lg:px-8">
-        <div className="mt-1">
+      <div className="flex flex-1 min-h-0 flex-col overflow-hidden px-4 sm:px-6 lg:px-8">
+        <div className="mt-1 flex flex-1 flex-col min-h-0 overflow-hidden">
             {loading ? (
               <div className="flex h-full flex-col items-center justify-center gap-3 text-sm text-gray-500">
                 <Loader2 className="h-6 w-6 animate-spin text-primary-600" />
@@ -3069,7 +3143,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                 {error ?? "Account details are not available."}
               </div>
             ) : account ? (
-              <div className="space-y-2">
+              <div className="flex flex-1 flex-col gap-2 overflow-hidden">
                 <div className="rounded-2xl bg-gray-100 p-3 shadow-sm">
                   {/* Header with title and expand/collapse toggle */}
                   <div className="flex items-center justify-between mb-2">
@@ -3240,15 +3314,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                                 <div className={fieldBoxClass}>{account.billingAddress.postalCode || "-"}</div>
                               </div>
                             </div>
-                            <FieldRow
-                              label="Country"
-                              value={
-                                <div className={cn(fieldBoxClass, "justify-between")}>
-                                  <span>{account.billingAddress.country || "-"}</span>
-                                  <ChevronDown className="h-4 w-4 text-gray-400" />
-                                </div>
-                              }
-                            />
+                            {/* Country hidden per design request */}
                           </div>
                         ) : (
                           <p className="text-sm text-gray-500">No billing address on file.</p>
@@ -3260,17 +3326,17 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                   )}
                 </div>
 
-                <div className="flex flex-col gap-3">
-                  <div className="flex flex-wrap gap-1 border-b border-gray-200">
+                <div className="flex flex-1 flex-col gap-3 min-h-0 overflow-hidden">
+                  <div className="flex flex-wrap gap-1 border border-gray-200 bg-gray-50 rounded-t-lg p-2">
                     {TABS.map(tab => (
                       <button
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id)}
                         className={cn(
-                          "px-3 py-1.5 text-sm font-medium transition border-b-2",
+                          "px-3 py-1.5 text-sm font-semibold transition rounded-t-md border border-gray-200",
                           activeTab === tab.id
-                            ? "border-primary-600 text-primary-700 bg-primary-50"
-                            : "border-transparent text-gray-500 hover:text-primary-600 hover:border-gray-300"
+                            ? "bg-white text-primary-700 border-gray-300"
+                            : "bg-gray-50 text-gray-700 hover:bg-gray-100 hover:border-gray-300"
                         )}
                       >
                         {tab.label}
@@ -3279,10 +3345,10 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                   </div>
 
                   {activeTab === "contacts" && (
-                    <div className="flex flex-col gap-2">
+                    <div className="grid flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-2 min-h-0 overflow-hidden">
                       <ListHeader
                         onCreateClick={handleCreateContact}
-                        onFilterChange={(filter: string) => setActiveFilter(filter === "active" ? "active" : "all")}
+                        onFilterChange={(filter: string) => setActiveFilter(filter === "active" ? "active" : "inactive")}
                         statusFilter={activeFilter}
                         onSearch={handleContactsSearch}
                         filterColumns={contactsFilterColumns}
@@ -3295,6 +3361,17 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                         onSettingsClick={() => setShowContactsColumnSettings(true)}
                         showCreateButton={Boolean(account)}
                         searchPlaceholder="Search contacts"
+                        leftAccessory={
+                          <label className="flex items-center gap-2 text-xs text-gray-600">
+                            <input
+                              type="checkbox"
+                              className="w-4 h-4 text-primary-600 bg-gray-100 border-gray-300 rounded focus:ring-primary-500"
+                              checked={allContactsOnPageSelected}
+                              onChange={(e) => handleSelectAllContacts(e.target.checked)}
+                            />
+                            <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">Select All</span>
+                          </label>
+                        }
                       />
                       <ContactBulkActionBar
                         count={selectedContacts.length}
@@ -3332,7 +3409,13 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                         onChangeOwner={() => setShowContactBulkOwnerModal(true)}
                         onUpdateStatus={() => setShowContactBulkStatusModal(true)}
                       />
-                      <DynamicTable
+                      <div
+                        className="flex flex-1 min-h-0 flex-col overflow-hidden rounded-lg"
+                        ref={tableAreaRefCallback}
+                        style={tableContainerStyle}
+                      >
+                        <DynamicTable
+                        className="flex h-full flex-col"
                         columns={contactTableColumns}
                         data={filteredContacts.slice(0, contactsPageSize)}
                         emptyMessage="No contacts found for this account"
@@ -3344,17 +3427,20 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                         selectedItems={selectedContacts}
                         onItemSelect={handleContactSelect}
                         onSelectAll={handleSelectAllContacts}
+                        selectHeaderLabel="Bulk Actions"
                         autoSizeColumns={true}
                         fillContainerWidth
+                        maxBodyHeight={tableBodyMaxHeight}
                         alwaysShowPagination
                       />
+                      </div>
                     </div>
                   )}
                   {activeTab === "opportunities" && (
-                    <div className="flex flex-col gap-2">
+                    <div className="grid flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-2 min-h-0 overflow-hidden">
                       <ListHeader
                         onCreateClick={handleCreateOpportunity}
-                        onFilterChange={(filter: string) => setActiveFilter(filter === "active" ? "active" : "all")}
+                        onFilterChange={(filter: string) => setActiveFilter(filter === "active" ? "active" : "inactive")}
                         statusFilter={activeFilter}
                         onSearch={handleOpportunitiesSearch}
                         filterColumns={opportunitiesFilterColumns}
@@ -3376,7 +3462,13 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                         onChangeOwner={() => setShowOpportunityBulkOwnerModal(true)}
                         onUpdateStatus={() => setShowOpportunityBulkStatusModal(true)}
                       />
-                      <DynamicTable
+                      <div
+                        className="flex flex-1 min-h-0 flex-col overflow-hidden rounded-lg"
+                        ref={tableAreaRefCallback}
+                        style={tableContainerStyle}
+                      >
+                        <DynamicTable
+                        className="flex h-full flex-col"
                         columns={opportunityTableColumns}
                         data={paginatedOpportunities}
                         emptyMessage="No opportunities found for this account"
@@ -3395,16 +3487,18 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                         }}
                         autoSizeColumns={true}
                         fillContainerWidth
+                        maxBodyHeight={tableBodyMaxHeight}
                         alwaysShowPagination
                       />
+                      </div>
                     </div>
                   )}
 
                   {activeTab === "groups" && (
-                    <div className="flex flex-col gap-2">
+                    <div className="grid flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-2 min-h-0 overflow-hidden">
                       <ListHeader
                         onCreateClick={handleCreateGroup}
-                        onFilterChange={(filter: string) => setActiveFilter(filter === "active" ? "active" : "all")}
+                        onFilterChange={(filter: string) => setActiveFilter(filter === "active" ? "active" : "inactive")}
                         statusFilter={activeFilter}
                         onSearch={handleGroupsSearch}
                         filterColumns={groupsFilterColumns}
@@ -3426,7 +3520,13 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                         onChangeOwner={() => setShowGroupBulkOwnerModal(true)}
                         onUpdateStatus={() => setShowGroupBulkStatusModal(true)}
                       />
-                      <DynamicTable
+                      <div
+                        className="flex flex-1 min-h-0 flex-col overflow-hidden rounded-lg"
+                        ref={tableAreaRefCallback}
+                        style={tableContainerStyle}
+                      >
+                        <DynamicTable
+                        className="flex h-full flex-col"
                         columns={groupTableColumns}
                         data={paginatedGroups}
                         emptyMessage="No groups found for this account"
@@ -3440,16 +3540,18 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                         onSelectAll={handleSelectAllGroups}
                         autoSizeColumns={true}
                         fillContainerWidth
+                        maxBodyHeight={tableBodyMaxHeight}
                         alwaysShowPagination
                       />
+                      </div>
                     </div>
                   )}
 
                   {activeTab === "activities" && (
-                    <div className="flex flex-col gap-2">
+                    <div className="grid flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-2 min-h-0 overflow-hidden">
                       <ListHeader
                         onCreateClick={handleCreateActivity}
-                        onFilterChange={(filter: string) => setActiveFilter(filter === "active" ? "active" : "all")}
+                        onFilterChange={(filter: string) => setActiveFilter(filter === "active" ? "active" : "inactive")}
                         statusFilter={activeFilter}
                         onSearch={handleActivitiesSearch}
                         filterColumns={activitiesFilterColumns}
@@ -3519,7 +3621,13 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                         onChangeOwner={() => setShowActivityBulkOwnerModal(true)}
                         onUpdateStatus={() => setShowActivityBulkStatusModal(true)}
                       />
-                      <DynamicTable
+                      <div
+                        className="flex flex-1 min-h-0 flex-col overflow-hidden rounded-lg"
+                        ref={tableAreaRefCallback}
+                        style={tableContainerStyle}
+                      >
+                        <DynamicTable
+                        className="flex h-full flex-col"
                         columns={activityTableColumns}
                         data={paginatedActivities}
                         emptyMessage="No activities found for this account"
@@ -3533,8 +3641,10 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                         onSelectAll={handleSelectAllActivities}
                         autoSizeColumns={true}
                         fillContainerWidth
+                        maxBodyHeight={tableBodyMaxHeight}
                         alwaysShowPagination
                       />
+                      </div>
                     </div>
                   )}
                 </div>

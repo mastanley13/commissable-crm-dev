@@ -219,9 +219,13 @@ export function useTablePreferences(
     const hasChanges = columnsHaveChanged(updated, savedColumns)
     setHasUnsavedChanges(hasChanges)
 
-    // Don't auto-save - only track changes for manual save
-    // Auto-save is disabled to prevent immediate database operations
-  }, [columnsHaveChanged, savedColumns])
+    // Auto-save with debounce (150ms delay)
+    if (hasChanges) {
+      saveTimeoutRef.current = setTimeout(() => {
+        persistPreferences(updated)
+      }, 150)
+    }
+  }, [columnsHaveChanged, savedColumns, persistPreferences])
 
   const handleColumnsChange = useCallback((updatedColumns: Column[]) => {
     const nextColumns = updatedColumns.map(column => ({ ...column }))

@@ -19,7 +19,7 @@ import { AccountBulkActionBar } from "@/components/account-bulk-action-bar";
 import { AccountBulkOwnerModal } from "@/components/account-bulk-owner-modal";
 import { AccountReassignmentModal } from "@/components/account-reassignment-modal";
 import { AccountBulkStatusModal } from "@/components/account-bulk-status-modal";
-import { Trash2, Edit } from "lucide-react";
+import { Trash2, Edit, Check } from "lucide-react";
 
 
 interface AccountRow {
@@ -61,30 +61,13 @@ interface AccountOptions {
 
 const accountColumns: Column[] = [
   {
-    id: "select",
-    label: "Select",
-    width: 100,
-    minWidth: 80,
-    maxWidth: 120,
-    type: "checkbox",
+    id: "multi-action",
+    label: "Select All",
+    width: 200,
+    minWidth: 180,
+    maxWidth: 240,
+    type: "multi-action",
     accessor: "select",
-  },
-  {
-    id: "active",
-    label: "Active",
-    width: 100,
-    minWidth: 80,
-    maxWidth: 140,
-    type: "toggle",
-    accessor: "active",
-  },
-  {
-    id: "action",
-    label: "Actions",
-    width: 100,
-    minWidth: 80,
-    maxWidth: 120,
-    type: "action",
   },
   {
     id: "accountName",
@@ -211,7 +194,7 @@ export default function AccountsPage() {
   const [bulkActionLoading, setBulkActionLoading] = useState(false);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeFilter, setActiveFilter] = useState<'all' | 'active'>('all');
+  const [activeFilter, setActiveFilter] = useState<'all' | 'active'>('active');
   const [showCreateModal, setShowCreateModal] = useState<boolean>(false);
   const [showColumnSettings, setShowColumnSettings] = useState<boolean>(false);
   const [columnFilters, setColumnFilters] = useState<ColumnFilterState[]>([]);
@@ -1186,6 +1169,100 @@ export default function AccountsPage() {
 
   const tableColumns = useMemo(() => {
     return preferenceColumns.map((column) => {
+      if (column.id === "multi-action") {
+        return {
+          ...column,
+          render: (_value: unknown, row: AccountRow, index: number) => {
+            const rowId = row.id;
+            const checked = selectedAccounts.includes(rowId);
+            const activeValue = row.active;
+            const isUpdating = updatingAccountIds.has(row.id);
+
+            return (
+              <div className="flex items-center gap-2" data-disable-row-click="true">
+                {/* Checkbox */}
+                <label className="flex cursor-pointer items-center justify-center" onClick={e => e.stopPropagation()}>
+                  <input
+                    type="checkbox"
+                    className="sr-only"
+                    checked={checked}
+                    aria-label={`Select account ${row.accountName || rowId}`}
+                    onChange={() => handleAccountSelect(rowId, !checked)}
+                  />
+                  <span
+                    className={`flex h-4 w-4 items-center justify-center rounded border transition-colors ${
+                      checked
+                        ? "border-primary-500 bg-primary-600 text-white"
+                        : "border-gray-300 bg-white text-transparent"
+                    }`}
+                  >
+                    <Check className="h-3 w-3" aria-hidden="true" />
+                  </span>
+                </label>
+
+                {/* Active Toggle - Improved */}
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    if (!isUpdating) {
+                      handleToggleActive(row, !row.active);
+                    }
+                  }}
+                  className="relative inline-flex items-center cursor-pointer"
+                  disabled={isUpdating}
+                  title={activeValue ? "Active" : "Inactive"}
+                >
+                  <span
+                    className={`w-9 h-5 rounded-full transition-colors duration-300 ease-in-out ${
+                      activeValue ? "bg-blue-600" : "bg-gray-300"
+                    } ${isUpdating ? "opacity-50" : ""}`}
+                  >
+                    <span
+                      className={`inline-block w-4 h-4 bg-white rounded-full shadow transition-transform duration-300 ease-in-out transform ${
+                        activeValue ? "translate-x-4" : "translate-x-1"
+                      } mt-0.5 ${activeValue ? "ring-1 ring-blue-300" : ""}`}
+                    />
+                  </span>
+                </button>
+
+                {/* Action Buttons */}
+                <div className="flex gap-0.5">
+                  <button
+                    type="button"
+                    className="p-1 text-blue-500 hover:text-blue-700 transition-colors rounded"
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      requestAccountEdit(row);
+                    }}
+                    aria-label="Edit account"
+                  >
+                    <Edit className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    className={`p-1 rounded transition-colors ${
+                      row.active
+                        ? "text-red-500 hover:text-red-700"
+                        : "text-gray-400 hover:text-gray-600"
+                    }`}
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      requestAccountDeletion(row);
+                    }}
+                    aria-label={row.active ? "Delete account" : "Manage account"}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+            );
+          },
+        };
+      }
+
       if (column.id === "active") {
         return {
           ...column,
@@ -1209,9 +1286,9 @@ export default function AccountsPage() {
                   } ${isUpdating ? "opacity-60" : ""}`}
                 >
                   <span
-                    className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
-                      row.active ? "translate-x-5" : "translate-x-1"
-                    }`}
+                      className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform duration-300 ease-in-out ${
+                        row.active ? "translate-x-5" : "translate-x-1"
+                      }`}
                   />
                 </span>
                 <span className="text-xs text-gray-500">
@@ -1267,7 +1344,9 @@ export default function AccountsPage() {
     });
   }, [
     preferenceColumns,
+    selectedAccounts,
     updatingAccountIds,
+    handleAccountSelect,
     handleToggleActive,
     requestAccountEdit,
     requestAccountDeletion,

@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState, useRef, useCallback, useMemo, useEffect } from "react"
-import { ChevronUp, ChevronDown, Trash2, Check } from "lucide-react"
+import { ChevronUp, ChevronDown, Trash2, Check, Edit } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 const getRowId = (row: any): string | undefined => row?.id ?? row?.uuid ?? row?.key
@@ -14,7 +14,7 @@ export interface Column {
   maxWidth?: number
   sortable?: boolean
   resizable?: boolean
-  type?: "text" | "toggle" | "action" | "checkbox" | "email" | "phone"
+  type?: "text" | "toggle" | "action" | "checkbox" | "email" | "phone" | "multi-action"
   accessor?: string
   render?: (value: any, row: any, index: number) => React.ReactNode
   hidden?: boolean
@@ -47,6 +47,8 @@ export interface TableProps {
   autoSizeColumns?: boolean // Enable automatic column sizing on mount
   fillContainerWidth?: boolean // Stretch columns to match parent width
   alwaysShowPagination?: boolean // Always render pagination controls
+  hideSelectAllLabel?: boolean // Hide the 'Select All' label in the select column header
+  selectHeaderLabel?: string // Text label to show next to the select-all checkbox
 }
 
 export function DynamicTable({
@@ -68,7 +70,33 @@ export function DynamicTable({
   autoSizeColumns = false, // Changed default to false to prevent conflicts
   fillContainerWidth = false,
   alwaysShowPagination = false
+  , hideSelectAllLabel = false
+  , selectHeaderLabel
 }: TableProps) {
+  const SortTriangles = useCallback(({ direction }: { direction: "asc" | "desc" | null }) => {
+    const base = "w-2.5 h-2.5"
+    const active = "text-primary-600"
+    const inactive = "text-gray-500"
+    return (
+      <span className="ml-1 flex flex-col items-center justify-center leading-none">
+        <svg
+          viewBox="0 0 12 8"
+          aria-hidden="true"
+          className={cn(base, direction === "asc" ? active : inactive)}
+        >
+          <path d="M6 0 L12 8 L0 8 Z" fill="currentColor" />
+        </svg>
+        <span className="h-0.5" />
+        <svg
+          viewBox="0 0 12 8"
+          aria-hidden="true"
+          className={cn(base, direction === "desc" ? active : inactive)}
+        >
+          <path d="M0 0 L12 0 L6 8 Z" fill="currentColor" />
+        </svg>
+      </span>
+    )
+  }, [])
   const [columns, setColumnsState] = useState<Column[]>(() => initialColumns.map(column => ({ ...column })))
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: "asc" | "desc" } | null>(null)
   const [draggedColumn, setDraggedColumn] = useState<string | null>(null)
@@ -749,7 +777,7 @@ export function DynamicTable({
               <div
                 key={column.id}
                 className={cn(
-                  "table-cell bg-gradient-to-b from-gray-50 to-gray-100 font-semibold text-gray-900 relative select-none border-b-2 border-gray-300",
+                  "table-cell bg-gradient-to-b from-gray-50 to-gray-100 font-semibold text-gray-900 relative select-none border-b-2 border-gray-400 border-r-2 border-gray-800 last:border-r-0",
                   column.sortable && column.id !== "select" && "cursor-pointer hover:from-gray-100 hover:to-gray-200"
                 )}
                 draggable
@@ -773,21 +801,38 @@ export function DynamicTable({
                             onSelectAll(event.target.checked)
                           }}
                         />
-                        <div className="flex flex-col leading-tight flex-1 min-w-0">
-                          <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 break-words">
-                            Select All
-                          </span>
-                        </div>
+                        {!hideSelectAllLabel && (
+                          <div className="flex flex-col leading-tight flex-1 min-w-0">
+                            <span className="text-xs font-semibold uppercase tracking-wide text-gray-600 break-words">
+                              {selectHeaderLabel ?? 'Select All'}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    ) : column.type === "multi-action" && onSelectAll ? (
+                      <div className="flex items-center gap-3">
+                        <input
+                          ref={selectAllRef}
+                          type="checkbox"
+                          className="w-4 h-4 text-primary-600 bg-gray-100 border-gray-300 rounded focus:ring-primary-500"
+                          checked={data.length > 0 && selectedItems.length === data.length}
+                          onClick={event => event.stopPropagation()}
+                          onChange={event => {
+                            event.stopPropagation()
+                            onSelectAll(event.target.checked)
+                          }}
+                        />
+                        {!hideSelectAllLabel && (
+                          <div className="flex flex-col leading-tight flex-1 min-w-0">
+                            <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 break-words">{column.label}</span>
+                          </div>
+                        )}
                       </div>
                     ) : (
                       <>
                         <span className="break-words leading-tight flex-1 min-w-0">{column.label}</span>
-                        {column.sortable && sortConfig?.key === column.id && (
-                          sortConfig.direction === "asc" ? (
-                            <ChevronUp className="h-4 w-4 text-gray-400" />
-                          ) : (
-                            <ChevronDown className="h-4 w-4 text-gray-400" />
-                          )
+                        {column.sortable && (
+                          <SortTriangles direction={sortConfig?.key === column.id ? sortConfig.direction : null} />
                         )}
                       </>
                     )}
@@ -837,7 +882,7 @@ export function DynamicTable({
                   <div
                     key={`${rowIndex}-${column.id}`}
                     className={cn(
-                      "table-cell text-sm text-gray-900 transition-colors",
+                      "table-cell text-sm text-gray-900 transition-colors border-r border-gray-300 last:border-r-0",
                       onRowClick && "cursor-pointer",
                       rowSelected && "bg-primary-50 font-medium",
                       rowSelected && columnIndex === 0 && "border-l-4 border-primary-400",

@@ -6,11 +6,14 @@ import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import { navigation } from '@/lib/nav'
 import { cn } from '@/lib/utils'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Settings, LogOut } from 'lucide-react'
+import { useAuth } from '@/lib/auth-context'
 
 export function Sidebar() {
   const pathname = usePathname()
   const [collapsed, setCollapsed] = useState(false)
+  const [showUserMenu, setShowUserMenu] = useState(false)
+  const { user, logout } = useAuth()
 
   return (
     <div className={cn(
@@ -121,25 +124,55 @@ export function Sidebar() {
       </nav>
 
       {/* User Profile */}
-      <div className="p-4 border-t border-sidebar-dark">
-        <div className="flex items-center">
-          <div className="w-8 h-8 bg-blue-200 rounded-full flex items-center justify-center p-1">
-            <Image 
-              src="/commissable-logo.png" 
-              alt="Commissable Logo" 
-              width={20} 
-              height={20}
-              className="object-contain"
-              style={{ width: 'auto', height: 'auto' }}
-            />
+      <div className="relative p-4 border-t border-sidebar-dark">
+        <button
+          onClick={() => setShowUserMenu(!showUserMenu)}
+          className="w-full flex items-center hover:bg-sidebar-dark rounded-lg p-2 transition-colors"
+        >
+          <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0">
+            <span className="text-white text-sm font-medium">
+              {user?.fullName?.split(' ').map(n => n[0]).join('').toUpperCase() || 'A'}
+            </span>
           </div>
-          {!collapsed && (
-            <div className="ml-3">
-              <p className="text-sm font-medium text-white">Commissable</p>
-              <p className="text-xs text-blue-200">Administrator</p>
+          {!collapsed && user && (
+            <div className="ml-3 text-left">
+              <p className="text-sm font-medium text-white">{user.fullName}</p>
+              <p className="text-xs text-blue-200">{user.role?.name}</p>
             </div>
           )}
-        </div>
+        </button>
+
+        {showUserMenu && (
+          <div className="absolute bottom-full left-4 right-4 mb-2 rounded-md border border-gray-200 bg-white py-1 shadow-lg z-50">
+            {user && (
+              <>
+                <div className="border-b border-gray-100 px-4 py-2">
+                  <div className="text-sm font-medium text-gray-900">{user.fullName}</div>
+                  <div className="text-sm text-gray-500">{user.email}</div>
+                  <div className="text-xs text-gray-400">{user.role?.name}</div>
+                </div>
+                <Link
+                  href="/settings"
+                  className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                  onClick={() => setShowUserMenu(false)}
+                >
+                  <Settings className="mr-2 h-4 w-4" />
+                  Settings
+                </Link>
+                <button
+                  onClick={() => {
+                    setShowUserMenu(false)
+                    logout()
+                  }}
+                  className="flex w-full items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                >
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Sign out
+                </button>
+              </>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )

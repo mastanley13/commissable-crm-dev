@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ChangeEvent } from "react";
+import { useEffect, useMemo, useState, type ChangeEvent, type ReactNode } from "react";
 import { Search, Settings, ChevronDown, X, Upload, Download } from "lucide-react";
-import { TableChangeNotification } from "./table-change-notification";
 
 interface FilterColumnOption {
   id: string;
@@ -39,19 +38,20 @@ interface ListHeaderProps {
   filterColumns?: FilterColumnOption[];
   columnFilters?: ColumnFilter[];
   onColumnFiltersChange?: (filters: ColumnFilter[]) => void;
-  statusFilter?: "all" | "active";
+  statusFilter?: "active" | "inactive" | "all";
   savedFilterSets?: SavedFilterSet[];
   onSaveFilterSet?: (name: string) => void;
   onLoadFilterSet?: (filterSet: SavedFilterSet) => void;
   onDeleteFilterSet?: (id: string) => void;
-  hasUnsavedTableChanges?: boolean;
-  isSavingTableChanges?: boolean;
-  lastTableSaved?: Date;
-  onSaveTableChanges?: () => void;
   onImport?: () => void;
   onExport?: () => void;
   canImport?: boolean;
   canExport?: boolean;
+  leftAccessory?: ReactNode;
+  hasUnsavedTableChanges?: boolean;
+  isSavingTableChanges?: boolean;
+  lastTableSaved?: Date;
+  onSaveTableChanges?: () => Promise<void>;
 }
 
 const DEFAULT_FILTER_COLUMNS: FilterColumnOption[] = [
@@ -81,19 +81,18 @@ export function ListHeader({
   onSaveFilterSet,
   onLoadFilterSet,
   onDeleteFilterSet,
-  hasUnsavedTableChanges,
-  isSavingTableChanges,
-  lastTableSaved,
-  onSaveTableChanges,
   onImport,
   onExport,
   canImport = false,
   canExport = false,
+  leftAccessory,
+  hasUnsavedTableChanges = false,
+  isSavingTableChanges = false,
+  lastTableSaved,
+  onSaveTableChanges,
 }: ListHeaderProps) {
   const [searchQuery, setSearchQuery] = useState("");
-  const [activeFilter, setActiveFilter] = useState<"all" | "active">(
-    statusFilter ?? "all",
-  );
+  const [activeFilter, setActiveFilter] = useState<"active" | "inactive">("active");
   const [selectedColumn, setSelectedColumn] = useState("");
   const [filterValue, setFilterValue] = useState("");
   const [activeColumnFilters, setActiveColumnFilters] = useState<ColumnFilter[]>(columnFilters ?? []);
@@ -113,7 +112,7 @@ export function ListHeader({
 
   useEffect(() => {
     if (statusFilter && statusFilter !== activeFilter) {
-      setActiveFilter(statusFilter);
+      setActiveFilter(statusFilter === "active" ? "active" : "inactive");
     }
   }, [statusFilter, activeFilter]);
 
@@ -127,7 +126,7 @@ export function ListHeader({
     onSearch?.(query);
   };
 
-  const handleStatusFilterChange = (filter: "all" | "active") => {
+  const handleStatusFilterChange = (filter: "active" | "inactive") => {
     setActiveFilter(filter);
     onFilterChange?.(filter);
   };
@@ -239,6 +238,7 @@ export function ListHeader({
 
       <div className="flex items-center justify-between gap-3">
         <div className="flex flex-1 items-center gap-2">
+          {leftAccessory}
           <div className="relative">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
             <input
@@ -385,13 +385,6 @@ export function ListHeader({
         </div>
 
         <div className="flex items-center gap-2">
-          <TableChangeNotification
-            hasUnsavedChanges={hasUnsavedTableChanges || false}
-            isSaving={isSavingTableChanges || false}
-            lastSaved={lastTableSaved}
-            onSave={onSaveTableChanges}
-          />
-
           {(canImport || canExport) && (
             <div className="flex items-center gap-1">
               {canImport && (
@@ -418,26 +411,28 @@ export function ListHeader({
               )}
             </div>
           )}
-          <button
-            onClick={() => handleStatusFilterChange("active")}
-            className={`rounded px-3 py-1.5 text-sm font-medium transition-colors ${
-              activeFilter === "active"
-                ? "bg-primary-600 text-white"
-                : "border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
-            }`}
-          >
-            Active
-          </button>
-          <button
-            onClick={() => handleStatusFilterChange("all")}
-            className={`rounded px-3 py-1.5 text-sm font-medium transition-colors ${
-              activeFilter === "all"
-                ? "bg-primary-600 text-white"
-                : "border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
-            }`}
-          >
-            Show All
-          </button>
+          <div className="inline-flex rounded-lg border border-gray-300 bg-gray-50 p-0.5">
+            <button
+              onClick={() => handleStatusFilterChange("active")}
+              className={`px-3 py-1.5 text-sm font-medium transition-all duration-200 rounded-md ${
+                activeFilter === "active"
+                  ? "bg-primary-600 text-white shadow-sm"
+                  : "text-gray-600 hover:text-gray-900"
+              }`}
+            >
+              Active
+            </button>
+            <button
+              onClick={() => handleStatusFilterChange("inactive")}
+              className={`px-3 py-1.5 text-sm font-medium transition-all duration-200 rounded-md ${
+                activeFilter === "inactive"
+                  ? "bg-primary-600 text-white shadow-sm"
+                  : "text-gray-600 hover:text-gray-900"
+              }`}
+            >
+              Show Inactive
+            </button>
+          </div>
 
           {showCreateButton && (
             <button
