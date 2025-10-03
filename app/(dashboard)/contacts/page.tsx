@@ -16,7 +16,7 @@ import { ContactBulkActionBar } from "@/components/contact-bulk-action-bar"
 import { ContactBulkOwnerModal } from "@/components/contact-bulk-owner-modal"
 import { ContactBulkStatusModal } from "@/components/contact-bulk-status-modal"
 import { ContactEditModal } from "@/components/contact-edit-modal"
-import { Trash2, Edit } from "lucide-react"
+import { Trash2, Edit, Check } from "lucide-react"
 
 interface ContactRow {
   id: string
@@ -70,32 +70,13 @@ interface Filters {
     
 const contactColumns: Column[] = [
   {
-    id: "select",
-    label: "Select",
-    width: 100,
-    minWidth: 80,
-    maxWidth: 120,
-    type: "checkbox",
-    accessor: "select"
-  },
-  {
-    id: "action",
+    id: "multi-action",
     label: "Actions",
-    width: 100,
-    minWidth: 80,
-    maxWidth: 120,
-    type: "action",
-    sortable: false,
-    resizable: true
-  },
-  {
-    id: "active",
-    label: "Active",
-    width: 100,
-    minWidth: 80,
-    maxWidth: 120,
-    type: "toggle",
-    accessor: "active"
+    width: 200,
+    minWidth: 160,
+    maxWidth: 240,
+    type: "multi-action",
+    accessor: "select"
   },
   {
     id: "suffix",
@@ -1098,7 +1079,95 @@ export default function ContactsPage() {
   const tableLoading = loading || preferenceLoading
   const tableColumns = useMemo(() => {
     return preferenceColumns.map((column) => {
+      if (column.id === "multi-action") {
+        return {
+          ...column,
+          render: (_value: unknown, row: ContactRow) => {
+            const checked = selectedContacts.includes(row.id)
+            const activeValue = !!row.active || !!row.isPrimary
+            return (
+              <div className="flex items-center gap-2" data-disable-row-click="true">
+                {/* Checkbox */}
+                <label className="flex cursor-pointer items-center justify-center" onClick={e => e.stopPropagation()}>
+                  <input
+                    type="checkbox"
+                    className="sr-only"
+                    checked={checked}
+                    aria-label={`Select contact ${row.fullName || row.id}`}
+                    onChange={() => handleContactSelect(row.id, !checked)}
+                  />
+                  <span
+                    className={`flex h-4 w-4 items-center justify-center rounded border transition-colors ${
+                      checked
+                        ? "border-primary-500 bg-primary-600 text-white"
+                        : "border-gray-300 bg-white text-transparent"
+                    }`}
+                  >
+                    <Check className="h-3 w-3" aria-hidden="true" />
+                  </span>
+                </label>
+
+                {/* Active Toggle */}
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    handleToggleContactStatus(row, !activeValue)
+                  }}
+                  className="relative inline-flex items-center cursor-pointer"
+                  title={activeValue ? "Active" : "Inactive"}
+                >
+                  <span
+                    className={`w-9 h-5 rounded-full transition-colors duration-300 ease-in-out ${
+                      activeValue ? "bg-blue-600" : "bg-gray-300"
+                    }`}
+                  >
+                    <span
+                      className={`inline-block w-4 h-4 bg-white rounded-full shadow transition-transform duration-300 ease-in-out transform ${
+                        activeValue ? "translate-x-4" : "translate-x-1"
+                      } mt-0.5 ${activeValue ? "ring-1 ring-blue-300" : ""}`}
+                    />
+                  </span>
+                </button>
+
+                {/* Action Buttons */}
+                <div className="flex gap-0.5">
+                  <button
+                    type="button"
+                    className="p-1 text-blue-500 hover:text-blue-700 transition-colors rounded"
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      requestContactEdit(row);
+                    }}
+                    aria-label="Edit contact"
+                  >
+                    <Edit className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    className={`p-1 rounded transition-colors ${
+                      row.isDeleted
+                        ? "text-gray-400 hover:text-gray-600"
+                        : "text-red-500 hover:text-red-700"
+                    }`}
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      requestContactDeletion(row);
+                    }}
+                    aria-label={row.isDeleted ? "Manage contact" : "Delete contact"}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+            )
+          }
+        }
+      }
       if (column.id === "action") {
+        // Backward compatibility if user preferences still include legacy 'action' column
         return {
           ...column,
           render: (_value: unknown, row: ContactRow) => (
@@ -1135,7 +1204,7 @@ export default function ContactsPage() {
       }
       return column;
     });
-  }, [preferenceColumns, requestContactEdit, requestContactDeletion])
+  }, [preferenceColumns, selectedContacts, handleContactSelect, handleToggleContactStatus, requestContactEdit, requestContactDeletion])
   
   // Get hidden columns by comparing all columns with visible ones
   const hiddenColumns = useMemo(() => {
@@ -1147,6 +1216,7 @@ export default function ContactsPage() {
   return (
     <CopyProtectionWrapper className="dashboard-page-container">
       <ListHeader
+        pageTitle="Contacts List"
         searchPlaceholder="Search contacts..."
         onSearch={handleSearch}
         onFilterChange={handleStatusFilterChange}

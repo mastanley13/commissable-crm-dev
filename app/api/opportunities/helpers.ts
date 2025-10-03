@@ -4,11 +4,16 @@ type OpportunityWithRelations = {
   id: string
   status?: OpportunityStatus | string | null
   name?: string | null
+  orderIdHouse?: string | null
   stage?: string | null
+  distributorName?: string | null
+  vendorName?: string | null
+  referredBy?: string | null
   owner?: { firstName?: string | null; lastName?: string | null } | null
   ownerId?: string | null
   leadSource?: string | null
   estimatedCloseDate?: string | Date | null
+  closeDate?: string | Date | null
 }
 
 function normalizeStatus(status?: OpportunityStatus | string | null): OpportunityStatus {
@@ -40,13 +45,15 @@ export function mapOpportunityToRow(opportunity: OpportunityWithRelations) {
     select: false,
     active: isActive,
     status,
-    orderIdHouse: opportunity.id?.slice(0, 8)?.toUpperCase?.() ?? "",
+    orderIdHouse: opportunity.orderIdHouse ?? "",
     opportunityName: opportunity.name ?? "",
     stage: opportunity.stage ?? "",
+    distributorName: opportunity.distributorName ?? "",
+    vendorName: opportunity.vendorName ?? "",
+    referredBy: opportunity.referredBy ?? opportunity.leadSource ?? "",
     owner: ownerName,
     ownerId: opportunity.ownerId ?? null,
-    estimatedCloseDate: opportunity.estimatedCloseDate ?? null,
-    referredBy: opportunity.leadSource ?? "",
+    closeDate: opportunity.closeDate ?? opportunity.estimatedCloseDate ?? null,
     isDeleted: !isActive
   }
 }

@@ -146,11 +146,14 @@ function mapAccountContactRow(contact: any) {
     id: contact.id,
     active: !contact.deletedAt, // Contact is active if not soft deleted
     suffix: contact.suffix ?? "",
+    firstName: contact.firstName ?? "",
+    lastName: contact.lastName ?? "",
     fullName: contact.fullName,
     jobTitle: contact.jobTitle ?? "",
     contactType: contact.accountType?.name ?? contact.contactType ?? "",
     emailAddress: contact.emailAddress ?? "",
     workPhone: contact.workPhone ?? "",
+    mobile: contact.mobilePhone ?? "",
     extension: contact.workPhoneExt ?? "",
     isPrimary: Boolean(contact.isPrimary), // Keep isPrimary as a separate field
     isDeleted: Boolean(contact.deletedAt),
@@ -254,8 +257,7 @@ export async function GET(
       prisma.opportunity.findMany({
         where: { tenantId, accountId },
         include: { owner: { select: { firstName: true, lastName: true } } },
-        orderBy: { createdAt: "desc" },
-        take: 5
+        orderBy: { createdAt: "desc" }
       }),
       prisma.groupMember.findMany({
         where: { tenantId, accountId },
@@ -266,8 +268,7 @@ export async function GET(
             }
           }
         },
-        orderBy: { addedAt: "desc" },
-        take: 5
+        orderBy: { addedAt: "desc" }
       }),
       prisma.activity.findMany({
         where: { tenantId, accountId },
@@ -276,8 +277,7 @@ export async function GET(
         orderBy: [
           { dueDate: "desc" },
           { createdAt: "desc" }
-        ],
-        take: 5
+        ]
       })
     ])
 

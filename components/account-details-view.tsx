@@ -12,7 +12,8 @@ import {
   Plus,
   Search,
   Settings,
-  Trash2
+  Trash2,
+  Check
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { DynamicTable, Column } from "./dynamic-table"
@@ -46,6 +47,8 @@ import { ActivityBulkStatusModal } from "./activity-bulk-status-modal"
 export interface AccountAddress {
   line1: string
   line2?: string
+  shippingStreet2?: string
+  billingStreet2?: string
   city: string
   state: string
   postalCode: string
@@ -161,35 +164,15 @@ const TABS: { id: TabKey; label: string }[] = [
 ]
 
 const fieldLabelClass = "text-xs font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap flex items-center"
-const fieldBoxClass = "flex min-h-[20px] items-center justify-between rounded-lg border-2 border-gray-400 bg-white px-2 py-0.5 text-sm text-gray-900 shadow-sm whitespace-nowrap overflow-hidden text-ellipsis"
+const fieldBoxClass = "flex min-h-[32px] w-full items-center justify-between rounded-lg border-2 border-gray-400 bg-white px-2 py-1 text-sm text-gray-900 shadow-sm whitespace-nowrap overflow-hidden text-ellipsis"
 const CONTACT_TABLE_BASE_COLUMNS: Column[] = [
   {
-    id: "select",
-    label: "Select",
-    width: 70,
-    minWidth: 60,
-    maxWidth: 100,
-    type: "checkbox",
-  },
-  {
-    id: "actions",
+    id: "multi-action",
     label: "Actions",
-    width: 70,
-    minWidth: 60,
-    maxWidth: 100,
-    sortable: false,
-    resizable: false,
-    type: "action",
-  },
-  {
-    id: "active",
-    label: "Active",
-    width: 100,
-    minWidth: 80,
-    maxWidth: 130,
-    sortable: true,
-    type: "toggle",
-    accessor: "active",
+    width: 180,
+    minWidth: 150,
+    maxWidth: 220,
+    type: "multi-action",
   },
   {
     id: "suffix",
@@ -208,6 +191,26 @@ const CONTACT_TABLE_BASE_COLUMNS: Column[] = [
     maxWidth: 320,
     sortable: true,
     accessor: "fullName",
+  },
+  {
+    id: "firstName",
+    label: "First Name",
+    width: 180,
+    minWidth: 150,
+    maxWidth: 250,
+    sortable: true,
+    accessor: "firstName",
+    selected: false,
+  },
+  {
+    id: "lastName",
+    label: "Last Name",
+    width: 180,
+    minWidth: 150,
+    maxWidth: 250,
+    sortable: true,
+    accessor: "lastName",
+    selected: false,
   },
   {
     id: "jobTitle",
@@ -246,6 +249,15 @@ const CONTACT_TABLE_BASE_COLUMNS: Column[] = [
     accessor: "workPhone",
   },
   {
+    id: "mobile",
+    label: "Mobile",
+    width: 180,
+    minWidth: 150,
+    maxWidth: 220,
+    sortable: true,
+    accessor: "mobile",
+  },
+  {
     id: "extension",
     label: "Extension",
     width: 120,
@@ -258,32 +270,12 @@ const CONTACT_TABLE_BASE_COLUMNS: Column[] = [
 
 const OPPORTUNITY_TABLE_BASE_COLUMNS: Column[] = [
   {
-    id: "select",
-    label: "Select",
-    width: 100,
-    minWidth: 80,
-    maxWidth: 120,
-    type: "checkbox",
-  },
-  {
-    id: "active",
-    label: "Active",
-    width: 120,
-    minWidth: 100,
-    maxWidth: 150,
-    sortable: true,
-    type: "toggle",
-    accessor: "active",
-  },
-  {
-    id: "actions",
+    id: "multi-action",
     label: "Actions",
-    width: 100,
-    minWidth: 80,
-    maxWidth: 120,
-    sortable: false,
-    resizable: false,
-    type: "action",
+    width: 200,
+    minWidth: 160,
+    maxWidth: 240,
+    type: "multi-action",
   },
   {
     id: "orderIdHouse",
@@ -313,22 +305,22 @@ const OPPORTUNITY_TABLE_BASE_COLUMNS: Column[] = [
     accessor: "stage",
   },
   {
-    id: "owner",
-    label: "Owner",
-    width: 150,
-    minWidth: 120,
-    maxWidth: 200,
-    sortable: true,
-    accessor: "owner",
-  },
-  {
-    id: "estimatedCloseDate",
-    label: "Estimated Close Date",
+    id: "distributorName",
+    label: "Distributor Name",
     width: 180,
     minWidth: 150,
     maxWidth: 220,
     sortable: true,
-    accessor: "estimatedCloseDate",
+    accessor: "distributorName",
+  },
+  {
+    id: "vendorName",
+    label: "Vendor Name",
+    width: 180,
+    minWidth: 150,
+    maxWidth: 220,
+    sortable: true,
+    accessor: "vendorName",
   },
   {
     id: "referredBy",
@@ -338,27 +330,35 @@ const OPPORTUNITY_TABLE_BASE_COLUMNS: Column[] = [
     maxWidth: 200,
     sortable: true,
     accessor: "referredBy",
+  },
+  {
+    id: "owner",
+    label: "Owner",
+    width: 150,
+    minWidth: 120,
+    maxWidth: 200,
+    sortable: true,
+    accessor: "owner",
+  },
+  {
+    id: "closeDate",
+    label: "Close Date",
+    width: 150,
+    minWidth: 120,
+    maxWidth: 200,
+    sortable: true,
+    accessor: "closeDate",
   }
 ]
 
 const GROUP_TABLE_BASE_COLUMNS: Column[] = [
   {
-    id: "select",
-    label: "Select",
-    width: 100,
-    minWidth: 80,
-    maxWidth: 120,
-    type: "checkbox",
-  },
-  {
-    id: "active",
-    label: "Active",
-    width: 120,
-    minWidth: 100,
-    maxWidth: 150,
-    sortable: true,
-    type: "toggle",
-    accessor: "active"
+    id: "multi-action",
+    label: "Actions",
+    width: 200,
+    minWidth: 160,
+    maxWidth: 240,
+    type: "multi-action",
   },
   {
     id: "groupName",
@@ -395,47 +395,17 @@ const GROUP_TABLE_BASE_COLUMNS: Column[] = [
     maxWidth: 260,
     sortable: true,
     accessor: "owner"
-  },
-  {
-    id: "actions",
-    label: "Actions",
-    width: 100,
-    minWidth: 80,
-    maxWidth: 120,
-    sortable: false,
-    resizable: false,
-    type: "action",
   }
 ]
 
 const ACTIVITY_TABLE_BASE_COLUMNS: Column[] = [
   {
-    id: "select",
-    label: "Select",
-    width: 100,
-    minWidth: 80,
-    maxWidth: 120,
-    type: "checkbox",
-  },
-  {
-    id: "actions",
+    id: "multi-action",
     label: "Actions",
-    width: 100,
-    minWidth: 80,
-    maxWidth: 120,
-    sortable: false,
-    resizable: false,
-    hideable: false
-  },
-  {
-    id: "active",
-    label: "Active",
-    width: 120,
-    minWidth: 100,
-    maxWidth: 150,
-    sortable: true,
-    type: "toggle",
-    accessor: "active"
+    width: 200,
+    minWidth: 160,
+    maxWidth: 240,
+    type: "multi-action",
   },
   {
     id: "activityDate",
@@ -885,6 +855,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
     { id: "contactType", label: "Contact Type" },
     { id: "emailAddress", label: "Email Address" },
     { id: "workPhone", label: "Work Phone" },
+    { id: "mobile", label: "Mobile" },
     { id: "suffix", label: "Suffix" },
     { id: "extension", label: "Extension" }
   ], [])
@@ -893,9 +864,11 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
     { id: "orderIdHouse", label: "Order ID - House" },
     { id: "opportunityName", label: "Opportunity Name" },
     { id: "stage", label: "Opportunity Stage" },
-    { id: "owner", label: "Owner" },
-    { id: "estimatedCloseDate", label: "Estimated Close Date" },
+    { id: "distributorName", label: "Distributor Name" },
+    { id: "vendorName", label: "Vendor Name" },
     { id: "referredBy", label: "Referred By" },
+    { id: "owner", label: "Owner" },
+    { id: "closeDate", label: "Close Date" },
   ], [])
 
   const groupsFilterColumns = useMemo(() => [
@@ -1977,13 +1950,14 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
     }
 
     const headers = [
-      "Opportunity Name",
       "Order ID - House",
-      "Stage",
-      "Status",
+      "Opportunity Name",
+      "Opportunity Stage",
+      "Distributor Name",
+      "Vendor Name",
+      "Referred By",
       "Owner",
-      "Estimated Close Date",
-      "Lead Source"
+      "Close Date"
     ]
 
     const escapeCsv = (value: string | null | undefined) => {
@@ -2010,13 +1984,14 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
       headers.join(","),
       ...rows.map(row =>
         [
-          row.opportunityName,
           row.orderIdHouse,
+          row.opportunityName,
           row.stage,
-          row.status,
+          row.distributorName,
+          row.vendorName,
+          row.referredBy,
           row.owner,
-          formatCsvDate(row.estimatedCloseDate ?? null),
-          row.referredBy
+          formatCsvDate(row.closeDate ?? null)
         ]
           .map(escapeCsv)
           .join(",")
@@ -2674,6 +2649,55 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
 
   const contactTableColumns = useMemo(() => {
     return contactPreferenceColumns.map(column => {
+      if (column.id === "multi-action") {
+        return {
+          ...column,
+          render: (_value: unknown, row: AccountContactRow) => {
+            const checked = selectedContacts.includes(row.id)
+            const activeValue = !!row.active
+            return (
+              <div className="flex items-center gap-2" data-disable-row-click="true">
+                {/* Checkbox */}
+                <label className="flex cursor-pointer items-center justify-center" onClick={e => e.stopPropagation()}>
+                  <input
+                    type="checkbox"
+                    className="sr-only"
+                    checked={checked}
+                    aria-label={`Select contact ${row.fullName || row.id}`}
+                    onChange={() => handleContactSelect(row.id, !checked)}
+                  />
+                  <span className={`flex h-4 w-4 items-center justify-center rounded border transition-colors ${checked ? 'border-primary-500 bg-primary-600 text-white' : 'border-gray-300 bg-white text-transparent'}`}>
+                    <Check className="h-3 w-3" aria-hidden="true" />
+                  </span>
+                </label>
+                {/* Active toggle (local state) */}
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    setContactRows(prev => prev.map(c => c.id === row.id ? { ...c, active: !activeValue } : c))
+                  }}
+                  className="relative inline-flex items-center cursor-pointer"
+                  title={activeValue ? 'Active' : 'Inactive'}
+                >
+                  <span className={`w-9 h-5 rounded-full transition-colors duration-300 ease-in-out ${activeValue ? 'bg-blue-600' : 'bg-gray-300'}`}>
+                    <span className={`inline-block w-4 h-4 bg-white rounded-full shadow transition-transform duration-300 ease-in-out transform ${activeValue ? 'translate-x-4' : 'translate-x-1'} mt-0.5 ${activeValue ? 'ring-1 ring-blue-300' : ''}`} />
+                  </span>
+                </button>
+                {/* Actions */}
+                <div className="flex gap-0.5">
+                  <button type="button" className="p-1 text-primary-600 hover:text-primary-700 transition-colors rounded" aria-label="Edit contact">
+                    <Edit className="h-3.5 w-3.5" />
+                  </button>
+                  <button type="button" className={`p-1 rounded transition-colors ${row.isDeleted ? 'text-gray-400 hover:text-gray-600' : 'text-red-500 hover:text-red-700'}`} onClick={(event) => { event.stopPropagation(); requestContactDelete(row) }} aria-label={row.isDeleted ? 'Manage contact' : 'Delete contact'}>
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+            )
+          }
+        }
+      }
       if (column.id === "actions") {
         return {
           ...column,
@@ -2724,70 +2748,35 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
 
   const opportunityTableColumns = useMemo(() => {
     return opportunityPreferenceColumns.map(column => {
-      if (column.id === "actions") {
+      if (column.id === "multi-action") {
         return {
           ...column,
-          render: (_value: unknown, row: AccountOpportunityRow) => (
-            <div className="flex gap-1">
-              <button
-                type="button"
-                className="p-1 rounded transition-colors text-blue-500 hover:text-blue-700"
-                onClick={event => {
-                  event.stopPropagation()
-                  handleOpportunityEdit(row)
-                }}
-                aria-label="Edit opportunity"
-              >
-                <Edit className="h-4 w-4" />
-              </button>
-              <button
-                type="button"
-                className={`p-1 rounded transition-colors ${row.active ? "text-red-500 hover:text-red-700" : "text-gray-400 hover:text-gray-600"}`}
-                onClick={event => {
-                  event.stopPropagation()
-                  requestOpportunityDelete(row)
-                }}
-                aria-label="Delete opportunity"
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
-            </div>
-          )
-        }
-      }
-
-      if (column.id === "active") {
-        return {
-          ...column,
-          render: (_value: boolean, row: AccountOpportunityRow) => {
+          render: (_value: unknown, row: AccountOpportunityRow) => {
+            const checked = selectedOpportunities.includes(row.id)
+            const activeValue = !!row.active
             const isUpdating = updatingOpportunityIds.has(row.id)
             return (
-              <button
-                type="button"
-                onClick={event => {
-                  event.stopPropagation()
-                  if (!isUpdating) {
-                    handleOpportunityToggleActive(row, !row.active)
-                  }
-                }}
-                className="flex items-center gap-2"
-                disabled={isUpdating}
-              >
-                <span
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                    row.active ? "bg-primary-600" : "bg-gray-300"
-                  } ${isUpdating ? "opacity-60" : ""}`}
-                >
-                  <span
-                    className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
-                      row.active ? "translate-x-5" : "translate-x-1"
-                    }`}
-                  />
-                </span>
-                <span className="text-xs text-gray-500">
-                  {isUpdating ? "Updating..." : row.active ? "Active" : "Lost"}
-                </span>
-              </button>
+              <div className="flex items-center gap-2" data-disable-row-click="true">
+                <label className="flex cursor-pointer items-center justify-center" onClick={e => e.stopPropagation()}>
+                  <input type="checkbox" className="sr-only" checked={checked} aria-label={`Select opportunity ${row.opportunityName || row.id}`} onChange={() => handleOpportunitySelect(row.id, !checked)} />
+                  <span className={`flex h-4 w-4 items-center justify-center rounded border transition-colors ${checked ? 'border-primary-500 bg-primary-600 text-white' : 'border-gray-300 bg-white text-transparent'}`}>
+                    <Check className="h-3 w-3" aria-hidden="true" />
+                  </span>
+                </label>
+                <button type="button" onClick={(event) => { event.stopPropagation(); if (!isUpdating) { handleOpportunityToggleActive(row, !activeValue) } }} className="relative inline-flex items-center cursor-pointer" disabled={isUpdating} title={activeValue ? 'Active' : 'Lost'}>
+                  <span className={`w-9 h-5 rounded-full transition-colors duration-300 ease-in-out ${activeValue ? 'bg-blue-600' : 'bg-gray-300'} ${isUpdating ? 'opacity-50' : ''}`}>
+                    <span className={`inline-block w-4 h-4 bg-white rounded-full shadow transition-transform duration-300 ease-in-out transform ${activeValue ? 'translate-x-4' : 'translate-x-1'} mt-0.5 ${activeValue ? 'ring-1 ring-blue-300' : ''}`} />
+                  </span>
+                </button>
+                <div className="flex gap-0.5">
+                  <button type="button" className="p-1 rounded transition-colors text-blue-500 hover:text-blue-700" onClick={(e) => { e.stopPropagation(); handleOpportunityEdit(row) }} aria-label="Edit opportunity">
+                    <Edit className="h-3.5 w-3.5" />
+                  </button>
+                  <button type="button" className={`p-1 rounded transition-colors ${activeValue ? 'text-red-500 hover:text-red-700' : 'text-gray-400 hover:text-gray-600'}`} onClick={(e) => { e.stopPropagation(); requestOpportunityDelete(row) }} aria-label="Delete opportunity">
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
             )
           }
         }
@@ -2811,27 +2800,35 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
 
   const activityTableColumns = useMemo(() => {
     return activityPreferenceColumns.map(column => {
-      if (column.id === "actions") {
+      if (column.id === "multi-action") {
         return {
           ...column,
-          render: (_value: unknown, row: AccountActivityRow) => (
-            <div className="flex gap-1">
-              <button
-                type="button"
-                className="text-primary-600 transition hover:text-primary-700"
-                aria-label="Edit activity"
-              >
-                <Edit className="h-4 w-4" />
-              </button>
-              <button
-                type="button"
-                className="text-red-500 transition hover:text-red-700"
-                aria-label="Delete activity"
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
-            </div>
-          )
+          render: (_value: unknown, row: AccountActivityRow) => {
+            const checked = selectedActivities.includes(row.id)
+            const activeValue = !!row.active
+            return (
+              <div className="flex items-center gap-2" data-disable-row-click="true">
+                <label className="flex cursor-pointer items-center justify-center" onClick={e => e.stopPropagation()}>
+                  <input type="checkbox" className="sr-only" checked={checked} aria-label={`Select activity ${row.id}`} onChange={() => handleActivitySelect(row.id, !checked)} />
+                  <span className={`flex h-4 w-4 items-center justify-center rounded border transition-colors ${checked ? 'border-primary-500 bg-primary-600 text-white' : 'border-gray-300 bg-white text-transparent'}`}>
+                    <Check className="h-3 w-3" aria-hidden="true" />
+                  </span>
+                </label>
+                {/* Visual toggle only */}
+                <span className={`w-9 h-5 rounded-full ${activeValue ? 'bg-blue-600' : 'bg-gray-300'}`}>
+                  <span className={`inline-block w-4 h-4 bg-white rounded-full shadow transform ${activeValue ? 'translate-x-4' : 'translate-x-1'} mt-0.5`} />
+                </span>
+                <div className="flex gap-0.5">
+                  <button type="button" className="p-1 text-primary-600 hover:text-primary-700 transition-colors rounded" aria-label="Edit activity">
+                    <Edit className="h-3.5 w-3.5" />
+                  </button>
+                  <button type="button" className="p-1 text-red-500 hover:text-red-700 transition-colors rounded" aria-label="Delete activity">
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+            )
+          }
         }
       }
       if (column.id === "activityDate") {
@@ -3004,43 +3001,40 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
 
   const groupTableColumns = useMemo(() => {
     return groupPreferenceColumns.map(column => {
-      if (column.id === "select") {
-        return column
-      }
-      if (column.id === "actions") {
+      if (column.id === "multi-action") {
         return {
           ...column,
-          render: (_value: unknown, row: AccountGroupRow) => (
-            <div className="flex gap-1">
-              <button
-                type="button"
-                className="p-1 rounded transition-colors text-blue-500 hover:text-blue-700"
-                onClick={event => {
-                  event.stopPropagation()
-                  handleEditGroup(row)
-                }}
-                aria-label="Edit group"
-              >
-                <Edit className="h-4 w-4" />
-              </button>
-              <button
-                type="button"
-                className={`p-1 rounded transition-colors ${row.active ? "text-red-500 hover:text-red-700" : "text-gray-400 hover:text-gray-600"}`}
-                onClick={event => {
-                  event.stopPropagation()
-                  requestGroupDelete(row)
-                }}
-                aria-label="Delete group"
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
-            </div>
-          )
+          render: (_value: unknown, row: AccountGroupRow) => {
+            const checked = selectedGroups.includes(row.id)
+            const activeValue = !!row.active
+            return (
+              <div className="flex items-center gap-2" data-disable-row-click="true">
+                <label className="flex cursor-pointer items-center justify-center" onClick={e => e.stopPropagation()}>
+                  <input type="checkbox" className="sr-only" checked={checked} aria-label={`Select group ${row.groupName || row.id}`} onChange={() => handleGroupSelect(row.id, !checked)} />
+                  <span className={`flex h-4 w-4 items-center justify-center rounded border transition-colors ${checked ? 'border-primary-500 bg-primary-600 text-white' : 'border-gray-300 bg-white text-transparent'}`}>
+                    <Check className="h-3 w-3" aria-hidden="true" />
+                  </span>
+                </label>
+                {/* Visual toggle only */}
+                <span className={`w-9 h-5 rounded-full ${activeValue ? 'bg-blue-600' : 'bg-gray-300'}`}>
+                  <span className={`inline-block w-4 h-4 bg-white rounded-full shadow transform ${activeValue ? 'translate-x-4' : 'translate-x-1'} mt-0.5`} />
+                </span>
+                <div className="flex gap-0.5">
+                  <button type="button" className="p-1 rounded transition-colors text-blue-500 hover:text-blue-700" onClick={(e) => { e.stopPropagation(); handleEditGroup(row) }} aria-label="Edit group">
+                    <Edit className="h-3.5 w-3.5" />
+                  </button>
+                  <button type="button" className={`p-1 rounded transition-colors ${activeValue ? 'text-red-500 hover:text-red-700' : 'text-gray-400 hover:text-gray-600'}`} onClick={(e) => { e.stopPropagation(); requestGroupDelete(row) }} aria-label="Delete group">
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+            )
+          }
         }
       }
       return column
     })
-  }, [groupPreferenceColumns, handleEditGroup, requestGroupDelete])
+  }, [groupPreferenceColumns, selectedGroups, handleGroupSelect, handleEditGroup, requestGroupDelete])
 
   const filteredActivities = useMemo(() => {
     if (!account) return []
@@ -3131,7 +3125,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
   return (
     <div className="flex h-screen flex-col overflow-hidden">
 
-      <div className="flex flex-1 min-h-0 flex-col overflow-hidden px-4 sm:px-6 lg:px-8">
+      <div className="flex flex-1 min-h-0 flex-col overflow-hidden px-4 sm:px-6 lg:px-8 pb-1">
         <div className="mt-1 flex flex-1 flex-col min-h-0 overflow-hidden">
             {loading ? (
               <div className="flex h-full flex-col items-center justify-center gap-3 text-sm text-gray-500">
@@ -3143,7 +3137,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                 {error ?? "Account details are not available."}
               </div>
             ) : account ? (
-              <div className="flex flex-1 flex-col gap-2 overflow-hidden">
+              <div className="flex flex-1 flex-col gap-1 overflow-hidden">
                 <div className="rounded-2xl bg-gray-100 p-3 shadow-sm">
                   {/* Header with title and expand/collapse toggle */}
                   <div className="flex items-center justify-between mb-2">
@@ -3260,12 +3254,10 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                               label="Street"
                               value={<div className={fieldBoxClass}>{account.shippingAddress.line1}</div>}
                             />
-                            {account.shippingAddress.line2 && (
-                              <FieldRow
-                                label="Street 2"
-                                value={<div className={fieldBoxClass}>{account.shippingAddress.line2}</div>}
-                              />
-                            )}
+                            <FieldRow
+                              label="Shipping St 2"
+                              value={<div className={fieldBoxClass}>{account.shippingAddress.shippingStreet2 || ""}</div>}
+                            />
                             <div className="grid items-center gap-2 sm:grid-cols-[140px,1fr]">
                               <span className={fieldLabelClass}>City, State, Zip</span>
                               <div className="grid gap-1 grid-cols-[2fr,1fr,1fr]">
@@ -3297,12 +3289,10 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                               label="Street"
                               value={<div className={fieldBoxClass}>{account.billingAddress.line1}</div>}
                             />
-                            {account.billingAddress.line2 && (
-                              <FieldRow
-                                label="Street 2"
-                                value={<div className={fieldBoxClass}>{account.billingAddress.line2}</div>}
-                              />
-                            )}
+                            <FieldRow
+                              label="Billing St 2"
+                              value={<div className={fieldBoxClass}>{account.billingAddress.billingStreet2 || ""}</div>}
+                            />
                             <div className="grid items-center gap-2 sm:grid-cols-[140px,1fr]">
                               <span className={fieldLabelClass}>City, State, Zip</span>
                               <div className="grid gap-1 grid-cols-[2fr,1fr,1fr]">
@@ -3326,17 +3316,17 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                   )}
                 </div>
 
-                <div className="flex flex-1 flex-col gap-3 min-h-0 overflow-hidden">
-                  <div className="flex flex-wrap gap-1 border border-gray-200 bg-gray-50 rounded-t-lg p-2">
+                <div className="flex flex-1 flex-col min-h-0 overflow-hidden">
+                  <div className="flex flex-wrap gap-1 border-x border-t border-gray-200 bg-gray-50 p-2">
                     {TABS.map(tab => (
                       <button
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id)}
                         className={cn(
-                          "px-3 py-1.5 text-sm font-semibold transition rounded-t-md border border-gray-200",
+                          "px-3 py-1.5 text-sm font-semibold transition rounded-t-md border-t border-x",
                           activeTab === tab.id
-                            ? "bg-white text-primary-700 border-gray-300"
-                            : "bg-gray-50 text-gray-700 hover:bg-gray-100 hover:border-gray-300"
+                            ? "bg-white text-primary-700 border-gray-200 -mb-[1px] relative z-10"
+                            : "bg-gray-50 text-gray-700 hover:bg-gray-100 border-transparent"
                         )}
                       >
                         {tab.label}
@@ -3345,7 +3335,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                   </div>
 
                   {activeTab === "contacts" && (
-                    <div className="grid flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-2 min-h-0 overflow-hidden">
+                    <div className="grid flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-20 min-h-0 overflow-hidden">
                       <ListHeader
                         onCreateClick={handleCreateContact}
                         onFilterChange={(filter: string) => setActiveFilter(filter === "active" ? "active" : "inactive")}
@@ -3383,7 +3373,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                             return
                           }
                           const rows = filteredContacts.filter(row => selectedContacts.includes(row.id))
-                          const headers = ["Suffix","Full Name","Job Title","Contact Type","Email","Work Phone","Extension","Active"]
+                          const headers = ["Suffix","Full Name","Job Title","Contact Type","Email","Work Phone","Mobile","Extension","Active"]
                           const escapeCsv = (value: string | null | undefined) => {
                             if (value === null || value === undefined) return ""
                             const s = String(value)
@@ -3392,7 +3382,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                           }
                           const lines = [
                             headers.join(","),
-                            ...rows.map(r => [r.suffix, r.fullName, r.jobTitle, r.contactType, r.emailAddress, r.workPhone, r.extension, r.active ? "Active" : "Inactive"].map(escapeCsv).join(","))
+                            ...rows.map(r => [r.suffix, r.fullName, r.jobTitle, r.contactType, r.emailAddress, r.workPhone, r.mobile, r.extension, r.active ? "Active" : "Inactive"].map(escapeCsv).join(","))
                           ]
                           const blob = new Blob([lines.join("\r\n")], { type: "text/csv;charset=utf-8;" })
                           const url = window.URL.createObjectURL(blob)
@@ -3548,7 +3538,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                   )}
 
                   {activeTab === "activities" && (
-                    <div className="grid flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-2 min-h-0 overflow-hidden">
+                    <div className="grid flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0.5 px-3 pb-0">
                       <ListHeader
                         onCreateClick={handleCreateActivity}
                         onFilterChange={(filter: string) => setActiveFilter(filter === "active" ? "active" : "inactive")}

@@ -380,17 +380,22 @@ export function ContactCreateModal({ isOpen, onClose, onSuccess, options, defaul
                 </div>
                 <div className="col-span-2">
                   <label className="mb-1 block text-sm font-medium text-gray-700">Active (Y/N)</label>
-                  <div className="flex items-center gap-3 rounded-lg border border-gray-300 px-3 py-2">
-                    <span className="text-sm text-gray-600">{formData.active ? "Yes" : "No"}</span>
-                    <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-gray-600">
-                      <input
-                        type="checkbox"
-                        className="h-5 w-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                        checked={formData.active}
-                        onChange={(e) => handleInputChange("active", e.target.checked)}
+                  <div className="flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2">
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={formData.active}
+                      onClick={() => handleInputChange("active", !formData.active)}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 ${
+                        formData.active ? "bg-primary-600" : "bg-gray-300"
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
+                          formData.active ? "translate-x-5" : "translate-x-1"
+                        }`}
                       />
-                      <span>Active</span>
-                    </label>
+                    </button>
                   </div>
                 </div>
               </div>

@@ -20,7 +20,9 @@
       "Bash(file:*)",
       "Bash(sed:*)",
       "Bash(npx tsx:*)",
-      "Bash(cd:*)"
+      "Bash(cd:*)",
+      "Bash(tasklist)",
+      "Bash(findstr:*)"
     ],
     "deny": []
   }

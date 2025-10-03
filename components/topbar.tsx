@@ -265,10 +265,6 @@ export function Topbar() {
         </div>
 
         <div className="ml-auto flex items-center space-x-3">
-          <button className="rounded bg-primary-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-primary-700">
-            Create New
-          </button>
-
           <button className="rounded-lg p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600">
             <RotateCcw className="h-4 w-4" />
           </button>

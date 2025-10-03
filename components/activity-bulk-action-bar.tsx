@@ -29,7 +29,7 @@ export function ActivityBulkActionBar({
   return (
     <div
       className={cn(
-        "mb-4 flex flex-col gap-3 rounded-lg border border-blue-200 bg-blue-50 p-4 shadow-sm",
+        "flex flex-col gap-3 rounded-lg border border-blue-200 bg-blue-50 p-4 shadow-sm",
         "md:flex-row md:items-center md:justify-between",
         className
       )}

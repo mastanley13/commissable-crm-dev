@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { ReactNode, useCallback, useEffect, useState, useMemo, useRef, useLayoutEffect } from "react"
 import { useRouter } from "next/navigation"
-import { Loader2, Filter, Paperclip, Plus, Search, Settings, Trash2, Edit, ChevronDown, ChevronUp } from "lucide-react"
+import { Loader2, Filter, Paperclip, Plus, Search, Settings, Trash2, Edit, ChevronDown, ChevronUp, Check } from "lucide-react"
 import { OpportunityStatus } from "@prisma/client"
 
 import { cn } from "@/lib/utils"
@@ -163,22 +163,12 @@ const fieldBoxClass = "flex min-h-[24px] items-center justify-between rounded-lg
 
 const CONTACT_ACTIVITY_TABLE_BASE_COLUMNS: Column[] = [
   {
-    id: "select",
-    label: "Select",
-    width: 90,
-    minWidth: 70,
-    maxWidth: 110,
-    type: "checkbox",
-  },
-  {
-    id: "active",
-    label: "Active",
-    width: 120,
-    minWidth: 100,
-    maxWidth: 150,
-    sortable: true,
-    type: "toggle",
-    accessor: "active"
+    id: "multi-action",
+    label: "Actions",
+    width: 200,
+    minWidth: 160,
+    maxWidth: 240,
+    type: "multi-action",
   },
   {
     id: "activityDate",
@@ -242,37 +232,17 @@ const CONTACT_ACTIVITY_TABLE_BASE_COLUMNS: Column[] = [
     maxWidth: 200,
     sortable: true,
     accessor: "createdBy"
-  },
-  {
-    id: "actions",
-    label: "Actions",
-    width: 120,
-    minWidth: 100,
-    maxWidth: 150,
-    sortable: false,
-    resizable: false,
-    hideable: false
   }
 ]
 
 const CONTACT_OPPORTUNITY_TABLE_BASE_COLUMNS: Column[] = [
   {
-    id: "select",
-    label: "Select",
-    width: 90,
-    minWidth: 70,
-    maxWidth: 110,
-    type: "checkbox",
-  },
-  {
-    id: "active",
-    label: "Active",
-    width: 120,
-    minWidth: 100,
-    maxWidth: 150,
-    sortable: true,
-    type: "toggle",
-    accessor: "active"
+    id: "multi-action",
+    label: "Actions",
+    width: 200,
+    minWidth: 160,
+    maxWidth: 240,
+    type: "multi-action",
   },
   {
     id: "orderIdHouse",
@@ -327,37 +297,17 @@ const CONTACT_OPPORTUNITY_TABLE_BASE_COLUMNS: Column[] = [
     maxWidth: 200,
     sortable: true,
     accessor: "referredBy"
-  },
-  {
-    id: "actions",
-    label: "Actions",
-    width: 120,
-    minWidth: 100,
-    maxWidth: 150,
-    sortable: false,
-    resizable: false,
-    hideable: false
   }
 ]
 
 const CONTACT_GROUP_TABLE_BASE_COLUMNS: Column[] = [
   {
-    id: "select",
-    label: "Select",
-    width: 90,
-    minWidth: 70,
-    maxWidth: 110,
-    type: "checkbox",
-  },
-  {
-    id: "active",
-    label: "Active",
-    width: 120,
-    minWidth: 100,
-    maxWidth: 150,
-    sortable: true,
-    type: "toggle",
-    accessor: "active"
+    id: "multi-action",
+    label: "Actions",
+    width: 200,
+    minWidth: 160,
+    maxWidth: 240,
+    type: "multi-action",
   },
   {
     id: "groupName",
@@ -394,16 +344,6 @@ const CONTACT_GROUP_TABLE_BASE_COLUMNS: Column[] = [
     maxWidth: 260,
     sortable: true,
     accessor: "owner"
-  },
-  {
-    id: "actions",
-    label: "Actions",
-    width: 120,
-    minWidth: 100,
-    maxWidth: 150,
-    sortable: false,
-    resizable: false,
-    hideable: false
   }
 ]
 
@@ -1448,6 +1388,39 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
 
   const contactActivityTableColumns = useMemo(() => {
     return activityPreferenceColumns.map(column => {
+      if (column.id === "multi-action") {
+        return {
+          ...column,
+          render: (_: unknown, row: ContactActivityRow) => {
+            const checked = selectedActivities.includes(row.id)
+            const activeValue = !!row.active
+            return (
+              <div className="flex items-center gap-2" data-disable-row-click="true">
+                {/* Checkbox */}
+                <label className="flex cursor-pointer items-center justify-center" onClick={e => e.stopPropagation()}>
+                  <input type="checkbox" className="sr-only" checked={checked} aria-label={`Select activity ${row.id}`} onChange={() => handleActivitySelect(row.id, !checked)} />
+                  <span className={`flex h-4 w-4 items-center justify-center rounded border transition-colors ${checked ? 'border-primary-500 bg-primary-600 text-white' : 'border-gray-300 bg-white text-transparent'}`}>
+                    <Check className="h-3 w-3" aria-hidden="true" />
+                  </span>
+                </label>
+                {/* Visual toggle */}
+                <span className={`w-9 h-5 rounded-full ${activeValue ? 'bg-blue-600' : 'bg-gray-300'}`}>
+                  <span className={`inline-block w-4 h-4 bg-white rounded-full shadow transform ${activeValue ? 'translate-x-4' : 'translate-x-1'} mt-0.5`} />
+                </span>
+                {/* Actions */}
+                <div className="flex gap-0.5">
+                  <button type="button" className="p-1 text-primary-600 hover:text-primary-700 transition-colors rounded" title="Edit activity" onClick={(e) => { e.stopPropagation(); handleActivityEdit(row) }}>
+                    <Edit className="h-3.5 w-3.5" />
+                  </button>
+                  <button type="button" className="p-1 text-red-500 hover:text-red-700 transition-colors rounded" title="Delete activity" onClick={(e) => { e.stopPropagation(); handleActivityDelete(row) }}>
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+            )
+          }
+        }
+      }
       if (column.id === "activityDate") {
         return { ...column, render: (value?: string | Date | null) => formatDate(value) }
       }
@@ -1486,37 +1459,6 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
           )
         }
       }
-      if (column.id === "actions") {
-        return {
-          ...column,
-          render: (_: unknown, row: ContactActivityRow) => (
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                className="text-primary-600 transition hover:text-primary-700"
-                title="Edit activity"
-                onClick={event => {
-                  event.stopPropagation()
-                  handleActivityEdit(row)
-                }}
-              >
-                <Edit className="h-4 w-4" />
-              </button>
-              <button
-                type="button"
-                className="text-red-500 transition hover:text-red-700"
-                title="Delete activity"
-                onClick={event => {
-                  event.stopPropagation()
-                  handleActivityDelete(row)
-                }}
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
-            </div>
-          )
-        }
-      }
       return column
     })
   }, [activityPreferenceColumns, handleActivityEdit, handleActivityDelete])
@@ -1531,39 +1473,39 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
 
   const contactOpportunityTableColumns = useMemo(() => {
     return contactOpportunityPreferenceColumns.map(column => {
-      if (column.id === "estimatedCloseDate") {
-        return { ...column, render: (value?: string | Date | null) => formatDate(value) }
-      }
-      if (column.id === "actions") {
+      if (column.id === "multi-action") {
         return {
           ...column,
-          render: (_: unknown, row: ContactOpportunityRow) => (
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                className="text-primary-600 transition hover:text-primary-700"
-                title="Edit opportunity"
-                onClick={event => {
-                  event.stopPropagation()
-                  handleOpportunityEdit(row)
-                }}
-              >
-                <Edit className="h-4 w-4" />
-              </button>
-              <button
-                type="button"
-                className="text-red-500 transition hover:text-red-700"
-                title="Delete opportunity"
-                onClick={event => {
-                  event.stopPropagation()
-                  requestOpportunityDelete(row)
-                }}
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
-            </div>
-          )
+          render: (_: unknown, row: ContactOpportunityRow) => {
+            const checked = selectedOpportunities.includes(row.id)
+            const activeValue = !!row.active
+            return (
+              <div className="flex items-center gap-2" data-disable-row-click="true">
+                <label className="flex cursor-pointer items-center justify-center" onClick={e => e.stopPropagation()}>
+                  <input type="checkbox" className="sr-only" checked={checked} aria-label={`Select opportunity ${row.opportunityName || row.id}`} onChange={() => handleOpportunitySelect(row.id, !checked)} />
+                  <span className={`flex h-4 w-4 items-center justify-center rounded border transition-colors ${checked ? 'border-primary-500 bg-primary-600 text-white' : 'border-gray-300 bg-white text-transparent'}`}>
+                    <Check className="h-3 w-3" aria-hidden="true" />
+                  </span>
+                </label>
+                {/* Visual toggle */}
+                <span className={`w-9 h-5 rounded-full ${activeValue ? 'bg-blue-600' : 'bg-gray-300'}`}>
+                  <span className={`inline-block w-4 h-4 bg-white rounded-full shadow transform ${activeValue ? 'translate-x-4' : 'translate-x-1'} mt-0.5`} />
+                </span>
+                <div className="flex gap-0.5">
+                  <button type="button" className="p-1 text-primary-600 hover:text-primary-700 transition-colors rounded" title="Edit opportunity" onClick={(e) => { e.stopPropagation(); handleOpportunityEdit(row) }}>
+                    <Edit className="h-3.5 w-3.5" />
+                  </button>
+                  <button type="button" className={`p-1 rounded transition-colors ${activeValue ? 'text-red-500 hover:text-red-700' : 'text-gray-400 hover:text-gray-600'}`} title="Delete opportunity" onClick={(e) => { e.stopPropagation(); requestOpportunityDelete(row) }}>
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+            )
+          }
         }
+      }
+      if (column.id === "estimatedCloseDate") {
+        return { ...column, render: (value?: string | Date | null) => formatDate(value) }
       }
       return column
     })
@@ -1576,9 +1518,59 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
   const handleGroupsColumnFiltersChange = useCallback((filters: ColumnFilter[]) => {
     setGroupsColumnFilters(filters)
   }, [])
+  
+  // Selection for groups table
+  const handleGroupSelect = useCallback((groupId: string, selected: boolean) => {
+    setSelectedGroups(previous => {
+      if (selected) {
+        if (previous.includes(groupId)) return previous
+        return [...previous, groupId]
+      }
+      return previous.filter(id => id !== groupId)
+    })
+  }, [])
+
+  const handleSelectAllGroups = useCallback((selected: boolean) => {
+    if (selected) {
+      setSelectedGroups(paginatedGroups.map(row => row.id))
+      return
+    }
+    setSelectedGroups([])
+  }, [paginatedGroups])
 
   const contactGroupTableColumns = useMemo(() => {
     return contactGroupPreferenceColumns.map(column => {
+      if (column.id === "multi-action") {
+        return {
+          ...column,
+          render: (_: unknown, row: ContactGroupRow) => {
+            const checked = selectedGroups.includes(row.id)
+            const activeValue = !!row.active
+            return (
+              <div className="flex items-center gap-2" data-disable-row-click="true">
+                <label className="flex cursor-pointer items-center justify-center" onClick={e => e.stopPropagation()}>
+                  <input type="checkbox" className="sr-only" checked={checked} aria-label={`Select group ${row.groupName || row.id}`} onChange={() => handleGroupSelect(row.id, !checked)} />
+                  <span className={`flex h-4 w-4 items-center justify-center rounded border transition-colors ${checked ? 'border-primary-500 bg-primary-600 text-white' : 'border-gray-300 bg-white text-transparent'}`}>
+                    <Check className="h-3 w-3" aria-hidden="true" />
+                  </span>
+                </label>
+                {/* Visual toggle */}
+                <span className={`w-9 h-5 rounded-full ${activeValue ? 'bg-blue-600' : 'bg-gray-300'}`}>
+                  <span className={`inline-block w-4 h-4 bg-white rounded-full shadow transform ${activeValue ? 'translate-x-4' : 'translate-x-1'} mt-0.5`} />
+                </span>
+                <div className="flex gap-0.5">
+                  <button type="button" className="p-1 text-primary-600 hover:text-primary-700 transition-colors rounded" title="Edit group" onClick={(e) => { e.stopPropagation(); handleGroupEdit(row) }}>
+                    <Edit className="h-3.5 w-3.5" />
+                  </button>
+                  <button type="button" className={`p-1 rounded transition-colors ${activeValue ? 'text-red-500 hover:text-red-700' : 'text-gray-400 hover:text-gray-600'}`} title="Delete group" onClick={(e) => { e.stopPropagation(); requestGroupDelete(row) }}>
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+            )
+          }
+        }
+      }
       if (column.id === "groupName") {
         return {
           ...column,
@@ -1603,40 +1595,9 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
           }
         }
       }
-      if (column.id === "actions") {
-        return {
-          ...column,
-          render: (_: unknown, row: ContactGroupRow) => (
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                className="text-primary-600 transition hover:text-primary-700"
-                title="Edit group"
-                onClick={event => {
-                  event.stopPropagation()
-                  handleGroupEdit(row)
-                }}
-              >
-                <Edit className="h-4 w-4" />
-              </button>
-              <button
-                type="button"
-                className="text-red-500 transition hover:text-red-700"
-                title="Delete group"
-                onClick={event => {
-                  event.stopPropagation()
-                  requestGroupDelete(row)
-                }}
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
-            </div>
-          )
-        }
-      }
       return column
     })
-  }, [contactGroupPreferenceColumns, handleGroupEdit, requestGroupDelete])
+  }, [contactGroupPreferenceColumns, selectedGroups, handleGroupSelect, handleGroupEdit, requestGroupDelete])
 
   const filteredActivities = useMemo(() => {
     let rows: ContactActivityRow[] = contact?.activities ?? []
@@ -2301,21 +2262,24 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
                         ref={tableAreaRefCallback}
                         style={tableContainerStyle}
                       >
-                        <DynamicTable
-                          className="flex flex-col"
-                          columns={contactGroupTableColumns}
-                          data={paginatedGroups}
-                          emptyMessage="No groups found for this contact"
-                          onColumnsChange={handleContactGroupTableColumnsChange}
-                          loading={loading || contactGroupPreferencesLoading}
-                          pagination={groupsPagination}
-                          onPageChange={handleGroupsPageChange}
-                          onPageSizeChange={handleGroupsPageSizeChange}
-                          autoSizeColumns={true}
-                          fillContainerWidth
-                          maxBodyHeight={tableBodyMaxHeight}
-                          alwaysShowPagination
-                        />
+        <DynamicTable
+          className="flex flex-col"
+          columns={contactGroupTableColumns}
+          data={paginatedGroups}
+          emptyMessage="No groups found for this contact"
+          onColumnsChange={handleContactGroupTableColumnsChange}
+          loading={loading || contactGroupPreferencesLoading}
+          pagination={groupsPagination}
+          onPageChange={handleGroupsPageChange}
+          onPageSizeChange={handleGroupsPageSizeChange}
+          selectedItems={selectedGroups}
+          onItemSelect={handleGroupSelect}
+          onSelectAll={handleSelectAllGroups}
+          autoSizeColumns={true}
+          fillContainerWidth
+          maxBodyHeight={tableBodyMaxHeight}
+          alwaysShowPagination
+        />
                       </div>
                     </div>
                   )}

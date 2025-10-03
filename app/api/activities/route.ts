@@ -94,7 +94,8 @@ export async function POST(request: NextRequest) {
           accountId: typeof payload.accountId === 'string' ? payload.accountId : null,
           contactId: typeof payload.contactId === 'string' ? payload.contactId : null,
           opportunityId: typeof payload.opportunityId === 'string' ? payload.opportunityId : null,
-          revenueScheduleId: typeof payload.revenueScheduleId === 'string' ? payload.revenueScheduleId : null
+          revenueScheduleId: typeof payload.revenueScheduleId === 'string' ? payload.revenueScheduleId : null,
+          creatorId: typeof payload.creatorId === 'string' && payload.creatorId.trim().length > 0 ? payload.creatorId : null
         })
 
         return NextResponse.json({ data: activity }, { status: 201 })

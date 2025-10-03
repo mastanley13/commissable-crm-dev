@@ -336,7 +336,7 @@ export async function POST(request: NextRequest) {
         return createValidationErrorResponse(validationResult.errors)
       }
 
-      const { accountId, firstName, lastName, jobTitle, workPhone, mobilePhone, emailAddress,
+      const { accountId, firstName, lastName, suffix, jobTitle, workPhone, workPhoneExt, mobilePhone, emailAddress,
               ownerId, isPrimary, isDecisionMaker, preferredContactMethod } = body
 
       const account = await prisma.account.findFirst({
@@ -381,9 +381,11 @@ export async function POST(request: NextRequest) {
           accountId,
           firstName,
           lastName,
+          suffix,
           fullName,
           jobTitle,
           workPhone: workPhone ? formatPhoneNumber(workPhone) : null,
+          workPhoneExt,
           mobilePhone: mobilePhone ? formatPhoneNumber(mobilePhone) : null,
           emailAddress: emailAddress ? normalizeEmail(emailAddress) : null,
           accountTypeId: derivedAccountTypeId,

@@ -29,6 +29,7 @@ interface SavedFilterSet {
 
 interface ListHeaderProps {
   title?: string;
+  pageTitle?: string;
   searchPlaceholder?: string;
   onSearch?: (query: string) => void;
   onFilterChange?: (filter: string) => void;
@@ -67,6 +68,7 @@ const DEFAULT_FILTER_COLUMNS: FilterColumnOption[] = [
 
 export function ListHeader({
   title,
+  pageTitle,
   searchPlaceholder = "Search Here",
   onSearch,
   onFilterChange,
@@ -238,6 +240,9 @@ export function ListHeader({
 
       <div className="flex items-center justify-between gap-3">
         <div className="flex flex-1 items-center gap-2">
+          {pageTitle && (
+            <h1 className="text-lg font-semibold text-blue-600">{pageTitle}</h1>
+          )}
           {leftAccessory}
           <div className="relative">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />

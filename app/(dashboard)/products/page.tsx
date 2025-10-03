@@ -7,35 +7,17 @@ import { ColumnChooserModal } from '@/components/column-chooser-modal'
 import { useTablePreferences } from '@/hooks/useTablePreferences'
 import { TableChangeNotification } from '@/components/table-change-notification'
 import { productsData } from '@/lib/mock-data'
-import { Edit, Trash2, Settings } from 'lucide-react'
+import { Edit, Trash2, Settings, Check } from 'lucide-react'
 
 const productColumns: Column[] = [
   {
-    id: 'select',
-    label: 'Select ALL',
-    width: 100,
-    minWidth: 80,
-    maxWidth: 120,
-    type: 'checkbox',
-    accessor: 'select'
-  },
-  {
-    id: 'actions',
+    id: 'multi-action',
     label: 'Actions',
-    width: 100,
-    minWidth: 80,
-    maxWidth: 120,
-    type: 'action',
-    render: () => (
-      <div className="flex gap-1">
-        <button className="text-blue-500 hover:text-blue-700 p-1 rounded transition-colors">
-          <Edit className="h-4 w-4" />
-        </button>
-        <button className="text-red-500 hover:text-red-700 p-1 rounded transition-colors">
-          <Trash2 className="h-4 w-4" />
-        </button>
-      </div>
-    )
+    width: 200,
+    minWidth: 160,
+    maxWidth: 240,
+    type: 'multi-action',
+    accessor: 'select'
   },
   {
     id: 'productNameHouse',
@@ -229,24 +211,42 @@ export default function ProductsPage() {
   const tableLoading = loading || preferenceLoading
   const tableColumns = useMemo(() => {
     return preferenceColumns.map((column) => {
-      if (column.id === 'actions') {
+      if (column.id === 'multi-action') {
         return {
           ...column,
-          render: () => (
-            <div className="flex gap-1">
-              <button className="text-blue-500 hover:text-blue-700 p-1 rounded transition-colors">
-                <Edit className="h-4 w-4" />
-              </button>
-              <button className="text-red-500 hover:text-red-700 p-1 rounded transition-colors">
-                <Trash2 className="h-4 w-4" />
-              </button>
-            </div>
-          ),
-        };
+          render: (_: unknown, row: any) => {
+            const rowId = Number(row.id)
+            const checked = selectedProducts.includes(rowId)
+            return (
+              <div className="flex items-center gap-2" data-disable-row-click="true">
+                <label className="flex cursor-pointer items-center justify-center" onClick={e => e.stopPropagation()}>
+                  <input
+                    type="checkbox"
+                    className="sr-only"
+                    checked={checked}
+                    aria-label={`Select product ${row.productNameHouse || rowId}`}
+                    onChange={() => handleSelectProduct(rowId, !checked)}
+                  />
+                  <span className={`flex h-4 w-4 items-center justify-center rounded border transition-colors ${checked ? 'border-primary-500 bg-primary-600 text-white' : 'border-gray-300 bg-white text-transparent'}`}>
+                    <Check className="h-3 w-3" aria-hidden="true" />
+                  </span>
+                </label>
+                <div className="flex gap-0.5">
+                  <button type="button" className="p-1 text-blue-500 hover:text-blue-700 transition-colors rounded" onClick={(e) => { e.preventDefault(); e.stopPropagation(); }} aria-label="Edit product">
+                    <Edit className="h-3.5 w-3.5" />
+                  </button>
+                  <button type="button" className={`p-1 rounded transition-colors text-red-500 hover:text-red-700`} onClick={(e) => { e.preventDefault(); e.stopPropagation(); }} aria-label={'Delete product'}>
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+            )
+          }
+        }
       }
       return column;
     });
-  }, [preferenceColumns])
+  }, [preferenceColumns, selectedProducts, handleSelectProduct])
   
   // Get hidden columns by comparing all columns with visible ones
   const hiddenColumns = useMemo(() => {
@@ -265,6 +265,9 @@ export default function ProductsPage() {
     <div className="dashboard-page-container">
       <div className="bg-white border-b border-gray-200 px-4 py-3">
         <div className="flex items-center justify-between gap-4">
+          {/* Page Title */}
+          <h1 className="text-xl font-semibold text-blue-600">Products List</h1>
+
           {/* Left side - Search */}
           <div className="flex items-center flex-1 max-w-md">
             <div className="relative w-full">

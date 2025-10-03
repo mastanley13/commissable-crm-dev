@@ -72,6 +72,7 @@ export interface CreateActivityInput {
   contactId?: string | null
   opportunityId?: string | null
   revenueScheduleId?: string | null
+  creatorId?: string | null
 }
 
 export interface UpdateActivityInput {
@@ -312,16 +313,26 @@ export async function createActivity(input: CreateActivityInput): Promise<Activi
     accountId = null,
     contactId = null,
     opportunityId = null,
-    revenueScheduleId = null
+    revenueScheduleId = null,
+    creatorId = null
   } = input
 
   const links = await resolveContextLinks(tenantId, { accountId, contactId, opportunityId, revenueScheduleId })
 
   const activity = await prisma.$transaction(async tx => {
+    // Validate creator override belongs to this tenant if provided
+    let effectiveCreatorId = userId
+    if (creatorId && creatorId !== userId) {
+      const exists = await tx.user.findFirst({ where: { id: creatorId, tenantId }, select: { id: true } })
+      if (exists) {
+        effectiveCreatorId = creatorId
+      }
+    }
+
     const created = await tx.activity.create({
       data: {
         tenantId,
-        creatorId: userId,
+        creatorId: effectiveCreatorId,
         assigneeId,
         activityType: type,
         subject,

@@ -1,6 +1,7 @@
 "use client"
 
 import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react"
+import { useAuth } from "@/lib/auth-context"
 
 export interface AddressFormValues {
   line1: string
@@ -136,6 +137,7 @@ export function AccountCreateModal({ isOpen, onClose, onSubmit }: AccountCreateM
   const [industries, setIndustries] = useState<OptionItem[]>([])
   const [parentAccounts, setParentAccounts] = useState<OptionItem[]>([])
   const [owners, setOwners] = useState<OptionItem[]>([])
+  const { user } = useAuth()
 
   useEffect(() => {
     if (!isOpen) {
@@ -178,6 +180,20 @@ export function AccountCreateModal({ isOpen, onClose, onSubmit }: AccountCreateM
 
     fetchOptions()
   }, [isOpen, optionsLoaded])
+
+  // Default the Account Owner to the current user when options load
+  useEffect(() => {
+    if (!isOpen) return
+    if (!optionsLoaded) return
+    if (!user?.id) return
+    if (!owners || owners.length === 0) return
+    if (form.ownerId && form.ownerId.length > 0) return
+
+    const hasCurrentUser = owners.some(o => o.id === user.id)
+    if (hasCurrentUser) {
+      setForm(prev => ({ ...prev, ownerId: user.id }))
+    }
+  }, [isOpen, optionsLoaded, owners, user?.id, form.ownerId])
 
   const disableBillingFields = form.billingSameAsShipping
 
@@ -438,22 +454,6 @@ export function AccountCreateModal({ isOpen, onClose, onSubmit }: AccountCreateM
                 >
                   <option value="">Select</option>
                   {owners.map(option => (
-                    <option key={option.id} value={option.id}>
-                      {option.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Industry</label>
-                <select
-                  value={form.industryId}
-                  onChange={handleFieldChange("industryId")}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                >
-                  <option value="">Select</option>
-                  {industries.map(option => (
                     <option key={option.id} value={option.id}>
                       {option.name}
                     </option>

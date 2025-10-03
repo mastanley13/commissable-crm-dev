@@ -5,6 +5,7 @@ import { Loader2, Paperclip, X } from "lucide-react"
 import { ActivityStatus, ActivityType } from "@prisma/client"
 import { DEFAULT_OPEN_ACTIVITY_STATUS } from "@/lib/activity-status"
 import { useToasts } from "@/components/toast"
+import { useAuth } from "@/lib/auth-context"
 
 interface SelectOption {
   value: string
@@ -17,6 +18,7 @@ interface ActivityNoteFormState {
   activityStatus: ActivityStatus
   activityDate: string
   activityOwner: string
+  createdById: string
   location: string
   activityDescription: string
   noteTitle: string
@@ -57,12 +59,20 @@ const STATUS_OPTIONS: SelectOption[] = Object.values(ActivityStatus).map(status 
   label: status.replace(/([A-Z])/g, " $1").trim()
 }))
 
+function todayLocalYMD() {
+  const now = new Date()
+  const tzOffsetMs = now.getTimezoneOffset() * 60000
+  const local = new Date(now.getTime() - tzOffsetMs)
+  return local.toISOString().split("T")[0]
+}
+
 const createInitialState = (): ActivityNoteFormState => ({
   activitySubject: "",
   activityType: ActivityType.Call,
   activityStatus: DEFAULT_OPEN_ACTIVITY_STATUS,
-  activityDate: "",
+  activityDate: todayLocalYMD(),
   activityOwner: "",
+  createdById: "",
   location: "",
   activityDescription: "",
   noteTitle: "",
@@ -78,6 +88,7 @@ export function ActivityNoteCreateModal({ isOpen, context, entityName, accountId
   const [attachments, setAttachments] = useState<PendingAttachment[]>([])
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const { showError, showSuccess } = useToasts()
+  const { user } = useAuth()
 
   useEffect(() => {
     if (!isOpen) {
@@ -87,6 +98,13 @@ export function ActivityNoteCreateModal({ isOpen, context, entityName, accountId
     setForm(createInitialState())
     setAttachments([])
   }, [isOpen])
+
+  // Default Created By to current user when options/auth are available
+  useEffect(() => {
+    if (!isOpen) return
+    if (!user?.id) return
+    setForm(prev => (prev.createdById ? prev : { ...prev, createdById: user.id }))
+  }, [isOpen, user?.id])
 
   useEffect(() => {
     if (!isOpen) {
@@ -242,7 +260,8 @@ export function ActivityNoteCreateModal({ isOpen, context, entityName, accountId
       location: form.location.trim() || null,
       description: descriptionSegments.length ? descriptionSegments.join("\n\n") : null,
       accountId: accountId ?? null,
-      contactId: contactId ?? null
+      contactId: contactId ?? null,
+      creatorId: form.createdById || null
     }
 
     setLoading(true)
@@ -404,6 +423,21 @@ export function ActivityNoteCreateModal({ isOpen, context, entityName, accountId
                       ))}
                     </select>
                   </div>
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700">Created By</label>
+                  <select
+                    value={form.createdById}
+                    onChange={event => setForm(prev => ({ ...prev, createdById: event.target.value }))}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    disabled={ownersLoading}
+                  >
+                    <option value="">{ownersLoading ? "Loading users..." : (user?.id ? "Current user" : "Select user")}</option>
+                    {ownerOptions.map(option => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
                 </div>
 
                 <div>

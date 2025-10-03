@@ -7,35 +7,16 @@ import { ColumnChooserModal } from '@/components/column-chooser-modal'
 import { useTablePreferences } from '@/hooks/useTablePreferences'
 import { TableChangeNotification } from '@/components/table-change-notification'
 import { opportunitiesData } from '@/lib/mock-data'
-import { Edit, Trash2, Settings } from 'lucide-react'
+import { Edit, Trash2, Settings, Check } from 'lucide-react'
 
 const opportunityColumns: Column[] = [
   {
-    id: 'actions',
+    id: 'multi-action',
     label: 'Actions',
-    width: 100,
-    minWidth: 80,
-    maxWidth: 120,
-    type: 'action',
-    render: () => (
-      <div className="flex gap-1">
-        <button className="text-blue-500 hover:text-blue-700 p-1 rounded transition-colors">
-          <Edit className="h-4 w-4" />
-        </button>
-        <button className="text-red-500 hover:text-red-700 p-1 rounded transition-colors">
-          <Trash2 className="h-4 w-4" />
-        </button>
-      </div>
-    )
-  },
-  {
-    id: 'active',
-    label: 'Active',
-    width: 80,
-    minWidth: 60,
-    maxWidth: 100,
-    type: 'toggle',
-    accessor: 'active'
+    width: 200,
+    minWidth: 160,
+    maxWidth: 240,
+    type: 'multi-action',
   },
   {
     id: 'estimatedCloseDate',
@@ -123,6 +104,7 @@ export default function OpportunitiesPage() {
   const [showColumnSettings, setShowColumnSettings] = useState(false)
   const [currentPage, setCurrentPage] = useState<number>(1)
   const [pageSize, setPageSize] = useState<number>(25)
+  const [selectedOpps, setSelectedOpps] = useState<number[]>([])
 
   const {
     columns: preferenceColumns,
@@ -182,6 +164,20 @@ export default function OpportunitiesPage() {
     }
   }
 
+  const handleSelectOpportunity = (id: number, selected: boolean) => {
+    setSelectedOpps(prev => selected ? (prev.includes(id) ? prev : [...prev, id]) : prev.filter(x => x !== id))
+  }
+
+  const handleSelectAllOpps = (selected: boolean) => {
+    if (selected) setSelectedOpps(filteredOpportunities.map(o => o.id))
+    else setSelectedOpps([])
+  }
+
+  const handleToggleOpportunityStatus = useCallback((id: number, next: boolean) => {
+    setOpportunities(prev => prev.map(o => o.id === id ? { ...o, active: next } : o))
+    setFilteredOpportunities(prev => prev.map(o => o.id === id ? { ...o, active: next } : o))
+  }, [])
+
   // Pagination handlers
   const handlePageChange = useCallback((page: number) => {
     setCurrentPage(page)
@@ -215,24 +211,42 @@ export default function OpportunitiesPage() {
   const tableLoading = loading || preferenceLoading
   const tableColumns = useMemo(() => {
     return preferenceColumns.map((column) => {
-      if (column.id === 'actions') {
+      if (column.id === 'multi-action') {
         return {
           ...column,
-          render: () => (
-            <div className="flex gap-1">
-              <button className="text-blue-500 hover:text-blue-700 p-1 rounded transition-colors">
-                <Edit className="h-4 w-4" />
-              </button>
-              <button className="text-red-500 hover:text-red-700 p-1 rounded transition-colors">
-                <Trash2 className="h-4 w-4" />
-              </button>
-            </div>
-          ),
-        };
+          render: (_: unknown, row: any) => {
+            const rowId = Number(row.id)
+            const checked = selectedOpps.includes(rowId)
+            const activeValue = !!row.active
+            return (
+              <div className="flex items-center gap-2" data-disable-row-click="true">
+                <label className="flex cursor-pointer items-center justify-center" onClick={e => e.stopPropagation()}>
+                  <input type="checkbox" className="sr-only" checked={checked} aria-label={`Select opportunity ${rowId}`} onChange={() => handleSelectOpportunity(rowId, !checked)} />
+                  <span className={`flex h-4 w-4 items-center justify-center rounded border transition-colors ${checked ? 'border-primary-500 bg-primary-600 text-white' : 'border-gray-300 bg-white text-transparent'}`}>
+                    <Check className="h-3 w-3" aria-hidden="true" />
+                  </span>
+                </label>
+                <button type="button" onClick={(e) => { e.stopPropagation(); handleToggleOpportunityStatus(rowId, !activeValue) }} className="relative inline-flex items-center cursor-pointer" title={activeValue ? 'Active' : 'Inactive'}>
+                  <span className={`w-9 h-5 rounded-full transition-colors duration-300 ease-in-out ${activeValue ? 'bg-blue-600' : 'bg-gray-300'}`}>
+                    <span className={`inline-block w-4 h-4 bg-white rounded-full shadow transition-transform duration-300 ease-in-out transform ${activeValue ? 'translate-x-4' : 'translate-x-1'} mt-0.5 ${activeValue ? 'ring-1 ring-blue-300' : ''}`} />
+                  </span>
+                </button>
+                <div className="flex gap-0.5">
+                  <button type="button" className="p-1 text-blue-500 hover:text-blue-700 transition-colors rounded" onClick={(e) => { e.preventDefault(); e.stopPropagation(); }} aria-label="Edit opportunity">
+                    <Edit className="h-3.5 w-3.5" />
+                  </button>
+                  <button type="button" className={`p-1 rounded transition-colors ${activeValue ? 'text-red-500 hover:text-red-700' : 'text-gray-400 hover:text-gray-600'}`} onClick={(e) => { e.preventDefault(); e.stopPropagation(); }} aria-label={activeValue ? 'Delete opportunity' : 'Manage opportunity'}>
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+            )
+          }
+        }
       }
       return column;
     });
-  }, [preferenceColumns])
+  }, [preferenceColumns, selectedOpps, handleSelectOpportunity, handleToggleOpportunityStatus])
   
   // Get hidden columns by comparing all columns with visible ones
   const hiddenColumns = useMemo(() => {
@@ -245,6 +259,9 @@ export default function OpportunitiesPage() {
     <div className="dashboard-page-container">
       <div className="bg-white border-b border-gray-200 px-4 py-3">
         <div className="flex items-center justify-between gap-4">
+          {/* Page Title */}
+          <h1 className="text-xl font-semibold text-blue-600">Opportunities List</h1>
+
           {/* Left side - Search */}
           <div className="flex items-center flex-1 max-w-md">
             <div className="relative w-full">
@@ -309,19 +326,22 @@ export default function OpportunitiesPage() {
 
       {/* Table */}
       <div className="flex-1 p-4 min-h-0">
-        <DynamicTable
-          columns={tableColumns}
-          data={paginatedOpportunities}
-          onSort={handleSort}
-          onRowClick={handleRowClick}
-          loading={tableLoading}
-          emptyMessage="No opportunities found"
-          onColumnsChange={handleColumnsChange}
-          autoSizeColumns={false}
-          pagination={paginationInfo}
-          onPageChange={handlePageChange}
-          onPageSizeChange={handlePageSizeChange}
-        />
+      <DynamicTable
+        columns={tableColumns}
+        data={paginatedOpportunities}
+        onSort={handleSort}
+        onRowClick={handleRowClick}
+        loading={tableLoading}
+        emptyMessage="No opportunities found"
+        onColumnsChange={handleColumnsChange}
+        autoSizeColumns={false}
+        pagination={paginationInfo}
+        onPageChange={handlePageChange}
+        onPageSizeChange={handlePageSizeChange}
+        selectedItems={selectedOpps.map(String)}
+        onItemSelect={(id, selected) => handleSelectOpportunity(Number(id), selected)}
+        onSelectAll={handleSelectAllOpps}
+      />
       </div>
 
       <ColumnChooserModal

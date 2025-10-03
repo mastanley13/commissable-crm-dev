@@ -1355,6 +1355,7 @@ export default function AccountsPage() {
   return (
     <CopyProtectionWrapper className="dashboard-page-container">
       <ListHeader
+        pageTitle="Accounts List"
         searchPlaceholder="Search Here"
         onSearch={handleSearch}
         onFilterChange={handleStatusFilterChange}
