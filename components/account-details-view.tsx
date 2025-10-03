@@ -64,6 +64,7 @@ export interface AccountContactRow {
   contactType?: string
   emailAddress?: string
   workPhone?: string
+  mobile?: string
   extension?: string
   owner?: string
   isPrimary?: boolean
@@ -81,7 +82,10 @@ export interface AccountOpportunityRow {
   stage?: string
   owner?: string
   ownerId?: string | null
+  distributorName?: string
+  vendorName?: string
   estimatedCloseDate?: string | Date | null
+  closeDate?: string | Date | null
   referredBy?: string
   isDeleted?: boolean
 }
@@ -200,7 +204,7 @@ const CONTACT_TABLE_BASE_COLUMNS: Column[] = [
     maxWidth: 250,
     sortable: true,
     accessor: "firstName",
-    selected: false,
+    hidden: true,
   },
   {
     id: "lastName",
@@ -210,7 +214,7 @@ const CONTACT_TABLE_BASE_COLUMNS: Column[] = [
     maxWidth: 250,
     sortable: true,
     accessor: "lastName",
-    selected: false,
+    hidden: true,
   },
   {
     id: "jobTitle",

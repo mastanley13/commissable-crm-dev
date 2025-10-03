@@ -73,6 +73,12 @@ interface AddressPayload {
   country?: string
 }
 
+interface AddressState {
+  shipping: AddressPayload | null
+  billing: AddressPayload | null
+  billingSameAsShipping: boolean
+}
+
 const ADDRESS_PLACEHOLDER = "Select an account to view address details."
 
 function parseName(fullName: string): { firstName: string; lastName: string } {
