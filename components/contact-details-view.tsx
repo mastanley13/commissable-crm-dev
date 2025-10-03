@@ -1530,13 +1530,6 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
     })
   }, [])
 
-  const handleSelectAllGroups = useCallback((selected: boolean) => {
-    if (selected) {
-      setSelectedGroups(paginatedGroups.map(row => row.id))
-      return
-    }
-    setSelectedGroups([])
-  }, [paginatedGroups])
 
   const contactGroupTableColumns = useMemo(() => {
     return contactGroupPreferenceColumns.map(column => {
@@ -1670,6 +1663,14 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
     }
     return rows
   }, [contact?.groups, activeFilter, groupsSearchQuery, groupsColumnFilters])
+
+  const handleSelectAllGroups = useCallback((selected: boolean) => {
+    if (selected) {
+      setSelectedGroups(filteredGroups.map(row => row.id))
+      return
+    }
+    setSelectedGroups([])
+  }, [filteredGroups])
 
   useEffect(() => {
     setSelectedActivities(prev => prev.filter(id => filteredActivities.some(row => row.id === id)));

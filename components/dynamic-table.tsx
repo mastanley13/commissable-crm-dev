@@ -780,7 +780,7 @@ export function DynamicTable({
               <div
                 key={column.id}
                 className={cn(
-                  "table-cell bg-gradient-to-b from-gray-50 to-gray-100 font-semibold text-gray-900 relative select-none border-b-2 border-gray-400 border-r-2 border-gray-800 last:border-r-0",
+                  "table-cell sticky top-0 z-20 bg-gradient-to-b from-gray-50 to-gray-100 font-semibold text-gray-900 relative select-none border-b-2 border-gray-400 border-r-2 border-gray-800 last:border-r-0",
                   column.sortable && column.id !== "select" && "cursor-pointer hover:from-gray-100 hover:to-gray-200"
                 )}
                 draggable
@@ -887,6 +887,8 @@ export function DynamicTable({
                     className={cn(
                       "table-cell text-sm text-gray-900 transition-colors border-r border-gray-300 last:border-r-0",
                       onRowClick && "cursor-pointer",
+                      // Alternating row colors using UNOHARAIRO (#F7FCFE)
+                      rowIndex % 2 === 1 && !rowSelected && "bg-[#F7FCFE]",
                       rowSelected && "bg-primary-50 font-medium",
                       rowSelected && columnIndex === 0 && "border-l-4 border-primary-400",
                       rowSelected && columnIndex === visibleColumns.length - 1 && "border-r-4 border-primary-100"
@@ -1000,6 +1002,7 @@ export function DynamicTable({
     </div>
   )
 }
+
 
 
 

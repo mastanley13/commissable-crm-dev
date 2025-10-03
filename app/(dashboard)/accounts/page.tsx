@@ -33,11 +33,24 @@ interface AccountRow {
   accountTypeId: string | null;
   accountOwner: string;
   accountOwnerId: string | null;
+  accountNumber?: string;
+  parentAccount?: string;
+  parentAccountId?: string | null;
   shippingState: string;
   shippingCity: string;
   shippingZip: string;
   shippingStreet: string;
   shippingStreet2: string;
+  shippingCountry?: string;
+  billingStreet?: string;
+  billingStreet2?: string;
+  billingCity?: string;
+  billingState?: string;
+  billingZip?: string;
+  billingCountry?: string;
+  industry?: string;
+  websiteUrl?: string;
+  description?: string;
   isDeleted: boolean;
 }
 
@@ -46,11 +59,22 @@ type FilterableColumnKey =
   | "accountLegalName"
   | "accountType"
   | "accountOwner"
+  | "accountNumber"
+  | "parentAccount"
+  | "industry"
+  | "websiteUrl"
   | "shippingState"
   | "shippingCity"
   | "shippingZip"
   | "shippingStreet"
-  | "shippingStreet2";
+  | "shippingStreet2"
+  | "billingStreet"
+  | "billingStreet2"
+  | "billingCity"
+  | "billingState"
+  | "billingZip"
+  | "billingCountry"
+  | "shippingCountry";
 
 interface AccountOptions {
   accountTypes: Array<{ id: string; name: string }>;
@@ -58,6 +82,18 @@ interface AccountOptions {
   parentAccounts: Array<{ id: string; accountName: string }>;
   owners: Array<{ id: string; fullName: string }>;
 }
+
+const ACCOUNT_DEFAULT_VISIBLE_COLUMN_IDS = new Set<string>([
+  "accountName",
+  "accountLegalName",
+  "accountType",
+  "accountOwner",
+  "shippingStreet",
+  "shippingStreet2",
+  "shippingCity",
+  "shippingState",
+  "shippingZip",
+])
 
 const accountColumns: Column[] = [
   {
@@ -99,6 +135,16 @@ const accountColumns: Column[] = [
     ),
   },
   {
+    id: "accountNumber",
+    label: "Account Number",
+    width: 160,
+    minWidth: 140,
+    maxWidth: 260,
+    sortable: true,
+    type: "text",
+    hidden: true,
+  },
+  {
     id: "accountType",
     label: "Account Type",
     width: 140,
@@ -115,6 +161,71 @@ const accountColumns: Column[] = [
     maxWidth: 250,
     sortable: true,
     type: "text",
+  },
+  {
+    id: "accountStatus",
+    label: "Active (Y/N)",
+    width: 140,
+    minWidth: 120,
+    maxWidth: 220,
+    sortable: true,
+    type: "text",
+    hidden: true,
+    accessor: "active",
+    render: (_value, row: AccountRow) => (row.active ? "Yes" : "No"),
+  },
+  {
+    id: "parentAccount",
+    label: "Parent Account",
+    width: 200,
+    minWidth: 160,
+    maxWidth: 280,
+    sortable: true,
+    type: "text",
+    hidden: true,
+  },
+  {
+    id: "industry",
+    label: "Industry",
+    width: 200,
+    minWidth: 160,
+    maxWidth: 280,
+    sortable: true,
+    type: "text",
+    hidden: true,
+  },
+  {
+    id: "websiteUrl",
+    label: "Website URL",
+    width: 220,
+    minWidth: 160,
+    maxWidth: 320,
+    sortable: true,
+    type: "text",
+    hidden: true,
+    render: (value: string) =>
+      value ? (
+        <a
+          href={value.startsWith("http") ? value : `https://${value}`}
+          className="text-blue-600 hover:text-blue-800 underline"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          {value}
+        </a>
+      ) : (
+        ""
+      ),
+  },
+  {
+    id: "description",
+    label: "Description",
+    width: 260,
+    minWidth: 200,
+    maxWidth: 420,
+    sortable: true,
+    type: "text",
+    hidden: true,
   },
   {
     id: "shippingState",
@@ -161,6 +272,76 @@ const accountColumns: Column[] = [
     sortable: true,
     type: "text",
   },
+  {
+    id: "shippingCountry",
+    label: "Shipping Country",
+    width: 180,
+    minWidth: 150,
+    maxWidth: 260,
+    sortable: true,
+    type: "text",
+    hidden: true,
+  },
+  {
+    id: "billingStreet",
+    label: "Billing Street",
+    width: 220,
+    minWidth: 180,
+    maxWidth: 360,
+    sortable: true,
+    type: "text",
+    hidden: true,
+  },
+  {
+    id: "billingStreet2",
+    label: "Billing Street 2",
+    width: 220,
+    minWidth: 180,
+    maxWidth: 360,
+    sortable: true,
+    type: "text",
+    hidden: true,
+  },
+  {
+    id: "billingCity",
+    label: "Billing City",
+    width: 150,
+    minWidth: 120,
+    maxWidth: 220,
+    sortable: true,
+    type: "text",
+    hidden: true,
+  },
+  {
+    id: "billingState",
+    label: "Billing State",
+    width: 130,
+    minWidth: 100,
+    maxWidth: 180,
+    sortable: true,
+    type: "text",
+    hidden: true,
+  },
+  {
+    id: "billingZip",
+    label: "Billing Zip",
+    width: 130,
+    minWidth: 100,
+    maxWidth: 180,
+    sortable: true,
+    type: "text",
+    hidden: true,
+  },
+  {
+    id: "billingCountry",
+    label: "Billing Country",
+    width: 180,
+    minWidth: 150,
+    maxWidth: 260,
+    sortable: true,
+    type: "text",
+    hidden: true,
+  },
 ];
 
 const filterOptions: { id: FilterableColumnKey; label: string }[] = [
@@ -168,11 +349,22 @@ const filterOptions: { id: FilterableColumnKey; label: string }[] = [
   { id: "accountLegalName", label: "Account Legal Name" },
   { id: "accountType", label: "Account Type" },
   { id: "accountOwner", label: "Account Owner" },
+  { id: "accountNumber", label: "Account Number" },
+  { id: "parentAccount", label: "Parent Account" },
+  { id: "industry", label: "Industry" },
+  { id: "websiteUrl", label: "Website URL" },
   { id: "shippingCity", label: "Shipping City" },
   { id: "shippingState", label: "Shipping State" },
   { id: "shippingZip", label: "Shipping Zip" },
   { id: "shippingStreet", label: "Shipping Street" },
   { id: "shippingStreet2", label: "Shipping Street 2" },
+  { id: "shippingCountry", label: "Shipping Country" },
+  { id: "billingStreet", label: "Billing Street" },
+  { id: "billingStreet2", label: "Billing Street 2" },
+  { id: "billingCity", label: "Billing City" },
+  { id: "billingState", label: "Billing State" },
+  { id: "billingZip", label: "Billing Zip" },
+  { id: "billingCountry", label: "Billing Country" },
 ];
 
 type ColumnFilterState = {
@@ -206,6 +398,7 @@ export default function AccountsPage() {
   const [showDeleteDialog, setShowDeleteDialog] = useState<boolean>(false);
   const [accountToEdit, setAccountToEdit] = useState<AccountRow | null>(null);
   const [showEditModal, setShowEditModal] = useState<boolean>(false);
+  const [accountColumnsNormalized, setAccountColumnsNormalized] = useState(false);
 
   const {
     columns: preferenceColumns,
@@ -218,6 +411,38 @@ export default function AccountsPage() {
     saveChanges,
     saveChangesOnModalClose,
   } = useTablePreferences('accounts:list', accountColumns);
+
+  useEffect(() => {
+    if (accountColumnsNormalized) {
+      return;
+    }
+    if (preferenceLoading) {
+      return;
+    }
+    if (!preferenceColumns || preferenceColumns.length === 0) {
+      return;
+    }
+
+    const normalized = preferenceColumns.map(column => {
+      if (column.id === "multi-action") {
+        return column;
+      }
+
+      if (ACCOUNT_DEFAULT_VISIBLE_COLUMN_IDS.has(column.id)) {
+        return column.hidden ? { ...column, hidden: false } : column;
+      }
+
+      return column.hidden === true ? column : { ...column, hidden: true };
+    });
+
+    const changed = normalized.some((column, index) => column.hidden !== preferenceColumns[index].hidden);
+
+    if (changed) {
+      handleColumnsChange(normalized);
+    }
+
+    setAccountColumnsNormalized(true);
+  }, [preferenceColumns, preferenceLoading, handleColumnsChange, accountColumnsNormalized]);
 
   const applyFilters = useCallback(
     (

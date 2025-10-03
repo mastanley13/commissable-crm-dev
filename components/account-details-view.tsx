@@ -360,6 +360,7 @@ const GROUP_TABLE_BASE_COLUMNS: Column[] = [
     maxWidth: 240,
     type: "multi-action",
   },
+
   {
     id: "groupName",
     label: "Group Name",
@@ -627,19 +628,6 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
     }
     const minTarget = Math.min(TABLE_BODY_MIN_HEIGHT, maxBodyWithinContainer)
     return Math.max(boundedPreferredHeight, minTarget)
-  }, [tableAreaMaxHeight])
-
-  const tableContainerStyle = useMemo(() => {
-    if (tableAreaMaxHeight == null) return undefined
-    const cappedHeight = Math.max(tableAreaMaxHeight, 0)
-    return {
-      height: cappedHeight,
-      maxHeight: cappedHeight,
-      minHeight: Math.min(
-        TABLE_BODY_MIN_HEIGHT + TABLE_BODY_FOOTER_RESERVE,
-        cappedHeight
-      )
-    }
   }, [tableAreaMaxHeight])
 
   const handleBack = () => {
@@ -992,6 +980,24 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
     return rows
   }, [contactRows, activeFilter, contactsSearchQuery, contactsColumnFilters])
 
+  const paginatedContacts = useMemo(() => {
+    const start = (contactsPage - 1) * contactsPageSize
+    return filteredContacts.slice(start, start + contactsPageSize)
+  }, [filteredContacts, contactsPage, contactsPageSize])
+
+  const contactsPagination = useMemo(() => {
+    const total = filteredContacts.length
+    const totalPages = Math.max(Math.ceil(total / contactsPageSize), 1)
+    return { page: contactsPage, pageSize: contactsPageSize, total, totalPages }
+  }, [filteredContacts.length, contactsPage, contactsPageSize])
+
+  useEffect(() => {
+    const maxPage = Math.max(Math.ceil(filteredContacts.length / contactsPageSize), 1)
+    if (contactsPage > maxPage) {
+      setContactsPage(maxPage)
+    }
+  }, [filteredContacts.length, contactsPageSize, contactsPage])
+
   const handleCreateContact = useCallback(() => {
     if (!account) {
       showError("Account not loaded", "Load an account before creating contacts.")
@@ -1015,15 +1021,11 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
 
   const handleSelectAllContacts = useCallback((selected: boolean) => {
     if (selected) {
-      const pageSlice = filteredContacts.slice(0, contactsPageSize)
-      setSelectedContacts(pageSlice.map(row => row.id))
+      setSelectedContacts(paginatedContacts.map(row => row.id))
       return
     }
     setSelectedContacts([])
-  }, [filteredContacts, contactsPageSize])
-
-  const contactsPageRows = useMemo(() => filteredContacts.slice(0, contactsPageSize), [filteredContacts, contactsPageSize])
-  const allContactsOnPageSelected = useMemo(() => contactsPageRows.length > 0 && contactsPageRows.every(row => selectedContacts.includes(row.id)), [contactsPageRows, selectedContacts])
+  }, [paginatedContacts])
   const softDeleteContactRequest = useCallback(async (
     contactId: string,
     bypassConstraints?: boolean
@@ -1364,7 +1366,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
       return
     }
 
-    const targets = filteredContacts.filter(row => selectedContacts.includes(row.id))
+    const targets = paginatedContacts.filter(row => selectedContacts.includes(row.id))
 
     if (targets.length === 0) {
       showError(
@@ -1377,7 +1379,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
     setContactDeleteTargets(targets)
     setContactToDelete(null)
     setShowContactDeleteDialog(true)
-  }, [filteredContacts, selectedContacts, showError])
+  }, [paginatedContacts, selectedContacts, showError])
 
   const closeContactDeleteDialog = useCallback(() => {
     setShowContactDeleteDialog(false)
@@ -1577,11 +1579,11 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
 
   const handleSelectAllOpportunities = useCallback((selected: boolean) => {
     if (selected) {
-      setSelectedOpportunities(opportunityRows.map(row => row.id))
+      setSelectedOpportunities(paginatedOpportunities.map(row => row.id))
       return
     }
     setSelectedOpportunities([])
-  }, [opportunityRows])
+  }, [paginatedOpportunities])
 
   const openOpportunityBulkDeleteDialog = useCallback(() => {
     if (selectedOpportunities.length === 0) {
@@ -1589,7 +1591,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
       return
     }
 
-    const targets = opportunityRows.filter(row => selectedOpportunities.includes(row.id))
+    const targets = paginatedOpportunities.filter(row => selectedOpportunities.includes(row.id))
 
     if (targets.length === 0) {
       showError(
@@ -1602,7 +1604,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
     setOpportunityDeleteTargets(targets)
     setOpportunityToDelete(null)
     setShowOpportunityDeleteDialog(true)
-  }, [selectedOpportunities, opportunityRows, showError])
+  }, [selectedOpportunities, paginatedOpportunities, showError])
 
   const requestOpportunityDelete = useCallback((opportunity: AccountOpportunityRow) => {
     setOpportunityDeleteTargets([])
@@ -1939,7 +1941,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
       return
     }
 
-    const rows = opportunityRows.filter(row => selectedOpportunities.includes(row.id))
+    const rows = paginatedOpportunities.filter(row => selectedOpportunities.includes(row.id))
 
     if (rows.length === 0) {
       showError(
@@ -2013,7 +2015,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
       `Exported ${rows.length} opportunity${rows.length === 1 ? "" : "ies"}`,
       "Check your downloads for the CSV file."
     )
-  }, [opportunityRows, selectedOpportunities, showError, showSuccess])
+  }, [paginatedOpportunities, selectedOpportunities, showError, showSuccess])
 
   const handleBulkOpportunityOwnerUpdate = useCallback(async (ownerId: string | null) => {
     if (selectedOpportunities.length === 0) {
@@ -3123,10 +3125,10 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
   }
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden">
+    <div className="flex h-full flex-col overflow-hidden">
 
-      <div className="flex flex-1 min-h-0 flex-col overflow-hidden px-4 sm:px-6 lg:px-8 pb-1">
-        <div className="mt-1 flex flex-1 flex-col min-h-0 overflow-hidden">
+      <div className="flex flex-1 min-h-0 flex-col overflow-hidden px-4 sm:px-6 lg:px-8">
+        <div className="flex flex-1 flex-col min-h-0 overflow-hidden">
             {loading ? (
               <div className="flex h-full flex-col items-center justify-center gap-3 text-sm text-gray-500">
                 <Loader2 className="h-6 w-6 animate-spin text-primary-600" />
@@ -3335,7 +3337,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                   </div>
 
                   {activeTab === "contacts" && (
-                    <div className="grid flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-20 min-h-0 overflow-hidden">
+                    <div className="grid flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0.5 px-3 pb-0">
                       <ListHeader
                         onCreateClick={handleCreateContact}
                         onFilterChange={(filter: string) => setActiveFilter(filter === "active" ? "active" : "inactive")}
@@ -3351,17 +3353,6 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                         onSettingsClick={() => setShowContactsColumnSettings(true)}
                         showCreateButton={Boolean(account)}
                         searchPlaceholder="Search contacts"
-                        leftAccessory={
-                          <label className="flex items-center gap-2 text-xs text-gray-600">
-                            <input
-                              type="checkbox"
-                              className="w-4 h-4 text-primary-600 bg-gray-100 border-gray-300 rounded focus:ring-primary-500"
-                              checked={allContactsOnPageSelected}
-                              onChange={(e) => handleSelectAllContacts(e.target.checked)}
-                            />
-                            <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">Select All</span>
-                          </label>
-                        }
                       />
                       <ContactBulkActionBar
                         count={selectedContacts.length}
@@ -3372,7 +3363,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                             showError("No contacts selected", "Select at least one contact to export.")
                             return
                           }
-                          const rows = filteredContacts.filter(row => selectedContacts.includes(row.id))
+                          const rows = paginatedContacts.filter(row => selectedContacts.includes(row.id))
                           const headers = ["Suffix","Full Name","Job Title","Contact Type","Email","Work Phone","Mobile","Extension","Active"]
                           const escapeCsv = (value: string | null | undefined) => {
                             if (value === null || value === undefined) return ""
@@ -3400,24 +3391,22 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                         onUpdateStatus={() => setShowContactBulkStatusModal(true)}
                       />
                       <div
-                        className="flex flex-1 min-h-0 flex-col overflow-hidden rounded-lg"
+                        className="flex flex-1 min-h-0 flex-col overflow-hidden"
                         ref={tableAreaRefCallback}
-                        style={tableContainerStyle}
                       >
                         <DynamicTable
                         className="flex flex-col"
                         columns={contactTableColumns}
-                        data={filteredContacts.slice(0, contactsPageSize)}
+                        data={paginatedContacts}
                         emptyMessage="No contacts found for this account"
                         onColumnsChange={handleContactTableColumnsChange}
                         loading={loading || contactPreferencesLoading}
-                        pagination={{ page: contactsPage, pageSize: contactsPageSize, total: filteredContacts.length, totalPages: Math.max(Math.ceil(filteredContacts.length / contactsPageSize), 1) }}
+                        pagination={contactsPagination}
                         onPageChange={(p) => setContactsPage(p)}
                         onPageSizeChange={(s) => { setContactsPageSize(s); setContactsPage(1) }}
                         selectedItems={selectedContacts}
                         onItemSelect={handleContactSelect}
                         onSelectAll={handleSelectAllContacts}
-                        selectHeaderLabel="Bulk Actions"
                         autoSizeColumns={true}
                         fillContainerWidth
                         maxBodyHeight={tableBodyMaxHeight}
@@ -3427,7 +3416,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                     </div>
                   )}
                   {activeTab === "opportunities" && (
-                    <div className="grid flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-2 min-h-0 overflow-hidden">
+                    <div className="grid flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0.5 px-3 pb-0">
                       <ListHeader
                         onCreateClick={handleCreateOpportunity}
                         onFilterChange={(filter: string) => setActiveFilter(filter === "active" ? "active" : "inactive")}
@@ -3453,9 +3442,8 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                         onUpdateStatus={() => setShowOpportunityBulkStatusModal(true)}
                       />
                       <div
-                        className="flex flex-1 min-h-0 flex-col overflow-hidden rounded-lg"
+                        className="flex flex-1 min-h-0 flex-col overflow-hidden"
                         ref={tableAreaRefCallback}
-                        style={tableContainerStyle}
                       >
                         <DynamicTable
                         className="flex flex-col"
@@ -3485,7 +3473,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                   )}
 
                   {activeTab === "groups" && (
-                    <div className="grid flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-2 min-h-0 overflow-hidden">
+                    <div className="grid flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0.5 px-3 pb-0">
                       <ListHeader
                         onCreateClick={handleCreateGroup}
                         onFilterChange={(filter: string) => setActiveFilter(filter === "active" ? "active" : "inactive")}
@@ -3511,9 +3499,8 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                         onUpdateStatus={() => setShowGroupBulkStatusModal(true)}
                       />
                       <div
-                        className="flex flex-1 min-h-0 flex-col overflow-hidden rounded-lg"
+                        className="flex flex-1 min-h-0 flex-col overflow-hidden"
                         ref={tableAreaRefCallback}
-                        style={tableContainerStyle}
                       >
                         <DynamicTable
                         className="flex flex-col"
@@ -3612,9 +3599,10 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                         onUpdateStatus={() => setShowActivityBulkStatusModal(true)}
                       />
                       <div
-                        className="flex flex-1 min-h-0 flex-col overflow-hidden rounded-lg"
+                        className="flex flex-1 min-h-0 flex-col overflow-hidden"
                         ref={tableAreaRefCallback}
-                        style={tableContainerStyle}
+                        // Disable fixed height for Activities tab to allow natural flex growth
+                        style={undefined}
                       >
                         <DynamicTable
                         className="flex flex-col"
@@ -3995,3 +3983,5 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
     </div>
   )
 }
+
+

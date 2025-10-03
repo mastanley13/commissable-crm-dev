@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type ChangeEvent, type KeyboardEvent } from "react"
 import { usePathname, useRouter } from "next/navigation"
-import { Search, RotateCcw, MessageSquare, Settings, ChevronLeft, Bell, Loader2 } from "lucide-react"
+import { Search, MessageSquare, ChevronLeft, Bell, Loader2 } from "lucide-react"
 import { Breadcrumb } from "@/components/breadcrumb"
 
 type SearchSuggestion = {
@@ -265,10 +265,6 @@ export function Topbar() {
         </div>
 
         <div className="ml-auto flex items-center space-x-3">
-          <button className="rounded-lg p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600">
-            <RotateCcw className="h-4 w-4" />
-          </button>
-
           <button className="relative rounded-lg p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600">
             <MessageSquare className="h-4 w-4" />
             <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-red-500"></span>
@@ -276,10 +272,6 @@ export function Topbar() {
 
           <button className="rounded-lg p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600">
             <Bell className="h-4 w-4" />
-          </button>
-
-          <button className="rounded-lg p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600">
-            <Settings className="h-4 w-4" />
           </button>
         </div>
       </div>
