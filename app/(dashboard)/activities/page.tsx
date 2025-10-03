@@ -462,6 +462,7 @@ export default function ActivitiesPage() {
     <div className="h-full flex flex-col">
       {/* List Header */}
       <ListHeader
+        pageTitle="ACTIVITIES LIST"
         searchPlaceholder="Search Here"
         onSearch={handleSearch}
         onFilterChange={handleFilterChange}

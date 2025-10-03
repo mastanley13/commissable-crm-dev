@@ -27,6 +27,9 @@ import { ActivityBulkStatusModal } from "./activity-bulk-status-modal"
 import { OpportunityBulkActionBar } from "./opportunity-bulk-action-bar"
 import { OpportunityBulkOwnerModal } from "./opportunity-bulk-owner-modal"
 import { OpportunityBulkStatusModal } from "./opportunity-bulk-status-modal"
+import { GroupBulkActionBar } from "./group-bulk-action-bar"
+import { GroupBulkOwnerModal } from "./group-bulk-owner-modal"
+import { GroupBulkStatusModal } from "./group-bulk-status-modal"
 
 export interface ActivityAttachmentRow {
   id: string
@@ -43,10 +46,9 @@ export interface ContactActivityRow {
   activityDate?: string | Date | null
   activityStatus?: string
   description?: string
-  accountName?: string
   attachment?: string | null
   fileName?: string | null
-  createdBy?: string
+  activityOwner?: string
   activityType?: string
   attachments?: ActivityAttachmentRow[]
 }
@@ -60,8 +62,12 @@ export interface ContactOpportunityRow {
   stage?: string
   owner?: string
   ownerId?: string | null
-  estimatedCloseDate?: string | Date | null
-  referredBy?: string
+  closeDate?: string | Date | null
+  subAgent?: string
+  accountIdVendor?: string
+  customerIdVendor?: string
+  locationId?: string
+  orderIdVendor?: string
   isDeleted?: boolean
 }
 
@@ -85,6 +91,7 @@ export interface ContactDetail {
   middleName?: string
   lastName: string
   accountName: string
+  accountShippingAddress?: string
   jobTitle?: string
   department?: string
   contactType?: string
@@ -158,8 +165,9 @@ const TABS: { id: "activities" | "opportunities" | "groups"; label: string }[] =
   { id: "groups", label: "Groups" }
 ]
 
-const fieldLabelClass = "text-xs font-semibold uppercase tracking-wide text-gray-500"
-const fieldBoxClass = "flex min-h-[24px] items-center justify-between rounded-lg border-2 border-gray-400 bg-white px-2 py-1 text-sm text-gray-900 shadow-sm"
+const fieldLabelClass = "text-xs font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap"
+const fieldSubLabelClass = "text-xs font-medium text-gray-600"
+const fieldBoxClass = "flex min-h-[32px] w-full items-center justify-between rounded-lg border-2 border-gray-400 bg-white px-2 py-1 text-sm text-gray-900 shadow-sm whitespace-nowrap overflow-hidden text-ellipsis"
 
 const CONTACT_ACTIVITY_TABLE_BASE_COLUMNS: Column[] = [
   {
@@ -171,6 +179,15 @@ const CONTACT_ACTIVITY_TABLE_BASE_COLUMNS: Column[] = [
     type: "multi-action",
   },
   {
+    id: "id",
+    label: "Activity ID",
+    width: 180,
+    minWidth: 140,
+    maxWidth: 240,
+    sortable: true,
+    accessor: "id"
+  },
+  {
     id: "activityDate",
     label: "Activity Date",
     width: 150,
@@ -180,38 +197,47 @@ const CONTACT_ACTIVITY_TABLE_BASE_COLUMNS: Column[] = [
     accessor: "activityDate"
   },
   {
-    id: "activityStatus",
-    label: "Activity Status",
-    width: 150,
-    minWidth: 120,
-    maxWidth: 200,
+    id: "activityType",
+    label: "Activity Type",
+    width: 160,
+    minWidth: 130,
+    maxWidth: 220,
     sortable: true,
-    accessor: "activityStatus"
+    accessor: "activityType"
+  },
+  {
+    id: "activityOwner",
+    label: "Activity Owner",
+    width: 180,
+    minWidth: 140,
+    maxWidth: 240,
+    sortable: true,
+    accessor: "activityOwner"
   },
   {
     id: "description",
-    label: "Description",
-    width: 250,
+    label: "Activity Description",
+    width: 260,
     minWidth: 200,
-    maxWidth: 400,
+    maxWidth: 420,
     sortable: true,
     accessor: "description"
   },
   {
-    id: "accountName",
-    label: "Account Name",
-    width: 180,
-    minWidth: 150,
-    maxWidth: 250,
+    id: "activityStatus",
+    label: "Activity Status",
+    width: 160,
+    minWidth: 130,
+    maxWidth: 220,
     sortable: true,
-    accessor: "accountName"
+    accessor: "activityStatus"
   },
   {
     id: "attachment",
     label: "Attachment",
-    width: 120,
-    minWidth: 100,
-    maxWidth: 150,
+    width: 140,
+    minWidth: 110,
+    maxWidth: 200,
     sortable: true,
     accessor: "attachment"
   },
@@ -223,17 +249,9 @@ const CONTACT_ACTIVITY_TABLE_BASE_COLUMNS: Column[] = [
     maxWidth: 280,
     sortable: true,
     accessor: "fileName"
-  },
-  {
-    id: "createdBy",
-    label: "Created By",
-    width: 150,
-    minWidth: 120,
-    maxWidth: 200,
-    sortable: true,
-    accessor: "createdBy"
   }
 ]
+
 
 const CONTACT_OPPORTUNITY_TABLE_BASE_COLUMNS: Column[] = [
   {
@@ -245,13 +263,13 @@ const CONTACT_OPPORTUNITY_TABLE_BASE_COLUMNS: Column[] = [
     type: "multi-action",
   },
   {
-    id: "orderIdHouse",
-    label: "Order ID - House",
-    width: 150,
-    minWidth: 120,
-    maxWidth: 200,
+    id: "closeDate",
+    label: "Close Date",
+    width: 160,
+    minWidth: 130,
+    maxWidth: 220,
     sortable: true,
-    accessor: "orderIdHouse"
+    accessor: "closeDate"
   },
   {
     id: "opportunityName",
@@ -272,31 +290,67 @@ const CONTACT_OPPORTUNITY_TABLE_BASE_COLUMNS: Column[] = [
     accessor: "stage"
   },
   {
+    id: "orderIdHouse",
+    label: "Order ID - House",
+    width: 170,
+    minWidth: 140,
+    maxWidth: 220,
+    sortable: true,
+    accessor: "orderIdHouse"
+  },
+  {
     id: "owner",
     label: "Owner",
-    width: 150,
-    minWidth: 120,
-    maxWidth: 200,
+    width: 160,
+    minWidth: 130,
+    maxWidth: 220,
     sortable: true,
     accessor: "owner"
   },
   {
-    id: "estimatedCloseDate",
-    label: "Estimated Close Date",
+    id: "subAgent",
+    label: "Subagent",
     width: 180,
-    minWidth: 150,
-    maxWidth: 220,
+    minWidth: 140,
+    maxWidth: 240,
     sortable: true,
-    accessor: "estimatedCloseDate"
+    accessor: "subAgent"
   },
   {
-    id: "referredBy",
-    label: "Referred By",
-    width: 150,
-    minWidth: 120,
-    maxWidth: 200,
+    id: "accountIdVendor",
+    label: "Account ID - Vendor",
+    width: 200,
+    minWidth: 160,
+    maxWidth: 260,
     sortable: true,
-    accessor: "referredBy"
+    accessor: "accountIdVendor"
+  },
+  {
+    id: "customerIdVendor",
+    label: "Customer ID - Vendor",
+    width: 200,
+    minWidth: 160,
+    maxWidth: 260,
+    sortable: true,
+    accessor: "customerIdVendor"
+  },
+  {
+    id: "locationId",
+    label: "Location ID",
+    width: 170,
+    minWidth: 140,
+    maxWidth: 220,
+    sortable: true,
+    accessor: "locationId"
+  },
+  {
+    id: "orderIdVendor",
+    label: "Order ID - Vendor",
+    width: 180,
+    minWidth: 150,
+    maxWidth: 240,
+    sortable: true,
+    accessor: "orderIdVendor"
   }
 ]
 
@@ -366,8 +420,8 @@ function ReadOnlySwitch({ value }: { value: boolean }) {
 }
 
 function FieldRow({ label, value }: { label: string; value: ReactNode }) {
-    return (
-    <div className="grid items-start gap-1.5 sm:grid-cols-[120px,1fr]">
+  return (
+    <div className="grid items-center gap-2 sm:grid-cols-[140px,1fr]">
       <span className={fieldLabelClass}>{label}</span>
       <div>{value}</div>
     </div>
@@ -505,19 +559,6 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
     return Math.max(boundedPreferredHeight, minTarget)
   }, [tableAreaMaxHeight])
 
-  const tableContainerStyle = useMemo(() => {
-    if (tableAreaMaxHeight == null) return undefined
-    const cappedHeight = Math.max(tableAreaMaxHeight, 0)
-    return {
-      height: cappedHeight,
-      maxHeight: cappedHeight,
-      minHeight: Math.min(
-        TABLE_BODY_MIN_HEIGHT + TABLE_BODY_FOOTER_RESERVE,
-        cappedHeight
-      )
-    }
-  }, [tableAreaMaxHeight])
-
   const handleBack = () => {
     router.push("/contacts")
   }
@@ -566,6 +607,9 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
   const [showGroupEditModal, setShowGroupEditModal] = useState(false)
   const [groupToDelete, setGroupToDelete] = useState<ContactGroupRow | null>(null)
   const [showGroupDeleteDialog, setShowGroupDeleteDialog] = useState(false)
+  const [showGroupBulkOwnerModal, setShowGroupBulkOwnerModal] = useState(false)
+  const [showGroupBulkStatusModal, setShowGroupBulkStatusModal] = useState(false)
+  const [groupOwners, setGroupOwners] = useState<Array<{ value: string; label: string }>>([])
 
   useEffect(() => {
     setActiveTab("activities")
@@ -584,17 +628,18 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
         const payload = await response.json().catch(() => null)
         const users = Array.isArray(payload?.data?.users) ? payload.data.users : []
         if (!isCancelled) {
-          setOpportunityOwners(
-            users.map((user: any) => ({
-              value: user.id,
-              label: user.fullName || user.email || "Unassigned"
-            }))
-          )
+          const owners = users.map((user: any) => ({
+            value: user.id,
+            label: user.fullName || user.email || "Unassigned"
+          }))
+          setOpportunityOwners(owners)
+          setGroupOwners(owners)
         }
       } catch (error) {
         console.error("Failed to load opportunity owners", error)
         if (!isCancelled) {
           setOpportunityOwners([])
+          setGroupOwners([])
           showError("Unable to load owners", "Please try again later.")
         }
       }
@@ -863,13 +908,14 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
       return
     }
     const headers = [
+      "Activity ID",
       "Activity Date",
       "Activity Type",
-      "Description",
-      "Account Name",
-      "File Name",
-      "Created By",
-      "Active"
+      "Activity Owner",
+      "Activity Description",
+      "Activity Status",
+      "Attachment",
+      "File Name"
     ]
     const escapeCsv = (value: string | null | undefined) => {
       if (value === null || value === undefined) {
@@ -884,17 +930,18 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
     const lines = [
       headers.join(","),
       ...rows.map(row => [
+        row.id,
         row.activityDate
           ? row.activityDate instanceof Date
             ? row.activityDate.toLocaleDateString()
             : new Date(row.activityDate as any).toLocaleDateString()
           : "",
         row.activityType,
+        row.activityOwner,
         row.description,
-        row.accountName,
-        row.fileName,
-        row.createdBy,
-        row.active ? "Active" : "Inactive"
+        row.activityStatus,
+        row.attachment,
+        row.fileName
       ].map(escapeCsv).join(","))
     ]
     const blob = new Blob([lines.join("\r\n")], { type: "text/csv;charset=utf-8;" })
@@ -961,13 +1008,16 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
     }
 
     const headers = [
+      "Close Date",
       "Opportunity Name",
+      "Opportunity Stage",
       "Order ID - House",
-      "Stage",
-      "Status",
       "Owner",
-      "Estimated Close Date",
-      "Lead Source"
+      "Subagent",
+      "Account ID - Vendor",
+      "Customer ID - Vendor",
+      "Location ID",
+      "Order ID - Vendor"
     ]
 
     const escapeCsv = (value: string | null | undefined) => {
@@ -996,13 +1046,16 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
       headers.join(","),
       ...rows.map(row =>
         [
+          formatCsvDate(row.closeDate ?? null),
           row.opportunityName,
-          row.orderIdHouse,
           row.stage,
-          row.status,
+          row.orderIdHouse,
           row.owner,
-          formatCsvDate(row.estimatedCloseDate ?? null),
-          row.referredBy
+          row.subAgent,
+          row.accountIdVendor,
+          row.customerIdVendor,
+          row.locationId,
+          row.orderIdVendor
         ]
           .map(escapeCsv)
           .join(",")
@@ -1309,6 +1362,179 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
     }
   }, [refreshContactData, showError, showSuccess]);
 
+  const openGroupBulkDeleteDialog = useCallback(async () => {
+    if (selectedGroups.length === 0) {
+      showError("No groups selected", "Select at least one group to delete.")
+      return
+    }
+    const confirmed = window.confirm(`Delete ${selectedGroups.length} selected group${selectedGroups.length === 1 ? "" : "s"}? This action cannot be undone.`)
+    if (!confirmed) return
+    try {
+      setGroupBulkActionLoading(true)
+      let successCount = 0
+      let failureCount = 0
+      for (const id of selectedGroups) {
+        try {
+          const response = await fetch(`/api/groups/${id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ isActive: false })
+          })
+          if (response.ok) {
+            successCount++
+          } else {
+            failureCount++
+          }
+        } catch {
+          failureCount++
+        }
+      }
+      if (successCount > 0) {
+        showSuccess(
+          `Deleted ${successCount} group${successCount === 1 ? "" : "s"}`,
+          failureCount > 0 ? `${failureCount} failed. Try refresh and retry.` : ""
+        )
+      }
+      if (failureCount > 0 && successCount === 0) {
+        showError("Failed to delete groups", "Please refresh and try again.")
+      }
+      await refreshContactData()
+      setSelectedGroups([])
+    } finally {
+      setGroupBulkActionLoading(false)
+    }
+  }, [selectedGroups, refreshContactData, showError, showSuccess])
+
+  const handleBulkGroupExportCsv = useCallback(() => {
+    if (selectedGroups.length === 0) {
+      showError("No groups selected", "Select at least one group to export.")
+      return
+    }
+    const rows = (contact?.groups ?? []).filter(row => selectedGroups.includes(row.id))
+    if (rows.length === 0) {
+      showError("Groups unavailable", "Unable to locate the selected groups. Refresh and try again.")
+      return
+    }
+    const headers = [
+      "Group Name",
+      "Public/Private",
+      "Group Description",
+      "Group Owner",
+      "Active"
+    ]
+    const escapeCsv = (value: string | null | undefined) => {
+      if (value === null || value === undefined) {
+        return ""
+      }
+      const s = String(value)
+      if (s.includes("\"") || s.includes(",") || s.includes("\n")) {
+        return "\"" + s.replace(/"/g, "\"\"") + "\""
+      }
+      return s
+    }
+    const lines = [
+      headers.join(","),
+      ...rows.map(row => [
+        row.groupName,
+        row.visibility,
+        row.description,
+        row.owner,
+        row.active ? "Active" : "Inactive"
+      ].map(escapeCsv).join(","))
+    ]
+    const blob = new Blob([lines.join("\r\n")], { type: "text/csv;charset=utf-8;" })
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    const timestamp = new Date().toISOString().replace(/[:T]/g, "-").split(".")[0]
+    link.href = url
+    link.download = "groups-export-" + timestamp + ".csv"
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+    showSuccess(
+      "Exported " + rows.length + " group" + (rows.length === 1 ? "" : "s"),
+      "Check your downloads for the CSV file."
+    )
+  }, [selectedGroups, contact?.groups, showError, showSuccess])
+
+  const handleBulkGroupOwnerUpdate = useCallback(async (ownerId: string | null) => {
+    if (selectedGroups.length === 0) {
+      showError("No groups selected", "Select at least one group to update.")
+      return
+    }
+    setGroupBulkActionLoading(true)
+    try {
+      const outcomes = await Promise.allSettled(
+        selectedGroups.map(async (groupId) => {
+          const response = await fetch(`/api/groups/${groupId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ownerId: ownerId ?? null })
+          })
+          if (!response.ok) {
+            const payload = await response.json().catch(() => null)
+            throw new Error(payload?.error || "Failed to update group owner")
+          }
+          return groupId
+        })
+      )
+      const successes = outcomes.filter(r => r.status === "fulfilled").length
+      const failures = outcomes.length - successes
+      if (successes > 0) {
+        showSuccess(`Updated ${successes} group${successes === 1 ? "" : "s"}`, "New owner assigned successfully.")
+      }
+      if (failures > 0 && successes === 0) {
+        showError("Bulk group owner update failed", "Please try again.")
+      }
+      await refreshContactData()
+      setSelectedGroups([])
+      setShowGroupBulkOwnerModal(false)
+    } finally {
+      setGroupBulkActionLoading(false)
+    }
+  }, [selectedGroups, refreshContactData, showError, showSuccess])
+
+  const handleBulkGroupStatusUpdate = useCallback(async (isActive: boolean) => {
+    if (selectedGroups.length === 0) {
+      showError("No groups selected", "Select at least one group to update.")
+      return
+    }
+    setGroupBulkActionLoading(true)
+    try {
+      const outcomes = await Promise.allSettled(
+        selectedGroups.map(async (groupId) => {
+          const response = await fetch(`/api/groups/${groupId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ isActive })
+          })
+          if (!response.ok) {
+            const payload = await response.json().catch(() => null)
+            throw new Error(payload?.error || "Failed to update group status")
+          }
+          return groupId
+        })
+      )
+      const successes = outcomes.filter(r => r.status === "fulfilled").length
+      const failures = outcomes.length - successes
+      if (successes > 0) {
+        showSuccess(
+          `Updated status for ${successes} group${successes === 1 ? "" : "s"}`,
+          "The status has been updated successfully."
+        )
+      }
+      if (failures > 0 && successes === 0) {
+        showError("Bulk group status update failed", "Please try again.")
+      }
+      await refreshContactData()
+      setSelectedGroups([])
+      setShowGroupBulkStatusModal(false)
+    } finally {
+      setGroupBulkActionLoading(false)
+    }
+  }, [selectedGroups, refreshContactData, showError, showSuccess])
+
   const hasContact = Boolean(contact)
 
   const formatDate = (value?: string | Date | null) => {
@@ -1321,21 +1547,25 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
   }
 
   const activitiesFilterColumns = useMemo(() => [
+    { id: "id", label: "Activity ID" },
     { id: "activityDate", label: "Activity Date" },
     { id: "activityType", label: "Activity Type" },
+    { id: "activityOwner", label: "Activity Owner" },
     { id: "activityStatus", label: "Activity Status" },
-    { id: "description", label: "Description" },
-    { id: "accountName", label: "Account Name" },
-    { id: "createdBy", label: "Created By" }
+    { id: "description", label: "Activity Description" }
   ], [])
 
   const opportunitiesFilterColumns = useMemo(() => [
-    { id: "orderIdHouse", label: "Order ID - House" },
+    { id: "closeDate", label: "Close Date" },
     { id: "opportunityName", label: "Opportunity Name" },
     { id: "stage", label: "Opportunity Stage" },
+    { id: "orderIdHouse", label: "Order ID - House" },
     { id: "owner", label: "Owner" },
-    { id: "estimatedCloseDate", label: "Estimated Close Date" },
-    { id: "referredBy", label: "Referred By" },
+    { id: "subAgent", label: "Subagent" },
+    { id: "accountIdVendor", label: "Account ID - Vendor" },
+    { id: "customerIdVendor", label: "Customer ID - Vendor" },
+    { id: "locationId", label: "Location ID" },
+    { id: "orderIdVendor", label: "Order ID - Vendor" },
   ], [])
 
   const groupsFilterColumns = useMemo(() => [
@@ -1505,6 +1735,23 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
         }
       }
       if (column.id === "estimatedCloseDate") {
+        return {
+          ...column,
+          id: "closeDate",
+          label: "Close Date",
+          accessor: "closeDate",
+          render: (value?: string | Date | null) => formatDate(value)
+        }
+      }
+      if (column.id === "referredBy") {
+        return {
+          ...column,
+          id: "subAgent",
+          label: "Subagent",
+          accessor: "subAgent"
+        }
+      }
+      if (column.id === "closeDate") {
         return { ...column, render: (value?: string | Date | null) => formatDate(value) }
       }
       return column
@@ -1601,12 +1848,13 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
     if (query.length > 0) {
       rows = rows.filter(row => {
         return [
+          row.id,
           row.activityType,
+          row.activityOwner,
           row.activityStatus,
           row.description,
-          row.accountName,
-          row.fileName,
-          row.createdBy
+          row.attachment,
+          row.fileName
         ]
           .filter((value): value is string => typeof value === "string" && value.length > 0)
           .some(value => value.toLowerCase().includes(query))
@@ -1627,12 +1875,16 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
     if (query.length > 0) {
       rows = rows.filter(row => {
         const values = [
-          row.orderIdHouse,
+          row.closeDate ? new Date(row.closeDate as any).toLocaleDateString() : undefined,
           row.opportunityName,
           row.stage,
+          row.orderIdHouse,
           row.owner,
-          row.referredBy,
-          row.estimatedCloseDate ? new Date(row.estimatedCloseDate as any).toLocaleDateString() : undefined,
+          row.subAgent,
+          row.accountIdVendor,
+          row.customerIdVendor,
+          row.locationId,
+          row.orderIdVendor,
         ]
         return values
           .filter((value): value is string => typeof value === "string" && value.length > 0)
@@ -1952,10 +2204,10 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
   }, [selectedOpportunities, contact?.opportunities, refreshContactData, showError, showSuccess])
 
   return (
-    <div className="px-4 py-4 sm:px-6 lg:px-8">
-      <div className="mx-auto w-full max-w-none">
+    <div className="flex h-full flex-col overflow-hidden">
 
-        <div>
+      <div className="flex flex-1 min-h-0 flex-col overflow-hidden px-4 sm:px-6 lg:px-8">
+        <div className="flex flex-1 flex-col min-h-0 overflow-hidden">
             {loading ? (
               <div className="flex h-full flex-col items-center justify-center gap-3 text-sm text-gray-500">
                 <Loader2 className="h-6 w-6 animate-spin text-primary-600" />
@@ -1966,27 +2218,14 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
                 {error ?? "Contact details are not available."}
               </div>
             ) : contact ? (
-              <div className="space-y-3">
-                <div className="rounded-2xl border-2 border-gray-400 bg-gray-50 p-3 shadow-sm">
+              <div className="flex flex-1 flex-col gap-1 overflow-hidden">
+                <div className="rounded-2xl bg-gray-100 p-3 shadow-sm">
                   {/* Header with title and controls */}
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-3">
                       <p className="text-xs font-semibold uppercase tracking-wide text-primary-600">Contact Detail</p>
-                      <h3 className="text-base font-medium text-gray-900">Contact Information</h3>
                     </div>
                     <div className="flex items-center gap-2">
-                      {contact && (
-                        <button
-                          onClick={handleDelete}
-                          className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
-                            isDeleted
-                              ? "border border-gray-300 text-gray-600 hover:border-gray-400 hover:text-gray-700"
-                              : "border border-red-300 text-red-600 hover:border-red-400 hover:text-red-700"
-                          }`}
-                        >
-                          {isDeleted ? "Manage" : "Delete"}
-                        </button>
-                      )}
                       {onEdit && contact && !isDeleted && (
                         <button
                           onClick={() => onEdit(contact)}
@@ -1995,12 +2234,6 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
                           Update
                         </button>
                       )}
-                      <button
-                        onClick={handleBack}
-                        className="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-600 hover:border-primary-400 hover:text-primary-600"
-                      >
-                        Back
-                      </button>
                       <button
                         onClick={toggleDetails}
                         className="flex items-center gap-1 rounded-md bg-gray-200 px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-300 hover:text-gray-800 transition-colors"
@@ -2012,133 +2245,105 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
                   </div>
 
                   {!detailsExpanded ? (
-                    <div className="space-y-2">
-                      <div className="grid grid-cols-1 gap-2">
-                        <div className="flex items-center gap-3 p-2 bg-white rounded-lg border border-gray-200">
-                          <span className="font-medium text-gray-900">{contact.firstName} {contact.lastName}</span>
-                          <span className="text-sm text-gray-500">â€¢</span>
-                          <span className="text-sm text-gray-600">{contact.accountName}</span>
-                          {contact.jobTitle && (
-                            <>
-                              <span className="text-sm text-gray-500">â€¢</span>
-                              <span className="text-sm text-gray-600">{contact.jobTitle}</span>
-                            </>
-                          )}
-                        </div>
+                    <div className="space-y-1.5">
+                      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2">
+                        <span className="font-semibold text-gray-900">{contact.firstName} {contact.lastName}</span>
+                        {contact.jobTitle && (
+                          <span className="text-sm text-gray-600">- {contact.jobTitle}</span>
+                        )}
+                        <span className="text-sm text-gray-600">- {contact.accountName}</span>
                       </div>
                     </div>
                   ) : (
                     <>
-                      <div className="grid gap-4 lg:grid-cols-2">
-                    <div className="space-y-3">
-                      <FieldRow
-                        label="Name"
-                        value={
-                          <div className="grid gap-2 md:grid-cols-5">
-                            <div>
-                              <div className={fieldLabelClass}>Prefix</div>
-                              <div className={fieldBoxClass}>{contact.prefix || "--"}</div>
-                            </div>
-                            <div>
-                              <div className={fieldLabelClass}>First</div>
-                              <div className={fieldBoxClass}>{contact.firstName}</div>
-                            </div>
-                            <div>
-                              <div className={fieldLabelClass}>Middle</div>
-                              <div className={fieldBoxClass}>{contact.middleName || "--"}</div>
-                            </div>
-                            <div>
-                              <div className={fieldLabelClass}>Last</div>
-                              <div className={fieldBoxClass}>{contact.lastName}</div>
-                            </div>
-                            <div>
-                              <div className={fieldLabelClass}>Suffix</div>
-                              <div className={fieldBoxClass}>{contact.suffix || "--"}</div>
-                            </div>
-                          </div>
-                        }
-                      />
-                      <FieldRow
-                        label="Account Name"
-                        value={<div className={fieldBoxClass}>{contact.accountName}</div>}
-                      />
-                      <FieldRow
-                        label="Job Title"
-                        value={<div className={fieldBoxClass}>{contact.jobTitle || "--"}</div>}
-                      />
-                      <FieldRow
-                        label="Department"
-                        value={<div className={fieldBoxClass}>{contact.department || "--"}</div>}
-                      />
-                      <FieldRow
-                        label="Active (Y/N)"
-                        value={
-                          <div className="flex items-center gap-2 rounded-lg border-2 border-gray-400 bg-white px-2 py-1 text-xs font-medium text-gray-600 shadow-sm">
-                            <ReadOnlySwitch value={contact.active} />
-                            <span>{contact.active ? "Active" : "Inactive"}</span>
-                          </div>
-                        }
-                      />
-                    </div>
-                    <div className="space-y-3">
-                      <FieldRow
-                        label="Contact Type"
-                        value={<div className={fieldBoxClass}>{contact.contactType || "--"}</div>}
-                      />
-                      <FieldRow
-                        label="Email Address"
-                        value={<div className={fieldBoxClass}>{contact.emailAddress || "--"}</div>}
-                      />
-                      <FieldRow
-                        label="Alternate Email"
-                        value={<div className={fieldBoxClass}>{contact.alternateEmail || "--"}</div>}
-                      />
-                      <FieldRow
-                        label="Work Phone"
-                        value={
-                          <div className="grid gap-2 md:grid-cols-[1fr,110px]">
-                            <div className={fieldBoxClass}>{contact.workPhone || "--"}</div>
-                            <div className={fieldBoxClass}>Ext {contact.workPhoneExt || "--"}</div>
-                          </div>
-                        }
-                      />
-                      <FieldRow
-                        label="Mobile"
-                        value={<div className={fieldBoxClass}>{contact.mobilePhone || "--"}</div>}
-                      />
-                      <FieldRow
-                        label="Other Phone"
-                        value={<div className={fieldBoxClass}>{contact.otherPhone || "--"}</div>}
-                      />
-                    </div>
-                  </div>
-                  <div className="mt-2">
-                    <div className={fieldLabelClass}>Description</div>
-                    <div className="mt-0.5 rounded-lg border-2 border-gray-400 bg-white px-2.5 py-1 text-sm text-gray-700 shadow-sm">
-                      {contact.description || "No description provided."}
-                    </div>
-                  </div>
-                  <div className="mt-2">
-                    <div className={fieldLabelClass}>Notes</div>
-                    <div className="mt-0.5 rounded-lg border-2 border-gray-400 bg-white px-2.5 py-1 text-sm text-gray-700 shadow-sm">
-                      {contact.notes || "No notes provided."}
-                    </div>
-                  </div>
+                      <div className="grid gap-6 lg:grid-cols-2">
+                        <div className="space-y-1.5">
+                          <FieldRow
+                            label="Name"
+                            value={
+                              <div className="grid gap-2 md:grid-cols-3">
+                                <div>
+                                  <div className={fieldSubLabelClass}>First</div>
+                                  <div className={fieldBoxClass}>{contact.firstName}</div>
+                                </div>
+                                <div>
+                                  <div className={fieldSubLabelClass}>Last</div>
+                                  <div className={fieldBoxClass}>{contact.lastName}</div>
+                                </div>
+                                <div>
+                                  <div className={fieldSubLabelClass}>Suffix</div>
+                                  <div className={fieldBoxClass}>{contact.suffix || "--"}</div>
+                                </div>
+                              </div>
+                            }
+                          />
+                          <FieldRow
+                            label="Contact Type"
+                            value={<div className={fieldBoxClass}>{contact.contactType || "--"}</div>}
+                          />
+                          <FieldRow
+                            label="Account Name"
+                            value={
+                              <div className="flex flex-wrap items-center gap-2">
+                                <div className={cn(fieldBoxClass, "flex-1")}>{contact.accountName || "--"}</div>
+                                <div className="flex items-center gap-2 rounded-lg border-2 border-gray-400 bg-white px-2 py-0.5 text-xs font-medium text-gray-600 shadow-sm">
+                                  <span>Active (Y/N)</span>
+                                  <ReadOnlySwitch value={contact.active} />
+                                </div>
+                              </div>
+                            }
+                          />
+                          <FieldRow
+                            label="Work Phone"
+                            value={<div className={fieldBoxClass}>{contact.workPhone || "--"}</div>}
+                          />
+                          <FieldRow
+                            label="Extension"
+                            value={<div className={fieldBoxClass}>{contact.workPhoneExt || "--"}</div>}
+                          />
+                          <FieldRow
+                            label="Mobile"
+                            value={<div className={fieldBoxClass}>{contact.mobilePhone || "--"}</div>}
+                          />
+                        </div>
+                        <div className="space-y-1.5 lg:pt-1">
+                          <FieldRow
+                            label="Job Title"
+                            value={<div className={fieldBoxClass}>{contact.jobTitle || "--"}</div>}
+                          />
+                          <FieldRow
+                            label="Email Address"
+                            value={<div className={fieldBoxClass}>{contact.emailAddress || "--"}</div>}
+                          />
+                          <FieldRow
+                            label="Shipping Address"
+                            value={<div className={fieldBoxClass}>{contact.accountShippingAddress || "--"}</div>}
+                          />
+                          <FieldRow
+                            label="Contact ID"
+                            value={<div className={fieldBoxClass}>{contact.id}</div>}
+                          />
+                          <FieldRow
+                            label="Description"
+                            value={<div className={fieldBoxClass}>{contact.description || "No description provided."}</div>}
+                          />
+                        </div>
+                      </div>
                     </>
                   )}
                 </div>
 
-                <div className="flex flex-col gap-3">
-                  <div className="flex flex-wrap gap-1 border-b border-gray-200">
+                <div className="flex flex-1 flex-col min-h-0 overflow-hidden">
+                  <div className="flex flex-wrap gap-1 border-x border-t border-gray-200 bg-gray-50 p-2">
                     {TABS.map(tab => (
                       <button
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id)}
                         className={cn(
-                          "px-3 py-1.5 text-sm font-medium transition border-b-2",
+                          "px-3 py-1.5 text-sm font-semibold transition rounded-t-md border-t border-x",
                           activeTab === tab.id
-                            ? "border-primary-600 text-primary-700 bg-primary-50"
-                            : "border-transparent text-gray-500 hover:text-primary-600 hover:border-gray-300"
+                            ? "bg-white text-primary-700 border-gray-200 -mb-[1px] relative z-10"
+                            : "bg-gray-50 text-gray-700 hover:bg-gray-100 border-transparent"
                         )}
                       >
                         {tab.label}
@@ -2147,7 +2352,7 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
                   </div>
 
                   {activeTab === "activities" && (
-                    <div className="flex flex-col gap-2">
+                    <div className="grid flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0.5 px-3 pb-0">
                       <ListHeader
                         onCreateClick={handleCreateNewClick}
                         onFilterChange={setActiveFilter as unknown as (filter: string) => void}
@@ -2169,9 +2374,8 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
                         onUpdateStatus={openActivityBulkStatusModal}
                       />
                       <div
-                        className="flex flex-1 min-h-0 flex-col overflow-hidden rounded-lg"
+                        className="flex flex-1 min-h-0 flex-col overflow-hidden"
                         ref={tableAreaRefCallback}
-                        style={tableContainerStyle}
                       >
                         <DynamicTable
                           className="flex flex-col"
@@ -2196,7 +2400,7 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
                   )}
 
                   {activeTab === "opportunities" && (
-                    <div className="flex flex-col gap-2">
+                    <div className="grid flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0.5 px-3 pb-0">
                       <ListHeader
                         onCreateClick={handleCreateNewClick}
                         onFilterChange={setActiveFilter as unknown as (filter: string) => void}
@@ -2218,9 +2422,8 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
                         onUpdateStatus={() => setShowOpportunityBulkStatusModal(true)}
                       />
                       <div
-                        className="flex flex-1 min-h-0 flex-col overflow-hidden rounded-lg"
+                        className="flex flex-1 min-h-0 flex-col overflow-hidden"
                         ref={tableAreaRefCallback}
-                        style={tableContainerStyle}
                       >
                         <DynamicTable
                           className="flex flex-col"
@@ -2245,7 +2448,7 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
                   )}
 
                   {activeTab === "groups" && (
-                    <div className="flex flex-col gap-2">
+                    <div className="grid flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0.5 px-3 pb-0">
                       <ListHeader
                         onCreateClick={handleCreateNewClick}
                         onFilterChange={setActiveFilter as unknown as (filter: string) => void}
@@ -2258,29 +2461,36 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
                         showCreateButton={Boolean(contact) && !isDeleted && !loading}
                         searchPlaceholder="Search groups"
                       />
+                      <GroupBulkActionBar
+                        count={selectedGroups.length}
+                        disabled={groupBulkActionLoading}
+                        onSoftDelete={openGroupBulkDeleteDialog}
+                        onExportCsv={handleBulkGroupExportCsv}
+                        onChangeOwner={() => setShowGroupBulkOwnerModal(true)}
+                        onUpdateStatus={() => setShowGroupBulkStatusModal(true)}
+                      />
                       <div
-                        className="flex flex-1 min-h-0 flex-col overflow-hidden rounded-lg"
+                        className="flex flex-1 min-h-0 flex-col overflow-hidden"
                         ref={tableAreaRefCallback}
-                        style={tableContainerStyle}
                       >
-        <DynamicTable
-          className="flex flex-col"
-          columns={contactGroupTableColumns}
-          data={paginatedGroups}
-          emptyMessage="No groups found for this contact"
-          onColumnsChange={handleContactGroupTableColumnsChange}
-          loading={loading || contactGroupPreferencesLoading}
-          pagination={groupsPagination}
-          onPageChange={handleGroupsPageChange}
-          onPageSizeChange={handleGroupsPageSizeChange}
-          selectedItems={selectedGroups}
-          onItemSelect={handleGroupSelect}
-          onSelectAll={handleSelectAllGroups}
-          autoSizeColumns={true}
-          fillContainerWidth
-          maxBodyHeight={tableBodyMaxHeight}
-          alwaysShowPagination
-        />
+                        <DynamicTable
+                          className="flex flex-col"
+                          columns={contactGroupTableColumns}
+                          data={paginatedGroups}
+                          emptyMessage="No groups found for this contact"
+                          onColumnsChange={handleContactGroupTableColumnsChange}
+                          loading={loading || contactGroupPreferencesLoading}
+                          pagination={groupsPagination}
+                          onPageChange={handleGroupsPageChange}
+                          onPageSizeChange={handleGroupsPageSizeChange}
+                          selectedItems={selectedGroups}
+                          onItemSelect={handleGroupSelect}
+                          onSelectAll={handleSelectAllGroups}
+                          autoSizeColumns={true}
+                          fillContainerWidth
+                          maxBodyHeight={tableBodyMaxHeight}
+                          alwaysShowPagination
+                        />
                       </div>
                     </div>
                   )}
@@ -2545,11 +2755,28 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
             onSubmit={handleBulkOpportunityStatusUpdate}
             isSubmitting={opportunityBulkActionLoading}
           />
+          <GroupBulkOwnerModal
+            isOpen={showGroupBulkOwnerModal}
+            owners={groupOwners}
+            onClose={() => setShowGroupBulkOwnerModal(false)}
+            onSubmit={handleBulkGroupOwnerUpdate}
+            isSubmitting={groupBulkActionLoading}
+          />
+          <GroupBulkStatusModal
+            isOpen={showGroupBulkStatusModal}
+            onClose={() => setShowGroupBulkStatusModal(false)}
+            onSubmit={handleBulkGroupStatusUpdate}
+            isSubmitting={groupBulkActionLoading}
+          />
         </>
       )}
     </div>
   )
 }
+
+
+
+
 
 
 

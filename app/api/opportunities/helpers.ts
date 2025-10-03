@@ -14,6 +14,16 @@ type OpportunityWithRelations = {
   leadSource?: string | null
   estimatedCloseDate?: string | Date | null
   closeDate?: string | Date | null
+  description?: string | null
+}
+
+function extractSubAgent(description: string | null | undefined) {
+  if (!description) {
+    return ""
+  }
+
+  const match = description.match(/Subagent:\s*(.*)/i)
+  return match?.[1]?.trim() ?? ""
 }
 
 function normalizeStatus(status?: OpportunityStatus | string | null): OpportunityStatus {
@@ -40,6 +50,8 @@ export function mapOpportunityToRow(opportunity: OpportunityWithRelations) {
 
   const isActive = status === OpportunityStatus.Open || status === OpportunityStatus.OnHold
 
+  const subAgent = extractSubAgent(opportunity.description ?? "")
+
   return {
     id: opportunity.id,
     select: false,
@@ -54,6 +66,11 @@ export function mapOpportunityToRow(opportunity: OpportunityWithRelations) {
     owner: ownerName,
     ownerId: opportunity.ownerId ?? null,
     closeDate: opportunity.closeDate ?? opportunity.estimatedCloseDate ?? null,
+    subAgent,
+    accountIdVendor: opportunity.vendorName ?? "",
+    customerIdVendor: "",
+    locationId: "",
+    orderIdVendor: "",
     isDeleted: !isActive
   }
 }

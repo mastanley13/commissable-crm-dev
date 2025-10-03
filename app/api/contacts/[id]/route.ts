@@ -27,6 +27,36 @@ function formatVisibilityLabel(value?: string | null) {
   return value.charAt(0).toUpperCase() + value.slice(1).toLowerCase()
 }
 
+function formatAccountAddress(address: any | null | undefined) {
+  if (!address || typeof address !== "object") {
+    return ""
+  }
+
+  const parts: string[] = []
+
+  if (typeof address.line1 === "string" && address.line1.trim().length > 0) {
+    parts.push(address.line1.trim())
+  }
+
+  if (typeof address.line2 === "string" && address.line2.trim().length > 0) {
+    parts.push(address.line2.trim())
+  }
+
+  const cityStateZip = [address.city, address.state, address.postalCode]
+    .map(segment => (typeof segment === "string" ? segment.trim() : ""))
+    .filter(segment => segment.length > 0)
+
+  if (cityStateZip.length > 0) {
+    parts.push(cityStateZip.join(" "))
+  }
+
+  if (typeof address.country === "string" && address.country.trim().length > 0) {
+    parts.push(address.country.trim())
+  }
+
+  return parts.join("  ")
+}
+
 function mapContactToDetail(contact: any) {
   return {
     id: contact.id,
@@ -34,6 +64,7 @@ function mapContactToDetail(contact: any) {
     accountName: contact.account?.accountName ?? "",
     accountTypeId: contact.accountTypeId,
     accountTypeName: contact.accountType?.name ?? "",
+    accountShippingAddress: formatAccountAddress(contact.account?.shippingAddress),
     ownerId: contact.ownerId,
     ownerName: contact.owner ? `${contact.owner.firstName ?? ""} ${contact.owner.lastName ?? ""}`.trim() : "",
     suffix: contact.suffix ?? "",
@@ -101,7 +132,7 @@ function mapActivityAttachmentSummary(attachment: any) {
 
 const contactActivityInclude = {
   creator: { select: { firstName: true, lastName: true } },
-  account: { select: { accountName: true } },
+  assignee: { select: { firstName: true, lastName: true } },
   attachments: {
     include: {
       uploadedBy: { select: { firstName: true, lastName: true } }
@@ -109,8 +140,8 @@ const contactActivityInclude = {
   }
 } as const;
 function mapContactActivityRow(activity: any) {
-  const creatorName = activity.creator
-    ? `${activity.creator.firstName ?? ""} ${activity.creator.lastName ?? ""}`.trim()
+  const ownerName = activity.assignee
+    ? `${activity.assignee.firstName ?? ""} ${activity.assignee.lastName ?? ""}`.trim()
     : ""
 
   const attachments = Array.isArray(activity.attachments)
@@ -130,10 +161,9 @@ function mapContactActivityRow(activity: any) {
     activityType: activity.activityType,
     activityStatus: activity.status,
     description: activity.subject,
-    accountName: activity.account?.accountName ?? "",
+    activityOwner: ownerName,
     attachment: attachmentLabel,
     fileName: primaryFileName,
-    createdBy: creatorName,
     attachments
   }
 }
@@ -190,7 +220,21 @@ export async function GET(
       },
       include: {
         accountType: { select: { name: true } },
-        account: { select: { accountName: true } },
+        account: {
+          select: {
+            accountName: true,
+            shippingAddress: {
+              select: {
+                line1: true,
+                line2: true,
+                city: true,
+                state: true,
+                postalCode: true,
+                country: true
+              }
+            }
+          }
+        },
         owner: { select: { firstName: true, lastName: true } },
         reportsTo: { select: { firstName: true, lastName: true } },
         mailingAddress: true
@@ -208,14 +252,12 @@ export async function GET(
         orderBy: [
           { dueDate: "desc" },
           { createdAt: "desc" }
-        ],
-        take: 5
+        ]
       }),
       prisma.opportunity.findMany({
         where: { tenantId, accountId: contact.accountId },
         include: { owner: { select: { firstName: true, lastName: true } } },
-        orderBy: { createdAt: "desc" },
-        take: 5
+        orderBy: { createdAt: "desc" }
       }),
       prisma.groupMember.findMany({
         where: { tenantId, contactId: contact.id },
@@ -226,8 +268,7 @@ export async function GET(
             }
           }
         },
-        orderBy: { addedAt: "desc" },
-        take: 5
+        orderBy: { addedAt: "desc" }
       })
     ])
 
@@ -649,6 +690,7 @@ export async function DELETE(
     }
   )
 }
+
 
 
 

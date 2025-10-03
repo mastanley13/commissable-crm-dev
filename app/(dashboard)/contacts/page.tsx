@@ -39,6 +39,12 @@ interface ContactRow {
   isDecisionMaker: boolean
   preferredContactMethod: string
   createdAt: string
+  // Additional detail page fields
+  firstName?: string
+  lastName?: string
+  shippingAddress?: string
+  contactId?: string
+  description?: string
   // Deletion status
   deletedAt: string | null
   isDeleted: boolean
@@ -66,8 +72,17 @@ interface Filters {
   preferredContactMethod?: string
 }
 
+const CONTACT_DEFAULT_VISIBLE_COLUMN_IDS = new Set<string>([
+  "suffix",
+  "fullName",
+  "extension",
+  "workPhone",
+  "contactType",
+  "emailAddress",
+  "jobTitle",
+  "mobile"
+])
 
-    
 const contactColumns: Column[] = [
   {
     id: "multi-action",
@@ -76,7 +91,8 @@ const contactColumns: Column[] = [
     minWidth: 160,
     maxWidth: 240,
     type: "multi-action",
-    accessor: "select"
+    accessor: "select",
+    hideable: false
   },
   {
     id: "suffix",
@@ -96,6 +112,7 @@ const contactColumns: Column[] = [
     maxWidth: 300,
     sortable: true,
     type: "text",
+    hideable: false,
     render: value => (
       <span className="text-blue-600 hover:text-blue-800 cursor-pointer font-medium">
         {value}
@@ -103,27 +120,28 @@ const contactColumns: Column[] = [
     )
   },
   {
-    id: "accountName",
-    label: "Account",
-    width: 160,
-    minWidth: 120,
-    maxWidth: 250,
+    id: "extension",
+    label: "Extension",
+    width: 100,
+    minWidth: 80,
+    maxWidth: 150,
     sortable: true,
     type: "text",
-    render: value => (
-      <span className="text-blue-600 hover:text-blue-800 cursor-pointer">
-        {value}
-      </span>
-    )
+    render: value => value || <span className="text-gray-400">-</span>
   },
   {
-    id: "jobTitle",
-    label: "Job Title",
+    id: "workPhone",
+    label: "Work Phone",
     width: 140,
-    minWidth: 100,
-    maxWidth: 250,
+    minWidth: 120,
+    maxWidth: 180,
     sortable: true,
-    type: "text"
+    type: "phone",
+    render: value => value ? (
+      <a href={`tel:${value}`} className="text-gray-900 hover:text-blue-600 transition-colors">
+        {formatPhoneNumber(value)}
+      </a>
+    ) : <span className="text-gray-400">-</span>
   },
   {
     id: "contactType",
@@ -135,11 +153,25 @@ const contactColumns: Column[] = [
     type: "text"
   },
   {
-    id: "ownerName",
-    label: "Owner",
-    width: 120,
+    id: "emailAddress",
+    label: "Email Address",
+    width: 200,
+    minWidth: 160,
+    maxWidth: 300,
+    sortable: true,
+    type: "email",
+    render: value => value ? (
+      <a href={`mailto:${value}`} className="text-blue-600 hover:text-blue-800 transition-colors truncate">
+        {value}
+      </a>
+    ) : <span className="text-gray-400">-</span>
+  },
+  {
+    id: "jobTitle",
+    label: "Job Title",
+    width: 140,
     minWidth: 100,
-    maxWidth: 180,
+    maxWidth: 250,
     sortable: true,
     type: "text"
   },
@@ -158,52 +190,44 @@ const contactColumns: Column[] = [
     ) : <span className="text-gray-400">-</span>
   },
   {
-    id: "workPhone",
-    label: "Work Phone",
-    width: 140,
-    minWidth: 120,
-    maxWidth: 180,
-    sortable: true,
-    type: "phone",
-    render: value => value ? (
-      <a href={`tel:${value}`} className="text-gray-900 hover:text-blue-600 transition-colors">
-        {formatPhoneNumber(value)}
-      </a>
-    ) : <span className="text-gray-400">-</span>
-  },
-  {
-    id: "emailAddress",
-    label: "Email Address",
-    width: 200,
-    minWidth: 160,
-    maxWidth: 300,
-    sortable: true,
-    type: "email",
-    render: value => value ? (
-      <a href={`mailto:${value}`} className="text-blue-600 hover:text-blue-800 transition-colors truncate">
-        {value}
-      </a>
-    ) : <span className="text-gray-400">-</span>
-  },
-  {
-    id: "extension",
-    label: "Extension",
-    width: 100,
-    minWidth: 80,
-    maxWidth: 150,
+    id: "isPrimary",
+    label: "Active (Y/N)",
+    width: 120,
+    minWidth: 100,
+    maxWidth: 160,
     sortable: true,
     type: "text",
-    render: value => value || <span className="text-gray-400">-</span>
+    hidden: true,
+    render: (value) => value ? "Yes" : "No"
+  },
+  {
+    id: "isDecisionMaker",
+    label: "Decision Maker",
+    width: 140,
+    minWidth: 100,
+    maxWidth: 180,
+    sortable: true,
+    type: "text",
+    hidden: true,
+    render: (value) => value ? "Yes" : "No"
+  },
+  {
+    id: "preferredContactMethod",
+    label: "Preferred Contact Method",
+    width: 180,
+    minWidth: 140,
+    maxWidth: 240,
+    sortable: true,
+    type: "text",
+    hidden: true
   }
 ]
 
 const contactFilterOptions = [
   { id: "fullName", label: "Full Name" },
   { id: "suffix", label: "Suffix" },
-  { id: "accountName", label: "Account" },
   { id: "jobTitle", label: "Job Title" },
   { id: "contactType", label: "Contact Type" },
-  { id: "ownerName", label: "Owner" },
   { id: "emailAddress", label: "Email" },
   { id: "mobile", label: "Mobile" },
   { id: "workPhone", label: "Work Phone" },
@@ -336,6 +360,29 @@ export default function ContactsPage() {
   useEffect(() => {
     loadContacts()
   }, [loadContacts])
+
+  // Apply default column visibility on initial load
+  useEffect(() => {
+    if (preferenceLoading) return
+
+    const normalized = preferenceColumns.map(column => {
+      if (column.id === "multi-action") {
+        return column
+      }
+
+      if (CONTACT_DEFAULT_VISIBLE_COLUMN_IDS.has(column.id)) {
+        return column.hidden ? { ...column, hidden: false } : column
+      }
+
+      return column.hidden === true ? column : { ...column, hidden: true }
+    })
+
+    const changed = normalized.some((column, index) => column.hidden !== preferenceColumns[index].hidden)
+
+    if (changed) {
+      handleColumnsChange(normalized)
+    }
+  }, [preferenceLoading])
 
   const debouncedSearch = useCallback((query: string) => {
     if (searchTimeout) {
@@ -1216,7 +1263,7 @@ export default function ContactsPage() {
   return (
     <CopyProtectionWrapper className="dashboard-page-container">
       <ListHeader
-        pageTitle="Contacts List"
+        pageTitle="CONTACTS LIST"
         searchPlaceholder="Search contacts..."
         onSearch={handleSearch}
         onFilterChange={handleStatusFilterChange}

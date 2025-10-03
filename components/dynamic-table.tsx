@@ -440,6 +440,12 @@ export function DynamicTable({
     }
   }, [visibleColumns, isManuallyResized, fillContainerWidth, measuredContainerWidth])
 
+  const gridStyles = useMemo(() => ({
+    gridTemplateColumns: gridTemplate,
+    width: shouldUseFullWidth ? "100%" : `${totalTableWidth}px`,
+    minWidth: shouldUseFullWidth ? "100%" : `${totalTableWidth}px`
+  }), [gridTemplate, shouldUseFullWidth, totalTableWidth])
+
   const isRowSelected = useCallback((row: any) => {
     const rowId = getRowId(row)
     if (!rowId) return false
@@ -760,104 +766,104 @@ export function DynamicTable({
       {/* Table container */}
       <div className="relative" style={maxBodyHeight ? { flex: '0 1 auto', minHeight: 0 } : { flex: '1 1 0%', minHeight: 0 }}>
         <div
-          className="table-scroll-container overflow-x-auto"
-          style={maxBodyHeight ? { maxHeight: `${maxBodyHeight}px`, overflowY: 'auto' } : { overflowY: 'visible' }}
+          className="table-scroll-container overflow-x-auto overflow-y-auto"
+          style={maxBodyHeight ? { maxHeight: `${maxBodyHeight}px` } : undefined}
           role="table"
           aria-label="Data table"
         >
+          {visibleColumns.length > 0 && (
+            <div className="table-header shadow-sm">
+              <div
+                className="table-grid"
+                style={gridStyles}
+              >
+                {visibleColumns.map(column => (
+                  <div
+                    key={column.id}
+                    className={cn(
+                      "table-cell bg-gradient-to-b from-gray-50 to-gray-100 font-semibold text-gray-900 relative select-none border-b-2 border-gray-400 border-r-2 border-gray-800 last:border-r-0",
+                      column.sortable && column.id !== "select" && "cursor-pointer hover:from-gray-100 hover:to-gray-200"
+                    )}
+                    draggable
+                    onDragStart={event => handleDragStart(event, column.id)}
+                    onDragOver={handleDragOver}
+                    onDrop={event => handleDrop(event, column.id)}
+                    onClick={() => column.id !== "select" && handleSort(column)}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 flex-1 min-w-0 table-header-content">
+                        {column.id === "select" && onSelectAll ? (
+                          <div className="flex items-center gap-3">
+                            <input
+                              ref={selectAllRef}
+                              type="checkbox"
+                              className="w-4 h-4 text-primary-600 bg-gray-100 border-gray-300 rounded focus:ring-primary-500"
+                              checked={data.length > 0 && selectedItems.length === data.length}
+                              onClick={event => event.stopPropagation()}
+                              onChange={event => {
+                                event.stopPropagation()
+                                onSelectAll(event.target.checked)
+                              }}
+                            />
+                            {!hideSelectAllLabel && (
+                              <div className="flex flex-col leading-tight flex-1 min-w-0">
+                                <span className="text-xs font-semibold uppercase tracking-wide text-gray-600 break-words">
+                                  {selectHeaderLabel ?? 'Select All'}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        ) : column.type === "multi-action" && onSelectAll ? (
+                          <div className="flex items-center gap-3">
+                            <input
+                              ref={selectAllRef}
+                              type="checkbox"
+                              className="w-4 h-4 text-primary-600 bg-gray-100 border-gray-300 rounded focus:ring-primary-500"
+                              checked={data.length > 0 && selectedItems.length === data.length}
+                              onClick={event => event.stopPropagation()}
+                              onChange={event => {
+                                event.stopPropagation()
+                                onSelectAll(event.target.checked)
+                              }}
+                            />
+                            {!hideSelectAllLabel && (
+                              <div className="flex flex-col leading-tight flex-1 min-w-0">
+                                <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 break-words">{column.label}</span>
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <>
+                            <span className="break-words leading-tight flex-1 min-w-0">{column.label}</span>
+                            {column.sortable && (
+                              <SortTriangles direction={sortConfig?.key === column.id ? sortConfig.direction : null} />
+                            )}
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    {column.resizable !== false && (
+                      <div
+                        className={cn(
+                          "column-resizer",
+                          resizing?.columnId === column.id && "resizing"
+                        )}
+                        onMouseDown={event => handleMouseDown(event, column.id)}
+                        onDoubleClick={() => handleDoubleClick(column.id)}
+                        title="Drag to resize, double-click to auto-fit"
+                      />
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           <div
             ref={tableRef}
             className="table-grid"
-            style={{ 
-              gridTemplateColumns: gridTemplate,
-              width: shouldUseFullWidth ? "100%" : `${totalTableWidth}px`,
-              minWidth: shouldUseFullWidth ? "100%" : `${totalTableWidth}px`
-            }}
+            style={gridStyles}
           >
-        {visibleColumns.length > 0 && (
-          <div className="table-header contents">
-            {visibleColumns.map(column => (
-              <div
-                key={column.id}
-                className={cn(
-                  "table-cell sticky top-0 z-20 bg-gradient-to-b from-gray-50 to-gray-100 font-semibold text-gray-900 relative select-none border-b-2 border-gray-400 border-r-2 border-gray-800 last:border-r-0",
-                  column.sortable && column.id !== "select" && "cursor-pointer hover:from-gray-100 hover:to-gray-200"
-                )}
-                draggable
-                onDragStart={event => handleDragStart(event, column.id)}
-                onDragOver={handleDragOver}
-                onDrop={event => handleDrop(event, column.id)}
-                onClick={() => column.id !== "select" && handleSort(column)}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 flex-1 min-w-0 table-header-content">
-                    {column.id === "select" && onSelectAll ? (
-                      <div className="flex items-center gap-3">
-                        <input
-                          ref={selectAllRef}
-                          type="checkbox"
-                          className="w-4 h-4 text-primary-600 bg-gray-100 border-gray-300 rounded focus:ring-primary-500"
-                          checked={data.length > 0 && selectedItems.length === data.length}
-                          onClick={event => event.stopPropagation()}
-                          onChange={event => {
-                            event.stopPropagation()
-                            onSelectAll(event.target.checked)
-                          }}
-                        />
-                        {!hideSelectAllLabel && (
-                          <div className="flex flex-col leading-tight flex-1 min-w-0">
-                            <span className="text-xs font-semibold uppercase tracking-wide text-gray-600 break-words">
-                              {selectHeaderLabel ?? 'Select All'}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    ) : column.type === "multi-action" && onSelectAll ? (
-                      <div className="flex items-center gap-3">
-                        <input
-                          ref={selectAllRef}
-                          type="checkbox"
-                          className="w-4 h-4 text-primary-600 bg-gray-100 border-gray-300 rounded focus:ring-primary-500"
-                          checked={data.length > 0 && selectedItems.length === data.length}
-                          onClick={event => event.stopPropagation()}
-                          onChange={event => {
-                            event.stopPropagation()
-                            onSelectAll(event.target.checked)
-                          }}
-                        />
-                        {!hideSelectAllLabel && (
-                          <div className="flex flex-col leading-tight flex-1 min-w-0">
-                            <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 break-words">{column.label}</span>
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <>
-                        <span className="break-words leading-tight flex-1 min-w-0">{column.label}</span>
-                        {column.sortable && (
-                          <SortTriangles direction={sortConfig?.key === column.id ? sortConfig.direction : null} />
-                        )}
-                      </>
-                    )}
-                  </div>
-                </div>
-
-                {column.resizable !== false && (
-                  <div
-                    className={cn(
-                      "column-resizer",
-                      resizing?.columnId === column.id && "resizing"
-                    )}
-                    onMouseDown={event => handleMouseDown(event, column.id)}
-                    onDoubleClick={() => handleDoubleClick(column.id)}
-                    title="Drag to resize, double-click to auto-fit"
-                  />
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-
         {visibleColumns.length === 0 ? (
           <div
             className="col-span-full p-10 text-center text-gray-500"

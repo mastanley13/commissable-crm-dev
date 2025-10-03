@@ -241,7 +241,7 @@ export function ListHeader({
       <div className="flex items-center justify-between gap-3">
         <div className="flex flex-1 items-center gap-2">
           {pageTitle && (
-            <h1 className="text-lg font-semibold text-blue-600">{pageTitle}</h1>
+            <p className="text-xs font-semibold uppercase tracking-wide text-primary-600">{pageTitle}</p>
           )}
           {leftAccessory}
           <div className="relative">

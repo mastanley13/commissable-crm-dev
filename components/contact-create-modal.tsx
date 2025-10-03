@@ -1,13 +1,20 @@
-﻿"use client"
+"use client"
 
-import { useState, useEffect } from "react"
-import { X, Save, Loader2 } from "lucide-react"
+import { useCallback, useEffect, useMemo, useState } from "react"
+import { Loader2, X } from "lucide-react"
+
 import { useToasts } from "./toast"
 
 interface ContactOptions {
   accountTypes: Array<{ value: string; label: string; code: string }>
   owners: Array<{ value: string; label: string; firstName: string; lastName: string }>
-  accounts: Array<{ value: string; label: string; accountNumber?: string; accountTypeId: string; accountTypeName: string }>
+  accounts: Array<{
+    value: string
+    label: string
+    accountNumber?: string
+    accountTypeId: string
+    accountTypeName: string
+  }>
   contactMethods: Array<{ value: string; label: string }>
 }
 
@@ -20,159 +27,206 @@ interface ContactCreateModalProps {
 }
 
 interface ContactFormData {
-  // Name fields
   suffix: string
   firstName: string
   lastName: string
-  
-  // Account and job info
   accountId: string
   jobTitle: string
-  
-  // Contact information
   workPhone: string
   extension: string
   mobilePhone: string
   emailAddress: string
-  
-  // Classification
-  accountTypeId: string
-  contactTypeName: string
-  active: boolean
-  
-  // Additional fields
   description: string
-  
-  // Address fields (matching the screenshot)
-  shippingStreet: string
-  shippingStreet2: string
-  shippingCity: string
-  shippingState: string
-  shippingZip: string
-  shippingCountry: string
-  
-  billingStreet: string
-  billingStreet2: string
-  billingCity: string
-  billingState: string
-  billingZip: string
-  billingCountry: string
-  sameAsShip: boolean
+  active: boolean
 }
+
+interface AccountAddressResponse {
+  data?: {
+    shippingAddress?: AddressPayload | null
+    billingAddress?: AddressPayload | null
+    billingSameAsShipping?: boolean
+  }
+}
+
+interface AddressPayload {
+  line1?: string
+  line2?: string
+  city?: string
+  state?: string
+  postalCode?: string
+  country?: string
+}
+
+interface AddressState {
+  shipping: AddressPayload | null
+  billing: AddressPayload | null
+  billingSameAsShipping: boolean
+}
+
+const ADDRESS_PLACEHOLDER = "Select an account to view address details."
 
 function buildInitialContactForm(defaultAccountId?: string): ContactFormData {
   return {
-    // Name fields
     suffix: "",
     firstName: "",
     lastName: "",
-    
-    // Account and job info
     accountId: defaultAccountId ?? "",
     jobTitle: "",
-    
-    // Contact information
     workPhone: "",
     extension: "",
     mobilePhone: "",
     emailAddress: "",
-    
-    // Classification
-    accountTypeId: "",
-    contactTypeName: "",
-    active: true,
-    
-    // Additional fields
     description: "",
-    
-    // Address fields
-    shippingStreet: "",
-    shippingStreet2: "",
-    shippingCity: "",
-    shippingState: "",
-    shippingZip: "",
-    shippingCountry: "United States",
-    
-    billingStreet: "",
-    billingStreet2: "",
-    billingCity: "",
-    billingState: "",
-    billingZip: "",
-    billingCountry: "United States",
-    sameAsShip: false
+    active: true
   }
+}
+
+function formatAddress(address?: AddressPayload | null): string {
+  if (!address || !address.line1) {
+    return ""
+  }
+
+  const parts: string[] = []
+  parts.push(address.line1.trim())
+
+  if (address.line2 && address.line2.trim().length > 0) {
+    parts.push(address.line2.trim())
+  }
+
+  const cityStateZip = [address.city, address.state, address.postalCode]
+    .map(value => (typeof value === "string" ? value.trim() : ""))
+    .filter(segment => segment.length > 0)
+
+  if (cityStateZip.length > 0) {
+    parts.push(cityStateZip.join(" "))
+  }
+
+  if (address.country && address.country.trim().length > 0) {
+    parts.push(address.country.trim())
+  }
+
+  return parts.join("  ")
 }
 
 export function ContactCreateModal({ isOpen, onClose, onSuccess, options, defaultAccountId }: ContactCreateModalProps) {
   const [formData, setFormData] = useState<ContactFormData>(() => buildInitialContactForm(defaultAccountId))
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const { showSuccess, showError } = useToasts()
+  const [addresses, setAddresses] = useState<AddressState>({ shipping: null, billing: null, billingSameAsShipping: false })
+  const [addressLoading, setAddressLoading] = useState(false)
+  const [addressError, setAddressError] = useState<string | null>(null)
+
+  const { showError, showSuccess } = useToasts()
+
+  const selectedAccount = useMemo(() => {
+    if (!options?.accounts || !formData.accountId) {
+      return undefined
+    }
+    return options.accounts.find(account => account.value === formData.accountId)
+  }, [options?.accounts, formData.accountId])
+
+  const resetState = useCallback(() => {
+    setFormData(buildInitialContactForm(defaultAccountId))
+    setAddresses({ shipping: null, billing: null, billingSameAsShipping: false })
+    setAddressError(null)
+    setError(null)
+  }, [defaultAccountId])
 
   useEffect(() => {
     if (isOpen) {
-      setFormData(buildInitialContactForm(defaultAccountId))
-      setError(null)
+      resetState()
     }
-  }, [isOpen, defaultAccountId])
+  }, [isOpen, resetState])
 
   useEffect(() => {
-    if (!formData.accountId || !options?.accounts) {
+    if (!isOpen) {
       return
     }
 
-    const selectedAccount = options.accounts.find(account => account.value === formData.accountId)
-    const nextAccountTypeId = selectedAccount?.accountTypeId ?? ""
-    const nextContactTypeName = selectedAccount?.accountTypeName ?? ""
-
-    if (nextAccountTypeId !== formData.accountTypeId || nextContactTypeName !== formData.contactTypeName) {
-      setFormData(prev => ({
-        ...prev,
-        accountTypeId: nextAccountTypeId,
-        contactTypeName: nextContactTypeName
-      }))
+    if (!formData.accountId) {
+      setAddresses({ shipping: null, billing: null, billingSameAsShipping: false })
+      setAddressError(null)
+      return
     }
-  }, [formData.accountId, formData.accountTypeId, formData.contactTypeName, options?.accounts])
+
+    const controller = new AbortController()
+    setAddressLoading(true)
+    setAddressError(null)
+
+    ;(async () => {
+      try {
+        const response = await fetch(`/api/accounts/${formData.accountId}`, {
+          cache: "no-store",
+          signal: controller.signal
+        })
+
+        if (!response.ok) {
+          throw new Error("Unable to load account addresses")
+        }
+
+        const payload = (await response.json()) as AccountAddressResponse
+        const shippingAddress = payload.data?.shippingAddress ?? null
+        const sameAsShip = Boolean(payload.data?.billingSameAsShipping)
+        const billingAddress = sameAsShip ? (payload.data?.shippingAddress ?? null) : payload.data?.billingAddress ?? null
+
+        setAddresses({
+          shipping: shippingAddress,
+          billing: billingAddress,
+          billingSameAsShipping: sameAsShip
+        })
+      } catch (err) {
+        if (controller.signal.aborted) {
+          return
+        }
+
+        console.error("Failed to load account addresses", err)
+        setAddresses({ shipping: null, billing: null, billingSameAsShipping: false })
+        setAddressError(err instanceof Error ? err.message : "Unable to load account addresses")
+      } finally {
+        if (!controller.signal.aborted) {
+          setAddressLoading(false)
+        }
+      }
+    })()
+
+    return () => {
+      controller.abort()
+    }
+  }, [formData.accountId, isOpen])
 
   const handleInputChange = (field: keyof ContactFormData, value: string | boolean) => {
-    setFormData(prev => {
-      const newData = { ...prev, [field]: value }
-      
-      if (field === "accountId" && typeof value === "string") {
-        const selectedAccount = options?.accounts.find(account => account.value === value)
-        newData.accountTypeId = selectedAccount?.accountTypeId ?? ""
-        newData.contactTypeName = selectedAccount?.accountTypeName ?? ""
-      }
-      
-      // Handle "Same as Ship" functionality
-      if (field === "sameAsShip" && value === true) {
-        newData.billingStreet = prev.shippingStreet
-        newData.billingStreet2 = prev.shippingStreet2
-        newData.billingCity = prev.shippingCity
-        newData.billingState = prev.shippingState
-        newData.billingZip = prev.shippingZip
-        newData.billingCountry = prev.shippingCountry
-      }
-      
-      return newData
-    })
+    setFormData(prev => ({
+      ...prev,
+      [field]: value
+    }))
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    
-    // Validate required fields
-    if (!formData.accountId || !formData.firstName || !formData.lastName) {
-      const errorMsg = "Account, First Name, and Last Name are required"
-      setError(errorMsg)
-      showError("Validation Error", errorMsg)
+  const handleClose = () => {
+    resetState()
+    onClose()
+  }
+
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+
+    if (!formData.firstName.trim() || !formData.lastName.trim()) {
+      const message = "First and Last Name are required."
+      setError(message)
+      showError("Validation Error", message)
       return
     }
 
-    if (!formData.accountTypeId) {
-      const errorMsg = "Selected account does not have a contact type configured"
-      setError(errorMsg)
-      showError("Validation Error", errorMsg)
+    if (!formData.accountId) {
+      const message = "Please select an Account."
+      setError(message)
+      showError("Validation Error", message)
+      return
+    }
+
+    if (!selectedAccount?.accountTypeId) {
+      const message = "Selected account does not have a contact type configured."
+      setError(message)
+      showError("Validation Error", message)
       return
     }
 
@@ -180,28 +234,18 @@ export function ContactCreateModal({ isOpen, onClose, onSuccess, options, defaul
     setError(null)
 
     try {
-      // Prepare the data for the API
       const contactData = {
-        // Required fields
         accountId: formData.accountId,
-        firstName: formData.firstName,
-        lastName: formData.lastName,
-        
-        // Optional contact fields
-        suffix: formData.suffix || undefined,
-        jobTitle: formData.jobTitle || undefined,
-        workPhone: formData.workPhone || undefined,
-        workPhoneExt: formData.extension || undefined,
-        mobilePhone: formData.mobilePhone || undefined,
-        emailAddress: formData.emailAddress || undefined,
-        accountTypeId: formData.accountTypeId || undefined,
-        contactType: formData.contactTypeName || undefined,
-        
-        // Flags
-        isPrimary: formData.active,
-        
-        // Additional fields
-        description: formData.description || undefined
+        firstName: formData.firstName.trim(),
+        lastName: formData.lastName.trim(),
+        suffix: formData.suffix.trim() || undefined,
+        jobTitle: formData.jobTitle.trim() || undefined,
+        workPhone: formData.workPhone.trim() || undefined,
+        workPhoneExt: formData.extension.trim() || undefined,
+        mobilePhone: formData.mobilePhone.trim() || undefined,
+        emailAddress: formData.emailAddress.trim() || undefined,
+        description: formData.description.trim() || undefined,
+        isPrimary: formData.active
       }
 
       const response = await fetch("/api/contacts", {
@@ -213,28 +257,90 @@ export function ContactCreateModal({ isOpen, onClose, onSuccess, options, defaul
       })
 
       if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || "Failed to create contact")
+        const errorData = await response.json().catch(() => null)
+        throw new Error(typeof errorData?.error === "string" ? errorData.error : "Failed to create contact")
       }
 
-      // Success - close modal and refresh data
       onSuccess()
-      onClose()
-      showSuccess("Contact created successfully", `${formData.firstName} ${formData.lastName} has been added to your contacts.`)
+      handleClose()
+      showSuccess(
+        "Contact created successfully",
+        `${formData.firstName.trim()} ${formData.lastName.trim()} has been added to your contacts.`
+      )
     } catch (err) {
-      console.error("Error creating contact:", err)
-      const errorMsg = err instanceof Error ? err.message : "Failed to create contact"
-      setError(errorMsg)
-      showError("Failed to create contact", errorMsg)
+      console.error("Error creating contact", err)
+      const message = err instanceof Error ? err.message : "Failed to create contact"
+      setError(message)
+      showError("Failed to create contact", message)
     } finally {
       setLoading(false)
     }
   }
 
-  if (!isOpen) return null
+  const renderReadOnlyInput = (label: string, value?: string) => (
+    <div>
+      <label className="mb-1 block text-xs font-medium text-gray-600">{label}</label>
+      <input
+        value={value || ""}
+        readOnly
+        className="w-full rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-sm text-gray-700 focus:outline-none"
+      />
+    </div>
+  )
+
+  const renderAddressCard = (
+    title: string,
+    address: AddressPayload | null,
+    options?: { showSameAsShip?: boolean; sameAsShip?: boolean }
+  ) => (
+    <div className="space-y-3 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-semibold text-gray-900">{title}</p>
+        {options?.showSameAsShip && (
+          <label className="inline-flex items-center gap-2 text-sm text-gray-600">
+            <input
+              type="checkbox"
+              className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+              readOnly
+              checked={Boolean(options.sameAsShip)}
+            />
+            <span>Same as Ship</span>
+          </label>
+        )}
+      </div>
+
+      {addressLoading ? (
+        <div className="flex items-center gap-2 text-sm text-gray-600">
+          <Loader2 className="h-3.5 w-3.5 animate-spin text-primary-600" />
+          Loading address…
+        </div>
+      ) : addressError ? (
+        <p className="text-sm text-red-600">{addressError}</p>
+      ) : !address ? (
+        <p className="text-sm text-gray-500">{ADDRESS_PLACEHOLDER}</p>
+      ) : (
+        <div className="space-y-3">
+          {renderReadOnlyInput("Street", address.line1)}
+          {renderReadOnlyInput("Street 2", address.line2)}
+          <div className="grid gap-3 sm:grid-cols-[2fr,1fr]">
+            {renderReadOnlyInput("City", address.city)}
+            {renderReadOnlyInput("State", address.state)}
+          </div>
+          <div className="grid gap-3 sm:grid-cols-[1fr,1fr]">
+            {renderReadOnlyInput("Postal Code", address.postalCode)}
+            {renderReadOnlyInput("Country", address.country)}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+
+  if (!isOpen) {
+    return null
+  }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 backdrop-blur-sm" onClick={handleClose}>
       <div
         className="w-full max-w-5xl rounded-xl bg-white shadow-xl"
         onClick={event => event.stopPropagation()}
@@ -242,15 +348,15 @@ export function ContactCreateModal({ isOpen, onClose, onSuccess, options, defaul
         <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
           <div>
             <h2 className="text-lg font-semibold text-gray-900">Create New Contact</h2>
-            <p className="text-sm text-gray-500">Fill out the details below to add a new contact.</p>
+            <p className="text-sm text-gray-500">Enter the information required for the new contact.</p>
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleClose}
             className="rounded-md px-3 py-1 text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-700"
             aria-label="Close modal"
           >
-            Close
+            <X className="h-4 w-4" />
           </button>
         </div>
 
@@ -261,15 +367,15 @@ export function ContactCreateModal({ isOpen, onClose, onSuccess, options, defaul
             </div>
           )}
 
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            {/* Left Column - Contact Details */}
-            <div className="space-y-3">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <div className="space-y-4">
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-700">Suffix</label>
+                  <label className="mb-1 block text-sm font-medium text-gray-700" htmlFor="contact-suffix">Suffix</label>
                   <select
+                    id="contact-suffix"
                     value={formData.suffix}
-                    onChange={(e) => handleInputChange("suffix", e.target.value)}
+                    onChange={event => handleInputChange("suffix", event.target.value)}
                     className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                   >
                     <option value="">Select</option>
@@ -281,22 +387,28 @@ export function ContactCreateModal({ isOpen, onClose, onSuccess, options, defaul
                   </select>
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-700">First Name *</label>
+                  <label className="mb-1 block text-sm font-medium text-gray-700" htmlFor="contact-first-name">
+                    First Name <span className="text-red-500">*</span>
+                  </label>
                   <input
+                    id="contact-first-name"
                     type="text"
                     value={formData.firstName}
-                    onChange={(e) => handleInputChange("firstName", e.target.value)}
+                    onChange={event => handleInputChange("firstName", event.target.value)}
                     className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                     placeholder="Enter First Name"
                     required
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-700">Last Name *</label>
+                  <label className="mb-1 block text-sm font-medium text-gray-700" htmlFor="contact-last-name">
+                    Last Name <span className="text-red-500">*</span>
+                  </label>
                   <input
+                    id="contact-last-name"
                     type="text"
                     value={formData.lastName}
-                    onChange={(e) => handleInputChange("lastName", e.target.value)}
+                    onChange={event => handleInputChange("lastName", event.target.value)}
                     className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                     placeholder="Enter Last Name"
                     required
@@ -305,28 +417,34 @@ export function ContactCreateModal({ isOpen, onClose, onSuccess, options, defaul
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Account Name *</label>
+                <label className="mb-1 block text-sm font-medium text-gray-700" htmlFor="contact-account">
+                  Account Name <span className="text-red-500">*</span>
+                </label>
                 <select
+                  id="contact-account"
                   value={formData.accountId}
-                  onChange={(e) => handleInputChange("accountId", e.target.value)}
+                  onChange={event => handleInputChange("accountId", event.target.value)}
                   className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                   required
                 >
                   <option value="">Select</option>
                   {options?.accounts.map(account => (
                     <option key={account.value} value={account.value}>
-                      {account.label} {account.accountNumber && `(${account.accountNumber})`}
+                      {account.label} {account.accountNumber ? `(${account.accountNumber})` : ""}
                     </option>
                   ))}
                 </select>
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Job Title</label>
+                <label className="mb-1 block text-sm font-medium text-gray-700" htmlFor="contact-job-title">
+                  Job Title
+                </label>
                 <input
+                  id="contact-job-title"
                   type="text"
                   value={formData.jobTitle}
-                  onChange={(e) => handleInputChange("jobTitle", e.target.value)}
+                  onChange={event => handleInputChange("jobTitle", event.target.value)}
                   placeholder="Enter Job Title"
                   className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                 />
@@ -334,21 +452,27 @@ export function ContactCreateModal({ isOpen, onClose, onSuccess, options, defaul
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-700">Work Phone</label>
+                  <label className="mb-1 block text-sm font-medium text-gray-700" htmlFor="contact-work-phone">
+                    Work Phone
+                  </label>
                   <input
+                    id="contact-work-phone"
                     type="tel"
                     value={formData.workPhone}
-                    onChange={(e) => handleInputChange("workPhone", e.target.value)}
+                    onChange={event => handleInputChange("workPhone", event.target.value)}
                     placeholder="+1-555-123-4567"
                     className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-700">Extension</label>
+                  <label className="mb-1 block text-sm font-medium text-gray-700" htmlFor="contact-extension">
+                    Extension
+                  </label>
                   <input
+                    id="contact-extension"
                     type="text"
                     value={formData.extension}
-                    onChange={(e) => handleInputChange("extension", e.target.value)}
+                    onChange={event => handleInputChange("extension", event.target.value)}
                     placeholder="Extension"
                     className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                   />
@@ -356,339 +480,88 @@ export function ContactCreateModal({ isOpen, onClose, onSuccess, options, defaul
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Mobile</label>
+                <label className="mb-1 block text-sm font-medium text-gray-700" htmlFor="contact-mobile">
+                  Mobile
+                </label>
                 <input
+                  id="contact-mobile"
                   type="tel"
                   value={formData.mobilePhone}
-                  onChange={(e) => handleInputChange("mobilePhone", e.target.value)}
+                  onChange={event => handleInputChange("mobilePhone", event.target.value)}
                   placeholder="+1-555-987-6543"
                   className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                 />
               </div>
 
-              <div className="grid grid-cols-5 gap-3">
-                <div className="col-span-3">
-                  <label className="mb-1 block text-sm font-medium text-gray-700">Contact Type</label>
-                  <input
-                    type="text"
-                    value={formData.contactTypeName || ""}
-                    readOnly
-                    placeholder={formData.accountId ? "Inherited from account" : "Select an account first"}
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm bg-gray-100 text-gray-700"
-                  />
-                  <p className="mt-1 text-xs text-gray-500">Contact Type inherits from the selected account.</p>
-                </div>
-                <div className="col-span-2">
-                  <label className="mb-1 block text-sm font-medium text-gray-700">Active (Y/N)</label>
-                  <div className="flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2">
-                    <button
-                      type="button"
-                      role="switch"
-                      aria-checked={formData.active}
-                      onClick={() => handleInputChange("active", !formData.active)}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 ${
-                        formData.active ? "bg-primary-600" : "bg-gray-300"
-                      }`}
-                    >
-                      <span
-                        className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
-                          formData.active ? "translate-x-5" : "translate-x-1"
-                        }`}
-                      />
-                    </button>
-                  </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">Active (Y/N)</label>
+                <div className="flex items-center gap-3 rounded-lg border border-gray-300 bg-white px-3 py-2">
+                  <span className="text-sm text-gray-600">{formData.active ? "Yes" : "No"}</span>
+                  <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-gray-600">
+                    <input
+                      type="checkbox"
+                      className="h-5 w-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                      checked={formData.active}
+                      onChange={() => handleInputChange("active", !formData.active)}
+                    />
+                    <span>Active</span>
+                  </label>
                 </div>
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Email Address</label>
+                <label className="mb-1 block text-sm font-medium text-gray-700" htmlFor="contact-email">
+                  Email Address
+                </label>
                 <input
+                  id="contact-email"
                   type="email"
                   value={formData.emailAddress}
-                  onChange={(e) => handleInputChange("emailAddress", e.target.value)}
-                  placeholder="Enter Your Email"
+                  onChange={event => handleInputChange("emailAddress", event.target.value)}
+                  placeholder="Enter Email"
                   className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                 />
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Description</label>
+                <label className="mb-1 block text-sm font-medium text-gray-700" htmlFor="contact-description">
+                  Description
+                </label>
                 <textarea
-                  value={formData.description}
-                  onChange={(e) => handleInputChange("description", e.target.value)}
-                  placeholder="Enter Description"
+                  id="contact-description"
                   rows={4}
+                  value={formData.description}
+                  onChange={event => handleInputChange("description", event.target.value)}
+                  placeholder="Enter Description"
                   className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                 />
               </div>
             </div>
 
-            {/* Right Column - Address Details */}
-            <div className="space-y-6">
-              <div className="rounded-lg border border-gray-200 p-4">
-                <h3 className="text-sm font-semibold text-gray-800">Ship To Address</h3>
-                <div className="mt-3 space-y-3">
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-gray-600">Shipping Street *</label>
-                    <input
-                      type="text"
-                      value={formData.shippingStreet}
-                      onChange={(e) => handleInputChange("shippingStreet", e.target.value)}
-                      placeholder="Shipping Street"
-                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-gray-600">Shipping Street 2</label>
-                    <input
-                      type="text"
-                      value={formData.shippingStreet2}
-                      onChange={(e) => handleInputChange("shippingStreet2", e.target.value)}
-                      placeholder="Shipping Street 2"
-                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-gray-600">City / State / ZIP *</label>
-                    <div className="grid grid-cols-[2fr,1fr,1fr] gap-2">
-                      <input
-                        type="text"
-                        value={formData.shippingCity}
-                        onChange={(e) => handleInputChange("shippingCity", e.target.value)}
-                        placeholder="City"
-                        className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                      />
-                      <select
-                        value={formData.shippingState}
-                        onChange={(e) => handleInputChange("shippingState", e.target.value)}
-                        className="w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                      >
-                        <option value="">- State -</option>
-                        <option value="AL">AL</option>
-                        <option value="AK">AK</option>
-                        <option value="AZ">AZ</option>
-                        <option value="AR">AR</option>
-                        <option value="CA">CA</option>
-                        <option value="CO">CO</option>
-                        <option value="CT">CT</option>
-                        <option value="DE">DE</option>
-                        <option value="FL">FL</option>
-                        <option value="GA">GA</option>
-                        <option value="HI">HI</option>
-                        <option value="ID">ID</option>
-                        <option value="IL">IL</option>
-                        <option value="IN">IN</option>
-                        <option value="IA">IA</option>
-                        <option value="KS">KS</option>
-                        <option value="KY">KY</option>
-                        <option value="LA">LA</option>
-                        <option value="ME">ME</option>
-                        <option value="MD">MD</option>
-                        <option value="MA">MA</option>
-                        <option value="MI">MI</option>
-                        <option value="MN">MN</option>
-                        <option value="MS">MS</option>
-                        <option value="MO">MO</option>
-                        <option value="MT">MT</option>
-                        <option value="NE">NE</option>
-                        <option value="NV">NV</option>
-                        <option value="NH">NH</option>
-                        <option value="NJ">NJ</option>
-                        <option value="NM">NM</option>
-                        <option value="NY">NY</option>
-                        <option value="NC">NC</option>
-                        <option value="ND">ND</option>
-                        <option value="OH">OH</option>
-                        <option value="OK">OK</option>
-                        <option value="OR">OR</option>
-                        <option value="PA">PA</option>
-                        <option value="RI">RI</option>
-                        <option value="SC">SC</option>
-                        <option value="SD">SD</option>
-                        <option value="TN">TN</option>
-                        <option value="TX">TX</option>
-                        <option value="UT">UT</option>
-                        <option value="VT">VT</option>
-                        <option value="VA">VA</option>
-                        <option value="WA">WA</option>
-                        <option value="WV">WV</option>
-                        <option value="WI">WI</option>
-                        <option value="WY">WY</option>
-                      </select>
-                      <input
-                        type="text"
-                        value={formData.shippingZip}
-                        onChange={(e) => handleInputChange("shippingZip", e.target.value)}
-                        placeholder="ZIP"
-                        className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <div>
-                      <label className="mb-1 block text-xs font-medium text-gray-600">Country</label>
-                      <select
-                        value={formData.shippingCountry}
-                        onChange={(e) => handleInputChange("shippingCountry", e.target.value)}
-                        className="w-full rounded-lg border border-gray-300 px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                      >
-                        <option value="United States">United States</option>
-                        <option value="Canada">Canada</option>
-                        <option value="Mexico">Mexico</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="rounded-lg border border-gray-200 p-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-semibold text-gray-800">Bill To Address</h3>
-                  <label className="inline-flex items-center gap-2 text-xs text-gray-600">
-                    <input
-                      type="checkbox"
-                      className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                      checked={formData.sameAsShip}
-                      onChange={(e) => handleInputChange("sameAsShip", e.target.checked)}
-                    />
-                    <span>Same as Ship</span>
-                  </label>
-                </div>
-                <div className="mt-3 space-y-3">
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-gray-600">Billing Street {formData.sameAsShip ? "" : "*"}</label>
-                    <input
-                      type="text"
-                      value={formData.billingStreet}
-                      onChange={(e) => handleInputChange("billingStreet", e.target.value)}
-                      placeholder="Billing Street"
-                      disabled={formData.sameAsShip}
-                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-gray-100"
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-gray-600">Billing Street 2</label>
-                    <input
-                      type="text"
-                      value={formData.billingStreet2}
-                      onChange={(e) => handleInputChange("billingStreet2", e.target.value)}
-                      placeholder="Billing Street 2"
-                      disabled={formData.sameAsShip}
-                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-gray-100"
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-gray-600">City / State / ZIP {formData.sameAsShip ? "" : "*"}</label>
-                    <div className="grid grid-cols-[2fr,1fr,1fr] gap-2">
-                      <input
-                        type="text"
-                        value={formData.billingCity}
-                        onChange={(e) => handleInputChange("billingCity", e.target.value)}
-                        placeholder="City"
-                        disabled={formData.sameAsShip}
-                        className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-gray-100"
-                      />
-                      <select
-                        value={formData.billingState}
-                        onChange={(e) => handleInputChange("billingState", e.target.value)}
-                        disabled={formData.sameAsShip}
-                        className="w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-gray-100"
-                      >
-                        <option value="">- State -</option>
-                        <option value="AL">AL</option>
-                        <option value="AK">AK</option>
-                        <option value="AZ">AZ</option>
-                        <option value="AR">AR</option>
-                        <option value="CA">CA</option>
-                        <option value="CO">CO</option>
-                        <option value="CT">CT</option>
-                        <option value="DE">DE</option>
-                        <option value="FL">FL</option>
-                        <option value="GA">GA</option>
-                        <option value="HI">HI</option>
-                        <option value="ID">ID</option>
-                        <option value="IL">IL</option>
-                        <option value="IN">IN</option>
-                        <option value="IA">IA</option>
-                        <option value="KS">KS</option>
-                        <option value="KY">KY</option>
-                        <option value="LA">LA</option>
-                        <option value="ME">ME</option>
-                        <option value="MD">MD</option>
-                        <option value="MA">MA</option>
-                        <option value="MI">MI</option>
-                        <option value="MN">MN</option>
-                        <option value="MS">MS</option>
-                        <option value="MO">MO</option>
-                        <option value="MT">MT</option>
-                        <option value="NE">NE</option>
-                        <option value="NV">NV</option>
-                        <option value="NH">NH</option>
-                        <option value="NJ">NJ</option>
-                        <option value="NM">NM</option>
-                        <option value="NY">NY</option>
-                        <option value="NC">NC</option>
-                        <option value="ND">ND</option>
-                        <option value="OH">OH</option>
-                        <option value="OK">OK</option>
-                        <option value="OR">OR</option>
-                        <option value="PA">PA</option>
-                        <option value="RI">RI</option>
-                        <option value="SC">SC</option>
-                        <option value="SD">SD</option>
-                        <option value="TN">TN</option>
-                        <option value="TX">TX</option>
-                        <option value="UT">UT</option>
-                        <option value="VT">VT</option>
-                        <option value="VA">VA</option>
-                        <option value="WA">WA</option>
-                        <option value="WV">WV</option>
-                        <option value="WI">WI</option>
-                        <option value="WY">WY</option>
-                      </select>
-                      <input
-                        type="text"
-                        value={formData.billingZip}
-                        onChange={(e) => handleInputChange("billingZip", e.target.value)}
-                        placeholder="ZIP"
-                        disabled={formData.sameAsShip}
-                        className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-gray-100"
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <div>
-                      <label className="mb-1 block text-xs font-medium text-gray-600">Country</label>
-                      <select
-                        value={formData.billingCountry}
-                        onChange={(e) => handleInputChange("billingCountry", e.target.value)}
-                        disabled={formData.sameAsShip}
-                        className="w-full rounded-lg border border-gray-300 px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-gray-100"
-                      >
-                        <option value="United States">United States</option>
-                        <option value="Canada">Canada</option>
-                        <option value="Mexico">Mexico</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
-              </div>
+            <div className="space-y-4">
+              {renderAddressCard("Ship To Address", addresses.shipping)}
+              {renderAddressCard("Bill To Address", addresses.billing, {
+                showSameAsShip: true,
+                sameAsShip: addresses.billingSameAsShipping
+              })}
             </div>
           </div>
 
           <div className="mt-8 flex justify-end gap-3">
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleClose}
               className="rounded-full bg-gray-200 px-5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-300"
+              disabled={loading}
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={loading}
-              className="rounded-full bg-primary-600 px-6 py-2 text-sm font-semibold text-white transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-primary-400"
+              className="flex items-center gap-2 rounded-full bg-primary-600 px-6 py-2 text-sm font-semibold text-white transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-primary-400"
             >
+              {loading && <Loader2 className="h-4 w-4 animate-spin" />}
               {loading ? "Creating..." : "Add"}
             </button>
           </div>
@@ -697,23 +570,3 @@ export function ContactCreateModal({ isOpen, onClose, onSuccess, options, defaul
     </div>
   )
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

@@ -260,7 +260,7 @@ export default function OpportunitiesPage() {
       <div className="bg-white border-b border-gray-200 px-4 py-3">
         <div className="flex items-center justify-between gap-4">
           {/* Page Title */}
-          <h1 className="text-xl font-semibold text-blue-600">Opportunities List</h1>
+          <p className="text-xs font-semibold uppercase tracking-wide text-primary-600">OPPORTUNITIES LIST</p>
 
           {/* Left side - Search */}
           <div className="flex items-center flex-1 max-w-md">
