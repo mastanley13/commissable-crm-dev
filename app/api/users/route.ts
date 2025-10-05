@@ -2,9 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { resolveTenantId } from "@/lib/server-utils";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export async function GET(request: NextRequest) {
   try {
-    const searchParams = request.nextUrl.searchParams;
+    const { searchParams } = new URL(request.url);
     const tenantId = await resolveTenantId(searchParams.get("tenantId"));
     const status = searchParams.get("status") || "Active";
     const limit = parseInt(searchParams.get("limit") || "50");
