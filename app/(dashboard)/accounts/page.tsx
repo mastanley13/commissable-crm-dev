@@ -98,7 +98,7 @@ const ACCOUNT_DEFAULT_VISIBLE_COLUMN_IDS = new Set<string>([
 const accountColumns: Column[] = [
   {
     id: "multi-action",
-    label: "Actions",
+    label: "Select All",
     width: 200,
     minWidth: 180,
     maxWidth: 240,

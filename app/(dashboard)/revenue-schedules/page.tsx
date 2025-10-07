@@ -12,7 +12,7 @@ import { Edit, Trash2, Settings, Check } from 'lucide-react'
 const revenueScheduleColumns: Column[] = [
   {
     id: 'multi-action',
-    label: 'Actions',
+    label: 'Select All',
     width: 200,
     minWidth: 160,
     maxWidth: 240,

@@ -168,11 +168,11 @@ const TABS: { id: TabKey; label: string }[] = [
 ]
 
 const fieldLabelClass = "text-xs font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap flex items-center"
-const fieldBoxClass = "flex min-h-[32px] w-full items-center justify-between rounded-lg border-2 border-gray-400 bg-white px-2 py-1 text-sm text-gray-900 shadow-sm whitespace-nowrap overflow-hidden text-ellipsis"
+const fieldBoxClass = "flex min-h-[32px] w-full max-w-md items-center justify-between rounded-lg border-2 border-gray-400 bg-white px-2 py-1 text-sm text-gray-900 shadow-sm whitespace-nowrap overflow-hidden text-ellipsis"
 const CONTACT_TABLE_BASE_COLUMNS: Column[] = [
   {
     id: "multi-action",
-    label: "Actions",
+    label: "Select All",
     width: 180,
     minWidth: 150,
     maxWidth: 220,
@@ -275,7 +275,7 @@ const CONTACT_TABLE_BASE_COLUMNS: Column[] = [
 const OPPORTUNITY_TABLE_BASE_COLUMNS: Column[] = [
   {
     id: "multi-action",
-    label: "Actions",
+    label: "Select All",
     width: 200,
     minWidth: 160,
     maxWidth: 240,
@@ -358,7 +358,7 @@ const OPPORTUNITY_TABLE_BASE_COLUMNS: Column[] = [
 const GROUP_TABLE_BASE_COLUMNS: Column[] = [
   {
     id: "multi-action",
-    label: "Actions",
+    label: "Select All",
     width: 200,
     minWidth: 160,
     maxWidth: 240,
@@ -406,7 +406,7 @@ const GROUP_TABLE_BASE_COLUMNS: Column[] = [
 const ACTIVITY_TABLE_BASE_COLUMNS: Column[] = [
   {
     id: "multi-action",
-    label: "Actions",
+    label: "Select All",
     width: 200,
     minWidth: 160,
     maxWidth: 240,
@@ -528,7 +528,7 @@ function ReadOnlyCheckbox({ checked }: { checked: boolean }) {
 
 function FieldRow({ label, value }: { label: string; value: ReactNode }) {
   return (
-    <div className="grid items-center gap-2 sm:grid-cols-[140px,1fr]">
+    <div className="grid items-center gap-4 sm:grid-cols-[140px,1fr]">
       <span className={fieldLabelClass}>{label}</span>
       <div>{value}</div>
     </div>
@@ -3144,7 +3144,8 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
               </div>
             ) : account ? (
               <div className="flex flex-1 flex-col gap-1 overflow-hidden">
-                <div className="rounded-2xl bg-gray-100 p-3 shadow-sm">
+                <div className="w-full xl:max-w-[1800px]">
+                  <div className="rounded-2xl bg-gray-100 p-3 shadow-sm">
                   {/* Header with title and expand/collapse toggle */}
                   <div className="flex items-center justify-between mb-2">
                     <p className="text-xs font-semibold uppercase tracking-wide text-primary-600">Account Detail</p>
@@ -3194,9 +3195,9 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                       <FieldRow
                         label="Account Name"
                         value={
-                          <div className="flex flex-wrap items-center gap-2">
-                            <div className={cn(fieldBoxClass, "flex-1")}>{account.accountName}</div>
-                            <div className="flex items-center gap-2 rounded-lg border-2 border-gray-400 bg-white px-2 py-0.5 text-xs font-medium text-gray-600 shadow-sm">
+                          <div className="flex items-center gap-2 max-w-md">
+                            <div className={cn(fieldBoxClass, "flex-1 max-w-none")}>{account.accountName}</div>
+                            <div className="flex items-center gap-2 rounded-lg border-2 border-gray-400 bg-white px-2 py-0.5 text-xs font-medium text-gray-600 shadow-sm shrink-0">
                               <span>Active (Y/N)</span>
                               <ReadOnlySwitch value={account.active} />
                             </div>
@@ -3241,7 +3242,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                       <FieldRow
                         label="Description"
                         value={
-                          <div className="rounded border border-gray-300 bg-white px-2 py-1 text-sm text-gray-700">
+                          <div className={cn(fieldBoxClass, "whitespace-normal")}>
                             {account.description || "No description provided."}
                           </div>
                         }
@@ -3264,15 +3265,15 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                               label="Shipping St 2"
                               value={<div className={fieldBoxClass}>{account.shippingAddress.shippingStreet2 || ""}</div>}
                             />
-                            <div className="grid items-center gap-2 sm:grid-cols-[140px,1fr]">
+                            <div className="grid items-center gap-4 sm:grid-cols-[140px,1fr]">
                               <span className={fieldLabelClass}>City, State, Zip</span>
-                              <div className="grid gap-1 grid-cols-[2fr,1fr,1fr]">
-                                <div className={fieldBoxClass}>{account.shippingAddress.city}</div>
-                                <div className={cn(fieldBoxClass, "justify-between")}>
+                              <div className="grid gap-1 grid-cols-[2fr,1fr,1fr] max-w-md">
+                                <div className={cn(fieldBoxClass, "max-w-none")}>{account.shippingAddress.city}</div>
+                                <div className={cn(fieldBoxClass, "justify-between max-w-none")}>
                                   <span>{account.shippingAddress.state || "-"}</span>
                                   <ChevronDown className="h-4 w-4 text-gray-400" />
                                 </div>
-                                <div className={fieldBoxClass}>{account.shippingAddress.postalCode || "-"}</div>
+                                <div className={cn(fieldBoxClass, "max-w-none")}>{account.shippingAddress.postalCode || "-"}</div>
                               </div>
                             </div>
                           </div>
@@ -3299,15 +3300,15 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                               label="Billing St 2"
                               value={<div className={fieldBoxClass}>{account.billingAddress.billingStreet2 || ""}</div>}
                             />
-                            <div className="grid items-center gap-2 sm:grid-cols-[140px,1fr]">
+                            <div className="grid items-center gap-4 sm:grid-cols-[140px,1fr]">
                               <span className={fieldLabelClass}>City, State, Zip</span>
-                              <div className="grid gap-1 grid-cols-[2fr,1fr,1fr]">
-                                <div className={fieldBoxClass}>{account.billingAddress.city}</div>
-                                <div className={cn(fieldBoxClass, "justify-between")}>
+                              <div className="grid gap-1 grid-cols-[2fr,1fr,1fr] max-w-md">
+                                <div className={cn(fieldBoxClass, "max-w-none")}>{account.billingAddress.city}</div>
+                                <div className={cn(fieldBoxClass, "justify-between max-w-none")}>
                                   <span>{account.billingAddress.state || "-"}</span>
                                   <ChevronDown className="h-4 w-4 text-gray-400" />
                                 </div>
-                                <div className={fieldBoxClass}>{account.billingAddress.postalCode || "-"}</div>
+                                <div className={cn(fieldBoxClass, "max-w-none")}>{account.billingAddress.postalCode || "-"}</div>
                               </div>
                             </div>
                             {/* Country hidden per design request */}
@@ -3320,19 +3321,20 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                   </div>
                     </>
                   )}
+                  </div>
                 </div>
 
                 <div className="flex flex-1 flex-col min-h-0 overflow-hidden">
-                  <div className="flex flex-wrap gap-1 border-x border-t border-gray-200 bg-gray-50 p-2">
+                  <div className="flex flex-wrap gap-1 border-x border-t border-gray-200 bg-gray-100 p-2">
                     {TABS.map(tab => (
                       <button
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id)}
                         className={cn(
-                          "px-3 py-1.5 text-sm font-semibold transition rounded-t-md border-t border-x",
+                          "px-3 py-1.5 text-sm font-semibold transition rounded-t-md border border-blue-300 bg-gradient-to-b from-blue-100 to-blue-200 text-primary-800 shadow-sm hover:from-blue-200 hover:to-blue-300 hover:border-blue-400",
                           activeTab === tab.id
-                            ? "bg-white text-primary-700 border-gray-200 -mb-[1px] relative z-10"
-                            : "bg-gray-50 text-gray-700 hover:bg-gray-100 border-transparent"
+                            ? "text-primary-900 border-blue-500 shadow-md -mb-[1px] relative z-10 from-blue-200 to-blue-300"
+                            : ""
                         )}
                       >
                         {tab.label}
@@ -3987,5 +3989,3 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
     </div>
   )
 }
-
-

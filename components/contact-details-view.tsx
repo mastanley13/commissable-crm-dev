@@ -167,12 +167,12 @@ const TABS: { id: "activities" | "opportunities" | "groups"; label: string }[] =
 
 const fieldLabelClass = "text-xs font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap"
 const fieldSubLabelClass = "text-xs font-medium text-gray-600"
-const fieldBoxClass = "flex min-h-[32px] w-full items-center justify-between rounded-lg border-2 border-gray-400 bg-white px-2 py-1 text-sm text-gray-900 shadow-sm whitespace-nowrap overflow-hidden text-ellipsis"
+const fieldBoxClass = "flex min-h-[32px] w-full max-w-md items-center justify-between rounded-lg border-2 border-gray-400 bg-white px-2 py-1 text-sm text-gray-900 shadow-sm whitespace-nowrap overflow-hidden text-ellipsis"
 
 const CONTACT_ACTIVITY_TABLE_BASE_COLUMNS: Column[] = [
   {
     id: "multi-action",
-    label: "Actions",
+    label: "Select All",
     width: 200,
     minWidth: 160,
     maxWidth: 240,
@@ -256,7 +256,7 @@ const CONTACT_ACTIVITY_TABLE_BASE_COLUMNS: Column[] = [
 const CONTACT_OPPORTUNITY_TABLE_BASE_COLUMNS: Column[] = [
   {
     id: "multi-action",
-    label: "Actions",
+    label: "Select All",
     width: 200,
     minWidth: 160,
     maxWidth: 240,
@@ -357,7 +357,7 @@ const CONTACT_OPPORTUNITY_TABLE_BASE_COLUMNS: Column[] = [
 const CONTACT_GROUP_TABLE_BASE_COLUMNS: Column[] = [
   {
     id: "multi-action",
-    label: "Actions",
+    label: "Select All",
     width: 200,
     minWidth: 160,
     maxWidth: 240,
@@ -421,7 +421,7 @@ function ReadOnlySwitch({ value }: { value: boolean }) {
 
 function FieldRow({ label, value }: { label: string; value: ReactNode }) {
   return (
-    <div className="grid items-center gap-2 sm:grid-cols-[140px,1fr]">
+    <div className="grid items-center gap-4 sm:grid-cols-[140px,1fr]">
       <span className={fieldLabelClass}>{label}</span>
       <div>{value}</div>
     </div>
@@ -2219,7 +2219,8 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
               </div>
             ) : contact ? (
               <div className="flex flex-1 flex-col gap-1 overflow-hidden">
-                <div className="rounded-2xl bg-gray-100 p-3 shadow-sm">
+                <div className="w-full xl:max-w-[1800px]">
+                  <div className="rounded-2xl bg-gray-100 p-3 shadow-sm">
                   {/* Header with title and controls */}
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-3">
@@ -2261,18 +2262,18 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
                           <FieldRow
                             label="Name"
                             value={
-                              <div className="grid gap-2 md:grid-cols-3">
+                              <div className="grid gap-2 md:grid-cols-3 max-w-md">
                                 <div>
                                   <div className={fieldSubLabelClass}>First</div>
-                                  <div className={fieldBoxClass}>{contact.firstName}</div>
+                                  <div className={cn(fieldBoxClass, "max-w-none")}>{contact.firstName}</div>
                                 </div>
                                 <div>
                                   <div className={fieldSubLabelClass}>Last</div>
-                                  <div className={fieldBoxClass}>{contact.lastName}</div>
+                                  <div className={cn(fieldBoxClass, "max-w-none")}>{contact.lastName}</div>
                                 </div>
                                 <div>
                                   <div className={fieldSubLabelClass}>Suffix</div>
-                                  <div className={fieldBoxClass}>{contact.suffix || "--"}</div>
+                                  <div className={cn(fieldBoxClass, "max-w-none")}>{contact.suffix || "--"}</div>
                                 </div>
                               </div>
                             }
@@ -2284,9 +2285,9 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
                           <FieldRow
                             label="Account Name"
                             value={
-                              <div className="flex flex-wrap items-center gap-2">
-                                <div className={cn(fieldBoxClass, "flex-1")}>{contact.accountName || "--"}</div>
-                                <div className="flex items-center gap-2 rounded-lg border-2 border-gray-400 bg-white px-2 py-0.5 text-xs font-medium text-gray-600 shadow-sm">
+                              <div className="flex items-center gap-2 max-w-md">
+                                <div className={cn(fieldBoxClass, "flex-1 max-w-none")}>{contact.accountName || "--"}</div>
+                                <div className="flex items-center gap-2 rounded-lg border-2 border-gray-400 bg-white px-2 py-0.5 text-xs font-medium text-gray-600 shadow-sm shrink-0">
                                   <span>Active (Y/N)</span>
                                   <ReadOnlySwitch value={contact.active} />
                                 </div>
@@ -2331,19 +2332,20 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
                       </div>
                     </>
                   )}
+                  </div>
                 </div>
 
                 <div className="flex flex-1 flex-col min-h-0 overflow-hidden">
-                  <div className="flex flex-wrap gap-1 border-x border-t border-gray-200 bg-gray-50 p-2">
+                  <div className="flex flex-wrap gap-1 border-x border-t border-gray-200 bg-gray-100 p-2">
                     {TABS.map(tab => (
                       <button
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id)}
                         className={cn(
-                          "px-3 py-1.5 text-sm font-semibold transition rounded-t-md border-t border-x",
+                          "px-3 py-1.5 text-sm font-semibold transition rounded-t-md border border-blue-300 bg-gradient-to-b from-blue-100 to-blue-200 text-primary-800 shadow-sm hover:from-blue-200 hover:to-blue-300 hover:border-blue-400",
                           activeTab === tab.id
-                            ? "bg-white text-primary-700 border-gray-200 -mb-[1px] relative z-10"
-                            : "bg-gray-50 text-gray-700 hover:bg-gray-100 border-transparent"
+                            ? "text-primary-900 border-blue-500 shadow-md -mb-[1px] relative z-10 from-blue-200 to-blue-300"
+                            : ""
                         )}
                       >
                         {tab.label}
@@ -2773,8 +2775,6 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
     </div>
   )
 }
-
-
 
 
 

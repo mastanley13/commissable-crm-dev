@@ -14,7 +14,7 @@ import { ActivityListItem } from '@/lib/activity-service'
 const activityColumns: Column[] = [
   {
     id: 'actions',
-    label: 'Actions',
+    label: 'Select All',
     width: 100,
     minWidth: 80,
     maxWidth: 120,

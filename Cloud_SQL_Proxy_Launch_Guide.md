@@ -15,7 +15,7 @@ Before starting, make sure you have:
 - **Instance Name**: `commissable-sql`
 - **Region**: `us-central1`
 - **Connection Name**: `groovy-design-471709-d1:us-central1:commissable-sql`
-- **Database**: `crm`
+- **Database**: `commissable_crm`
 - **Username**: `app`
 - **Password**: `commissable@2025`
 

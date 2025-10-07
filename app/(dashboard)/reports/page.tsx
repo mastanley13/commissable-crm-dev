@@ -12,7 +12,7 @@ import { FileText, Download, Play, Settings } from 'lucide-react'
 const reportColumns: Column[] = [
   {
     id: 'actions',
-    label: 'Actions',
+    label: 'Select All',
     width: 120,
     minWidth: 100,
     maxWidth: 150,

@@ -24,7 +24,7 @@ const roleColumns: Column[] = [
   },
   {
     id: 'actions',
-    label: 'Actions',
+    label: 'Select All',
     width: 100,
     minWidth: 80,
     maxWidth: 120,

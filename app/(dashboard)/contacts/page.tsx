@@ -86,7 +86,7 @@ const CONTACT_DEFAULT_VISIBLE_COLUMN_IDS = new Set<string>([
 const contactColumns: Column[] = [
   {
     id: "multi-action",
-    label: "Actions",
+    label: "Select All",
     width: 200,
     minWidth: 160,
     maxWidth: 240,
