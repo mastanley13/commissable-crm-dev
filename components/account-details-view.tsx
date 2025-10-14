@@ -3799,7 +3799,24 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
 
         <ContactEditModal
           isOpen={showContactEditModal}
-          contact={editingContact}
+          contact={
+            editingContact && account
+              ? {
+                  id: editingContact.id,
+                  suffix: editingContact.suffix || "",
+                  fullName: editingContact.fullName || "",
+                  jobTitle: editingContact.jobTitle || "",
+                  mobile: editingContact.mobile || "",
+                  workPhone: editingContact.workPhone || "",
+                  emailAddress: editingContact.emailAddress || "",
+                  extension: editingContact.extension || "",
+                  accountId: account.id,
+                  accountName: account.accountName,
+                  isPrimary: Boolean(editingContact.isPrimary),
+                  active: Boolean(editingContact.active),
+                }
+              : null
+          }
           onClose={handleCloseContactEditModal}
           onSuccess={handleContactEditSuccess}
         />

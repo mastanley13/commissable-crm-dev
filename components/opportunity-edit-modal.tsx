@@ -121,13 +121,20 @@ export function OpportunityEditModal({ isOpen, opportunityId, onClose, onSuccess
       })
   }, [isOpen, showError])
 
+  // Track which specific validations are failing
+  const validationState = useMemo(() => {
+    if (!form) return { hasName: false, hasOwner: false, hasDate: false }
+    return {
+      hasName: form.name.trim().length >= 3,
+      hasOwner: form.ownerId.trim().length > 0,
+      hasDate: form.estimatedCloseDate.length > 0
+    }
+  }, [form])
+
   const canSubmit = useMemo(() => {
     if (!form) return false
-    const hasName = form.name.trim().length >= 3
-    const hasOwner = form.ownerId.trim().length > 0
-    const hasDate = form.estimatedCloseDate.length > 0
-    return hasName && hasOwner && hasDate
-  }, [form])
+    return validationState.hasName && validationState.hasOwner && validationState.hasDate
+  }, [form, validationState])
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -259,13 +266,15 @@ export function OpportunityEditModal({ isOpen, opportunityId, onClose, onSuccess
             <div className="grid gap-4 md:grid-cols-2">
               <div>
                 <label className="mb-1 block text-sm font-medium text-gray-700" htmlFor="opportunity-owner">
-                  Owner
+                  Owner <span className="text-red-500">*</span>
                 </label>
                 <select
                   id="opportunity-owner"
                   value={form.ownerId}
                   onChange={event => setForm(current => current ? { ...current, ownerId: event.target.value } : current)}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className={`w-full rounded-md border px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+                    !validationState.hasOwner && form.ownerId === "" ? 'border-amber-300' : 'border-gray-300'
+                  }`}
                   disabled={loading}
                 >
                   <option value="">Select owner...</option>
@@ -301,14 +310,16 @@ export function OpportunityEditModal({ isOpen, opportunityId, onClose, onSuccess
             <div className="grid gap-4 md:grid-cols-2">
               <div>
                 <label className="mb-1 block text-sm font-medium text-gray-700" htmlFor="opportunity-estimated-close">
-                  Estimated close date
+                  Estimated close date <span className="text-red-500">*</span>
                 </label>
                 <input
                   id="opportunity-estimated-close"
                   type="date"
                   value={form.estimatedCloseDate}
                   onChange={event => setForm(current => current ? { ...current, estimatedCloseDate: event.target.value } : current)}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className={`w-full rounded-md border px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+                    !validationState.hasDate && form.estimatedCloseDate === "" ? 'border-amber-300' : 'border-gray-300'
+                  }`}
                   disabled={loading}
                 />
               </div>
@@ -327,6 +338,24 @@ export function OpportunityEditModal({ isOpen, opportunityId, onClose, onSuccess
                 />
               </div>
             </div>
+
+            {/* Validation Feedback */}
+            {!canSubmit && form && (
+              <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3">
+                <p className="text-sm font-medium text-amber-800 mb-2">Please complete the following to save:</p>
+                <ul className="text-sm text-amber-700 space-y-1 ml-4 list-disc">
+                  {!validationState.hasName && (
+                    <li>Opportunity name must be at least 3 characters</li>
+                  )}
+                  {!validationState.hasOwner && (
+                    <li>Please select an owner</li>
+                  )}
+                  {!validationState.hasDate && (
+                    <li>Please select an estimated close date</li>
+                  )}
+                </ul>
+              </div>
+            )}
 
             <div className="flex items-center justify-end gap-3 border-t border-gray-200 pt-4">
               <button

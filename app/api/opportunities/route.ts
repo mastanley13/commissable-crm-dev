@@ -29,8 +29,8 @@ const OPPORTUNITY_VIEW_PERMISSIONS = Array.from(new Set([
   ...OPPORTUNITY_VIEW_ASSIGNED_PERMISSIONS
 ]))
 
-const ACTIVE_STATUS_FILTER = [OpportunityStatus.Open, OpportunityStatus.OnHold] as const
-const INACTIVE_STATUS_FILTER = [OpportunityStatus.Lost, OpportunityStatus.Won] as const
+const ACTIVE_STATUS_FILTER: OpportunityStatus[] = [OpportunityStatus.Open, OpportunityStatus.OnHold]
+const INACTIVE_STATUS_FILTER: OpportunityStatus[] = [OpportunityStatus.Lost, OpportunityStatus.Won]
 
 function resolveSortOrder(sortColumn: string, direction: "asc" | "desc"): Prisma.OpportunityOrderByWithRelationInput[] {
   if (sortColumn === "closeDate") {
@@ -173,9 +173,15 @@ export async function GET(request: NextRequest) {
                 ]
               })
               break
-            case "referredBy":
-              filterConditions.push({ leadSource: { contains: rawValue, mode: "insensitive" } })
+            case "referredBy": {
+              const matches = (Object.values(LeadSource) as string[]).filter(source =>
+                source.toLowerCase().includes(valueLower)
+              )
+              if (matches.length > 0) {
+                filterConditions.push({ leadSource: { in: matches as LeadSource[] } })
+              }
               break
+            }
             case "status": {
               const matches = (Object.values(OpportunityStatus) as string[]).filter(status =>
                 status.toLowerCase().includes(valueLower)

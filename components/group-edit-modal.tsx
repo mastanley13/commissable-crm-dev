@@ -139,7 +139,16 @@ export function GroupEditModal({ isOpen, group, onClose, onSuccess }: GroupEditM
       .finally(() => setDetailsLoading(false))
   }, [isOpen, group?.id, showError])
 
-  const canSubmit = useMemo(() => form.name.trim().length >= 3 && form.ownerId.length > 0, [form.name, form.ownerId])
+  // Track which specific validations are failing
+  const validationState = useMemo(() => ({
+    hasName: form.name.trim().length >= 3,
+    hasOwner: form.ownerId.length > 0
+  }), [form.name, form.ownerId])
+
+  const canSubmit = useMemo(() => 
+    validationState.hasName && validationState.hasOwner,
+    [validationState]
+  )
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -249,7 +258,9 @@ export function GroupEditModal({ isOpen, group, onClose, onSuccess }: GroupEditM
               <select
                 value={form.ownerId}
                 onChange={event => setForm(prev => ({ ...prev, ownerId: event.target.value }))}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className={`w-full rounded-lg border px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500 ${
+                  !validationState.hasOwner && form.ownerId === "" ? 'border-amber-300' : 'border-gray-300'
+                }`}
                 required
                 disabled={optionsLoading}
               >
@@ -284,6 +295,30 @@ export function GroupEditModal({ isOpen, group, onClose, onSuccess }: GroupEditM
               <p className="mt-1 text-xs text-gray-500">Maximum 500 characters.</p>
             </div>
           </div>
+
+          {/* Validation Feedback */}
+          {!canSubmit && (
+            <div className="mt-6 rounded-md border border-amber-200 bg-amber-50 px-4 py-3">
+              <p className="text-sm font-medium text-amber-800 mb-2">Please complete the following to save:</p>
+              <ul className="text-sm text-amber-700 space-y-1 ml-4 list-disc">
+                {!validationState.hasName && (
+                  <li>Group name must be at least 3 characters</li>
+                )}
+                {!validationState.hasOwner && (
+                  <li>Please select a group owner</li>
+                )}
+              </ul>
+            </div>
+          )}
+
+          {detailsLoading && (
+            <div className="mt-6 rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+              <div className="flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span>Loading group details...</span>
+              </div>
+            </div>
+          )}
 
           <div className="mt-6 flex flex-wrap items-center justify-end gap-3">
             <button

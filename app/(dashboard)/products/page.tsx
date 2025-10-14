@@ -436,8 +436,9 @@ export default function ProductsPage() {
     setCurrentPage(1)
   }, [])
 
-  const handleStatusFilterChange = useCallback((value: 'active' | 'inactive') => {
-    setStatusFilter(value)
+  const handleStatusFilterChange = useCallback((value: string) => {
+    const next: 'active' | 'inactive' = value === 'inactive' ? 'inactive' : 'active'
+    setStatusFilter(next)
     setCurrentPage(1)
   }, [])
 

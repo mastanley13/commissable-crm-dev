@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 
-import { Prisma } from "@prisma/client"
+import { Prisma, RevenueType } from "@prisma/client"
 import { prisma } from "@/lib/db"
 import { withAuth } from "@/lib/api-auth"
 import { hasAnyPermission } from "@/lib/auth"
@@ -134,9 +134,16 @@ export async function GET(request: NextRequest) {
             case "partNumberVendor":
               andConditions.push({ productCode: { contains: rawValue, mode: "insensitive" } })
               break
-            case "revenueType":
-              andConditions.push({ revenueType: { contains: rawValue, mode: "insensitive" } })
+            case "revenueType": {
+              const valueLower = rawValue.toLowerCase()
+              const matches = (Object.values(RevenueType) as string[]).filter((rt) =>
+                rt.toLowerCase().includes(valueLower)
+              )
+              if (matches.length > 0) {
+                andConditions.push({ revenueType: { in: matches as RevenueType[] } })
+              }
               break
+            }
             case "active":
               if (rawValue.toLowerCase() === "yes" || rawValue.toLowerCase() === "true") {
                 andConditions.push({ isActive: true })
