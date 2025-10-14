@@ -43,6 +43,8 @@ import { ContactBulkStatusModal } from "./contact-bulk-status-modal"
 import { ActivityBulkActionBar } from "./activity-bulk-action-bar"
 import { ActivityBulkOwnerModal } from "./activity-bulk-owner-modal"
 import { ActivityBulkStatusModal } from "./activity-bulk-status-modal"
+import { ContactEditModal } from "./contact-edit-modal"
+import { ActivityNoteEditModal } from "./activity-note-edit-modal"
 
 export interface AccountAddress {
   line1: string
@@ -701,6 +703,10 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
   const [showActivitiesColumnSettings, setShowActivitiesColumnSettings] = useState(false)
   const [editingGroup, setEditingGroup] = useState<AccountGroupRow | null>(null)
   const [showGroupEditModal, setShowGroupEditModal] = useState(false)
+  const [editingContact, setEditingContact] = useState<AccountContactRow | null>(null)
+  const [showContactEditModal, setShowContactEditModal] = useState(false)
+  const [editingActivity, setEditingActivity] = useState<AccountActivityRow | null>(null)
+  const [showActivityEditModal, setShowActivityEditModal] = useState(false)
   const accountContacts = account?.contacts
   const accountOpportunities = account?.opportunities
   useEffect(() => {
@@ -1425,6 +1431,23 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
     setContactModalOpen(false)
   }
 
+  const handleEditContact = useCallback((contact: AccountContactRow) => {
+    setEditingContact(contact)
+    setShowContactEditModal(true)
+  }, [])
+
+  const handleCloseContactEditModal = useCallback(() => {
+    setShowContactEditModal(false)
+    setEditingContact(null)
+  }, [])
+
+  const handleContactEditSuccess = useCallback(() => {
+    setShowContactEditModal(false)
+    setEditingContact(null)
+    showSuccess("Contact updated", "The contact has been updated successfully.")
+    onRefresh?.()
+  }, [showSuccess, onRefresh])
+
   const handleOpportunityCreated = () => {
     setOpportunityModalOpen(false)
     showSuccess("Opportunity created", "The list will refresh shortly.")
@@ -1455,9 +1478,44 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
     setActivityModalOpen(false)
   }
 
+  const handleEditActivity = useCallback((activity: AccountActivityRow) => {
+    setEditingActivity(activity)
+    setShowActivityEditModal(true)
+  }, [])
+
+  const handleCloseActivityEditModal = useCallback(() => {
+    setShowActivityEditModal(false)
+    setEditingActivity(null)
+  }, [])
+
+  const handleActivityEditSuccess = useCallback(() => {
+    setShowActivityEditModal(false)
+    setEditingActivity(null)
+    showSuccess("Activity updated", "The activity has been updated successfully.")
+    onRefresh?.()
+  }, [showSuccess, onRefresh])
+
+  const handleDeleteActivity = useCallback(async (activity: AccountActivityRow) => {
+    if (!confirm(`Are you sure you want to delete this activity?`)) return
+    try {
+      const response = await fetch(`/api/activities/${activity.id}`, { method: 'DELETE' })
+      if (!response.ok) throw new Error('Failed to delete activity')
+      showSuccess("Activity deleted", "The activity has been removed.")
+      onRefresh?.()
+    } catch (error) {
+      console.error('Delete activity error:', error)
+      showError("Failed to delete activity", error instanceof Error ? error.message : "Please try again.")
+    }
+  }, [showSuccess, showError, onRefresh])
+
   const handleEditGroup = useCallback((group: AccountGroupRow) => {
     setEditingGroup(group)
     setShowGroupEditModal(true)
+  }, [])
+
+  const handleCloseGroupEditModal = useCallback(() => {
+    setShowGroupEditModal(false)
+    setEditingGroup(null)
   }, [])
 
   const handleDeleteGroup = useCallback(async (group: AccountGroupRow) => {
@@ -2692,7 +2750,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                 </button>
                 {/* Actions */}
                 <div className="flex gap-0.5">
-                  <button type="button" className="p-1 text-primary-600 hover:text-primary-700 transition-colors rounded" aria-label="Edit contact">
+                  <button type="button" className="p-1 text-primary-600 hover:text-primary-700 transition-colors rounded" onClick={(e) => { e.stopPropagation(); handleEditContact(row) }} aria-label="Edit contact">
                     <Edit className="h-3.5 w-3.5" />
                   </button>
                   <button type="button" className={`p-1 rounded transition-colors ${row.isDeleted ? 'text-gray-400 hover:text-gray-600' : 'text-red-500 hover:text-red-700'}`} onClick={(event) => { event.stopPropagation(); requestContactDelete(row) }} aria-label={row.isDeleted ? 'Manage contact' : 'Delete contact'}>
@@ -2750,7 +2808,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
       }
       return column
     })
-  }, [contactPreferenceColumns, requestContactDelete])
+  }, [contactPreferenceColumns, requestContactDelete, handleEditContact])
 
   const opportunityTableColumns = useMemo(() => {
     return opportunityPreferenceColumns.map(column => {
@@ -2825,10 +2883,10 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                   <span className={`inline-block w-4 h-4 bg-white rounded-full shadow transform ${activeValue ? 'translate-x-4' : 'translate-x-1'} mt-0.5`} />
                 </span>
                 <div className="flex gap-0.5">
-                  <button type="button" className="p-1 text-primary-600 hover:text-primary-700 transition-colors rounded" aria-label="Edit activity">
+                  <button type="button" className="p-1 text-primary-600 hover:text-primary-700 transition-colors rounded" onClick={(e) => { e.stopPropagation(); handleEditActivity(row) }} aria-label="Edit activity">
                     <Edit className="h-3.5 w-3.5" />
                   </button>
-                  <button type="button" className="p-1 text-red-500 hover:text-red-700 transition-colors rounded" aria-label="Delete activity">
+                  <button type="button" className="p-1 text-red-500 hover:text-red-700 transition-colors rounded" onClick={(e) => { e.stopPropagation(); handleDeleteActivity(row) }} aria-label="Delete activity">
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
                 </div>
@@ -2852,7 +2910,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
       }
       return column
     })
-  }, [activityPreferenceColumns])
+  }, [activityPreferenceColumns, handleEditActivity, handleDeleteActivity])
 
   const filteredGroups = useMemo(() => {
     if (!account) return []
@@ -3725,7 +3783,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
         <GroupEditModal
           isOpen={showGroupEditModal}
           group={editingGroup}
-          onClose={() => setShowGroupEditModal(false)}
+          onClose={handleCloseGroupEditModal}
           onSuccess={handleGroupEditSuccess}
         />
         {account && (
@@ -3738,6 +3796,21 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
             onSuccess={handleActivityCreated}
           />
         )}
+
+        <ContactEditModal
+          isOpen={showContactEditModal}
+          contact={editingContact}
+          onClose={handleCloseContactEditModal}
+          onSuccess={handleContactEditSuccess}
+        />
+
+        <ActivityNoteEditModal
+          isOpen={showActivityEditModal}
+          activityId={editingActivity?.id ?? null}
+          accountId={account?.id}
+          onClose={handleCloseActivityEditModal}
+          onSuccess={handleActivityEditSuccess}
+        />
 
         <ActivityBulkOwnerModal
           isOpen={showActivityBulkOwnerModal}
