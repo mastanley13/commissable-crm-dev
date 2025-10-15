@@ -178,3 +178,53 @@ interface OpportunityActivityRow {
 - Day 1: Restore Roles tab (constants/state/UI wiring); smoke test; persist prefs
 - Day 2: Activities MVP (constants/state/fetch/UI); smoke test with real data
 - Day 3: QA polish, CSV export, and documentation
+
+
+Current Fixes
+
+Removed all Activity-specific imports, state, helpers, and render logic from components/opportunity-details-view.tsx, leaving the Activities tab as a simple placeholder card that lets the app compile without referencing the broken code.
+Cleaned up residual fragments (e.g., unused ternaries, modals, confirm dialogs) so the component parses correctly again; npm run lint now passes (same pre-existing hook warnings remain).
+Tabs are intact and the Activities tab now shows: “Activities & Notes are being rebuilt. Check back soon.”
+Plan: Rebuild Activities & Notes Tab
+
+Component Skeleton
+
+Keep the tab key activities and reactivate the layout using ListHeader, DynamicTable, and ColumnChooserModal, consistent with Detail_View_Tables_Reference_Guide.md.
+Reintroduce scoped state: search query, column filters, status filter (Active/Completed), pagination, selection, and table preferences (useTablePreferences with key opportunities:detail:activities).
+Field Mapping (03.10.100 – 03.10.103)
+
+activityDate → Field ID 03.10.100 “Activity Date” (date column, sortable; display ISO yyyy-mm-dd).
+activityType → 03.10.101 “Activity Type” (string column; options: Call, Meeting, ToDo, Note, Other).
+description → 03.10.102 “Activity Description” (wide column with two-line clamp & tooltip).
+createdByName → 03.10.103 “Created By” (string column; show user name).
+Add optional hidden columns for status, attachments, updatedAt to align with table standards.
+Data Model & API
+
+Define a lightweight row type:
+
+interface OpportunityActivityRow {
+  id: string
+  activityDate: string | null
+  activityType: string | null
+  description: string | null
+  createdByName: string | null
+}
+Update app/api/opportunities/[opportunityId]/route.ts (or create a thin client fetch) to call /api/activities?contextType=Opportunity&contextId=:id&sortBy=activityDate&sortDirection=desc&pageSize=100, mapping the API payload into the row type (defensive null handling & ISO date formatting).
+
+Table Behavior
+
+Implement ListHeader with search (subject/description), column filters (activityType, createdByName), column settings, and future-ready status filter (Active vs Completed). Omit bulk owner/status actions in the first pass; keep ActivityBulkActionBar commented or add export-only action.
+DynamicTable rows clickable → /activities/[id]. Empty state message “No activities logged for this opportunity.”
+Selection enables CSV export: headers [Activity ID, Date, Type, Description, Created By].
+Modal & CRUD (Phase 2)
+
+After table stabilizes, reintroduce:
+Quick “Add Activity” modal (date, type, description; createdBy defaults to current user).
+Note edit modal (edit description, type).
+Activity delete/owner/status modals as later scope, matching table reference guide patterns.
+QA & Verification
+
+Test empty state, few records, >100 records (pagination).
+Verify column preferences persist (hide/reorder).
+Confirm CSV export formatting (date, commas, quotes).
+Accessibility: keyboard navigation across header, rows, and column chooser.
