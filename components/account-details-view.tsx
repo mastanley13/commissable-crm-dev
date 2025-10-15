@@ -966,7 +966,13 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
     if (activeFilter === "active") {
       rows = rows.filter(row => row.active && !row.isDeleted)
     } else if (activeFilter === "inactive") {
-      rows = rows.filter(row => !row.active && !row.isDeleted)
+      // Show all records but sort: inactive first, then active
+      rows = rows.filter(row => !row.isDeleted)
+      rows.sort((a, b) => {
+        if (!a.active && b.active) return -1
+        if (a.active && !b.active) return 1
+        return 0
+      })
     }
     const query = contactsSearchQuery.trim().toLowerCase()
     if (query.length > 0) {
@@ -1508,6 +1514,42 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
     }
   }, [showSuccess, showError, onRefresh])
 
+  const handleToggleActivityStatus = useCallback(async (activity: AccountActivityRow, newStatus: boolean) => {
+    if (!activity?.id) {
+      showError("Activity unavailable", "Unable to locate this activity record.");
+      return;
+    }
+
+    try {
+      // Convert active/inactive to activity status
+      // Active = Pending (or keep current open status), Inactive = Completed
+      const status = newStatus ? "Pending" : "Completed";
+      
+      const response = await fetch(`/api/activities/${activity.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status })
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        throw new Error(data?.error || "Failed to update activity status");
+      }
+
+      showSuccess(
+        "Activity updated",
+        `Activity ${newStatus ? "activated" : "completed"} successfully.`
+      );
+      
+      // Refresh the account data
+      onRefresh?.();
+    } catch (error) {
+      console.error("Failed to update activity status", error);
+      const message = error instanceof Error ? error.message : "Unable to update activity status";
+      showError("Failed to update activity", message);
+    }
+  }, [showSuccess, showError, onRefresh])
+
   const handleEditGroup = useCallback((group: AccountGroupRow) => {
     setEditingGroup(group)
     setShowGroupEditModal(true)
@@ -1540,6 +1582,38 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
     }
   }, [showSuccess, showError, onRefresh])
 
+  const handleToggleGroupStatus = useCallback(async (group: AccountGroupRow, newStatus: boolean) => {
+    if (!group?.id) {
+      showError("Group unavailable", "Unable to locate this group record.");
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/groups/${group.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isActive: newStatus })
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        throw new Error(data?.error || "Failed to update group status");
+      }
+
+      showSuccess(
+        "Group updated",
+        `Group ${newStatus ? "activated" : "deactivated"} successfully.`
+      );
+      
+      // Refresh the account data
+      onRefresh?.();
+    } catch (error) {
+      console.error("Failed to update group status", error);
+      const message = error instanceof Error ? error.message : "Unable to update group status";
+      showError("Failed to update group", message);
+    }
+  }, [showSuccess, showError, onRefresh])
+
   const handleGroupEditSuccess = () => {
     setShowGroupEditModal(false)
     setEditingGroup(null)
@@ -1566,7 +1640,12 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
     if (activeFilter === "active") {
       rows = rows.filter(row => row.active)
     } else if (activeFilter === "inactive") {
-      rows = rows.filter(row => !row.active)
+      // Show all records but sort: inactive first, then active
+      rows.sort((a, b) => {
+        if (!a.active && b.active) return -1
+        if (a.active && !b.active) return 1
+        return 0
+      })
     }
     const query = opportunitiesSearchQuery.trim().toLowerCase()
     if (query.length > 0) {
@@ -2878,10 +2957,28 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                     <Check className="h-3 w-3" aria-hidden="true" />
                   </span>
                 </label>
-                {/* Visual toggle only */}
-                <span className={`w-9 h-5 rounded-full ${activeValue ? 'bg-blue-600' : 'bg-gray-300'}`}>
-                  <span className={`inline-block w-4 h-4 bg-white rounded-full shadow transform ${activeValue ? 'translate-x-4' : 'translate-x-1'} mt-0.5`} />
-                </span>
+                {/* Active Toggle */}
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    handleToggleActivityStatus(row, !activeValue);
+                  }}
+                  className="relative inline-flex items-center cursor-pointer"
+                  title={activeValue ? "Active" : "Inactive"}
+                >
+                  <span
+                    className={`w-9 h-5 rounded-full transition-colors duration-300 ease-in-out ${
+                      activeValue ? "bg-blue-600" : "bg-gray-300"
+                    }`}
+                  >
+                    <span
+                      className={`inline-block w-4 h-4 bg-white rounded-full shadow transition-transform duration-300 ease-in-out transform ${
+                        activeValue ? "translate-x-4" : "translate-x-1"
+                      } mt-0.5 ${activeValue ? "ring-1 ring-blue-300" : ""}`}
+                    />
+                  </span>
+                </button>
                 <div className="flex gap-0.5">
                   <button type="button" className="p-1 text-primary-600 hover:text-primary-700 transition-colors rounded" onClick={(e) => { e.stopPropagation(); handleEditActivity(row) }} aria-label="Edit activity">
                     <Edit className="h-3.5 w-3.5" />
@@ -2910,7 +3007,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
       }
       return column
     })
-  }, [activityPreferenceColumns, handleEditActivity, handleDeleteActivity])
+  }, [activityPreferenceColumns, selectedActivities, handleEditActivity, handleDeleteActivity, handleToggleActivityStatus])
 
   const filteredGroups = useMemo(() => {
     if (!account) return []
@@ -2918,7 +3015,12 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
     if (activeFilter === "active") {
       rows = rows.filter(row => row.active)
     } else if (activeFilter === "inactive") {
-      rows = rows.filter(row => !row.active)
+      // Show all records but sort: inactive first, then active
+      rows.sort((a, b) => {
+        if (!a.active && b.active) return -1
+        if (a.active && !b.active) return 1
+        return 0
+      })
     }
     const query = groupsSearchQuery.trim().toLowerCase()
     if (query.length > 0) {
@@ -3079,10 +3181,28 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                     <Check className="h-3 w-3" aria-hidden="true" />
                   </span>
                 </label>
-                {/* Visual toggle only */}
-                <span className={`w-9 h-5 rounded-full ${activeValue ? 'bg-blue-600' : 'bg-gray-300'}`}>
-                  <span className={`inline-block w-4 h-4 bg-white rounded-full shadow transform ${activeValue ? 'translate-x-4' : 'translate-x-1'} mt-0.5`} />
-                </span>
+                {/* Active Toggle */}
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    handleToggleGroupStatus(row, !activeValue);
+                  }}
+                  className="relative inline-flex items-center cursor-pointer"
+                  title={activeValue ? "Active" : "Inactive"}
+                >
+                  <span
+                    className={`w-9 h-5 rounded-full transition-colors duration-300 ease-in-out ${
+                      activeValue ? "bg-blue-600" : "bg-gray-300"
+                    }`}
+                  >
+                    <span
+                      className={`inline-block w-4 h-4 bg-white rounded-full shadow transition-transform duration-300 ease-in-out transform ${
+                        activeValue ? "translate-x-4" : "translate-x-1"
+                      } mt-0.5 ${activeValue ? "ring-1 ring-blue-300" : ""}`}
+                    />
+                  </span>
+                </button>
                 <div className="flex gap-0.5">
                   <button type="button" className="p-1 rounded transition-colors text-blue-500 hover:text-blue-700" onClick={(e) => { e.stopPropagation(); handleEditGroup(row) }} aria-label="Edit group">
                     <Edit className="h-3.5 w-3.5" />
@@ -3098,7 +3218,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
       }
       return column
     })
-  }, [groupPreferenceColumns, selectedGroups, handleGroupSelect, handleEditGroup, requestGroupDelete])
+  }, [groupPreferenceColumns, selectedGroups, handleEditGroup, requestGroupDelete, handleToggleGroupStatus])
 
   const filteredActivities = useMemo(() => {
     if (!account) return []
@@ -3106,7 +3226,12 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
     if (activeFilter === "active") {
       rows = rows.filter(row => row.active)
     } else if (activeFilter === "inactive") {
-      rows = rows.filter(row => !row.active)
+      // Show all records but sort: inactive first, then active
+      rows.sort((a, b) => {
+        if (!a.active && b.active) return -1
+        if (a.active && !b.active) return 1
+        return 0
+      })
     }
     const query = activitiesSearchQuery.trim().toLowerCase()
     if (query.length > 0) {

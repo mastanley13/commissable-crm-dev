@@ -1,10 +1,30 @@
 Below is a production‑ready Markdown spec—same style as your Opportunities doc—focused on **Milestone 2 Product implementation**. It is designed for hand‑off to your coding agent and anchors every requirement to your governing documents/MSAP.
 
-> **Traceability Note** — The **Milestone 2 – Opportunities & Products Specifications** define the authoritative scope and field list; the **Contract & Addendum** set acceptance, performance, security, and RBAC baselines; and the **Executive Summary** clarifies program goals. Inline citations point to those sources.   
+> **Traceability Note** — The **Milestone 2 – Opportunities & Products Specifications** define the authoritative scope and field list; the **Contract & Addendum** set acceptance, performance, security, and RBAC baselines; and the **Executive Summary** clarifies program goals. Inline citations point to those sources.
 
 ---
 
 # Commissable CRM — Milestone 2: **Products** Implementation Plan
+
+## ✅ Recent Progress Update — October 14, 2025
+
+**Product Detail View Completed:**
+- ✅ Full product detail page with 3-tab navigation (Details, Usage, History)
+- ✅ GET `/api/products/{id}` endpoint with complete data loading
+- ✅ Navigation from list view (clickable Product Name - Vendor/House columns)
+- ✅ Usage tracking: Opportunities and Revenue Schedules tables with preferences
+- ✅ History tab infrastructure ready for audit log integration
+- ✅ All formatting utilities (currency, percent, date, revenue type humanization)
+- ✅ Responsive design matching Account/Contact/Opportunity detail views
+- 📁 Files: `components/product-details-view.tsx`, `app/(dashboard)/products/[productId]/page.tsx`, `app/api/products/[productId]/route.ts`
+
+**Still Pending:**
+- Create/Edit forms with validation
+- Audit logging implementation
+- Product lookup/picker for Opportunities
+- Performance optimization (caching, instrumentation)
+
+---
 
 **Executive Summary**
 Build a robust **Product Catalog** (list, detail, create/edit, pricing attributes, tax/discount handling, and lookups) that integrates with **Opportunities** line items and conforms to MSAP acceptance tests, security/performance budgets, and RBAC. All feature behavior and field definitions are governed by the Milestone‑2 spec/MSAP; this plan calls out the expected UX, API, data model, and UAT so the team can deliver to contract.  
@@ -113,11 +133,11 @@ Build a robust **Product Catalog** (list, detail, create/edit, pricing attribute
 
 ### REST Endpoints (prefix `/api/products`)
 
-* `GET /` — list with filters (`q`, `category[]`, `active`, `min_price`, `max_price`, `page`, `size≤100`); return paged results **≤500ms p95** (indexes + Redis caching). 
-* `POST /` — create (validate SKU unique; enforce MSAP rules). 
-* `GET /{id}` — detail.
-* `PATCH /{id}` — partial update; guard field‑level permissions (e.g., `cost`).
-* `DELETE /{id}` — soft delete or status flip per MSAP (recommended: keep history).
+* ✅ `GET /` — list with filters (`q`, `category[]`, `active`, `min_price`, `max_price`, `page`, `size≤100`); return paged results **≤500ms p95** (indexes + Redis caching). **IMPLEMENTED**
+* `POST /` — create (validate SKU unique; enforce MSAP rules).
+* ✅ `GET /{id}` — detail. **IMPLEMENTED Oct 14, 2025** — Full product data with usage tracking (opportunities, revenue schedules), distributor/vendor joins, audit log support
+* ✅ `PATCH /{id}` — partial update; guard field‑level permissions (e.g., `cost`). **IMPLEMENTED** (currently active toggle; needs expansion for all fields)
+* ✅ `DELETE /{id}` — soft delete or status flip per MSAP (recommended: keep history). **IMPLEMENTED**
 * `GET /lookup` — lightweight picker (name/SKU prefix search; **<1s p95**). 
 
 ### Security
@@ -204,9 +224,10 @@ Build a robust **Product Catalog** (list, detail, create/edit, pricing attribute
 
 **Front end**
 
-* [ ] Product List with search/filters/sort; pagination ≤100; empty states. 
-* [ ] Product Detail + tabs (Details, Usage, History).
-* [ ] Create/Edit form with real‑time validation and currency formatting. 
+* [x] Product List with search/filters/sort; pagination ≤100; empty states.
+* [x] Product Detail + tabs (Details, Usage, History). ✅ **COMPLETED Oct 14, 2025**
+* [x] Navigation from list to detail (clickable product names). ✅ **COMPLETED Oct 14, 2025**
+* [ ] Create/Edit form with real‑time validation and currency formatting.
 * [ ] Lightweight lookup component for Opportunities (typeahead by name/SKU). 
 
 **Testing & Ops**

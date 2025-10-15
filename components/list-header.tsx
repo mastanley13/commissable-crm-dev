@@ -33,6 +33,7 @@ interface ListHeaderProps {
   searchPlaceholder?: string;
   onSearch?: (query: string) => void;
   onFilterChange?: (filter: string) => void;
+  showStatusFilter?: boolean; // new: allow hiding default Active/Inactive toggle
   showCreateButton?: boolean;
   onCreateClick?: () => void;
   onSettingsClick?: () => void;
@@ -72,6 +73,7 @@ export function ListHeader({
   searchPlaceholder = "Search Here",
   onSearch,
   onFilterChange,
+  showStatusFilter = true,
   showCreateButton = true,
   onCreateClick,
   onSettingsClick,
@@ -246,28 +248,30 @@ export function ListHeader({
 
           <div className="flex flex-wrap items-center gap-2">
             {leftAccessory}
-            <div className="inline-flex rounded-lg border border-gray-300 bg-gray-50 p-0.5">
-              <button
-                onClick={() => handleStatusFilterChange("active")}
-                className={`px-3 py-1.5 text-sm font-medium transition-all duration-200 rounded-md ${
-                  activeFilter === "active"
-                    ? "bg-primary-600 text-white shadow-sm"
-                    : "text-gray-600 hover:text-gray-900"
-                }`}
-              >
-                Active
-              </button>
-              <button
-                onClick={() => handleStatusFilterChange("inactive")}
-                className={`px-3 py-1.5 text-sm font-medium transition-all duration-200 rounded-md ${
-                  activeFilter === "inactive"
-                    ? "bg-primary-600 text-white shadow-sm"
-                    : "text-gray-600 hover:text-gray-900"
-                }`}
-              >
-                Show Inactive
-              </button>
-            </div>
+            {showStatusFilter && (
+              <div className="inline-flex rounded-lg border border-gray-300 bg-gray-50 p-0.5">
+                <button
+                  onClick={() => handleStatusFilterChange("active")}
+                  className={`px-3 py-1.5 text-sm font-medium transition-all duration-200 rounded-md ${
+                    activeFilter === "active"
+                      ? "bg-primary-600 text-white shadow-sm"
+                      : "text-gray-600 hover:text-gray-900"
+                  }`}
+                >
+                  Active
+                </button>
+                <button
+                  onClick={() => handleStatusFilterChange("inactive")}
+                  className={`px-3 py-1.5 text-sm font-medium transition-all duration-200 rounded-md ${
+                    activeFilter === "inactive"
+                      ? "bg-primary-600 text-white shadow-sm"
+                      : "text-gray-600 hover:text-gray-900"
+                  }`}
+                >
+                  Show Inactive
+                </button>
+              </div>
+            )}
 
             {showCreateButton && (
               <button

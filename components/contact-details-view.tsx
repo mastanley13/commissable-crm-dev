@@ -431,12 +431,12 @@ function FieldRow({ label, value }: { label: string; value: ReactNode }) {
 interface TabToolbarProps {
   onCreateNew?: () => void
   disabled?: boolean
-  activeFilter?: "active" | "all"
-  onFilterChange?: (filter: "active" | "all") => void
+  activeFilter?: "active" | "inactive"
+  onFilterChange?: (filter: "active" | "inactive") => void
 }
 
 function TabToolbar({ onCreateNew, disabled, activeFilter = "active", onFilterChange }: TabToolbarProps) {
-  const handleFilterChange = (filter: "active" | "all") => {
+  const handleFilterChange = (filter: "active" | "inactive") => {
     onFilterChange?.(filter)
   }
 
@@ -470,7 +470,7 @@ function TabToolbar({ onCreateNew, disabled, activeFilter = "active", onFilterCh
         </button>
       </div>
       <div className="flex items-center gap-1">
-        {/* iOS-style Segmented Control for Active/Show All */}
+        {/* iOS-style Segmented Control for Active/Show Inactive */}
         <div className="inline-flex rounded-lg bg-gray-100 p-1 shadow-inner">
           <button
             onClick={() => handleFilterChange("active")}
@@ -483,14 +483,14 @@ function TabToolbar({ onCreateNew, disabled, activeFilter = "active", onFilterCh
             Active
           </button>
           <button
-            onClick={() => handleFilterChange("all")}
+            onClick={() => handleFilterChange("inactive")}
             className={`rounded-md px-3 py-1.5 text-sm font-medium transition-all duration-200 ${
-              activeFilter === "all"
+              activeFilter === "inactive"
                 ? "bg-white text-gray-900 shadow-sm"
                 : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
             }`}
           >
-            Show All
+            Show Inactive
           </button>
         </div>
       </div>
@@ -571,7 +571,7 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
   const [opportunityModalOpen, setOpportunityModalOpen] = useState(false)
   const [groupModalOpen, setGroupModalOpen] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
-  const [activeFilter, setActiveFilter] = useState<"active" | "all">("active")
+  const [activeFilter, setActiveFilter] = useState<"active" | "inactive">("active")
   const [activitiesCurrentPage, setActivitiesCurrentPage] = useState(1)
   const [activitiesPageSize, setActivitiesPageSize] = useState(10)
   const [opportunitiesCurrentPage, setOpportunitiesCurrentPage] = useState(1)
@@ -858,6 +858,42 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
     }
   }, [refreshContactData, showError, showSuccess]);
 
+  const handleToggleActivityStatus = useCallback(async (activity: ContactActivityRow, newStatus: boolean) => {
+    if (!activity?.id) {
+      showError("Activity unavailable", "Unable to locate this activity record.");
+      return;
+    }
+
+    try {
+      // Convert active/inactive to activity status
+      // Active = Pending (or keep current open status), Inactive = Completed
+      const status = newStatus ? "Pending" : "Completed";
+      
+      const response = await fetch(`/api/activities/${activity.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status })
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        throw new Error(data?.error || "Failed to update activity status");
+      }
+
+      // Refresh the contact data to update the activities list
+      await refreshContactData();
+      
+      showSuccess(
+        "Activity updated",
+        `Activity ${newStatus ? "activated" : "completed"} successfully.`
+      );
+    } catch (error) {
+      console.error("Failed to update activity status", error);
+      const message = error instanceof Error ? error.message : "Unable to update activity status";
+      showError("Failed to update activity", message);
+    }
+  }, [refreshContactData, showError, showSuccess]);
+
   const openActivityBulkDeleteDialog = useCallback(async () => {
     if (selectedActivities.length === 0) {
       showError("No activities selected", "Select at least one activity to delete.")
@@ -1098,6 +1134,38 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
     setShowOpportunityDeleteDialog(true)
   }, []);
 
+  const handleToggleOpportunityStatus = useCallback(async (opportunity: ContactOpportunityRow, newStatus: boolean) => {
+    if (!opportunity?.id) {
+      showError("Opportunity unavailable", "Unable to locate this opportunity record.");
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/opportunities/${opportunity.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ active: newStatus })
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        throw new Error(data?.error || "Failed to update opportunity status");
+      }
+
+      // Refresh the contact data to update the opportunities list
+      await refreshContactData();
+      
+      showSuccess(
+        "Opportunity updated",
+        `Opportunity ${newStatus ? "activated" : "deactivated"} successfully.`
+      );
+    } catch (error) {
+      console.error("Failed to update opportunity status", error);
+      const message = error instanceof Error ? error.message : "Unable to update opportunity status";
+      showError("Failed to update opportunity", message);
+    }
+  }, [refreshContactData, showError, showSuccess]);
+
   const closeOpportunityDeleteDialog = useCallback(() => {
     setShowOpportunityDeleteDialog(false)
     setOpportunityToDelete(null)
@@ -1272,6 +1340,38 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
     setGroupToDelete(group);
     setShowGroupDeleteDialog(true);
   }, []);
+
+  const handleToggleGroupStatus = useCallback(async (group: ContactGroupRow, newStatus: boolean) => {
+    if (!group?.id) {
+      showError("Group unavailable", "Unable to locate this group record.");
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/groups/${group.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isActive: newStatus })
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        throw new Error(data?.error || "Failed to update group status");
+      }
+
+      // Refresh the contact data to update the groups list
+      await refreshContactData();
+      
+      showSuccess(
+        "Group updated",
+        `Group ${newStatus ? "activated" : "deactivated"} successfully.`
+      );
+    } catch (error) {
+      console.error("Failed to update group status", error);
+      const message = error instanceof Error ? error.message : "Unable to update group status";
+      showError("Failed to update group", message);
+    }
+  }, [refreshContactData, showError, showSuccess]);
 
   const closeGroupDeleteDialog = useCallback(() => {
     setShowGroupDeleteDialog(false);
@@ -1633,10 +1733,28 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
                     <Check className="h-3 w-3" aria-hidden="true" />
                   </span>
                 </label>
-                {/* Visual toggle */}
-                <span className={`w-9 h-5 rounded-full ${activeValue ? 'bg-blue-600' : 'bg-gray-300'}`}>
-                  <span className={`inline-block w-4 h-4 bg-white rounded-full shadow transform ${activeValue ? 'translate-x-4' : 'translate-x-1'} mt-0.5`} />
-                </span>
+                {/* Active Toggle */}
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    handleToggleActivityStatus(row, !activeValue);
+                  }}
+                  className="relative inline-flex items-center cursor-pointer"
+                  title={activeValue ? "Active" : "Inactive"}
+                >
+                  <span
+                    className={`w-9 h-5 rounded-full transition-colors duration-300 ease-in-out ${
+                      activeValue ? "bg-blue-600" : "bg-gray-300"
+                    }`}
+                  >
+                    <span
+                      className={`inline-block w-4 h-4 bg-white rounded-full shadow transition-transform duration-300 ease-in-out transform ${
+                        activeValue ? "translate-x-4" : "translate-x-1"
+                      } mt-0.5 ${activeValue ? "ring-1 ring-blue-300" : ""}`}
+                    />
+                  </span>
+                </button>
                 {/* Actions */}
                 <div className="flex gap-0.5">
                   <button type="button" className="p-1 text-primary-600 hover:text-primary-700 transition-colors rounded" title="Edit activity" onClick={(e) => { e.stopPropagation(); handleActivityEdit(row) }}>
@@ -1691,7 +1809,7 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
       }
       return column
     })
-  }, [activityPreferenceColumns, handleActivityEdit, handleActivityDelete])
+  }, [activityPreferenceColumns, selectedActivities, handleActivityEdit, handleActivityDelete, handleToggleActivityStatus])
 
   const handleOpportunitiesSearch = useCallback((query: string) => {
     setOpportunitiesSearchQuery(query)
@@ -1717,10 +1835,28 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
                     <Check className="h-3 w-3" aria-hidden="true" />
                   </span>
                 </label>
-                {/* Visual toggle */}
-                <span className={`w-9 h-5 rounded-full ${activeValue ? 'bg-blue-600' : 'bg-gray-300'}`}>
-                  <span className={`inline-block w-4 h-4 bg-white rounded-full shadow transform ${activeValue ? 'translate-x-4' : 'translate-x-1'} mt-0.5`} />
-                </span>
+                {/* Active Toggle */}
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    handleToggleOpportunityStatus(row, !activeValue);
+                  }}
+                  className="relative inline-flex items-center cursor-pointer"
+                  title={activeValue ? "Active" : "Inactive"}
+                >
+                  <span
+                    className={`w-9 h-5 rounded-full transition-colors duration-300 ease-in-out ${
+                      activeValue ? "bg-blue-600" : "bg-gray-300"
+                    }`}
+                  >
+                    <span
+                      className={`inline-block w-4 h-4 bg-white rounded-full shadow transition-transform duration-300 ease-in-out transform ${
+                        activeValue ? "translate-x-4" : "translate-x-1"
+                      } mt-0.5 ${activeValue ? "ring-1 ring-blue-300" : ""}`}
+                    />
+                  </span>
+                </button>
                 <div className="flex gap-0.5">
                   <button type="button" className="p-1 text-primary-600 hover:text-primary-700 transition-colors rounded" title="Edit opportunity" onClick={(e) => { e.stopPropagation(); handleOpportunityEdit(row) }}>
                     <Edit className="h-3.5 w-3.5" />
@@ -1756,7 +1892,7 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
       }
       return column
     })
-  }, [contactOpportunityPreferenceColumns, handleOpportunityEdit, requestOpportunityDelete])
+  }, [contactOpportunityPreferenceColumns, selectedOpportunities, handleOpportunityEdit, requestOpportunityDelete, handleToggleOpportunityStatus])
 
   const handleGroupsSearch = useCallback((query: string) => {
     setGroupsSearchQuery(query)
@@ -1794,10 +1930,28 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
                     <Check className="h-3 w-3" aria-hidden="true" />
                   </span>
                 </label>
-                {/* Visual toggle */}
-                <span className={`w-9 h-5 rounded-full ${activeValue ? 'bg-blue-600' : 'bg-gray-300'}`}>
-                  <span className={`inline-block w-4 h-4 bg-white rounded-full shadow transform ${activeValue ? 'translate-x-4' : 'translate-x-1'} mt-0.5`} />
-                </span>
+                {/* Active Toggle */}
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    handleToggleGroupStatus(row, !activeValue);
+                  }}
+                  className="relative inline-flex items-center cursor-pointer"
+                  title={activeValue ? "Active" : "Inactive"}
+                >
+                  <span
+                    className={`w-9 h-5 rounded-full transition-colors duration-300 ease-in-out ${
+                      activeValue ? "bg-blue-600" : "bg-gray-300"
+                    }`}
+                  >
+                    <span
+                      className={`inline-block w-4 h-4 bg-white rounded-full shadow transition-transform duration-300 ease-in-out transform ${
+                        activeValue ? "translate-x-4" : "translate-x-1"
+                      } mt-0.5 ${activeValue ? "ring-1 ring-blue-300" : ""}`}
+                    />
+                  </span>
+                </button>
                 <div className="flex gap-0.5">
                   <button type="button" className="p-1 text-primary-600 hover:text-primary-700 transition-colors rounded" title="Edit group" onClick={(e) => { e.stopPropagation(); handleGroupEdit(row) }}>
                     <Edit className="h-3.5 w-3.5" />
@@ -1837,12 +1991,19 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
       }
       return column
     })
-  }, [contactGroupPreferenceColumns, selectedGroups, handleGroupSelect, handleGroupEdit, requestGroupDelete])
+  }, [contactGroupPreferenceColumns, selectedGroups, handleGroupEdit, requestGroupDelete, handleToggleGroupStatus])
 
   const filteredActivities = useMemo(() => {
-    let rows: ContactActivityRow[] = contact?.activities ?? []
+    let rows: ContactActivityRow[] = [...(contact?.activities ?? [])]
     if (activeFilter === "active") {
       rows = rows.filter(row => row.active)
+    } else if (activeFilter === "inactive") {
+      // Show all records but sort: inactive first, then active
+      rows.sort((a, b) => {
+        if (!a.active && b.active) return -1
+        if (a.active && !b.active) return 1
+        return 0
+      })
     }
     const query = activitiesSearchQuery.trim().toLowerCase()
     if (query.length > 0) {
@@ -1867,9 +2028,16 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
   }, [contact?.activities, activeFilter, activitiesSearchQuery, activitiesColumnFilters])
 
   const filteredOpportunities = useMemo(() => {
-    let rows: ContactOpportunityRow[] = contact?.opportunities ?? []
+    let rows: ContactOpportunityRow[] = [...(contact?.opportunities ?? [])]
     if (activeFilter === "active") {
       rows = rows.filter(row => row.active)
+    } else if (activeFilter === "inactive") {
+      // Show all records but sort: inactive first, then active
+      rows.sort((a, b) => {
+        if (!a.active && b.active) return -1
+        if (a.active && !b.active) return 1
+        return 0
+      })
     }
     const query = opportunitiesSearchQuery.trim().toLowerCase()
     if (query.length > 0) {
@@ -1898,9 +2066,16 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
   }, [contact?.opportunities, activeFilter, opportunitiesSearchQuery, opportunitiesColumnFilters])
 
   const filteredGroups = useMemo(() => {
-    let rows: ContactGroupRow[] = contact?.groups ?? []
+    let rows: ContactGroupRow[] = [...(contact?.groups ?? [])]
     if (activeFilter === "active") {
       rows = rows.filter(row => row.active)
+    } else if (activeFilter === "inactive") {
+      // Show all records but sort: inactive first, then active
+      rows.sort((a, b) => {
+        if (!a.active && b.active) return -1
+        if (a.active && !b.active) return 1
+        return 0
+      })
     }
     const query = groupsSearchQuery.trim().toLowerCase()
     if (query.length > 0) {

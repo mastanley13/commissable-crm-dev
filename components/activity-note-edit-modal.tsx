@@ -16,6 +16,7 @@ interface ActivityNoteEditModalProps {
   activityId: string | null
   accountId?: string | null
   contactId?: string | null
+  opportunityId?: string | null
   onClose: () => void
   onSuccess?: () => void
 }
@@ -50,7 +51,7 @@ const createInitialForm = (): ActivityEditFormState => ({
   description: ""
 })
 
-export function ActivityNoteEditModal({ isOpen, activityId, accountId, contactId, onClose, onSuccess }: ActivityNoteEditModalProps) {
+export function ActivityNoteEditModal({ isOpen, activityId, accountId, contactId, opportunityId, onClose, onSuccess }: ActivityNoteEditModalProps) {
   const [form, setForm] = useState<ActivityEditFormState>(() => createInitialForm())
   const [owners, setOwners] = useState<SelectOption[]>([])
   const [loading, setLoading] = useState(false)
@@ -143,7 +144,8 @@ export function ActivityNoteEditModal({ isOpen, activityId, accountId, contactId
         assigneeId: form.assigneeId.trim() || null,
         description: form.description.trim() || null,
         accountId: accountId ?? null,
-        contactId: contactId ?? null
+        contactId: contactId ?? null,
+        opportunityId: opportunityId ?? null
       }
 
       if (form.dueDate) {

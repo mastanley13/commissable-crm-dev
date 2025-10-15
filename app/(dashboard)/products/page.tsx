@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import Link from 'next/link'
 import { ListHeader, type ColumnFilter } from '@/components/list-header'
 import { DynamicTable, type Column, type PaginationInfo } from '@/components/dynamic-table'
 import { ColumnChooserModal } from '@/components/column-chooser-modal'
@@ -925,6 +926,46 @@ export default function ProductsPage() {
         return {
           ...column,
           render: (value: unknown) => (value ? 'Yes' : 'No'),
+        }
+      }
+
+      if (column.id === 'productNameVendor') {
+        return {
+          ...column,
+          render: (value: unknown, row: ProductRow) => {
+            const displayValue =
+              value === null || value === undefined ? '--' : typeof value === 'string' ? value : String(value)
+
+            return (
+              <Link
+                href={`/products/${row.id}`}
+                className="font-medium text-primary-700 hover:text-primary-800 hover:underline"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {displayValue}
+              </Link>
+            )
+          },
+        }
+      }
+
+      if (column.id === 'productNameHouse') {
+        return {
+          ...column,
+          render: (value: unknown, row: ProductRow) => {
+            const displayValue =
+              value === null || value === undefined ? '--' : typeof value === 'string' ? value : String(value)
+
+            return (
+              <Link
+                href={`/products/${row.id}`}
+                className="font-medium text-primary-700 hover:text-primary-800 hover:underline"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {displayValue}
+              </Link>
+            )
+          },
         }
       }
 

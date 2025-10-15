@@ -1,14 +1,17 @@
 'use client'
 
-import { useState, useCallback, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ListHeader } from '@/components/list-header'
 import { DynamicTable, Column, PaginationInfo } from '@/components/dynamic-table'
 import { ColumnChooserModal } from '@/components/column-chooser-modal'
 import { useTablePreferences } from '@/hooks/useTablePreferences'
-import { TableChangeNotification } from '@/components/table-change-notification'
 import { revenueSchedulesData } from '@/lib/mock-data'
-import { Edit, Trash2, Settings, Check } from 'lucide-react'
+import { Edit, Trash2, Check } from 'lucide-react'
+import { CopyProtectionWrapper } from '@/components/copy-protection'
+import { useToasts } from '@/components/toast'
+import { RevenueSchedulesBulkActionBar } from '@/components/revenue-schedules-bulk-action-bar'
 
+// Column configuration aligned to 04.00.000 – 04.00.023 (where data available)
 const revenueScheduleColumns: Column[] = [
   {
     id: 'multi-action',
@@ -18,6 +21,16 @@ const revenueScheduleColumns: Column[] = [
     maxWidth: 240,
     type: 'multi-action',
     accessor: 'checkbox'
+  },
+  {
+    id: 'distributorName',
+    label: 'Distributor Name', // 04.00.000
+    width: 160,
+    minWidth: 130,
+    maxWidth: 260,
+    sortable: true,
+    type: 'text',
+    hidden: true,
   },
   {
     id: 'opportunityId',
@@ -42,6 +55,7 @@ const revenueScheduleColumns: Column[] = [
       </span>
     )
   },
+  // Not part of 04.00 list — keep hidden/optional
   {
     id: 'accountLegalName',
     label: 'Account Legal Name',
@@ -50,11 +64,7 @@ const revenueScheduleColumns: Column[] = [
     maxWidth: 300,
     sortable: true,
     type: 'text',
-    render: (value) => (
-      <span className="text-blue-600 hover:text-blue-800 cursor-pointer">
-        {value}
-      </span>
-    )
+    hidden: true,
   },
   {
     id: 'productNameVendor',
@@ -94,53 +104,127 @@ const revenueScheduleColumns: Column[] = [
     type: 'text'
   },
   {
-    id: 'revenueSchedule',
-    label: 'Revenue Schedule',
+    id: 'revenueScheduleName', // 04.00.005
+    label: 'Revenue Schedule Name',
     width: 140,
     minWidth: 120,
     maxWidth: 180,
     sortable: true,
-    type: 'text'
+    type: 'text',
+    accessor: 'revenueSchedule',
   },
   {
-    id: 'distributorId',
-    label: 'Distributor ID',
+    id: 'customerIdDistributor', // 04.00.020
+    label: 'Customer ID - Distributor',
     width: 120,
     minWidth: 100,
     maxWidth: 150,
     sortable: true,
-    type: 'text'
+    type: 'text',
+    accessor: 'distributorId',
   },
+  // Non-spec; hide by default
+  { id: 'orderIdHouse', label: 'Order ID - House', width: 120, minWidth: 100, maxWidth: 180, sortable: true, type: 'text', hidden: true },
+  // 04.00.006 – Quantity (missing in mock) — keep hidden until backend
+  { id: 'quantity', label: 'Quantity', width: 100, minWidth: 90, maxWidth: 160, sortable: true, type: 'text', hidden: true },
+  // 04.00.007 – Price Each (missing in mock) — hidden
+  { id: 'priceEach', label: 'Price Each', width: 120, minWidth: 100, maxWidth: 160, sortable: true, type: 'text', hidden: true },
   {
-    id: 'orderIdHouse',
-    label: 'Order ID - House',
-    width: 120,
-    minWidth: 100,
-    maxWidth: 180,
-    sortable: true,
-    type: 'text'
-  },
-  {
-    id: 'expectedUsage',
-    label: 'Expected Usage',
+    id: 'expectedUsageGross', // 04.00.008
+    label: 'Expected Usage Gross',
     width: 120,
     minWidth: 100,
     maxWidth: 150,
     sortable: true,
-    type: 'text'
+    type: 'text',
+    accessor: 'expectedUsage',
   },
   {
-    id: 'usageAdjustment',
-    label: 'Usage Adjustment',
+    id: 'expectedUsageAdjustment', // 04.00.009
+    label: 'Expected Usage Adjustment',
     width: 140,
     minWidth: 120,
     maxWidth: 180,
     sortable: true,
-    type: 'text'
-  }
+    type: 'text',
+    accessor: 'usageAdjustment'
+  },
+  {
+    id: 'expectedUsageNet', // 04.00.010
+    label: 'Expected Usage Net',
+    width: 140,
+    minWidth: 120,
+    maxWidth: 200,
+    sortable: true,
+    type: 'text',
+  },
+  // 04.00.011 Actual Usage (missing) — hidden
+  { id: 'actualUsage', label: 'Actual Usage', width: 140, minWidth: 120, maxWidth: 200, sortable: true, type: 'text', hidden: true },
+  // 04.00.012 Usage Balance (requires actual usage) — hidden
+  { id: 'usageBalance', label: 'Usage Balance', width: 140, minWidth: 120, maxWidth: 200, sortable: true, type: 'text', hidden: true },
+  // 04.00.013 Expected Commission Net (depends on rate) — hidden
+  { id: 'expectedCommissionNet', label: 'Expected Commission Net', width: 160, minWidth: 130, maxWidth: 240, sortable: true, type: 'text', hidden: true },
+  // 04.00.014 Actual Commission — hidden
+  { id: 'actualCommission', label: 'Actual Commission', width: 150, minWidth: 120, maxWidth: 220, sortable: true, type: 'text', hidden: true },
+  // 04.00.015 Commission Difference — hidden
+  { id: 'commissionDifference', label: 'Commission Difference', width: 170, minWidth: 130, maxWidth: 260, sortable: true, type: 'text', hidden: true },
+  // 04.00.016 Customer ID - Vendor — hidden until backend
+  { id: 'customerIdVendor', label: 'Customer ID - Vendor', width: 160, minWidth: 130, maxWidth: 240, sortable: true, type: 'text', hidden: true },
+  // 04.00.017 Order ID - Vendor — hidden
+  { id: 'orderIdVendor', label: 'Order ID - Vendor', width: 150, minWidth: 120, maxWidth: 220, sortable: true, type: 'text', hidden: true },
+  // 04.00.018 Location ID — hidden
+  { id: 'locationId', label: 'Location ID', width: 130, minWidth: 110, maxWidth: 200, sortable: true, type: 'text', hidden: true },
+  // 04.00.021 Order ID - Distributor — hidden
+  { id: 'orderIdDistributor', label: 'Order ID - Distributor', width: 160, minWidth: 120, maxWidth: 220, sortable: true, type: 'text', hidden: true },
+  // 04.00.022 Schedule Status — hidden (not computed yet)
+  { id: 'scheduleStatus', label: 'Schedule Status', width: 150, minWidth: 120, maxWidth: 220, sortable: true, type: 'text', hidden: true },
+  // 04.00.023 In Dispute — hidden
+  { id: 'inDispute', label: 'In Dispute', width: 120, minWidth: 100, maxWidth: 160, sortable: true, type: 'text', hidden: true },
+]
+
+type FilterableColumnKey =
+  | 'accountName'
+  | 'vendorName'
+  | 'distributorName'
+  | 'productNameVendor'
+  | 'revenueScheduleName'
+  | 'revenueScheduleDate'
+  | 'opportunityId'
+  | 'customerIdDistributor'
+  | 'customerIdVendor'
+  | 'orderIdVendor'
+  | 'orderIdDistributor'
+  | 'locationId'
+
+const RS_DEFAULT_VISIBLE_COLUMN_IDS = new Set<string>([
+  'accountName',
+  'vendorName',
+  'productNameVendor',
+  'revenueScheduleDate',
+  'revenueScheduleName',
+  'expectedUsageGross',
+  'expectedUsageAdjustment',
+  'expectedUsageNet',
+  'opportunityId',
+])
+
+const filterOptions: { id: FilterableColumnKey; label: string }[] = [
+  { id: 'accountName', label: 'Account Name' },
+  { id: 'vendorName', label: 'Vendor Name' },
+  { id: 'distributorName', label: 'Distributor Name' },
+  { id: 'productNameVendor', label: 'Product Name - Vendor' },
+  { id: 'revenueScheduleName', label: 'Revenue Schedule Name' },
+  { id: 'revenueScheduleDate', label: 'Revenue Schedule Date' },
+  { id: 'opportunityId', label: 'Opportunity ID' },
+  { id: 'customerIdDistributor', label: 'Customer ID - Distributor' },
+  { id: 'customerIdVendor', label: 'Customer ID - Vendor' },
+  { id: 'orderIdVendor', label: 'Order ID - Vendor' },
+  { id: 'orderIdDistributor', label: 'Order ID - Distributor' },
+  { id: 'locationId', label: 'Location ID' },
 ]
 
 export default function RevenueSchedulesPage() {
+  const { showSuccess, showError, ToastContainer } = useToasts()
   const [revenueSchedules, setRevenueSchedules] = useState(revenueSchedulesData)
   const [filteredRevenueSchedules, setFilteredRevenueSchedules] = useState(revenueSchedulesData)
   const [loading, setLoading] = useState(false)
@@ -148,6 +232,8 @@ export default function RevenueSchedulesPage() {
   const [showColumnSettings, setShowColumnSettings] = useState(false)
   const [currentPage, setCurrentPage] = useState<number>(1)
   const [pageSize, setPageSize] = useState<number>(25)
+  const [activeFilter, setActiveFilter] = useState<'all' | 'active'>('active')
+  const [columnFilters, setColumnFilters] = useState<{ columnId: FilterableColumnKey; value: string }[]>([])
 
   const handleToggleScheduleStatus = useCallback((scheduleId: number, newStatus: boolean) => {
     setRevenueSchedules(prev => prev.map(s => s.id === scheduleId ? { ...s, active: newStatus } : s))
@@ -162,10 +248,30 @@ export default function RevenueSchedulesPage() {
     hasUnsavedChanges,
     lastSaved,
     handleColumnsChange,
-    handleHiddenColumnsChange,
     saveChanges,
     saveChangesOnModalClose,
-  } = useTablePreferences("revenue-schedules:list", revenueScheduleColumns)
+  } = useTablePreferences('revenue-schedules:list', revenueScheduleColumns)
+
+  // Normalize default column visibility for first load
+  const [rsColumnsNormalized, setRsColumnsNormalized] = useState(false)
+  useEffect(() => {
+    if (rsColumnsNormalized || preferenceLoading) return
+    if (!preferenceColumns || preferenceColumns.length === 0) return
+
+    const normalized = preferenceColumns.map(column => {
+      if (column.id === 'multi-action') return column
+      if (RS_DEFAULT_VISIBLE_COLUMN_IDS.has(column.id)) {
+        return column.hidden ? { ...column, hidden: false } : column
+      }
+      return column.hidden === true ? column : { ...column, hidden: true }
+    })
+
+    const changed = normalized.some((c, i) => c.hidden !== preferenceColumns[i].hidden)
+    if (changed) {
+      handleColumnsChange(normalized)
+    }
+    setRsColumnsNormalized(true)
+  }, [preferenceColumns, preferenceLoading, handleColumnsChange, rsColumnsNormalized])
 
   const handleSearch = (query: string) => {
     if (!query.trim()) {
@@ -204,13 +310,25 @@ export default function RevenueSchedulesPage() {
     // Open create schedule modal or navigate to create page
   }
 
-  const handleFilterChange = (filter: string) => {
-    if (filter === 'active') {
-      setFilteredRevenueSchedules(revenueSchedules.filter(schedule => schedule.active))
-    } else {
-      setFilteredRevenueSchedules(revenueSchedules)
-    }
+  const handleStatusFilterChange = (filter: string) => {
+    setActiveFilter(filter === 'active' ? 'active' : 'all')
+    setCurrentPage(1)
   }
+
+  const handleColumnFiltersChange = useCallback((filters: { columnId: string; value: string }[]) => {
+    setCurrentPage(1)
+    if (!Array.isArray(filters) || filters.length === 0) {
+      setColumnFilters([])
+      return
+    }
+
+    const sanitized = filters
+      .filter(f => filterOptions.some(opt => opt.id === (f.columnId as FilterableColumnKey)))
+      .map(f => ({ columnId: f.columnId as FilterableColumnKey, value: (f.value ?? '').trim() }))
+      .filter(f => f.value.length > 0)
+
+    setColumnFilters(sanitized)
+  }, [])
 
   const handleSelectSchedule = (scheduleId: number, selected: boolean) => {
     if (selected) {
@@ -238,16 +356,61 @@ export default function RevenueSchedulesPage() {
     setCurrentPage(1) // Reset to first page when page size changes
   }, [])
 
+  // Utility: parse/format currency for computed columns
+  const parseCurrency = (value: unknown): number => {
+    if (typeof value !== 'string') return 0
+    const trimmed = value.trim()
+    if (!trimmed) return 0
+    const negative = trimmed.startsWith('(') && trimmed.endsWith(')')
+    const numeric = trimmed.replace(/[$,()\s]/g, '')
+    const n = Number(numeric || '0')
+    return negative ? -n : n
+  }
+  const formatCurrency = (n: number): string => {
+    try {
+      return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(n)
+    } catch {
+      return `$${n.toFixed(2)}`
+    }
+  }
+
+  // Apply status and column filters
+  const filteredByStatusAndColumns = useMemo(() => {
+    let next = activeFilter === 'active' ? revenueSchedules.filter(r => r.active) : [...revenueSchedules]
+    if (columnFilters.length > 0) {
+      columnFilters.forEach(filter => {
+        const key = filter.columnId as keyof typeof revenueSchedules[number]
+        const val = filter.value.toLowerCase()
+        next = next.filter(row => {
+          const rv = row[key]
+          if (rv === undefined || rv === null) return false
+          return String(rv).toLowerCase().includes(val)
+        })
+      })
+    }
+    return next
+  }, [revenueSchedules, activeFilter, columnFilters])
+
+  // Add computed columns (Expected Usage Net)
+  const withComputed = useMemo(() => {
+    return filteredByStatusAndColumns.map(row => {
+      const gross = parseCurrency(row.expectedUsage)
+      const adj = parseCurrency(row.usageAdjustment)
+      const net = gross + adj
+      return { ...row, expectedUsageNet: formatCurrency(net) }
+    })
+  }, [filteredByStatusAndColumns])
+
   // Calculate paginated data
   const paginatedRevenueSchedules = useMemo(() => {
     const startIndex = (currentPage - 1) * pageSize
     const endIndex = startIndex + pageSize
-    return filteredRevenueSchedules.slice(startIndex, endIndex)
-  }, [filteredRevenueSchedules, currentPage, pageSize])
+    return withComputed.slice(startIndex, endIndex)
+  }, [withComputed, currentPage, pageSize])
 
   // Calculate pagination info
   const paginationInfo = useMemo((): PaginationInfo => {
-    const totalItems = filteredRevenueSchedules.length
+    const totalItems = withComputed.length
     const totalPages = Math.ceil(totalItems / pageSize)
 
     return {
@@ -256,7 +419,7 @@ export default function RevenueSchedulesPage() {
       pageSize,
       total: totalItems,
     }
-  }, [filteredRevenueSchedules.length, currentPage, pageSize])
+  }, [withComputed.length, currentPage, pageSize])
 
   const tableLoading = loading || preferenceLoading
   const tableColumns = useMemo(() => {
@@ -267,7 +430,6 @@ export default function RevenueSchedulesPage() {
           render: (_: unknown, row: any) => {
             const rowId = Number(row.id)
             const checked = selectedSchedules.includes(rowId)
-            const activeValue = !!row.active
             return (
               <div className="flex items-center gap-2" data-disable-row-click="true">
                 {/* Checkbox */}
@@ -284,27 +446,17 @@ export default function RevenueSchedulesPage() {
                   </span>
                 </label>
 
-                {/* Active Toggle */}
-                <button
-                  type="button"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    handleToggleScheduleStatus(rowId, !activeValue)
-                  }}
-                  className="relative inline-flex items-center cursor-pointer"
-                  title={activeValue ? 'Active' : 'Inactive'}
-                >
-                  <span className={`w-9 h-5 rounded-full transition-colors duration-300 ease-in-out ${activeValue ? 'bg-blue-600' : 'bg-gray-300'}`}>
-                    <span className={`inline-block w-4 h-4 bg-white rounded-full shadow transition-transform duration-300 ease-in-out transform ${activeValue ? 'translate-x-4' : 'translate-x-1'} mt-0.5 ${activeValue ? 'ring-1 ring-blue-300' : ''}`} />
-                  </span>
-                </button>
-
                 {/* Actions */}
                 <div className="flex gap-0.5">
                   <button type="button" className="p-1 text-blue-500 hover:text-blue-700 transition-colors rounded" onClick={(e) => { e.preventDefault(); e.stopPropagation(); }} aria-label="Edit schedule">
                     <Edit className="h-3.5 w-3.5" />
                   </button>
-                  <button type="button" className={`p-1 rounded transition-colors ${activeValue ? 'text-red-500 hover:text-red-700' : 'text-gray-400 hover:text-gray-600'}`} onClick={(e) => { e.preventDefault(); e.stopPropagation(); }} aria-label={activeValue ? 'Delete schedule' : 'Manage schedule'}>
+                  <button
+                    type="button"
+                    className="p-1 text-gray-500 hover:text-gray-700 transition-colors rounded"
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                    aria-label="Manage schedule"
+                  >
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
                 </div>
@@ -317,13 +469,6 @@ export default function RevenueSchedulesPage() {
     });
   }, [preferenceColumns, selectedSchedules, handleSelectSchedule, handleToggleScheduleStatus])
   
-  // Get hidden columns by comparing all columns with visible ones
-  const hiddenColumns = useMemo(() => {
-    return revenueScheduleColumns
-      .filter(col => !tableColumns.some(visibleCol => visibleCol.id === col.id))
-      .map(col => col.id)
-  }, [tableColumns])
-
   // Update schedules data to include selection state
   const schedulesWithSelection = paginatedRevenueSchedules.map(schedule => ({
     ...schedule,
@@ -331,119 +476,92 @@ export default function RevenueSchedulesPage() {
   }))
 
   return (
-    <div className="dashboard-page-container">
-      {/* Custom Filter Header for Revenue Schedules */}
-      <div className="bg-white border-b border-gray-200 p-4">
-        <div className="flex items-center gap-4 mb-4">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium">All</span>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input type="checkbox" className="sr-only peer" />
-              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-            </label>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium">Reconciled</span>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input type="checkbox" className="sr-only peer" />
-              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-            </label>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium">Un Reconciled</span>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input type="checkbox" className="sr-only peer" />
-              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-            </label>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium">Start Date</span>
-            <input 
-              type="date" 
-              className="px-3 py-1 border border-gray-300 rounded-md text-sm"
-              placeholder="YYYY-MM-DD"
-            />
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium">End Date</span>
-            <input 
-              type="date" 
-              className="px-3 py-1 border border-gray-300 rounded-md text-sm"
-              placeholder="YYYY-MM-DD"
-            />
-          </div>
-        </div>
-      </div>
+    <CopyProtectionWrapper className="dashboard-page-container">
+      <ListHeader
+        pageTitle="REVENUE SCHEDULES LIST"
+        searchPlaceholder="Search revenue schedules..."
+        onSearch={handleSearch}
+        onFilterChange={handleStatusFilterChange}
+        onCreateClick={handleCreateSchedule}
+        onSettingsClick={() => setShowColumnSettings(true)}
+        filterColumns={filterOptions}
+        columnFilters={columnFilters}
+        onColumnFiltersChange={handleColumnFiltersChange}
+        statusFilter={activeFilter}
+        hasUnsavedTableChanges={hasUnsavedChanges}
+        isSavingTableChanges={preferenceSaving}
+        lastTableSaved={lastSaved || undefined}
+        onSaveTableChanges={saveChanges}
+      />
 
-      <div className="bg-white border-b border-gray-200 px-4 py-3">
-        <div className="flex items-center justify-between gap-4">
-          {/* Page Title */}
-          <p className="text-xs font-semibold uppercase tracking-wide text-primary-600">REVENUE SCHEDULES LIST</p>
-
-          {/* Left side - Search */}
-          <div className="flex items-center flex-1 max-w-md">
-            <div className="relative w-full">
-              <input
-                type="text"
-                placeholder="Search revenue schedules..."
-                onChange={(e) => handleSearch(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all"
-              />
-            </div>
-          </div>
-
-          {/* Table Change Notification - Always show */}
-          <div className="flex items-center">
-            <TableChangeNotification
-              hasUnsavedChanges={hasUnsavedChanges || false}
-              isSaving={preferenceSaving || false}
-              lastSaved={lastSaved || undefined}
-              onSave={saveChanges}
-            />
-          </div>
-
-          {/* Center - Controls */}
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleCreateSchedule}
-              className="inline-flex items-center px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 transition-colors"
-            >
-              Create New
-            </button>
-            
-            <button
-              onClick={() => setShowColumnSettings(true)}
-              className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors"
-              title="Column Settings"
-            >
-              <Settings className="h-4 w-4" />
-            </button>
-          </div>
-
-          {/* Right side - Filters */}
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => handleFilterChange("active")}
-              className="px-3 py-1.5 text-sm font-medium rounded-lg transition-colors bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"
-            >
-              Active
-            </button>
-            <button
-              onClick={() => handleFilterChange("all")}
-              className="px-3 py-1.5 text-sm font-medium rounded-lg transition-colors bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"
-            >
-              Show All
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {preferenceError && (
+      {(preferenceError) && (
         <div className="px-4 text-sm text-red-600">{preferenceError}</div>
       )}
 
-      {/* Table */}
       <div className="flex-1 p-4 min-h-0">
+        <RevenueSchedulesBulkActionBar
+          count={selectedSchedules.length}
+          onExportCsv={() => {
+            if (selectedSchedules.length === 0) {
+              showError('No items selected', 'Select at least one item to export.')
+              return
+            }
+            const rows = revenueSchedules.filter(r => selectedSchedules.includes(r.id))
+            if (rows.length === 0) {
+              showError('Items not available', 'Unable to locate the selected items. Refresh and try again.')
+              return
+            }
+            const headers = [
+              'Account Name',
+              'Vendor Name',
+              'Product Name - Vendor',
+              'Revenue Schedule Date',
+              'Revenue Schedule Name',
+              'Expected Usage Gross',
+              'Expected Usage Adjustment',
+              'Expected Usage Net',
+              'Opportunity ID',
+              'Customer ID - Distributor',
+            ]
+            const escapeCsv = (value: string | null | undefined) => {
+              if (value === null || value === undefined) return ''
+              const sv = String(value)
+              return (sv.includes('"') || sv.includes(',') || sv.includes('\n') || sv.includes('\r')) ? `"${sv.replace(/"/g, '""')}"` : sv
+            }
+            const lines = [
+              headers.join(','),
+              ...rows.map(row => {
+                const gross = parseCurrency(row.expectedUsage)
+                const adj = parseCurrency(row.usageAdjustment)
+                const net = gross + adj
+                return [
+                  row.accountName,
+                  row.vendorName,
+                  row.productNameVendor,
+                  row.revenueScheduleDate,
+                  row.revenueSchedule,
+                  row.expectedUsage,
+                  row.usageAdjustment,
+                  formatCurrency(net),
+                  row.opportunityId,
+                  row.distributorId,
+                ].map(escapeCsv).join(',')
+              })
+            ]
+            const blob = new Blob([lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' })
+            const url = window.URL.createObjectURL(blob)
+            const link = document.createElement('a')
+            const timestamp = new Date().toISOString().replace(/[:T]/g, '-').split('.')[0]
+            link.href = url
+            link.download = `revenue-schedules-export-${timestamp}.csv`
+            document.body.appendChild(link)
+            link.click()
+            document.body.removeChild(link)
+            window.URL.revokeObjectURL(url)
+            showSuccess(`Exported ${rows.length} item${rows.length === 1 ? '' : 's'}`, 'Check your downloads for the CSV file.')
+          }}
+        />
+
         <DynamicTable
           columns={tableColumns}
           data={schedulesWithSelection}
@@ -452,13 +570,14 @@ export default function RevenueSchedulesPage() {
           loading={tableLoading}
           emptyMessage="No revenue schedules found"
           onColumnsChange={handleColumnsChange}
-          selectedItems={selectedSchedules.map(String)}
-          onItemSelect={(id, selected) => handleSelectSchedule(Number(id), selected)}
-          onSelectAll={handleSelectAll}
-          autoSizeColumns={false}
           pagination={paginationInfo}
           onPageChange={handlePageChange}
           onPageSizeChange={handlePageSizeChange}
+          selectedItems={selectedSchedules.map(String)}
+          onItemSelect={(id, selected, row) => handleSelectSchedule(Number(id), selected)}
+          onSelectAll={handleSelectAll}
+          autoSizeColumns={false}
+          alwaysShowPagination
         />
       </div>
 
@@ -471,6 +590,7 @@ export default function RevenueSchedulesPage() {
           await saveChangesOnModalClose()
         }}
       />
-    </div>
+      <ToastContainer />
+    </CopyProtectionWrapper>
   )
 }

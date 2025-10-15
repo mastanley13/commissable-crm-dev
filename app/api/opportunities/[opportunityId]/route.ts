@@ -3,8 +3,8 @@ import { LeadSource, OpportunityStage, OpportunityStatus } from "@prisma/client"
 import { prisma } from "@/lib/db"
 import { withPermissions } from "@/lib/api-auth"
 import { hasAnyPermission } from "@/lib/auth"
-import { mapOpportunityToRow } from "../helpers"
-import { revalidatePath } from "next/cache"
+import { mapOpportunityToDetail, mapOpportunityToRow } from "../helpers"
+import { revalidateOpportunityPaths } from "../revalidate"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -80,19 +80,6 @@ function formatSubAgentDescription(value: string | null | undefined) {
   return `Subagent: ${finalValue}`
 }
 
-async function revalidateOpportunityPaths(accountId: string | null) {
-  try {
-    revalidatePath("/opportunities")
-    if (accountId) {
-      revalidatePath(`/accounts/${accountId}`)
-    } else {
-      revalidatePath("/accounts")
-    }
-  } catch (error) {
-    console.warn("Failed to revalidate opportunity paths", error)
-  }
-}
-
 export async function GET(request: NextRequest, { params }: { params: { opportunityId: string } }) {
   return withPermissions(request, OPPORTUNITY_VIEW_PERMISSIONS, async (req) => {
     try {
@@ -112,7 +99,47 @@ export async function GET(request: NextRequest, { params }: { params: { opportun
       const opportunity = await prisma.opportunity.findFirst({
         where: { id: opportunityId, tenantId },
         include: {
-          owner: { select: { firstName: true, lastName: true } }
+          owner: { select: { id: true, firstName: true, lastName: true, fullName: true } },
+          account: { select: { id: true, accountName: true, accountLegalName: true } },
+          createdBy: { select: { id: true, fullName: true } },
+          updatedBy: { select: { id: true, fullName: true } },
+          products: {
+            include: {
+              product: {
+                select: {
+                  id: true,
+                  productNameHouse: true,
+                  productNameVendor: true,
+                  productCode: true,
+                  revenueType: true,
+                  priceEach: true,
+                  distributor: { select: { id: true, accountName: true } },
+                  vendor: { select: { id: true, accountName: true } }
+                }
+              }
+            },
+            orderBy: { createdAt: "asc" }
+          },
+          revenueSchedules: {
+            include: {
+              product: {
+                select: {
+                  productNameVendor: true,
+                  commissionPercent: true,
+                  priceEach: true
+                }
+              },
+              distributor: { select: { accountName: true } },
+              vendor: { select: { accountName: true } },
+              opportunityProduct: {
+                select: {
+                  quantity: true,
+                  unitPrice: true
+                }
+              }
+            },
+            orderBy: { scheduleDate: "asc" }
+          }
         }
       })
 
@@ -127,6 +154,7 @@ export async function GET(request: NextRequest, { params }: { params: { opportun
       }
 
       const baseRow = mapOpportunityToRow(opportunity)
+      const detail = mapOpportunityToDetail(opportunity)
       const subAgent = extractSubAgent(opportunity.description)
 
       return NextResponse.json({
@@ -138,7 +166,8 @@ export async function GET(request: NextRequest, { params }: { params: { opportun
           leadSource: opportunity.leadSource ?? null,
           ownerId: opportunity.ownerId ?? null,
           estimatedCloseDate: opportunity.estimatedCloseDate,
-          subAgent
+          subAgent,
+          detail
         }
       })
     } catch (error) {

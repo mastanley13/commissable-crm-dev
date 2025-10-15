@@ -1,6 +1,8 @@
 'use client'
 
+import Link from 'next/link'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { ListHeader, type ColumnFilter } from '@/components/list-header'
 import { DynamicTable, type Column, type PaginationInfo } from '@/components/dynamic-table'
 import { ColumnChooserModal } from '@/components/column-chooser-modal'
@@ -269,6 +271,7 @@ export default function OpportunitiesPage() {
   const [updatingOpportunityIds, setUpdatingOpportunityIds] = useState<Set<string>>(new Set())
   const [tableBodyHeight, setTableBodyHeight] = useState<number>()
   const tableAreaNodeRef = useRef<HTMLDivElement | null>(null)
+  const router = useRouter()
 
   const {
     showError,
@@ -535,10 +538,15 @@ export default function OpportunitiesPage() {
     [opportunities],
   )
 
-  const handleRowClick = useCallback((row: OpportunityRow) => {
-    setOpportunityToEdit(row)
-    setShowEditModal(true)
-  }, [])
+  const handleRowClick = useCallback(
+    (row: OpportunityRow) => {
+      if (!row?.id) {
+        return
+      }
+      router.push(`/opportunities/${row.id}`)
+    },
+    [router],
+  )
 
   const handleOpportunityEdit = useCallback((row: OpportunityRow) => {
     setOpportunityToEdit(row)
@@ -1206,11 +1214,26 @@ export default function OpportunitiesPage() {
       if (column.id === 'opportunityName') {
         return {
           ...column,
-          render: (value: unknown) => (
-            <span className="cursor-pointer font-medium text-blue-600 hover:text-blue-800">
-              {String(value ?? '')}
-            </span>
-          ),
+          render: (value: unknown, row: unknown) => {
+            const label = String(value ?? '')
+            const opportunityRow = row as OpportunityRow | undefined
+            const opportunityId = opportunityRow?.id
+
+            if (!opportunityId) {
+              return <span className="font-medium text-blue-600">{label}</span>
+            }
+
+            return (
+              <Link
+                href={`/opportunities/${opportunityId}`}
+                className="cursor-pointer font-medium text-blue-600 hover:text-blue-800"
+                onClick={(event) => event.stopPropagation()}
+                prefetch={false}
+              >
+                {label}
+              </Link>
+            )
+          },
         }
       }
 

@@ -41,10 +41,12 @@ function generateAttachmentId() {
 }
 export interface ActivityNoteCreateModalProps {
   isOpen: boolean
-  context: "account" | "contact"
+  context: "account" | "contact" | "opportunity"
   entityName?: string
   accountId?: string
   contactId?: string
+  opportunityId?: string
+  opportunityName?: string
   onClose: () => void
   onSuccess?: () => void
 }
@@ -80,7 +82,17 @@ const createInitialState = (): ActivityNoteFormState => ({
   shareWithTeam: true
 })
 
-export function ActivityNoteCreateModal({ isOpen, context, entityName, accountId, contactId, onClose, onSuccess }: ActivityNoteCreateModalProps) {
+export function ActivityNoteCreateModal({
+  isOpen,
+  context,
+  entityName,
+  accountId,
+  contactId,
+  opportunityId,
+  opportunityName,
+  onClose,
+  onSuccess
+}: ActivityNoteCreateModalProps) {
   const [form, setForm] = useState<ActivityNoteFormState>(() => createInitialState())
   const [loading, setLoading] = useState(false)
   const [ownerOptions, setOwnerOptions] = useState<SelectOption[]>([])
@@ -210,15 +222,34 @@ export function ActivityNoteCreateModal({ isOpen, context, entityName, accountId
     setAttachments(prev => prev.filter(item => item.id !== id))
   }
 
-  const headerTitle = context === "account" ? "Log Activity / Note for Account" : "Log Activity / Note for Contact"
-  const subtitle = entityName ? `${context === "account" ? "Account" : "Contact"}: ${entityName}` : undefined
+  const { headerTitle, subtitle } = useMemo(() => {
+    switch (context) {
+      case "account":
+        return {
+          headerTitle: "Log Activity / Note for Account",
+          subtitle: entityName ? `Account: ${entityName}` : undefined
+        }
+      case "contact":
+        return {
+          headerTitle: "Log Activity / Note for Contact",
+          subtitle: entityName ? `Contact: ${entityName}` : undefined
+        }
+      case "opportunity":
+      default:
+        return {
+          headerTitle: "Log Activity / Note for Opportunity",
+          subtitle: opportunityName ? `Opportunity: ${opportunityName}` : undefined
+        }
+    }
+  }, [context, entityName, opportunityName])
 
   const canSubmit = useMemo(() => {
     if (!form.activitySubject.trim()) return false
-    if (!accountId && context === "account") return false
-    if (!contactId && context === "contact") return false
+    if (context === "account" && !accountId) return false
+    if (context === "contact" && !contactId) return false
+    if (context === "opportunity" && !opportunityId) return false
     return true
-  }, [accountId, contactId, context, form.activitySubject])
+  }, [accountId, contactId, context, form.activitySubject, opportunityId])
 
   const handleClose = () => {
     setForm(createInitialState())
@@ -261,6 +292,7 @@ export function ActivityNoteCreateModal({ isOpen, context, entityName, accountId
       description: descriptionSegments.length ? descriptionSegments.join("\n\n") : null,
       accountId: accountId ?? null,
       contactId: contactId ?? null,
+      opportunityId: opportunityId ?? null,
       creatorId: form.createdById || null
     }
 
@@ -306,15 +338,20 @@ export function ActivityNoteCreateModal({ isOpen, context, entityName, accountId
         }
       }
 
+      const baseSuccess =
+        context === "account"
+          ? "The activity has been added to this account."
+          : context === "contact"
+            ? "The activity has been added for this contact."
+            : "The activity has been added for this opportunity."
+
       if (attachmentError) {
-        showSuccess("Activity logged", context === "account" ? "The activity has been added to this account." : "The activity has been added for this contact.")
+        showSuccess("Activity logged", baseSuccess)
         showError("Attachments not uploaded", `${attachmentError}. The activity was saved without files.`)
       } else {
         const successMessage = attachments.length > 0
           ? "The activity and attachments have been saved."
-          : (context === "account"
-            ? "The activity has been added to this account."
-            : "The activity has been added for this contact.")
+          : baseSuccess
         showSuccess("Activity logged", successMessage)
       }
 

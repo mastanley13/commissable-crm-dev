@@ -1,4 +1,4 @@
-﻿-- Update ActivityType enum to new contract-aligned values
+-- Update ActivityType enum to new contract-aligned values
 CREATE TYPE "public"."ActivityType_new" AS ENUM ('Call', 'Meeting', 'ToDo', 'Note', 'Other');
 ALTER TABLE "public"."Activity"
   ALTER COLUMN "activityType" TYPE "public"."ActivityType_new"
@@ -10,7 +10,6 @@ ALTER TABLE "public"."Activity"
 DROP TYPE "public"."ActivityType";
 ALTER TYPE "public"."ActivityType_new" RENAME TO "ActivityType";
 
--- Collapse legacy ActivityStatus values down to Open/Completed and update default
 CREATE TYPE "public"."ActivityStatus_new" AS ENUM ('Open', 'Completed');
 ALTER TABLE "public"."Activity"
   ALTER COLUMN "status" TYPE "public"."ActivityStatus_new"

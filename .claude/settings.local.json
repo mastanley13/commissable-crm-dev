@@ -22,7 +22,8 @@
       "Bash(npx tsx:*)",
       "Bash(cd:*)",
       "Bash(tasklist)",
-      "Bash(findstr:*)"
+      "Bash(findstr:*)",
+      "Bash(mkdir:*)"
     ],
     "deny": []
   }

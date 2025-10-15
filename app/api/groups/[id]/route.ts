@@ -23,13 +23,20 @@ function mapGroupToDetail(group: any) {
   }
 }
 
+const GROUP_READ_PERMISSIONS = [
+  'groups.manage',
+  'groups.read',
+  'accounts.manage',
+  'accounts.read'
+]
+
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   return withPermissions(
     request,
-    ['groups.manage', 'groups.read'],
+    GROUP_READ_PERMISSIONS,
     async (req) => {
       try {
         const groupId = params.id
@@ -62,13 +69,20 @@ export async function GET(
   )
 }
 
+const GROUP_EDIT_PERMISSIONS = [
+  'groups.manage',
+  'groups.edit',
+  'accounts.manage',
+  'accounts.update'
+]
+
 export async function PATCH(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   return withPermissions(
     request,
-    ['groups.manage'],
+    GROUP_EDIT_PERMISSIONS,
     async (req) => {
       try {
         const body = await request.json()
@@ -157,13 +171,20 @@ export async function PATCH(
   )
 }
 
+const GROUP_DELETE_PERMISSIONS = [
+  'groups.manage',
+  'groups.delete',
+  'accounts.manage',
+  'accounts.delete'
+]
+
 export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   return withPermissions(
     request,
-    ['groups.manage'],
+    GROUP_DELETE_PERMISSIONS,
     async (req) => {
       try {
         const groupId = params.id

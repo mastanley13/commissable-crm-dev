@@ -273,7 +273,134 @@ Deliver the Opportunities module (list + details + create/edit + product line it
 
 ## Gaps & Assumptions
 
-* I could not extract the **field/stage** tables directly from the Milestone‑2 PDF; the plan above intentionally marks those as **MSAP‑controlled TODOs** so your agent stays within scope and you retain acceptance control. If you drop in the field & stage matrices (or a text‑friendly PDF), I’ll slot them into the spec immediately. 
+* I could not extract the **field/stage** tables directly from the Milestone‑2 PDF; the plan above intentionally marks those as **MSAP‑controlled TODOs** so your agent stays within scope and you retain acceptance control. If you drop in the field & stage matrices (or a text‑friendly PDF), I'll slot them into the spec immediately. 
+
+---
+
+## CURRENT IMPLEMENTATION STATUS (Updated 2025-10-14)
+
+### ✅ Completed Components (~70% of M2 Scope)
+
+**List View (100% Complete)**
+- ✅ Server-side paginated list with filters, sorting, search
+- ✅ Column customization (hide/show/reorder/resize) with user preferences
+- ✅ Bulk actions (owner reassignment, status updates, delete, CSV export)
+- ✅ Active/inactive status toggles
+- ✅ RBAC enforcement (view any/assigned)
+
+**Detail View (100% Complete)** ✅ **NEWLY IMPLEMENTED**
+- ✅ Full detail page at `/opportunities/[opportunityId]`
+- ✅ Pill-style tab navigation (Details, Products, Activities, History)
+- ✅ Header section with read-only fields (name, stage, status, probability, account link, owner, type, leadSource)
+- ✅ Details tab showing overview, totals, description, audit info
+- ✅ Edit modal integration (reuses `opportunity-edit-modal.tsx`)
+
+**Products/Line Items (100% Complete)** ✅ **NEWLY IMPLEMENTED**
+- ✅ Products tab with `DynamicTable`, `ListHeader`, column preferences
+- ✅ Create line item modal with product picker, quantity, pricing, dates
+- ✅ Edit line item modal with full field support
+- ✅ Delete line item with confirmation dialog
+- ✅ Server-side totals computation (quantity, revenue, commission, usage)
+- ✅ API endpoints:
+  - `POST /api/opportunities/{id}/line-items`
+  - `PATCH /api/opportunities/line-items/{id}`
+  - `DELETE /api/opportunities/line-items/{id}`
+- ✅ RBAC enforcement (edit any/assigned)
+
+**Activities Integration (100% Complete)** ✅ **NEWLY IMPLEMENTED**
+- ✅ Activities tab with `DynamicTable`, `ListHeader`, column preferences
+- ✅ Fetches activities filtered by `contextType=Opportunity`
+- ✅ Create activity modal linked to opportunity
+- ✅ Edit activity modal
+- ✅ Delete activity with confirmation
+
+**History/Audit Tab (100% Complete)** ✅ **NEWLY IMPLEMENTED**
+- ✅ History tab with `DynamicTable`, `ListHeader`, column preferences
+- ✅ Fetches audit logs from `/api/audit-logs` for Opportunity + OpportunityProduct entities
+- ✅ Displays audit entries with date, action, actor, entity, details
+
+**Data Model (100% Complete)**
+- ✅ All MSAP fields present in schema (prisma/schema.prisma:409-469)
+- ✅ Opportunity model with relations to Account, User, OpportunityProduct
+- ✅ OpportunityProduct model with quantity, pricing, dates
+- ✅ Indexes on tenantId, accountId, ownerId, stage, estimatedCloseDate
+
+### ⚠️ Partially Implemented
+
+**Validation & Business Logic (30% Complete)**
+- ✅ Basic enum validation (stage, status, leadSource)
+- ✅ Required field validation (name, account, owner, stage, leadSource, estimatedCloseDate)
+- ❌ Stage transition matrix enforcement
+- ❌ Required fields by stage
+- ❌ Cross-field validations (e.g., lossReason required when status=Lost)
+- ❌ Probability auto-calculation based on stage
+- ❌ Amount calculation from line item totals (logic exists but not enforced)
+
+**Audit Logging (50% Complete)**
+- ✅ Audit log read API exists and integrated in History tab
+- ✅ General audit helpers exist (lib/audit.ts)
+- ❌ Audit writes not integrated into Opportunity POST/PATCH/DELETE handlers
+- ❌ Audit writes not integrated into line item endpoints
+
+**Amount & Probability Management (20% Complete)**
+- ✅ Fields exist in schema and are displayed in detail view
+- ❌ Not editable in create/edit modals
+- ❌ No UI workflow to set or calculate these values
+
+### ❌ Not Implemented
+
+**Kanban View (0% Complete)**
+- ❌ No Kanban pipeline by stage
+- ❌ No drag-and-drop stage changes
+- ❌ No guarded transitions with validation
+
+**Close Endpoint & Lifecycle (0% Complete)**
+- ❌ No `POST /api/opportunities/{id}/close` endpoint
+- ❌ No won/lost validation rules (e.g., lossReason required)
+- ❌ Can set status to Won/Lost via PATCH but no enforcement
+
+**Import (0% Complete)**
+- ❌ No import UI or flow
+- ❌ No `POST /api/opportunities/import` endpoint
+- ❌ Import sequence defined in plan but not implemented
+
+**Performance & Observability (20% Complete)**
+- ✅ Server-side pagination (≤100 rows/page)
+- ❌ No Redis caching for list endpoints
+- ❌ No latency instrumentation or dashboards
+- ❌ No row virtualization in tables
+- ❌ Performance budgets not measured or verified
+
+**Additional Gaps**
+- ❌ Saved views not wired on list page
+- ❌ CSV export permission gating not enforced
+- ❌ Browser matrix testing not completed
+
+### Next Steps (Priority Order)
+
+1. **Business Logic & Validation** — Add stage transition matrix, required-fields-by-stage, cross-field validations
+2. **Audit Write Integration** — Wire lib/audit.ts into all Opportunity and line item CRUD handlers
+3. **Amount/Probability Management** — Add fields to create/edit modals; implement auto-calculation option
+4. **Close Endpoint** — Implement `POST /api/opportunities/{id}/close` with won/lost validations
+5. **Kanban View** — Build drag-and-drop Kanban with stage transition guards
+6. **Import Flow** — Implement import UI and backend processing
+7. **Performance Tuning** — Add Redis caching, latency monitoring, row virtualization
+8. **UAT & Sign-off** — Complete browser matrix testing, measure performance budgets, obtain written sign-off
+
+### Milestone Progress: ~70% Complete
+
+**Files Created/Modified (Current Implementation):**
+- `app/(dashboard)/opportunities/[opportunityId]/page.tsx` ✅ NEW
+- `components/opportunity-details-view.tsx` ✅ NEW
+- `components/opportunity-line-item-create-modal.tsx` ✅ NEW
+- `components/opportunity-line-item-edit-modal.tsx` ✅ NEW
+- `components/opportunity-types.ts` ✅ NEW
+- `app/api/opportunities/[opportunityId]/line-items/route.ts` ✅ NEW
+- `app/api/opportunities/line-items/[lineItemId]/route.ts` ✅ NEW
+- `app/api/opportunities/helpers.ts` (updated with detail mapping)
+- `app/api/opportunities/[opportunityId]/route.ts` (updated to return full detail)
+- `app/api/opportunities/route.ts` (list endpoint)
+- `app/(dashboard)/opportunities/page.tsx` (list page)
 
 ---
 

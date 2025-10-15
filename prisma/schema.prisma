@@ -451,6 +451,7 @@ model OpportunityProduct {
   tenantId           String            @db.Uuid
   opportunityId      String            @db.Uuid
   productId          String            @db.Uuid
+  active             Boolean           @default(true)
   quantity           Decimal?          @db.Decimal(16, 2)
   unitPrice          Decimal?          @db.Decimal(16, 2)
   expectedUsage      Decimal?          @db.Decimal(16, 2)
