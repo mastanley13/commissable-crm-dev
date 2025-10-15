@@ -12,7 +12,6 @@ import { applySimpleFilters } from "@/lib/filter-utils"
 import {
   OpportunityDetailRecord,
   OpportunityLineItemRecord,
-  OpportunityRoleRecord,
   OpportunityRevenueScheduleRecord
 } from "./opportunity-types"
 import { OpportunityLineItemCreateModal } from "./opportunity-line-item-create-modal"
@@ -125,6 +124,33 @@ const REVENUE_PERCENT_COLUMN_IDS = new Set([
 
 const REVENUE_NUMBER_COLUMN_IDS = new Set(["quantity"])
 
+const ROLE_FILTER_COLUMNS: Array<{ id: string; label: string }> = [
+  { id: "role", label: "Role" },
+  { id: "fullName", label: "Full Name" },
+  { id: "email", label: "Email Address" },
+  { id: "workPhone", label: "Work Phone" },
+  { id: "mobile", label: "Mobile" }
+]
+
+const ROLE_TABLE_BASE_COLUMNS: Column[] = [
+  {
+    id: "multi-action",
+    label: "Select All",
+    width: 200,
+    minWidth: 160,
+    maxWidth: 240,
+    type: "multi-action",
+    hideable: false
+  },
+  { id: "role", label: "Role", width: 180, minWidth: 150, accessor: "role", sortable: true },
+  { id: "fullName", label: "Full Name", width: 220, minWidth: 160, accessor: "fullName", sortable: true },
+  { id: "jobTitle", label: "Job Title", width: 180, minWidth: 140, accessor: "jobTitle", sortable: true },
+  { id: "email", label: "Email Address", width: 220, minWidth: 180, accessor: "email", sortable: true },
+  { id: "workPhone", label: "Work Phone", width: 160, minWidth: 140, accessor: "workPhone" },
+  { id: "phoneExtension", label: "Phone Extension", width: 150, minWidth: 120, accessor: "phoneExtension" },
+  { id: "mobile", label: "Mobile", width: 160, minWidth: 140, accessor: "mobile" }
+]
+
 const HISTORY_FILTER_COLUMNS: Array<{ id: string; label: string }> = [
   { id: "actorName", label: "Actor" },
   { id: "action", label: "Action" },
@@ -150,6 +176,18 @@ interface OpportunityHistoryRow {
   createdAt: string
   summary: string
   details: string[]
+}
+
+interface OpportunityRoleRow {
+  id: string
+  role: string
+  fullName: string
+  jobTitle: string
+  email: string
+  workPhone: string
+  phoneExtension: string
+  mobile: string
+  isActive: boolean
 }
 
 function SummaryTab({ opportunity }: { opportunity: OpportunityDetailRecord }) {
@@ -330,24 +368,6 @@ function SummaryTab({ opportunity }: { opportunity: OpportunityDetailRecord }) {
           </div>
         ))}
       </div>
-    </div>
-  )
-}
-
-function RolesTab({ 
-  opportunity, 
-  tableAreaRefCallback, 
-  maxBodyHeight, 
-  showError 
-}: { 
-  opportunity: OpportunityDetailRecord
-  tableAreaRefCallback: (node: HTMLDivElement | null) => void
-  maxBodyHeight: number | undefined
-  showError: (title: string, message: string) => void
-}) {
-  return (
-    <div className="flex flex-1 flex-col overflow-hidden rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-6 text-sm text-gray-600">
-      Roles functionality is being rebuilt. Check back soon.
     </div>
   )
 }
@@ -643,6 +663,26 @@ export function OpportunityDetailsView({
     setDetailsExpanded(prev => !prev)
   }, [])
 
+  // Roles state
+  const [rolesSearchQuery, setRolesSearchQuery] = useState("")
+  const [roleColumnFilters, setRoleColumnFilters] = useState<ColumnFilter[]>([])
+  const [roleStatusFilter, setRoleStatusFilter] = useState<"active" | "inactive">("active")
+  const [roleCurrentPage, setRoleCurrentPage] = useState(1)
+  const [rolePageSize, setRolePageSize] = useState(10)
+  const [selectedRoles, setSelectedRoles] = useState<string[]>([])
+  const [showRoleColumnSettings, setShowRoleColumnSettings] = useState(false)
+
+  const {
+    columns: rolePreferenceColumns,
+    loading: rolePreferencesLoading,
+    saving: rolePreferencesSaving,
+    hasUnsavedChanges: roleHasUnsavedChanges,
+    lastSaved: roleLastSaved,
+    handleColumnsChange: handleRoleColumnsChange,
+    saveChanges: saveRolePreferences,
+    saveChangesOnModalClose: saveRolePrefsOnModalClose
+  } = useTablePreferences("opportunities:detail:roles", ROLE_TABLE_BASE_COLUMNS)
+
   // Product line items
   const [productSearchQuery, setProductSearchQuery] = useState("")
   const [productColumnFilters, setProductColumnFilters] = useState<ColumnFilter[]>([])
@@ -748,6 +788,7 @@ export function OpportunityDetailsView({
     measureTableAreaHeight,
     activeTab,
     loading,
+    rolePreferencesLoading,
     productPreferencesLoading,
     revenuePreferencesLoading,
     historyPreferencesLoading
@@ -776,6 +817,197 @@ export function OpportunityDetailsView({
     const minTarget = Math.min(TABLE_BODY_MIN_HEIGHT, maxBodyWithinContainer)
     return Math.max(boundedPreferredHeight, minTarget)
   }, [tableAreaMaxHeight])
+
+  const roleRows = useMemo<OpportunityRoleRow[]>(() => {
+    if (!opportunity) {
+      return []
+    }
+
+    const baseRoles = (opportunity.roles ?? []).map<OpportunityRoleRow>(role => ({
+      id: role.id,
+      role: role.role ?? "",
+      fullName: role.fullName ?? "",
+      jobTitle: role.jobTitle ?? "",
+      email: role.email ?? "",
+      workPhone: role.workPhone ?? "",
+      phoneExtension: role.phoneExtension ?? "",
+      mobile: role.mobile ?? "",
+      isActive: role.active !== false
+    }))
+
+    if (baseRoles.length > 0) {
+      return baseRoles
+    }
+
+    const fallbackId = opportunity.owner?.id ?? `owner-${opportunity.id}`
+    return [
+      {
+        id: fallbackId,
+        role: "Opportunity Owner",
+        fullName: opportunity.owner?.name ?? "Unassigned",
+        jobTitle: "",
+        email: "",
+        workPhone: "",
+        phoneExtension: "",
+        mobile: "",
+        isActive: true
+      }
+    ]
+  }, [opportunity])
+
+  const filteredRoleRows = useMemo(() => {
+    let rows = [...roleRows]
+
+    if (roleStatusFilter === "active") {
+      rows = rows.filter(row => row.isActive !== false)
+    } else if (roleStatusFilter === "inactive") {
+      rows = rows.filter(row => row.isActive === false)
+    }
+
+    if (rolesSearchQuery.trim().length > 0) {
+      const search = rolesSearchQuery.trim().toLowerCase()
+      rows = rows.filter(row =>
+        [row.role, row.fullName, row.jobTitle, row.email, row.workPhone, row.phoneExtension, row.mobile]
+          .filter(Boolean)
+          .some(value => String(value).toLowerCase().includes(search))
+      )
+    }
+
+    if (roleColumnFilters.length > 0) {
+      rows = applySimpleFilters(rows as unknown as Record<string, unknown>[], roleColumnFilters) as OpportunityRoleRow[]
+    }
+
+    return rows
+  }, [roleRows, roleStatusFilter, rolesSearchQuery, roleColumnFilters])
+
+  const paginatedRoleRows = useMemo(() => {
+    const start = (roleCurrentPage - 1) * rolePageSize
+    return filteredRoleRows.slice(start, start + rolePageSize)
+  }, [filteredRoleRows, roleCurrentPage, rolePageSize])
+
+  const rolePagination = useMemo(() => {
+    const total = filteredRoleRows.length
+    const totalPages = Math.max(Math.ceil(total / rolePageSize), 1)
+    return {
+      page: roleCurrentPage,
+      pageSize: rolePageSize,
+      total,
+      totalPages
+    }
+  }, [filteredRoleRows.length, roleCurrentPage, rolePageSize])
+
+  useEffect(() => {
+    const maxPage = Math.max(Math.ceil(filteredRoleRows.length / rolePageSize), 1)
+    if (roleCurrentPage > maxPage) {
+      setRoleCurrentPage(maxPage)
+    }
+  }, [filteredRoleRows.length, roleCurrentPage, rolePageSize])
+
+  useEffect(() => {
+    setSelectedRoles(previous => previous.filter(id => filteredRoleRows.some(row => row.id === id)))
+  }, [filteredRoleRows])
+
+  useEffect(() => {
+    setSelectedRoles([])
+    setRoleStatusFilter("active")
+    setRoleCurrentPage(1)
+  }, [opportunity?.id])
+
+  const handleRoleSelect = useCallback((roleId: string, selected: boolean) => {
+    setSelectedRoles(previous => {
+      if (selected) {
+        if (previous.includes(roleId)) {
+          return previous
+        }
+        return [...previous, roleId]
+      }
+      return previous.filter(id => id !== roleId)
+    })
+  }, [])
+
+  const handleSelectAllRoles = useCallback(
+    (selected: boolean) => {
+      if (selected) {
+        setSelectedRoles(paginatedRoleRows.map(row => row.id))
+        return
+      }
+      setSelectedRoles([])
+    },
+    [paginatedRoleRows]
+  )
+
+  const handleRolePageChange = useCallback((page: number) => {
+    setRoleCurrentPage(page)
+  }, [])
+
+  const handleRolePageSizeChange = useCallback((size: number) => {
+    setRolePageSize(size)
+    setRoleCurrentPage(1)
+  }, [])
+
+  const roleTableColumns = useMemo(() => {
+    return rolePreferenceColumns.map(column => {
+      if (column.id === "multi-action") {
+        return {
+          ...column,
+          render: (_: unknown, row: OpportunityRoleRow) => {
+            const checked = selectedRoles.includes(row.id)
+            const labelSource = row.fullName || row.role || row.email
+
+            return (
+              <div className="flex items-center" data-disable-row-click="true">
+                <label
+                  className="flex cursor-pointer items-center justify-center"
+                  onClick={event => event.stopPropagation()}
+                >
+                  <input
+                    type="checkbox"
+                    className="sr-only"
+                    checked={checked}
+                    aria-label={`Select ${labelSource || "role"}`}
+                    onChange={() => handleRoleSelect(row.id, !checked)}
+                  />
+                  <span
+                    className={cn(
+                      "flex h-4 w-4 items-center justify-center rounded border transition-colors",
+                      checked
+                        ? "border-primary-500 bg-primary-600 text-white"
+                        : "border-gray-300 bg-white text-transparent"
+                    )}
+                  >
+                    <Check className="h-3 w-3" aria-hidden="true" />
+                  </span>
+                </label>
+              </div>
+            )
+          }
+        }
+      }
+
+      if (column.id === "email") {
+        return {
+          ...column,
+          render: (value: unknown) => {
+            const email = typeof value === "string" ? value.trim() : ""
+            if (!email) {
+              return "--"
+            }
+            return (
+              <a href={`mailto:${email}`} className="text-primary-600 hover:text-primary-700">
+                {email}
+              </a>
+            )
+          }
+        }
+      }
+
+      return {
+        ...column,
+        render: (value: unknown) =>
+          value === null || value === undefined || String(value).trim().length === 0 ? "--" : String(value)
+      }
+    })
+  }, [rolePreferenceColumns, selectedRoles, handleRoleSelect])
 
   const canEditAnyLineItems = hasAnyPermission(["opportunities.manage"])
   const canEditAssignedLineItems = hasPermission("opportunities.edit.assigned")
@@ -1917,12 +2149,44 @@ if (loading) {
                 {activeTab === "summary" ? (
                   <SummaryTab opportunity={opportunity} />
                 ) : activeTab === "roles" ? (
-                  <RolesTab
-                    opportunity={opportunity}
-                    tableAreaRefCallback={tableAreaRefCallback}
-                    maxBodyHeight={tableBodyMaxHeight}
-                    showError={showError}
-                  />
+                  <div className="grid flex-1 grid-rows-[auto_minmax(0,1fr)] gap-3 overflow-hidden">
+                    <ListHeader
+                      showCreateButton={false}
+                      onSearch={setRolesSearchQuery}
+                      searchPlaceholder="Search roles"
+                      filterColumns={ROLE_FILTER_COLUMNS}
+                      columnFilters={roleColumnFilters}
+                      onColumnFiltersChange={setRoleColumnFilters}
+                      onSettingsClick={() => setShowRoleColumnSettings(true)}
+                      statusFilter={roleStatusFilter}
+                      onFilterChange={value => setRoleStatusFilter(value === "inactive" ? "inactive" : "active")}
+                      hasUnsavedTableChanges={roleHasUnsavedChanges}
+                      isSavingTableChanges={rolePreferencesSaving}
+                      lastTableSaved={roleLastSaved ?? undefined}
+                      onSaveTableChanges={saveRolePreferences}
+                    />
+
+                    <div className="flex min-h-0 flex-col overflow-hidden" ref={tableAreaRefCallback}>
+                      <DynamicTable
+                        className="flex flex-col"
+                        columns={roleTableColumns}
+                        data={paginatedRoleRows}
+                        loading={rolePreferencesLoading}
+                        onColumnsChange={handleRoleColumnsChange}
+                        emptyMessage="No roles are assigned to this opportunity yet"
+                        maxBodyHeight={tableBodyMaxHeight}
+                        pagination={rolePagination}
+                        onPageChange={handleRolePageChange}
+                        onPageSizeChange={handleRolePageSizeChange}
+                        selectedItems={selectedRoles}
+                        onItemSelect={handleRoleSelect}
+                        onSelectAll={handleSelectAllRoles}
+                        selectHeaderLabel="Select All"
+                        fillContainerWidth
+                        alwaysShowPagination
+                      />
+                    </div>
+                  </div>
                 ) : activeTab === "details" ? (
                   <DetailsIdentifiersTab opportunity={opportunity} />
                 ) : activeTab === "products" ? (
@@ -2061,6 +2325,16 @@ if (loading) {
             </div>
 
             <ColumnChooserModal
+              isOpen={showRoleColumnSettings}
+              columns={rolePreferenceColumns}
+              onApply={handleRoleColumnsChange}
+              onClose={async () => {
+                setShowRoleColumnSettings(false)
+                await saveRolePrefsOnModalClose()
+              }}
+            />
+
+            <ColumnChooserModal
               isOpen={showProductColumnSettings}
               columns={productPreferenceColumns}
               onApply={handleProductTableColumnsChange}
@@ -2078,7 +2352,8 @@ if (loading) {
                 setShowRevenueColumnSettings(false)
                 await saveRevenuePrefsOnModalClose()
               }}
-            /><ColumnChooserModal
+            />
+            <ColumnChooserModal
               isOpen={showHistoryColumnSettings}
               columns={historyPreferenceColumns}
               onApply={handleHistoryColumnsChange}

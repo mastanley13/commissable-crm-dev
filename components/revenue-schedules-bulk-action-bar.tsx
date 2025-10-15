@@ -1,6 +1,6 @@
 "use client"
 
-import { Download } from "lucide-react"
+import { Download, Trash2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 interface RevenueSchedulesBulkActionBarProps {
@@ -8,6 +8,7 @@ interface RevenueSchedulesBulkActionBarProps {
   disabled?: boolean
   onExportCsv: () => void
   className?: string
+  onDelete?: () => void
 }
 
 export function RevenueSchedulesBulkActionBar({
@@ -15,6 +16,7 @@ export function RevenueSchedulesBulkActionBar({
   disabled = false,
   onExportCsv,
   className,
+  onDelete,
 }: RevenueSchedulesBulkActionBarProps) {
   if (count <= 0) {
     return null
@@ -33,6 +35,17 @@ export function RevenueSchedulesBulkActionBar({
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
+        {onDelete && (
+          <button
+            type="button"
+            onClick={onDelete}
+            disabled={disabled}
+            className="inline-flex items-center gap-2 rounded-md border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <Trash2 className="h-4 w-4" aria-hidden="true" />
+            <span>Delete</span>
+          </button>
+        )}
         <button
           type="button"
           onClick={onExportCsv}

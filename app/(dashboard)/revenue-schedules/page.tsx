@@ -1,12 +1,13 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { ListHeader } from '@/components/list-header'
 import { DynamicTable, Column, PaginationInfo } from '@/components/dynamic-table'
 import { ColumnChooserModal } from '@/components/column-chooser-modal'
 import { useTablePreferences } from '@/hooks/useTablePreferences'
 import { revenueSchedulesData } from '@/lib/mock-data'
-import { Edit, Trash2, Check } from 'lucide-react'
+import { Edit, Check, Trash2 } from 'lucide-react'
 import { CopyProtectionWrapper } from '@/components/copy-protection'
 import { useToasts } from '@/components/toast'
 import { RevenueSchedulesBulkActionBar } from '@/components/revenue-schedules-bulk-action-bar'
@@ -225,6 +226,7 @@ const filterOptions: { id: FilterableColumnKey; label: string }[] = [
 
 export default function RevenueSchedulesPage() {
   const { showSuccess, showError, ToastContainer } = useToasts()
+  const router = useRouter()
   const [revenueSchedules, setRevenueSchedules] = useState(revenueSchedulesData)
   const [filteredRevenueSchedules, setFilteredRevenueSchedules] = useState(revenueSchedulesData)
   const [loading, setLoading] = useState(false)
@@ -232,6 +234,10 @@ export default function RevenueSchedulesPage() {
   const [showColumnSettings, setShowColumnSettings] = useState(false)
   const [currentPage, setCurrentPage] = useState<number>(1)
   const [pageSize, setPageSize] = useState<number>(25)
+  const [statusQuickFilter, setStatusQuickFilter] = useState<'all' | 'open' | 'reconciled' | 'in_dispute'>('all')
+  const [inDisputeOnly, setInDisputeOnly] = useState(false)
+  const [startDate, setStartDate] = useState<string>('')
+  const [endDate, setEndDate] = useState<string>('')
   const [activeFilter, setActiveFilter] = useState<'all' | 'active'>('active')
   const [columnFilters, setColumnFilters] = useState<{ columnId: FilterableColumnKey; value: string }[]>([])
 
@@ -301,9 +307,16 @@ export default function RevenueSchedulesPage() {
   }
 
   const handleRowClick = useCallback((schedule: any) => {
-    console.log('Revenue schedule clicked:', schedule)
-    // Navigate to schedule detail page or open modal
-  }, [])
+    const oppId = schedule?.opportunityId
+    if (oppId) {
+      router.push(`/opportunities/${oppId}`)
+      return
+    }
+    const id = schedule?.id
+    if (id) {
+      router.push(`/revenue-schedules/${id}`)
+    }
+  }, [router])
 
   const handleCreateSchedule = () => {
     console.log('Create new revenue schedule')
@@ -346,6 +359,13 @@ export default function RevenueSchedulesPage() {
     }
   }
 
+  const handleDeleteRow = useCallback((scheduleId: number) => {
+    // Client-side delete placeholder; wire to API when available
+    setRevenueSchedules(prev => prev.filter(row => row.id !== scheduleId))
+    setSelectedSchedules(prev => prev.filter(id => id !== scheduleId))
+    showSuccess('Deleted', 'Schedule has been removed from the list.')
+  }, [showSuccess])
+
   // Pagination handlers
   const handlePageChange = useCallback((page: number) => {
     setCurrentPage(page)
@@ -377,6 +397,42 @@ export default function RevenueSchedulesPage() {
   // Apply status and column filters
   const filteredByStatusAndColumns = useMemo(() => {
     let next = activeFilter === 'active' ? revenueSchedules.filter(r => r.active) : [...revenueSchedules]
+
+    if (statusQuickFilter !== 'all') {
+      next = next.filter(row => {
+        const hasDispute = Boolean((row as any).inDispute)
+        const gross = parseCurrency((row as any).expectedUsage)
+        const adj = parseCurrency((row as any).usageAdjustment)
+        const net = gross + adj
+        const isOpen = Math.abs(net) > 0.0001
+        const isReconciled = !isOpen
+        if (statusQuickFilter === 'open') return isOpen
+        if (statusQuickFilter === 'reconciled') return isReconciled
+        if (statusQuickFilter === 'in_dispute') return hasDispute
+        return true
+      })
+    }
+
+    if (inDisputeOnly) {
+      next = next.filter(row => Boolean((row as any).inDispute))
+    }
+
+    if (startDate || endDate) {
+      const start = startDate ? new Date(startDate) : null
+      const end = endDate ? new Date(endDate) : null
+      next = next.filter(row => {
+        const d = new Date((row as any).revenueScheduleDate)
+        if (Number.isNaN(d.getTime())) return false
+        if (start && d < start) return false
+        if (end) {
+          const endInclusive = new Date(end)
+          endInclusive.setHours(23, 59, 59, 999)
+          if (d > endInclusive) return false
+        }
+        return true
+      })
+    }
+
     if (columnFilters.length > 0) {
       columnFilters.forEach(filter => {
         const key = filter.columnId as keyof typeof revenueSchedules[number]
@@ -389,15 +445,18 @@ export default function RevenueSchedulesPage() {
       })
     }
     return next
-  }, [revenueSchedules, activeFilter, columnFilters])
+  }, [revenueSchedules, activeFilter, columnFilters, statusQuickFilter, inDisputeOnly, startDate, endDate])
 
   // Add computed columns (Expected Usage Net)
   const withComputed = useMemo(() => {
     return filteredByStatusAndColumns.map(row => {
-      const gross = parseCurrency(row.expectedUsage)
-      const adj = parseCurrency(row.usageAdjustment)
+      const rawGross = (row as any).expectedUsage as string | undefined
+      const rawAdj = (row as any).usageAdjustment as string | undefined
+      const bothBlank = (!rawGross || rawGross.trim() === '-' || rawGross.trim() === '') && (!rawAdj || rawAdj.trim() === '-' || rawAdj.trim() === '')
+      const gross = parseCurrency(rawGross)
+      const adj = parseCurrency(rawAdj)
       const net = gross + adj
-      return { ...row, expectedUsageNet: formatCurrency(net) }
+      return { ...row, expectedUsageNet: bothBlank ? '-' : formatCurrency(net) }
     })
   }, [filteredByStatusAndColumns])
 
@@ -446,16 +505,28 @@ export default function RevenueSchedulesPage() {
                   </span>
                 </label>
 
+                {/* Toggle placeholder (schedules do not have active/inactive; use open/reconciled style if needed) */}
+                <span className="inline-flex w-9 h-5 items-center justify-start rounded-full bg-gray-300 opacity-50" title="No status toggle for schedules">
+                  <span className="inline-block w-4 h-4 bg-white rounded-full shadow translate-x-1" />
+                </span>
+
                 {/* Actions */}
                 <div className="flex gap-0.5">
-                  <button type="button" className="p-1 text-blue-500 hover:text-blue-700 transition-colors rounded" onClick={(e) => { e.preventDefault(); e.stopPropagation(); }} aria-label="Edit schedule">
+                  <button
+                    type="button"
+                    className="p-1 text-blue-600 hover:text-blue-800 transition-colors rounded"
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleRowClick(row) }}
+                    aria-label="Open"
+                    title="Open"
+                  >
                     <Edit className="h-3.5 w-3.5" />
                   </button>
                   <button
                     type="button"
-                    className="p-1 text-gray-500 hover:text-gray-700 transition-colors rounded"
-                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                    aria-label="Manage schedule"
+                    className="p-1 text-red-500 hover:text-red-700 transition-colors rounded"
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleDeleteRow(rowId) }}
+                    aria-label="Delete"
+                    title="Delete"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
@@ -482,7 +553,44 @@ export default function RevenueSchedulesPage() {
         searchPlaceholder="Search revenue schedules..."
         onSearch={handleSearch}
         onFilterChange={handleStatusFilterChange}
-        onCreateClick={handleCreateSchedule}
+        showCreateButton={false}
+        showStatusFilter={false}
+        leftAccessory={(
+          <div className="flex items-center gap-2">
+            <div className="inline-flex rounded-lg border border-gray-300 bg-gray-50 p-0.5">
+              {(
+                [
+                  { id: 'all', label: 'All' },
+                  { id: 'open', label: 'Open' },
+                  { id: 'reconciled', label: 'Reconciled' },
+                  { id: 'in_dispute', label: 'In Dispute' },
+                ] as const
+              ).map(opt => (
+                <button
+                  key={opt.id}
+                  onClick={() => { setStatusQuickFilter(opt.id); setCurrentPage(1) }}
+                  className={`px-3 py-1.5 text-sm font-medium transition-all duration-200 rounded-md ${
+                    statusQuickFilter === opt.id
+                      ? 'bg-primary-600 text-white shadow-sm'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+            <label className="flex items-center gap-1 text-sm text-gray-700">
+              <input type="checkbox" checked={inDisputeOnly} onChange={(e) => { setInDisputeOnly(e.target.checked); setCurrentPage(1) }} />
+              In Dispute Only
+            </label>
+            <div className="flex items-center gap-1 text-sm">
+              <span className="text-gray-600">Start</span>
+              <input type="date" value={startDate} onChange={e => { setStartDate(e.target.value); setCurrentPage(1) }} className="rounded border border-gray-300 px-2 py-1" />
+              <span className="text-gray-600">End</span>
+              <input type="date" value={endDate} onChange={e => { setEndDate(e.target.value); setCurrentPage(1) }} className="rounded border border-gray-300 px-2 py-1" />
+            </div>
+          </div>
+        )}
         onSettingsClick={() => setShowColumnSettings(true)}
         filterColumns={filterOptions}
         columnFilters={columnFilters}
@@ -501,6 +609,17 @@ export default function RevenueSchedulesPage() {
       <div className="flex-1 p-4 min-h-0">
         <RevenueSchedulesBulkActionBar
           count={selectedSchedules.length}
+          onDelete={() => {
+            if (selectedSchedules.length === 0) {
+              showError('No items selected', 'Select at least one item to delete.')
+              return
+            }
+            // For schedules, we only support soft-delete as a UX placeholder. Replace with real API when available
+            const remainingIds = new Set(selectedSchedules)
+            setRevenueSchedules(prev => prev.filter(row => !remainingIds.has(row.id)))
+            setSelectedSchedules([])
+            showSuccess('Deleted', 'Selected schedules have been removed from the list.')
+          }}
           onExportCsv={() => {
             if (selectedSchedules.length === 0) {
               showError('No items selected', 'Select at least one item to export.')
