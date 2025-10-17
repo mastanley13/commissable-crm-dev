@@ -8,7 +8,7 @@ import { useToasts } from "@/components/toast"
 export default function ProductDetailPage() {
   const params = useParams()
   const router = useRouter()
-  const { showError } = useToasts()
+  const { showError, showWarning } = useToasts()
   const [product, setProduct] = useState<ProductDetailRecord | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -48,8 +48,9 @@ export default function ProductDetailPage() {
   }, [productId])
 
   const handleEdit = () => {
-    // TODO: Open edit modal or navigate to edit page
-    console.log("Edit product:", productId)
+    if (!product) return
+    const name = product.productNameHouse || product.productNameVendor || "This product"
+    showWarning("Edit coming soon", `${name} cannot be edited yet.`)
   }
 
   const handleRefresh = async () => {

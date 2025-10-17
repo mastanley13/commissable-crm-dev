@@ -94,9 +94,8 @@ interface ProductDetailsViewProps {
   onRefresh?: () => Promise<void> | void
 }
 
-const fieldLabelClass = "text-[11px] font-semibold uppercase tracking-wide text-gray-500"
-const fieldBoxClass =
-  "flex min-h-[28px] w-full max-w-md items-center justify-between rounded-lg border-2 border-gray-400 bg-white px-2 py-0.5 text-xs text-gray-900 shadow-sm whitespace-nowrap overflow-hidden text-ellipsis"
+const fieldLabelClass = "text-xs font-semibold uppercase tracking-wide text-gray-500"
+const fieldBoxClass = "flex min-h-[32px] w-full max-w-md items-center justify-between rounded-lg border-2 border-gray-400 bg-white px-2 py-1 text-sm text-gray-900 shadow-sm whitespace-nowrap overflow-hidden text-ellipsis"
 
 function FieldRow({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -131,10 +130,7 @@ function formatDate(value: string | null | undefined): string | null {
   if (Number.isNaN(date.getTime())) {
     return null
   }
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, "0")
-  const day = String(date.getDate()).padStart(2, "0")
-  return `${year}/${month}/${day}`
+  return date.toISOString().slice(0, 10)
 }
 
 function humanizeLabel(value: string | null | undefined): string | null {
@@ -149,6 +145,7 @@ function humanizeLabel(value: string | null | undefined): string | null {
     .replace(/\b\w/g, character => character.toUpperCase())
 }
 
+
 export function ProductDetailsView({
   product,
   loading,
@@ -156,6 +153,7 @@ export function ProductDetailsView({
   onEdit,
   onRefresh
 }: ProductDetailsViewProps) {
+
   if (loading) {
     return (
       <div className="flex min-h-[420px] flex-col items-center justify-center gap-3 text-sm text-gray-500">
@@ -192,7 +190,8 @@ export function ProductDetailsView({
     )
   }
 
-  const productName = product.productNameHouse || product.productNameVendor || "Product"
+  const productName =
+    product.productNameHouse || product.productNameVendor || "Product"
 
   const statusBadge = (
     <span
@@ -243,112 +242,113 @@ export function ProductDetailsView({
                 <div className={fieldBoxClass}>
                   {product.productNameHouse || <span className="text-gray-500">--</span>}
                 </div>
-              </FieldRow>
-              <FieldRow label="Part Number - House">
-                <div className={fieldBoxClass}>
-                  {product.productCode || <span className="text-gray-500">--</span>}
-                </div>
-              </FieldRow>
-              <FieldRow label="Product Family - House">
-                <div className={fieldBoxClass}>
-                  {product.productFamilyHouse || <span className="text-gray-500">--</span>}
-                </div>
-              </FieldRow>
-              <FieldRow label="Revenue Type">
-                <div className={fieldBoxClass}>
-                  {revenueTypeLabel || <span className="text-gray-500">--</span>}
-                </div>
-              </FieldRow>
-              <FieldRow label="Vendor Name">
-                {product.vendor ? (
-                  <Link href={`/accounts/${product.vendor.id}`}>
-                    <div className={cn(fieldBoxClass, "cursor-pointer text-primary-700 hover:border-primary-500")}>
-                      {product.vendor.accountName}
-                    </div>
-                  </Link>
-                ) : (
+                </FieldRow>
+                <FieldRow label="Part Number - House">
                   <div className={fieldBoxClass}>
-                    <span className="text-gray-500">--</span>
+                    {product.productCode || <span className="text-gray-500">--</span>}
                   </div>
-                )}
-              </FieldRow>
-              <FieldRow label="Distributor Name">
-                {product.distributor ? (
-                  <Link href={`/accounts/${product.distributor.id}`}>
-                    <div className={cn(fieldBoxClass, "cursor-pointer text-primary-700 hover:border-primary-500")}>
-                      {product.distributor.accountName}
-                    </div>
-                  </Link>
-                ) : (
+                </FieldRow>
+                <FieldRow label="Product Family - House">
                   <div className={fieldBoxClass}>
-                    <span className="text-gray-500">--</span>
+                    {product.productFamilyHouse || <span className="text-gray-500">--</span>}
                   </div>
-                )}
-              </FieldRow>
-              <FieldRow label="Price Each">
-                <div className={fieldBoxClass}>
-                  {priceEach || <span className="text-gray-500">--</span>}
-                </div>
-              </FieldRow>
-              <FieldRow label="Commission">
-                <div className={fieldBoxClass}>
-                  {commissionRate || <span className="text-gray-500">--</span>}
-                </div>
-              </FieldRow>
-              <FieldRow label="Product Name - Vendor">
-                <div className={fieldBoxClass}>
-                  {product.productNameVendor || <span className="text-gray-500">--</span>}
-                </div>
-              </FieldRow>
-              <FieldRow label="Part Number - Vendor">
-                <div className={fieldBoxClass}>
-                  {product.partNumberVendor || <span className="text-gray-500">--</span>}
-                </div>
-              </FieldRow>
-              <FieldRow label="Product Family - Vendor">
-                <div className={fieldBoxClass}>
-                  {product.productFamilyVendor || <span className="text-gray-500">--</span>}
-                </div>
-              </FieldRow>
-              <FieldRow label="Subtype - Vendor">
-                <div className={fieldBoxClass}>
-                  {product.productSubtypeVendor || <span className="text-gray-500">--</span>}
-                </div>
-              </FieldRow>
-            </div>
+                </FieldRow>
+                <FieldRow label="Revenue Type">
+                  <div className={fieldBoxClass}>
+                    {revenueTypeLabel || <span className="text-gray-500">--</span>}
+                  </div>
+                </FieldRow>
+                <FieldRow label="Vendor Name">
+                  {product.vendor ? (
+                    <Link href={`/accounts/${product.vendor.id}`}>
+                      <div className={cn(fieldBoxClass, "cursor-pointer text-primary-700 hover:border-primary-500")}>
+                        {product.vendor.accountName}
+                      </div>
+                    </Link>
+                  ) : (
+                    <div className={fieldBoxClass}>
+                      <span className="text-gray-500">--</span>
+                    </div>
+                  )}
+                </FieldRow>
+                <FieldRow label="Distributor Name">
+                  {product.distributor ? (
+                    <Link href={`/accounts/${product.distributor.id}`}>
+                      <div className={cn(fieldBoxClass, "cursor-pointer text-primary-700 hover:border-primary-500")}>
+                        {product.distributor.accountName}
+                      </div>
+                    </Link>
+                  ) : (
+                    <div className={fieldBoxClass}>
+                      <span className="text-gray-500">--</span>
+                    </div>
+                  )}
+                </FieldRow>
+                <FieldRow label="Price Each">
+                  <div className={fieldBoxClass}>
+                    {priceEach || <span className="text-gray-500">--</span>}
+                  </div>
+                </FieldRow>
+                <FieldRow label="Commission">
+                  <div className={fieldBoxClass}>
+                    {commissionRate || <span className="text-gray-500">--</span>}
+                  </div>
+                </FieldRow>
+                <FieldRow label="Product Name - Vendor">
+                  <div className={fieldBoxClass}>
+                    {product.productNameVendor || <span className="text-gray-500">--</span>}
+                  </div>
+                </FieldRow>
+                <FieldRow label="Part Number - Vendor">
+                  <div className={fieldBoxClass}>
+                    {product.partNumberVendor || <span className="text-gray-500">--</span>}
+                  </div>
+                </FieldRow>
+                <FieldRow label="Product Family - Vendor">
+                  <div className={fieldBoxClass}>
+                    {product.productFamilyVendor || <span className="text-gray-500">--</span>}
+                  </div>
+                </FieldRow>
+              </div>
 
-            <div className="space-y-1.5">
-              <FieldRow label="Product Name - Distributor">
-                <div className={fieldBoxClass}>
-                  {product.productNameDistributor || <span className="text-gray-500">--</span>}
+              <div className="space-y-1.5">
+                <FieldRow label="Subtype - Vendor">
+                  <div className={fieldBoxClass}>
+                    {product.productSubtypeVendor || <span className="text-gray-500">--</span>}
+                  </div>
+                </FieldRow>
+                <FieldRow label="Product Name - Distributor">
+                  <div className={fieldBoxClass}>
+                    {product.productNameDistributor || <span className="text-gray-500">--</span>}
+                  </div>
+                </FieldRow>
+                <FieldRow label="Part Number - Distributor">
+                  <div className={fieldBoxClass}>
+                    {product.partNumberDistributor || <span className="text-gray-500">--</span>}
+                  </div>
+                </FieldRow>
+                <FieldRow label="Distributor Product Family">
+                  <div className={fieldBoxClass}>
+                    {product.distributorProductFamily || <span className="text-gray-500">--</span>}
+                  </div>
+                </FieldRow>
+                <div className="grid items-start gap-6 sm:grid-cols-[200px,1fr]">
+                  <span className={cn(fieldLabelClass, "pt-1.5")}>Product Description - House</span>
+                  <div className={cn(fieldBoxClass, "min-h-[80px] items-start whitespace-pre-wrap py-2")}>
+                    {productDescriptionHouse || <span className="text-gray-500">--</span>}
+                  </div>
                 </div>
-              </FieldRow>
-              <FieldRow label="Part Number - Distributor">
-                <div className={fieldBoxClass}>
-                  {product.partNumberDistributor || <span className="text-gray-500">--</span>}
+                <div className="grid items-start gap-6 sm:grid-cols-[200px,1fr]">
+                  <span className={cn(fieldLabelClass, "pt-1.5")}>Product Description - Vendor</span>
+                  <div className={cn(fieldBoxClass, "min-h-[80px] items-start whitespace-pre-wrap py-2")}>
+                    {productDescriptionVendor || <span className="text-gray-500">--</span>}
+                  </div>
                 </div>
-              </FieldRow>
-              <FieldRow label="Distributor Product Family">
-                <div className={fieldBoxClass}>
-                  {product.distributorProductFamily || <span className="text-gray-500">--</span>}
-                </div>
-              </FieldRow>
-              <div className="grid items-start gap-6 sm:grid-cols-[200px,1fr]">
-                <span className={cn(fieldLabelClass, "pt-1.5")}>Product Description - House</span>
-                <div className={cn(fieldBoxClass, "min-h-[80px] items-start whitespace-pre-wrap py-2")}>
-                  {productDescriptionHouse || <span className="text-gray-500">--</span>}
-                </div>
-              </div>
-              <div className="grid items-start gap-6 sm:grid-cols-[200px,1fr]">
-                <span className={cn(fieldLabelClass, "pt-1.5")}>Product Description - Vendor</span>
-                <div className={cn(fieldBoxClass, "min-h-[80px] items-start whitespace-pre-wrap py-2")}>
-                  {productDescriptionVendor || <span className="text-gray-500">--</span>}
-                </div>
-              </div>
-              <div className="grid items-start gap-6 sm:grid-cols-[200px,1fr]">
-                <span className={cn(fieldLabelClass, "pt-1.5")}>Product Description - Distributor</span>
-                <div className={cn(fieldBoxClass, "min-h-[80px] items-start whitespace-pre-wrap py-2")}>
-                  {product.productDescriptionDistributor || <span className="text-gray-500">--</span>}
+                <div className="grid items-start gap-6 sm:grid-cols-[200px,1fr]">
+                  <span className={cn(fieldLabelClass, "pt-1.5")}>Product Description - Distributor</span>
+                  <div className={cn(fieldBoxClass, "min-h-[80px] items-start whitespace-pre-wrap py-2")}>
+                    {product.productDescriptionDistributor || <span className="text-gray-500">--</span>}
+                  </div>
                 </div>
               </div>
             </div>

@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { ReactNode, useCallback, useEffect, useState, useMemo, useRef, useLayoutEffect } from "react"
 import { useRouter } from "next/navigation"
-import { Loader2, Filter, Paperclip, Plus, Search, Settings, Trash2, Edit, ChevronDown, ChevronUp, Check } from "lucide-react"
+import { Loader2, Filter, Paperclip, Plus, Search, Settings, Trash2, ChevronDown, Check } from "lucide-react"
 import { OpportunityStatus } from "@prisma/client"
 
 import { cn } from "@/lib/utils"
@@ -165,9 +165,9 @@ const TABS: { id: "activities" | "opportunities" | "groups"; label: string }[] =
   { id: "groups", label: "Groups" }
 ]
 
-const fieldLabelClass = "text-xs font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap"
-const fieldSubLabelClass = "text-xs font-medium text-gray-600"
-const fieldBoxClass = "flex min-h-[32px] w-full max-w-md items-center justify-between rounded-lg border-2 border-gray-400 bg-white px-2 py-1 text-sm text-gray-900 shadow-sm whitespace-nowrap overflow-hidden text-ellipsis"
+const fieldLabelClass = "text-[11px] font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap"
+const fieldSubLabelClass = "text-[10px] font-medium text-gray-600"
+const fieldBoxClass = "flex min-h-[28px] w-full max-w-md items-center justify-between rounded-lg border-2 border-gray-400 bg-white px-2 py-0.5 text-xs text-gray-900 shadow-sm whitespace-nowrap overflow-hidden text-ellipsis"
 
 const CONTACT_ACTIVITY_TABLE_BASE_COLUMNS: Column[] = [
   {
@@ -504,7 +504,6 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
   const [activeTab, setActiveTab] = useState<"activities" | "opportunities" | "groups">("activities")
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [isDeleted, setIsDeleted] = useState(false)
-  const [detailsExpanded, setDetailsExpanded] = useState(true)
   const { showError, showSuccess, showInfo } = useToasts()
 
   // Table height management
@@ -535,7 +534,7 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
 
   useLayoutEffect(() => {
     measureTableAreaHeight()
-  }, [measureTableAreaHeight, activeTab, detailsExpanded, loading])
+  }, [measureTableAreaHeight, activeTab, loading])
 
   useEffect(() => {
     const handleResize = () => measureTableAreaHeight()
@@ -561,10 +560,6 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
 
   const handleBack = () => {
     router.push("/contacts")
-  }
-
-  const toggleDetails = () => {
-    setDetailsExpanded(!detailsExpanded)
   }
 
   const [activityModalOpen, setActivityModalOpen] = useState(false)
@@ -969,8 +964,8 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
         row.id,
         row.activityDate
           ? row.activityDate instanceof Date
-            ? row.activityDate.toLocaleDateString()
-            : new Date(row.activityDate as any).toLocaleDateString()
+            ? formatDate(row.activityDate)
+            : formatDate(row.activityDate as any)
           : "",
         row.activityType,
         row.activityOwner,
@@ -1643,7 +1638,10 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
     if (Number.isNaN(dateValue.getTime())) {
       return "--"
     }
-    return dateValue.toLocaleDateString()
+    const year = dateValue.getFullYear()
+    const month = String(dateValue.getMonth() + 1).padStart(2, "0")
+    const day = String(dateValue.getDate()).padStart(2, "0")
+    return `${year}/${month}/${day}`
   }
 
   const activitiesFilterColumns = useMemo(() => [
@@ -1755,11 +1753,8 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
                     />
                   </span>
                 </button>
-                {/* Actions */}
+                {/* Delete action */}
                 <div className="flex gap-0.5">
-                  <button type="button" className="p-1 text-primary-600 hover:text-primary-700 transition-colors rounded" title="Edit activity" onClick={(e) => { e.stopPropagation(); handleActivityEdit(row) }}>
-                    <Edit className="h-3.5 w-3.5" />
-                  </button>
                   <button type="button" className="p-1 text-red-500 hover:text-red-700 transition-colors rounded" title="Delete activity" onClick={(e) => { e.stopPropagation(); handleActivityDelete(row) }}>
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
@@ -1809,7 +1804,7 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
       }
       return column
     })
-  }, [activityPreferenceColumns, selectedActivities, handleActivityEdit, handleActivityDelete, handleToggleActivityStatus])
+  }, [activityPreferenceColumns, selectedActivities, handleActivityDelete, handleToggleActivityStatus])
 
   const handleOpportunitiesSearch = useCallback((query: string) => {
     setOpportunitiesSearchQuery(query)
@@ -1858,9 +1853,6 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
                   </span>
                 </button>
                 <div className="flex gap-0.5">
-                  <button type="button" className="p-1 text-primary-600 hover:text-primary-700 transition-colors rounded" title="Edit opportunity" onClick={(e) => { e.stopPropagation(); handleOpportunityEdit(row) }}>
-                    <Edit className="h-3.5 w-3.5" />
-                  </button>
                   <button type="button" className={`p-1 rounded transition-colors ${activeValue ? 'text-red-500 hover:text-red-700' : 'text-gray-400 hover:text-gray-600'}`} title="Delete opportunity" onClick={(e) => { e.stopPropagation(); requestOpportunityDelete(row) }}>
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
@@ -1892,7 +1884,7 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
       }
       return column
     })
-  }, [contactOpportunityPreferenceColumns, selectedOpportunities, handleOpportunityEdit, requestOpportunityDelete, handleToggleOpportunityStatus])
+  }, [contactOpportunityPreferenceColumns, selectedOpportunities, requestOpportunityDelete, handleToggleOpportunityStatus])
 
   const handleGroupsSearch = useCallback((query: string) => {
     setGroupsSearchQuery(query)
@@ -1953,9 +1945,6 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
                   </span>
                 </button>
                 <div className="flex gap-0.5">
-                  <button type="button" className="p-1 text-primary-600 hover:text-primary-700 transition-colors rounded" title="Edit group" onClick={(e) => { e.stopPropagation(); handleGroupEdit(row) }}>
-                    <Edit className="h-3.5 w-3.5" />
-                  </button>
                   <button type="button" className={`p-1 rounded transition-colors ${activeValue ? 'text-red-500 hover:text-red-700' : 'text-gray-400 hover:text-gray-600'}`} title="Delete group" onClick={(e) => { e.stopPropagation(); requestGroupDelete(row) }}>
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
@@ -1991,7 +1980,7 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
       }
       return column
     })
-  }, [contactGroupPreferenceColumns, selectedGroups, handleGroupEdit, requestGroupDelete, handleToggleGroupStatus])
+  }, [contactGroupPreferenceColumns, selectedGroups, requestGroupDelete, handleToggleGroupStatus])
 
   const filteredActivities = useMemo(() => {
     let rows: ContactActivityRow[] = [...(contact?.activities ?? [])]
@@ -2043,7 +2032,7 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
     if (query.length > 0) {
       rows = rows.filter(row => {
         const values = [
-          row.closeDate ? new Date(row.closeDate as any).toLocaleDateString() : undefined,
+          row.closeDate ? formatDate(row.closeDate as any) : undefined,
           row.opportunityName,
           row.stage,
           row.orderIdHouse,
@@ -2393,51 +2382,32 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
                 {error ?? "Contact details are not available."}
               </div>
             ) : contact ? (
-              <div className="flex flex-1 flex-col gap-1 overflow-hidden">
-                <div className="w-full xl:max-w-[1800px]">
-                  <div className="rounded-2xl bg-gray-100 p-3 shadow-sm">
-                  {/* Header with title and controls */}
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-3">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-primary-600">Contact Detail</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {onEdit && contact && !isDeleted && (
-                        <button
-                          onClick={() => onEdit(contact)}
-                          className="rounded-md bg-primary-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-primary-700"
-                        >
-                          Update
-                        </button>
-                      )}
-                      <button
-                        onClick={toggleDetails}
-                        className="flex items-center gap-1 rounded-md bg-gray-200 px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-300 hover:text-gray-800 transition-colors"
-                        title={detailsExpanded ? "Minimize details" : "Expand details"}
-                      >
-                        {detailsExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-                      </button>
-                    </div>
-                  </div>
-
-                  {!detailsExpanded ? (
-                    <div className="space-y-1.5">
-                      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2">
-                        <span className="font-semibold text-gray-900">{contact.firstName} {contact.lastName}</span>
-                        {contact.jobTitle && (
-                          <span className="text-sm text-gray-600">- {contact.jobTitle}</span>
-                        )}
-                        <span className="text-sm text-gray-600">- {contact.accountName}</span>
+              <>
+                <div className="flex flex-1 flex-col gap-1 overflow-hidden">
+                  <div className="w-full xl:max-w-[1800px]">
+                    <div className="rounded-2xl bg-gray-100 p-3 shadow-sm">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-3">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-primary-600">Contact Detail</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {onEdit && contact && !isDeleted && (
+                            <button
+                              onClick={() => onEdit(contact)}
+                              className="rounded-md bg-primary-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-primary-700"
+                            >
+                              Update
+                            </button>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ) : (
-                    <>
+
                       <div className="grid gap-6 lg:grid-cols-2">
                         <div className="space-y-1.5">
                           <FieldRow
                             label="Name"
                             value={
-                              <div className="grid gap-2 md:grid-cols-3 max-w-md">
+                              <div className="grid max-w-md gap-2 md:grid-cols-3">
                                 <div>
                                   <div className={fieldSubLabelClass}>First</div>
                                   <div className={cn(fieldBoxClass, "max-w-none")}>{contact.firstName}</div>
@@ -2460,9 +2430,9 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
                           <FieldRow
                             label="Account Name"
                             value={
-                              <div className="flex items-center gap-2 max-w-md">
+                              <div className="flex max-w-md items-center gap-2">
                                 <div className={cn(fieldBoxClass, "flex-1 max-w-none")}>{contact.accountName || "--"}</div>
-                                <div className="flex items-center gap-2 rounded-lg border-2 border-gray-400 bg-white px-2 py-0.5 text-xs font-medium text-gray-600 shadow-sm shrink-0">
+                                <div className="flex shrink-0 items-center gap-2 rounded-lg border-2 border-gray-400 bg-white px-2 py-0.5 text-xs font-medium text-gray-600 shadow-sm">
                                   <span>Active (Y/N)</span>
                                   <ReadOnlySwitch value={contact.active} />
                                 </div>
@@ -2505,8 +2475,7 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
                           />
                         </div>
                       </div>
-                    </>
-                  )}
+                    </div>
                   </div>
                 </div>
 
@@ -2517,10 +2486,10 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id)}
                         className={cn(
-                          "px-3 py-1.5 text-sm font-semibold transition rounded-t-md border border-blue-300 bg-gradient-to-b from-blue-100 to-blue-200 text-primary-800 shadow-sm hover:from-blue-200 hover:to-blue-300 hover:border-blue-400",
+                          "px-3 py-1.5 text-sm font-semibold transition rounded-t-md border shadow-sm",
                           activeTab === tab.id
-                            ? "text-primary-900 border-blue-500 shadow-md -mb-[1px] relative z-10 from-blue-200 to-blue-300"
-                            : ""
+                            ? "relative -mb-[1px] z-10 border-primary-700 bg-primary-700 text-white hover:bg-primary-800"
+                            : "border-blue-300 bg-gradient-to-b from-blue-100 to-blue-200 text-primary-800 hover:from-blue-200 hover:to-blue-300 hover:border-blue-400"
                         )}
                       >
                         {tab.label}
@@ -2529,7 +2498,7 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
                   </div>
 
                   {activeTab === "activities" && (
-                    <div className="grid flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0.5 px-3 pb-0">
+                    <div className="grid flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-1 border-x border-b border-t-2 border-t-primary-600 border-gray-200 bg-white min-h-0 overflow-hidden pt-0.5 px-3 pb-0">
                       <ListHeader
                         onCreateClick={handleCreateNewClick}
                         onFilterChange={setActiveFilter as unknown as (filter: string) => void}
@@ -2577,7 +2546,7 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
                   )}
 
                   {activeTab === "opportunities" && (
-                    <div className="grid flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0.5 px-3 pb-0">
+                    <div className="grid flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-1 border-x border-b border-t-2 border-t-primary-600 border-gray-200 bg-white min-h-0 overflow-hidden pt-0.5 px-3 pb-0">
                       <ListHeader
                         onCreateClick={handleCreateNewClick}
                         onFilterChange={setActiveFilter as unknown as (filter: string) => void}
@@ -2625,7 +2594,7 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
                   )}
 
                   {activeTab === "groups" && (
-                    <div className="grid flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0.5 px-3 pb-0">
+                    <div className="grid flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-1 border-x border-b border-t-2 border-t-primary-600 border-gray-200 bg-white min-h-0 overflow-hidden pt-0.5 px-3 pb-0">
                       <ListHeader
                         onCreateClick={handleCreateNewClick}
                         onFilterChange={setActiveFilter as unknown as (filter: string) => void}
@@ -2672,7 +2641,7 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
                     </div>
                   )}
                 </div>
-              </div>
+              </>
             ) : (
               <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-10 text-center text-sm text-gray-500">
                 Contact details are not available.
@@ -2950,15 +2919,3 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
     </div>
   )
 }
-
-
-
-
-
-
-
-
-
-
-
-

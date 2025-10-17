@@ -16,7 +16,7 @@ import { TwoStageDeleteDialog } from '@/components/two-stage-delete-dialog'
 import { useToasts } from '@/components/toast'
 import type { DeletionConstraint } from '@/lib/deletion'
 import { OpportunityStatus } from '@prisma/client'
-import { Check, Edit, Trash2 } from 'lucide-react'
+import { Check, Trash2 } from 'lucide-react'
 
 const currencyFormatter = new Intl.NumberFormat('en-US', {
   style: 'currency',
@@ -1180,18 +1180,6 @@ export default function OpportunitiesPage() {
                 <div className="flex gap-0.5">
                   <button
                     type="button"
-                    className="rounded p-1 text-blue-500 transition-colors hover:text-blue-700"
-                    onClick={(event) => {
-                      event.preventDefault()
-                      event.stopPropagation()
-                      handleOpportunityEdit(row)
-                    }}
-                    aria-label="Edit opportunity"
-                  >
-                    <Edit className="h-3.5 w-3.5" />
-                  </button>
-                  <button
-                    type="button"
                     className={`rounded p-1 transition-colors ${
                       activeValue ? 'text-red-500 hover:text-red-700' : 'text-gray-400 hover:text-gray-600'
                     }`}
@@ -1263,7 +1251,6 @@ export default function OpportunitiesPage() {
       return column
     })
   }, [
-    handleOpportunityEdit,
     handleOpportunitySelect,
     handleOpportunityToggleActive,
     normalizedPreferenceColumns,

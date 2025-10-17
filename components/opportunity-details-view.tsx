@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
-import { Check, ChevronDown, ChevronUp, Edit, Loader2, Trash2 } from "lucide-react"
+import { Check, Loader2, Trash2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ListHeader, type ColumnFilter } from "@/components/list-header"
 import { ColumnChooserModal } from "@/components/column-chooser-modal"
@@ -21,8 +21,8 @@ import { useAuth } from "@/lib/auth-context"
 import { useToasts } from "@/components/toast"
 import { ProductBulkActionBar } from "./product-bulk-action-bar"
 
-const fieldLabelClass = "text-xs font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap"
-const fieldBoxClass = "flex min-h-[32px] w-full max-w-md items-center justify-between rounded-lg border-2 border-gray-400 bg-white px-2 py-1 text-sm text-gray-900 shadow-sm whitespace-nowrap overflow-hidden text-ellipsis"
+const fieldLabelClass = "text-[11px] font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap"
+const fieldBoxClass = "flex min-h-[28px] w-full max-w-md items-center justify-between rounded-lg border-2 border-gray-400 bg-white px-2 py-0.5 text-xs text-gray-900 shadow-sm whitespace-nowrap overflow-hidden text-ellipsis"
 
 const PRODUCT_FILTER_COLUMNS: Array<{ id: string; label: string }> = [
   { id: "productName", label: "Product Name" },
@@ -449,7 +449,10 @@ function formatDate(value: string | null | undefined): string {
   if (Number.isNaN(date.getTime())) {
     return "--"
   }
-  return date.toISOString().slice(0, 10)
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, "0")
+  const day = String(date.getDate()).padStart(2, "0")
+  return `${year}/${month}/${day}`
 }
 
 function formatDateTime(value: string | null | undefined): string {
@@ -486,14 +489,10 @@ function FieldRow({ label, children }: { label: string; children: React.ReactNod
 
 function OpportunityHeader({
   opportunity,
-  onEdit,
-  isExpanded,
-  onToggleExpand
+  onEdit
 }: {
   opportunity: OpportunityDetailRecord
   onEdit?: () => void
-  isExpanded: boolean
-  onToggleExpand: () => void
 }) {
   return (
     <div className="rounded-2xl bg-gray-100 p-3 shadow-sm">
@@ -511,109 +510,80 @@ function OpportunityHeader({
               Update
             </button>
           )}
-          <button
-            onClick={onToggleExpand}
-            className="flex items-center gap-1 rounded-md bg-gray-200 px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-300 hover:text-gray-800 transition-colors"
-            title={isExpanded ? "Minimize details" : "Expand details"}
-          >
-            {isExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-          </button>
         </div>
       </div>
 
-      {!isExpanded ? (
-        /* Minimized view */
+      <div className="grid gap-6 lg:grid-cols-2">
         <div className="space-y-1.5">
-          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2">
-            <span className="font-semibold text-gray-900">
+          <FieldRow label="Opportunity Name">
+            <div className={fieldBoxClass}>
               {opportunity.name || "Untitled Opportunity"}
-            </span>
-            {opportunity.stage && (
-              <span className="text-sm text-gray-600">
-                - {humanizeLabel(opportunity.stage)}
-              </span>
+            </div>
+          </FieldRow>
+          <FieldRow label="Account Name">
+            {opportunity.account ? (
+              <Link href={`/accounts/${opportunity.account.id}`} className="w-full max-w-md">
+                <div
+                  className={cn(
+                    fieldBoxClass,
+                    "cursor-pointer text-primary-700 hover:border-primary-500 hover:text-primary-800"
+                  )}
+                >
+                  <span className="truncate">{opportunity.account.accountName}</span>
+                </div>
+              </Link>
+            ) : (
+              <div className={fieldBoxClass}>Not linked</div>
             )}
-            {opportunity.account?.accountName && (
-              <span className="text-sm text-gray-600">
-                - {opportunity.account.accountName}
-              </span>
-            )}
-          </div>
+          </FieldRow>
+          <FieldRow label="Account Legal Name">
+            <div className={fieldBoxClass}>
+              {opportunity.account?.accountLegalName || "--"}
+            </div>
+          </FieldRow>
+          <FieldRow label="Subagent">
+            <div className={fieldBoxClass}>{opportunity.subAgent || "None"}</div>
+          </FieldRow>
+          <FieldRow label="Owner">
+            <div className={fieldBoxClass}>{opportunity.owner?.name || "--"}</div>
+          </FieldRow>
+          <FieldRow label="Opportunity Stage">
+            <div className={fieldBoxClass}>{humanizeLabel(opportunity.stage)}</div>
+          </FieldRow>
+          <FieldRow label="Estimated Close Date">
+            <div className={fieldBoxClass}>{formatDate(opportunity.estimatedCloseDate)}</div>
+          </FieldRow>
         </div>
-      ) : (
-        /* Expanded view - two column grid */
-        <div className="grid gap-6 lg:grid-cols-2">
-          <div className="space-y-1.5">
-            <FieldRow label="Opportunity Name">
-              <div className={fieldBoxClass}>
-                {opportunity.name || "Untitled Opportunity"}
-              </div>
-            </FieldRow>
-            <FieldRow label="Account Name">
-              {opportunity.account ? (
-                <Link href={`/accounts/${opportunity.account.id}`} className="w-full max-w-md">
-                  <div
-                    className={cn(
-                      fieldBoxClass,
-                      "cursor-pointer text-primary-700 hover:border-primary-500 hover:text-primary-800"
-                    )}
-                  >
-                    <span className="truncate">{opportunity.account.accountName}</span>
-                  </div>
-                </Link>
-              ) : (
-                <div className={fieldBoxClass}>Not linked</div>
-              )}
-            </FieldRow>
-            <FieldRow label="Account Legal Name">
-              <div className={fieldBoxClass}>
-                {opportunity.account?.accountLegalName || "--"}
-              </div>
-            </FieldRow>
-            <FieldRow label="Subagent">
-              <div className={fieldBoxClass}>{opportunity.subAgent || "None"}</div>
-            </FieldRow>
-            <FieldRow label="Owner">
-              <div className={fieldBoxClass}>{opportunity.owner?.name || "--"}</div>
-            </FieldRow>
-            <FieldRow label="Opportunity Stage">
-              <div className={fieldBoxClass}>{humanizeLabel(opportunity.stage)}</div>
-            </FieldRow>
-            <FieldRow label="Estimated Close Date">
-              <div className={fieldBoxClass}>{formatDate(opportunity.estimatedCloseDate)}</div>
-            </FieldRow>
-          </div>
-          <div className="space-y-1.5">
-            <FieldRow label="Referred By">
-              <div className={fieldBoxClass}>{opportunity.referredBy || "None"}</div>
-            </FieldRow>
-            <FieldRow label="Shipping Address">
-              <div className={fieldBoxClass}>
-                {opportunity.shippingAddress || "--"}
-              </div>
-            </FieldRow>
-            <FieldRow label="Billing Address">
-              <div className={fieldBoxClass}>
-                {opportunity.billingAddress || "--"}
-              </div>
-            </FieldRow>
-            <FieldRow label="Subagent %">
-              <div className={fieldBoxClass}>{formatPercent(opportunity.subagentPercent)}</div>
-            </FieldRow>
-            <FieldRow label="House Rep %">
-              <div className={fieldBoxClass}>{formatPercent(opportunity.houseRepPercent)}</div>
-            </FieldRow>
-            <FieldRow label="House Split %">
-              <div className={fieldBoxClass}>{formatPercent(opportunity.houseSplitPercent)}</div>
-            </FieldRow>
-            <FieldRow label="Description">
-              <div className={fieldBoxClass}>
-                {opportunity.description || "--"}
-              </div>
-            </FieldRow>
-          </div>
+        <div className="space-y-1.5">
+          <FieldRow label="Referred By">
+            <div className={fieldBoxClass}>{opportunity.referredBy || "None"}</div>
+          </FieldRow>
+          <FieldRow label="Shipping Address">
+            <div className={fieldBoxClass}>
+              {opportunity.shippingAddress || "--"}
+            </div>
+          </FieldRow>
+          <FieldRow label="Billing Address">
+            <div className={fieldBoxClass}>
+              {opportunity.billingAddress || "--"}
+            </div>
+          </FieldRow>
+          <FieldRow label="Subagent %">
+            <div className={fieldBoxClass}>{formatPercent(opportunity.subagentPercent)}</div>
+          </FieldRow>
+          <FieldRow label="House Rep %">
+            <div className={fieldBoxClass}>{formatPercent(opportunity.houseRepPercent)}</div>
+          </FieldRow>
+          <FieldRow label="House Split %">
+            <div className={fieldBoxClass}>{formatPercent(opportunity.houseSplitPercent)}</div>
+          </FieldRow>
+          <FieldRow label="Description">
+            <div className={fieldBoxClass}>
+              {opportunity.description || "--"}
+            </div>
+          </FieldRow>
         </div>
-      )}
+      </div>
     </div>
   )
 }
@@ -655,13 +625,6 @@ export function OpportunityDetailsView({
   const { showError, showSuccess } = useToasts()
 
   const [activeTab, setActiveTab] = useState<TabKey>("summary")
-
-  // Header collapse/expand state
-  const [detailsExpanded, setDetailsExpanded] = useState(true)
-
-  const toggleDetails = useCallback(() => {
-    setDetailsExpanded(prev => !prev)
-  }, [])
 
   // Roles state
   const [rolesSearchQuery, setRolesSearchQuery] = useState("")
@@ -874,7 +837,10 @@ export function OpportunityDetailsView({
     }
 
     if (roleColumnFilters.length > 0) {
-      rows = applySimpleFilters(rows as unknown as Record<string, unknown>[], roleColumnFilters) as OpportunityRoleRow[]
+      rows = applySimpleFilters(
+        rows as unknown as Record<string, unknown>[],
+        roleColumnFilters
+      ) as unknown as OpportunityRoleRow[]
     }
 
     return rows
@@ -1901,27 +1867,6 @@ export function OpportunityDetailsView({
                     className={cn(
                       "rounded p-1 transition-colors",
                       canModifyLineItems && target
-                        ? "text-primary-600 hover:text-primary-700"
-                        : "cursor-not-allowed text-gray-400"
-                    )}
-                    onClick={event => {
-                      event.preventDefault()
-                      event.stopPropagation()
-                      if (!target || !canModifyLineItems) {
-                        return
-                      }
-                      setEditingLineItem(target)
-                    }}
-                    aria-label="Edit line item"
-                    disabled={!canModifyLineItems || !target}
-                  >
-                    <Edit className="h-3.5 w-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    className={cn(
-                      "rounded p-1 transition-colors",
-                      canModifyLineItems && target
                         ? "text-red-500 hover:text-red-600"
                         : "cursor-not-allowed text-gray-400"
                     )}
@@ -2110,8 +2055,6 @@ if (loading) {
             <OpportunityHeader
               opportunity={opportunity}
               onEdit={onEdit}
-              isExpanded={detailsExpanded}
-              onToggleExpand={toggleDetails}
             />
 
             <div className="flex flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
@@ -2122,10 +2065,10 @@ if (loading) {
                     type="button"
                     onClick={() => setActiveTab(tabId)}
                     className={cn(
-                      "rounded-t-md border border-blue-300 bg-gradient-to-b from-blue-100 to-blue-200 px-3 py-1.5 text-sm font-semibold text-primary-800 shadow-sm transition hover:from-blue-200 hover:to-blue-300 hover:border-blue-400",
+                      "rounded-t-md border px-3 py-1.5 text-sm font-semibold shadow-sm transition",
                       activeTab === tabId
-                        ? "-mb-[1px] border-blue-500 from-blue-200 to-blue-300 text-primary-900 shadow-md"
-                        : "text-primary-800"
+                        ? "-mb-[1px] border-primary-700 bg-primary-700 text-white hover:bg-primary-800"
+                        : "border-blue-300 bg-gradient-to-b from-blue-100 to-blue-200 text-primary-800 hover:from-blue-200 hover:to-blue-300 hover:border-blue-400"
                     )}
                   >
                     {tabId === "summary"
@@ -2145,7 +2088,7 @@ if (loading) {
                 ))}
               </div>
 
-              <div className="min-h-[320px] border-t border-gray-200 bg-white p-4 flex flex-col overflow-hidden">
+              <div className="min-h-[320px] border-t-2 border-t-primary-600 border-gray-200 bg-white p-4 flex flex-col overflow-hidden">
                 {activeTab === "summary" ? (
                   <SummaryTab opportunity={opportunity} />
                 ) : activeTab === "roles" ? (

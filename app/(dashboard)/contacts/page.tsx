@@ -16,7 +16,7 @@ import { ContactBulkActionBar } from "@/components/contact-bulk-action-bar"
 import { ContactBulkOwnerModal } from "@/components/contact-bulk-owner-modal"
 import { ContactBulkStatusModal } from "@/components/contact-bulk-status-modal"
 import { ContactEditModal } from "@/components/contact-edit-modal"
-import { Trash2, Edit, Check } from "lucide-react"
+import { Trash2, Check } from "lucide-react"
 
 interface ContactRow {
   id: string
@@ -1177,20 +1177,8 @@ export default function ContactsPage() {
                   </span>
                 </button>
 
-                {/* Action Buttons */}
+                {/* Delete action */}
                 <div className="flex gap-0.5">
-                  <button
-                    type="button"
-                    className="p-1 text-blue-500 hover:text-blue-700 transition-colors rounded"
-                    onClick={(event) => {
-                      event.preventDefault();
-                      event.stopPropagation();
-                      requestContactEdit(row);
-                    }}
-                    aria-label="Edit contact"
-                  >
-                    <Edit className="h-3.5 w-3.5" />
-                  </button>
                   <button
                     type="button"
                     className={`p-1 rounded transition-colors ${
@@ -1221,17 +1209,6 @@ export default function ContactsPage() {
             <div className="flex gap-1">
               <button
                 type="button"
-                className="text-blue-500 hover:text-blue-700 p-1 rounded transition-colors"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  requestContactEdit(row);
-                }}
-                aria-label="Edit contact"
-              >
-                <Edit className="h-4 w-4" />
-              </button>
-              <button
-                type="button"
                 className={`p-1 rounded transition-colors ${
                   row.isDeleted
                     ? "text-gray-400 hover:text-gray-600"
@@ -1251,7 +1228,7 @@ export default function ContactsPage() {
       }
       return column;
     });
-  }, [preferenceColumns, selectedContacts, handleContactSelect, handleToggleContactStatus, requestContactEdit, requestContactDeletion])
+  }, [preferenceColumns, selectedContacts, handleContactSelect, handleToggleContactStatus, requestContactDeletion])
   
   // Get hidden columns by comparing all columns with visible ones
   const hiddenColumns = useMemo(() => {

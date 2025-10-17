@@ -1,8 +1,9 @@
 ﻿"use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState, type ComponentProps } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { ContactDetailsView, ContactDetail } from "@/components/contact-details-view"
+import { ContactEditModal } from "@/components/contact-edit-modal"
 import { CopyProtectionWrapper } from "@/components/copy-protection"
 import { useBreadcrumbs } from "@/lib/breadcrumb-context"
 
@@ -19,6 +20,8 @@ export default function ContactDetailPage() {
   const [contact, setContact] = useState<ContactDetail | null>(null)
   const [loading, setLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [contactForEdit, setContactForEdit] = useState<ComponentProps<typeof ContactEditModal>["contact"]>(null)
   const { setBreadcrumbs } = useBreadcrumbs()
 
   const fetchContact = useCallback(
@@ -101,14 +104,56 @@ export default function ContactDetailPage() {
     setContact(updatedContact)
   }
 
+  const composeFullName = useCallback((detail: ContactDetail) => {
+    const first = detail.firstName?.trim() ?? ""
+    const last = detail.lastName?.trim() ?? ""
+    const combined = [first, last].filter(Boolean).join(" ")
+    return combined || detail.accountName || ""
+  }, [])
+
+  const handleOpenEdit = useCallback((detail: ContactDetail) => {
+    setContactForEdit({
+      id: detail.id,
+      suffix: detail.suffix ?? "",
+      fullName: composeFullName(detail),
+      jobTitle: detail.jobTitle ?? "",
+      mobile: detail.mobilePhone ?? "",
+      workPhone: detail.workPhone ?? "",
+      emailAddress: detail.emailAddress ?? "",
+      extension: detail.workPhoneExt ?? "",
+      accountId: detail.accountId ?? "",
+      accountName: detail.accountName ?? "",
+      isPrimary: detail.isPrimary ?? false,
+      active: detail.active
+    })
+    setShowEditModal(true)
+  }, [composeFullName])
+
+  const handleCloseEditModal = useCallback(() => {
+    setShowEditModal(false)
+  }, [])
+
+  const handleEditSuccess = useCallback(async () => {
+    setShowEditModal(false)
+    await fetchContact()
+  }, [fetchContact])
+
   return (
     <CopyProtectionWrapper className="min-h-screen bg-slate-50">
       <ContactDetailsView
         contact={contact}
         loading={loading}
         error={error}
+        onEdit={handleOpenEdit}
         onContactUpdated={handleContactUpdated}
         onRefresh={fetchContact}
+      />
+
+      <ContactEditModal
+        isOpen={showEditModal}
+        onClose={handleCloseEditModal}
+        onSuccess={handleEditSuccess}
+        contact={contactForEdit}
       />
     </CopyProtectionWrapper>
   )

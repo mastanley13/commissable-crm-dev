@@ -19,7 +19,7 @@ import { AccountBulkActionBar } from "@/components/account-bulk-action-bar";
 import { AccountBulkOwnerModal } from "@/components/account-bulk-owner-modal";
 import { AccountReassignmentModal } from "@/components/account-reassignment-modal";
 import { AccountBulkStatusModal } from "@/components/account-bulk-status-modal";
-import { Trash2, Edit, Check } from "lucide-react";
+import { Trash2, Check } from "lucide-react";
 
 
 interface AccountRow {
@@ -1451,20 +1451,8 @@ export default function AccountsPage() {
                   </span>
                 </button>
 
-                {/* Action Buttons */}
+                {/* Delete action */}
                 <div className="flex gap-0.5">
-                  <button
-                    type="button"
-                    className="p-1 text-blue-500 hover:text-blue-700 transition-colors rounded"
-                    onClick={(event) => {
-                      event.preventDefault();
-                      event.stopPropagation();
-                      requestAccountEdit(row);
-                    }}
-                    aria-label="Edit account"
-                  >
-                    <Edit className="h-3.5 w-3.5" />
-                  </button>
                   <button
                     type="button"
                     className={`p-1 rounded transition-colors ${
@@ -1536,17 +1524,6 @@ export default function AccountsPage() {
             <div className="flex gap-1">
               <button
                 type="button"
-                className="text-blue-500 hover:text-blue-700 p-1 rounded transition-colors"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  requestAccountEdit(row);
-                }}
-                aria-label="Edit account"
-              >
-                <Edit className="h-4 w-4" />
-              </button>
-              <button
-                type="button"
                 className={`p-1 rounded transition-colors ${
                   row.active
                     ? "text-red-500 hover:text-red-700"
@@ -1573,7 +1550,6 @@ export default function AccountsPage() {
     updatingAccountIds,
     handleAccountSelect,
     handleToggleActive,
-    requestAccountEdit,
     requestAccountDeletion,
   ]);
 

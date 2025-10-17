@@ -5,7 +5,6 @@ import { ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, us
 import { useRouter } from "next/navigation"
 import {
   ChevronDown,
-  ChevronUp,
   Edit,
   Filter,
   Loader2,
@@ -169,8 +168,8 @@ const TABS: { id: TabKey; label: string }[] = [
   { id: "activities", label: "Activities & Notes" }
 ]
 
-const fieldLabelClass = "text-xs font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap flex items-center"
-const fieldBoxClass = "flex min-h-[32px] w-full max-w-md items-center justify-between rounded-lg border-2 border-gray-400 bg-white px-2 py-1 text-sm text-gray-900 shadow-sm whitespace-nowrap overflow-hidden text-ellipsis"
+const fieldLabelClass = "text-[11px] font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap flex items-center"
+const fieldBoxClass = "flex min-h-[28px] w-full max-w-md items-center justify-between rounded-lg border-2 border-gray-400 bg-white px-2 py-0.5 text-xs text-gray-900 shadow-sm whitespace-nowrap overflow-hidden text-ellipsis"
 const CONTACT_TABLE_BASE_COLUMNS: Column[] = [
   {
     id: "multi-action",
@@ -584,7 +583,6 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
   const router = useRouter()
   const { showSuccess, showError } = useToasts()
   const [activeTab, setActiveTab] = useState<TabKey>("contacts")
-  const [detailsExpanded, setDetailsExpanded] = useState(true)
   const tableAreaRef = useRef<HTMLDivElement | null>(null)
   const [tableAreaMaxHeight, setTableAreaMaxHeight] = useState<number>()
   const TABLE_CONTAINER_PADDING = 16
@@ -612,7 +610,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
 
   useLayoutEffect(() => {
     measureTableAreaHeight()
-  }, [measureTableAreaHeight, activeTab, detailsExpanded, loading])
+  }, [measureTableAreaHeight, activeTab, loading])
 
   useEffect(() => {
     const handleResize = () => measureTableAreaHeight()
@@ -640,9 +638,6 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
     router.push("/accounts")
   }
 
-  const toggleDetails = () => {
-    setDetailsExpanded(!detailsExpanded)
-  }
   const [activityFilter, setActivityFilter] = useState<string>("All")
   const [activeFilter, setActiveFilter] = useState<"active" | "inactive">("active")
   const [contactsColumnFilters, setContactsColumnFilters] = useState<ColumnFilter[]>([])
@@ -2827,11 +2822,8 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                     <span className={`inline-block w-4 h-4 bg-white rounded-full shadow transition-transform duration-300 ease-in-out transform ${activeValue ? 'translate-x-4' : 'translate-x-1'} mt-0.5 ${activeValue ? 'ring-1 ring-blue-300' : ''}`} />
                   </span>
                 </button>
-                {/* Actions */}
+                {/* Delete action */}
                 <div className="flex gap-0.5">
-                  <button type="button" className="p-1 text-primary-600 hover:text-primary-700 transition-colors rounded" onClick={(e) => { e.stopPropagation(); handleEditContact(row) }} aria-label="Edit contact">
-                    <Edit className="h-3.5 w-3.5" />
-                  </button>
                   <button type="button" className={`p-1 rounded transition-colors ${row.isDeleted ? 'text-gray-400 hover:text-gray-600' : 'text-red-500 hover:text-red-700'}`} onClick={(event) => { event.stopPropagation(); requestContactDelete(row) }} aria-label={row.isDeleted ? 'Manage contact' : 'Delete contact'}>
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
@@ -2912,9 +2904,6 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                   </span>
                 </button>
                 <div className="flex gap-0.5">
-                  <button type="button" className="p-1 rounded transition-colors text-blue-500 hover:text-blue-700" onClick={(e) => { e.stopPropagation(); handleOpportunityEdit(row) }} aria-label="Edit opportunity">
-                    <Edit className="h-3.5 w-3.5" />
-                  </button>
                   <button type="button" className={`p-1 rounded transition-colors ${activeValue ? 'text-red-500 hover:text-red-700' : 'text-gray-400 hover:text-gray-600'}`} onClick={(e) => { e.stopPropagation(); requestOpportunityDelete(row) }} aria-label="Delete opportunity">
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
@@ -2937,7 +2926,6 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
     opportunityPreferenceColumns,
     updatingOpportunityIds,
     handleOpportunityToggleActive,
-    handleOpportunityEdit,
     requestOpportunityDelete,
   ])
 
@@ -2980,9 +2968,6 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                   </span>
                 </button>
                 <div className="flex gap-0.5">
-                  <button type="button" className="p-1 text-primary-600 hover:text-primary-700 transition-colors rounded" onClick={(e) => { e.stopPropagation(); handleEditActivity(row) }} aria-label="Edit activity">
-                    <Edit className="h-3.5 w-3.5" />
-                  </button>
                   <button type="button" className="p-1 text-red-500 hover:text-red-700 transition-colors rounded" onClick={(e) => { e.stopPropagation(); handleDeleteActivity(row) }} aria-label="Delete activity">
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
@@ -2997,17 +2982,13 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
           ...column,
           render: (value?: string | Date | null) => {
             if (!value) return "--"
-            const dateValue = value instanceof Date ? value : new Date(value)
-            if (Number.isNaN(dateValue.getTime())) {
-              return "--"
-            }
-            return dateValue.toLocaleDateString()
+            return formatDate(value) || "--"
           }
         }
       }
       return column
     })
-  }, [activityPreferenceColumns, selectedActivities, handleEditActivity, handleDeleteActivity, handleToggleActivityStatus])
+  }, [activityPreferenceColumns, selectedActivities, handleDeleteActivity, handleToggleActivityStatus])
 
   const filteredGroups = useMemo(() => {
     if (!account) return []
@@ -3204,9 +3185,6 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                   </span>
                 </button>
                 <div className="flex gap-0.5">
-                  <button type="button" className="p-1 rounded transition-colors text-blue-500 hover:text-blue-700" onClick={(e) => { e.stopPropagation(); handleEditGroup(row) }} aria-label="Edit group">
-                    <Edit className="h-3.5 w-3.5" />
-                  </button>
                   <button type="button" className={`p-1 rounded transition-colors ${activeValue ? 'text-red-500 hover:text-red-700' : 'text-gray-400 hover:text-gray-600'}`} onClick={(e) => { e.stopPropagation(); requestGroupDelete(row) }} aria-label="Delete group">
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
@@ -3218,7 +3196,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
       }
       return column
     })
-  }, [groupPreferenceColumns, selectedGroups, handleEditGroup, requestGroupDelete, handleToggleGroupStatus])
+  }, [groupPreferenceColumns, selectedGroups, requestGroupDelete, handleToggleGroupStatus])
 
   const filteredActivities = useMemo(() => {
     if (!account) return []
@@ -3308,7 +3286,10 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
     if (!value) return ""
     const date = value instanceof Date ? value : new Date(value as any)
     if (Number.isNaN(date.getTime())) return ""
-    return date.toLocaleDateString()
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, "0")
+    const day = String(date.getDate()).padStart(2, "0")
+    return `${year}/${month}/${day}`
   }
 
   return (
@@ -3329,7 +3310,6 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
               <div className="flex flex-1 flex-col gap-1 overflow-hidden">
                 <div className="w-full xl:max-w-[1800px]">
                   <div className="rounded-2xl bg-gray-100 p-3 shadow-sm">
-                  {/* Header with title and expand/collapse toggle */}
                   <div className="flex items-center justify-between mb-2">
                     <p className="text-xs font-semibold uppercase tracking-wide text-primary-600">Account Detail</p>
                     <div className="flex items-center gap-2">
@@ -3341,39 +3321,10 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                           Update
                         </button>
                       )}
-                      <button
-                        onClick={toggleDetails}
-                        className="flex items-center gap-1 rounded-md bg-gray-200 px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-300 hover:text-gray-800 transition-colors"
-                        title={detailsExpanded ? "Minimize details" : "Expand details"}
-                      >
-                        {detailsExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-                      </button>
                     </div>
                   </div>
 
-                  {!detailsExpanded ? (
-                    <div className="space-y-1.5">
-                      <div className="grid grid-cols-1 gap-1.5">
-                        <div className="flex items-center gap-3 p-2 bg-white rounded-lg border border-gray-200">
-                          <span className="font-medium text-gray-900">{account.accountName}</span>
-                          {account.accountLegalName && (
-                            <>
-                              <span className="text-sm text-gray-500">|</span>
-                              <span className="text-sm text-gray-600">{account.accountLegalName}</span>
-                            </>
-                          )}
-                          {account.industry && (
-                            <>
-                              <span className="text-sm text-gray-500">|</span>
-                              <span className="text-sm text-gray-600">{account.industry}</span>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="grid gap-6 lg:grid-cols-2">
+                  <div className="grid gap-6 lg:grid-cols-2">
                     <div className="space-y-1.5">
                       <FieldRow
                         label="Account Name"
@@ -3502,8 +3453,6 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                       </div>
                     </div>
                   </div>
-                    </>
-                  )}
                   </div>
                 </div>
 
@@ -3514,10 +3463,10 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id)}
                         className={cn(
-                          "px-3 py-1.5 text-sm font-semibold transition rounded-t-md border border-blue-300 bg-gradient-to-b from-blue-100 to-blue-200 text-primary-800 shadow-sm hover:from-blue-200 hover:to-blue-300 hover:border-blue-400",
+                          "px-3 py-1.5 text-sm font-semibold transition rounded-t-md border shadow-sm",
                           activeTab === tab.id
-                            ? "text-primary-900 border-blue-500 shadow-md -mb-[1px] relative z-10 from-blue-200 to-blue-300"
-                            : ""
+                            ? "relative -mb-[1px] z-10 border-primary-700 bg-primary-700 text-white hover:bg-primary-800"
+                            : "border-blue-300 bg-gradient-to-b from-blue-100 to-blue-200 text-primary-800 hover:from-blue-200 hover:to-blue-300 hover:border-blue-400"
                         )}
                       >
                         {tab.label}
@@ -3526,7 +3475,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                   </div>
 
                   {activeTab === "contacts" && (
-                    <div className="grid flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0.5 px-3 pb-0">
+                    <div className="grid flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-1 border-x border-b border-t-2 border-t-primary-600 border-gray-200 bg-white min-h-0 overflow-hidden pt-0.5 px-3 pb-0">
                       <ListHeader
                         onCreateClick={handleCreateContact}
                         onFilterChange={(filter: string) => setActiveFilter(filter === "active" ? "active" : "inactive")}
@@ -3605,7 +3554,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                     </div>
                   )}
                   {activeTab === "opportunities" && (
-                    <div className="grid flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0.5 px-3 pb-0">
+                    <div className="grid flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-1 border-x border-b border-t-2 border-t-primary-600 border-gray-200 bg-white min-h-0 overflow-hidden pt-0.5 px-3 pb-0">
                       <ListHeader
                         onCreateClick={handleCreateOpportunity}
                         onFilterChange={(filter: string) => setActiveFilter(filter === "active" ? "active" : "inactive")}
@@ -3662,7 +3611,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                   )}
 
                   {activeTab === "groups" && (
-                    <div className="grid flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0.5 px-3 pb-0">
+                    <div className="grid flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-1 border-x border-b border-t-2 border-t-primary-600 border-gray-200 bg-white min-h-0 overflow-hidden pt-0.5 px-3 pb-0">
                       <ListHeader
                         onCreateClick={handleCreateGroup}
                         onFilterChange={(filter: string) => setActiveFilter(filter === "active" ? "active" : "inactive")}
@@ -3714,7 +3663,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                   )}
 
                   {activeTab === "activities" && (
-                    <div className="grid flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0.5 px-3 pb-0">
+                    <div className="grid flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-1 border-x border-b border-t-2 border-t-primary-600 border-gray-200 bg-white min-h-0 overflow-hidden pt-0.5 px-3 pb-0">
                       <ListHeader
                         onCreateClick={handleCreateActivity}
                         onFilterChange={(filter: string) => setActiveFilter(filter === "active" ? "active" : "inactive")}
@@ -3763,7 +3712,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                           const lines = [
                             headers.join(","),
                             ...rows.map(row => [
-                              row.activityDate ? (row.activityDate instanceof Date ? row.activityDate.toLocaleDateString() : new Date(row.activityDate).toLocaleDateString()) : "",
+                              row.activityDate ? formatDate(row.activityDate as any) : "",
                               row.activityType,
                               row.description,
                               row.accountName,
