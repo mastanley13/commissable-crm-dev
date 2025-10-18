@@ -5,6 +5,7 @@ import { withPermissions } from "@/lib/api-auth"
 import { hasAnyPermission } from "@/lib/auth"
 import { mapOpportunityToDetail, mapOpportunityToRow } from "../helpers"
 import { revalidateOpportunityPaths } from "../revalidate"
+import { ensureActiveOwnerOrNull } from "@/lib/validation"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -240,11 +241,8 @@ export async function PATCH(request: NextRequest, { params }: { params: { opport
       }
 
       if ("ownerId" in payload) {
-        if (typeof payload.ownerId === "string" && payload.ownerId.trim().length > 0) {
-          data.ownerId = payload.ownerId.trim()
-        } else {
-          data.ownerId = null
-        }
+        const nextOwnerId = await ensureActiveOwnerOrNull(payload.ownerId, req.user.tenantId)
+        data.ownerId = nextOwnerId
         hasChanges = true
       }
 

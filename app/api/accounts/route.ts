@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db"
 import { mapAccountToListRow, accountIncludeForList } from "./helpers"
 import { withPermissions, createErrorResponse } from "@/lib/api-auth"
 import { logAccountAudit } from "@/lib/audit"
-import { validateAccountData, createValidationErrorResponse, normalizeEmail, normalizeState, formatPhoneNumber } from "@/lib/validation"
+import { validateAccountData, createValidationErrorResponse, normalizeEmail, normalizeState, formatPhoneNumber, ensureActiveOwnerOrNull } from "@/lib/validation"
 import { revalidatePath } from "next/cache"
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic';
@@ -157,7 +157,8 @@ export async function POST(request: NextRequest) {
     }
 
     const parentAccountId = coerceOptionalId(payload.parentAccountId)
-    const ownerId = coerceOptionalId(payload.ownerId)
+    // Validate owner must be Active if provided
+    const ownerId = await ensureActiveOwnerOrNull(payload.ownerId, tenantId)
     const industryId = coerceOptionalId(payload.industryId)
 
     const isActive = typeof payload.active === "boolean" ? payload.active : true

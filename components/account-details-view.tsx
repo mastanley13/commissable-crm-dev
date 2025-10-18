@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { ChangeEvent, ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import {
   ChevronDown,
@@ -44,6 +44,12 @@ import { ActivityBulkOwnerModal } from "./activity-bulk-owner-modal"
 import { ActivityBulkStatusModal } from "./activity-bulk-status-modal"
 import { ContactEditModal } from "./contact-edit-modal"
 import { ActivityNoteEditModal } from "./activity-note-edit-modal"
+import { EditableField } from "./editable-field"
+import { useEntityEditor, type EntityEditor } from "@/hooks/useEntityEditor"
+import { useUnsavedChangesPrompt } from "@/hooks/useUnsavedChangesPrompt"
+import { isInlineDetailEditEnabled } from "@/lib/featureFlags"
+import { useAuth } from "@/lib/auth-context"
+import { VALIDATION_PATTERNS } from "@/lib/validation"
 
 export interface AccountAddress {
   line1: string
@@ -118,10 +124,14 @@ export interface AccountDetail {
   accountName: string
   accountLegalName?: string
   parentAccount?: string
+  parentAccountId?: string | null
   accountType: string
+  accountTypeId?: string | null
   active: boolean
   accountOwner?: string
+  ownerId?: string | null
   industry?: string
+  industryId?: string | null
   orderIdHouse?: string
   websiteUrl?: string
   description?: string
@@ -158,6 +168,256 @@ interface AccountDetailsViewProps {
   error?: string | null
   onEdit?: (account: AccountDetail) => void
   onRefresh?: () => void
+}
+
+type AccountOption = { value: string; label: string }
+
+interface AccountAddressForm {
+  line1: string
+  line2: string
+  city: string
+  state: string
+  postalCode: string
+  country: string
+}
+
+interface AccountInlineForm {
+  accountName: string
+  accountLegalName: string
+  parentAccountId: string
+  accountTypeId: string
+  ownerId: string
+  industryId: string
+  websiteUrl: string
+  description: string
+  active: boolean
+  billingSameAsShipping: boolean
+  shippingAddress: AccountAddressForm
+  billingAddress: AccountAddressForm
+}
+
+const DEFAULT_COUNTRY = "United States"
+
+const US_STATES: Array<{ code: string; name: string }> = [
+  { code: "AL", name: "Alabama" },
+  { code: "AK", name: "Alaska" },
+  { code: "AZ", name: "Arizona" },
+  { code: "AR", name: "Arkansas" },
+  { code: "CA", name: "California" },
+  { code: "CO", name: "Colorado" },
+  { code: "CT", name: "Connecticut" },
+  { code: "DE", name: "Delaware" },
+  { code: "DC", name: "District of Columbia" },
+  { code: "FL", name: "Florida" },
+  { code: "GA", name: "Georgia" },
+  { code: "HI", name: "Hawaii" },
+  { code: "ID", name: "Idaho" },
+  { code: "IL", name: "Illinois" },
+  { code: "IN", name: "Indiana" },
+  { code: "IA", name: "Iowa" },
+  { code: "KS", name: "Kansas" },
+  { code: "KY", name: "Kentucky" },
+  { code: "LA", name: "Louisiana" },
+  { code: "ME", name: "Maine" },
+  { code: "MD", name: "Maryland" },
+  { code: "MA", name: "Massachusetts" },
+  { code: "MI", name: "Michigan" },
+  { code: "MN", name: "Minnesota" },
+  { code: "MS", name: "Mississippi" },
+  { code: "MO", name: "Missouri" },
+  { code: "MT", name: "Montana" },
+  { code: "NE", name: "Nebraska" },
+  { code: "NV", name: "Nevada" },
+  { code: "NH", name: "New Hampshire" },
+  { code: "NJ", name: "New Jersey" },
+  { code: "NM", name: "New Mexico" },
+  { code: "NY", name: "New York" },
+  { code: "NC", name: "North Carolina" },
+  { code: "ND", name: "North Dakota" },
+  { code: "OH", name: "Ohio" },
+  { code: "OK", name: "Oklahoma" },
+  { code: "OR", name: "Oregon" },
+  { code: "PA", name: "Pennsylvania" },
+  { code: "RI", name: "Rhode Island" },
+  { code: "SC", name: "South Carolina" },
+  { code: "SD", name: "South Dakota" },
+  { code: "TN", name: "Tennessee" },
+  { code: "TX", name: "Texas" },
+  { code: "UT", name: "Utah" },
+  { code: "VT", name: "Vermont" },
+  { code: "VA", name: "Virginia" },
+  { code: "WA", name: "Washington" },
+  { code: "WV", name: "West Virginia" },
+  { code: "WI", name: "Wisconsin" },
+  { code: "WY", name: "Wyoming" }
+]
+
+const COUNTRY_OPTIONS = ["United States", "Canada", "Mexico"] as const
+
+function createEmptyAddress(): AccountAddressForm {
+  return {
+    line1: "",
+    line2: "",
+    city: "",
+    state: "",
+    postalCode: "",
+    country: DEFAULT_COUNTRY
+  }
+}
+
+function mapShippingAddress(address: AccountAddress | null | undefined): AccountAddressForm {
+  if (!address) return createEmptyAddress()
+  return {
+    line1: address.line1 ?? "",
+    line2: address.shippingStreet2 ?? address.line2 ?? "",
+    city: address.city ?? "",
+    state: address.state ?? "",
+    postalCode: address.postalCode ?? "",
+    country: address.country ?? DEFAULT_COUNTRY
+  }
+}
+
+function mapBillingAddress(address: AccountAddress | null | undefined): AccountAddressForm {
+  if (!address) return createEmptyAddress()
+  return {
+    line1: address.line1 ?? "",
+    line2: address.billingStreet2 ?? address.line2 ?? "",
+    city: address.city ?? "",
+    state: address.state ?? "",
+    postalCode: address.postalCode ?? "",
+    country: address.country ?? DEFAULT_COUNTRY
+  }
+}
+
+function normaliseAddressForPayload(address: AccountAddressForm): AccountAddressForm {
+  return {
+    line1: address.line1.trim(),
+    line2: address.line2.trim(),
+    city: address.city.trim(),
+    state: address.state.trim(),
+    postalCode: address.postalCode.trim(),
+    country: address.country.trim() || DEFAULT_COUNTRY
+  }
+}
+
+function createAccountInlineForm(detail: AccountDetail | null | undefined): AccountInlineForm | null {
+  if (!detail) return null
+  return {
+    accountName: detail.accountName ?? "",
+    accountLegalName: detail.accountLegalName ?? "",
+    parentAccountId: detail.parentAccountId ?? "",
+    accountTypeId: detail.accountTypeId ?? "",
+    ownerId: detail.ownerId ?? "",
+    industryId: detail.industryId ?? "",
+    websiteUrl: detail.websiteUrl ?? "",
+    description: detail.description ?? "",
+    active: Boolean(detail.active),
+    billingSameAsShipping: Boolean(detail.billingSameAsShipping),
+    shippingAddress: mapShippingAddress(detail.shippingAddress),
+    billingAddress: mapBillingAddress(
+      detail.billingSameAsShipping ? detail.shippingAddress : detail.billingAddress
+    )
+  }
+}
+
+function buildAccountPayload(patch: Partial<AccountInlineForm>, draft: AccountInlineForm): Record<string, unknown> {
+  const payload: Record<string, unknown> = {}
+
+  if ("accountName" in patch) {
+    payload.accountName = draft.accountName.trim()
+  }
+
+  if ("accountLegalName" in patch) {
+    const value = draft.accountLegalName.trim()
+    payload.accountLegalName = value.length > 0 ? value : null
+  }
+
+  if ("parentAccountId" in patch) {
+    payload.parentAccountId = draft.parentAccountId ? draft.parentAccountId : null
+  }
+
+  if ("accountTypeId" in patch) {
+    payload.accountTypeId = draft.accountTypeId ? draft.accountTypeId : null
+  }
+
+  if ("ownerId" in patch) {
+    payload.ownerId = draft.ownerId ? draft.ownerId : null
+  }
+
+  if ("industryId" in patch) {
+    payload.industryId = draft.industryId ? draft.industryId : null
+  }
+
+  if ("websiteUrl" in patch) {
+    const value = draft.websiteUrl.trim()
+    payload.websiteUrl = value.length > 0 ? value : null
+  }
+
+  if ("description" in patch) {
+    const value = draft.description.trim()
+    payload.description = value.length > 0 ? value : null
+  }
+
+  if ("active" in patch) {
+    payload.active = draft.active
+  }
+
+  if ("billingSameAsShipping" in patch) {
+    payload.billingSameAsShipping = draft.billingSameAsShipping
+  }
+
+  if ("shippingAddress" in patch) {
+    payload.shippingAddress = normaliseAddressForPayload(draft.shippingAddress)
+  }
+
+  if ("billingAddress" in patch || (draft.billingSameAsShipping && "shippingAddress" in patch)) {
+    const baseAddress = draft.billingSameAsShipping ? draft.shippingAddress : draft.billingAddress
+    payload.billingAddress = normaliseAddressForPayload(baseAddress)
+  }
+
+  return payload
+}
+
+function validateAccountForm(form: AccountInlineForm, currentAccountId?: string): Record<string, string> {
+  const errors: Record<string, string> = {}
+
+  if (!form.accountName.trim()) {
+    errors.accountName = "Account name is required."
+  }
+
+  if (!form.accountTypeId.trim()) {
+    errors.accountTypeId = "Account type is required."
+  }
+
+  if (currentAccountId && form.parentAccountId && form.parentAccountId === currentAccountId) {
+    errors.parentAccountId = "Account cannot be its own parent."
+  }
+
+  const website = form.websiteUrl.trim()
+  if (website && !VALIDATION_PATTERNS.url.test(website)) {
+    errors.websiteUrl = "Enter a valid URL (https://example.com)."
+  }
+
+  const shipping = form.shippingAddress
+  if (!shipping.line1.trim()) {
+    errors["shippingAddress.line1"] = "Shipping street is required."
+  }
+
+  if (!shipping.city.trim()) {
+    errors["shippingAddress.city"] = "Shipping city is required."
+  }
+
+  if (!form.billingSameAsShipping) {
+    const billing = form.billingAddress
+    if (!billing.line1.trim()) {
+      errors["billingAddress.line1"] = "Billing street is required."
+    }
+    if (!billing.city.trim()) {
+      errors["billingAddress.city"] = "Billing city is required."
+    }
+  }
+
+  return errors
 }
 
 
@@ -536,6 +796,587 @@ function FieldRow({ label, value }: { label: string; value: ReactNode }) {
   )
 }
 
+function AccountHeader({
+  account,
+  onEdit
+}: {
+  account: AccountDetail
+  onEdit?: (account: AccountDetail) => void
+}) {
+  return (
+    <div className="rounded-2xl bg-gray-100 p-3 shadow-sm">
+      <div className="mb-2 flex items-center justify-between">
+        <p className="text-xs font-semibold uppercase tracking-wide text-primary-600">Account Detail</p>
+        <div className="flex items-center gap-2">
+          {onEdit ? (
+            <button
+              type="button"
+              onClick={() => onEdit(account)}
+              className="rounded-md bg-primary-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-primary-700"
+            >
+              Update
+            </button>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <div className="space-y-1.5">
+          <FieldRow
+            label="Account Name"
+            value={
+              <div className="flex items-center gap-2 max-w-md">
+                <div className={cn(fieldBoxClass, "flex-1 max-w-none")}>{account.accountName}</div>
+                <div className="flex items-center gap-2 shrink-0 rounded-lg border-2 border-gray-400 bg-white px-2 py-0.5 text-xs font-medium text-gray-600 shadow-sm">
+                  <span>Active (Y/N)</span>
+                  <ReadOnlySwitch value={account.active} />
+                </div>
+              </div>
+            }
+          />
+          <FieldRow
+            label="Account Legal Name"
+            value={<div className={fieldBoxClass}>{account.accountLegalName || ""}</div>}
+          />
+          <FieldRow
+            label="Parent Account"
+            value={
+              <div className={cn(fieldBoxClass, "justify-between")}>
+                <span>{account.parentAccount || "Not Linked"}</span>
+                <ChevronDown className="h-4 w-4 text-gray-400" />
+              </div>
+            }
+          />
+          <FieldRow
+            label="Account Type"
+            value={
+              <div className={cn(fieldBoxClass, "justify-between")}>
+                <span>{account.accountType || "-"}</span>
+                <ChevronDown className="h-4 w-4 text-gray-400" />
+              </div>
+            }
+          />
+          <FieldRow
+            label="Account Owner"
+            value={
+              <div className={cn(fieldBoxClass, "justify-between")}>
+                <span>{account.accountOwner || "Unassigned"}</span>
+                <ChevronDown className="h-4 w-4 text-gray-400" />
+              </div>
+            }
+          />
+          <FieldRow
+            label="Website URL"
+            value={<div className={fieldBoxClass}>{account.websiteUrl || ""}</div>}
+          />
+          <FieldRow
+            label="Description"
+            value={
+              <div className={cn(fieldBoxClass, "whitespace-normal")}>
+                {account.description || "No description provided."}
+              </div>
+            }
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <div>
+            <div className="mb-1 flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-gray-800">Ship To Address</h3>
+              <span className="text-xs font-semibold uppercase tracking-wide text-primary-600">Default</span>
+            </div>
+            {account.shippingAddress ? (
+              <div className="space-y-1 text-sm text-gray-700">
+                <FieldRow
+                  label="Street"
+                  value={<div className={fieldBoxClass}>{account.shippingAddress.line1}</div>}
+                />
+                <FieldRow
+                  label="Shipping St 2"
+                  value={
+                    <div className={fieldBoxClass}>
+                      {account.shippingAddress.shippingStreet2 || account.shippingAddress.line2 || ""}
+                    </div>
+                  }
+                />
+                <div className="grid items-center gap-4 sm:grid-cols-[140px,1fr]">
+                  <span className={fieldLabelClass}>City, State, Zip</span>
+                  <div className="grid max-w-md grid-cols-[2fr,1fr,1fr] gap-1">
+                    <div className={cn(fieldBoxClass, "max-w-none")}>{account.shippingAddress.city}</div>
+                    <div className={cn(fieldBoxClass, "justify-between max-w-none")}>
+                      <span>{account.shippingAddress.state || "-"}</span>
+                      <ChevronDown className="h-4 w-4 text-gray-400" />
+                    </div>
+                    <div className={cn(fieldBoxClass, "max-w-none")}>
+                      {account.shippingAddress.postalCode || "-"}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500">No shipping address on file.</p>
+            )}
+          </div>
+
+          <div>
+            <div className="mb-1 flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-gray-800">Bill To Address</h3>
+              <label className="flex items-center gap-2 text-xs text-gray-600">
+                <ReadOnlyCheckbox checked={Boolean(account.billingSameAsShipping)} />
+                <span>Same as Ship</span>
+              </label>
+            </div>
+            {account.billingAddress ? (
+              <div className="space-y-1 text-sm text-gray-700">
+                <FieldRow
+                  label="Street"
+                  value={<div className={fieldBoxClass}>{account.billingAddress.line1}</div>}
+                />
+                <FieldRow
+                  label="Billing St 2"
+                  value={
+                    <div className={fieldBoxClass}>
+                      {account.billingAddress.billingStreet2 || account.billingAddress.line2 || ""}
+                    </div>
+                  }
+                />
+                <div className="grid items-center gap-4 sm:grid-cols-[140px,1fr]">
+                  <span className={fieldLabelClass}>City, State, Zip</span>
+                  <div className="grid max-w-md grid-cols-[2fr,1fr,1fr] gap-1">
+                    <div className={cn(fieldBoxClass, "max-w-none")}>{account.billingAddress.city}</div>
+                    <div className={cn(fieldBoxClass, "justify-between max-w-none")}>
+                      <span>{account.billingAddress.state || "-"}</span>
+                      <ChevronDown className="h-4 w-4 text-gray-400" />
+                    </div>
+                    <div className={cn(fieldBoxClass, "max-w-none")}>
+                      {account.billingAddress.postalCode || "-"}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500">No billing address on file.</p>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+interface EditableAccountHeaderProps {
+  account: AccountDetail
+  editor: EntityEditor<AccountInlineForm>
+  accountTypeOptions: AccountOption[]
+  industryOptions: AccountOption[]
+  ownerOptions: AccountOption[]
+  parentAccountOptions: AccountOption[]
+  optionsLoading: boolean
+  onSave: () => Promise<void>
+  onCancel: () => void
+}
+
+function EditableAccountHeader({
+  account,
+  editor,
+  accountTypeOptions,
+  industryOptions,
+  ownerOptions,
+  parentAccountOptions,
+  optionsLoading,
+  onSave,
+  onCancel
+}: EditableAccountHeaderProps) {
+  if (!editor.draft) {
+    return (
+      <div className="rounded-2xl bg-gray-100 p-3 shadow-sm">
+        <div className="mb-2 flex items-center justify-between">
+          <p className="text-xs font-semibold uppercase tracking-wide text-primary-600">Account Detail</p>
+        </div>
+        <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-6 text-sm text-gray-500">
+          <Loader2 className="h-4 w-4 animate-spin text-primary-600" />
+          Preparing inline editor…
+        </div>
+      </div>
+    )
+  }
+
+  const accountNameField = editor.register("accountName")
+  const accountLegalNameField = editor.register("accountLegalName")
+  const parentAccountField = editor.register("parentAccountId")
+  const accountTypeField = editor.register("accountTypeId")
+  const ownerField = editor.register("ownerId")
+  const industryField = editor.register("industryId")
+  const websiteField = editor.register("websiteUrl")
+  const descriptionField = editor.register("description")
+  const activeField = editor.register("active")
+  const billingSameField = editor.register("billingSameAsShipping")
+
+  const shippingLine1Field = editor.register("shippingAddress.line1")
+  const shippingLine2Field = editor.register("shippingAddress.line2")
+  const shippingCityField = editor.register("shippingAddress.city")
+  const shippingStateField = editor.register("shippingAddress.state")
+  const shippingPostalField = editor.register("shippingAddress.postalCode")
+  const shippingCountryField = editor.register("shippingAddress.country")
+
+  const billingLine1Field = editor.register("billingAddress.line1")
+  const billingLine2Field = editor.register("billingAddress.line2")
+  const billingCityField = editor.register("billingAddress.city")
+  const billingStateField = editor.register("billingAddress.state")
+  const billingPostalField = editor.register("billingAddress.postalCode")
+  const billingCountryField = editor.register("billingAddress.country")
+
+  const disableSave = editor.saving || !editor.isDirty
+  const billingLinked = Boolean(editor.draft?.billingSameAsShipping)
+
+  const syncBillingIfNeeded = (field: keyof AccountAddressForm, value: string) => {
+    if (billingLinked) {
+      editor.setField(`billingAddress.${field}`, value)
+    }
+  }
+
+  const handleShippingLine1Change = (event: ChangeEvent<HTMLInputElement>) => {
+    shippingLine1Field.onChange(event)
+    syncBillingIfNeeded("line1", event.target.value)
+  }
+
+  const handleShippingLine2Change = (event: ChangeEvent<HTMLInputElement>) => {
+    shippingLine2Field.onChange(event)
+    syncBillingIfNeeded("line2", event.target.value)
+  }
+
+  const handleShippingCityChange = (event: ChangeEvent<HTMLInputElement>) => {
+    shippingCityField.onChange(event)
+    syncBillingIfNeeded("city", event.target.value)
+  }
+
+  const handleShippingStateChange = (event: ChangeEvent<HTMLSelectElement>) => {
+    shippingStateField.onChange(event)
+    syncBillingIfNeeded("state", event.target.value)
+  }
+
+  const handleShippingPostalChange = (event: ChangeEvent<HTMLInputElement>) => {
+    shippingPostalField.onChange(event)
+    syncBillingIfNeeded("postalCode", event.target.value)
+  }
+
+  const handleShippingCountryChange = (event: ChangeEvent<HTMLSelectElement>) => {
+    shippingCountryField.onChange(event)
+    syncBillingIfNeeded("country", event.target.value)
+  }
+
+  const handleBillingSameChange = (event: ChangeEvent<HTMLInputElement>) => {
+    billingSameField.onChange(event)
+    if (event.target.checked) {
+      const shipping = editor.draft?.shippingAddress ?? createEmptyAddress()
+      editor.setField("billingAddress", { ...shipping })
+    }
+  }
+
+  return (
+    <div className="rounded-2xl bg-gray-100 p-3 shadow-sm">
+      <div className="mb-2 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-primary-600">Account Detail</p>
+          {editor.isDirty ? (
+            <span className="text-xs font-semibold text-amber-600">Unsaved changes</span>
+          ) : null}
+          {optionsLoading ? (
+            <span className="text-xs text-gray-500">Loading field options…</span>
+          ) : null}
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={!editor.isDirty || editor.saving}
+            className="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 transition hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onSave}
+            disabled={disableSave}
+            className="flex items-center gap-2 rounded-md bg-primary-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {editor.saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Update"}
+          </button>
+        </div>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <div className="space-y-1.5">
+          <EditableField label="Account Name" required error={editor.errors.accountName}>
+            <EditableField.Input
+              value={(accountNameField.value as string) ?? ""}
+              onChange={accountNameField.onChange}
+              onBlur={accountNameField.onBlur}
+              placeholder="Enter account name"
+            />
+          </EditableField>
+
+          <EditableField label="Active">
+            <EditableField.Switch
+              checked={Boolean(activeField.value)}
+              onChange={activeField.onChange}
+              disabled={editor.saving}
+            />
+          </EditableField>
+
+          <EditableField label="Account Legal Name">
+            <EditableField.Input
+              value={(accountLegalNameField.value as string) ?? ""}
+              onChange={accountLegalNameField.onChange}
+              onBlur={accountLegalNameField.onBlur}
+              placeholder="Legal entity name"
+            />
+          </EditableField>
+
+          <EditableField label="Parent Account" error={editor.errors.parentAccountId}>
+            <EditableField.Select
+              value={(parentAccountField.value as string) ?? ""}
+              onChange={parentAccountField.onChange}
+              onBlur={parentAccountField.onBlur}
+              disabled={optionsLoading}
+            >
+              <option value="">No parent</option>
+              {parentAccountOptions.map(option => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </EditableField.Select>
+          </EditableField>
+
+          <EditableField label="Account Type" required error={editor.errors.accountTypeId}>
+            <EditableField.Select
+              value={(accountTypeField.value as string) ?? ""}
+              onChange={accountTypeField.onChange}
+              onBlur={accountTypeField.onBlur}
+              disabled={optionsLoading}
+            >
+              <option value="">Select account type</option>
+              {accountTypeOptions.map(option => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </EditableField.Select>
+          </EditableField>
+
+          <EditableField label="Account Owner">
+            <EditableField.Select
+              value={(ownerField.value as string) ?? ""}
+              onChange={ownerField.onChange}
+              onBlur={ownerField.onBlur}
+              disabled={optionsLoading}
+            >
+              <option value="">Unassigned</option>
+              {ownerOptions.map(option => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </EditableField.Select>
+          </EditableField>
+
+          <EditableField label="Industry">
+            <EditableField.Select
+              value={(industryField.value as string) ?? ""}
+              onChange={industryField.onChange}
+              onBlur={industryField.onBlur}
+              disabled={optionsLoading}
+            >
+              <option value="">Not set</option>
+              {industryOptions.map(option => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </EditableField.Select>
+          </EditableField>
+
+          <EditableField label="Website URL" error={editor.errors.websiteUrl}>
+            <EditableField.Input
+              type="url"
+              inputMode="url"
+              placeholder="https://example.com"
+              value={(websiteField.value as string) ?? ""}
+              onChange={websiteField.onChange}
+              onBlur={websiteField.onBlur}
+            />
+          </EditableField>
+
+          <EditableField label="Description">
+            <EditableField.Textarea
+              rows={4}
+              value={(descriptionField.value as string) ?? ""}
+              onChange={descriptionField.onChange}
+              onBlur={descriptionField.onBlur}
+              placeholder="Notes about this account"
+            />
+          </EditableField>
+        </div>
+
+        <div className="space-y-3">
+          <div className="space-y-1.5 rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-semibold text-gray-800">Ship To Address</p>
+              <span className="text-xs font-semibold uppercase tracking-wide text-primary-600">Default</span>
+            </div>
+            <EditableField label="Street" required error={editor.errors["shippingAddress.line1"]}>
+              <EditableField.Input
+                value={(shippingLine1Field.value as string) ?? ""}
+                onChange={handleShippingLine1Change}
+                onBlur={shippingLine1Field.onBlur}
+              />
+            </EditableField>
+            <EditableField label="Street 2">
+              <EditableField.Input
+                value={(shippingLine2Field.value as string) ?? ""}
+                onChange={handleShippingLine2Change}
+                onBlur={shippingLine2Field.onBlur}
+              />
+            </EditableField>
+            <div className="grid gap-2 md:grid-cols-[2fr,1fr,1fr]">
+              <EditableField label="City" required error={editor.errors["shippingAddress.city"]} className="w-full">
+                <EditableField.Input
+                  value={(shippingCityField.value as string) ?? ""}
+                  onChange={handleShippingCityChange}
+                  onBlur={shippingCityField.onBlur}
+                />
+              </EditableField>
+              <EditableField label="State" className="w-full">
+                <EditableField.Select
+                  value={(shippingStateField.value as string) ?? ""}
+                  onChange={handleShippingStateChange}
+                  onBlur={shippingStateField.onBlur}
+                >
+                  <option value="">State</option>
+                  {US_STATES.map(state => (
+                    <option key={state.code} value={state.code}>
+                      {state.code}
+                    </option>
+                  ))}
+                </EditableField.Select>
+              </EditableField>
+              <EditableField label="Zip" className="w-full">
+                <EditableField.Input
+                  value={(shippingPostalField.value as string) ?? ""}
+                  onChange={handleShippingPostalChange}
+                  onBlur={shippingPostalField.onBlur}
+                />
+              </EditableField>
+            </div>
+            <EditableField label="Country" className="w-full">
+              <EditableField.Select
+                value={(shippingCountryField.value as string) ?? DEFAULT_COUNTRY}
+                onChange={handleShippingCountryChange}
+                onBlur={shippingCountryField.onBlur}
+              >
+                {COUNTRY_OPTIONS.map(country => (
+                  <option key={country} value={country}>
+                    {country}
+                  </option>
+                ))}
+              </EditableField.Select>
+            </EditableField>
+          </div>
+
+          <div className="space-y-1.5 rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-semibold text-gray-800">Bill To Address</p>
+              <label className="inline-flex items-center gap-2 text-xs text-gray-600">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                  checked={Boolean(billingSameField.value)}
+                  onChange={handleBillingSameChange}
+                  disabled={editor.saving}
+                />
+                <span>Same as Ship</span>
+              </label>
+            </div>
+            <EditableField
+              label="Street"
+              required={!billingLinked}
+              error={editor.errors["billingAddress.line1"]}
+            >
+              <EditableField.Input
+                value={(billingLine1Field.value as string) ?? ""}
+                onChange={billingLine1Field.onChange}
+                onBlur={billingLine1Field.onBlur}
+                disabled={billingLinked}
+              />
+            </EditableField>
+            <EditableField label="Street 2">
+              <EditableField.Input
+                value={(billingLine2Field.value as string) ?? ""}
+                onChange={billingLine2Field.onChange}
+                onBlur={billingLine2Field.onBlur}
+                disabled={billingLinked}
+              />
+            </EditableField>
+            <div className="grid gap-2 md:grid-cols-[2fr,1fr,1fr]">
+              <EditableField
+                label="City"
+                required={!billingLinked}
+                error={editor.errors["billingAddress.city"]}
+                className="w-full"
+              >
+                <EditableField.Input
+                  value={(billingCityField.value as string) ?? ""}
+                  onChange={billingCityField.onChange}
+                  onBlur={billingCityField.onBlur}
+                  disabled={billingLinked}
+                />
+              </EditableField>
+              <EditableField label="State" className="w-full">
+                <EditableField.Select
+                  value={(billingStateField.value as string) ?? ""}
+                  onChange={billingStateField.onChange}
+                  onBlur={billingStateField.onBlur}
+                  disabled={billingLinked}
+                >
+                  <option value="">State</option>
+                  {US_STATES.map(state => (
+                    <option key={state.code} value={state.code}>
+                      {state.code}
+                    </option>
+                  ))}
+                </EditableField.Select>
+              </EditableField>
+              <EditableField label="Zip" className="w-full">
+                <EditableField.Input
+                  value={(billingPostalField.value as string) ?? ""}
+                  onChange={billingPostalField.onChange}
+                  onBlur={billingPostalField.onBlur}
+                  disabled={billingLinked}
+                />
+              </EditableField>
+            </div>
+            <EditableField label="Country" className="w-full">
+              <EditableField.Select
+                value={(billingCountryField.value as string) ?? DEFAULT_COUNTRY}
+                onChange={billingCountryField.onChange}
+                onBlur={billingCountryField.onBlur}
+                disabled={billingLinked}
+              >
+                {COUNTRY_OPTIONS.map(country => (
+                  <option key={country} value={country}>
+                    {country}
+                  </option>
+                ))}
+              </EditableField.Select>
+            </EditableField>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 interface TabToolbarProps {
   suffix?: ReactNode
 }
@@ -582,7 +1423,208 @@ function TabToolbar({ suffix }: TabToolbarProps) {
 export function AccountDetailsView({ account, loading = false, error, onEdit, onRefresh }: AccountDetailsViewProps) {
   const router = useRouter()
   const { showSuccess, showError } = useToasts()
+  const { hasPermission } = useAuth()
+  const inlineEnabled = isInlineDetailEditEnabled("accounts")
+  const canManageAccounts = hasPermission("accounts.manage")
+  const shouldEnableInline = inlineEnabled && canManageAccounts && Boolean(account)
   const [activeTab, setActiveTab] = useState<TabKey>("contacts")
+  const [baseAccountTypeOptions, setBaseAccountTypeOptions] = useState<AccountOption[]>([])
+  const [baseIndustryOptions, setBaseIndustryOptions] = useState<AccountOption[]>([])
+  const [baseOwnerOptions, setBaseOwnerOptions] = useState<AccountOption[]>([])
+  const [baseParentAccountOptions, setBaseParentAccountOptions] = useState<AccountOption[]>([])
+  const [optionsLoading, setOptionsLoading] = useState(false)
+  const [optionsLoaded, setOptionsLoaded] = useState(false)
+  const inlineInitialForm = useMemo(
+    () => (shouldEnableInline ? createAccountInlineForm(account) : null),
+    [shouldEnableInline, account]
+  )
+
+  const submitAccount = useCallback(
+    async (patch: Partial<AccountInlineForm>, draft: AccountInlineForm) => {
+      if (!account?.id) {
+        throw new Error("Account ID is required")
+      }
+
+      const payload = buildAccountPayload(patch, draft)
+      if (Object.keys(payload).length === 0) {
+        return draft
+      }
+
+      try {
+        const response = await fetch(`/api/accounts/${account.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        })
+
+        const body = await response.json().catch(() => null)
+
+        if (!response.ok) {
+          const message = body?.error ?? "Failed to update account"
+          const serverErrors = (body?.errors ?? {}) as Record<string, string>
+          showError("Unable to update account", message)
+          const error = new Error(message) as Error & { serverErrors?: Record<string, string> }
+          if (serverErrors && Object.keys(serverErrors).length > 0) {
+            error.serverErrors = serverErrors
+          }
+          throw error
+        }
+
+        showSuccess("Account updated", "Changes saved.")
+        await onRefresh?.()
+        return draft
+      } catch (error) {
+        if (error instanceof Error) {
+          throw error
+        }
+        throw new Error("Failed to update account")
+      }
+    },
+    [account?.id, onRefresh, showError, showSuccess]
+  )
+
+  const editor = useEntityEditor<AccountInlineForm>({
+    initial: inlineInitialForm,
+    validate: shouldEnableInline ? draft => validateAccountForm(draft, account?.id) : undefined,
+    onSubmit: shouldEnableInline ? submitAccount : undefined
+  })
+
+  const { confirmNavigation } = useUnsavedChangesPrompt(shouldEnableInline && editor.isDirty)
+
+  const handleSaveInline = useCallback(async () => {
+    if (!shouldEnableInline) return
+    try {
+      await editor.submit()
+    } catch (error) {
+      if (error && typeof error === "object" && "serverErrors" in error) {
+        editor.setErrors((error as { serverErrors?: Record<string, string> }).serverErrors ?? {})
+      }
+    }
+  }, [editor, shouldEnableInline])
+
+  const handleCancelInline = useCallback(() => {
+    editor.reset()
+    editor.setErrors({})
+  }, [editor])
+
+  useEffect(() => {
+    if (!shouldEnableInline || optionsLoaded) {
+      return
+    }
+
+    let cancelled = false
+
+    const loadOptions = async () => {
+      try {
+        setOptionsLoading(true)
+        const response = await fetch("/api/accounts/options", { cache: "no-store" })
+        const payload = await response.json().catch(() => null)
+        if (!response.ok) {
+          throw new Error(payload?.error ?? "Failed to load account options")
+        }
+        if (cancelled) return
+
+        const accountTypes: AccountOption[] = Array.isArray(payload?.accountTypes)
+          ? payload.accountTypes
+              .filter((item: any) => item?.id)
+              .map((item: any) => ({
+                value: String(item.id),
+                label: item.name ?? "Unnamed Type"
+              }))
+          : []
+
+        const industries: AccountOption[] = Array.isArray(payload?.industries)
+          ? payload.industries
+              .filter((item: any) => item?.id)
+              .map((item: any) => ({
+                value: String(item.id),
+                label: item.name ?? "Unnamed Industry"
+              }))
+          : []
+
+        const parentAccounts: AccountOption[] = Array.isArray(payload?.parentAccounts)
+          ? payload.parentAccounts
+              .filter((item: any) => item?.id)
+              .map((item: any) => ({
+                value: String(item.id),
+                label: item.accountName ?? "Unnamed Account"
+              }))
+          : []
+
+        const owners: AccountOption[] = Array.isArray(payload?.owners)
+          ? payload.owners
+              .filter((item: any) => item?.id)
+              .map((item: any) => ({
+                value: String(item.id),
+                label: item.fullName ?? "Unnamed Owner"
+              }))
+          : []
+
+        setBaseAccountTypeOptions(accountTypes)
+        setBaseIndustryOptions(industries)
+        setBaseParentAccountOptions(parentAccounts)
+        setBaseOwnerOptions(owners)
+        setOptionsLoaded(true)
+      } catch (error) {
+        if (!cancelled) {
+          const message = error instanceof Error ? error.message : "Failed to load account options"
+          showError("Unable to load account options", message)
+        }
+      } finally {
+        if (!cancelled) {
+          setOptionsLoading(false)
+        }
+      }
+    }
+
+    loadOptions()
+
+    return () => {
+      cancelled = true
+    }
+  }, [shouldEnableInline, optionsLoaded, showError])
+
+  const accountTypeOptions = useMemo(() => {
+    if (!account?.accountTypeId || !account.accountType) {
+      return baseAccountTypeOptions
+    }
+    if (baseAccountTypeOptions.some(option => option.value === account.accountTypeId)) {
+      return baseAccountTypeOptions
+    }
+    return [{ value: account.accountTypeId, label: account.accountType }, ...baseAccountTypeOptions]
+  }, [account?.accountType, account?.accountTypeId, baseAccountTypeOptions])
+
+  const industryOptions = useMemo(() => {
+    if (!account?.industryId || !account.industry) {
+      return baseIndustryOptions
+    }
+    if (baseIndustryOptions.some(option => option.value === account.industryId)) {
+      return baseIndustryOptions
+    }
+    return [{ value: account.industryId, label: account.industry }, ...baseIndustryOptions]
+  }, [account?.industry, account?.industryId, baseIndustryOptions])
+
+  const ownerOptions = useMemo(() => {
+    if (!account?.ownerId || !account.accountOwner) {
+      return baseOwnerOptions
+    }
+    if (baseOwnerOptions.some(option => option.value === account.ownerId)) {
+      return baseOwnerOptions
+    }
+    return [{ value: account.ownerId, label: account.accountOwner }, ...baseOwnerOptions]
+  }, [account?.accountOwner, account?.ownerId, baseOwnerOptions])
+
+  const parentAccountOptions = useMemo(() => {
+    const withoutSelf = baseParentAccountOptions.filter(option => option.value !== (account?.id ?? ""))
+    if (!account?.parentAccountId || !account.parentAccount) {
+      return withoutSelf
+    }
+    if (withoutSelf.some(option => option.value === account.parentAccountId)) {
+      return withoutSelf
+    }
+    return [{ value: account.parentAccountId, label: account.parentAccount }, ...withoutSelf]
+  }, [account?.id, account?.parentAccount, account?.parentAccountId, baseParentAccountOptions])
+
   const tableAreaRef = useRef<HTMLDivElement | null>(null)
   const [tableAreaMaxHeight, setTableAreaMaxHeight] = useState<number>()
   const TABLE_CONTAINER_PADDING = 16
@@ -634,9 +1676,27 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
     return Math.max(boundedPreferredHeight, minTarget)
   }, [tableAreaMaxHeight])
 
-  const handleBack = () => {
+  const handleBack = useCallback(() => {
+    if (shouldEnableInline && editor.isDirty) {
+      const proceed = confirmNavigation()
+      if (!proceed) {
+        return
+      }
+    }
     router.push("/accounts")
-  }
+  }, [confirmNavigation, editor.isDirty, router, shouldEnableInline])
+
+  const handleTabSelect = useCallback(
+    (tab: TabKey) => {
+      if (tab === activeTab) return
+      if (shouldEnableInline && editor.isDirty) {
+        const proceed = confirmNavigation()
+        if (!proceed) return
+      }
+      setActiveTab(tab)
+    },
+    [activeTab, confirmNavigation, editor.isDirty, shouldEnableInline]
+  )
 
   const [activityFilter, setActivityFilter] = useState<string>("All")
   const [activeFilter, setActiveFilter] = useState<"active" | "inactive">("active")
@@ -705,7 +1765,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
   const accountContacts = account?.contacts
   const accountOpportunities = account?.opportunities
   useEffect(() => {
-    fetch("/api/admin/users?limit=100", { cache: "no-store" })
+    fetch("/api/admin/users?limit=100&status=Active", { cache: "no-store" })
       .then(async response => {
         if (!response.ok) {
           throw new Error("Failed to load owners")
@@ -3281,6 +4341,24 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
 
   const hasAccount = Boolean(account)
 
+  const headerNode = !account
+    ? null
+    : shouldEnableInline ? (
+        <EditableAccountHeader
+          account={account}
+          editor={editor}
+          accountTypeOptions={accountTypeOptions}
+          industryOptions={industryOptions}
+          ownerOptions={ownerOptions}
+          parentAccountOptions={parentAccountOptions}
+          optionsLoading={optionsLoading}
+          onSave={handleSaveInline}
+          onCancel={handleCancelInline}
+        />
+      ) : (
+        <AccountHeader account={account} onEdit={onEdit} />
+      )
+
 
   const formatDate = (value?: string | Date | null) => {
     if (!value) return ""
@@ -3309,151 +4387,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
             ) : account ? (
               <div className="flex flex-1 flex-col gap-1 overflow-hidden">
                 <div className="w-full xl:max-w-[1800px]">
-                  <div className="rounded-2xl bg-gray-100 p-3 shadow-sm">
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-primary-600">Account Detail</p>
-                    <div className="flex items-center gap-2">
-                      {onEdit && account && (
-                        <button
-                          onClick={() => onEdit(account)}
-                          className="rounded-md bg-primary-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-primary-700"
-                        >
-                          Update
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="grid gap-6 lg:grid-cols-2">
-                    <div className="space-y-1.5">
-                      <FieldRow
-                        label="Account Name"
-                        value={
-                          <div className="flex items-center gap-2 max-w-md">
-                            <div className={cn(fieldBoxClass, "flex-1 max-w-none")}>{account.accountName}</div>
-                            <div className="flex items-center gap-2 rounded-lg border-2 border-gray-400 bg-white px-2 py-0.5 text-xs font-medium text-gray-600 shadow-sm shrink-0">
-                              <span>Active (Y/N)</span>
-                              <ReadOnlySwitch value={account.active} />
-                            </div>
-                          </div>
-                        }
-                      />
-                      <FieldRow
-                        label="Account Legal Name"
-                        value={<div className={fieldBoxClass}>{account.accountLegalName || ""}</div>}
-                      />
-                      <FieldRow
-                        label="Parent Account"
-                        value={
-                          <div className={cn(fieldBoxClass, "justify-between")}>
-                            <span>{account.parentAccount || "Not Linked"}</span>
-                            <ChevronDown className="h-4 w-4 text-gray-400" />
-                          </div>
-                        }
-                      />
-                      <FieldRow
-                        label="Account Type"
-                        value={
-                          <div className={cn(fieldBoxClass, "justify-between")}>
-                            <span>{account.accountType || "-"}</span>
-                            <ChevronDown className="h-4 w-4 text-gray-400" />
-                          </div>
-                        }
-                      />
-                      <FieldRow
-                        label="Account Owner"
-                        value={
-                          <div className={cn(fieldBoxClass, "justify-between")}>
-                            <span>{account.accountOwner || "Unassigned"}</span>
-                            <ChevronDown className="h-4 w-4 text-gray-400" />
-                          </div>
-                        }
-                      />
-                      <FieldRow
-                        label="Website URL"
-                        value={<div className={fieldBoxClass}>{account.websiteUrl || ""}</div>}
-                      />
-                      <FieldRow
-                        label="Description"
-                        value={
-                          <div className={cn(fieldBoxClass, "whitespace-normal")}>
-                            {account.description || "No description provided."}
-                          </div>
-                        }
-                      />
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <div>
-                        <div className="mb-1 flex items-center justify-between">
-                          <h3 className="text-sm font-semibold text-gray-800">Ship To Address</h3>
-                          <span className="text-xs font-semibold uppercase tracking-wide text-primary-600">Default</span>
-                        </div>
-                        {account.shippingAddress ? (
-                          <div className="space-y-1 text-sm text-gray-700">
-                            <FieldRow
-                              label="Street"
-                              value={<div className={fieldBoxClass}>{account.shippingAddress.line1}</div>}
-                            />
-                            <FieldRow
-                              label="Shipping St 2"
-                              value={<div className={fieldBoxClass}>{account.shippingAddress.shippingStreet2 || ""}</div>}
-                            />
-                            <div className="grid items-center gap-4 sm:grid-cols-[140px,1fr]">
-                              <span className={fieldLabelClass}>City, State, Zip</span>
-                              <div className="grid gap-1 grid-cols-[2fr,1fr,1fr] max-w-md">
-                                <div className={cn(fieldBoxClass, "max-w-none")}>{account.shippingAddress.city}</div>
-                                <div className={cn(fieldBoxClass, "justify-between max-w-none")}>
-                                  <span>{account.shippingAddress.state || "-"}</span>
-                                  <ChevronDown className="h-4 w-4 text-gray-400" />
-                                </div>
-                                <div className={cn(fieldBoxClass, "max-w-none")}>{account.shippingAddress.postalCode || "-"}</div>
-                              </div>
-                            </div>
-                          </div>
-                        ) : (
-                          <p className="text-sm text-gray-500">No shipping address on file.</p>
-                        )}
-                      </div>
-
-                      <div>
-                        <div className="mb-1 flex items-center justify-between">
-                          <h3 className="text-sm font-semibold text-gray-800">Bill To Address</h3>
-                          <label className="flex items-center gap-2 text-xs text-gray-600">
-                            <ReadOnlyCheckbox checked={Boolean(account.billingSameAsShipping)} />
-                            <span>Same as Ship</span>
-                          </label>
-                        </div>
-                        {account.billingAddress ? (
-                          <div className="space-y-1 text-sm text-gray-700">
-                            <FieldRow
-                              label="Street"
-                              value={<div className={fieldBoxClass}>{account.billingAddress.line1}</div>}
-                            />
-                            <FieldRow
-                              label="Billing St 2"
-                              value={<div className={fieldBoxClass}>{account.billingAddress.billingStreet2 || ""}</div>}
-                            />
-                            <div className="grid items-center gap-4 sm:grid-cols-[140px,1fr]">
-                              <span className={fieldLabelClass}>City, State, Zip</span>
-                              <div className="grid gap-1 grid-cols-[2fr,1fr,1fr] max-w-md">
-                                <div className={cn(fieldBoxClass, "max-w-none")}>{account.billingAddress.city}</div>
-                                <div className={cn(fieldBoxClass, "justify-between max-w-none")}>
-                                  <span>{account.billingAddress.state || "-"}</span>
-                                  <ChevronDown className="h-4 w-4 text-gray-400" />
-                                </div>
-                                <div className={cn(fieldBoxClass, "max-w-none")}>{account.billingAddress.postalCode || "-"}</div>
-                              </div>
-                            </div>
-                            {/* Country hidden per design request */}
-                          </div>
-                        ) : (
-                          <p className="text-sm text-gray-500">No billing address on file.</p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                  </div>
+                  {headerNode}
                 </div>
 
                 <div className="flex flex-1 flex-col min-h-0 overflow-hidden">
@@ -3461,7 +4395,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                     {TABS.map(tab => (
                       <button
                         key={tab.id}
-                        onClick={() => setActiveTab(tab.id)}
+                        onClick={() => handleTabSelect(tab.id)}
                         className={cn(
                           "px-3 py-1.5 text-sm font-semibold transition rounded-t-md border shadow-sm",
                           activeTab === tab.id
@@ -4153,3 +5087,4 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
     </div>
   )
 }
+

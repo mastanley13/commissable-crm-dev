@@ -247,6 +247,16 @@ export function ListHeader({
           )}
 
           <div className="flex flex-wrap items-center gap-2">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                placeholder={searchPlaceholder}
+                value={searchQuery}
+                onChange={handleSearch}
+                className="w-64 rounded border border-gray-300 py-1.5 pl-10 pr-4 text-sm outline-none transition-all focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
+              />
+            </div>
             {leftAccessory}
             {showStatusFilter && (
               <div className="inline-flex rounded-lg border border-gray-300 bg-gray-50 p-0.5">
@@ -417,52 +427,42 @@ export function ListHeader({
                 )}
 
                 {hasFiltersApplied && (
-                  <button
-                    type="button"
-                    onClick={handleClearFilters}
-                    className="px-2 text-xs font-medium text-gray-600 hover:text-gray-800"
-                  >
-                    Clear
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      onClick={handleClearFilters}
+                      className="px-2 text-xs font-medium text-gray-600 hover:text-gray-800"
+                    >
+                      Clear
+                    </button>
+                    {groupedColumnFilters.map(group => (
+                      <span
+                        key={group.columnId}
+                        className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs"
+                      >
+                        <span className="font-medium text-blue-900">{group.label}:</span>
+                        <span className="text-blue-700">{group.values.join(", ")}</span>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveColumnFilter(group.columnId)}
+                          className="ml-1 text-blue-600 hover:text-blue-800"
+                          aria-label={`Remove filter for ${group.label}`}
+                        >
+                          <X className="h-2.5 w-2.5" />
+                        </button>
+                      </span>
+                    ))}
+                  </>
                 )}
               </>
             )}
           </div>
         </div>
 
-        <div className="relative ml-auto self-end">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-          <input
-            type="text"
-            placeholder={searchPlaceholder}
-            value={searchQuery}
-            onChange={handleSearch}
-            className="w-64 rounded border border-gray-300 py-1.5 pl-10 pr-4 text-sm outline-none transition-all focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
-          />
-        </div>
+        {/* search moved to the left group */}
       </div>
 
-      {hasFiltersApplied && (
-        <div className="mt-2 flex flex-wrap items-center gap-2">
-          {groupedColumnFilters.map(group => (
-            <span
-              key={group.columnId}
-              className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs"
-            >
-              <span className="font-medium text-blue-900">{group.label}:</span>
-              <span className="text-blue-700">{group.values.join(", ")}</span>
-              <button
-                type="button"
-                onClick={() => handleRemoveColumnFilter(group.columnId)}
-                className="ml-1 text-blue-600 hover:text-blue-800"
-                aria-label={`Remove filter for ${group.label}`}
-              >
-                <X className="h-2.5 w-2.5" />
-              </button>
-            </span>
-          ))}
-        </div>
-      )}
+      {/* Tags now render inline next to the Clear button above */}
     </div>
   );
 }

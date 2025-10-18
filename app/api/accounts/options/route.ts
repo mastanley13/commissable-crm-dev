@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
         select: { id: true, accountName: true }
       }),
       prisma.user.findMany({
-        where: { tenantId },
+        where: { tenantId, status: "Active" },
         orderBy: { fullName: "asc" },
         select: { id: true, fullName: true }
       })

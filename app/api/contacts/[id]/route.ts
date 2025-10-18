@@ -8,6 +8,7 @@ import { withPermissions, createErrorResponse } from "@/lib/api-auth"
 import { logContactAudit } from "@/lib/audit"
 import { mapOpportunityToRow } from "../../opportunities/helpers"
 import { revalidatePath } from "next/cache"
+import { ensureActiveOwnerOrNull } from "@/lib/validation"
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic';
 
@@ -441,7 +442,10 @@ export async function PATCH(
     if (body.description !== undefined) updateData.description = body.description
     if (body.notes !== undefined) updateData.notes = body.notes
     if (body.syncAddressWithAccount !== undefined) updateData.syncAddressWithAccount = body.syncAddressWithAccount
-    if (body.ownerId !== undefined) updateData.ownerId = body.ownerId
+    if (body.ownerId !== undefined) {
+      const nextOwnerId = await ensureActiveOwnerOrNull(body.ownerId, tenantId)
+      updateData.ownerId = nextOwnerId
+    }
     if (body.reportsToContactId !== undefined) updateData.reportsToContactId = body.reportsToContactId
 
     const updatedContact = await prisma.contact.update({

@@ -199,6 +199,35 @@ export function validateZip(zip: string | null | undefined, fieldName: string = 
 }
 
 /**
+ * Ensures an ownerId (if provided) belongs to an Active user in the same tenant.
+ * Returns normalized id string or null when unassigned; throws Error when invalid.
+ */
+export async function ensureActiveOwnerOrNull(ownerId: unknown, tenantId: string): Promise<string | null> {
+  if (ownerId === undefined || ownerId === null) {
+    return null
+  }
+
+  const id = typeof ownerId === 'string' ? ownerId.trim() : String(ownerId).trim()
+  if (id.length === 0) {
+    return null
+  }
+
+  // Lazy import to avoid circular import issues in environments where prisma is loaded differently
+  const { prisma } = await import('./db')
+
+  const user = await prisma.user.findFirst({
+    where: { id, tenantId, status: 'Active' },
+    select: { id: true }
+  })
+
+  if (!user) {
+    throw new Error('Owner must be an Active user in this tenant')
+  }
+
+  return id
+}
+
+/**
  * Validates required string fields
  */
 export function validateRequiredString(value: string | null | undefined, fieldName: string): ValidationResult {

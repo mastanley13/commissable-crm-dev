@@ -77,8 +77,8 @@ export function DynamicTable({
 }: TableProps) {
   const SortTriangles = useCallback(({ direction }: { direction: "asc" | "desc" | null }) => {
     const base = "w-2.5 h-2.5"
-    const active = "text-primary-600"
-    const inactive = "text-gray-500"
+    const active = "text-white"
+    const inactive = "text-blue-200"
     return (
       <span className="ml-1 flex flex-col items-center justify-center leading-none">
         <svg
@@ -781,8 +781,8 @@ export function DynamicTable({
                   <div
                     key={column.id}
                     className={cn(
-                      "table-cell bg-gradient-to-b from-blue-50 to-blue-100 font-semibold text-gray-900 relative select-none border-b-2 border-gray-400 border-r-2 border-gray-800 last:border-r-0",
-                      column.sortable && column.id !== "select" && "cursor-pointer hover:from-blue-100 hover:to-blue-200"
+                      "table-cell bg-blue-500 font-semibold text-white relative select-none border-b-2 border-blue-700 border-r-2 border-blue-700 last:border-r-0",
+                      column.sortable && column.id !== "select" && "cursor-pointer hover:bg-blue-600"
                     )}
                     draggable
                     onDragStart={event => handleDragStart(event, column.id)}
@@ -807,7 +807,7 @@ export function DynamicTable({
                             />
                             {!hideSelectAllLabel && (
                               <div className="flex flex-col leading-tight flex-1 min-w-0">
-                                <span className="text-xs font-semibold uppercase tracking-wide text-gray-600 break-words">
+                                <span className="text-xs font-semibold uppercase tracking-wide text-blue-100 break-words">
                                   {selectHeaderLabel ?? 'Select All'}
                                 </span>
                               </div>
@@ -828,7 +828,7 @@ export function DynamicTable({
                             />
                             {!hideSelectAllLabel && (
                               <div className="flex flex-col leading-tight flex-1 min-w-0">
-                                <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 break-words">{column.label}</span>
+                                <span className="text-xs font-semibold uppercase tracking-wide text-blue-100 break-words">{column.label}</span>
                               </div>
                             )}
                           </div>

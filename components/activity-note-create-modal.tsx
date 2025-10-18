@@ -128,7 +128,7 @@ export function ActivityNoteCreateModal({
     async function loadOwners() {
       setOwnersLoading(true)
       try {
-        const response = await fetch("/api/admin/users?limit=100", { cache: "no-store" })
+        const response = await fetch("/api/admin/users?limit=100&status=Active", { cache: "no-store" })
         if (!response.ok) {
           throw new Error("Request failed")
         }

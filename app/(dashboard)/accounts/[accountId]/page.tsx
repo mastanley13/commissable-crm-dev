@@ -6,10 +6,12 @@ import { AccountDetailsView, AccountDetail } from "@/components/account-details-
 import { AccountEditModal } from "@/components/account-edit-modal"
 import { CopyProtectionWrapper } from "@/components/copy-protection"
 import { useBreadcrumbs } from "@/lib/breadcrumb-context"
+import { isInlineDetailEditEnabled } from "@/lib/featureFlags"
 
 export default function AccountDetailPage() {
   const params = useParams()
   const router = useRouter()
+  const inlineEnabled = isInlineDetailEditEnabled("accounts")
   const accountId = useMemo(() => {
     const value = params?.accountId
     if (typeof value === "string") return value
@@ -133,16 +135,18 @@ export default function AccountDetailPage() {
         account={account}
         loading={loading}
         error={error}
-        onEdit={handleOpenEdit}
+        onEdit={inlineEnabled ? undefined : handleOpenEdit}
         onRefresh={handleRefresh}
       />
 
-      <AccountEditModal
-        isOpen={showEditModal}
-        onClose={handleCloseEditModal}
-        onSuccess={handleEditSuccess}
-        account={accountForEdit}
-      />
+      {!inlineEnabled && (
+        <AccountEditModal
+          isOpen={showEditModal}
+          onClose={handleCloseEditModal}
+          onSuccess={handleEditSuccess}
+          account={accountForEdit}
+        />
+      )}
     </CopyProtectionWrapper>
   )
 }

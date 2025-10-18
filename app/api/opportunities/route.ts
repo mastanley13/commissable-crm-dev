@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { LeadSource, OpportunityStage, OpportunityStatus, Prisma } from "@prisma/client"
 import { prisma } from "@/lib/db"
 import { withPermissions } from "@/lib/api-auth"
+import { ensureActiveOwnerOrNull } from "@/lib/validation"
 import { hasAnyPermission } from "@/lib/auth"
 import { mapOpportunityToRow } from "./helpers"
 import { dedupeColumnFilters } from "@/lib/filter-utils"
@@ -290,6 +291,9 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Estimated close date must be a valid date" }, { status: 400 })
       }
 
+      // Validate owner must be Active
+      const validatedOwnerId = await ensureActiveOwnerOrNull(ownerId, req.user.tenantId)
+
       const opportunity = await prisma.opportunity.create({
         data: {
           tenantId: req.user.tenantId,
@@ -298,7 +302,7 @@ export async function POST(request: NextRequest) {
           stage: stageValue,
           leadSource: leadSourceValue,
           estimatedCloseDate: closeDate,
-          ownerId,
+          ownerId: validatedOwnerId,
           description: subAgent ? `Subagent: ${subAgent}` : null,
           createdById: req.user.id,
           updatedById: req.user.id

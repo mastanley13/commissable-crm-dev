@@ -1,21 +1,22 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { useParams, useRouter } from "next/navigation"
+import { useCallback, useEffect, useState } from "react"
+import { useParams } from "next/navigation"
 import { ProductDetailsView, ProductDetailRecord } from "@/components/product-details-view"
 import { useToasts } from "@/components/toast"
+import { isInlineDetailEditEnabled } from "@/lib/featureFlags"
 
 export default function ProductDetailPage() {
   const params = useParams()
-  const router = useRouter()
   const { showError, showWarning } = useToasts()
   const [product, setProduct] = useState<ProductDetailRecord | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   const productId = params.productId as string
+  const inlineEnabled = isInlineDetailEditEnabled("products")
 
-  const loadProduct = async () => {
+  const loadProduct = useCallback(async () => {
     if (!productId) return
 
     setLoading(true)
@@ -41,11 +42,11 @@ export default function ProductDetailPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [productId, showError])
 
   useEffect(() => {
-    loadProduct()
-  }, [productId])
+    void loadProduct()
+  }, [loadProduct])
 
   const handleEdit = () => {
     if (!product) return
@@ -62,7 +63,7 @@ export default function ProductDetailPage() {
       product={product}
       loading={loading}
       error={error}
-      onEdit={handleEdit}
+      onEdit={inlineEnabled ? undefined : handleEdit}
       onRefresh={handleRefresh}
     />
   )

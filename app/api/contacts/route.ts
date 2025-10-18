@@ -3,7 +3,7 @@ import { AuditAction } from "@prisma/client"
 import { prisma } from "@/lib/db"
 import { withPermissions, createErrorResponse } from "@/lib/api-auth"
 import { logContactAudit } from "@/lib/audit"
-import { validateContactData, createValidationErrorResponse, normalizeEmail, formatPhoneNumber } from "@/lib/validation"
+import { validateContactData, createValidationErrorResponse, normalizeEmail, formatPhoneNumber, ensureActiveOwnerOrNull } from "@/lib/validation"
 import { revalidatePath } from "next/cache"
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic';
@@ -374,6 +374,9 @@ export async function POST(request: NextRequest) {
       // Derive fullName
       const fullName = `${firstName} ${lastName}`
 
+      // Validate owner if provided
+      const validatedOwnerId = await ensureActiveOwnerOrNull(ownerId, tenantId)
+
       // Create contact
       const contact = await prisma.contact.create({
         data: {
@@ -390,7 +393,7 @@ export async function POST(request: NextRequest) {
           emailAddress: emailAddress ? normalizeEmail(emailAddress) : null,
           accountTypeId: derivedAccountTypeId,
           contactType: derivedContactTypeName || null,
-          ownerId,
+          ownerId: validatedOwnerId,
           isPrimary: isPrimary ?? false,
           isDecisionMaker: isDecisionMaker ?? false,
           preferredContactMethod: preferredContactMethod ?? "Email",

@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/api-auth";
 import { validateManagerReassignmentPermission, validateAccountReassignment } from "@/lib/reassignment-validation";
 import { calculateCommissionImpact } from "@/lib/commission-calculator";
 import { handleSpecialUserAssignment } from "@/lib/special-users";
+import { ensureActiveOwnerOrNull } from "@/lib/validation";
 import { logAccountReassignment } from "@/lib/reassignment-audit";
 import { sendReassignmentNotifications } from "@/lib/reassignment-notifications";
 
@@ -72,6 +73,11 @@ export async function POST(request: NextRequest) {
       user,
       tenantId
     );
+
+    // If not special user, ensure new owner is Active
+    if (body.newOwnerId !== 'house' && body.newOwnerId !== 'unassigned') {
+      await ensureActiveOwnerOrNull(body.newOwnerId, tenantId)
+    }
 
     // Calculate commission impact
     const commissionImpact = await calculateCommissionImpact(

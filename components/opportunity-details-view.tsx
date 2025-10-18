@@ -3,12 +3,17 @@
 import Link from "next/link"
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { Check, Loader2, Trash2 } from "lucide-react"
+import { LeadSource, OpportunityStage, OpportunityStatus } from "@prisma/client"
 import { cn } from "@/lib/utils"
 import { ListHeader, type ColumnFilter } from "@/components/list-header"
 import { ColumnChooserModal } from "@/components/column-chooser-modal"
 import { useTablePreferences } from "@/hooks/useTablePreferences"
 import { DynamicTable, type Column } from "@/components/dynamic-table"
 import { applySimpleFilters } from "@/lib/filter-utils"
+import { EditableField } from "@/components/editable-field"
+import { useEntityEditor, type EntityEditor } from "@/hooks/useEntityEditor"
+import { useUnsavedChangesPrompt } from "@/hooks/useUnsavedChangesPrompt"
+import { isInlineDetailEditEnabled } from "@/lib/featureFlags"
 import {
   OpportunityDetailRecord,
   OpportunityLineItemRecord,
@@ -31,6 +36,23 @@ const PRODUCT_FILTER_COLUMNS: Array<{ id: string; label: string }> = [
   { id: "distributorName", label: "Distributor" },
   { id: "vendorName", label: "Vendor" }
 ]
+
+type OwnerOption = { value: string; label: string }
+
+const STAGE_OPTIONS = Object.values(OpportunityStage).map(stage => ({
+  value: stage,
+  label: stage.replace(/([A-Z])/g, " $1").trim()
+}))
+
+const STATUS_OPTIONS = Object.values(OpportunityStatus).map(status => ({
+  value: status,
+  label: status.replace(/([A-Z])/g, " $1").trim()
+}))
+
+const LEAD_SOURCE_OPTIONS = Object.values(LeadSource).map(source => ({
+  value: source,
+  label: source.replace(/([A-Z])/g, " $1").trim()
+}))
 
 const PRODUCT_TABLE_BASE_COLUMNS: Column[] = [
   {
@@ -478,6 +500,147 @@ function humanizeLabel(value: string | null | undefined): string {
     .replace(/\b\w/g, char => char.toUpperCase())
 }
 
+interface OpportunityInlineForm {
+  name: string
+  stage: OpportunityStage | ""
+  status: OpportunityStatus | ""
+  ownerId: string
+  estimatedCloseDate: string
+  leadSource: LeadSource | ""
+  subAgent: string
+  referredBy: string
+  shippingAddress: string
+  billingAddress: string
+  subagentPercent: string
+  houseRepPercent: string
+  houseSplitPercent: string
+  description: string
+}
+
+function percentToInputString(value: number | null | undefined): string {
+  if (value === null || value === undefined || Number.isNaN(value)) {
+    return ""
+  }
+  const percentValue = value > 1 ? value : value * 100
+  const rounded = Math.round((percentValue + Number.EPSILON) * 100) / 100
+  return Number.isInteger(rounded) ? String(Math.trunc(rounded)) : String(rounded)
+}
+
+function inputStringToPercent(value: string): number | null {
+  const trimmed = value.trim()
+  if (!trimmed) return null
+  const parsed = Number(trimmed)
+  if (!Number.isFinite(parsed)) return null
+  if (parsed === 0) return 0
+  return parsed > 1 ? parsed / 100 : parsed
+}
+
+function normaliseStage(stage: string | null | undefined): OpportunityStage | "" {
+  if (!stage) return ""
+  return Object.values(OpportunityStage).includes(stage as OpportunityStage) ? (stage as OpportunityStage) : ""
+}
+
+function normaliseStatus(status: string | null | undefined): OpportunityStatus | "" {
+  if (!status) return ""
+  return Object.values(OpportunityStatus).includes(status as OpportunityStatus) ? (status as OpportunityStatus) : ""
+}
+
+function normaliseLeadSource(source: string | null | undefined): LeadSource | "" {
+  if (!source) return ""
+  return Object.values(LeadSource).includes(source as LeadSource) ? (source as LeadSource) : ""
+}
+
+function formatDateForInput(value: string | null | undefined): string {
+  if (!value) return ""
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ""
+  return date.toISOString().slice(0, 10)
+}
+
+function createOpportunityInlineForm(detail: OpportunityDetailRecord | null | undefined): OpportunityInlineForm | null {
+  if (!detail) return null
+
+  return {
+    name: detail.name ?? "",
+    stage: normaliseStage(detail.stage),
+    status: normaliseStatus(detail.status),
+    ownerId: detail.owner?.id ?? "",
+    estimatedCloseDate: formatDateForInput(detail.estimatedCloseDate),
+    leadSource: normaliseLeadSource(detail.leadSource),
+    subAgent: detail.subAgent ?? "",
+    referredBy: detail.referredBy ?? "",
+    shippingAddress: detail.shippingAddress ?? "",
+    billingAddress: detail.billingAddress ?? "",
+    subagentPercent: percentToInputString(detail.subagentPercent ?? null),
+    houseRepPercent: percentToInputString(detail.houseRepPercent ?? null),
+    houseSplitPercent: percentToInputString(detail.houseSplitPercent ?? null),
+    description: detail.description ?? ""
+  }
+}
+
+function buildOpportunityPayload(patch: Partial<OpportunityInlineForm>, draft: OpportunityInlineForm): Record<string, unknown> {
+  const payload: Record<string, unknown> = {}
+
+  if ("name" in patch) payload.name = draft.name.trim()
+  if ("stage" in patch) payload.stage = draft.stage || null
+  if ("status" in patch) payload.status = draft.status || null
+  if ("ownerId" in patch) payload.ownerId = draft.ownerId || null
+  if ("estimatedCloseDate" in patch) payload.estimatedCloseDate = draft.estimatedCloseDate || null
+  if ("leadSource" in patch) payload.leadSource = draft.leadSource || null
+  if ("subAgent" in patch) payload.subAgent = draft.subAgent.trim()
+  if ("referredBy" in patch) payload.referredBy = draft.referredBy.trim()
+  if ("shippingAddress" in patch) payload.shippingAddress = draft.shippingAddress.trim()
+  if ("billingAddress" in patch) payload.billingAddress = draft.billingAddress.trim()
+  if ("description" in patch) payload.description = draft.description.trim()
+  if ("subagentPercent" in patch) payload.subagentPercent = inputStringToPercent(draft.subagentPercent)
+  if ("houseRepPercent" in patch) payload.houseRepPercent = inputStringToPercent(draft.houseRepPercent)
+  if ("houseSplitPercent" in patch) payload.houseSplitPercent = inputStringToPercent(draft.houseSplitPercent)
+
+  return payload
+}
+
+function validateOpportunityForm(form: OpportunityInlineForm): Record<string, string> {
+  const errors: Record<string, string> = {}
+
+  if (form.name.trim().length < 3) {
+    errors.name = "Name must be at least 3 characters."
+  }
+  if (!form.stage) {
+    errors.stage = "Stage is required."
+  }
+  if (!form.status) {
+    errors.status = "Status is required."
+  }
+  if (!form.ownerId) {
+    errors.ownerId = "Owner is required."
+  }
+  if (!form.estimatedCloseDate) {
+    errors.estimatedCloseDate = "Estimated close date is required."
+  } else if (Number.isNaN(Date.parse(form.estimatedCloseDate))) {
+    errors.estimatedCloseDate = "Enter a valid date."
+  }
+  if (form.leadSource && !Object.values(LeadSource).includes(form.leadSource as LeadSource)) {
+    errors.leadSource = "Select a valid lead source."
+  }
+
+  const percentRules: Array<[keyof OpportunityInlineForm, string]> = [
+    ["subagentPercent", "Subagent % must be between 0 and 100."],
+    ["houseRepPercent", "House Rep % must be between 0 and 100."],
+    ["houseSplitPercent", "House Split % must be between 0 and 100."]
+  ]
+
+  for (const [field, message] of percentRules) {
+    const raw = form[field]
+    if (!raw.trim()) continue
+    const parsed = Number(raw)
+    if (!Number.isFinite(parsed) || parsed < 0 || parsed > 100) {
+      errors[field] = message
+    }
+  }
+
+  return errors
+}
+
 function FieldRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="grid items-center gap-4 sm:grid-cols-[140px,1fr]">
@@ -588,6 +751,256 @@ function OpportunityHeader({
   )
 }
 
+interface EditableOpportunityHeaderProps {
+  opportunity: OpportunityDetailRecord
+  editor: EntityEditor<OpportunityInlineForm>
+  ownerOptions: OwnerOption[]
+  ownersLoading: boolean
+  onSave: () => Promise<void>
+  onCancel: () => void
+}
+
+function EditableOpportunityHeader({
+  opportunity,
+  editor,
+  ownerOptions,
+  ownersLoading,
+  onSave,
+  onCancel
+}: EditableOpportunityHeaderProps) {
+  const nameField = editor.register("name")
+  const subAgentField = editor.register("subAgent")
+  const ownerField = editor.register("ownerId")
+  const stageField = editor.register("stage")
+  const statusField = editor.register("status")
+  const closeDateField = editor.register("estimatedCloseDate")
+  const leadSourceField = editor.register("leadSource")
+  const referredField = editor.register("referredBy")
+  const shippingField = editor.register("shippingAddress")
+  const billingField = editor.register("billingAddress")
+  const subagentPercentField = editor.register("subagentPercent")
+  const houseRepPercentField = editor.register("houseRepPercent")
+  const houseSplitPercentField = editor.register("houseSplitPercent")
+  const descriptionField = editor.register("description")
+
+  const disableSave = editor.saving || !editor.isDirty
+
+  return (
+    <div className="rounded-2xl bg-gray-100 p-3 shadow-sm">
+      <div className="mb-2 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-primary-600">Opportunity Detail</p>
+          {editor.isDirty ? (
+            <span className="text-xs font-semibold text-amber-600">Unsaved changes</span>
+          ) : null}
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={!editor.isDirty || editor.saving}
+            className="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 transition hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onSave}
+            disabled={disableSave}
+            className="flex items-center gap-2 rounded-md bg-primary-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {editor.saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Update"}
+          </button>
+        </div>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <div className="space-y-1.5">
+          <EditableField label="Opportunity Name" error={editor.errors.name} required>
+            <EditableField.Input
+              value={(nameField.value as string) ?? ""}
+              onChange={nameField.onChange}
+              onBlur={nameField.onBlur}
+            />
+          </EditableField>
+
+          <FieldRow label="Account Name">
+            {opportunity.account ? (
+              <Link href={`/accounts/${opportunity.account.id}`} className="w-full max-w-md">
+                <div
+                  className={cn(
+                    fieldBoxClass,
+                    "cursor-pointer text-primary-700 hover:border-primary-500 hover:text-primary-800"
+                  )}
+                >
+                  <span className="truncate">{opportunity.account.accountName}</span>
+                </div>
+              </Link>
+            ) : (
+              <div className={fieldBoxClass}>Not linked</div>
+            )}
+          </FieldRow>
+
+          <FieldRow label="Account Legal Name">
+            <div className={fieldBoxClass}>{opportunity.account?.accountLegalName || "--"}</div>
+          </FieldRow>
+
+          <EditableField label="Subagent" error={editor.errors.subAgent}>
+            <EditableField.Input
+              value={(subAgentField.value as string) ?? ""}
+              onChange={subAgentField.onChange}
+              onBlur={subAgentField.onBlur}
+            />
+          </EditableField>
+
+          <EditableField label="Owner" error={editor.errors.ownerId} required>
+            <EditableField.Select
+              value={(ownerField.value as string) ?? ""}
+              onChange={ownerField.onChange}
+              onBlur={ownerField.onBlur}
+              disabled={ownersLoading}
+            >
+              <option value="">Select owner</option>
+              {ownerOptions.map(option => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </EditableField.Select>
+          </EditableField>
+
+          <EditableField label="Opportunity Stage" error={editor.errors.stage} required>
+            <EditableField.Select
+              value={(stageField.value as string) ?? ""}
+              onChange={stageField.onChange}
+              onBlur={stageField.onBlur}
+            >
+              <option value="">Select stage</option>
+              {STAGE_OPTIONS.map(option => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </EditableField.Select>
+          </EditableField>
+
+          <EditableField label="Status" error={editor.errors.status} required>
+            <EditableField.Select
+              value={(statusField.value as string) ?? ""}
+              onChange={statusField.onChange}
+              onBlur={statusField.onBlur}
+            >
+              <option value="">Select status</option>
+              {STATUS_OPTIONS.map(option => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </EditableField.Select>
+          </EditableField>
+
+          <EditableField label="Estimated Close Date" error={editor.errors.estimatedCloseDate} required>
+            <EditableField.Input
+              type="date"
+              value={(closeDateField.value as string) ?? ""}
+              onChange={closeDateField.onChange}
+              onBlur={closeDateField.onBlur}
+            />
+          </EditableField>
+        </div>
+
+        <div className="space-y-1.5">
+          <EditableField label="Lead Source" error={editor.errors.leadSource}>
+            <EditableField.Select
+              value={(leadSourceField.value as string) ?? ""}
+              onChange={leadSourceField.onChange}
+              onBlur={leadSourceField.onBlur}
+            >
+              <option value="">Select lead source</option>
+              {LEAD_SOURCE_OPTIONS.map(option => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </EditableField.Select>
+          </EditableField>
+
+          <EditableField label="Referred By" error={editor.errors.referredBy}>
+            <EditableField.Input
+              value={(referredField.value as string) ?? ""}
+              onChange={referredField.onChange}
+              onBlur={referredField.onBlur}
+            />
+          </EditableField>
+
+          <EditableField label="Shipping Address" error={editor.errors.shippingAddress}>
+            <EditableField.Textarea
+              rows={3}
+              value={(shippingField.value as string) ?? ""}
+              onChange={shippingField.onChange}
+              onBlur={shippingField.onBlur}
+            />
+          </EditableField>
+
+          <EditableField label="Billing Address" error={editor.errors.billingAddress}>
+            <EditableField.Textarea
+              rows={3}
+              value={(billingField.value as string) ?? ""}
+              onChange={billingField.onChange}
+              onBlur={billingField.onBlur}
+            />
+          </EditableField>
+
+          <EditableField label="Subagent %" error={editor.errors.subagentPercent} description="0 - 100">
+            <EditableField.Input
+              type="number"
+              step="0.01"
+              min="0"
+              max="100"
+              value={(subagentPercentField.value as string) ?? ""}
+              onChange={subagentPercentField.onChange}
+              onBlur={subagentPercentField.onBlur}
+            />
+          </EditableField>
+
+          <EditableField label="House Rep %" error={editor.errors.houseRepPercent} description="0 - 100">
+            <EditableField.Input
+              type="number"
+              step="0.01"
+              min="0"
+              max="100"
+              value={(houseRepPercentField.value as string) ?? ""}
+              onChange={houseRepPercentField.onChange}
+              onBlur={houseRepPercentField.onBlur}
+            />
+          </EditableField>
+
+          <EditableField label="House Split %" error={editor.errors.houseSplitPercent} description="0 - 100">
+            <EditableField.Input
+              type="number"
+              step="0.01"
+              min="0"
+              max="100"
+              value={(houseSplitPercentField.value as string) ?? ""}
+              onChange={houseSplitPercentField.onChange}
+              onBlur={houseSplitPercentField.onBlur}
+            />
+          </EditableField>
+
+          <EditableField label="Description" error={editor.errors.description}>
+            <EditableField.Textarea
+              rows={4}
+              value={(descriptionField.value as string) ?? ""}
+              onChange={descriptionField.onChange}
+              onBlur={descriptionField.onBlur}
+            />
+          </EditableField>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function formatChangeValue(value: unknown): string {
   if (value === null || value === undefined) {
     return "—"
@@ -625,6 +1038,172 @@ export function OpportunityDetailsView({
   const { showError, showSuccess } = useToasts()
 
   const [activeTab, setActiveTab] = useState<TabKey>("summary")
+
+  const inlineEnabled = isInlineDetailEditEnabled("opportunities")
+  const canEditOpportunity = hasPermission("opportunities.manage")
+  const shouldEnableInline = inlineEnabled && canEditOpportunity && Boolean(opportunity)
+
+  const [ownerOptions, setOwnerOptions] = useState<OwnerOption[]>([])
+  const [ownersLoading, setOwnersLoading] = useState(false)
+
+  const inlineInitialForm = useMemo(
+    () => (shouldEnableInline && opportunity ? createOpportunityInlineForm(opportunity) : null),
+    [shouldEnableInline, opportunity]
+  )
+
+  const submitOpportunity = useCallback(
+    async (patch: Partial<OpportunityInlineForm>, draft: OpportunityInlineForm) => {
+      if (!opportunity?.id) {
+        throw new Error("Opportunity ID is required")
+      }
+
+      const payload = buildOpportunityPayload(patch, draft)
+      if (Object.keys(payload).length === 0) {
+        return draft
+      }
+
+      try {
+        const response = await fetch(`/api/opportunities/${opportunity.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        })
+
+        if (!response.ok) {
+          const body = await response.json().catch(() => null)
+          const serverErrors = (body?.errors ?? {}) as Record<string, string>
+          const message = body?.error ?? "Failed to update opportunity"
+          showError("Unable to update opportunity", message)
+          const error = new Error(message) as Error & { serverErrors?: Record<string, string> }
+          if (serverErrors && Object.keys(serverErrors).length > 0) {
+            error.serverErrors = serverErrors
+          }
+          throw error
+        }
+
+        const body = await response.json().catch(() => null)
+        const updatedRecord = body?.data as OpportunityDetailRecord | undefined
+        showSuccess("Opportunity updated", "Changes saved.")
+        await onRefresh?.()
+        const nextForm = updatedRecord ? createOpportunityInlineForm(updatedRecord) : null
+        return nextForm ?? draft
+      } catch (error) {
+        if (!(error instanceof Error)) {
+          throw new Error("Failed to update opportunity")
+        }
+        throw error
+      }
+    },
+    [opportunity?.id, onRefresh, showError, showSuccess]
+  )
+
+  const editor = useEntityEditor<OpportunityInlineForm>({
+    initial: inlineInitialForm,
+    validate: shouldEnableInline ? validateOpportunityForm : undefined,
+    onSubmit: shouldEnableInline ? submitOpportunity : undefined
+  })
+
+  const { confirmNavigation } = useUnsavedChangesPrompt(shouldEnableInline && editor.isDirty)
+
+  useEffect(() => {
+    if (!shouldEnableInline) {
+      setOwnerOptions([])
+      setOwnersLoading(false)
+      return
+    }
+
+    let cancelled = false
+    setOwnersLoading(true)
+
+    fetch("/api/admin/users?limit=100&status=Active", { cache: "no-store" })
+      .then(async response => {
+        if (!response.ok) {
+          throw new Error("Failed to load owners")
+        }
+        const payload = await response.json().catch(() => null)
+        const users = Array.isArray(payload?.data?.users) ? payload.data.users : []
+        const options: OwnerOption[] = users.map((user: any) => ({
+          value: user.id,
+          label: user.fullName || user.email || user.id
+        }))
+
+        if (opportunity?.owner?.id) {
+          const exists = options.some(option => option.value === opportunity.owner!.id)
+          if (!exists) {
+            options.unshift({
+              value: opportunity.owner.id,
+              label: opportunity.owner.name || "Current Owner"
+            })
+          }
+        }
+
+        if (!cancelled) {
+          setOwnerOptions(options)
+        }
+      })
+      .catch(error => {
+        console.error(error)
+        if (!cancelled) {
+          setOwnerOptions(opportunity?.owner?.id
+            ? [{ value: opportunity.owner.id, label: opportunity.owner.name || "Current Owner" }]
+            : [])
+          showError("Unable to load owners", error instanceof Error ? error.message : "Please try again later")
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setOwnersLoading(false)
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [shouldEnableInline, opportunity?.owner?.id, opportunity?.owner?.name, showError])
+
+  const ownerSelectOptions = useMemo(() => {
+    if (!shouldEnableInline) {
+      return ownerOptions
+    }
+    if (!opportunity?.owner?.id) {
+      return ownerOptions
+    }
+    const exists = ownerOptions.some(option => option.value === opportunity.owner!.id)
+    if (exists) {
+      return ownerOptions
+    }
+    return [
+      { value: opportunity.owner.id, label: opportunity.owner.name ?? "Current Owner" },
+      ...ownerOptions
+    ]
+  }, [shouldEnableInline, ownerOptions, opportunity?.owner?.id, opportunity?.owner?.name])
+
+  const handleSaveEdits = useCallback(async () => {
+    try {
+      await editor.submit()
+    } catch (error) {
+      if (error && typeof error === "object" && "serverErrors" in error) {
+        editor.setErrors((error as { serverErrors?: Record<string, string> }).serverErrors ?? {})
+      }
+    }
+  }, [editor])
+
+  const handleCancelEdits = useCallback(() => {
+    editor.reset()
+    editor.setErrors({})
+  }, [editor])
+
+  const handleTabSelect = useCallback(
+    (tab: TabKey) => {
+      if (tab === activeTab) return
+      if (shouldEnableInline && editor.isDirty) {
+        const proceed = confirmNavigation()
+        if (!proceed) return
+      }
+      setActiveTab(tab)
+    },
+    [activeTab, confirmNavigation, editor.isDirty, shouldEnableInline]
+  )
 
   // Roles state
   const [rolesSearchQuery, setRolesSearchQuery] = useState("")
@@ -2047,15 +2626,25 @@ if (loading) {
     )
   }
 
+  const headerNode = shouldEnableInline ? (
+    <EditableOpportunityHeader
+      opportunity={opportunity}
+      editor={editor}
+      ownerOptions={ownerSelectOptions}
+      ownersLoading={ownersLoading}
+      onSave={handleSaveEdits}
+      onCancel={handleCancelEdits}
+    />
+  ) : (
+    <OpportunityHeader opportunity={opportunity} onEdit={onEdit} />
+  )
+
   return (
     <>
       <div className="flex h-full flex-col overflow-hidden px-4 sm:px-6 lg:px-8">
         <div className="w-full xl:max-w-[1800px]">
           <div className="flex flex-col gap-4">
-            <OpportunityHeader
-              opportunity={opportunity}
-              onEdit={onEdit}
-            />
+            {headerNode}
 
             <div className="flex flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
               <div className="flex flex-wrap gap-1 border-b border-gray-200 bg-gray-100 p-2">
@@ -2063,7 +2652,7 @@ if (loading) {
                   <button
                     key={tabId}
                     type="button"
-                    onClick={() => setActiveTab(tabId)}
+                    onClick={() => handleTabSelect(tabId)}
                     className={cn(
                       "rounded-t-md border px-3 py-1.5 text-sm font-semibold shadow-sm transition",
                       activeTab === tabId

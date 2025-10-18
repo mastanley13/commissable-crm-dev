@@ -9,6 +9,7 @@ import { mapOpportunityToRow } from "../../opportunities/helpers"
 import { logAccountAudit } from "@/lib/audit"
 import { revalidatePath } from "next/cache"
 import { checkDeletionConstraints, softDeleteEntity, permanentDeleteEntity, restoreEntity } from "@/lib/deletion"
+import { ensureActiveOwnerOrNull } from "@/lib/validation"
 
 type AddressInput = {
   line1: string
@@ -286,12 +287,16 @@ export async function GET(
       accountName: account.accountName,
       accountLegalName: account.accountLegalName ?? "",
       parentAccount: account.parent?.accountName ?? "",
+      parentAccountId: account.parentAccountId ?? null,
       accountType: account.accountType?.name ?? "",
+      accountTypeId: account.accountTypeId ?? null,
       active: account.status === AccountStatus.Active,
       accountOwner: account.owner
         ? `${account.owner.firstName ?? ""} ${account.owner.lastName ?? ""}`.trim()
         : "",
+      ownerId: account.ownerId ?? null,
       industry: account.industry?.name ?? "",
+      industryId: account.industryId ?? null,
       orderIdHouse: account.accountNumber ?? "",
       websiteUrl: account.websiteUrl ?? "",
       description: account.description ?? "",
@@ -360,8 +365,9 @@ export async function PATCH(
       hasChanges = true
     }
 
-    if (typeof payload?.ownerId === "string") {
-      data.ownerId = payload.ownerId.trim() || null
+    if (payload?.ownerId !== undefined) {
+      const nextOwnerId = await ensureActiveOwnerOrNull(payload.ownerId, tenantId)
+      data.ownerId = nextOwnerId
       hasChanges = true
     }
 

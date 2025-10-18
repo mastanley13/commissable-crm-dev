@@ -92,7 +92,7 @@ export function GroupEditModal({ isOpen, group, onClose, onSuccess }: GroupEditM
 
     // Load options
     setOptionsLoading(true)
-    fetch("/api/admin/users?limit=100", { cache: "no-store" })
+    fetch("/api/admin/users?limit=100&status=Active", { cache: "no-store" })
       .then(async response => {
         if (!response.ok) {
           throw new Error("Failed to load owners")

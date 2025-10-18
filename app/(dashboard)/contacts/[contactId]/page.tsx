@@ -6,10 +6,12 @@ import { ContactDetailsView, ContactDetail } from "@/components/contact-details-
 import { ContactEditModal } from "@/components/contact-edit-modal"
 import { CopyProtectionWrapper } from "@/components/copy-protection"
 import { useBreadcrumbs } from "@/lib/breadcrumb-context"
+import { isInlineDetailEditEnabled } from "@/lib/featureFlags"
 
 export default function ContactDetailPage() {
   const params = useParams()
   const router = useRouter()
+  const inlineEnabled = isInlineDetailEditEnabled("contacts")
   const contactId = useMemo(() => {
     const value = params?.contactId
     if (typeof value === "string") return value
@@ -144,17 +146,19 @@ export default function ContactDetailPage() {
         contact={contact}
         loading={loading}
         error={error}
-        onEdit={handleOpenEdit}
+        onEdit={inlineEnabled ? undefined : handleOpenEdit}
         onContactUpdated={handleContactUpdated}
         onRefresh={fetchContact}
       />
 
-      <ContactEditModal
-        isOpen={showEditModal}
-        onClose={handleCloseEditModal}
-        onSuccess={handleEditSuccess}
-        contact={contactForEdit}
-      />
+      {!inlineEnabled && (
+        <ContactEditModal
+          isOpen={showEditModal}
+          onClose={handleCloseEditModal}
+          onSuccess={handleEditSuccess}
+          contact={contactForEdit}
+        />
+      )}
     </CopyProtectionWrapper>
   )
 }
