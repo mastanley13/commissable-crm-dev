@@ -151,7 +151,7 @@ function parseJsonArray<T>(value: string | null): T[] {
 export async function GET(request: NextRequest) {
   return withPermissions(
     request,
-    ['contacts.manage', 'contacts.read'],
+    ['contacts.read', 'contacts.manage'],
     async (req) => {
       try {
         const searchParams = request.nextUrl.searchParams
@@ -324,7 +324,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   return withPermissions(
     request,
-    ['contacts.manage'],
+    ['contacts.create', 'contacts.manage'],
     async (req) => {
       const body = await request.json()
       const tenantId = req.user.tenantId

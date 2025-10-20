@@ -1,7 +1,7 @@
 ﻿"use client"
 
 import Link from "next/link"
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { Check, Loader2, Trash2 } from "lucide-react"
 import { LeadSource, OpportunityStage, OpportunityStatus } from "@prisma/client"
 import { cn } from "@/lib/utils"
@@ -13,7 +13,6 @@ import { applySimpleFilters } from "@/lib/filter-utils"
 import { EditableField } from "@/components/editable-field"
 import { useEntityEditor, type EntityEditor } from "@/hooks/useEntityEditor"
 import { useUnsavedChangesPrompt } from "@/hooks/useUnsavedChangesPrompt"
-import { isInlineDetailEditEnabled } from "@/lib/featureFlags"
 import {
   OpportunityDetailRecord,
   OpportunityLineItemRecord,
@@ -42,16 +41,6 @@ type OwnerOption = { value: string; label: string }
 const STAGE_OPTIONS = Object.values(OpportunityStage).map(stage => ({
   value: stage,
   label: stage.replace(/([A-Z])/g, " $1").trim()
-}))
-
-const STATUS_OPTIONS = Object.values(OpportunityStatus).map(status => ({
-  value: status,
-  label: status.replace(/([A-Z])/g, " $1").trim()
-}))
-
-const LEAD_SOURCE_OPTIONS = Object.values(LeadSource).map(source => ({
-  value: source,
-  label: source.replace(/([A-Z])/g, " $1").trim()
 }))
 
 const PRODUCT_TABLE_BASE_COLUMNS: Column[] = [
@@ -357,14 +346,9 @@ function SummaryTab({ opportunity }: { opportunity: OpportunityDetailRecord }) {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm font-semibold text-primary-700">Opportunity Summary</p>
-          <p className="text-xs text-gray-500">Financial metrics and commission breakdown for this opportunity.</p>
-        </div>
-      </div>
+      
 
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="grid gap-y-6 gap-x-14 lg:grid-cols-3">
         {summaryColumns.map((column, columnIndex) => (
           <div key={columnIndex} className="space-y-4">
             <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">
@@ -377,9 +361,9 @@ function SummaryTab({ opportunity }: { opportunity: OpportunityDetailRecord }) {
                 </h4>
                 <div className="space-y-1">
                   {section.items.map((item, itemIndex) => (
-                    <div key={itemIndex} className="flex justify-between items-center text-sm">
+                    <div key={itemIndex} className="flex items-center gap-4 text-sm">
                       <span className="text-gray-600">{item.label}</span>
-                      <span className="font-medium text-gray-900">
+                      <span className="font-medium text-gray-900 whitespace-nowrap">
                         {formatCurrencyValue(item.value)}
                       </span>
                     </div>
@@ -412,28 +396,16 @@ function DetailsIdentifiersTab({ opportunity }: { opportunity: OpportunityDetail
 
   return (
     <div className="flex flex-col gap-2.5">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm font-semibold text-primary-700">Opportunity Identifiers</p>
-          <p className="text-xs text-gray-500">Reference IDs that connect this opportunity to external systems.</p>
-        </div>
-
-        <button
-          type="button"
-          className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 shadow-sm transition hover:border-primary-400 hover:text-primary-700"
-          disabled
-        >
-          Update
-        </button>
-      </div>
 
       <div className="grid gap-2 rounded-xl border border-gray-200 bg-white p-3 shadow-sm md:grid-cols-2">
         {fields.map(field => (
-          <div key={field.label} className="space-y-1 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">{field.label}</p>
-            <p className="text-sm font-medium text-gray-900">
-              {field.value && String(field.value).trim().length > 0 ? String(field.value) : "--"}
-            </p>
+          <div key={field.label} className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
+            <div className="flex items-center gap-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">{field.label}</p>
+              <p className="text-sm font-medium text-gray-900 break-all">
+                {field.value && String(field.value).trim().length > 0 ? String(field.value) : "--"}
+              </p>
+            </div>
           </div>
         ))}
       </div>
@@ -608,9 +580,7 @@ function validateOpportunityForm(form: OpportunityInlineForm): Record<string, st
   if (!form.stage) {
     errors.stage = "Stage is required."
   }
-  if (!form.status) {
-    errors.status = "Status is required."
-  }
+  // Status isn't editable inline yet; allow empty values to pass validation.
   if (!form.ownerId) {
     errors.ownerId = "Owner is required."
   }
@@ -757,7 +727,6 @@ interface EditableOpportunityHeaderProps {
   ownerOptions: OwnerOption[]
   ownersLoading: boolean
   onSave: () => Promise<void>
-  onCancel: () => void
 }
 
 function EditableOpportunityHeader({
@@ -765,16 +734,14 @@ function EditableOpportunityHeader({
   editor,
   ownerOptions,
   ownersLoading,
-  onSave,
-  onCancel
+  onSave
 }: EditableOpportunityHeaderProps) {
   const nameField = editor.register("name")
-  const subAgentField = editor.register("subAgent")
-  const ownerField = editor.register("ownerId")
   const stageField = editor.register("stage")
-  const statusField = editor.register("status")
+  const ownerField = editor.register("ownerId")
   const closeDateField = editor.register("estimatedCloseDate")
   const leadSourceField = editor.register("leadSource")
+  const subAgentField = editor.register("subAgent")
   const referredField = editor.register("referredBy")
   const shippingField = editor.register("shippingAddress")
   const billingField = editor.register("billingAddress")
@@ -783,7 +750,22 @@ function EditableOpportunityHeader({
   const houseSplitPercentField = editor.register("houseSplitPercent")
   const descriptionField = editor.register("description")
 
+  void leadSourceField
+
   const disableSave = editor.saving || !editor.isDirty
+
+  const renderRow = (
+    label: string,
+    control: ReactNode,
+    error?: string
+  ) => (
+    <FieldRow label={label}>
+      <div className="flex flex-col gap-1 w-full max-w-md">
+        {control}
+        {error ? <p className="text-[10px] text-red-600">{error}</p> : null}
+      </div>
+    </FieldRow>
+  )
 
   return (
     <div className="rounded-2xl bg-gray-100 p-3 shadow-sm">
@@ -793,36 +775,30 @@ function EditableOpportunityHeader({
           {editor.isDirty ? (
             <span className="text-xs font-semibold text-amber-600">Unsaved changes</span>
           ) : null}
+          {ownersLoading ? <span className="text-xs text-gray-500">Loading owners...</span> : null}
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={onCancel}
-            disabled={!editor.isDirty || editor.saving}
-            className="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 transition hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={onSave}
-            disabled={disableSave}
-            className="flex items-center gap-2 rounded-md bg-primary-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {editor.saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Update"}
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={onSave}
+          disabled={disableSave}
+          className="flex items-center gap-2 rounded-md bg-primary-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {editor.saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Update"}
+        </button>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <div className="space-y-1.5">
-          <EditableField label="Opportunity Name" error={editor.errors.name} required>
+          {renderRow(
+            "Opportunity Name",
             <EditableField.Input
+              className="w-full"
               value={(nameField.value as string) ?? ""}
               onChange={nameField.onChange}
               onBlur={nameField.onBlur}
-            />
-          </EditableField>
+            />,
+            editor.errors.name
+          )}
 
           <FieldRow label="Account Name">
             {opportunity.account ? (
@@ -845,16 +821,21 @@ function EditableOpportunityHeader({
             <div className={fieldBoxClass}>{opportunity.account?.accountLegalName || "--"}</div>
           </FieldRow>
 
-          <EditableField label="Subagent" error={editor.errors.subAgent}>
+          {renderRow(
+            "Subagent",
             <EditableField.Input
+              className="w-full"
               value={(subAgentField.value as string) ?? ""}
               onChange={subAgentField.onChange}
               onBlur={subAgentField.onBlur}
-            />
-          </EditableField>
+            />,
+            editor.errors.subAgent
+          )}
 
-          <EditableField label="Owner" error={editor.errors.ownerId} required>
+          {renderRow(
+            "Owner",
             <EditableField.Select
+              className="w-full"
               value={(ownerField.value as string) ?? ""}
               onChange={ownerField.onChange}
               onBlur={ownerField.onBlur}
@@ -866,11 +847,14 @@ function EditableOpportunityHeader({
                   {option.label}
                 </option>
               ))}
-            </EditableField.Select>
-          </EditableField>
+            </EditableField.Select>,
+            editor.errors.ownerId
+          )}
 
-          <EditableField label="Opportunity Stage" error={editor.errors.stage} required>
+          {renderRow(
+            "Opportunity Stage",
             <EditableField.Select
+              className="w-full"
               value={(stageField.value as string) ?? ""}
               onChange={stageField.onChange}
               onBlur={stageField.onBlur}
@@ -881,78 +865,61 @@ function EditableOpportunityHeader({
                   {option.label}
                 </option>
               ))}
-            </EditableField.Select>
-          </EditableField>
+            </EditableField.Select>,
+            editor.errors.stage
+          )}
 
-          <EditableField label="Status" error={editor.errors.status} required>
-            <EditableField.Select
-              value={(statusField.value as string) ?? ""}
-              onChange={statusField.onChange}
-              onBlur={statusField.onBlur}
-            >
-              <option value="">Select status</option>
-              {STATUS_OPTIONS.map(option => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </EditableField.Select>
-          </EditableField>
-
-          <EditableField label="Estimated Close Date" error={editor.errors.estimatedCloseDate} required>
+          {renderRow(
+            "Estimated Close Date",
             <EditableField.Input
+              className="w-full"
               type="date"
               value={(closeDateField.value as string) ?? ""}
               onChange={closeDateField.onChange}
               onBlur={closeDateField.onBlur}
-            />
-          </EditableField>
+            />,
+            editor.errors.estimatedCloseDate
+          )}
         </div>
 
         <div className="space-y-1.5">
-          <EditableField label="Lead Source" error={editor.errors.leadSource}>
-            <EditableField.Select
-              value={(leadSourceField.value as string) ?? ""}
-              onChange={leadSourceField.onChange}
-              onBlur={leadSourceField.onBlur}
-            >
-              <option value="">Select lead source</option>
-              {LEAD_SOURCE_OPTIONS.map(option => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </EditableField.Select>
-          </EditableField>
-
-          <EditableField label="Referred By" error={editor.errors.referredBy}>
+          {renderRow(
+            "Referred By",
             <EditableField.Input
+              className="w-full"
               value={(referredField.value as string) ?? ""}
               onChange={referredField.onChange}
               onBlur={referredField.onBlur}
-            />
-          </EditableField>
+            />,
+            editor.errors.referredBy
+          )}
 
-          <EditableField label="Shipping Address" error={editor.errors.shippingAddress}>
-            <EditableField.Textarea
-              rows={3}
+          {renderRow(
+            "Shipping Address",
+            <EditableField.Input
+              className="w-full"
               value={(shippingField.value as string) ?? ""}
               onChange={shippingField.onChange}
               onBlur={shippingField.onBlur}
-            />
-          </EditableField>
+            />,
+            editor.errors.shippingAddress
+          )}
 
-          <EditableField label="Billing Address" error={editor.errors.billingAddress}>
-            <EditableField.Textarea
-              rows={3}
+          {renderRow(
+            "Billing Address",
+            <EditableField.Input
+              className="w-full"
               value={(billingField.value as string) ?? ""}
               onChange={billingField.onChange}
               onBlur={billingField.onBlur}
-            />
-          </EditableField>
+            />,
+            editor.errors.billingAddress
+          )}
 
-          <EditableField label="Subagent %" error={editor.errors.subagentPercent} description="0 - 100">
+          {renderRow(
+            "Subagent %",
             <EditableField.Input
+              className="w-full"
               type="number"
               step="0.01"
               min="0"
@@ -960,11 +927,14 @@ function EditableOpportunityHeader({
               value={(subagentPercentField.value as string) ?? ""}
               onChange={subagentPercentField.onChange}
               onBlur={subagentPercentField.onBlur}
-            />
-          </EditableField>
+            />,
+            editor.errors.subagentPercent
+          )}
 
-          <EditableField label="House Rep %" error={editor.errors.houseRepPercent} description="0 - 100">
+          {renderRow(
+            "House Rep %",
             <EditableField.Input
+              className="w-full"
               type="number"
               step="0.01"
               min="0"
@@ -972,11 +942,14 @@ function EditableOpportunityHeader({
               value={(houseRepPercentField.value as string) ?? ""}
               onChange={houseRepPercentField.onChange}
               onBlur={houseRepPercentField.onBlur}
-            />
-          </EditableField>
+            />,
+            editor.errors.houseRepPercent
+          )}
 
-          <EditableField label="House Split %" error={editor.errors.houseSplitPercent} description="0 - 100">
+          {renderRow(
+            "House Split %",
             <EditableField.Input
+              className="w-full"
               type="number"
               step="0.01"
               min="0"
@@ -984,22 +957,27 @@ function EditableOpportunityHeader({
               value={(houseSplitPercentField.value as string) ?? ""}
               onChange={houseSplitPercentField.onChange}
               onBlur={houseSplitPercentField.onBlur}
-            />
-          </EditableField>
+            />,
+            editor.errors.houseSplitPercent
+          )}
 
-          <EditableField label="Description" error={editor.errors.description}>
+          {renderRow(
+            "Description",
             <EditableField.Textarea
-              rows={4}
+              className="w-full"
+              rows={3}
               value={(descriptionField.value as string) ?? ""}
               onChange={descriptionField.onChange}
               onBlur={descriptionField.onBlur}
-            />
-          </EditableField>
+            />,
+            editor.errors.description
+          )}
         </div>
       </div>
     </div>
   )
 }
+
 
 function formatChangeValue(value: unknown): string {
   if (value === null || value === undefined) {
@@ -1039,9 +1017,13 @@ export function OpportunityDetailsView({
 
   const [activeTab, setActiveTab] = useState<TabKey>("summary")
 
-  const inlineEnabled = isInlineDetailEditEnabled("opportunities")
-  const canEditOpportunity = hasPermission("opportunities.manage")
-  const shouldEnableInline = inlineEnabled && canEditOpportunity && Boolean(opportunity)
+  const isAssignedToUser = Boolean(opportunity?.owner?.id && opportunity.owner.id === authUser?.id)
+  const canEditOpportunity =
+    hasPermission("accounts.manage") ||
+    hasPermission("opportunities.manage") ||
+    hasPermission("opportunities.edit.all") ||
+    (hasPermission("opportunities.edit.assigned") && isAssignedToUser)
+  const shouldEnableInline = canEditOpportunity && Boolean(opportunity)
 
   const [ownerOptions, setOwnerOptions] = useState<OwnerOption[]>([])
   const [ownersLoading, setOwnersLoading] = useState(false)
@@ -1186,11 +1168,6 @@ export function OpportunityDetailsView({
         editor.setErrors((error as { serverErrors?: Record<string, string> }).serverErrors ?? {})
       }
     }
-  }, [editor])
-
-  const handleCancelEdits = useCallback(() => {
-    editor.reset()
-    editor.setErrors({})
   }, [editor])
 
   const handleTabSelect = useCallback(
@@ -2440,30 +2417,32 @@ export function OpportunityDetailsView({
                   />
                 </button>
 
-                <div className="flex gap-0.5">
-                  <button
-                    type="button"
-                    className={cn(
-                      "rounded p-1 transition-colors",
-                      canModifyLineItems && target
-                        ? "text-red-500 hover:text-red-600"
-                        : "cursor-not-allowed text-gray-400"
-                    )}
-                    onClick={event => {
-                      event.preventDefault()
-                      event.stopPropagation()
-                      if (!target || !canModifyLineItems) {
-                        return
-                      }
-                      setLineItemDeleteError(null)
-                      setLineItemToDelete(target)
-                    }}
-                    aria-label="Delete line item"
-                    disabled={!canModifyLineItems || !target}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                </div>
+                {!activeValue && (
+                  <div className="flex gap-0.5">
+                    <button
+                      type="button"
+                      className={cn(
+                        "rounded p-1 transition-colors",
+                        canModifyLineItems && target
+                          ? "text-red-500 hover:text-red-600"
+                          : "cursor-not-allowed text-gray-400"
+                      )}
+                      onClick={event => {
+                        event.preventDefault()
+                        event.stopPropagation()
+                        if (!target || !canModifyLineItems) {
+                          return
+                        }
+                        setLineItemDeleteError(null)
+                        setLineItemToDelete(target)
+                      }}
+                      aria-label="Delete line item"
+                      disabled={!canModifyLineItems || !target}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                )}
               </div>
             )
           }
@@ -2633,7 +2612,6 @@ if (loading) {
       ownerOptions={ownerSelectOptions}
       ownersLoading={ownersLoading}
       onSave={handleSaveEdits}
-      onCancel={handleCancelEdits}
     />
   ) : (
     <OpportunityHeader opportunity={opportunity} onEdit={onEdit} />

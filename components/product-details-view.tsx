@@ -7,8 +7,7 @@ import { cn } from "@/lib/utils"
 import { EditableField } from "./editable-field"
 import { useToasts } from "./toast"
 import { useEntityEditor, type EntityEditor } from "@/hooks/useEntityEditor"
-import { useAuth } from "@/lib/auth-context"
-import { isInlineDetailEditEnabled } from "@/lib/featureFlags"
+// import { useAuth } from "@/lib/auth-context"
 
 export interface ProductOpportunityUsage {
   id: string
@@ -105,12 +104,82 @@ const fieldBoxClass =
 
 interface ProductInlineForm {
   active: boolean
+  productNameHouse: string
+  productNameVendor: string
+  productCode: string
+  revenueType: string
+  priceEach: string
+  commissionPercent: string
+  description: string
+  productFamilyHouse: string
+  productFamilyVendor: string
+  productSubtypeVendor: string
+  productNameDistributor: string
+  partNumberVendor: string
+  partNumberDistributor: string
+  distributorProductFamily: string
+  productDescriptionVendor: string
+  productDescriptionDistributor: string
+  vendorAccountId: string
+  distributorAccountId: string
+}
+
+const REVENUE_TYPE_OPTIONS = [
+  { value: "NRC_PerItem", label: "NRC - Per Item" },
+  { value: "NRC_FlatFee", label: "NRC - Flat Fee" },
+  { value: "MRC_PerItem", label: "MRC - Per Item" },
+  { value: "MRC_FlatFee", label: "MRC - Flat Fee" }
+]
+
+function numberToInputString(value: number | null | undefined): string {
+  if (value === null || value === undefined || Number.isNaN(value)) {
+    return ""
+  }
+  const normalised = Number(value)
+  if (!Number.isFinite(normalised)) return ""
+  return `${normalised}`
+}
+
+function percentToInputString(value: number | null | undefined): string {
+  if (value === null || value === undefined || Number.isNaN(value)) {
+    return ""
+  }
+  const percentValue = value > 1 ? value : value * 100
+  const rounded = Math.round((percentValue + Number.EPSILON) * 100) / 100
+  return Number.isInteger(rounded) ? String(Math.trunc(rounded)) : String(rounded)
+}
+
+function inputStringToPercent(value: string): number | null {
+  const trimmed = value.trim()
+  if (!trimmed) return null
+  const parsed = Number(trimmed)
+  if (!Number.isFinite(parsed)) return null
+  if (parsed === 0) return 0
+  return parsed > 1 ? parsed / 100 : parsed
 }
 
 function createProductInlineForm(product: ProductDetailRecord | null | undefined): ProductInlineForm | null {
   if (!product) return null
   return {
-    active: Boolean(product.isActive)
+    active: Boolean(product.isActive),
+    productNameHouse: product.productNameHouse ?? "",
+    productNameVendor: product.productNameVendor ?? "",
+    productCode: product.productCode ?? "",
+    revenueType: product.revenueType ?? "",
+    priceEach: numberToInputString(product.priceEach),
+    commissionPercent: percentToInputString(product.commissionPercent),
+    description: product.description ?? "",
+    productFamilyHouse: product.productFamilyHouse ?? "",
+    productFamilyVendor: product.productFamilyVendor ?? "",
+    productSubtypeVendor: product.productSubtypeVendor ?? "",
+    productNameDistributor: product.productNameDistributor ?? "",
+    partNumberVendor: product.partNumberVendor ?? "",
+    partNumberDistributor: product.partNumberDistributor ?? "",
+    distributorProductFamily: product.distributorProductFamily ?? "",
+    productDescriptionVendor: product.productDescriptionVendor ?? "",
+    productDescriptionDistributor: product.productDescriptionDistributor ?? "",
+    vendorAccountId: product.vendor?.id ?? "",
+    distributorAccountId: product.distributor?.id ?? ""
   }
 }
 
@@ -119,14 +188,118 @@ function buildProductPayload(
   draft: ProductInlineForm
 ): Record<string, unknown> {
   const payload: Record<string, unknown> = {}
+
   if ("active" in patch) {
     payload.active = Boolean(draft.active)
   }
+  if ("productNameHouse" in patch) {
+    payload.productNameHouse = draft.productNameHouse.trim()
+  }
+  if ("productNameVendor" in patch) {
+    const value = draft.productNameVendor.trim()
+    payload.productNameVendor = value.length > 0 ? value : null
+  }
+  if ("productCode" in patch) {
+    payload.productCode = draft.productCode.trim()
+  }
+  if ("productFamilyHouse" in patch) {
+    const value = draft.productFamilyHouse.trim()
+    payload.productFamilyHouse = value.length > 0 ? value : null
+  }
+  if ("revenueType" in patch) {
+    payload.revenueType = draft.revenueType
+  }
+  if ("productNameDistributor" in patch) {
+    const value = draft.productNameDistributor.trim()
+    payload.productNameDistributor = value.length > 0 ? value : null
+  }
+  if ("partNumberVendor" in patch) {
+    const value = draft.partNumberVendor.trim()
+    payload.partNumberVendor = value.length > 0 ? value : null
+  }
+  if ("partNumberDistributor" in patch) {
+    const value = draft.partNumberDistributor.trim()
+    payload.partNumberDistributor = value.length > 0 ? value : null
+  }
+  if ("priceEach" in patch) {
+    const trimmed = draft.priceEach.trim()
+    if (!trimmed) {
+      payload.priceEach = null
+    } else {
+      const parsed = Number(trimmed)
+      payload.priceEach = Number.isFinite(parsed) ? parsed : null
+    }
+  }
+  if ("commissionPercent" in patch) {
+    const percent = inputStringToPercent(draft.commissionPercent)
+    payload.commissionPercent = percent
+  }
+  if ("description" in patch) {
+    const value = draft.description.trim()
+    payload.description = value.length > 0 ? value : null
+  }
+  if ("productFamilyVendor" in patch) {
+    const value = draft.productFamilyVendor.trim()
+    payload.productFamilyVendor = value.length > 0 ? value : null
+  }
+  if ("productSubtypeVendor" in patch) {
+    const value = draft.productSubtypeVendor.trim()
+    payload.productSubtypeVendor = value.length > 0 ? value : null
+  }
+  if ("distributorProductFamily" in patch) {
+    const value = draft.distributorProductFamily.trim()
+    payload.distributorProductFamily = value.length > 0 ? value : null
+  }
+  if ("productDescriptionVendor" in patch) {
+    const value = draft.productDescriptionVendor.trim()
+    payload.productDescriptionVendor = value.length > 0 ? value : null
+  }
+  if ("productDescriptionDistributor" in patch) {
+    const value = draft.productDescriptionDistributor.trim()
+    payload.productDescriptionDistributor = value.length > 0 ? value : null
+  }
+  if ("vendorAccountId" in patch) {
+    const value = draft.vendorAccountId.trim()
+    payload.vendorAccountId = value.length > 0 ? value : null
+  }
+  if ("distributorAccountId" in patch) {
+    const value = draft.distributorAccountId.trim()
+    payload.distributorAccountId = value.length > 0 ? value : null
+  }
+
   return payload
 }
 
-function validateProductForm(_form: ProductInlineForm): Record<string, string> {
-  return {}
+function validateProductForm(form: ProductInlineForm): Record<string, string> {
+  const errors: Record<string, string> = {}
+
+  if (form.productNameHouse.trim().length === 0) {
+    errors.productNameHouse = "Product name is required."
+  }
+  if (form.productCode.trim().length === 0) {
+    errors.productCode = "Product code is required."
+  }
+  if (!form.revenueType) {
+    errors.revenueType = "Select a revenue type."
+  }
+
+  const priceValue = form.priceEach.trim()
+  if (priceValue) {
+    const parsed = Number(priceValue)
+    if (!Number.isFinite(parsed) || parsed < 0) {
+      errors.priceEach = "Enter a valid price."
+    }
+  }
+
+  const commissionValue = form.commissionPercent.trim()
+  if (commissionValue) {
+    const parsed = Number(commissionValue)
+    if (!Number.isFinite(parsed) || parsed < 0 || parsed > 100) {
+      errors.commissionPercent = "Commission must be between 0 and 100."
+    }
+  }
+
+  return errors
 }
 
 function FieldRow({ label, children }: { label: string; children: ReactNode }) {
@@ -250,30 +423,28 @@ function ProductHeader({ product, onEdit }: ProductHeaderProps) {
             </div>
           </FieldRow>
           <FieldRow label="Vendor Name">
-            {product.vendor ? (
-              <Link href={`/accounts/${product.vendor.id}`}>
-                <div className={cn(fieldBoxClass, "cursor-pointer text-primary-700 hover:border-primary-500")}>
-                  {product.vendor.accountName}
-                </div>
-              </Link>
-            ) : (
-              <div className={fieldBoxClass}>
-                <span className="text-gray-500">--</span>
-              </div>
-            )}
+            <EditableField.Select
+              value={(vendorAccountIdField.value as string) ?? ""}
+              onChange={vendorAccountIdField.onChange}
+              onBlur={vendorAccountIdField.onBlur}
+            >
+              <option value="">-- Select Vendor --</option>
+              {(typeof window !== 'undefined' ? (window as any).__productAccountOptions?.vendors ?? [] : []).map((opt: any) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </EditableField.Select>
           </FieldRow>
           <FieldRow label="Distributor Name">
-            {product.distributor ? (
-              <Link href={`/accounts/${product.distributor.id}`}>
-                <div className={cn(fieldBoxClass, "cursor-pointer text-primary-700 hover:border-primary-500")}>
-                  {product.distributor.accountName}
-                </div>
-              </Link>
-            ) : (
-              <div className={fieldBoxClass}>
-                <span className="text-gray-500">--</span>
-              </div>
-            )}
+            <EditableField.Select
+              value={(distributorAccountIdField.value as string) ?? ""}
+              onChange={distributorAccountIdField.onChange}
+              onBlur={distributorAccountIdField.onBlur}
+            >
+              <option value="">-- Select Distributor --</option>
+              {(typeof window !== 'undefined' ? (window as any).__productAccountOptions?.distributors ?? [] : []).map((opt: any) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </EditableField.Select>
           </FieldRow>
           <FieldRow label="Price Each">
             <div className={fieldBoxClass}>
@@ -351,12 +522,31 @@ interface EditableProductHeaderProps {
   product: ProductDetailRecord
   editor: EntityEditor<ProductInlineForm>
   onSave: () => Promise<void>
-  onCancel: () => void
 }
 
-function EditableProductHeader({ product, editor, onSave, onCancel }: EditableProductHeaderProps) {
+function EditableProductHeader({ product, editor, onSave }: EditableProductHeaderProps) {
   const activeField = editor.register("active")
+  const nameField = editor.register("productNameHouse")
+  const vendorNameField = editor.register("productNameVendor")
+  const codeField = editor.register("productCode")
+  const familyHouseField = editor.register("productFamilyHouse")
+  const revenueTypeField = editor.register("revenueType")
+  const priceField = editor.register("priceEach")
+  const commissionField = editor.register("commissionPercent")
+  const descriptionField = editor.register("description")
+  const partNumberVendorField = editor.register("partNumberVendor")
+  const familyVendorField = editor.register("productFamilyVendor")
+  const subtypeVendorField = editor.register("productSubtypeVendor")
+  const nameDistributorField = editor.register("productNameDistributor")
+  const partNumberDistributorField = editor.register("partNumberDistributor")
+  const familyDistributorField = editor.register("distributorProductFamily")
+  const descVendorField = editor.register("productDescriptionVendor")
+  const descDistributorField = editor.register("productDescriptionDistributor")
+
   const isActive = Boolean(activeField.value)
+  const productName = (nameField.value as string) || product.productNameVendor || "Product"
+  const disableSave = editor.saving || !editor.isDirty
+
   const statusBadge = (
     <span
       className={cn(
@@ -367,33 +557,30 @@ function EditableProductHeader({ product, editor, onSave, onCancel }: EditablePr
       {isActive ? "Active" : "Inactive"}
     </span>
   )
-  const disableSave = editor.saving || !editor.isDirty
-  const productName = product.productNameHouse || product.productNameVendor || "Product"
-  const priceEach = formatCurrency(product.priceEach)
-  const commissionRate = formatPercent(product.commissionPercent)
-  const revenueTypeLabel = humanizeLabel(product.revenueType)
-  const productDescriptionHouse = product.productDescriptionHouse ?? product.description ?? null
-  const productDescriptionVendor = product.productDescriptionVendor ?? null
+
+  const renderRow = (label: string, control: ReactNode, error?: string) => (
+    <FieldRow label={label}>
+      <div className="flex w-full max-w-md flex-col gap-1">
+        {control}
+        {error ? <p className="text-[10px] text-red-600">{error}</p> : null}
+      </div>
+    </FieldRow>
+  )
 
   return (
     <div className="rounded-2xl bg-gray-100 p-3 shadow-sm">
       <div className="mb-2 flex items-center justify-between">
         <div className="space-y-1">
           <p className="text-xs font-semibold uppercase tracking-wide text-primary-600">Product Detail</p>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-lg font-semibold text-gray-900">{productName}</h1>
             {statusBadge}
+            {editor.isDirty ? (
+              <span className="text-xs font-semibold text-amber-600">Unsaved changes</span>
+            ) : null}
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={onCancel}
-            disabled={editor.saving}
-            className="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 transition hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            Cancel
-          </button>
           <button
             type="button"
             onClick={onSave}
@@ -405,48 +592,79 @@ function EditableProductHeader({ product, editor, onSave, onCancel }: EditablePr
           </button>
         </div>
       </div>
-      <p className="mb-3 text-xs text-gray-500">
-        Inline editing currently supports toggling the product&apos;s Active status. Additional fields will become
-        editable once API support is ready.
-      </p>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <div className="space-y-1.5">
-          <FieldRow label="Product Name - House">
-            <div className={fieldBoxClass}>
-              {product.productNameHouse || <span className="text-gray-500">--</span>}
-            </div>
-          </FieldRow>
-          <FieldRow label="Part Number - House">
-            <div className={fieldBoxClass}>
-              {product.productCode || <span className="text-gray-500">--</span>}
-            </div>
-          </FieldRow>
-          <FieldRow label="Product Family - House">
-            <div className={fieldBoxClass}>
-              {product.productFamilyHouse || <span className="text-gray-500">--</span>}
-            </div>
-          </FieldRow>
-          <FieldRow label="Revenue Type">
-            <div className={fieldBoxClass}>
-              {revenueTypeLabel || <span className="text-gray-500">--</span>}
-            </div>
-          </FieldRow>
+          {renderRow(
+            "Product Name - House",
+            <EditableField.Input
+              value={(nameField.value as string) ?? ""}
+              onChange={nameField.onChange}
+              onBlur={nameField.onBlur}
+              placeholder="Enter product name"
+            />,
+            editor.errors.productNameHouse
+          )}
+
+          {renderRow(
+            "Part Number - House",
+            <EditableField.Input
+              value={(codeField.value as string) ?? ""}
+              onChange={codeField.onChange}
+              onBlur={codeField.onBlur}
+              placeholder="Enter part #"
+            />,
+            editor.errors.productCode
+          )}
+
+          {renderRow(
+            "Product Family - House",
+            <EditableField.Input
+              value={(familyHouseField?.value as string) ?? ""}
+              onChange={familyHouseField.onChange}
+              onBlur={familyHouseField.onBlur}
+              placeholder="Enter family"
+            />
+          )}
+
+          {renderRow(
+            "Revenue Type",
+            <EditableField.Select
+              value={(revenueTypeField.value as string) ?? ""}
+              onChange={revenueTypeField.onChange}
+              onBlur={revenueTypeField.onBlur}
+            >
+              <option value="">Select revenue type</option>
+              {REVENUE_TYPE_OPTIONS.map(option => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </EditableField.Select>,
+            editor.errors.revenueType
+          )}
+
           <FieldRow label="Status">
             <div className="flex min-h-[28px] items-center gap-3 rounded-lg border-2 border-gray-400 bg-white px-2 py-0.5 text-xs text-gray-900 shadow-sm">
               <EditableField.Switch
-                checked={isActive}
+                checked={Boolean(activeField.value)}
                 onChange={activeField.onChange}
                 onBlur={activeField.onBlur}
               />
-              <span className="font-semibold text-gray-700">{isActive ? "Active" : "Inactive"}</span>
+              <span className="font-semibold text-gray-700">{Boolean(activeField.value) ? "Active" : "Inactive"}</span>
             </div>
           </FieldRow>
+
           <FieldRow label="Vendor Name">
             {product.vendor ? (
-              <Link href={`/accounts/${product.vendor.id}`}>
-                <div className={cn(fieldBoxClass, "cursor-pointer text-primary-700 hover:border-primary-500")}>
-                  {product.vendor.accountName}
+              <Link href={`/accounts/${product.vendor.id}`} className="w-full max-w-md">
+                <div
+                  className={cn(
+                    fieldBoxClass,
+                    "cursor-pointer text-primary-700 hover:border-primary-500 hover:text-primary-800"
+                  )}
+                >
+                  <span className="truncate">{product.vendor.accountName}</span>
                 </div>
               </Link>
             ) : (
@@ -455,11 +673,17 @@ function EditableProductHeader({ product, editor, onSave, onCancel }: EditablePr
               </div>
             )}
           </FieldRow>
+
           <FieldRow label="Distributor Name">
             {product.distributor ? (
-              <Link href={`/accounts/${product.distributor.id}`}>
-                <div className={cn(fieldBoxClass, "cursor-pointer text-primary-700 hover:border-primary-500")}>
-                  {product.distributor.accountName}
+              <Link href={`/accounts/${product.distributor.id}`} className="w-full max-w-md">
+                <div
+                  className={cn(
+                    fieldBoxClass,
+                    "cursor-pointer text-primary-700 hover:border-primary-500 hover:text-primary-800"
+                  )}
+                >
+                  <span className="truncate">{product.distributor.accountName}</span>
                 </div>
               </Link>
             ) : (
@@ -468,78 +692,144 @@ function EditableProductHeader({ product, editor, onSave, onCancel }: EditablePr
               </div>
             )}
           </FieldRow>
-          <FieldRow label="Price Each">
-            <div className={fieldBoxClass}>
-              {priceEach || <span className="text-gray-500">--</span>}
-            </div>
-          </FieldRow>
-          <FieldRow label="Commission">
-            <div className={fieldBoxClass}>
-              {commissionRate || <span className="text-gray-500">--</span>}
-            </div>
-          </FieldRow>
-          <FieldRow label="Product Name - Vendor">
-            <div className={fieldBoxClass}>
-              {product.productNameVendor || <span className="text-gray-500">--</span>}
-            </div>
-          </FieldRow>
-          <FieldRow label="Part Number - Vendor">
-            <div className={fieldBoxClass}>
-              {product.partNumberVendor || <span className="text-gray-500">--</span>}
-            </div>
-          </FieldRow>
-          <FieldRow label="Product Family - Vendor">
-            <div className={fieldBoxClass}>
-              {product.productFamilyVendor || <span className="text-gray-500">--</span>}
-            </div>
-          </FieldRow>
-          <FieldRow label="Subtype - Vendor">
-            <div className={fieldBoxClass}>
-              {product.productSubtypeVendor || <span className="text-gray-500">--</span>}
-            </div>
-          </FieldRow>
+
+          
+          {renderRow(
+            "Price Each",
+            <EditableField.Input
+              type="number"
+              step="0.01"
+              min="0"
+              value={(priceField.value as string) ?? ""}
+              onChange={priceField.onChange}
+              onBlur={priceField.onBlur}
+              placeholder="0.00"
+            />,
+            editor.errors.commissionPercent
+          )}
+
+          {renderRow(
+            "Commission %",
+            <EditableField.Input
+              type="number"
+              step="0.01"
+              min="0"
+              max="100"
+              value={(commissionField.value as string) ?? ""}
+              onChange={commissionField.onChange}
+              onBlur={commissionField.onBlur}
+              placeholder="Enter %"
+            />,
+            editor.errors.priceEach
+          )}
+
+          {renderRow(
+            "Product Name - Vendor",
+            <EditableField.Input
+              value={(vendorNameField.value as string) ?? ""}
+              onChange={vendorNameField.onChange}
+              onBlur={vendorNameField.onBlur}
+              placeholder="Enter vendor product name"
+            />
+          )}
+
+          {renderRow(
+            "Part Number - Vendor",
+            <EditableField.Input
+              value={(partNumberVendorField?.value as string) ?? ""}
+              onChange={partNumberVendorField.onChange}
+              onBlur={partNumberVendorField.onBlur}
+              placeholder="Enter vendor part #"
+            />
+          )}
+
+          {renderRow(
+            "Product Family - Vendor",
+            <EditableField.Input
+              value={(familyVendorField?.value as string) ?? ""}
+              onChange={familyVendorField.onChange}
+              onBlur={familyVendorField.onBlur}
+              placeholder="Enter vendor family"
+            />
+          )}
+
+          {renderRow(
+            "Subtype - Vendor",
+            <EditableField.Input
+              value={(subtypeVendorField?.value as string) ?? ""}
+              onChange={subtypeVendorField.onChange}
+              onBlur={subtypeVendorField.onBlur}
+              placeholder="Enter subtype"
+            />
+          )}
+
+          
+
         </div>
 
         <div className="space-y-1.5">
-          <FieldRow label="Product Name - Distributor">
-            <div className={fieldBoxClass}>
-              {product.productNameDistributor || <span className="text-gray-500">--</span>}
-            </div>
-          </FieldRow>
-          <FieldRow label="Part Number - Distributor">
-            <div className={fieldBoxClass}>
-              {product.partNumberDistributor || <span className="text-gray-500">--</span>}
-            </div>
-          </FieldRow>
-          <FieldRow label="Distributor Product Family">
-            <div className={fieldBoxClass}>
-              {product.distributorProductFamily || <span className="text-gray-500">--</span>}
-            </div>
-          </FieldRow>
-          <div className="grid items-start gap-6 sm:grid-cols-[200px,1fr]">
-            <span className={cn(fieldLabelClass, "pt-1.5")}>Product Description - House</span>
-            <div className={cn(fieldBoxClass, "min-h-[80px] items-start whitespace-pre-wrap py-2")}>
-              {productDescriptionHouse || <span className="text-gray-500">--</span>}
-            </div>
-          </div>
-          <div className="grid items-start gap-6 sm:grid-cols-[200px,1fr]">
-            <span className={cn(fieldLabelClass, "pt-1.5")}>Product Description - Vendor</span>
-            <div className={cn(fieldBoxClass, "min-h-[80px] items-start whitespace-pre-wrap py-2")}>
-              {productDescriptionVendor || <span className="text-gray-500">--</span>}
-            </div>
-          </div>
-          <div className="grid items-start gap-6 sm:grid-cols-[200px,1fr]">
-            <span className={cn(fieldLabelClass, "pt-1.5")}>Product Description - Distributor</span>
-            <div className={cn(fieldBoxClass, "min-h-[80px] items-start whitespace-pre-wrap py-2")}>
-              {product.productDescriptionDistributor || <span className="text-gray-500">--</span>}
-            </div>
-          </div>
+
+          
+
+          {renderRow(
+            "Product Description - Vendor",
+            <EditableField.Textarea
+              rows={3}
+              value={(descVendorField?.value as string) ?? ""}
+              onChange={descVendorField.onChange}
+              onBlur={descVendorField.onBlur}
+              placeholder="Add vendor description"
+            />
+          )}
+
+          
+
+          {renderRow(
+            "Part Number - Distributor",
+            <EditableField.Input
+              value={(partNumberDistributorField?.value as string) ?? ""}
+              onChange={partNumberDistributorField.onChange}
+              onBlur={partNumberDistributorField.onBlur}
+              placeholder="Enter distributor part #"
+            />
+          )}
+
+          {renderRow(
+            "Distributor Product Family",
+            <EditableField.Input
+              value={(familyDistributorField?.value as string) ?? ""}
+              onChange={familyDistributorField.onChange}
+              onBlur={familyDistributorField.onBlur}
+              placeholder="Enter distributor family"
+            />
+          )}
+
+          {renderRow(
+            "Product Description - House",
+            <EditableField.Textarea
+              rows={4}
+              value={(descriptionField.value as string) ?? ""}
+              onChange={descriptionField.onChange}
+              onBlur={descriptionField.onBlur}
+              placeholder="Add description"
+            />
+          )}
+
+          {renderRow(
+            "Product Description - Distributor",
+            <EditableField.Textarea
+              rows={3}
+              value={(descDistributorField?.value as string) ?? ""}
+              onChange={descDistributorField.onChange}
+              onBlur={descDistributorField.onBlur}
+              placeholder="Add distributor description"
+            />
+          )}
         </div>
       </div>
     </div>
   )
 }
-
 export function ProductDetailsView({
   product,
   loading,
@@ -547,12 +837,26 @@ export function ProductDetailsView({
   onEdit,
   onRefresh
 }: ProductDetailsViewProps) {
-  const { hasPermission } = useAuth()
+  // Inline editing is enabled for all authenticated users per requirements
   const { showError, showSuccess } = useToasts()
-  const inlineEnabled = isInlineDetailEditEnabled("products")
-  const canMutateProduct =
-    hasPermission("products.update") || hasPermission("products.delete") || hasPermission("products.create")
-  const shouldEnableInline = inlineEnabled && canMutateProduct && Boolean(product)
+  const shouldEnableInline = Boolean(product)
+  
+  // Lightweight options loader for vendor/distributor (uses contacts options endpoint)
+  if (typeof window !== 'undefined' && !(window as any).__productAccountOptionsLoaded) {
+    ;(async () => {
+      try {
+        const res = await fetch('/api/contacts/options', { cache: 'no-store' })
+        const payload = await res.json().catch(() => null)
+        const accounts: Array<{ value: string; label: string; accountTypeName?: string }> = Array.isArray(payload?.accounts)
+          ? payload.accounts
+          : []
+        const vendors = accounts.filter(a => (a.accountTypeName || '').toLowerCase().includes('vendor'))
+        const distributors = accounts.filter(a => (a.accountTypeName || '').toLowerCase().includes('distributor'))
+        ;(window as any).__productAccountOptions = { vendors, distributors }
+        ;(window as any).__productAccountOptionsLoaded = true
+      } catch {}
+    })()
+  }
 
   const inlineInitialForm = useMemo(
     () => (shouldEnableInline ? createProductInlineForm(product) : null),
@@ -588,7 +892,7 @@ export function ProductDetailsView({
           throw error
         }
 
-        showSuccess("Product updated", "Status saved.")
+        showSuccess("Product updated", "Changes saved.")
         await onRefresh?.()
         return draft
       } catch (err) {
@@ -617,11 +921,6 @@ export function ProductDetailsView({
     }
   }, [editor, shouldEnableInline])
 
-  const handleCancelInline = useCallback(() => {
-    editor.reset()
-    editor.setErrors({})
-  }, [editor])
-
   const headerNode = useMemo(() => {
     if (!product) return null
     if (shouldEnableInline) {
@@ -630,12 +929,11 @@ export function ProductDetailsView({
           product={product}
           editor={editor}
           onSave={handleSaveInline}
-          onCancel={handleCancelInline}
         />
       )
     }
     return <ProductHeader product={product} onEdit={onEdit} />
-  }, [product, shouldEnableInline, editor, handleSaveInline, handleCancelInline, onEdit])
+  }, [product, shouldEnableInline, editor, handleSaveInline, onEdit])
 
   if (loading) {
     return (
@@ -678,55 +976,9 @@ export function ProductDetailsView({
       <div className="w-full">
         {headerNode}
 
-        <div className="mt-6 grid gap-4 md:grid-cols-2">
-          <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
-            <h3 className="mb-3 text-sm font-semibold text-primary-700">Audit Information</h3>
-            <div className="space-y-1.5">
-              <FieldRow label="Created By">
-                <div className={fieldBoxClass}>
-                  {product.createdBy?.name || <span className="text-gray-500">--</span>}
-                </div>
-              </FieldRow>
-              <FieldRow label="Created At">
-                <div className={fieldBoxClass}>
-                  {formatDate(product.createdAt) || <span className="text-gray-500">--</span>}
-                </div>
-              </FieldRow>
-              <FieldRow label="Updated By">
-                <div className={fieldBoxClass}>
-                  {product.updatedBy?.name || <span className="text-gray-500">--</span>}
-                </div>
-              </FieldRow>
-              <FieldRow label="Updated At">
-                <div className={fieldBoxClass}>
-                  {formatDate(product.updatedAt) || <span className="text-gray-500">--</span>}
-                </div>
-              </FieldRow>
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
-            <h3 className="mb-3 text-sm font-semibold text-primary-700">Identifiers</h3>
-            <div className="space-y-1.5">
-              <FieldRow label="Product Code">
-                <div className={fieldBoxClass}>
-                  {product.productCode || <span className="text-gray-500">--</span>}
-                </div>
-              </FieldRow>
-              <FieldRow label="Distributor Account #">
-                <div className={fieldBoxClass}>
-                  {product.distributor?.accountNumber || <span className="text-gray-500">--</span>}
-                </div>
-              </FieldRow>
-              <FieldRow label="Vendor Account #">
-                <div className={fieldBoxClass}>
-                  {product.vendor?.accountNumber || <span className="text-gray-500">--</span>}
-                </div>
-              </FieldRow>
-            </div>
-          </div>
-        </div>
+        {/* Removed Audit Information and Identifiers per request */}
       </div>
     </div>
   )
 }
+

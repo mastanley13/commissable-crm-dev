@@ -1,17 +1,13 @@
 ﻿"use client"
 
-import { useCallback, useEffect, useMemo, useState, type ComponentProps } from "react"
-import { useParams, useRouter } from "next/navigation"
+import { useCallback, useEffect, useMemo, useState } from "react"
+import { useParams } from "next/navigation"
 import { AccountDetailsView, AccountDetail } from "@/components/account-details-view"
-import { AccountEditModal } from "@/components/account-edit-modal"
 import { CopyProtectionWrapper } from "@/components/copy-protection"
 import { useBreadcrumbs } from "@/lib/breadcrumb-context"
-import { isInlineDetailEditEnabled } from "@/lib/featureFlags"
 
 export default function AccountDetailPage() {
   const params = useParams()
-  const router = useRouter()
-  const inlineEnabled = isInlineDetailEditEnabled("accounts")
   const accountId = useMemo(() => {
     const value = params?.accountId
     if (typeof value === "string") return value
@@ -22,8 +18,6 @@ export default function AccountDetailPage() {
   const [account, setAccount] = useState<AccountDetail | null>(null)
   const [loading, setLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
-  const [showEditModal, setShowEditModal] = useState(false)
-  const [accountForEdit, setAccountForEdit] = useState<ComponentProps<typeof AccountEditModal>["account"]>(null)
   const { setBreadcrumbs } = useBreadcrumbs()
 
   const fetchAccount = useCallback(
@@ -100,53 +94,14 @@ export default function AccountDetailPage() {
     await fetchAccount()
   }, [fetchAccount])
 
-  const handleOpenEdit = useCallback(() => {
-    if (!account) return
-
-    setAccountForEdit({
-      id: account.id,
-      active: account.active,
-      accountName: account.accountName ?? "",
-      accountLegalName: account.accountLegalName ?? "",
-      accountType: account.accountType ?? "",
-      accountOwner: account.accountOwner ?? "",
-      shippingState: account.shippingAddress?.state ?? "",
-      shippingCity: account.shippingAddress?.city ?? "",
-      shippingZip: account.shippingAddress?.postalCode ?? "",
-      shippingStreet: account.shippingAddress?.line1 ?? "",
-      shippingStreet2: account.shippingAddress?.shippingStreet2 ?? account.shippingAddress?.line2 ?? ""
-    })
-    setShowEditModal(true)
-  }, [account])
-
-  const handleCloseEditModal = useCallback(() => {
-    setShowEditModal(false)
-  }, [])
-
-  const handleEditSuccess = useCallback(() => {
-    setShowEditModal(false)
-    fetchAccount().catch(err => console.error(err))
-  }, [fetchAccount])
-
-
   return (
     <CopyProtectionWrapper className="min-h-screen bg-slate-50">
       <AccountDetailsView
         account={account}
         loading={loading}
         error={error}
-        onEdit={inlineEnabled ? undefined : handleOpenEdit}
         onRefresh={handleRefresh}
       />
-
-      {!inlineEnabled && (
-        <AccountEditModal
-          isOpen={showEditModal}
-          onClose={handleCloseEditModal}
-          onSuccess={handleEditSuccess}
-          account={accountForEdit}
-        />
-      )}
     </CopyProtectionWrapper>
   )
 }

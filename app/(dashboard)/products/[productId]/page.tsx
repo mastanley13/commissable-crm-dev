@@ -4,17 +4,15 @@ import { useCallback, useEffect, useState } from "react"
 import { useParams } from "next/navigation"
 import { ProductDetailsView, ProductDetailRecord } from "@/components/product-details-view"
 import { useToasts } from "@/components/toast"
-import { isInlineDetailEditEnabled } from "@/lib/featureFlags"
 
 export default function ProductDetailPage() {
   const params = useParams()
-  const { showError, showWarning } = useToasts()
+  const { showError } = useToasts()
   const [product, setProduct] = useState<ProductDetailRecord | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   const productId = params.productId as string
-  const inlineEnabled = isInlineDetailEditEnabled("products")
 
   const loadProduct = useCallback(async () => {
     if (!productId) return
@@ -48,12 +46,6 @@ export default function ProductDetailPage() {
     void loadProduct()
   }, [loadProduct])
 
-  const handleEdit = () => {
-    if (!product) return
-    const name = product.productNameHouse || product.productNameVendor || "This product"
-    showWarning("Edit coming soon", `${name} cannot be edited yet.`)
-  }
-
   const handleRefresh = async () => {
     await loadProduct()
   }
@@ -63,7 +55,6 @@ export default function ProductDetailPage() {
       product={product}
       loading={loading}
       error={error}
-      onEdit={inlineEnabled ? undefined : handleEdit}
       onRefresh={handleRefresh}
     />
   )

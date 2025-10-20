@@ -8,6 +8,7 @@ import { ColumnChooserModal } from '@/components/column-chooser-modal'
 import { useTablePreferences } from '@/hooks/useTablePreferences'
 import { revenueSchedulesData } from '@/lib/mock-data'
 import { Edit, Check, Trash2 } from 'lucide-react'
+import { isRowInactive } from '@/lib/row-state'
 import { CopyProtectionWrapper } from '@/components/copy-protection'
 import { useToasts } from '@/components/toast'
 import { RevenueSchedulesBulkActionBar } from '@/components/revenue-schedules-bulk-action-bar'
@@ -512,24 +513,17 @@ export default function RevenueSchedulesPage() {
 
                 {/* Actions */}
                 <div className="flex gap-0.5">
-                  <button
-                    type="button"
-                    className="p-1 text-blue-600 hover:text-blue-800 transition-colors rounded"
-                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleRowClick(row) }}
-                    aria-label="Open"
-                    title="Open"
-                  >
-                    <Edit className="h-3.5 w-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    className="p-1 text-red-500 hover:text-red-700 transition-colors rounded"
-                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleDeleteRow(rowId) }}
-                    aria-label="Delete"
-                    title="Delete"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
+                  {isRowInactive(row) && (
+                    <button
+                      type="button"
+                      className="p-1 text-red-500 hover:text-red-700 transition-colors rounded"
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleDeleteRow(rowId) }}
+                      aria-label="Delete"
+                      title="Delete"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  )}
                 </div>
               </div>
             )

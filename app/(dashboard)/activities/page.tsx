@@ -8,6 +8,7 @@ import { ColumnChooserModal } from '@/components/column-chooser-modal'
 import { useTablePreferences } from '@/hooks/useTablePreferences'
 import { TableChangeNotification } from '@/components/table-change-notification'
 import { Edit, Trash2, Settings } from 'lucide-react'
+import { isRowInactive } from '@/lib/row-state'
 import { ActivityCreateModal } from '@/components/activities/activity-create-modal'
 import { ActivityListItem } from '@/lib/activity-service'
 

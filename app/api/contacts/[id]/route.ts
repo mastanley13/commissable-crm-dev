@@ -517,7 +517,7 @@ export async function DELETE(
 ) {
   return withPermissions(
     request,
-    ['contacts.manage'],
+    ['contacts.delete', 'contacts.manage'],
     async (req) => {
       try {
         const contactId = params.id

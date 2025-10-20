@@ -11,6 +11,7 @@ import { ProductBulkActionBar } from '@/components/product-bulk-action-bar'
 import { TwoStageDeleteDialog } from '@/components/two-stage-delete-dialog'
 import { useToasts } from '@/components/toast'
 import { Check, Edit, Trash2 } from 'lucide-react'
+import { isRowInactive } from '@/lib/row-state'
 
 const PRODUCT_FILTER_OPTIONS = [
   { id: 'productNameVendor', label: 'Product Name - Vendor' },
@@ -882,18 +883,20 @@ export default function ProductsPage() {
                   >
                     <Edit className="h-3.5 w-3.5" />
                   </button>
-                  <button
-                    type="button"
-                    className={`rounded p-1 transition-colors ${row.active ? 'text-red-500 hover:text-red-700' : 'text-gray-400 hover:text-gray-600'}`}
-                    onClick={(event) => {
-                      event.preventDefault()
-                      event.stopPropagation()
-                      requestProductDelete(row)
-                    }}
-                    aria-label={row.active ? 'Delete product' : 'Manage product'}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
+                  {isRowInactive(row) && (
+                    <button
+                      type="button"
+                      className="rounded p-1 transition-colors text-red-500 hover:text-red-700"
+                      onClick={(event) => {
+                        event.preventDefault()
+                        event.stopPropagation()
+                        requestProductDelete(row)
+                      }}
+                      aria-label={'Delete product'}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  )}
                 </div>
               </div>
             )

@@ -8,7 +8,7 @@ import { OpportunityStatus } from "@prisma/client"
 
 import { cn } from "@/lib/utils"
 import { TwoStageDeleteDialog } from "./two-stage-delete-dialog"
-import { DeletionConstraint } from "@/lib/deletion"
+import type { DeletionConstraint } from "@/lib/deletion"
 import { DynamicTable, Column, PaginationInfo } from "./dynamic-table"
 import { useToasts } from "./toast"
 import { ActivityNoteCreateModal } from "./activity-note-create-modal"
@@ -33,9 +33,8 @@ import { GroupBulkStatusModal } from "./group-bulk-status-modal"
 import { EditableField } from "./editable-field"
 import { useEntityEditor, type EntityEditor } from "@/hooks/useEntityEditor"
 import { useUnsavedChangesPrompt } from "@/hooks/useUnsavedChangesPrompt"
-import { isInlineDetailEditEnabled } from "@/lib/featureFlags"
 import { useAuth } from "@/lib/auth-context"
-import { VALIDATION_PATTERNS, formatPhoneNumber } from "@/lib/validation"
+import { VALIDATION_PATTERNS, formatPhoneNumber } from "@/lib/validation-shared"
 
 export interface ActivityAttachmentRow {
   id: string
@@ -647,18 +646,20 @@ function ContactHeader({
           <FieldRow
             label="Name"
             value={
-              <div className="grid max-w-md gap-2 md:grid-cols-3">
-                <div>
-                  <div className={fieldSubLabelClass}>First</div>
-                  <div className={cn(fieldBoxClass, "max-w-none")}>{contact.firstName}</div>
-                </div>
-                <div>
-                  <div className={fieldSubLabelClass}>Last</div>
-                  <div className={cn(fieldBoxClass, "max-w-none")}>{contact.lastName}</div>
-                </div>
-                <div>
-                  <div className={fieldSubLabelClass}>Suffix</div>
-                  <div className={cn(fieldBoxClass, "max-w-none")}>{contact.suffix || "--"}</div>
+                <div className="w-full max-w-md">
+                <div className="flex gap-2">
+                  <div className="w-[10.5rem] min-w-[10.5rem]">
+                    <div className={fieldSubLabelClass}>First</div>
+                    <div className={fieldBoxClass}>{contact.firstName}</div>
+                  </div>
+                  <div className="w-[10.5rem] min-w-[10.5rem]">
+                    <div className={fieldSubLabelClass}>Last</div>
+                    <div className={fieldBoxClass}>{contact.lastName}</div>
+                  </div>
+                  <div className="w-[6rem] min-w-[6rem]">
+                    <div className={fieldSubLabelClass}>Suffix</div>
+                    <div className={fieldBoxClass}>{contact.suffix || "--"}</div>
+                  </div>
                 </div>
               </div>
             }
@@ -667,9 +668,11 @@ function ContactHeader({
           <FieldRow
             label="Account Name"
             value={
-              <div className="flex max-w-md items-center gap-2">
-                <div className={cn(fieldBoxClass, "flex-1 max-w-none")}>{contact.accountName || "--"}</div>
-                <div className="flex shrink-0 items-center gap-2 rounded-lg border-2 border-gray-400 bg-white px-2 py-0.5 text-xs font-medium text-gray-600 shadow-sm">
+              <div className="flex items-center gap-2 w-full max-w-md">
+                <div className="flex-1 min-w-[12rem]">
+                  <div className={fieldBoxClass}>{contact.accountName || "--"}</div>
+                </div>
+                <div className="flex shrink-0 items-center gap-2 rounded-lg border-2 border-gray-400 bg-white px-2 py-0.5 text-xs font-medium text-gray-600 shadow-sm whitespace-nowrap">
                   <span>Active (Y/N)</span>
                   <ReadOnlySwitch value={contact.active} />
                 </div>
@@ -706,57 +709,40 @@ interface EditableContactHeaderProps {
   contactMethodOptions: SelectOption[]
   optionsLoading: boolean
   onSave: () => Promise<void>
-  onCancel: () => void
 }
 
 function EditableContactHeader({
   contact,
   editor,
   accountOptions,
-  ownerOptions,
-  contactMethodOptions,
+  ownerOptions: _ownerOptions,
+  contactMethodOptions: _contactMethodOptions,
   optionsLoading,
-  onSave,
-  onCancel
+  onSave
 }: EditableContactHeaderProps) {
+  void _ownerOptions
+  void _contactMethodOptions
   if (!editor.draft) {
     return (
       <div className="rounded-2xl bg-gray-100 p-3 shadow-sm">
         <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-6 text-sm text-gray-500">
           <Loader2 className="h-4 w-4 animate-spin text-primary-600" />
-          Preparing inline editor…
+          Preparing inline editor...
         </div>
       </div>
     )
   }
 
-  const prefixField = editor.register("prefix")
   const firstNameField = editor.register("firstName")
-  const middleNameField = editor.register("middleName")
   const lastNameField = editor.register("lastName")
   const suffixField = editor.register("suffix")
   const accountField = editor.register("accountId")
-  const ownerField = editor.register("ownerId")
   const jobTitleField = editor.register("jobTitle")
-  const departmentField = editor.register("department")
   const workPhoneField = editor.register("workPhone")
   const workPhoneExtField = editor.register("workPhoneExt")
   const mobilePhoneField = editor.register("mobilePhone")
-  const otherPhoneField = editor.register("otherPhone")
-  const faxField = editor.register("fax")
   const emailField = editor.register("emailAddress")
-  const alternateEmailField = editor.register("alternateEmail")
-  const assistantNameField = editor.register("assistantName")
-  const assistantPhoneField = editor.register("assistantPhone")
-  const linkedinField = editor.register("linkedinUrl")
-  const websiteField = editor.register("websiteUrl")
-  const preferredMethodField = editor.register("preferredContactMethod")
-  const isPrimaryField = editor.register("isPrimary")
-  const isDecisionMakerField = editor.register("isDecisionMaker")
   const descriptionField = editor.register("description")
-  const notesField = editor.register("notes")
-  const syncAddressField = editor.register("syncAddressWithAccount")
-  const reportsToName = editor.draft?.reportsToContactName ?? ""
 
   const disableSave = editor.saving || !editor.isDirty
 
@@ -767,330 +753,206 @@ function EditableContactHeader({
     editor.setField("contactType", selected?.accountTypeName ?? editor.draft?.contactType ?? "")
   }
 
+  const renderStandardRow = (label: string, control: ReactNode, error?: string, wrapperClassName = "w-full max-w-md") => (
+    <FieldRow
+      label={label}
+      value={
+        <div className="flex flex-col gap-1">
+          <div className={wrapperClassName}>{control}</div>
+          {error ? <p className="text-[10px] text-red-600">{error}</p> : null}
+        </div>
+      }
+    />
+  )
+
   return (
     <div className="rounded-2xl bg-gray-100 p-3 shadow-sm">
       <div className="mb-2 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <p className="text-xs font-semibold uppercase tracking-wide text-primary-600">Contact Detail</p>
           {editor.isDirty ? <span className="text-xs font-semibold text-amber-600">Unsaved changes</span> : null}
-          {optionsLoading ? <span className="text-xs text-gray-500">Loading field options…</span> : null}
+          {optionsLoading ? <span className="text-xs text-gray-500">Loading field options...</span> : null}
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={onCancel}
-            disabled={!editor.isDirty || editor.saving}
-            className="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 transition hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={onSave}
-            disabled={disableSave}
-            className="flex items-center gap-2 rounded-md bg-primary-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {editor.saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Update"}
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={onSave}
+          disabled={disableSave}
+          className="flex items-center gap-2 rounded-md bg-primary-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {editor.saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Update"}
+        </button>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <div className="space-y-1.5">
-          <div className="grid gap-2 md:grid-cols-2">
-            <EditableField label="Prefix">
-              <EditableField.Input
-                value={(prefixField.value as string) ?? ""}
-                onChange={prefixField.onChange}
-                onBlur={prefixField.onBlur}
-                placeholder="Mr, Ms, Dr"
-              />
-            </EditableField>
-            <EditableField label="First Name" required error={editor.errors.firstName}>
-              <EditableField.Input
-                value={(firstNameField.value as string) ?? ""}
-                onChange={firstNameField.onChange}
-                onBlur={firstNameField.onBlur}
-                placeholder="First name"
-              />
-            </EditableField>
-          </div>
+          <FieldRow
+            label="Name"
+            value={
+              <div className="flex flex-col gap-1">
+                <div className="w-full max-w-md">
+                  <div className="flex gap-2">
+                    <div className="w-[10.5rem] min-w-[10.5rem]">
+                      <div className={fieldSubLabelClass}>First</div>
+                      <EditableField.Input
+                        className="w-full"
+                        value={(firstNameField.value as string) ?? ""}
+                        onChange={firstNameField.onChange}
+                        onBlur={firstNameField.onBlur}
+                        placeholder="First name"
+                      />
+                      {editor.errors.firstName ? (
+                        <p className="text-[10px] text-red-600">{editor.errors.firstName}</p>
+                      ) : null}
+                    </div>
+                    <div className="w-[10.5rem] min-w-[10.5rem]">
+                      <div className={fieldSubLabelClass}>Last</div>
+                      <EditableField.Input
+                        className="w-full"
+                        value={(lastNameField.value as string) ?? ""}
+                        onChange={lastNameField.onChange}
+                        onBlur={lastNameField.onBlur}
+                        placeholder="Last name"
+                      />
+                      {editor.errors.lastName ? (
+                        <p className="text-[10px] text-red-600">{editor.errors.lastName}</p>
+                      ) : null}
+                    </div>
+                    <div className="w-[6rem] min-w-[6rem]">
+                      <div className={fieldSubLabelClass}>Suffix</div>
+                      <EditableField.Input
+                        className="w-full"
+                        value={(suffixField.value as string) ?? ""}
+                        onChange={suffixField.onChange}
+                        onBlur={suffixField.onBlur}
+                        placeholder="--"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            }
+          />
 
-          <div className="grid gap-2 md:grid-cols-2">
-            <EditableField label="Middle Name">
-              <EditableField.Input
-                value={(middleNameField.value as string) ?? ""}
-                onChange={middleNameField.onChange}
-                onBlur={middleNameField.onBlur}
-                placeholder="Middle name"
-              />
-            </EditableField>
-            <EditableField label="Last Name" required error={editor.errors.lastName}>
-              <EditableField.Input
-                value={(lastNameField.value as string) ?? ""}
-                onChange={lastNameField.onChange}
-                onBlur={lastNameField.onBlur}
-                placeholder="Last name"
-              />
-            </EditableField>
-          </div>
+          {renderStandardRow(
+            "Contact Type",
+            <div className={fieldBoxClass}>{editor.draft?.contactType || "--"}</div>
+          )}
 
-          <EditableField label="Suffix">
+          <FieldRow
+            label="Account Name"
+            value={
+              <div className="flex flex-col gap-1">
+                <div className="flex flex-wrap items-center gap-2 w-full max-w-md">
+                  <div className="flex-1 min-w-[12rem]">
+                    <EditableField.Select
+                      className="w-full"
+                      value={(accountField.value as string) ?? ""}
+                      onChange={handleAccountChange}
+                      onBlur={accountField.onBlur}
+                      disabled={optionsLoading}
+                    >
+                      <option value="">Select account</option>
+                      {accountOptions.map(option => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </EditableField.Select>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0 rounded-lg border-2 border-gray-400 bg-white px-2 py-0.5 text-xs font-medium text-gray-600 shadow-sm">
+                    <span>Active (Y/N)</span>
+                    <ReadOnlySwitch value={contact.active} />
+                  </div>
+                </div>
+                {editor.errors.accountId ? (
+                  <p className="text-[10px] text-red-600">{editor.errors.accountId}</p>
+                ) : null}
+              </div>
+            }
+          />
+
+          {renderStandardRow(
+            "Work Phone",
             <EditableField.Input
-              value={(suffixField.value as string) ?? ""}
-              onChange={suffixField.onChange}
-              onBlur={suffixField.onBlur}
-              placeholder="Jr, Sr, III"
+              value={(workPhoneField.value as string) ?? ""}
+              onChange={workPhoneField.onChange}
+              onBlur={workPhoneField.onBlur}
+              placeholder="123-456-7890"
+            />,
+            editor.errors.workPhone
+          )}
+
+          {renderStandardRow(
+            "Extension",
+            <EditableField.Input
+              value={(workPhoneExtField.value as string) ?? ""}
+              onChange={workPhoneExtField.onChange}
+              onBlur={workPhoneExtField.onBlur}
+              placeholder="Ext"
             />
-          </EditableField>
+          )}
 
-          <EditableField label="Account" required error={editor.errors.accountId}>
-            <EditableField.Select
-              value={(accountField.value as string) ?? ""}
-              onChange={handleAccountChange}
-              onBlur={accountField.onBlur}
-              disabled={optionsLoading}
-            >
-              <option value="">Select account</option>
-              {accountOptions.map(option => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </EditableField.Select>
-          </EditableField>
+          {renderStandardRow(
+            "Mobile Phone",
+            <EditableField.Input
+              value={(mobilePhoneField.value as string) ?? ""}
+              onChange={mobilePhoneField.onChange}
+              onBlur={mobilePhoneField.onBlur}
+              placeholder="123-456-7890"
+            />,
+            editor.errors.mobilePhone
+          )}
 
-          <EditableField label="Contact Type">
-            <EditableField.Input value={editor.draft?.contactType ?? ""} readOnly disabled />
-          </EditableField>
+        </div>
 
-          <EditableField label="Account Type">
-            <EditableField.Input value={editor.draft?.accountTypeName ?? ""} readOnly disabled />
-          </EditableField>
-
-          <EditableField label="Owner">
-            <EditableField.Select
-              value={(ownerField.value as string) ?? ""}
-              onChange={ownerField.onChange}
-              onBlur={ownerField.onBlur}
-              disabled={optionsLoading}
-            >
-              <option value="">Unassigned</option>
-              {ownerOptions.map(option => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </EditableField.Select>
-          </EditableField>
-
-          <EditableField label="Job Title">
+        <div className="space-y-1.5">
+          {renderStandardRow(
+            "Job Title",
             <EditableField.Input
               value={(jobTitleField.value as string) ?? ""}
               onChange={jobTitleField.onChange}
               onBlur={jobTitleField.onBlur}
               placeholder="Job title"
             />
-          </EditableField>
+          )}
 
-          <EditableField label="Department">
-            <EditableField.Input
-              value={(departmentField.value as string) ?? ""}
-              onChange={departmentField.onChange}
-              onBlur={departmentField.onBlur}
-              placeholder="Department"
-            />
-          </EditableField>
-
-          <div className="grid gap-2 md:grid-cols-2">
-            <EditableField label="Primary Contact">
-              <EditableField.Switch
-                checked={Boolean(isPrimaryField.value)}
-                onChange={isPrimaryField.onChange}
-                disabled={editor.saving}
-              />
-            </EditableField>
-            <EditableField label="Decision Maker">
-              <EditableField.Switch
-                checked={Boolean(isDecisionMakerField.value)}
-                onChange={isDecisionMakerField.onChange}
-                disabled={editor.saving}
-              />
-            </EditableField>
-          </div>
-
-          <EditableField label="Sync Address With Account">
-            <EditableField.Switch
-              checked={Boolean(syncAddressField.value)}
-              onChange={syncAddressField.onChange}
-              disabled={editor.saving}
-            />
-          </EditableField>
-        </div>
-
-        <div className="space-y-1.5">
-          <EditableField label="Work Phone" error={editor.errors.workPhone}>
-            <EditableField.Input
-              value={(workPhoneField.value as string) ?? ""}
-              onChange={workPhoneField.onChange}
-              onBlur={workPhoneField.onBlur}
-              placeholder="123-456-7890"
-            />
-          </EditableField>
-
-          <div className="grid gap-2 md:grid-cols-2">
-            <EditableField label="Extension">
-              <EditableField.Input
-                value={(workPhoneExtField.value as string) ?? ""}
-                onChange={workPhoneExtField.onChange}
-                onBlur={workPhoneExtField.onBlur}
-                placeholder="Ext"
-              />
-            </EditableField>
-            <EditableField label="Mobile Phone" error={editor.errors.mobilePhone}>
-              <EditableField.Input
-                value={(mobilePhoneField.value as string) ?? ""}
-                onChange={mobilePhoneField.onChange}
-                onBlur={mobilePhoneField.onBlur}
-                placeholder="123-456-7890"
-              />
-            </EditableField>
-          </div>
-
-          <div className="grid gap-2 md:grid-cols-2">
-            <EditableField label="Other Phone" error={editor.errors.otherPhone}>
-              <EditableField.Input
-                value={(otherPhoneField.value as string) ?? ""}
-                onChange={otherPhoneField.onChange}
-                onBlur={otherPhoneField.onBlur}
-                placeholder="123-456-7890"
-              />
-            </EditableField>
-            <EditableField label="Fax">
-              <EditableField.Input
-                value={(faxField.value as string) ?? ""}
-                onChange={faxField.onChange}
-                onBlur={faxField.onBlur}
-                placeholder="Fax number"
-              />
-            </EditableField>
-          </div>
-
-          <EditableField label="Email Address" error={editor.errors.emailAddress}>
+          {renderStandardRow(
+            "Email Address",
             <EditableField.Input
               type="email"
               value={(emailField.value as string) ?? ""}
               onChange={emailField.onChange}
               onBlur={emailField.onBlur}
               placeholder="name@example.com"
-            />
-          </EditableField>
+            />,
+            editor.errors.emailAddress
+          )}
 
-          <EditableField label="Alternate Email" error={editor.errors.alternateEmail}>
-            <EditableField.Input
-              type="email"
-              value={(alternateEmailField.value as string) ?? ""}
-              onChange={alternateEmailField.onChange}
-              onBlur={alternateEmailField.onBlur}
-              placeholder="alt@example.com"
-            />
-          </EditableField>
+          {renderStandardRow(
+            "Shipping Address",
+            <div className={fieldBoxClass}>{contact.accountShippingAddress || "--"}</div>
+          )}
 
-          <EditableField label="Preferred Contact Method" error={editor.errors.preferredContactMethod}>
-            <EditableField.Select
-              value={(preferredMethodField.value as string) ?? ""}
-              onChange={preferredMethodField.onChange}
-              onBlur={preferredMethodField.onBlur}
-              disabled={optionsLoading}
-            >
-              <option value="">Select method</option>
-              {contactMethodOptions.map(option => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </EditableField.Select>
-          </EditableField>
+          {renderStandardRow(
+            "Contact ID",
+            <div className={fieldBoxClass}>{contact.id}</div>
+          )}
 
-          <div className="grid gap-2 md:grid-cols-2">
-            <EditableField label="Assistant Name">
-              <EditableField.Input
-                value={(assistantNameField.value as string) ?? ""}
-                onChange={assistantNameField.onChange}
-                onBlur={assistantNameField.onBlur}
-                placeholder="Assistant name"
-              />
-            </EditableField>
-            <EditableField label="Assistant Phone" error={editor.errors.assistantPhone}>
-              <EditableField.Input
-                value={(assistantPhoneField.value as string) ?? ""}
-                onChange={assistantPhoneField.onChange}
-                onBlur={assistantPhoneField.onBlur}
-                placeholder="123-456-7890"
-              />
-            </EditableField>
-          </div>
-
-          <EditableField label="LinkedIn URL">
-            <EditableField.Input
-              value={(linkedinField.value as string) ?? ""}
-              onChange={linkedinField.onChange}
-              onBlur={linkedinField.onBlur}
-              placeholder="https://linkedin.com/in/username"
-            />
-          </EditableField>
-
-          <EditableField label="Website URL">
-            <EditableField.Input
-              value={(websiteField.value as string) ?? ""}
-              onChange={websiteField.onChange}
-              onBlur={websiteField.onBlur}
-              placeholder="https://example.com"
-            />
-          </EditableField>
-
-          <EditableField label="Description">
+          {renderStandardRow(
+            "Description",
             <EditableField.Textarea
               rows={3}
               value={(descriptionField.value as string) ?? ""}
               onChange={descriptionField.onChange}
               onBlur={descriptionField.onBlur}
-              placeholder="Notes visible to team members"
+              placeholder="Primary stakeholder for rollout"
             />
-          </EditableField>
-
-          <EditableField label="Internal Notes">
-            <EditableField.Textarea
-              rows={3}
-              value={(notesField.value as string) ?? ""}
-              onChange={notesField.onChange}
-              onBlur={notesField.onBlur}
-              placeholder="Internal only notes"
-            />
-          </EditableField>
-
-          <EditableField label="Reports To">
-            <EditableField.Input value={reportsToName || "Not assigned"} readOnly disabled />
-          </EditableField>
-
-          <EditableField label="Account Shipping Address">
-            <EditableField.Textarea
-              rows={3}
-              value={contact.accountShippingAddress ?? ""}
-              readOnly
-              disabled
-            />
-          </EditableField>
-
-          <EditableField label="Contact ID">
-            <EditableField.Input value={contact.id} readOnly disabled />
-          </EditableField>
+          )}
         </div>
       </div>
     </div>
   )
 }
-
 interface TabToolbarProps {
   onCreateNew?: () => void
   disabled?: boolean
@@ -1165,7 +1027,6 @@ function TabToolbar({ onCreateNew, disabled, activeFilter = "active", onFilterCh
 export function ContactDetailsView({ contact, loading = false, error, onEdit, onContactUpdated, onRefresh }: ContactDetailsViewProps) {
   const router = useRouter()
   const { hasPermission } = useAuth()
-  const inlineEnabled = isInlineDetailEditEnabled("contacts")
   const [activeTab, setActiveTab] = useState<"activities" | "opportunities" | "groups">("activities")
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [isDeleted, setIsDeleted] = useState(false)
@@ -1175,7 +1036,7 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
   const [baseContactMethodOptions, setBaseContactMethodOptions] = useState<SelectOption[]>([])
   const [optionsLoading, setOptionsLoading] = useState(false)
   const [optionsLoaded, setOptionsLoaded] = useState(false)
-  const shouldEnableInline = inlineEnabled && hasPermission("contacts.manage") && Boolean(contact) && !isDeleted
+  const shouldEnableInline = hasPermission("contacts.manage") && Boolean(contact) && !isDeleted
 
   // Table height management
   const tableAreaRef = useRef<HTMLDivElement | null>(null)
@@ -1349,11 +1210,6 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
       }
     }
   }, [editor, shouldEnableInline])
-
-  const handleCancelInline = useCallback(() => {
-    editor.reset()
-    editor.setErrors({})
-  }, [editor])
 
   useEffect(() => {
     let isCancelled = false
@@ -1550,7 +1406,6 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
           contactMethodOptions={contactMethodOptions}
           optionsLoading={optionsLoading}
           onSave={handleSaveInline}
-          onCancel={handleCancelInline}
         />
       ) : (
         <ContactHeader contact={contact} onEdit={onEdit} isDeleted={isDeleted} />
@@ -2651,12 +2506,14 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
                     />
                   </span>
                 </button>
-                {/* Delete action */}
-                <div className="flex gap-0.5">
-                  <button type="button" className="p-1 text-red-500 hover:text-red-700 transition-colors rounded" title="Delete activity" onClick={(e) => { e.stopPropagation(); handleActivityDelete(row) }}>
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                </div>
+                {/* Delete action - only when inactive */}
+                {!activeValue && (
+                  <div className="flex gap-0.5">
+                    <button type="button" className="p-1 text-red-500 hover:text-red-700 transition-colors rounded" title="Delete activity" onClick={(e) => { e.stopPropagation(); handleActivityDelete(row) }}>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                )}
               </div>
             )
           }
@@ -2750,11 +2607,13 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
                     />
                   </span>
                 </button>
-                <div className="flex gap-0.5">
-                  <button type="button" className={`p-1 rounded transition-colors ${activeValue ? 'text-red-500 hover:text-red-700' : 'text-gray-400 hover:text-gray-600'}`} title="Delete opportunity" onClick={(e) => { e.stopPropagation(); requestOpportunityDelete(row) }}>
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                </div>
+                {!activeValue && (
+                  <div className="flex gap-0.5">
+                    <button type="button" className="p-1 rounded transition-colors text-red-500 hover:text-red-700" title="Delete opportunity" onClick={(e) => { e.stopPropagation(); requestOpportunityDelete(row) }}>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                )}
               </div>
             )
           }

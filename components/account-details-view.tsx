@@ -21,7 +21,7 @@ import { ContactCreateModal } from "./contact-create-modal"
 import { ListHeader, type ColumnFilter } from "./list-header"
 import { applySimpleFilters } from "@/lib/filter-utils"
 import { useTablePreferences } from "@/hooks/useTablePreferences"
-import { DeletionConstraint } from "@/lib/deletion"
+import type { DeletionConstraint } from "@/lib/deletion"
 import { OpportunityCreateModal } from "./account-opportunity-create-modal"
 import { OpportunityStatus } from "@prisma/client"
 import { GroupCreateModal } from "./account-group-create-modal"
@@ -47,9 +47,8 @@ import { ActivityNoteEditModal } from "./activity-note-edit-modal"
 import { EditableField } from "./editable-field"
 import { useEntityEditor, type EntityEditor } from "@/hooks/useEntityEditor"
 import { useUnsavedChangesPrompt } from "@/hooks/useUnsavedChangesPrompt"
-import { isInlineDetailEditEnabled } from "@/lib/featureFlags"
 import { useAuth } from "@/lib/auth-context"
-import { VALIDATION_PATTERNS } from "@/lib/validation"
+import { VALIDATION_PATTERNS } from "@/lib/validation-shared"
 
 export interface AccountAddress {
   line1: string
@@ -251,8 +250,6 @@ const US_STATES: Array<{ code: string; name: string }> = [
   { code: "WI", name: "Wisconsin" },
   { code: "WY", name: "Wyoming" }
 ]
-
-const COUNTRY_OPTIONS = ["United States", "Canada", "Mexico"] as const
 
 function createEmptyAddress(): AccountAddressForm {
   return {
@@ -968,34 +965,27 @@ interface EditableAccountHeaderProps {
   account: AccountDetail
   editor: EntityEditor<AccountInlineForm>
   accountTypeOptions: AccountOption[]
-  industryOptions: AccountOption[]
   ownerOptions: AccountOption[]
   parentAccountOptions: AccountOption[]
   optionsLoading: boolean
   onSave: () => Promise<void>
-  onCancel: () => void
 }
 
 function EditableAccountHeader({
   account,
   editor,
   accountTypeOptions,
-  industryOptions,
   ownerOptions,
   parentAccountOptions,
   optionsLoading,
-  onSave,
-  onCancel
+  onSave
 }: EditableAccountHeaderProps) {
   if (!editor.draft) {
     return (
       <div className="rounded-2xl bg-gray-100 p-3 shadow-sm">
-        <div className="mb-2 flex items-center justify-between">
-          <p className="text-xs font-semibold uppercase tracking-wide text-primary-600">Account Detail</p>
-        </div>
         <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-6 text-sm text-gray-500">
           <Loader2 className="h-4 w-4 animate-spin text-primary-600" />
-          Preparing inline editor…
+          Preparing inline editor...
         </div>
       </div>
     )
@@ -1006,7 +996,6 @@ function EditableAccountHeader({
   const parentAccountField = editor.register("parentAccountId")
   const accountTypeField = editor.register("accountTypeId")
   const ownerField = editor.register("ownerId")
-  const industryField = editor.register("industryId")
   const websiteField = editor.register("websiteUrl")
   const descriptionField = editor.register("description")
   const activeField = editor.register("active")
@@ -1017,14 +1006,12 @@ function EditableAccountHeader({
   const shippingCityField = editor.register("shippingAddress.city")
   const shippingStateField = editor.register("shippingAddress.state")
   const shippingPostalField = editor.register("shippingAddress.postalCode")
-  const shippingCountryField = editor.register("shippingAddress.country")
 
   const billingLine1Field = editor.register("billingAddress.line1")
   const billingLine2Field = editor.register("billingAddress.line2")
   const billingCityField = editor.register("billingAddress.city")
   const billingStateField = editor.register("billingAddress.state")
   const billingPostalField = editor.register("billingAddress.postalCode")
-  const billingCountryField = editor.register("billingAddress.country")
 
   const disableSave = editor.saving || !editor.isDirty
   const billingLinked = Boolean(editor.draft?.billingSameAsShipping)
@@ -1060,11 +1047,6 @@ function EditableAccountHeader({
     syncBillingIfNeeded("postalCode", event.target.value)
   }
 
-  const handleShippingCountryChange = (event: ChangeEvent<HTMLSelectElement>) => {
-    shippingCountryField.onChange(event)
-    syncBillingIfNeeded("country", event.target.value)
-  }
-
   const handleBillingSameChange = (event: ChangeEvent<HTMLInputElement>) => {
     billingSameField.onChange(event)
     if (event.target.checked) {
@@ -1072,6 +1054,18 @@ function EditableAccountHeader({
       editor.setField("billingAddress", { ...shipping })
     }
   }
+
+  const renderStandardRow = (label: string, control: ReactNode, error?: string) => (
+    <FieldRow
+      label={label}
+      value={
+        <div className="flex flex-col gap-1">
+          <div className="max-w-md">{control}</div>
+          {error ? <p className="text-[10px] text-red-600">{error}</p> : null}
+        </div>
+      }
+    />
+  )
 
   return (
     <div className="rounded-2xl bg-gray-100 p-3 shadow-sm">
@@ -1082,74 +1076,79 @@ function EditableAccountHeader({
             <span className="text-xs font-semibold text-amber-600">Unsaved changes</span>
           ) : null}
           {optionsLoading ? (
-            <span className="text-xs text-gray-500">Loading field options…</span>
+            <span className="text-xs text-gray-500">Loading field options...</span>
           ) : null}
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={onCancel}
-            disabled={!editor.isDirty || editor.saving}
-            className="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 transition hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={onSave}
-            disabled={disableSave}
-            className="flex items-center gap-2 rounded-md bg-primary-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {editor.saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Update"}
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={onSave}
+          disabled={disableSave}
+          className="flex items-center gap-2 rounded-md bg-primary-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {editor.saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Update"}
+        </button>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <div className="space-y-1.5">
-          <EditableField label="Account Name" required error={editor.errors.accountName}>
-            <EditableField.Input
-              value={(accountNameField.value as string) ?? ""}
-              onChange={accountNameField.onChange}
-              onBlur={accountNameField.onBlur}
-              placeholder="Enter account name"
-            />
-          </EditableField>
+          <FieldRow
+            label="Account Name"
+            value={
+              <div className="flex flex-col gap-1">
+                <div className="flex items-center gap-2 max-w-md">
+                  <EditableField.Input
+                    value={(accountNameField.value as string) ?? ""}
+                    onChange={accountNameField.onChange}
+                    onBlur={accountNameField.onBlur}
+                    placeholder="Enter account name"
+                    className="flex-1"
+                  />
+                  <div className="flex items-center gap-2 shrink-0 rounded-lg border-2 border-gray-400 bg-white px-2 py-0.5 text-xs font-medium text-gray-600 shadow-sm">
+                    <span>Active (Y/N)</span>
+                    <EditableField.Switch
+                      checked={Boolean(activeField.value)}
+                      onChange={activeField.onChange}
+                      disabled={editor.saving}
+                    />
+                  </div>
+                </div>
+                {editor.errors.accountName ? (
+                  <p className="text-[10px] text-red-600">{editor.errors.accountName}</p>
+                ) : null}
+              </div>
+            }
+          />
 
-          <EditableField label="Active">
-            <EditableField.Switch
-              checked={Boolean(activeField.value)}
-              onChange={activeField.onChange}
-              disabled={editor.saving}
-            />
-          </EditableField>
-
-          <EditableField label="Account Legal Name">
+          {renderStandardRow(
+            "Account Legal Name",
             <EditableField.Input
               value={(accountLegalNameField.value as string) ?? ""}
               onChange={accountLegalNameField.onChange}
               onBlur={accountLegalNameField.onBlur}
               placeholder="Legal entity name"
             />
-          </EditableField>
+          )}
 
-          <EditableField label="Parent Account" error={editor.errors.parentAccountId}>
+          {renderStandardRow(
+            "Parent Account",
             <EditableField.Select
               value={(parentAccountField.value as string) ?? ""}
               onChange={parentAccountField.onChange}
               onBlur={parentAccountField.onBlur}
               disabled={optionsLoading}
             >
-              <option value="">No parent</option>
+              <option value="">Not Linked</option>
               {parentAccountOptions.map(option => (
                 <option key={option.value} value={option.value}>
                   {option.label}
                 </option>
               ))}
-            </EditableField.Select>
-          </EditableField>
+            </EditableField.Select>,
+            editor.errors.parentAccountId
+          )}
 
-          <EditableField label="Account Type" required error={editor.errors.accountTypeId}>
+          {renderStandardRow(
+            "Account Type",
             <EditableField.Select
               value={(accountTypeField.value as string) ?? ""}
               onChange={accountTypeField.onChange}
@@ -1162,10 +1161,12 @@ function EditableAccountHeader({
                   {option.label}
                 </option>
               ))}
-            </EditableField.Select>
-          </EditableField>
+            </EditableField.Select>,
+            editor.errors.accountTypeId
+          )}
 
-          <EditableField label="Account Owner">
+          {renderStandardRow(
+            "Account Owner",
             <EditableField.Select
               value={(ownerField.value as string) ?? ""}
               onChange={ownerField.onChange}
@@ -1179,114 +1180,120 @@ function EditableAccountHeader({
                 </option>
               ))}
             </EditableField.Select>
-          </EditableField>
+          )}
 
-          <EditableField label="Industry">
-            <EditableField.Select
-              value={(industryField.value as string) ?? ""}
-              onChange={industryField.onChange}
-              onBlur={industryField.onBlur}
-              disabled={optionsLoading}
-            >
-              <option value="">Not set</option>
-              {industryOptions.map(option => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </EditableField.Select>
-          </EditableField>
-
-          <EditableField label="Website URL" error={editor.errors.websiteUrl}>
+          {renderStandardRow(
+            "Website URL",
             <EditableField.Input
-              type="url"
-              inputMode="url"
-              placeholder="https://example.com"
               value={(websiteField.value as string) ?? ""}
               onChange={websiteField.onChange}
               onBlur={websiteField.onBlur}
-            />
-          </EditableField>
+              placeholder="https://example.com"
+            />,
+            editor.errors.websiteUrl
+          )}
 
-          <EditableField label="Description">
-            <EditableField.Textarea
-              rows={4}
+          {renderStandardRow(
+            "Description",
+            <EditableField.Input
               value={(descriptionField.value as string) ?? ""}
               onChange={descriptionField.onChange}
               onBlur={descriptionField.onBlur}
-              placeholder="Notes about this account"
+              placeholder="Flagship enterprise customer"
             />
-          </EditableField>
+          )}
         </div>
 
-        <div className="space-y-3">
-          <div className="space-y-1.5 rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-semibold text-gray-800">Ship To Address</p>
+        <div className="space-y-1.5">
+          <div>
+            <div className="mb-1 flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-gray-800">Ship To Address</h3>
               <span className="text-xs font-semibold uppercase tracking-wide text-primary-600">Default</span>
             </div>
-            <EditableField label="Street" required error={editor.errors["shippingAddress.line1"]}>
-              <EditableField.Input
-                value={(shippingLine1Field.value as string) ?? ""}
-                onChange={handleShippingLine1Change}
-                onBlur={shippingLine1Field.onBlur}
+            <div className="space-y-1">
+              <FieldRow
+                label="Street"
+                value={
+                  <div className="flex flex-col gap-1">
+                    <div className="max-w-md">
+                      <EditableField.Input
+                        value={(shippingLine1Field.value as string) ?? ""}
+                        onChange={handleShippingLine1Change}
+                        onBlur={shippingLine1Field.onBlur}
+                        placeholder="Street"
+                      />
+                    </div>
+                    {editor.errors["shippingAddress.line1"] ? (
+                      <p className="text-[10px] text-red-600">{editor.errors["shippingAddress.line1"]}</p>
+                    ) : null}
+                  </div>
+                }
               />
-            </EditableField>
-            <EditableField label="Street 2">
-              <EditableField.Input
-                value={(shippingLine2Field.value as string) ?? ""}
-                onChange={handleShippingLine2Change}
-                onBlur={shippingLine2Field.onBlur}
+
+              <FieldRow
+                label="Shipping St 2"
+                value={
+                  <div className="flex flex-col gap-1">
+                    <div className="max-w-md">
+                      <EditableField.Input
+                        value={(shippingLine2Field.value as string) ?? ""}
+                        onChange={handleShippingLine2Change}
+                        onBlur={shippingLine2Field.onBlur}
+                        placeholder="Suite, Apt, etc."
+                      />
+                    </div>
+                  </div>
+                }
               />
-            </EditableField>
-            <div className="grid gap-2 md:grid-cols-[2fr,1fr,1fr]">
-              <EditableField label="City" required error={editor.errors["shippingAddress.city"]} className="w-full">
-                <EditableField.Input
-                  value={(shippingCityField.value as string) ?? ""}
-                  onChange={handleShippingCityChange}
-                  onBlur={shippingCityField.onBlur}
-                />
-              </EditableField>
-              <EditableField label="State" className="w-full">
-                <EditableField.Select
-                  value={(shippingStateField.value as string) ?? ""}
-                  onChange={handleShippingStateChange}
-                  onBlur={shippingStateField.onBlur}
-                >
-                  <option value="">State</option>
-                  {US_STATES.map(state => (
-                    <option key={state.code} value={state.code}>
-                      {state.code}
-                    </option>
-                  ))}
-                </EditableField.Select>
-              </EditableField>
-              <EditableField label="Zip" className="w-full">
-                <EditableField.Input
-                  value={(shippingPostalField.value as string) ?? ""}
-                  onChange={handleShippingPostalChange}
-                  onBlur={shippingPostalField.onBlur}
-                />
-              </EditableField>
+
+              <FieldRow
+                label="City, State, Zip"
+                value={
+                  <div className="flex flex-col gap-1">
+                    <div className="grid max-w-md grid-cols-[2fr,1fr,1fr] gap-1">
+                      <EditableField.Input
+                        value={(shippingCityField.value as string) ?? ""}
+                        onChange={handleShippingCityChange}
+                        onBlur={shippingCityField.onBlur}
+                        placeholder="City"
+                      />
+                      <EditableField.Select
+                        value={(shippingStateField.value as string) ?? ""}
+                        onChange={handleShippingStateChange}
+                        onBlur={shippingStateField.onBlur}
+                      >
+                        <option value="">State</option>
+                        {US_STATES.map(state => (
+                          <option key={state.code} value={state.code}>
+                            {state.code}
+                          </option>
+                        ))}
+                      </EditableField.Select>
+                      <EditableField.Input
+                        value={(shippingPostalField.value as string) ?? ""}
+                        onChange={handleShippingPostalChange}
+                        onBlur={shippingPostalField.onBlur}
+                        placeholder="Zip"
+                      />
+                    </div>
+                    {editor.errors["shippingAddress.city"] ||
+                    editor.errors["shippingAddress.state"] ||
+                    editor.errors["shippingAddress.postalCode"] ? (
+                      <div className="grid max-w-md grid-cols-[2fr,1fr,1fr] gap-1 text-[10px] text-red-600">
+                        <span>{editor.errors["shippingAddress.city"] ?? ""}</span>
+                        <span>{editor.errors["shippingAddress.state"] ?? ""}</span>
+                        <span>{editor.errors["shippingAddress.postalCode"] ?? ""}</span>
+                      </div>
+                    ) : null}
+                  </div>
+                }
+              />
             </div>
-            <EditableField label="Country" className="w-full">
-              <EditableField.Select
-                value={(shippingCountryField.value as string) ?? DEFAULT_COUNTRY}
-                onChange={handleShippingCountryChange}
-                onBlur={shippingCountryField.onBlur}
-              >
-                {COUNTRY_OPTIONS.map(country => (
-                  <option key={country} value={country}>
-                    {country}
-                  </option>
-                ))}
-              </EditableField.Select>
-            </EditableField>
           </div>
 
-          <div className="space-y-1.5 rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-semibold text-gray-800">Bill To Address</p>
+          <div>
+            <div className="mb-1 flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-gray-800">Bill To Address</h3>
               <label className="inline-flex items-center gap-2 text-xs text-gray-600">
                 <input
                   type="checkbox"
@@ -1298,85 +1305,94 @@ function EditableAccountHeader({
                 <span>Same as Ship</span>
               </label>
             </div>
-            <EditableField
-              label="Street"
-              required={!billingLinked}
-              error={editor.errors["billingAddress.line1"]}
-            >
-              <EditableField.Input
-                value={(billingLine1Field.value as string) ?? ""}
-                onChange={billingLine1Field.onChange}
-                onBlur={billingLine1Field.onBlur}
-                disabled={billingLinked}
+            <div className="space-y-1">
+              <FieldRow
+                label="Street"
+                value={
+                  <div className="flex flex-col gap-1">
+                    <div className="max-w-md">
+                      <EditableField.Input
+                        value={(billingLine1Field.value as string) ?? ""}
+                        onChange={billingLine1Field.onChange}
+                        onBlur={billingLine1Field.onBlur}
+                        placeholder="Street"
+                        disabled={billingLinked}
+                      />
+                    </div>
+                    {!billingLinked && editor.errors["billingAddress.line1"] ? (
+                      <p className="text-[10px] text-red-600">{editor.errors["billingAddress.line1"]}</p>
+                    ) : null}
+                  </div>
+                }
               />
-            </EditableField>
-            <EditableField label="Street 2">
-              <EditableField.Input
-                value={(billingLine2Field.value as string) ?? ""}
-                onChange={billingLine2Field.onChange}
-                onBlur={billingLine2Field.onBlur}
-                disabled={billingLinked}
+
+              <FieldRow
+                label="Billing St 2"
+                value={
+                  <div className="flex flex-col gap-1">
+                    <div className="max-w-md">
+                      <EditableField.Input
+                        value={(billingLine2Field.value as string) ?? ""}
+                        onChange={billingLine2Field.onChange}
+                        onBlur={billingLine2Field.onBlur}
+                        placeholder="Suite, Apt, etc."
+                        disabled={billingLinked}
+                      />
+                    </div>
+                  </div>
+                }
               />
-            </EditableField>
-            <div className="grid gap-2 md:grid-cols-[2fr,1fr,1fr]">
-              <EditableField
-                label="City"
-                required={!billingLinked}
-                error={editor.errors["billingAddress.city"]}
-                className="w-full"
-              >
-                <EditableField.Input
-                  value={(billingCityField.value as string) ?? ""}
-                  onChange={billingCityField.onChange}
-                  onBlur={billingCityField.onBlur}
-                  disabled={billingLinked}
-                />
-              </EditableField>
-              <EditableField label="State" className="w-full">
-                <EditableField.Select
-                  value={(billingStateField.value as string) ?? ""}
-                  onChange={billingStateField.onChange}
-                  onBlur={billingStateField.onBlur}
-                  disabled={billingLinked}
-                >
-                  <option value="">State</option>
-                  {US_STATES.map(state => (
-                    <option key={state.code} value={state.code}>
-                      {state.code}
-                    </option>
-                  ))}
-                </EditableField.Select>
-              </EditableField>
-              <EditableField label="Zip" className="w-full">
-                <EditableField.Input
-                  value={(billingPostalField.value as string) ?? ""}
-                  onChange={billingPostalField.onChange}
-                  onBlur={billingPostalField.onBlur}
-                  disabled={billingLinked}
-                />
-              </EditableField>
+
+              <FieldRow
+                label="City, State, Zip"
+                value={
+                  <div className="flex flex-col gap-1">
+                    <div className="grid max-w-md grid-cols-[2fr,1fr,1fr] gap-1">
+                      <EditableField.Input
+                        value={(billingCityField.value as string) ?? ""}
+                        onChange={billingCityField.onChange}
+                        onBlur={billingCityField.onBlur}
+                        placeholder="City"
+                        disabled={billingLinked}
+                      />
+                      <EditableField.Select
+                        value={(billingStateField.value as string) ?? ""}
+                        onChange={billingStateField.onChange}
+                        onBlur={billingStateField.onBlur}
+                        disabled={billingLinked}
+                      >
+                        <option value="">State</option>
+                        {US_STATES.map(state => (
+                          <option key={state.code} value={state.code}>
+                            {state.code}
+                          </option>
+                        ))}
+                      </EditableField.Select>
+                      <EditableField.Input
+                        value={(billingPostalField.value as string) ?? ""}
+                        onChange={billingPostalField.onChange}
+                        onBlur={billingPostalField.onBlur}
+                        placeholder="Zip"
+                        disabled={billingLinked}
+                      />
+                    </div>
+                    {!billingLinked && (editor.errors["billingAddress.city"] || editor.errors["billingAddress.state"] || editor.errors["billingAddress.postalCode"]) ? (
+                      <div className="grid max-w-md grid-cols-[2fr,1fr,1fr] gap-1 text-[10px] text-red-600">
+                        <span>{editor.errors["billingAddress.city"] ?? ""}</span>
+                        <span>{editor.errors["billingAddress.state"] ?? ""}</span>
+                        <span>{editor.errors["billingAddress.postalCode"] ?? ""}</span>
+                      </div>
+                    ) : null}
+                  </div>
+                }
+              />
             </div>
-            <EditableField label="Country" className="w-full">
-              <EditableField.Select
-                value={(billingCountryField.value as string) ?? DEFAULT_COUNTRY}
-                onChange={billingCountryField.onChange}
-                onBlur={billingCountryField.onBlur}
-                disabled={billingLinked}
-              >
-                {COUNTRY_OPTIONS.map(country => (
-                  <option key={country} value={country}>
-                    {country}
-                  </option>
-                ))}
-              </EditableField.Select>
-            </EditableField>
           </div>
         </div>
       </div>
     </div>
   )
 }
-
 interface TabToolbarProps {
   suffix?: ReactNode
 }
@@ -1424,12 +1440,10 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
   const router = useRouter()
   const { showSuccess, showError } = useToasts()
   const { hasPermission } = useAuth()
-  const inlineEnabled = isInlineDetailEditEnabled("accounts")
   const canManageAccounts = hasPermission("accounts.manage")
-  const shouldEnableInline = inlineEnabled && canManageAccounts && Boolean(account)
+  const shouldEnableInline = canManageAccounts && Boolean(account)
   const [activeTab, setActiveTab] = useState<TabKey>("contacts")
   const [baseAccountTypeOptions, setBaseAccountTypeOptions] = useState<AccountOption[]>([])
-  const [baseIndustryOptions, setBaseIndustryOptions] = useState<AccountOption[]>([])
   const [baseOwnerOptions, setBaseOwnerOptions] = useState<AccountOption[]>([])
   const [baseParentAccountOptions, setBaseParentAccountOptions] = useState<AccountOption[]>([])
   const [optionsLoading, setOptionsLoading] = useState(false)
@@ -1502,11 +1516,6 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
     }
   }, [editor, shouldEnableInline])
 
-  const handleCancelInline = useCallback(() => {
-    editor.reset()
-    editor.setErrors({})
-  }, [editor])
-
   useEffect(() => {
     if (!shouldEnableInline || optionsLoaded) {
       return
@@ -1533,15 +1542,6 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
               }))
           : []
 
-        const industries: AccountOption[] = Array.isArray(payload?.industries)
-          ? payload.industries
-              .filter((item: any) => item?.id)
-              .map((item: any) => ({
-                value: String(item.id),
-                label: item.name ?? "Unnamed Industry"
-              }))
-          : []
-
         const parentAccounts: AccountOption[] = Array.isArray(payload?.parentAccounts)
           ? payload.parentAccounts
               .filter((item: any) => item?.id)
@@ -1561,7 +1561,6 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
           : []
 
         setBaseAccountTypeOptions(accountTypes)
-        setBaseIndustryOptions(industries)
         setBaseParentAccountOptions(parentAccounts)
         setBaseOwnerOptions(owners)
         setOptionsLoaded(true)
@@ -1593,16 +1592,6 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
     }
     return [{ value: account.accountTypeId, label: account.accountType }, ...baseAccountTypeOptions]
   }, [account?.accountType, account?.accountTypeId, baseAccountTypeOptions])
-
-  const industryOptions = useMemo(() => {
-    if (!account?.industryId || !account.industry) {
-      return baseIndustryOptions
-    }
-    if (baseIndustryOptions.some(option => option.value === account.industryId)) {
-      return baseIndustryOptions
-    }
-    return [{ value: account.industryId, label: account.industry }, ...baseIndustryOptions]
-  }, [account?.industry, account?.industryId, baseIndustryOptions])
 
   const ownerOptions = useMemo(() => {
     if (!account?.ownerId || !account.accountOwner) {
@@ -3882,12 +3871,14 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                     <span className={`inline-block w-4 h-4 bg-white rounded-full shadow transition-transform duration-300 ease-in-out transform ${activeValue ? 'translate-x-4' : 'translate-x-1'} mt-0.5 ${activeValue ? 'ring-1 ring-blue-300' : ''}`} />
                   </span>
                 </button>
-                {/* Delete action */}
-                <div className="flex gap-0.5">
-                  <button type="button" className={`p-1 rounded transition-colors ${row.isDeleted ? 'text-gray-400 hover:text-gray-600' : 'text-red-500 hover:text-red-700'}`} onClick={(event) => { event.stopPropagation(); requestContactDelete(row) }} aria-label={row.isDeleted ? 'Manage contact' : 'Delete contact'}>
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                </div>
+                {/* Delete action - only when contact is inactive */}
+                {!activeValue && (
+                  <div className="flex gap-0.5">
+                    <button type="button" className="p-1 rounded transition-colors text-red-500 hover:text-red-700" onClick={(event) => { event.stopPropagation(); requestContactDelete(row) }} aria-label="Delete contact">
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                )}
               </div>
             )
           }
@@ -3963,11 +3954,13 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                     <span className={`inline-block w-4 h-4 bg-white rounded-full shadow transition-transform duration-300 ease-in-out transform ${activeValue ? 'translate-x-4' : 'translate-x-1'} mt-0.5 ${activeValue ? 'ring-1 ring-blue-300' : ''}`} />
                   </span>
                 </button>
-                <div className="flex gap-0.5">
-                  <button type="button" className={`p-1 rounded transition-colors ${activeValue ? 'text-red-500 hover:text-red-700' : 'text-gray-400 hover:text-gray-600'}`} onClick={(e) => { e.stopPropagation(); requestOpportunityDelete(row) }} aria-label="Delete opportunity">
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                </div>
+                {!activeValue && (
+                  <div className="flex gap-0.5">
+                    <button type="button" className="p-1 rounded transition-colors text-red-500 hover:text-red-700" onClick={(e) => { e.stopPropagation(); requestOpportunityDelete(row) }} aria-label="Delete opportunity">
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                )}
               </div>
             )
           }
@@ -4027,11 +4020,13 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                     />
                   </span>
                 </button>
-                <div className="flex gap-0.5">
-                  <button type="button" className="p-1 text-red-500 hover:text-red-700 transition-colors rounded" onClick={(e) => { e.stopPropagation(); handleDeleteActivity(row) }} aria-label="Delete activity">
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                </div>
+                {!activeValue && (
+                  <div className="flex gap-0.5">
+                    <button type="button" className="p-1 text-red-500 hover:text-red-700 transition-colors rounded" onClick={(e) => { e.stopPropagation(); handleDeleteActivity(row) }} aria-label="Delete activity">
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                )}
               </div>
             )
           }
@@ -4244,11 +4239,13 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                     />
                   </span>
                 </button>
-                <div className="flex gap-0.5">
-                  <button type="button" className={`p-1 rounded transition-colors ${activeValue ? 'text-red-500 hover:text-red-700' : 'text-gray-400 hover:text-gray-600'}`} onClick={(e) => { e.stopPropagation(); requestGroupDelete(row) }} aria-label="Delete group">
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                </div>
+                {!activeValue && (
+                  <div className="flex gap-0.5">
+                    <button type="button" className="p-1 rounded transition-colors text-red-500 hover:text-red-700" onClick={(e) => { e.stopPropagation(); requestGroupDelete(row) }} aria-label="Delete group">
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                )}
               </div>
             )
           }
@@ -4348,12 +4345,10 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
           account={account}
           editor={editor}
           accountTypeOptions={accountTypeOptions}
-          industryOptions={industryOptions}
           ownerOptions={ownerOptions}
           parentAccountOptions={parentAccountOptions}
           optionsLoading={optionsLoading}
           onSave={handleSaveInline}
-          onCancel={handleCancelInline}
         />
       ) : (
         <AccountHeader account={account} onEdit={onEdit} />

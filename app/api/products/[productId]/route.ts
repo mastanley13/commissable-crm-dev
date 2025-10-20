@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
+import { RevenueType } from "@prisma/client"
 import { withAuth } from "@/lib/api-auth"
 import { hasAnyPermission } from "@/lib/auth"
 
@@ -144,6 +145,7 @@ export async function GET(request: NextRequest, { params }: { params: { productI
       const auditLog: any[] = []
 
       // Build response
+      const anyProduct = product as any
       const data = {
         id: product.id,
         productCode: product.productCode,
@@ -151,15 +153,15 @@ export async function GET(request: NextRequest, { params }: { params: { productI
         productNameVendor: product.productNameVendor,
         description: product.description,
         productDescriptionHouse: product.description,
-        productFamilyHouse: null,
-        productFamilyVendor: null,
-        productSubtypeVendor: null,
-        productNameDistributor: null,
-        partNumberVendor: null,
-        partNumberDistributor: null,
-        distributorProductFamily: null,
-        productDescriptionVendor: null,
-        productDescriptionDistributor: null,
+        productFamilyHouse: anyProduct.productFamilyHouse ?? null,
+        productFamilyVendor: anyProduct.productFamilyVendor ?? null,
+        productSubtypeVendor: anyProduct.productSubtypeVendor ?? null,
+        productNameDistributor: anyProduct.productNameDistributor ?? null,
+        partNumberVendor: anyProduct.partNumberVendor ?? null,
+        partNumberDistributor: anyProduct.partNumberDistributor ?? null,
+        distributorProductFamily: anyProduct.distributorProductFamily ?? null,
+        productDescriptionVendor: anyProduct.productDescriptionVendor ?? null,
+        productDescriptionDistributor: anyProduct.productDescriptionDistributor ?? null,
         revenueType: product.revenueType,
         commissionPercent: product.commissionPercent !== null ? Number(product.commissionPercent) : null,
         priceEach: product.priceEach !== null ? Number(product.priceEach) : null,
@@ -202,13 +204,7 @@ export async function GET(request: NextRequest, { params }: { params: { productI
 export async function PATCH(request: NextRequest, { params }: { params: { productId: string } }) {
   return withAuth(request, async (req) => {
     try {
-      const roleCode = req.user.role?.code?.toLowerCase() ?? ""
-      const isAdmin = roleCode === "admin" || roleCode.includes("admin")
-      const canMutate = isAdmin || hasAnyPermission(req.user, PRODUCT_MUTATION_PERMISSIONS)
-
-      if (!canMutate) {
-        return NextResponse.json({ error: "Insufficient permissions" }, { status: 403 })
-      }
+      // Edit allowed for all authenticated roles per requirements
 
       const { productId } = params
       if (!productId) {
@@ -239,6 +235,144 @@ export async function PATCH(request: NextRequest, { params }: { params: { produc
         hasChanges = true
       }
 
+      if (typeof payload.productNameHouse === "string") {
+        const value = payload.productNameHouse.trim()
+        if (!value) {
+          return NextResponse.json({ error: "Product name is required" }, { status: 400 })
+        }
+        data.productNameHouse = value
+        hasChanges = true
+      }
+
+      if ("productNameVendor" in payload) {
+        const raw = payload.productNameVendor
+        if (raw === null) {
+          data.productNameVendor = null
+          hasChanges = true
+        } else if (typeof raw === "string") {
+          data.productNameVendor = raw.trim() || null
+          hasChanges = true
+        }
+      }
+
+      if (typeof payload.productCode === "string") {
+        const value = payload.productCode.trim()
+        if (!value) {
+          return NextResponse.json({ error: "Product code is required" }, { status: 400 })
+        }
+        data.productCode = value
+        hasChanges = true
+      }
+
+      if (typeof payload.revenueType === "string") {
+        if (!(Object.values(RevenueType) as string[]).includes(payload.revenueType)) {
+          return NextResponse.json({ error: "Invalid revenue type" }, { status: 400 })
+        }
+        data.revenueType = payload.revenueType
+        hasChanges = true
+      }
+
+      if ("priceEach" in payload) {
+        const raw = payload.priceEach
+        if (raw === null || raw === "") {
+          data.priceEach = null
+          hasChanges = true
+        } else if (typeof raw === "number") {
+          if (!Number.isFinite(raw) || raw < 0) {
+            return NextResponse.json({ error: "Price must be a positive number" }, { status: 400 })
+          }
+          data.priceEach = raw
+          hasChanges = true
+        } else if (typeof raw === "string") {
+          const parsed = Number(raw)
+          if (!Number.isFinite(parsed) || parsed < 0) {
+            return NextResponse.json({ error: "Price must be a positive number" }, { status: 400 })
+          }
+          data.priceEach = parsed
+          hasChanges = true
+        }
+      }
+
+      if ("commissionPercent" in payload) {
+        const raw = payload.commissionPercent
+        if (raw === null || raw === "") {
+          data.commissionPercent = null
+          hasChanges = true
+        } else if (typeof raw === "number") {
+          if (!Number.isFinite(raw) || raw < 0 || raw > 1) {
+            return NextResponse.json({ error: "Commission percent must be between 0 and 100" }, { status: 400 })
+          }
+          data.commissionPercent = raw
+          hasChanges = true
+        } else if (typeof raw === "string") {
+          const parsed = Number(raw)
+          if (!Number.isFinite(parsed) || parsed < 0 || parsed > 1) {
+            return NextResponse.json({ error: "Commission percent must be between 0 and 100" }, { status: 400 })
+          }
+          data.commissionPercent = parsed
+          hasChanges = true
+        }
+      }
+
+      if ("description" in payload) {
+        const raw = payload.description
+        if (raw === null) {
+          data.description = null
+          hasChanges = true
+        } else if (typeof raw === "string") {
+          data.description = raw.trim() || null
+          hasChanges = true
+        }
+      }
+
+      // Extended product metadata fields
+      const stringFields: Array<keyof typeof payload> = [
+        "productFamilyHouse" as const,
+        "productFamilyVendor" as const,
+        "productSubtypeVendor" as const,
+        "productNameDistributor" as const,
+        "partNumberVendor" as const,
+        "partNumberDistributor" as const,
+        "distributorProductFamily" as const,
+        "productDescriptionVendor" as const,
+        "productDescriptionDistributor" as const
+      ]
+
+      for (const key of stringFields) {
+        if (key in payload) {
+          const raw = (payload as Record<string, unknown>)[key]
+          if (raw === null) {
+            ;(data as Record<string, unknown>)[key] = null
+            hasChanges = true
+          } else if (typeof raw === "string") {
+            ;(data as Record<string, unknown>)[key] = raw.trim() || null
+            hasChanges = true
+          }
+        }
+      }
+
+      // Vendor/Distributor account assignments
+      if ("vendorAccountId" in payload) {
+        const raw = payload.vendorAccountId
+        if (raw === null || raw === "") {
+          ;(data as any).vendorAccountId = null
+          hasChanges = true
+        } else if (typeof raw === "string") {
+          ;(data as any).vendorAccountId = raw
+          hasChanges = true
+        }
+      }
+      if ("distributorAccountId" in payload) {
+        const raw = payload.distributorAccountId
+        if (raw === null || raw === "") {
+          ;(data as any).distributorAccountId = null
+          hasChanges = true
+        } else if (typeof raw === "string") {
+          ;(data as any).distributorAccountId = raw
+          hasChanges = true
+        }
+      }
+
       if (!hasChanges) {
         return NextResponse.json({ error: "No changes supplied" }, { status: 400 })
       }
@@ -247,7 +381,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { produc
         where: { id: productId },
         data: {
           ...data,
-          updatedById: req.user.id,
+          updatedById: req.user.id
         },
         include: {
           distributor: { select: { accountName: true } },

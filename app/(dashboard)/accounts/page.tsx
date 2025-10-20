@@ -11,7 +11,7 @@ import {
 } from "@/components/account-create-modal";
 import { ColumnChooserModal } from "@/components/column-chooser-modal";
 import { TwoStageDeleteDialog } from "@/components/two-stage-delete-dialog";
-import { DeletionConstraint } from "@/lib/deletion";
+import type { DeletionConstraint } from "@/lib/deletion";
 import { CopyProtectionWrapper } from "@/components/copy-protection";
 import { useToasts } from "@/components/toast";
 import { AccountEditModal } from "@/components/account-edit-modal";
@@ -20,6 +20,7 @@ import { AccountBulkOwnerModal } from "@/components/account-bulk-owner-modal";
 import { AccountReassignmentModal } from "@/components/account-reassignment-modal";
 import { AccountBulkStatusModal } from "@/components/account-bulk-status-modal";
 import { Trash2, Check } from "lucide-react";
+import { isRowInactive } from "@/lib/row-state";
 
 
 interface AccountRow {
@@ -1451,25 +1452,23 @@ export default function AccountsPage() {
                   </span>
                 </button>
 
-                {/* Delete action */}
-                <div className="flex gap-0.5">
-                  <button
-                    type="button"
-                    className={`p-1 rounded transition-colors ${
-                      row.active
-                        ? "text-red-500 hover:text-red-700"
-                        : "text-gray-400 hover:text-gray-600"
-                    }`}
-                    onClick={(event) => {
-                      event.preventDefault();
-                      event.stopPropagation();
-                      requestAccountDeletion(row);
-                    }}
-                    aria-label={row.active ? "Delete account" : "Manage account"}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                </div>
+                {/* Delete action - only for inactive */}
+                {isRowInactive(row) && (
+                  <div className="flex gap-0.5">
+                    <button
+                      type="button"
+                      className="p-1 rounded transition-colors text-red-500 hover:text-red-700"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        requestAccountDeletion(row);
+                      }}
+                      aria-label="Delete account"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                )}
               </div>
             );
           },
@@ -1520,25 +1519,24 @@ export default function AccountsPage() {
       if (column.id === "action") {
         return {
           ...column,
-          render: (_value: unknown, row: AccountRow) => (
-            <div className="flex gap-1">
-              <button
-                type="button"
-                className={`p-1 rounded transition-colors ${
-                  row.active
-                    ? "text-red-500 hover:text-red-700"
-                    : "text-gray-400 hover:text-gray-600"
-                }`}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  requestAccountDeletion(row);
-                }}
-                aria-label={row.active ? "Delete account" : "Manage account"}
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
-            </div>
-          ),
+          render: (_value: unknown, row: AccountRow) => {
+            if (!isRowInactive(row)) return null;
+            return (
+              <div className="flex gap-1">
+                <button
+                  type="button"
+                  className="p-1 rounded transition-colors text-red-500 hover:text-red-700"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    requestAccountDeletion(row);
+                  }}
+                  aria-label="Delete account"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+            );
+          },
         };
       }
 
@@ -1735,6 +1733,7 @@ export default function AccountsPage() {
     </CopyProtectionWrapper>
   );
 }
+
 
 
 

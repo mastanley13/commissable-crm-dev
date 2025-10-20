@@ -33,6 +33,13 @@ const PERMISSIONS = [
   { code: 'opportunities.delete', name: 'Delete opportunities', description: 'Can delete opportunity records', category: 'Opportunities' },
   { code: 'opportunities.export', name: 'Export opportunities', description: 'Can export opportunity data', category: 'Opportunities' },
 
+  // Products permissions
+  { code: 'products.read', name: 'Read products', description: 'Can view products', category: 'Products' },
+  { code: 'products.create', name: 'Create products', description: 'Can create new product records', category: 'Products' },
+  { code: 'products.update', name: 'Update products', description: 'Can edit product records', category: 'Products' },
+  { code: 'products.delete', name: 'Delete products', description: 'Can delete product records', category: 'Products' },
+  { code: 'products.manage', name: 'Manage products', description: 'Full management access to products', category: 'Products' },
+
   // Finance permissions
   { code: 'finance.view.reconciliation', name: 'Access for reconciliation', description: 'Can access reconciliation features', category: 'Finance' },
   { code: 'finance.view.all', name: 'View all financial data', description: 'Can view all financial information', category: 'Finance' },

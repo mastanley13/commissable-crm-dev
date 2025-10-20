@@ -418,6 +418,7 @@ model Opportunity {
   status             OpportunityStatus    @default(Open)
   type               OpportunityType      @default(NewBusiness)
   leadSource         LeadSource           @default(Referral)
+  referredBy         String?
   amount             Decimal?             @db.Decimal(16, 2)
   expectedCommission Decimal?             @db.Decimal(16, 2)
   probability        Decimal?             @db.Decimal(5, 2)
@@ -428,6 +429,11 @@ model Opportunity {
   competitors        String?
   lossReason         String?
   description        String?
+  shippingAddress    String?
+  billingAddress     String?
+  subagentPercent    Decimal?             @db.Decimal(5, 4)
+  houseRepPercent    Decimal?             @db.Decimal(5, 4)
+  houseSplitPercent  Decimal?             @db.Decimal(5, 4)
   createdAt          DateTime             @default(now())
   updatedAt          DateTime             @updatedAt
   activities         Activity[]
@@ -475,7 +481,16 @@ model Product {
   productCode          String
   productNameHouse     String
   productNameVendor    String?
+  productFamilyHouse   String?
+  productFamilyVendor  String?
+  productSubtypeVendor String?
+  productNameDistributor String?
+  partNumberVendor     String?
+  partNumberDistributor String?
+  distributorProductFamily String?
   description          String?
+  productDescriptionVendor String?
+  productDescriptionDistributor String?
   revenueType          RevenueType
   commissionPercent    Decimal?             @db.Decimal(5, 2)
   priceEach            Decimal?             @db.Decimal(16, 2)

@@ -326,7 +326,7 @@ export async function PATCH(
 ) {
   return withPermissions(
     request,
-    ['accounts.manage'],
+    ['accounts.delete', 'accounts.manage'],
     async (req) => {
       try {
         const { accountId } = params

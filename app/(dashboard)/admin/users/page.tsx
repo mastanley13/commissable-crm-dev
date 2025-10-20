@@ -8,6 +8,7 @@ import { useTablePreferences } from '@/hooks/useTablePreferences'
 import { TableChangeNotification } from '@/components/table-change-notification'
 import { PermissionGate } from '@/components/auth/permission-gate'
 import { Edit, Trash2, User, Shield } from 'lucide-react'
+import { isRowInactive } from '@/lib/row-state'
 
 const userColumns: Column[] = [
   {
@@ -26,14 +27,16 @@ const userColumns: Column[] = [
     minWidth: 80,
     maxWidth: 120,
     type: 'action',
-    render: () => (
+    render: (_: any, row: any) => (
       <div className="flex gap-1">
-        <button className="text-blue-500 hover:text-blue-700 p-1 rounded transition-colors">
+        <button className="text-blue-500 hover:text-blue-700 p-1 rounded transition-colors" title="Edit user">
           <Edit className="h-4 w-4" />
         </button>
-        <button className="text-red-500 hover:text-red-700 p-1 rounded transition-colors">
-          <Trash2 className="h-4 w-4" />
-        </button>
+        {isRowInactive(row) && (
+          <button className="text-red-500 hover:text-red-700 p-1 rounded transition-colors" title="Delete user">
+            <Trash2 className="h-4 w-4" />
+          </button>
+        )}
       </div>
     )
   },

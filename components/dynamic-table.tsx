@@ -3,6 +3,7 @@
 import React, { useState, useRef, useCallback, useMemo, useEffect } from "react"
 import { ChevronUp, ChevronDown, Trash2, Check, Edit } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { isRowInactive } from "@/lib/row-state"
 
 const getRowId = (row: any): string | undefined => row?.id ?? row?.uuid ?? row?.key
 
@@ -689,12 +690,14 @@ export function DynamicTable({
             </div>
           </label>
         )
-      case "action":
+      case "action": {
+        if (!isRowInactive(row)) return null
         return (
           <button className="rounded-full border border-red-200 p-2 text-red-500 transition hover:bg-red-50">
             <Trash2 className="h-4 w-4" />
           </button>
         )
+      }
       case "checkbox": {
         const rowId = getRowId(row)
         const checked = rowId ? selectedItems.includes(rowId) : Boolean(value)

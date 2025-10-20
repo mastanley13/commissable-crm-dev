@@ -34,6 +34,13 @@ const ALL_PERMISSIONS = [
   { code: 'opportunities.delete', name: 'Delete opportunities', description: 'Can delete opportunity records', category: 'Opportunities' },
   { code: 'opportunities.export', name: 'Export opportunities', description: 'Can export opportunity data', category: 'Opportunities' },
 
+  // Products permissions
+  { code: 'products.read', name: 'Read products', description: 'Can view products', category: 'Products' },
+  { code: 'products.create', name: 'Create products', description: 'Can create new product records', category: 'Products' },
+  { code: 'products.update', name: 'Update products', description: 'Can edit product records', category: 'Products' },
+  { code: 'products.delete', name: 'Delete products', description: 'Can delete product records', category: 'Products' },
+  { code: 'products.manage', name: 'Manage products', description: 'Full management access to products', category: 'Products' },
+
   // Finance permissions
   { code: 'finance.view.reconciliation', name: 'Access for reconciliation', description: 'Can access reconciliation features', category: 'Finance' },
   { code: 'finance.view.all', name: 'View all financial data', description: 'Can view all financial information', category: 'Finance' },
@@ -189,14 +196,16 @@ async function ensureAdminPermissions() {
           'contacts.view.assigned', 'contacts.create', 'contacts.edit.assigned',
           'opportunities.view.assigned', 'opportunities.create', 'opportunities.edit.assigned',
           'activities.view.assigned', 'activities.create', 'activities.edit.assigned',
-          'tickets.view.assigned', 'tickets.create', 'tickets.edit.assigned'
+          'tickets.view.assigned', 'tickets.create', 'tickets.edit.assigned',
+          'products.read'
         ],
         'Sales Management': [
           'accounts.view.all', 'accounts.create', 'accounts.edit.all', 'accounts.delete', 'accounts.export', 'accounts.bulk', 'accounts.reassign',
           'contacts.view.all', 'contacts.create', 'contacts.edit.all', 'contacts.delete', 'contacts.export', 'contacts.bulk',
           'opportunities.view.all', 'opportunities.create', 'opportunities.edit.all', 'opportunities.delete', 'opportunities.export',
           'activities.view.all', 'activities.create', 'activities.edit.all', 'activities.delete',
-          'tickets.view.all', 'tickets.create', 'tickets.edit.all', 'tickets.delete'
+          'tickets.view.all', 'tickets.create', 'tickets.edit.all', 'tickets.delete',
+          'products.read', 'products.create', 'products.update', 'products.delete'
         ],
         'Accounting': [
           'accounts.view.all', 'contacts.view.all', 'opportunities.view.all',

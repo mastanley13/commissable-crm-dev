@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { AlertTriangle, Trash2, RotateCcw, Shield, X, ChevronRight } from 'lucide-react'
-import { DeletionConstraint } from '@/lib/deletion'
+import type { DeletionConstraint } from '@/lib/deletion'
 
 interface DeleteDialogEntitySummary {
   id: string
@@ -23,6 +23,8 @@ export interface TwoStageDeleteDialogProps {
   multipleEntities?: DeleteDialogEntitySummary[]
   entityLabelPlural?: string
   onBulkSoftDelete?: (entities: DeleteDialogEntitySummary[], bypassConstraints?: boolean) => Promise<{ success: boolean, constraints?: DeletionConstraint[], error?: string }>
+  // When true, disables the Delete action (used to prevent deleting active records defensively)
+  disallowActiveDelete?: boolean
 }
 
 type DialogStage = 'initial' | 'constraints' | 'confirm-soft' | 'confirm-permanent' | 'confirm-restore' | 'loading' | 'success' | 'error'
@@ -40,7 +42,8 @@ export function TwoStageDeleteDialog({
   userCanPermanentDelete = false,
   multipleEntities,
   entityLabelPlural,
-  onBulkSoftDelete
+  onBulkSoftDelete,
+  disallowActiveDelete = false
 }: TwoStageDeleteDialogProps) {
   const [stage, setStage] = useState<DialogStage>('initial')
   const [constraints, setConstraints] = useState<DeletionConstraint[]>([])
@@ -291,9 +294,13 @@ export function TwoStageDeleteDialog({
           </button>
           <button
             onClick={() => setStage('confirm-soft')}
-            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+            disabled={disallowActiveDelete}
+            className={`px-4 py-2 rounded-lg transition-colors ${disallowActiveDelete
+              ? 'bg-red-400 text-white opacity-60 cursor-not-allowed'
+              : 'bg-red-600 text-white hover:bg-red-700'}`}
+            title={disallowActiveDelete ? 'Deactivate the record before deleting' : 'Delete'}
           >
-            Delete
+            {disallowActiveDelete ? 'Delete (Disabled)' : 'Delete'}
           </button>
         </div>
       </div>
@@ -601,6 +608,9 @@ export function TwoStageDeleteDialog({
     </div>
   )
 }
+
+
+
 
 
 

@@ -7,7 +7,7 @@ import { DynamicTable, Column } from "@/components/dynamic-table"
 import { ContactCreateModal } from "@/components/contact-create-modal"
 import { ColumnChooserModal } from "@/components/column-chooser-modal"
 import { TwoStageDeleteDialog } from "@/components/two-stage-delete-dialog"
-import { DeletionConstraint } from "@/lib/deletion"
+import type { DeletionConstraint } from "@/lib/deletion"
 import { useToasts } from "@/components/toast"
 import { useTablePreferences } from "@/hooks/useTablePreferences"
 import { formatPhoneNumber } from "@/lib/utils"
@@ -17,6 +17,7 @@ import { ContactBulkOwnerModal } from "@/components/contact-bulk-owner-modal"
 import { ContactBulkStatusModal } from "@/components/contact-bulk-status-modal"
 import { ContactEditModal } from "@/components/contact-edit-modal"
 import { Trash2, Check } from "lucide-react"
+import { isRowInactive } from "@/lib/row-state"
 
 interface ContactRow {
   id: string
@@ -1132,6 +1133,7 @@ export default function ContactsPage() {
           render: (_value: unknown, row: ContactRow) => {
             const checked = selectedContacts.includes(row.id)
             const activeValue = !!row.active || !!row.isPrimary
+            const canDelete = isRowInactive(row, { treatPrimaryAsActive: true })
             return (
               <div className="flex items-center gap-2" data-disable-row-click="true">
                 {/* Checkbox */}
@@ -1178,24 +1180,22 @@ export default function ContactsPage() {
                 </button>
 
                 {/* Delete action */}
-                <div className="flex gap-0.5">
-                  <button
-                    type="button"
-                    className={`p-1 rounded transition-colors ${
-                      row.isDeleted
-                        ? "text-gray-400 hover:text-gray-600"
-                        : "text-red-500 hover:text-red-700"
-                    }`}
-                    onClick={(event) => {
-                      event.preventDefault();
-                      event.stopPropagation();
-                      requestContactDeletion(row);
-                    }}
-                    aria-label={row.isDeleted ? "Manage contact" : "Delete contact"}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                </div>
+                {canDelete && (
+                  <div className="flex gap-0.5">
+                    <button
+                      type="button"
+                      className="p-1 rounded transition-colors text-red-500 hover:text-red-700"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        requestContactDeletion(row);
+                      }}
+                      aria-label="Delete contact"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                )}
               </div>
             )
           }
@@ -1205,25 +1205,25 @@ export default function ContactsPage() {
         // Backward compatibility if user preferences still include legacy 'action' column
         return {
           ...column,
-          render: (_value: unknown, row: ContactRow) => (
-            <div className="flex gap-1">
-              <button
-                type="button"
-                className={`p-1 rounded transition-colors ${
-                  row.isDeleted
-                    ? "text-gray-400 hover:text-gray-600"
-                    : "text-red-500 hover:text-red-700"
-                }`}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  requestContactDeletion(row);
-                }}
-                aria-label={row.isDeleted ? "Manage contact" : "Delete contact"}
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
-            </div>
-          ),
+          render: (_value: unknown, row: ContactRow) => {
+            const canDelete = isRowInactive(row, { treatPrimaryAsActive: true })
+            if (!canDelete) return null
+            return (
+              <div className="flex gap-1">
+                <button
+                  type="button"
+                  className="p-1 rounded transition-colors text-red-500 hover:text-red-700"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    requestContactDeletion(row);
+                  }}
+                  aria-label="Delete contact"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+            )
+          },
         };
       }
       return column;
@@ -1371,11 +1371,17 @@ export default function ContactsPage() {
         onPermanentDelete={handlePermanentDelete}
         onRestore={handleRestore}
         userCanPermanentDelete={true} // TODO: Check user permissions
+        disallowActiveDelete={
+          bulkDeleteTargets.length > 0
+            ? bulkDeleteTargets.some(contact => !!contact.active || !!contact.isPrimary)
+            : (!!contactToDelete?.active || !!contactToDelete?.isPrimary)
+        }
       />
       <ToastContainer />
     </CopyProtectionWrapper>
   )
 }
+
 
 
 

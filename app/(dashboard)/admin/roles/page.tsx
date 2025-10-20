@@ -9,6 +9,7 @@ import { TableChangeNotification } from '@/components/table-change-notification'
 import { PermissionGate } from '@/components/auth/permission-gate'
 import { RoleEditModal, Role } from '@/components/role-edit-modal'
 import { Edit, Trash2, Shield, Users } from 'lucide-react'
+import { isRowInactive } from '@/lib/row-state'
 import { useAuth } from '@/lib/auth-context'
 
 // Define columns outside component for useTablePreferences
@@ -194,30 +195,35 @@ export default function AdminRolesPage() {
     if (column.id === 'actions') {
       return {
         ...column,
-        render: (value: any, row: any) => (
-          <div className="flex gap-1">
-            <button 
-              onClick={(e) => {
-                e.stopPropagation()
-                handleEditRole(row.id)
-              }}
-              className="text-blue-500 hover:text-blue-700 p-1 rounded transition-colors"
-              title="Edit role"
-            >
-              <Edit className="h-4 w-4" />
-            </button>
-            <button 
-              onClick={(e) => {
-                e.stopPropagation()
-                console.log('Delete role:', row.id)
-              }}
-              className="text-red-500 hover:text-red-700 p-1 rounded transition-colors"
-              title="Delete role"
-            >
-              <Trash2 className="h-4 w-4" />
-            </button>
-          </div>
-        )
+        render: (_value: any, row: any) => {
+          const canDelete = isRowInactive(row)
+          return (
+            <div className="flex gap-1">
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleEditRole(row.id)
+                }}
+                className="text-blue-500 hover:text-blue-700 p-1 rounded transition-colors"
+                title="Edit role"
+              >
+                <Edit className="h-4 w-4" />
+              </button>
+              {canDelete && (
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    console.log('Delete role:', row.id)
+                  }}
+                  className="text-red-500 hover:text-red-700 p-1 rounded transition-colors"
+                  title="Delete role"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+          )
+        }
       }
     }
     if (column.id === 'roleName') {

@@ -50,6 +50,11 @@ type OpportunityWithRelations = {
   distributorName?: string | null
   vendorName?: string | null
   referredBy?: string | null
+  shippingAddress?: string | null
+  billingAddress?: string | null
+  subagentPercent?: unknown
+  houseRepPercent?: unknown
+  houseSplitPercent?: unknown
   owner?: { firstName?: string | null; lastName?: string | null; fullName?: string | null } | null
   ownerId?: string | null
   leadSource?: string | null
@@ -126,6 +131,7 @@ export type OpportunityDetailSummary = {
   status: OpportunityStatus
   type: OpportunityType
   leadSource: string | null
+  referredBy?: string | null
   amount: number
   probability: number
   expectedCommission: number
@@ -137,6 +143,11 @@ export type OpportunityDetailSummary = {
   lossReason: string | null
   description: string | null
   subAgent: string
+  shippingAddress?: string | null
+  billingAddress?: string | null
+  subagentPercent?: number | null
+  houseRepPercent?: number | null
+  houseSplitPercent?: number | null
   account: {
     id: string
     accountName: string
@@ -479,6 +490,7 @@ export function mapOpportunityToDetail(opportunity: OpportunityWithRelations): O
     status: normalizeStatus(opportunity.status),
     type: (opportunity.type as OpportunityType) ?? OpportunityType.NewBusiness,
     leadSource: opportunity.leadSource ?? null,
+    referredBy: opportunity.referredBy ?? null,
     amount,
     probability,
     expectedCommission,
@@ -490,6 +502,11 @@ export function mapOpportunityToDetail(opportunity: OpportunityWithRelations): O
     lossReason: opportunity.lossReason ?? null,
     description: opportunity.description ?? null,
     subAgent: extractSubAgent(opportunity.description),
+    shippingAddress: opportunity.shippingAddress ?? null,
+    billingAddress: opportunity.billingAddress ?? null,
+    subagentPercent: Number.isFinite(toNumber(opportunity.subagentPercent)) ? toNumber(opportunity.subagentPercent) : null,
+    houseRepPercent: Number.isFinite(toNumber(opportunity.houseRepPercent)) ? toNumber(opportunity.houseRepPercent) : null,
+    houseSplitPercent: Number.isFinite(toNumber(opportunity.houseSplitPercent)) ? toNumber(opportunity.houseSplitPercent) : null,
     account,
     owner,
     createdBy: opportunity.createdBy

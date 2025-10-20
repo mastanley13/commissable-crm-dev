@@ -14,23 +14,9 @@ export interface ValidationResult {
   errors: ValidationError[]
 }
 
-// Validation patterns per contract requirements
-export const VALIDATION_PATTERNS = {
-  // Email format: proper@email.com
-  email: /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/,
-  
-  // Phone format: xxx-xxx-xxxx
-  phone: /^\d{3}-\d{3}-\d{4}$/,
-  
-  // URL format: https://website.com
-  url: /^https?:\/\/(www\.)?[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(\/.*)?$/,
-  
-  // State: 2-letter codes only
-  state: /^[A-Z]{2}$/,
-  
-  // Zip: Maximum 12 characters
-  zip: /^.{1,12}$/
-} as const
+import { VALIDATION_PATTERNS, formatPhoneNumber as sharedFormatPhoneNumber } from "./validation-shared"
+
+export { VALIDATION_PATTERNS } from "./validation-shared"
 
 // US State codes for validation
 export const US_STATE_CODES = [
@@ -337,17 +323,7 @@ export function validateContactData(data: any): ValidationResult {
  * Formats phone number to xxx-xxx-xxxx format
  */
 export function formatPhoneNumber(phone: string): string {
-  if (!phone) return ''
-  
-  // Remove all non-digit characters
-  const digits = phone.replace(/\D/g, '')
-  
-  // Format as xxx-xxx-xxxx
-  if (digits.length === 10) {
-    return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`
-  }
-  
-  return phone // Return original if not 10 digits
+  return sharedFormatPhoneNumber(phone)
 }
 
 /**
@@ -381,3 +357,4 @@ export function createValidationErrorResponse(errors: ValidationError[]): Respon
     }
   )
 }
+

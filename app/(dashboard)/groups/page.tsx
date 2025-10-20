@@ -8,6 +8,7 @@ import { useTablePreferences } from '@/hooks/useTablePreferences'
 import { TableChangeNotification } from '@/components/table-change-notification'
 import { groupsData } from '@/lib/mock-data'
 import { Edit, Trash2, Users, Settings, Check } from 'lucide-react'
+import { isRowInactive } from '@/lib/row-state'
 
 const groupColumns: Column[] = [
   {
@@ -214,9 +215,11 @@ export default function GroupsPage() {
                   <button className="p-1 text-blue-500 hover:text-blue-700 transition-colors rounded" onClick={(e) => { e.preventDefault(); e.stopPropagation(); }} aria-label="Edit group">
                     <Edit className="h-3.5 w-3.5" />
                   </button>
-                  <button className={`p-1 rounded transition-colors ${activeValue ? 'text-red-500 hover:text-red-700' : 'text-gray-400 hover:text-gray-600'}`} onClick={(e) => { e.preventDefault(); e.stopPropagation(); }} aria-label={activeValue ? 'Delete group' : 'Manage group'}>
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
+                  {isRowInactive(row) && (
+                    <button className="p-1 rounded transition-colors text-red-500 hover:text-red-700" onClick={(e) => { e.preventDefault(); e.stopPropagation(); }} aria-label={'Delete group'}>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  )}
                 </div>
               </div>
             )

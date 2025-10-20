@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { OpportunityDetailsView } from "@/components/opportunity-details-view"
 import { CopyProtectionWrapper } from "@/components/copy-protection"
-import { OpportunityEditModal } from "@/components/opportunity-edit-modal"
 import { useBreadcrumbs } from "@/lib/breadcrumb-context"
 import { useToasts } from "@/components/toast"
 import { OpportunityDetailRecord } from "@/components/opportunity-types"
@@ -25,7 +24,6 @@ export default function OpportunityDetailPage() {
   const [opportunity, setOpportunity] = useState<OpportunityDetailRecord | null>(null)
   const [loading, setLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
-  const [showEditModal, setShowEditModal] = useState(false)
 
   const fetchOpportunity = useCallback(
     async (signal?: AbortSignal) => {
@@ -218,17 +216,6 @@ export default function OpportunityDetailPage() {
     await fetchOpportunity()
   }, [fetchOpportunity])
 
-  const handleCloseModal = () => {
-    setShowEditModal(false)
-  }
-
-  const handleEditSuccess = useCallback(() => {
-    setShowEditModal(false)
-    fetchOpportunity().catch((err) => {
-      console.error(err)
-    })
-  }, [fetchOpportunity])
-
   useEffect(() => {
     if (!opportunityId) {
       router.replace("/opportunities")
@@ -241,15 +228,7 @@ export default function OpportunityDetailPage() {
         opportunity={opportunity}
         loading={loading}
         error={error}
-        onEdit={() => setShowEditModal(true)}
         onRefresh={handleRefresh}
-      />
-
-      <OpportunityEditModal
-        isOpen={showEditModal}
-        opportunityId={opportunityId}
-        onClose={handleCloseModal}
-        onSuccess={handleEditSuccess}
       />
     </CopyProtectionWrapper>
   )

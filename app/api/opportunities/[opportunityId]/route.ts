@@ -46,9 +46,7 @@ const OPPORTUNITY_EDIT_PERMISSIONS = Array.from(new Set([
 const OPPORTUNITY_DELETE_PERMISSIONS = [
   "opportunities.delete",
   "opportunities.edit.all",
-  "opportunities.manage",
-  "accounts.manage",
-  "accounts.delete"
+  "opportunities.manage"
 ]
 
 function isValidStage(value: unknown): value is OpportunityStage {
@@ -97,7 +95,7 @@ export async function GET(request: NextRequest, { params }: { params: { opportun
         return NextResponse.json({ error: "Insufficient permissions to view opportunities" }, { status: 403 })
       }
 
-      const opportunity = await prisma.opportunity.findFirst({
+      let opportunity = await prisma.opportunity.findFirst({
         where: { id: opportunityId, tenantId },
         include: {
           owner: { select: { id: true, firstName: true, lastName: true, fullName: true } },
@@ -152,6 +150,30 @@ export async function GET(request: NextRequest, { params }: { params: { opportun
         if (!canViewAssigned || opportunity.ownerId !== req.user.id) {
           return NextResponse.json({ error: "Insufficient permissions to view this opportunity" }, { status: 403 })
         }
+      }
+
+      // Raw-select extended fields that may not exist in an outdated Prisma client
+      try {
+        const extra: Array<{
+          referredBy: string | null
+          shippingAddress: string | null
+          billingAddress: string | null
+          subagentPercent: unknown
+          houseRepPercent: unknown
+          houseSplitPercent: unknown
+        }> = await prisma.$queryRawUnsafe(
+          `SELECT "referredBy", "shippingAddress", "billingAddress", "subagentPercent", "houseRepPercent", "houseSplitPercent"
+           FROM "Opportunity"
+           WHERE "id" = $1::uuid AND "tenantId" = $2::uuid
+           LIMIT 1`,
+          opportunityId,
+          tenantId
+        )
+        if (extra && extra[0]) {
+          opportunity = Object.assign({}, opportunity, extra[0]) as typeof opportunity
+        }
+      } catch (e) {
+        // Non-fatal: continue without extended fields
       }
 
       const baseRow = mapOpportunityToRow(opportunity)
@@ -260,7 +282,17 @@ export async function PATCH(request: NextRequest, { params }: { params: { opport
         }
       }
 
-      if (typeof payload.subAgent === "string" || payload.subAgent === null) {
+      // Description (free text)
+      if ("description" in payload) {
+        if (payload.description === null) {
+          data.description = null
+        } else if (typeof payload.description === "string") {
+          const desc = payload.description.trim()
+          data.description = desc.length > 0 ? desc : null
+        }
+        hasChanges = true
+      } else if (typeof payload.subAgent === "string" || payload.subAgent === null) {
+        // Maintain legacy behavior where subAgent is stored within description when explicit description is not provided
         data.description = formatSubAgentDescription(payload.subAgent)
         hasChanges = true
       }
@@ -276,17 +308,135 @@ export async function PATCH(request: NextRequest, { params }: { params: { opport
         hasChanges = true
       }
 
+      // Referred By (optional string)
+      if ("referredBy" in payload) {
+        if (payload.referredBy === null) {
+          data.referredBy = null
+        } else if (typeof payload.referredBy === "string") {
+          const value = payload.referredBy.trim()
+          data.referredBy = value.length > 0 ? value : null
+        }
+        hasChanges = true
+      }
+
+      // Shipping/Billing addresses (optional strings)
+      if ("shippingAddress" in payload) {
+        if (payload.shippingAddress === null) {
+          data.shippingAddress = null
+        } else if (typeof payload.shippingAddress === "string") {
+          const value = payload.shippingAddress.trim()
+          data.shippingAddress = value.length > 0 ? value : null
+        }
+        hasChanges = true
+      }
+
+      if ("billingAddress" in payload) {
+        if (payload.billingAddress === null) {
+          data.billingAddress = null
+        } else if (typeof payload.billingAddress === "string") {
+          const value = payload.billingAddress.trim()
+          data.billingAddress = value.length > 0 ? value : null
+        }
+        hasChanges = true
+      }
+
+      // Percent fields (numbers in 0..1 range or null)
+      const percentFields: Array<keyof typeof payload> = [
+        "subagentPercent" as const,
+        "houseRepPercent" as const,
+        "houseSplitPercent" as const
+      ]
+
+      for (const key of percentFields) {
+        if (key in payload) {
+          const raw = (payload as Record<string, unknown>)[key]
+          if (raw === null) {
+            ;(data as Record<string, unknown>)[key] = null
+            hasChanges = true
+          } else if (typeof raw === "number") {
+            if (!Number.isFinite(raw) || raw < 0 || raw > 1) {
+              return NextResponse.json({ error: `${String(key)} must be between 0 and 1` }, { status: 400 })
+            }
+            ;(data as Record<string, unknown>)[key] = raw
+            hasChanges = true
+          } else if (typeof raw === "string") {
+            const parsed = Number(raw)
+            if (!Number.isFinite(parsed) || parsed < 0 || parsed > 1) {
+              return NextResponse.json({ error: `${String(key)} must be between 0 and 1` }, { status: 400 })
+            }
+            ;(data as Record<string, unknown>)[key] = parsed
+            hasChanges = true
+          }
+        }
+      }
+
       if (!hasChanges) {
         return NextResponse.json({ error: "No updates provided" }, { status: 400 })
       }
 
-      const updated = await prisma.opportunity.update({
-        where: { id: existing.id },
-        data,
-        include: {
-          owner: { select: { firstName: true, lastName: true } }
+      async function updateWithPrisma() {
+        return prisma.opportunity.update({
+          where: { id: existing.id },
+          data,
+          include: { owner: { select: { firstName: true, lastName: true } } }
+        })
+      }
+
+      async function updateWithRaw() {
+        const sets: string[] = []
+        const params: any[] = []
+        const pushSet = (col: string, val: unknown, cast?: string) => {
+          if (val === undefined) return
+          if (val === null) {
+            sets.push(`"${col}" = NULL`)
+            return
+          }
+          params.push(val)
+          const idx = params.length
+          sets.push(`"${col}" = $${idx}${cast ? `::${cast}` : ""}`)
         }
-      })
+
+        // Mirror the same fields we handled via Prisma 'data'
+        if ("name" in data) pushSet("name", data.name)
+        if ("stage" in data) pushSet("stage", data.stage, '"OpportunityStage"')
+        if ("status" in data) pushSet("status", data.status, '"OpportunityStatus"')
+        if ("leadSource" in data) pushSet("leadSource", data.leadSource, '"LeadSource"')
+        if ("ownerId" in data) pushSet("ownerId", data.ownerId, "uuid")
+        if ("estimatedCloseDate" in data) pushSet("estimatedCloseDate", data.estimatedCloseDate, "timestamptz")
+        if ("description" in data) pushSet("description", data.description)
+        if ("referredBy" in data) pushSet("referredBy", data.referredBy)
+        if ("shippingAddress" in data) pushSet("shippingAddress", data.shippingAddress)
+        if ("billingAddress" in data) pushSet("billingAddress", data.billingAddress)
+        if ("subagentPercent" in data) pushSet("subagentPercent", data.subagentPercent)
+        if ("houseRepPercent" in data) pushSet("houseRepPercent", data.houseRepPercent)
+        if ("houseSplitPercent" in data) pushSet("houseSplitPercent", data.houseSplitPercent)
+        // Always set updatedById
+        pushSet("updatedById", req.user.id, "uuid")
+        // And updatedAt
+        sets.push(`"updatedAt" = NOW()`)
+
+        if (sets.length === 0) {
+          return null
+        }
+
+        const sql = `UPDATE "Opportunity" SET ${sets.join(", ")}
+                     WHERE "id" = $${params.length + 1}::uuid AND "tenantId" = $${params.length + 2}::uuid
+                     RETURNING "id"`
+        const result = await prisma.$queryRawUnsafe<{ id: string }[]>(sql, ...params, existing.id, tenantId)
+        return result && result[0] ? { id: result[0].id } : null
+      }
+
+      let updated
+      try {
+        updated = await updateWithPrisma()
+      } catch (e) {
+        // Fallback to raw when Prisma client is out-of-sync with DB schema
+        await updateWithRaw()
+        updated = await prisma.opportunity.findFirst({
+          where: { id: existing.id, tenantId },
+          include: { owner: { select: { firstName: true, lastName: true } } }
+        })
+      }
 
       await revalidateOpportunityPaths(existing.accountId)
 
