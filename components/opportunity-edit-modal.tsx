@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { LeadSource, OpportunityStage, OpportunityStatus } from "@prisma/client"
+import { getOpportunityStageOptions, isOpportunityStageAutoManaged, isOpportunityStageValue, type OpportunityStageOption } from "@/lib/opportunity-stage"
 import { Loader2, X } from "lucide-react"
 import { useToasts } from "@/components/toast"
 
@@ -27,10 +28,17 @@ interface OpportunityEditFormState {
   status: OpportunityStatus
 }
 
-const stageOptions: SelectOption[] = Object.values(OpportunityStage).map(stage => ({
-  value: stage,
-  label: stage.replace(/([A-Z])/g, " $1").trim()
-}))
+const stageOptions: OpportunityStageOption[] = getOpportunityStageOptions()
+
+const formatStageLabel = (option: OpportunityStageOption) =>
+  option.autoManaged ? `${option.label} (auto-managed)` : option.label
+
+const isAutoManagedStage = (value: string | null | undefined): boolean => {
+  if (!value) {
+    return false
+  }
+  return isOpportunityStageValue(value) && isOpportunityStageAutoManaged(value)
+}
 
 const leadSourceOptions: SelectOption[] = Object.values(LeadSource).map(source => ({
   value: source,
@@ -236,11 +244,21 @@ export function OpportunityEditModal({ isOpen, opportunityId, onClose, onSuccess
                   disabled={loading}
                 >
                   {stageOptions.map(option => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
+                    <option
+                      key={option.value}
+                      value={option.value}
+                      disabled={option.disabled && option.value !== form.stage}
+                      title={option.disabledReason}
+                    >
+                      {formatStageLabel(option)}
                     </option>
                   ))}
                 </select>
+                {isAutoManagedStage(form.stage) && (
+                  <p className="mt-1 text-xs text-gray-500">
+                    Stage updates automatically based on product billing status.
+                  </p>
+                )}
               </div>
 
               <div>
@@ -401,4 +419,3 @@ function AlertMessage() {
     </div>
   )
 }
-

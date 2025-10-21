@@ -214,7 +214,15 @@ const activityColumns: Column[] = [
     accessor: 'createdAt',
     render: (value) => (
       <span className="text-sm text-gray-600">
-        {value ? new Date(value).toLocaleDateString() : '-'}
+        {(() => {
+          if (!value) return '-'
+          const d = new Date(value)
+          if (Number.isNaN(d.getTime())) return '-'
+          const y = d.getFullYear()
+          const m = String(d.getMonth() + 1).padStart(2, '0')
+          const day = String(d.getDate()).padStart(2, '0')
+          return `${y}/${m}/${day}`
+        })()}
       </span>
     )
   },
@@ -246,7 +254,15 @@ const activityColumns: Column[] = [
     accessor: 'updatedAt',
     render: (value) => (
       <span className="text-sm text-gray-600">
-        {value ? new Date(value).toLocaleDateString() : '-'}
+        {(() => {
+          if (!value) return '-'
+          const d = new Date(value)
+          if (Number.isNaN(d.getTime())) return '-'
+          const y = d.getFullYear()
+          const m = String(d.getMonth() + 1).padStart(2, '0')
+          const day = String(d.getDate()).padStart(2, '0')
+          return `${y}/${m}/${day}`
+        })()}
       </span>
     )
   }
@@ -266,7 +282,14 @@ function transformActivityForTable(activity: ActivityListItem, index: number) {
     id: activity.id,
     activityId: activity.id,
     active: activity.active,
-    activityDate: activity.dueDate ? new Date(activity.dueDate).toISOString().split('T')[0] : activity.createdAt.toISOString().split('T')[0],
+    activityDate: (() => {
+      const src = activity.dueDate ? new Date(activity.dueDate) : activity.createdAt
+      const d = src instanceof Date ? src : new Date(src)
+      const y = d.getFullYear()
+      const m = String(d.getMonth() + 1).padStart(2, '0')
+      const day = String(d.getDate()).padStart(2, '0')
+      return `${y}/${m}/${day}`
+    })(),
     activityType: activity.type,
     description: activity.subject,
     accountName: activity.accountName || '-',

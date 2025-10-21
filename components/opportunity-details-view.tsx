@@ -24,6 +24,7 @@ import { ConfirmDialog } from "./confirm-dialog"
 import { useAuth } from "@/lib/auth-context"
 import { useToasts } from "@/components/toast"
 import { ProductBulkActionBar } from "./product-bulk-action-bar"
+import { getOpportunityStageLabel, getOpportunityStageOptions, isOpportunityStageAutoManaged, isOpportunityStageValue, type OpportunityStageOption } from "@/lib/opportunity-stage"
 
 const fieldLabelClass = "text-[11px] font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap"
 const fieldBoxClass = "flex min-h-[28px] w-full max-w-md items-center justify-between rounded-lg border-2 border-gray-400 bg-white px-2 py-0.5 text-xs text-gray-900 shadow-sm whitespace-nowrap overflow-hidden text-ellipsis"
@@ -38,10 +39,17 @@ const PRODUCT_FILTER_COLUMNS: Array<{ id: string; label: string }> = [
 
 type OwnerOption = { value: string; label: string }
 
-const STAGE_OPTIONS = Object.values(OpportunityStage).map(stage => ({
-  value: stage,
-  label: stage.replace(/([A-Z])/g, " $1").trim()
-}))
+const STAGE_OPTIONS: OpportunityStageOption[] = getOpportunityStageOptions()
+
+const formatStageLabel = (option: OpportunityStageOption) =>
+  option.autoManaged ? `${option.label} (auto-managed)` : option.label
+
+const isAutoManagedStageValue = (value: unknown): boolean => {
+  if (typeof value !== "string") {
+    return false
+  }
+  return isOpportunityStageValue(value) && isOpportunityStageAutoManaged(value)
+}
 
 const PRODUCT_TABLE_BASE_COLUMNS: Column[] = [
   {
@@ -464,6 +472,9 @@ function humanizeLabel(value: string | null | undefined): string {
   if (!value) {
     return "--"
   }
+  if (isOpportunityStageValue(value)) {
+    return getOpportunityStageLabel(value)
+  }
   return value
     .replace(/([A-Z])/g, " $1")
     .replace(/[_-]/g, " ")
@@ -681,7 +692,16 @@ function OpportunityHeader({
             <div className={fieldBoxClass}>{opportunity.owner?.name || "--"}</div>
           </FieldRow>
           <FieldRow label="Opportunity Stage">
-            <div className={fieldBoxClass}>{humanizeLabel(opportunity.stage)}</div>
+            <div className={`${fieldBoxClass} gap-2`}>
+              <span>{humanizeLabel(opportunity.stage)}</span>
+              {typeof opportunity.stage === "string" &&
+                isOpportunityStageValue(opportunity.stage) &&
+                isOpportunityStageAutoManaged(opportunity.stage) && (
+                  <span className="rounded bg-slate-200 px-1.5 text-[10px] font-semibold uppercase text-slate-600">
+                    Auto
+                  </span>
+                )}
+            </div>
           </FieldRow>
           <FieldRow label="Estimated Close Date">
             <div className={fieldBoxClass}>{formatDate(opportunity.estimatedCloseDate)}</div>
@@ -853,19 +873,31 @@ function EditableOpportunityHeader({
 
           {renderRow(
             "Opportunity Stage",
-            <EditableField.Select
-              className="w-full"
-              value={(stageField.value as string) ?? ""}
-              onChange={stageField.onChange}
-              onBlur={stageField.onBlur}
-            >
-              <option value="">Select stage</option>
-              {STAGE_OPTIONS.map(option => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </EditableField.Select>,
+            <div className="space-y-1">
+              <EditableField.Select
+                className="w-full"
+                value={(stageField.value as string) ?? ""}
+                onChange={stageField.onChange}
+                onBlur={stageField.onBlur}
+              >
+                <option value="">Select stage</option>
+                {STAGE_OPTIONS.map(option => (
+                  <option
+                    key={option.value}
+                    value={option.value}
+                    disabled={option.disabled && option.value !== (stageField.value as string)}
+                    title={option.disabledReason}
+                  >
+                    {formatStageLabel(option)}
+                  </option>
+                ))}
+              </EditableField.Select>
+              {isAutoManagedStageValue(stageField.value) && (
+                <p className="text-xs text-gray-500">
+                  Stage updates automatically while products are billing.
+                </p>
+              )}
+            </div>,
             editor.errors.stage
           )}
 

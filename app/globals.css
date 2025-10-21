@@ -136,15 +136,11 @@ html, body {
   align-items: center;
   min-height: 48px;
   width: 100%;
-  border-right: 1px solid #9ca3af;
+  /* Remove default vertical dividers from body cells; header uses explicit borders */
   overflow: visible; /* Changed from hidden to allow resizer to be visible */
   text-overflow: ellipsis;
   white-space: normal; /* Allow text wrapping */
   word-wrap: break-word;
-}
-
-.table-cell:last-child {
-  border-right: none;
 }
 
 /* Resizable columns */

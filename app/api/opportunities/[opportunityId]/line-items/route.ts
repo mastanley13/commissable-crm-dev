@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
-import { Prisma } from "@prisma/client"
+import { Prisma, OpportunityProductStatus } from "@prisma/client"
 import { prisma } from "@/lib/db"
 import { withPermissions } from "@/lib/api-auth"
 import { hasAnyPermission } from "@/lib/auth"
 import { mapOpportunityProductToDetail } from "../../helpers"
 import { revalidateOpportunityPaths } from "../../revalidate"
+import { recalculateOpportunityStage } from "@/lib/opportunities/stage"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -24,6 +25,10 @@ const OPPORTUNITY_LINE_ITEM_EDIT_PERMISSIONS = Array.from(
     ...OPPORTUNITY_LINE_ITEM_EDIT_ASSIGNED_PERMISSIONS
   ])
 )
+
+function isValidProductStatus(value: unknown): value is OpportunityProductStatus {
+  return typeof value === "string" && (Object.values(OpportunityProductStatus) as string[]).includes(value)
+}
 
 function parseNumberInput(value: unknown): number | null {
   if (value === null || value === undefined || value === "") {
@@ -137,6 +142,14 @@ export async function POST(
         return NextResponse.json({ error: "Product not found" }, { status: 404 })
       }
 
+      let statusValue: OpportunityProductStatus | undefined
+      if ("status" in payload) {
+        if (!isValidProductStatus(payload.status)) {
+          return NextResponse.json({ error: "Invalid product status" }, { status: 400 })
+        }
+        statusValue = payload.status
+      }
+
       const lineItem = await prisma.opportunityProduct.create({
         data: {
           tenantId,
@@ -148,7 +161,8 @@ export async function POST(
           expectedRevenue: decimalFromNumber(expectedRevenueNumber),
           expectedCommission: decimalFromNumber(expectedCommissionNumber),
           revenueStartDate: parseDateInput(payload.revenueStartDate),
-          revenueEndDate: parseDateInput(payload.revenueEndDate)
+          revenueEndDate: parseDateInput(payload.revenueEndDate),
+          ...(statusValue ? { status: statusValue } : {})
         },
         include: {
           product: {
@@ -167,6 +181,11 @@ export async function POST(
       })
 
       await revalidateOpportunityPaths(existingOpportunity.accountId ?? null)
+      try {
+        await recalculateOpportunityStage(existingOpportunity.id)
+      } catch (error) {
+        console.error("Failed to recalculate opportunity stage after line item create", error)
+      }
 
       return NextResponse.json({ data: mapOpportunityProductToDetail(lineItem) }, { status: 201 })
     } catch (error) {

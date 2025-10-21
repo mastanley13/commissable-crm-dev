@@ -110,7 +110,15 @@ const userColumns: Column[] = [
     maxWidth: 200,
     sortable: true,
     type: 'text',
-    render: (value) => value ? new Date(value).toLocaleDateString() : 'Never'
+    render: (value) => {
+      if (!value) return 'Never'
+      const d = new Date(value)
+      if (Number.isNaN(d.getTime())) return 'Never'
+      const y = d.getFullYear()
+      const m = String(d.getMonth() + 1).padStart(2, '0')
+      const day = String(d.getDate()).padStart(2, '0')
+      return `${y}/${m}/${day}`
+    }
   },
   {
     id: 'createdAt',
@@ -120,7 +128,14 @@ const userColumns: Column[] = [
     maxWidth: 200,
     sortable: true,
     type: 'text',
-    render: (value) => new Date(value).toLocaleDateString()
+    render: (value) => {
+      const d = new Date(value)
+      if (Number.isNaN(d.getTime())) return ''
+      const y = d.getFullYear()
+      const m = String(d.getMonth() + 1).padStart(2, '0')
+      const day = String(d.getDate()).padStart(2, '0')
+      return `${y}/${m}/${day}`
+    }
   }
 ]
 

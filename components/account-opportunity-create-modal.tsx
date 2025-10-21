@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { Loader2, X } from "lucide-react"
 import { LeadSource, OpportunityStage } from "@prisma/client"
+import { getOpportunityStageOptions, type OpportunityStageOption } from "@/lib/opportunity-stage"
 import { useToasts } from "@/components/toast"
 
 interface SelectOption {
@@ -27,10 +28,10 @@ interface OpportunityFormState {
   subAgent: string
 }
 
-const stageOptions: SelectOption[] = Object.values(OpportunityStage).map(stage => ({
-  value: stage,
-  label: stage.replace(/([A-Z])/g, " $1").trim()
-}))
+const stageOptions: OpportunityStageOption[] = getOpportunityStageOptions()
+
+const formatStageLabel = (option: OpportunityStageOption) =>
+  option.autoManaged ? `${option.label} (auto-managed)` : option.label
 
 const leadSourceOptions: SelectOption[] = Object.values(LeadSource).map(source => ({
   value: source,
@@ -195,7 +196,14 @@ export function OpportunityCreateModal({ isOpen, accountId, accountName, onClose
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
               >
                 {stageOptions.map(option => (
-                  <option key={option.value} value={option.value}>{option.label}</option>
+                  <option
+                    key={option.value}
+                    value={option.value}
+                    disabled={option.disabled && option.value !== form.stage}
+                    title={option.disabledReason}
+                  >
+                    {formatStageLabel(option)}
+                  </option>
                 ))}
               </select>
             </div>

@@ -151,7 +151,7 @@ export async function POST(request: NextRequest) {
       path: '/'
     })
 
-    console.log('🔍 Login Debug:')
+    console.log('dY"? Login Debug:')
     console.log('  Session token created:', sessionToken.substring(0, 10) + '...')
     console.log('  Cookie expires:', expiresAt)
     console.log('  User permissions:', user.role?.permissions.length || 0)
@@ -160,7 +160,7 @@ export async function POST(request: NextRequest) {
       rp.permission.code.includes('data_management')
     ) || []
     console.log('  Data Management Permissions:', dataMgmtPerms.length)
-    dataMgmtPerms.forEach(rp => console.log('    ✅', rp.permission.code))
+    dataMgmtPerms.forEach(rp => console.log('    ?o.', rp.permission.code))
 
     return response
 
@@ -172,5 +172,4 @@ export async function POST(request: NextRequest) {
     )
   }
 }
-
 

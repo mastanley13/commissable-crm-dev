@@ -9,6 +9,7 @@ import { useTablePreferences } from '@/hooks/useTablePreferences'
 import { CopyProtectionWrapper } from '@/components/copy-protection'
 import { ProductBulkActionBar } from '@/components/product-bulk-action-bar'
 import { TwoStageDeleteDialog } from '@/components/two-stage-delete-dialog'
+import { ProductCreateModal } from '@/components/product-create-modal'
 import { useToasts } from '@/components/toast'
 import { Check, Edit, Trash2 } from 'lucide-react'
 import { isRowInactive } from '@/lib/row-state'
@@ -243,7 +244,10 @@ function formatIsoDate(value?: string | null) {
   if (Number.isNaN(date.getTime())) {
     return ''
   }
-  return date.toISOString().slice(0, 10)
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}/${month}/${day}`
 }
 
 export default function ProductsPage() {
@@ -268,6 +272,7 @@ export default function ProductsPage() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [tableBodyHeight, setTableBodyHeight] = useState<number>()
   const tableAreaNodeRef = useRef<HTMLDivElement | null>(null)
+  const [showCreateModal, setShowCreateModal] = useState(false)
 
   const { showError, showSuccess, showWarning, ToastContainer } = useToasts()
 
@@ -990,7 +995,7 @@ export default function ProductsPage() {
         searchPlaceholder="Search products..."
         onSearch={handleSearch}
         onFilterChange={handleStatusFilterChange}
-        onCreateClick={() => showWarning('Create coming soon', 'Product creation is not available yet.')}
+        onCreateClick={() => setShowCreateModal(true)}
         onSettingsClick={() => setShowColumnSettings(true)}
         filterColumns={PRODUCT_FILTER_OPTIONS}
         columnFilters={columnFilters}
@@ -1094,6 +1099,12 @@ export default function ProductsPage() {
           return { success: true }
         }}
         userCanPermanentDelete
+      />
+
+      <ProductCreateModal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onSuccess={reloadProducts}
       />
 
       <ToastContainer />

@@ -151,6 +151,7 @@ export async function GET(request: NextRequest, { params }: { params: { productI
         productCode: product.productCode,
         productNameHouse: product.productNameHouse,
         productNameVendor: product.productNameVendor,
+        partNumberHouse: (anyProduct.partNumberHouse ?? null) as string | null,
         description: product.description,
         productDescriptionHouse: product.description,
         productFamilyHouse: anyProduct.productFamilyHouse ?? null,

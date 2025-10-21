@@ -6,6 +6,13 @@ import { hasAnyPermission } from "@/lib/auth"
 import { mapOpportunityToDetail, mapOpportunityToRow } from "../helpers"
 import { revalidateOpportunityPaths } from "../revalidate"
 import { ensureActiveOwnerOrNull } from "@/lib/validation"
+import {
+  deriveStatusFromStage,
+  fetchOpportunityProductStatuses,
+  recalculateOpportunityStage,
+  validateStageTransition
+} from "@/lib/opportunities/stage"
+import type { OpportunityStageValue } from "@/lib/opportunity-stage"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -216,7 +223,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { opport
       const tenantId = req.user.tenantId
       const existing = await prisma.opportunity.findFirst({
         where: { id: opportunityId, tenantId },
-        select: { id: true, accountId: true, ownerId: true }
+        select: { id: true, accountId: true, ownerId: true, stage: true, status: true }
       })
 
       if (!existing) {
@@ -234,6 +241,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { opport
 
       const data: Record<string, unknown> = { updatedById: req.user.id }
       let hasChanges = false
+      let stageWasUpdated = false
 
       if (typeof payload.name === "string") {
         const name = payload.name.trim()
@@ -247,8 +255,27 @@ export async function PATCH(request: NextRequest, { params }: { params: { opport
         if (!isValidStage(payload.stage)) {
           return NextResponse.json({ error: "Invalid opportunity stage" }, { status: 400 })
         }
-        data.stage = payload.stage
-        hasChanges = true
+        let desiredStage = payload.stage as OpportunityStageValue
+        if (desiredStage === OpportunityStage.ClosedWon) {
+          desiredStage = "ClosedWon_Provisioning"
+        }
+
+        const productStatuses = await fetchOpportunityProductStatuses(existing.id)
+        validateStageTransition(desiredStage, existing.stage as OpportunityStageValue, productStatuses)
+        const derivedStatus = deriveStatusFromStage(desiredStage)
+        if (derivedStatus !== existing.status) {
+          data.status = derivedStatus
+          hasChanges = true
+        }
+
+        if (desiredStage !== existing.stage) {
+          data.stage = desiredStage
+          hasChanges = true
+          stageWasUpdated = true
+        } else if (derivedStatus !== existing.status) {
+          data.status = derivedStatus
+          hasChanges = true
+        }
       }
 
       if (typeof payload.leadSource === "string" && payload.leadSource.trim().length > 0) {
@@ -298,14 +325,9 @@ export async function PATCH(request: NextRequest, { params }: { params: { opport
       }
 
       if (typeof payload.status === "string") {
-        if (!isValidStatus(payload.status)) {
-          return NextResponse.json({ error: "Invalid opportunity status" }, { status: 400 })
-        }
-        data.status = payload.status
-        hasChanges = true
+        return NextResponse.json({ error: "Opportunity status is managed automatically by stage" }, { status: 400 })
       } else if (typeof payload.active === "boolean") {
-        data.status = payload.active ? OpportunityStatus.Open : OpportunityStatus.Lost
-        hasChanges = true
+        return NextResponse.json({ error: "Opportunity status is managed automatically by stage" }, { status: 400 })
       }
 
       // Referred By (optional string)
@@ -439,6 +461,13 @@ export async function PATCH(request: NextRequest, { params }: { params: { opport
       }
 
       await revalidateOpportunityPaths(existing.accountId)
+      if (stageWasUpdated) {
+        try {
+          await recalculateOpportunityStage(existing.id)
+        } catch (error) {
+          console.error("Failed to recalculate opportunity stage after manual update", error)
+        }
+      }
 
       return NextResponse.json({ data: mapOpportunityToRow(updated) })
     } catch (error) {

@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
-import { Prisma } from "@prisma/client"
+import { Prisma, OpportunityProductStatus } from "@prisma/client"
 import { prisma } from "@/lib/db"
 import { withPermissions } from "@/lib/api-auth"
 import { hasAnyPermission } from "@/lib/auth"
 import { mapOpportunityProductToDetail } from "../../helpers"
 import { revalidateOpportunityPaths } from "../../revalidate"
+import { recalculateOpportunityStage } from "@/lib/opportunities/stage"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -24,6 +25,10 @@ const OPPORTUNITY_LINE_ITEM_EDIT_PERMISSIONS = Array.from(
     ...OPPORTUNITY_LINE_ITEM_EDIT_ASSIGNED_PERMISSIONS
   ])
 )
+
+function isValidProductStatus(value: unknown): value is OpportunityProductStatus {
+  return typeof value === "string" && (Object.values(OpportunityProductStatus) as string[]).includes(value)
+}
 
 function parseNumberInput(value: unknown): number | null {
   if (value === null || value === undefined || value === "") {
@@ -121,6 +126,7 @@ export async function PATCH(
 
       const updateData: Prisma.OpportunityProductUpdateInput = {}
       let activeUpdate: boolean | undefined
+      let statusUpdate: OpportunityProductStatus | undefined
 
       if ("productId" in payload) {
         const productId =
@@ -201,6 +207,13 @@ export async function PATCH(
         updateData.revenueEndDate = parseDateInput(payload.revenueEndDate)
       }
 
+      if ("status" in payload) {
+        if (!isValidProductStatus(payload.status)) {
+          return NextResponse.json({ error: "Invalid product status" }, { status: 400 })
+        }
+        statusUpdate = payload.status
+      }
+
       if ("active" in payload) {
         if (typeof payload.active !== "boolean") {
           return NextResponse.json({ error: "Active must be a boolean value" }, { status: 400 })
@@ -208,13 +221,16 @@ export async function PATCH(
         activeUpdate = payload.active
       }
 
-      if (Object.keys(updateData).length === 0 && activeUpdate === undefined) {
+      if (Object.keys(updateData).length === 0 && activeUpdate === undefined && statusUpdate === undefined) {
         return NextResponse.json({ error: "No updates provided" }, { status: 400 })
       }
 
       const finalData: Prisma.OpportunityProductUpdateInput = { ...updateData }
       if (activeUpdate !== undefined) {
         ;(finalData as Prisma.OpportunityProductUpdateInput & { active?: boolean }).active = activeUpdate
+      }
+      if (statusUpdate !== undefined) {
+        ;(finalData as Prisma.OpportunityProductUpdateInput & { status?: OpportunityProductStatus }).status = statusUpdate
       }
 
       const updatedLineItem = await prisma.opportunityProduct.update({
@@ -237,6 +253,13 @@ export async function PATCH(
       })
 
       await revalidateOpportunityPaths(existingLineItem.opportunity?.accountId ?? null)
+      if (existingLineItem.opportunity) {
+        try {
+          await recalculateOpportunityStage(existingLineItem.opportunity.id)
+        } catch (error) {
+          console.error("Failed to recalculate opportunity stage after line item update", error)
+        }
+      }
 
       return NextResponse.json({ data: mapOpportunityProductToDetail(updatedLineItem) })
     } catch (error) {
@@ -293,6 +316,13 @@ export async function DELETE(
       })
 
       await revalidateOpportunityPaths(existingLineItem.opportunity?.accountId ?? null)
+      if (existingLineItem.opportunity) {
+        try {
+          await recalculateOpportunityStage(existingLineItem.opportunity.id)
+        } catch (error) {
+          console.error("Failed to recalculate opportunity stage after line item delete", error)
+        }
+      }
 
       return NextResponse.json({ success: true })
     } catch (error) {

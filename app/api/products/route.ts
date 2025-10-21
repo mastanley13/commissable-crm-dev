@@ -7,6 +7,7 @@ import { hasAnyPermission } from "@/lib/auth"
 import { dedupeColumnFilters } from "@/lib/filter-utils"
 import type { ColumnFilter } from "@/components/list-header"
 import { mapProductToRow } from "./helpers"
+import { revalidatePath } from "next/cache"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -196,6 +197,122 @@ export async function GET(request: NextRequest) {
     } catch (error) {
       console.error("Failed to load products", error)
       return NextResponse.json({ error: "Failed to load products" }, { status: 500 })
+    }
+  })
+}
+
+const PRODUCT_MUTATION_PERMISSIONS = [
+  "products.update",
+  "products.delete",
+  "products.create",
+  "products.read",
+]
+
+export async function POST(request: NextRequest) {
+  return withAuth(request, async (req) => {
+    try {
+      const roleCode = req.user.role?.code?.toLowerCase() ?? ""
+      const isAdmin = roleCode === "admin" || roleCode.includes("admin")
+      const canMutate = isAdmin || hasAnyPermission(req.user, PRODUCT_MUTATION_PERMISSIONS)
+      if (!canMutate) {
+        return NextResponse.json({ error: "Insufficient permissions" }, { status: 403 })
+      }
+
+      const payload = await request.json().catch(() => null)
+      if (!payload || typeof payload !== "object") {
+        return NextResponse.json({ error: "Invalid request payload" }, { status: 400 })
+      }
+
+      const tenantId = req.user.tenantId
+      const userId = req.user.id
+
+      const requiredString = (value: unknown) => (typeof value === "string" ? value.trim() : "")
+      const productNameHouse = requiredString(payload.productNameHouse)
+      const productCode = requiredString(payload.productCode)
+      const revenueType = requiredString(payload.revenueType)
+
+      const errors: Record<string, string> = {}
+      if (!productNameHouse) errors.productNameHouse = "Product name is required"
+      if (!productCode) errors.productCode = "Part Number - Vendor is required"
+      if (!revenueType || !(Object.values(RevenueType) as string[]).includes(revenueType)) {
+        errors.revenueType = "Select a valid revenue type"
+      }
+      // Numeric validations
+      const priceEachRaw = payload.priceEach
+      if (priceEachRaw !== undefined && priceEachRaw !== null && String(priceEachRaw).trim() !== "") {
+        const parsed = Number(priceEachRaw)
+        if (!Number.isFinite(parsed) || parsed < 0) {
+          errors.priceEach = "Price must be a non-negative number"
+        }
+      }
+      const commissionRaw = payload.commissionPercent
+      if (commissionRaw !== undefined && commissionRaw !== null && String(commissionRaw).trim() !== "") {
+        const parsed = Number(commissionRaw)
+        if (!Number.isFinite(parsed) || parsed < 0 || parsed > 100) {
+          errors.commissionPercent = "Commission percent must be between 0 and 100"
+        }
+      }
+
+      if (Object.keys(errors).length > 0) {
+        return NextResponse.json({ error: "Validation failed", errors }, { status: 400 })
+      }
+
+      // Ensure uniqueness for productCode per tenant
+      const existing = await prisma.product.findFirst({
+        where: { tenantId, productCode },
+        select: { id: true },
+      })
+      if (existing) {
+        return NextResponse.json({ error: "Duplicate vendor part number for this tenant" }, { status: 409 })
+      }
+
+      // Optional ids
+      const stringOrNull = (v: unknown) => {
+        if (v === undefined || v === null) return null
+        const s = String(v).trim()
+        return s.length > 0 ? s : null
+      }
+
+      const product = await prisma.product.create({
+        data: {
+          tenantId,
+          productNameHouse,
+          productNameVendor: stringOrNull(payload.productNameVendor),
+          productFamilyVendor: stringOrNull(payload.productFamilyVendor),
+          productSubtypeVendor: stringOrNull(payload.productSubtypeVendor),
+          productNameDistributor: stringOrNull(payload.productNameDistributor),
+          productCode,
+          partNumberVendor: stringOrNull(payload.partNumberVendor) ?? productCode,
+          partNumberDistributor: stringOrNull(payload.partNumberDistributor),
+          partNumberHouse: stringOrNull(payload.partNumberHouse),
+          distributorProductFamily: stringOrNull(payload.distributorProductFamily),
+          productDescriptionVendor: stringOrNull(payload.productDescriptionVendor),
+          productDescriptionDistributor: stringOrNull(payload.productDescriptionDistributor),
+          description: stringOrNull(payload.description),
+          revenueType: revenueType as RevenueType,
+          commissionPercent:
+            commissionRaw === undefined || commissionRaw === null || String(commissionRaw).trim() === ""
+              ? null
+              : Number(commissionRaw),
+          priceEach:
+            priceEachRaw === undefined || priceEachRaw === null || String(priceEachRaw).trim() === ""
+              ? null
+              : Number(priceEachRaw),
+          isActive: typeof payload.isActive === "boolean" ? payload.isActive : true,
+          vendorAccountId: stringOrNull(payload.vendorAccountId),
+          distributorAccountId: stringOrNull(payload.distributorAccountId),
+          createdById: userId,
+          updatedById: userId,
+        },
+      })
+
+      // Revalidate list
+      revalidatePath("/products")
+
+      return NextResponse.json({ data: mapProductToRow({ ...product, distributor: null, vendor: null }) }, { status: 201 })
+    } catch (error) {
+      console.error("Failed to create product", error)
+      return NextResponse.json({ error: "Failed to create product" }, { status: 500 })
     }
   })
 }

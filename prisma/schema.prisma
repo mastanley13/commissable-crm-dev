@@ -457,6 +457,7 @@ model OpportunityProduct {
   tenantId           String            @db.Uuid
   opportunityId      String            @db.Uuid
   productId          String            @db.Uuid
+  status             OpportunityProductStatus @default(Provisioning)
   active             Boolean           @default(true)
   quantity           Decimal?          @db.Decimal(16, 2)
   unitPrice          Decimal?          @db.Decimal(16, 2)
@@ -487,6 +488,7 @@ model Product {
   productNameDistributor String?
   partNumberVendor     String?
   partNumberDistributor String?
+  partNumberHouse      String?
   distributorProductFamily String?
   description          String?
   productDescriptionVendor String?
@@ -943,8 +945,19 @@ enum OpportunityStage {
   Discovery
   Proposal
   Negotiation
+  OnHold
   ClosedWon
   ClosedLost
+  ClosedWon_Provisioning
+  ClosedWon_Billing
+  ClosedWon_BillingEnded
+}
+
+enum OpportunityProductStatus {
+  Provisioning
+  ActiveBilling
+  BillingEnded
+  Cancelled
 }
 
 enum OpportunityStatus {

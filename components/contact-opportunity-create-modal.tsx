@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { Loader2, X } from "lucide-react"
 import { useToasts } from "@/components/toast"
+import { getOpportunityStageOptions, type OpportunityStageOption } from "@/lib/opportunity-stage"
 
 interface SelectOption {
   value: string
@@ -40,13 +41,10 @@ const createInitialState = (accountName?: string): ContactOpportunityFormState =
   notes: ""
 })
 
-const STAGE_OPTIONS: SelectOption[] = [
-  { value: "Qualification", label: "Qualification" },
-  { value: "Proposal", label: "Proposal" },
-  { value: "Negotiation", label: "Negotiation" },
-  { value: "ClosedWon", label: "Closed Won" },
-  { value: "ClosedLost", label: "Closed Lost" }
-]
+const STAGE_OPTIONS: OpportunityStageOption[] = getOpportunityStageOptions()
+
+const formatStageLabel = (option: OpportunityStageOption) =>
+  option.autoManaged ? `${option.label} (auto-managed)` : option.label
 
 const LEAD_SOURCE_OPTIONS: SelectOption[] = [
   { value: "Referral", label: "Referral" },
@@ -209,7 +207,14 @@ export function ContactOpportunityCreateModal({ isOpen, contactName, accountId, 
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
               >
                 {STAGE_OPTIONS.map(option => (
-                  <option key={option.value} value={option.value}>{option.label}</option>
+                  <option
+                    key={option.value}
+                    value={option.value}
+                    disabled={option.disabled && option.value !== form.stage}
+                    title={option.disabledReason}
+                  >
+                    {formatStageLabel(option)}
+                  </option>
                 ))}
               </select>
             </div>

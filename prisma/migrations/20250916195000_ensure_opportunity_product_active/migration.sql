@@ -1,0 +1,2 @@
+-- Intentionally empty: migration placeholder restored to satisfy Prisma engine
+-- Original change superseded by 20250923100000_add_active_to_opportunity_product

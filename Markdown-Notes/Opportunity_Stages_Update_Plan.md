@@ -153,6 +153,68 @@ Artifacts
 - Release UI toggled to new labels first; enable automation after validation.
 - Rollback: revert to prior labels and disable automation; data is preserved since we only add enum values.
 
+## Phased Implementation Plan
+
+Phase 0 — Alignment & Sign‑off
+- Confirm stage names/labels and open questions in this doc.
+- Capture acceptance criteria and success metrics.
+- Gatekeeper: business sign‑off to proceed to Phase 1.
+
+Phase 1 — Scaffolding (No behavior change)
+- Add central label/order helpers: `lib/opportunity-stage.ts`.
+- Wire dropdowns to helpers but keep prior options by default behind a flag.
+- Introduce feature flag: `NEXT_PUBLIC_OPP_STAGE_V2` (UI) and `OPP_STAGE_V2` (API).
+- Gatekeeper: builds pass, no visible UI/behavior changes when flags are off.
+
+Phase 2 — Schema Migration
+- Prisma: extend `OpportunityStage` enum; add `OpportunityProductStatus` + column.
+- Generate and apply migration to dev/staging; do not backfill yet.
+- Gatekeeper: migration dry‑runs clean; staging smoke tests pass.
+
+Phase 3 — Backend Logic (Flagged Off)
+- Add `lib/opportunities/stage.ts` with stage/status derivation and recalculation.
+- Call recalculation on product create/update/delete endpoints.
+- Enforce guardrails on opportunity PATCH (prevent illegal manual transitions).
+- Keep code paths under `OPP_STAGE_V2` flag.
+- Gatekeeper: unit/integration tests green; no prod effect while flag is off.
+  - ✅ Implemented helper + API wiring (2025-10-20)
+
+Phase 4 — UI Adoption (Flagged Off)
+- Replace hardcoded/`Object.values` stage lists with centralized helper.
+- Disable auto‑managed stages in UI with tooltips.
+- Update list filters to show friendly labels.
+- Gatekeeper: UX review; no prod effect while flag is off.
+  - ✅ Stage selectors updated with helper-driven labels, disabled auto-managed options, and tooltips (2025-10-20)
+  - ✅ Opportunity list/detail views render new labels with auto-managed indicators (2025-10-20)
+
+Phase 5 — Data Backfill
+- Convert historical `ClosedWon` → `ClosedWon_Provisioning`.
+- Backfill `OpportunityProduct.status` from `active` boolean (heuristic).
+- One‑time batch recalculation of stages for Won opportunities.
+- Gatekeeper: reconciliation spot‑checks; DBA sign‑off.
+  - ✅ Added script `scripts/backfill-opportunity-stages.ts` to update product statuses and recalc opportunity stages (`npx tsx scripts/backfill-opportunity-stages.ts`).
+
+Phase 6 — Staged Enablement
+- Enable flags in staging; validate live interactions (create/edit opp, add/edit products, list filters, detail header).
+- Monitor logs and metrics; fix issues.
+- Gatekeeper: QA sign‑off to enable in production for a pilot tenant.
+
+Phase 7 — Production Rollout
+- Enable UI flag first; verify labels/filters.
+- Enable API flag for pilot tenant(s); expand gradually.
+- Add alert on recalculation failures; protect deletion when Billing stage.
+- Gatekeeper: metrics stable; expand to all tenants.
+
+Phase 8 — Cleanup
+- Remove legacy `ClosedWon` label from UI.
+- Keep enum value if needed for history, but stop rendering it.
+- Remove feature flags after bake period; finalize documentation.
+  - ✅ Legacy ClosedWon option removed, automation always enabled; documentation/env cleaned (2025-10-20)
+
+Rollback Strategy
+- Redeploy prior build if automation issues arise and rerun the backfill script to normalize data.
+- Migrations are additive; data remains intact (closed-won labels already migrated).
+
 ## Impacted Files (start lines)
 
 - `prisma/schema.prisma:941` — add stage enum values
@@ -174,4 +236,8 @@ Artifacts
 - Prisma + Postgres enum alterations: adding enum values is straightforward; if enum order is important, use UI-controlled order instead of relying on DB enum order.
 - Keep changes backward-compatible: existing API consumers using `ClosedWon` should be migrated to `ClosedWon_Provisioning` label in UI.
 - Centralize label mapping to avoid multiple hardcoded lists.
+
+
+
+
 

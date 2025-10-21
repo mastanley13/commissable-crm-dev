@@ -894,7 +894,7 @@ export function DynamicTable({
                   <div
                     key={`${rowIndex}-${column.id}`}
                     className={cn(
-                      "table-cell text-sm text-gray-900 transition-colors border-r border-gray-300 last:border-r-0",
+                      "table-cell text-sm text-gray-900 transition-colors",
                       onRowClick && "cursor-pointer",
                       // Alternating row colors using UNOHARAIRO (#F7FCFE)
                       rowIndex % 2 === 1 && !rowSelected && "bg-[#F7FCFE]",

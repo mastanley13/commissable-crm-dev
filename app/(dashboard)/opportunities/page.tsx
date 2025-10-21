@@ -12,12 +12,19 @@ import { OpportunityBulkActionBar } from '@/components/opportunity-bulk-action-b
 import { OpportunityBulkOwnerModal } from '@/components/opportunity-bulk-owner-modal'
 import { OpportunityBulkStatusModal } from '@/components/opportunity-bulk-status-modal'
 import { OpportunityEditModal } from '@/components/opportunity-edit-modal'
+import { OpportunityCreateModal } from '@/components/opportunity-create-modal'
 import { TwoStageDeleteDialog } from '@/components/two-stage-delete-dialog'
 import { useToasts } from '@/components/toast'
 import type { DeletionConstraint } from '@/lib/deletion'
 import { OpportunityStatus } from '@prisma/client'
 import { Check, Trash2 } from 'lucide-react'
 import { isRowInactive } from '@/lib/row-state'
+import {
+  getOpportunityStageLabel,
+  isOpportunityStageAutoManaged,
+  isOpportunityStageValue,
+  type OpportunityStageValue,
+} from '@/lib/opportunity-stage'
 
 const currencyFormatter = new Intl.NumberFormat('en-US', {
   style: 'currency',
@@ -38,7 +45,34 @@ function formatDate(value?: string | null) {
     return ''
   }
 
-  return date.toISOString().slice(0, 10)
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}/${month}/${day}`
+}
+
+function fallbackStageLabel(value: string): string {
+  return value
+    .replace(/_/g, ' ')
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/Won/g, 'Won')
+    .trim()
+}
+
+function resolveStageDisplay(stage?: string | null) {
+  if (!stage) {
+    return { label: '', autoManaged: false }
+  }
+
+  if (isOpportunityStageValue(stage)) {
+    const value = stage as OpportunityStageValue
+    return {
+      label: getOpportunityStageLabel(value),
+      autoManaged: isOpportunityStageAutoManaged(value),
+    }
+  }
+
+  return { label: fallbackStageLabel(stage), autoManaged: false }
 }
 
 const OPPORTUNITY_FILTER_OPTIONS = [
@@ -260,6 +294,7 @@ export default function OpportunitiesPage() {
     direction: 'desc',
   })
   const [showColumnSettings, setShowColumnSettings] = useState(false)
+  const [showCreateModal, setShowCreateModal] = useState(false)
   const [bulkActionLoading, setBulkActionLoading] = useState(false)
   const [showBulkOwnerModal, setShowBulkOwnerModal] = useState(false)
   const [showBulkStatusModal, setShowBulkStatusModal] = useState(false)
@@ -274,12 +309,7 @@ export default function OpportunitiesPage() {
   const tableAreaNodeRef = useRef<HTMLDivElement | null>(null)
   const router = useRouter()
 
-  const {
-    showError,
-    showSuccess,
-    showInfo,
-    ToastContainer,
-  } = useToasts()
+  const { showError, showSuccess, ToastContainer } = useToasts()
 
   const {
     columns: preferenceColumns,
@@ -588,8 +618,16 @@ export default function OpportunitiesPage() {
   }, [])
 
   const handleCreateOpportunity = useCallback(() => {
-    showInfo('Create opportunity', 'Opportunity creation will be available soon.')
-  }, [showInfo])
+    setShowCreateModal(true)
+  }, [])
+
+  const handleCloseCreateModal = useCallback(() => {
+    setShowCreateModal(false)
+  }, [])
+
+  const handleCreateOpportunitySuccess = useCallback(() => {
+    reloadOpportunities()
+  }, [reloadOpportunities])
 
   const handleBulkExportCsv = useCallback(() => {
     const rows =
@@ -627,7 +665,7 @@ export default function OpportunitiesPage() {
         formatDate(row.closeDate ?? row.estimatedCloseDate ?? null),
         row.accountLegalName ?? '',
         row.opportunityName,
-        row.stage ?? '',
+        resolveStageDisplay(row.stage).label,
         row.orderIdHouse ?? '',
         row.accountIdVendor ?? '',
         row.customerIdVendor ?? '',
@@ -1241,6 +1279,28 @@ export default function OpportunitiesPage() {
         }
       }
 
+      if (column.id === 'stage') {
+        return {
+          ...column,
+          render: (_: unknown, row: OpportunityRow) => {
+            const { label, autoManaged } = resolveStageDisplay(row.stage)
+            if (!label) {
+              return ''
+            }
+            return (
+              <span className="inline-flex items-center gap-1">
+                <span>{label}</span>
+                {autoManaged && (
+                  <span className="rounded bg-slate-200 px-1.5 text-[10px] font-semibold uppercase text-slate-600">
+                    Auto
+                  </span>
+                )}
+              </span>
+            )
+          },
+        }
+      }
+
       if (column.id === 'opportunityId') {
         return {
           ...column,
@@ -1313,8 +1373,14 @@ export default function OpportunitiesPage() {
             alwaysShowPagination
             maxBodyHeight={tableBodyHeight}
           />
-        </div>
       </div>
+      </div>
+
+      <OpportunityCreateModal
+        isOpen={showCreateModal}
+        onClose={handleCloseCreateModal}
+        onCreated={handleCreateOpportunitySuccess}
+      />
 
       <OpportunityBulkOwnerModal
         isOpen={showBulkOwnerModal}
