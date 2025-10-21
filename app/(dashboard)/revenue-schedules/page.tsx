@@ -6,14 +6,16 @@ import { ListHeader } from '@/components/list-header'
 import { DynamicTable, Column, PaginationInfo } from '@/components/dynamic-table'
 import { ColumnChooserModal } from '@/components/column-chooser-modal'
 import { useTablePreferences } from '@/hooks/useTablePreferences'
-import { revenueSchedulesData } from '@/lib/mock-data'
-import { Edit, Check, Trash2 } from 'lucide-react'
+import { Check, Trash2 } from 'lucide-react'
 import { isRowInactive } from '@/lib/row-state'
 import { CopyProtectionWrapper } from '@/components/copy-protection'
 import { useToasts } from '@/components/toast'
 import { RevenueSchedulesBulkActionBar } from '@/components/revenue-schedules-bulk-action-bar'
 
-// Column configuration aligned to 04.00.000 – 04.00.023 (where data available)
+// Local UUID v1-v5 matcher used to detect schedule IDs vs. human codes
+const UUID_REGEX = /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i
+
+// Column configuration aligned to 04.00.000-04.00.023
 const revenueScheduleColumns: Column[] = [
   {
     id: 'multi-action',
@@ -22,168 +24,244 @@ const revenueScheduleColumns: Column[] = [
     minWidth: 160,
     maxWidth: 240,
     type: 'multi-action',
-    accessor: 'checkbox'
+    accessor: 'checkbox',
   },
   {
-    id: 'distributorName',
-    label: 'Distributor Name', // 04.00.000
+    id: 'distributorName', // 04.00.000
+    label: 'Distributor Name',
+    width: 180,
+    minWidth: 140,
+    maxWidth: 280,
+    sortable: true,
+    type: 'text',
+  },
+  {
+    id: 'vendorName', // 04.00.001
+    label: 'Vendor Name',
     width: 160,
     minWidth: 130,
     maxWidth: 260,
     sortable: true,
     type: 'text',
-    hidden: true,
+    render: (value) => (
+      <span className="text-blue-600 hover:text-blue-800 cursor-pointer">
+        {value}
+      </span>
+    ),
   },
   {
-    id: 'opportunityId',
-    label: 'Opportunity ID',
-    width: 120,
-    minWidth: 100,
-    maxWidth: 150,
-    sortable: true,
-    type: 'text'
-  },
-  {
-    id: 'accountName',
+    id: 'accountName', // 04.00.002
     label: 'Account Name',
-    width: 150,
-    minWidth: 120,
-    maxWidth: 250,
+    width: 170,
+    minWidth: 130,
+    maxWidth: 280,
     sortable: true,
     type: 'text',
     render: (value) => (
       <span className="text-blue-600 hover:text-blue-800 cursor-pointer">
         {value}
       </span>
-    )
-  },
-  // Not part of 04.00 list — keep hidden/optional
-  {
-    id: 'accountLegalName',
-    label: 'Account Legal Name',
-    width: 180,
-    minWidth: 140,
-    maxWidth: 300,
-    sortable: true,
-    type: 'text',
-    hidden: true,
+    ),
   },
   {
-    id: 'productNameVendor',
+    id: 'productNameVendor', // 04.00.003
     label: 'Product Name - Vendor',
-    width: 180,
-    minWidth: 140,
-    maxWidth: 300,
+    width: 200,
+    minWidth: 150,
+    maxWidth: 320,
     sortable: true,
     type: 'text',
     render: (value) => (
       <span className="text-blue-600 hover:text-blue-800 cursor-pointer">
         {value}
       </span>
-    )
+    ),
   },
   {
-    id: 'vendorName',
-    label: 'Vendor Name',
-    width: 150,
-    minWidth: 120,
-    maxWidth: 250,
-    sortable: true,
-    type: 'text',
-    render: (value) => (
-      <span className="text-blue-600 hover:text-blue-800 cursor-pointer">
-        {value}
-      </span>
-    )
-  },
-  {
-    id: 'revenueScheduleDate',
+    id: 'revenueScheduleDate', // 04.00.004
     label: 'Revenue Schedule Date',
     width: 160,
     minWidth: 130,
-    maxWidth: 200,
+    maxWidth: 220,
     sortable: true,
-    type: 'text'
+    type: 'text',
   },
   {
     id: 'revenueScheduleName', // 04.00.005
     label: 'Revenue Schedule Name',
-    width: 140,
-    minWidth: 120,
+    width: 170,
+    minWidth: 130,
+    maxWidth: 240,
+    sortable: true,
+    type: 'text',
+  },
+  {
+    id: 'quantity', // 04.00.006
+    label: 'Quantity',
+    width: 120,
+    minWidth: 100,
     maxWidth: 180,
     sortable: true,
     type: 'text',
-    accessor: 'revenueSchedule',
   },
   {
-    id: 'customerIdDistributor', // 04.00.020
-    label: 'Customer ID - Distributor',
-    width: 120,
-    minWidth: 100,
-    maxWidth: 150,
-    sortable: true,
-    type: 'text',
-    accessor: 'distributorId',
-  },
-  // Non-spec; hide by default
-  { id: 'orderIdHouse', label: 'Order ID - House', width: 120, minWidth: 100, maxWidth: 180, sortable: true, type: 'text', hidden: true },
-  // 04.00.006 – Quantity (missing in mock) — keep hidden until backend
-  { id: 'quantity', label: 'Quantity', width: 100, minWidth: 90, maxWidth: 160, sortable: true, type: 'text', hidden: true },
-  // 04.00.007 – Price Each (missing in mock) — hidden
-  { id: 'priceEach', label: 'Price Each', width: 120, minWidth: 100, maxWidth: 160, sortable: true, type: 'text', hidden: true },
-  {
-    id: 'expectedUsageGross', // 04.00.008
-    label: 'Expected Usage Gross',
-    width: 120,
-    minWidth: 100,
-    maxWidth: 150,
-    sortable: true,
-    type: 'text',
-    accessor: 'expectedUsage',
-  },
-  {
-    id: 'expectedUsageAdjustment', // 04.00.009
-    label: 'Expected Usage Adjustment',
-    width: 140,
-    minWidth: 120,
-    maxWidth: 180,
-    sortable: true,
-    type: 'text',
-    accessor: 'usageAdjustment'
-  },
-  {
-    id: 'expectedUsageNet', // 04.00.010
-    label: 'Expected Usage Net',
+    id: 'priceEach', // 04.00.007
+    label: 'Price Each',
     width: 140,
     minWidth: 120,
     maxWidth: 200,
     sortable: true,
     type: 'text',
   },
-  // 04.00.011 Actual Usage (missing) — hidden
-  { id: 'actualUsage', label: 'Actual Usage', width: 140, minWidth: 120, maxWidth: 200, sortable: true, type: 'text', hidden: true },
-  // 04.00.012 Usage Balance (requires actual usage) — hidden
-  { id: 'usageBalance', label: 'Usage Balance', width: 140, minWidth: 120, maxWidth: 200, sortable: true, type: 'text', hidden: true },
-  // 04.00.013 Expected Commission Net (depends on rate) — hidden
-  { id: 'expectedCommissionNet', label: 'Expected Commission Net', width: 160, minWidth: 130, maxWidth: 240, sortable: true, type: 'text', hidden: true },
-  // 04.00.014 Actual Commission — hidden
-  { id: 'actualCommission', label: 'Actual Commission', width: 150, minWidth: 120, maxWidth: 220, sortable: true, type: 'text', hidden: true },
-  // 04.00.015 Commission Difference — hidden
-  { id: 'commissionDifference', label: 'Commission Difference', width: 170, minWidth: 130, maxWidth: 260, sortable: true, type: 'text', hidden: true },
-  // 04.00.016 Customer ID - Vendor — hidden until backend
-  { id: 'customerIdVendor', label: 'Customer ID - Vendor', width: 160, minWidth: 130, maxWidth: 240, sortable: true, type: 'text', hidden: true },
-  // 04.00.017 Order ID - Vendor — hidden
-  { id: 'orderIdVendor', label: 'Order ID - Vendor', width: 150, minWidth: 120, maxWidth: 220, sortable: true, type: 'text', hidden: true },
-  // 04.00.018 Location ID — hidden
-  { id: 'locationId', label: 'Location ID', width: 130, minWidth: 110, maxWidth: 200, sortable: true, type: 'text', hidden: true },
-  // 04.00.021 Order ID - Distributor — hidden
-  { id: 'orderIdDistributor', label: 'Order ID - Distributor', width: 160, minWidth: 120, maxWidth: 220, sortable: true, type: 'text', hidden: true },
-  // 04.00.022 Schedule Status — hidden (not computed yet)
-  { id: 'scheduleStatus', label: 'Schedule Status', width: 150, minWidth: 120, maxWidth: 220, sortable: true, type: 'text', hidden: true },
-  // 04.00.023 In Dispute — hidden
-  { id: 'inDispute', label: 'In Dispute', width: 120, minWidth: 100, maxWidth: 160, sortable: true, type: 'text', hidden: true },
+  {
+    id: 'expectedUsageGross', // 04.00.008
+    label: 'Expected Usage Gross',
+    width: 170,
+    minWidth: 130,
+    maxWidth: 240,
+    sortable: true,
+    type: 'text',
+  },
+  {
+    id: 'expectedUsageAdjustment', // 04.00.009
+    label: 'Expected Usage Adjustment',
+    width: 190,
+    minWidth: 140,
+    maxWidth: 260,
+    sortable: true,
+    type: 'text',
+  },
+  {
+    id: 'expectedUsageNet', // 04.00.010
+    label: 'Expected Usage Net',
+    width: 170,
+    minWidth: 130,
+    maxWidth: 240,
+    sortable: true,
+    type: 'text',
+  },
+  {
+    id: 'actualUsage', // 04.00.011
+    label: 'Actual Usage',
+    width: 150,
+    minWidth: 130,
+    maxWidth: 220,
+    sortable: true,
+    type: 'text',
+  },
+  {
+    id: 'usageBalance', // 04.00.012
+    label: 'Usage Balance',
+    width: 160,
+    minWidth: 130,
+    maxWidth: 220,
+    sortable: true,
+    type: 'text',
+  },
+  {
+    id: 'expectedCommissionNet', // 04.00.013
+    label: 'Expected Commission Net',
+    width: 200,
+    minWidth: 150,
+    maxWidth: 280,
+    sortable: true,
+    type: 'text',
+  },
+  {
+    id: 'actualCommission', // 04.00.014
+    label: 'Actual Commission',
+    width: 170,
+    minWidth: 140,
+    maxWidth: 240,
+    sortable: true,
+    type: 'text',
+  },
+  {
+    id: 'commissionDifference', // 04.00.015
+    label: 'Commission Difference',
+    width: 200,
+    minWidth: 150,
+    maxWidth: 280,
+    sortable: true,
+    type: 'text',
+  },
+  {
+    id: 'customerIdVendor', // 04.00.016
+    label: 'Customer ID - Vendor',
+    width: 180,
+    minWidth: 140,
+    maxWidth: 260,
+    sortable: true,
+    type: 'text',
+  },
+  {
+    id: 'orderIdVendor', // 04.00.017
+    label: 'Order ID - Vendor',
+    width: 170,
+    minWidth: 130,
+    maxWidth: 240,
+    sortable: true,
+    type: 'text',
+  },
+  {
+    id: 'locationId', // 04.00.018
+    label: 'Location ID',
+    width: 150,
+    minWidth: 120,
+    maxWidth: 220,
+    sortable: true,
+    type: 'text',
+  },
+  {
+    id: 'opportunityId', // 04.00.019
+    label: 'Opportunity ID',
+    width: 140,
+    minWidth: 120,
+    maxWidth: 200,
+    sortable: true,
+    type: 'text',
+  },
+  {
+    id: 'customerIdDistributor', // 04.00.020
+    label: 'Customer ID - Distributor',
+    width: 190,
+    minWidth: 140,
+    maxWidth: 260,
+    sortable: true,
+    type: 'text',
+  },
+  {
+    id: 'orderIdDistributor', // 04.00.021
+    label: 'Order ID - Distributor',
+    width: 190,
+    minWidth: 140,
+    maxWidth: 260,
+    sortable: true,
+    type: 'text',
+  },
+  {
+    id: 'scheduleStatus', // 04.00.022
+    label: 'Schedule Status',
+    width: 160,
+    minWidth: 130,
+    maxWidth: 220,
+    sortable: true,
+    type: 'text',
+  },
+  {
+    id: 'inDispute', // 04.00.023
+    label: 'In Dispute',
+    width: 140,
+    minWidth: 110,
+    maxWidth: 200,
+    sortable: true,
+    type: 'text',
+    render: (value) => {
+      const truthy = value === true || value === 'true' || value === 'Yes'
+      return truthy ? 'Yes' : 'No'
+    },
+  },
 ]
-
 type FilterableColumnKey =
   | 'accountName'
   | 'vendorName'
@@ -197,8 +275,10 @@ type FilterableColumnKey =
   | 'orderIdVendor'
   | 'orderIdDistributor'
   | 'locationId'
+  | 'scheduleStatus'
 
 const RS_DEFAULT_VISIBLE_COLUMN_IDS = new Set<string>([
+  'distributorName',
   'accountName',
   'vendorName',
   'productNameVendor',
@@ -208,6 +288,7 @@ const RS_DEFAULT_VISIBLE_COLUMN_IDS = new Set<string>([
   'expectedUsageAdjustment',
   'expectedUsageNet',
   'opportunityId',
+  'scheduleStatus',
 ])
 
 const filterOptions: { id: FilterableColumnKey; label: string }[] = [
@@ -223,15 +304,16 @@ const filterOptions: { id: FilterableColumnKey; label: string }[] = [
   { id: 'orderIdVendor', label: 'Order ID - Vendor' },
   { id: 'orderIdDistributor', label: 'Order ID - Distributor' },
   { id: 'locationId', label: 'Location ID' },
+  { id: 'scheduleStatus', label: 'Schedule Status' },
 ]
 
 export default function RevenueSchedulesPage() {
   const { showSuccess, showError, ToastContainer } = useToasts()
   const router = useRouter()
-  const [revenueSchedules, setRevenueSchedules] = useState(revenueSchedulesData)
-  const [filteredRevenueSchedules, setFilteredRevenueSchedules] = useState(revenueSchedulesData)
-  const [loading, setLoading] = useState(false)
-  const [selectedSchedules, setSelectedSchedules] = useState<number[]>([])
+  const [revenueSchedules, setRevenueSchedules] = useState<any[]>([])
+  const [filteredRevenueSchedules, setFilteredRevenueSchedules] = useState<any[]>([])
+  const [loading, setLoading] = useState<boolean>(true)
+  const [selectedSchedules, setSelectedSchedules] = useState<string[]>([])
   const [showColumnSettings, setShowColumnSettings] = useState(false)
   const [currentPage, setCurrentPage] = useState<number>(1)
   const [pageSize, setPageSize] = useState<number>(25)
@@ -242,10 +324,43 @@ export default function RevenueSchedulesPage() {
   const [activeFilter, setActiveFilter] = useState<'all' | 'active'>('active')
   const [columnFilters, setColumnFilters] = useState<{ columnId: FilterableColumnKey; value: string }[]>([])
 
-  const handleToggleScheduleStatus = useCallback((scheduleId: number, newStatus: boolean) => {
-    setRevenueSchedules(prev => prev.map(s => s.id === scheduleId ? { ...s, active: newStatus } : s))
-    setFilteredRevenueSchedules(prev => prev.map(s => s.id === scheduleId ? { ...s, active: newStatus } : s))
-  }, [])
+  const fetchRevenueSchedules = useCallback(async () => {
+    setLoading(true)
+    try {
+      const params = new URLSearchParams({
+        page: '1',
+        pageSize: '500',
+        sort: 'revenueScheduleDate',
+        direction: 'desc'
+      })
+
+      const response = await fetch(`/api/revenue-schedules?${params.toString()}`, { cache: 'no-store' })
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null)
+        const message = payload?.error ?? 'Unable to load revenue schedules'
+        showError('Failed to load revenue schedules', message)
+        setRevenueSchedules([])
+        setFilteredRevenueSchedules([])
+        return
+      }
+
+      const payload = await response.json().catch(() => ({ data: [] }))
+      const data = Array.isArray(payload?.data) ? payload.data : []
+      setRevenueSchedules(data)
+      setFilteredRevenueSchedules(data)
+    } catch (err) {
+      console.error('Failed to fetch revenue schedules', err)
+      showError('Failed to load revenue schedules', 'Please try again later.')
+      setRevenueSchedules([])
+      setFilteredRevenueSchedules([])
+    } finally {
+      setLoading(false)
+    }
+  }, [showError])
+
+  useEffect(() => {
+    void fetchRevenueSchedules()
+  }, [fetchRevenueSchedules])
 
   const {
     columns: preferenceColumns,
@@ -286,24 +401,30 @@ export default function RevenueSchedulesPage() {
       return
     }
 
+    const q = query.toLowerCase()
     const filtered = revenueSchedules.filter(schedule =>
-      Object.values(schedule).some(value =>
-        value.toString().toLowerCase().includes(query.toLowerCase())
-      )
+      Object.values(schedule).some((value) => {
+        let s = ''
+        if (typeof value === 'string') s = value
+        else if (typeof value === 'number' || typeof value === 'boolean') s = String(value)
+        return s.toLowerCase().includes(q)
+      })
     )
     setFilteredRevenueSchedules(filtered)
   }
 
   const handleSort = (columnId: string, direction: 'asc' | 'desc') => {
     const sorted = [...filteredRevenueSchedules].sort((a, b) => {
-      const aValue = a[columnId as keyof typeof a]
-      const bValue = b[columnId as keyof typeof b]
-      
+      const aRaw = a[columnId as keyof typeof a]
+      const bRaw = b[columnId as keyof typeof b]
+      const aValue = typeof aRaw === 'number' ? aRaw : String(aRaw ?? '')
+      const bValue = typeof bRaw === 'number' ? bRaw : String(bRaw ?? '')
+
       if (aValue < bValue) return direction === 'asc' ? -1 : 1
       if (aValue > bValue) return direction === 'asc' ? 1 : -1
       return 0
     })
-    
+
     setFilteredRevenueSchedules(sorted)
   }
 
@@ -344,7 +465,7 @@ export default function RevenueSchedulesPage() {
     setColumnFilters(sanitized)
   }, [])
 
-  const handleSelectSchedule = (scheduleId: number, selected: boolean) => {
+  const handleSelectSchedule = (scheduleId: string, selected: boolean) => {
     if (selected) {
       setSelectedSchedules(prev => [...prev, scheduleId])
     } else {
@@ -354,15 +475,16 @@ export default function RevenueSchedulesPage() {
 
   const handleSelectAll = (selected: boolean) => {
     if (selected) {
-      setSelectedSchedules(filteredRevenueSchedules.map(schedule => schedule.id))
+      setSelectedSchedules(filteredRevenueSchedules.map(schedule => String(schedule.id)))
     } else {
       setSelectedSchedules([])
     }
   }
 
-  const handleDeleteRow = useCallback((scheduleId: number) => {
+  const handleDeleteRow = useCallback((scheduleId: string) => {
     // Client-side delete placeholder; wire to API when available
     setRevenueSchedules(prev => prev.filter(row => row.id !== scheduleId))
+    setFilteredRevenueSchedules(prev => prev.filter(row => row.id !== scheduleId))
     setSelectedSchedules(prev => prev.filter(id => id !== scheduleId))
     showSuccess('Deleted', 'Schedule has been removed from the list.')
   }, [showSuccess])
@@ -401,21 +523,25 @@ export default function RevenueSchedulesPage() {
 
     if (statusQuickFilter !== 'all') {
       next = next.filter(row => {
-        const hasDispute = Boolean((row as any).inDispute)
-        const gross = parseCurrency((row as any).expectedUsage)
-        const adj = parseCurrency((row as any).usageAdjustment)
+        const rawStatus = String((row as any).scheduleStatus ?? '').toLowerCase()
+        const gross = parseCurrency((row as any).expectedUsageGross ?? (row as any).expectedUsage)
+        const adj = parseCurrency((row as any).expectedUsageAdjustment ?? (row as any).usageAdjustment)
         const net = gross + adj
-        const isOpen = Math.abs(net) > 0.0001
-        const isReconciled = !isOpen
+        const isDispute = rawStatus.includes('dispute') || Boolean((row as any).inDispute)
+        const isOpen = rawStatus === 'open' ? true : rawStatus === 'reconciled' ? false : Math.abs(net) > 0.0001
+        const isReconciled = rawStatus === 'reconciled' ? true : rawStatus === 'open' ? false : !isOpen
         if (statusQuickFilter === 'open') return isOpen
         if (statusQuickFilter === 'reconciled') return isReconciled
-        if (statusQuickFilter === 'in_dispute') return hasDispute
+        if (statusQuickFilter === 'in_dispute') return isDispute
         return true
       })
     }
 
     if (inDisputeOnly) {
-      next = next.filter(row => Boolean((row as any).inDispute))
+      next = next.filter(row => {
+        const rawStatus = String((row as any).scheduleStatus ?? '').toLowerCase()
+        return rawStatus.includes('dispute') || Boolean((row as any).inDispute)
+      })
     }
 
     if (startDate || endDate) {
@@ -448,16 +574,45 @@ export default function RevenueSchedulesPage() {
     return next
   }, [revenueSchedules, activeFilter, columnFilters, statusQuickFilter, inDisputeOnly, startDate, endDate])
 
-  // Add computed columns (Expected Usage Net)
+  // Add computed columns (Expected Usage Net, Usage Balance, Commission Difference)
   const withComputed = useMemo(() => {
+    const isBlank = (value: unknown) => {
+      if (typeof value !== 'string') return true
+      const trimmed = value.trim()
+      return trimmed === '' || trimmed === '-'
+    }
+
     return filteredByStatusAndColumns.map(row => {
-      const rawGross = (row as any).expectedUsage as string | undefined
-      const rawAdj = (row as any).usageAdjustment as string | undefined
-      const bothBlank = (!rawGross || rawGross.trim() === '-' || rawGross.trim() === '') && (!rawAdj || rawAdj.trim() === '-' || rawAdj.trim() === '')
+      const rawGross = (row as any).expectedUsageGross ?? (row as any).expectedUsage
+      const rawAdj = (row as any).expectedUsageAdjustment ?? (row as any).usageAdjustment
+      const rawActualUsage = (row as any).actualUsage
+      const rawExpectedCommission = (row as any).expectedCommissionNet
+      const rawActualCommission = (row as any).actualCommission
       const gross = parseCurrency(rawGross)
       const adj = parseCurrency(rawAdj)
-      const net = gross + adj
-      return { ...row, expectedUsageNet: bothBlank ? '-' : formatCurrency(net) }
+      const netValue = gross + adj
+      const hasNetInputs = !isBlank(rawGross) || !isBlank(rawAdj)
+      const netDisplay = hasNetInputs ? formatCurrency(netValue) : '-'
+
+      const actualUsageValue = parseCurrency(rawActualUsage)
+      const hasActualUsage = !isBlank(rawActualUsage)
+      const usageBalanceValue = netValue - actualUsageValue
+      const usageBalanceDisplay = hasActualUsage || hasNetInputs ? formatCurrency(usageBalanceValue) : '-'
+
+      const expectedCommissionValue = parseCurrency(rawExpectedCommission)
+      const actualCommissionValue = parseCurrency(rawActualCommission)
+      const hasCommissionInputs = !isBlank(rawExpectedCommission) || !isBlank(rawActualCommission)
+      const commissionDifferenceValue = expectedCommissionValue - actualCommissionValue
+      const commissionDifferenceDisplay = hasCommissionInputs ? formatCurrency(commissionDifferenceValue) : '-'
+
+      return {
+        ...row,
+        expectedUsageGross: isBlank(rawGross) ? (row as any).expectedUsageGross ?? '-' : rawGross,
+        expectedUsageAdjustment: isBlank(rawAdj) ? (row as any).expectedUsageAdjustment ?? '-' : rawAdj,
+        expectedUsageNet: netDisplay,
+        usageBalance: usageBalanceDisplay,
+        commissionDifference: commissionDifferenceDisplay,
+      }
     })
   }, [filteredByStatusAndColumns])
 
@@ -488,7 +643,7 @@ export default function RevenueSchedulesPage() {
         return {
           ...column,
           render: (_: unknown, row: any) => {
-            const rowId = Number(row.id)
+            const rowId = String(row.id)
             const checked = selectedSchedules.includes(rowId)
             return (
               <div className="flex items-center gap-2" data-disable-row-click="true">
@@ -530,14 +685,41 @@ export default function RevenueSchedulesPage() {
           }
         }
       }
+      if (column.id === 'revenueScheduleName') {
+        return {
+          ...column,
+          render: (value: unknown, row: any) => {
+            const scheduleCode = row.revenueScheduleName || row.revenueSchedule || row.id
+            const displayValue = typeof value === 'string' && value.trim().length > 0
+              ? value
+              : String(scheduleCode ?? '')
+            const targetId = String(row.id)
+
+            return (
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.preventDefault()
+                  event.stopPropagation()
+                  router.push(`/revenue-schedules/${encodeURIComponent(targetId)}`)
+                }}
+                className="inline-flex items-center gap-1 text-sm font-semibold text-primary-600 transition hover:text-primary-700"
+                data-disable-row-click="true"
+              >
+                <span>{displayValue || 'View'}</span>
+              </button>
+            )
+          }
+        }
+      }
       return column;
     });
-  }, [preferenceColumns, selectedSchedules, handleSelectSchedule, handleToggleScheduleStatus])
+  }, [preferenceColumns, selectedSchedules, handleSelectSchedule, router])
   
   // Update schedules data to include selection state
   const schedulesWithSelection = paginatedRevenueSchedules.map(schedule => ({
     ...schedule,
-    checkbox: selectedSchedules.includes(schedule.id)
+    checkbox: selectedSchedules.includes(String(schedule.id))
   }))
 
   return (
@@ -625,39 +807,81 @@ export default function RevenueSchedulesPage() {
               return
             }
             const headers = [
+              'Distributor Name',
               'Account Name',
               'Vendor Name',
               'Product Name - Vendor',
               'Revenue Schedule Date',
               'Revenue Schedule Name',
+              'Quantity',
+              'Price Each',
               'Expected Usage Gross',
               'Expected Usage Adjustment',
               'Expected Usage Net',
+              'Actual Usage',
+              'Usage Balance',
+              'Expected Commission Net',
+              'Actual Commission',
+              'Commission Difference',
+              'Customer ID - Vendor',
+              'Order ID - Vendor',
+              'Location ID',
               'Opportunity ID',
               'Customer ID - Distributor',
+              'Order ID - Distributor',
+              'Schedule Status',
+              'In Dispute',
             ]
             const escapeCsv = (value: string | null | undefined) => {
               if (value === null || value === undefined) return ''
               const sv = String(value)
               return (sv.includes('"') || sv.includes(',') || sv.includes('\n') || sv.includes('\r')) ? `"${sv.replace(/"/g, '""')}"` : sv
             }
+            const isBlank = (value: unknown) => {
+              if (typeof value !== 'string') return true
+              const trimmed = value.trim()
+              return trimmed === '' || trimmed === '-'
+            }
             const lines = [
               headers.join(','),
               ...rows.map(row => {
-                const gross = parseCurrency(row.expectedUsage)
-                const adj = parseCurrency(row.usageAdjustment)
+                const rawGross = row.expectedUsageGross ?? row.expectedUsage
+                const rawAdj = row.expectedUsageAdjustment ?? row.usageAdjustment
+                const gross = parseCurrency(rawGross)
+                const adj = parseCurrency(rawAdj)
                 const net = gross + adj
+                const rawActualUsage = row.actualUsage
+                const actualUsageValue = parseCurrency(rawActualUsage)
+                const usageBalance = net - actualUsageValue
+                const commissionDiff = parseCurrency(row.expectedCommissionNet) - parseCurrency(row.actualCommission)
+                const hasNetInputs = !isBlank(rawGross) || !isBlank(rawAdj)
+                const hasActualUsage = !isBlank(rawActualUsage)
+                const hasCommissionInputs = !isBlank(row.expectedCommissionNet) || !isBlank(row.actualCommission)
                 return [
+                  row.distributorName,
                   row.accountName,
                   row.vendorName,
                   row.productNameVendor,
                   row.revenueScheduleDate,
-                  row.revenueSchedule,
-                  row.expectedUsage,
-                  row.usageAdjustment,
-                  formatCurrency(net),
+                  row.revenueScheduleName ?? row.revenueSchedule,
+                  row.quantity,
+                  row.priceEach,
+                  rawGross,
+                  rawAdj,
+                  hasNetInputs ? formatCurrency(net) : '-',
+                  rawActualUsage,
+                  (hasActualUsage || hasNetInputs) ? formatCurrency(usageBalance) : '-',
+                  row.expectedCommissionNet,
+                  row.actualCommission,
+                  hasCommissionInputs ? formatCurrency(commissionDiff) : '-',
+                  row.customerIdVendor,
+                  row.orderIdVendor,
+                  row.locationId,
                   row.opportunityId,
-                  row.distributorId,
+                  row.customerIdDistributor ?? row.distributorId,
+                  row.orderIdDistributor,
+                  row.scheduleStatus,
+                  row.inDispute ? 'Yes' : 'No',
                 ].map(escapeCsv).join(',')
               })
             ]
@@ -687,7 +911,7 @@ export default function RevenueSchedulesPage() {
           onPageChange={handlePageChange}
           onPageSizeChange={handlePageSizeChange}
           selectedItems={selectedSchedules.map(String)}
-          onItemSelect={(id, selected, row) => handleSelectSchedule(Number(id), selected)}
+          onItemSelect={(id, selected, row) => handleSelectSchedule(String(id), selected)}
           onSelectAll={handleSelectAll}
           autoSizeColumns={false}
           alwaysShowPagination

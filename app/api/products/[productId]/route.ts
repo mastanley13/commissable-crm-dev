@@ -327,17 +327,17 @@ export async function PATCH(request: NextRequest, { params }: { params: { produc
       }
 
       // Extended product metadata fields
-      const stringFields: Array<keyof typeof payload> = [
-        "productFamilyHouse" as const,
-        "productFamilyVendor" as const,
-        "productSubtypeVendor" as const,
-        "productNameDistributor" as const,
-        "partNumberVendor" as const,
-        "partNumberDistributor" as const,
-        "distributorProductFamily" as const,
-        "productDescriptionVendor" as const,
-        "productDescriptionDistributor" as const
-      ]
+      const stringFields = [
+        "productFamilyHouse",
+        "productFamilyVendor",
+        "productSubtypeVendor",
+        "productNameDistributor",
+        "partNumberVendor",
+        "partNumberDistributor",
+        "distributorProductFamily",
+        "productDescriptionVendor",
+        "productDescriptionDistributor",
+      ] as const
 
       for (const key of stringFields) {
         if (key in payload) {

@@ -5,9 +5,7 @@ import { prisma } from "@/lib/db"
 import { withAuth } from "@/lib/api-auth"
 import { hasAnyPermission } from "@/lib/auth"
 import { dedupeColumnFilters } from "@/lib/filter-utils"
-import type { ColumnFilter } from "@/components/list-header"
 import { mapProductToRow } from "./helpers"
-import { revalidatePath } from "next/cache"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -17,6 +15,13 @@ const PRODUCT_VIEW_PERMISSIONS = [
   "products.update",
   "products.create",
   "products.delete"
+]
+
+const PRODUCT_MUTATION_PERMISSIONS = [
+  "products.create",
+  "products.update",
+  "products.delete",
+  "products.read",
 ]
 
 function resolveSortOrder(sortColumn: string, direction: "asc" | "desc"): Prisma.ProductOrderByWithRelationInput[] {
@@ -71,6 +76,8 @@ export async function GET(request: NextRequest) {
       const sortColumn = searchParams.get("sort") ?? "productNameHouse"
       const sortDirection: "asc" | "desc" = searchParams.get("direction") === "asc" ? "asc" : "desc"
 
+      // Define locally instead of importing from a client component to avoid bundling issues
+      type ColumnFilter = { columnId: string; value: string; operator?: "equals" | "contains" | "starts_with" | "ends_with" }
       let columnFilters: ColumnFilter[] = []
       const filtersParam = searchParams.get("filters")
       if (filtersParam) {
@@ -195,18 +202,15 @@ export async function GET(request: NextRequest) {
         },
       })
     } catch (error) {
+      // Improve diagnostics in development
+      const message = process.env.NODE_ENV === "development" && error instanceof Error
+        ? `Failed to load products: ${error.message}`
+        : "Failed to load products"
       console.error("Failed to load products", error)
-      return NextResponse.json({ error: "Failed to load products" }, { status: 500 })
+      return NextResponse.json({ error: message }, { status: 500 })
     }
   })
 }
-
-const PRODUCT_MUTATION_PERMISSIONS = [
-  "products.update",
-  "products.delete",
-  "products.create",
-  "products.read",
-]
 
 export async function POST(request: NextRequest) {
   return withAuth(request, async (req) => {
@@ -214,6 +218,7 @@ export async function POST(request: NextRequest) {
       const roleCode = req.user.role?.code?.toLowerCase() ?? ""
       const isAdmin = roleCode === "admin" || roleCode.includes("admin")
       const canMutate = isAdmin || hasAnyPermission(req.user, PRODUCT_MUTATION_PERMISSIONS)
+
       if (!canMutate) {
         return NextResponse.json({ error: "Insufficient permissions" }, { status: 403 })
       }
@@ -223,32 +228,42 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Invalid request payload" }, { status: 400 })
       }
 
-      const tenantId = req.user.tenantId
-      const userId = req.user.id
-
-      const requiredString = (value: unknown) => (typeof value === "string" ? value.trim() : "")
-      const productNameHouse = requiredString(payload.productNameHouse)
-      const productCode = requiredString(payload.productCode)
-      const revenueType = requiredString(payload.revenueType)
+      const getString = (val: unknown) => (typeof val === "string" ? val.trim() : "")
+      const getOptionalString = (val: unknown) => {
+        if (val === null || val === undefined) return null
+        if (typeof val !== "string") return null
+        const v = val.trim()
+        return v.length > 0 ? v : null
+      }
+      const getOptionalNumber = (val: unknown) => {
+        if (val === null || val === undefined || val === "") return null
+        const num = typeof val === "number" ? val : Number(val)
+        return Number.isFinite(num) ? num : null
+      }
 
       const errors: Record<string, string> = {}
+
+      const productNameHouse = getString((payload as any).productNameHouse)
       if (!productNameHouse) errors.productNameHouse = "Product name is required"
-      if (!productCode) errors.productCode = "Part Number - Vendor is required"
-      if (!revenueType || !(Object.values(RevenueType) as string[]).includes(revenueType)) {
-        errors.revenueType = "Select a valid revenue type"
+
+      const productCode = getString((payload as any).productCode)
+      if (!productCode) errors.productCode = "Vendor part number is required"
+
+      const revenueTypeValue = getString((payload as any).revenueType)
+      if (!revenueTypeValue) {
+        errors.revenueType = "Revenue type is required"
+      } else if (!(Object.values(RevenueType) as string[]).includes(revenueTypeValue)) {
+        errors.revenueType = "Invalid revenue type"
       }
-      // Numeric validations
-      const priceEachRaw = payload.priceEach
-      if (priceEachRaw !== undefined && priceEachRaw !== null && String(priceEachRaw).trim() !== "") {
-        const parsed = Number(priceEachRaw)
-        if (!Number.isFinite(parsed) || parsed < 0) {
-          errors.priceEach = "Price must be a non-negative number"
-        }
+
+      const priceEach = getOptionalNumber((payload as any).priceEach)
+      if ((payload as any).priceEach !== undefined && priceEach !== null && priceEach < 0) {
+        errors.priceEach = "Price must be a positive number"
       }
-      const commissionRaw = payload.commissionPercent
-      if (commissionRaw !== undefined && commissionRaw !== null && String(commissionRaw).trim() !== "") {
-        const parsed = Number(commissionRaw)
-        if (!Number.isFinite(parsed) || parsed < 0 || parsed > 100) {
+
+      const commissionPercent = getOptionalNumber((payload as any).commissionPercent)
+      if ((payload as any).commissionPercent !== undefined && commissionPercent !== null) {
+        if (commissionPercent < 0 || commissionPercent > 100) {
           errors.commissionPercent = "Commission percent must be between 0 and 100"
         }
       }
@@ -257,60 +272,40 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Validation failed", errors }, { status: 400 })
       }
 
-      // Ensure uniqueness for productCode per tenant
-      const existing = await prisma.product.findFirst({
-        where: { tenantId, productCode },
-        select: { id: true },
-      })
-      if (existing) {
-        return NextResponse.json({ error: "Duplicate vendor part number for this tenant" }, { status: 409 })
-      }
+      const distributorAccountId = getOptionalString((payload as any).distributorAccountId)
+      const vendorAccountId = getOptionalString((payload as any).vendorAccountId)
 
-      // Optional ids
-      const stringOrNull = (v: unknown) => {
-        if (v === undefined || v === null) return null
-        const s = String(v).trim()
-        return s.length > 0 ? s : null
-      }
-
-      const product = await prisma.product.create({
+      const created = await prisma.product.create({
         data: {
-          tenantId,
-          productNameHouse,
-          productNameVendor: stringOrNull(payload.productNameVendor),
-          productFamilyVendor: stringOrNull(payload.productFamilyVendor),
-          productSubtypeVendor: stringOrNull(payload.productSubtypeVendor),
-          productNameDistributor: stringOrNull(payload.productNameDistributor),
+          tenantId: req.user.tenantId,
           productCode,
-          partNumberVendor: stringOrNull(payload.partNumberVendor) ?? productCode,
-          partNumberDistributor: stringOrNull(payload.partNumberDistributor),
-          partNumberHouse: stringOrNull(payload.partNumberHouse),
-          distributorProductFamily: stringOrNull(payload.distributorProductFamily),
-          productDescriptionVendor: stringOrNull(payload.productDescriptionVendor),
-          productDescriptionDistributor: stringOrNull(payload.productDescriptionDistributor),
-          description: stringOrNull(payload.description),
-          revenueType: revenueType as RevenueType,
-          commissionPercent:
-            commissionRaw === undefined || commissionRaw === null || String(commissionRaw).trim() === ""
-              ? null
-              : Number(commissionRaw),
-          priceEach:
-            priceEachRaw === undefined || priceEachRaw === null || String(priceEachRaw).trim() === ""
-              ? null
-              : Number(priceEachRaw),
-          isActive: typeof payload.isActive === "boolean" ? payload.isActive : true,
-          vendorAccountId: stringOrNull(payload.vendorAccountId),
-          distributorAccountId: stringOrNull(payload.distributorAccountId),
-          createdById: userId,
-          updatedById: userId,
+          productNameHouse,
+          productNameVendor: getOptionalString((payload as any).productNameVendor),
+          productFamilyVendor: getOptionalString((payload as any).productFamilyVendor),
+          productSubtypeVendor: getOptionalString((payload as any).productSubtypeVendor),
+          partNumberHouse: getOptionalString((payload as any).partNumberHouse),
+          productDescriptionVendor: getOptionalString((payload as any).productDescriptionVendor),
+          description: getOptionalString((payload as any).description),
+          revenueType: revenueTypeValue as RevenueType,
+          priceEach,
+          commissionPercent,
+          isActive: Boolean((payload as any).isActive),
+          vendorAccountId: vendorAccountId,
+          distributorAccountId: distributorAccountId,
+          createdById: req.user.id ?? null,
+          updatedById: req.user.id ?? null,
         },
+        include: {
+          distributor: { select: { accountName: true } },
+          vendor: { select: { accountName: true } },
+        }
       })
 
-      // Revalidate list
-      revalidatePath("/products")
-
-      return NextResponse.json({ data: mapProductToRow({ ...product, distributor: null, vendor: null }) }, { status: 201 })
-    } catch (error) {
+      return NextResponse.json({ data: mapProductToRow(created) }, { status: 201 })
+    } catch (error: any) {
+      if (error?.code === "P2002") {
+        return NextResponse.json({ error: "A product with this vendor part number already exists" }, { status: 409 })
+      }
       console.error("Failed to create product", error)
       return NextResponse.json({ error: "Failed to create product" }, { status: 500 })
     }

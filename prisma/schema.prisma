@@ -6,6 +6,7 @@ datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
+  // Use a separate connection for Prisma's shadow database during migrate dev
 }
 
 model Tenant {
@@ -434,6 +435,19 @@ model Opportunity {
   subagentPercent    Decimal?             @db.Decimal(5, 4)
   houseRepPercent    Decimal?             @db.Decimal(5, 4)
   houseSplitPercent  Decimal?             @db.Decimal(5, 4)
+  orderIdHouse       String?
+  orderIdVendor      String?
+  orderIdDistributor String?
+  accountIdHouse     String?
+  accountIdVendor    String?
+  accountIdDistributor String?
+  customerIdHouse    String?
+  customerIdVendor   String?
+  customerIdDistributor String?
+  locationId         String?
+  customerPurchaseOrder String?
+  distributorName    String?
+  vendorName         String?
   createdAt          DateTime             @default(now())
   updatedAt          DateTime             @updatedAt
   activities         Activity[]

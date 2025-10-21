@@ -55,6 +55,16 @@ type OpportunityWithRelations = {
   subagentPercent?: unknown
   houseRepPercent?: unknown
   houseSplitPercent?: unknown
+  accountIdHouse?: string | null
+  accountIdVendor?: string | null
+  accountIdDistributor?: string | null
+  customerIdHouse?: string | null
+  customerIdVendor?: string | null
+  customerIdDistributor?: string | null
+  locationId?: string | null
+  orderIdVendor?: string | null
+  orderIdDistributor?: string | null
+  customerPurchaseOrder?: string | null
   owner?: { firstName?: string | null; lastName?: string | null; fullName?: string | null } | null
   ownerId?: string | null
   leadSource?: string | null
@@ -145,6 +155,19 @@ export type OpportunityDetailSummary = {
   subAgent: string
   shippingAddress?: string | null
   billingAddress?: string | null
+  identifiers?: {
+    accountIdHouse?: string | null
+    accountIdVendor?: string | null
+    accountIdDistributor?: string | null
+    customerIdHouse?: string | null
+    customerIdVendor?: string | null
+    customerIdDistributor?: string | null
+    locationId?: string | null
+    orderIdHouse?: string | null
+    orderIdVendor?: string | null
+    orderIdDistributor?: string | null
+    customerPurchaseOrder?: string | null
+  }
   subagentPercent?: number | null
   houseRepPercent?: number | null
   houseSplitPercent?: number | null
@@ -334,10 +357,16 @@ export function mapOpportunityToRow(opportunity: OpportunityWithRelations) {
     expectedUsageGrossTotal,
     expectedCommissionGrossTotal,
     subAgent,
-    accountIdVendor: "",
-    customerIdVendor: "",
-    locationId: "",
-    orderIdVendor: "",
+    accountIdHouse: opportunity.accountIdHouse ?? "",
+    accountIdVendor: opportunity.accountIdVendor ?? "",
+    accountIdDistributor: opportunity.accountIdDistributor ?? "",
+    customerIdHouse: opportunity.customerIdHouse ?? "",
+    customerIdVendor: opportunity.customerIdVendor ?? "",
+    customerIdDistributor: opportunity.customerIdDistributor ?? "",
+    locationId: opportunity.locationId ?? "",
+    orderIdVendor: opportunity.orderIdVendor ?? "",
+    orderIdDistributor: opportunity.orderIdDistributor ?? "",
+    customerPurchaseOrder: opportunity.customerPurchaseOrder ?? "",
     opportunityId: formattedOpportunityId,
     isDeleted: !isActive
   }
@@ -483,6 +512,20 @@ export function mapOpportunityToDetail(opportunity: OpportunityWithRelations): O
       ?? null
   }
 
+  const identifiers = {
+    accountIdHouse: opportunity.accountIdHouse ?? null,
+    accountIdVendor: opportunity.accountIdVendor ?? null,
+    accountIdDistributor: opportunity.accountIdDistributor ?? null,
+    customerIdHouse: opportunity.customerIdHouse ?? null,
+    customerIdVendor: opportunity.customerIdVendor ?? null,
+    customerIdDistributor: opportunity.customerIdDistributor ?? null,
+    locationId: opportunity.locationId ?? null,
+    orderIdHouse: opportunity.orderIdHouse ?? null,
+    orderIdVendor: opportunity.orderIdVendor ?? null,
+    orderIdDistributor: opportunity.orderIdDistributor ?? null,
+    customerPurchaseOrder: opportunity.customerPurchaseOrder ?? null
+  }
+
   return {
     id: opportunity.id,
     name: opportunity.name ?? "",
@@ -509,6 +552,7 @@ export function mapOpportunityToDetail(opportunity: OpportunityWithRelations): O
     houseSplitPercent: Number.isFinite(toNumber(opportunity.houseSplitPercent)) ? toNumber(opportunity.houseSplitPercent) : null,
     account,
     owner,
+    identifiers,
     createdBy: opportunity.createdBy
       ? { id: opportunity.createdBy.id, name: opportunity.createdBy.fullName ?? null }
       : null,

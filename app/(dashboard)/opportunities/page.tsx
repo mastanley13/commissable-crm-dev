@@ -250,10 +250,16 @@ interface OpportunityRow {
   closeDate?: string | null
   expectedUsageGrossTotal?: number | null
   expectedCommissionGrossTotal?: number | null
+  accountIdHouse?: string | null
   accountIdVendor?: string | null
+  accountIdDistributor?: string | null
+  customerIdHouse?: string | null
   customerIdVendor?: string | null
+  customerIdDistributor?: string | null
   locationId?: string | null
   orderIdVendor?: string | null
+  orderIdDistributor?: string | null
+  customerPurchaseOrder?: string | null
   opportunityId?: string | null
   isDeleted?: boolean
 }

@@ -11,7 +11,7 @@ import { ProductBulkActionBar } from '@/components/product-bulk-action-bar'
 import { TwoStageDeleteDialog } from '@/components/two-stage-delete-dialog'
 import { ProductCreateModal } from '@/components/product-create-modal'
 import { useToasts } from '@/components/toast'
-import { Check, Edit, Trash2 } from 'lucide-react'
+import { Check, Trash2 } from 'lucide-react'
 import { isRowInactive } from '@/lib/row-state'
 
 const PRODUCT_FILTER_OPTIONS = [
@@ -876,18 +876,6 @@ export default function ProductsPage() {
                   </span>
                 </button>
                 <div className="flex gap-0.5">
-                  <button
-                    type="button"
-                    className="rounded p-1 text-blue-500 transition-colors hover:text-blue-700"
-                    onClick={(event) => {
-                      event.preventDefault()
-                      event.stopPropagation()
-                      handleRowClick(row)
-                    }}
-                    aria-label="Edit product"
-                  >
-                    <Edit className="h-3.5 w-3.5" />
-                  </button>
                   {isRowInactive(row) && (
                     <button
                       type="button"

@@ -78,6 +78,36 @@ function isValidLeadSource(value: string): value is LeadSource {
   return Object.values(LeadSource).includes(value as LeadSource)
 }
 
+function coerceOptionalString(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null
+  }
+  const trimmed = value.trim()
+  return trimmed.length > 0 ? trimmed : null
+}
+
+function parsePercentValue(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") {
+    return null
+  }
+
+  const numeric = typeof value === "number" ? value : Number(value)
+  if (!Number.isFinite(numeric)) {
+    return null
+  }
+
+  if (numeric > 1) {
+    const normalized = numeric / 100
+    return normalized >= 0 && normalized <= 1 ? normalized : null
+  }
+
+  if (numeric < 0 || numeric > 1) {
+    return null
+  }
+
+  return numeric
+}
+
 export async function GET(request: NextRequest) {
   return withPermissions(request, OPPORTUNITY_VIEW_PERMISSIONS, async (req) => {
     try {
@@ -273,6 +303,49 @@ export async function POST(request: NextRequest) {
       const ownerId = typeof payload.ownerId === "string" ? payload.ownerId : ""
       const estimatedCloseDate = typeof payload.estimatedCloseDate === "string" ? payload.estimatedCloseDate : ""
       const subAgent = typeof payload.subAgent === "string" ? payload.subAgent.trim() : ""
+      const descriptionInput = typeof payload.description === "string" ? payload.description.trim() : ""
+      const descriptionValue = descriptionInput.length > 0 ? descriptionInput : null
+      const referredByValue = coerceOptionalString((payload as Record<string, unknown>).referredBy)
+      const shippingAddress = coerceOptionalString((payload as Record<string, unknown>).shippingAddress)
+      const billingAddress = coerceOptionalString((payload as Record<string, unknown>).billingAddress)
+      const accountIdHouse = coerceOptionalString((payload as Record<string, unknown>).accountIdHouse)
+      const accountIdVendor = coerceOptionalString((payload as Record<string, unknown>).accountIdVendor)
+      const accountIdDistributor = coerceOptionalString((payload as Record<string, unknown>).accountIdDistributor)
+      const customerIdHouse = coerceOptionalString((payload as Record<string, unknown>).customerIdHouse)
+      const customerIdVendor = coerceOptionalString((payload as Record<string, unknown>).customerIdVendor)
+      const customerIdDistributor = coerceOptionalString((payload as Record<string, unknown>).customerIdDistributor)
+      const locationId =
+        coerceOptionalString((payload as Record<string, unknown>).locationId) ??
+        coerceOptionalString((payload as Record<string, unknown>).locationIdVendor)
+      const orderIdHouse = coerceOptionalString((payload as Record<string, unknown>).orderIdHouse)
+      const orderIdVendor = coerceOptionalString((payload as Record<string, unknown>).orderIdVendor)
+      const orderIdDistributor = coerceOptionalString((payload as Record<string, unknown>).orderIdDistributor)
+      const customerPurchaseOrder =
+        coerceOptionalString((payload as Record<string, unknown>).customerPurchaseOrder) ??
+        coerceOptionalString((payload as Record<string, unknown>).customerPoNumber)
+
+      const subagentPercentRaw = (payload as Record<string, unknown>).subagentPercent
+      const subagentPercent = parsePercentValue(subagentPercentRaw)
+      if (subagentPercentRaw !== undefined && subagentPercentRaw !== null && subagentPercent === null) {
+        return NextResponse.json({ error: "Subagent % must be between 0 and 100" }, { status: 400 })
+      }
+
+      const houseRepPercentRaw = (payload as Record<string, unknown>).houseRepPercent
+      const houseRepPercent = parsePercentValue(houseRepPercentRaw)
+      if (houseRepPercentRaw !== undefined && houseRepPercentRaw !== null && houseRepPercent === null) {
+        return NextResponse.json({ error: "House Rep % must be between 0 and 100" }, { status: 400 })
+      }
+
+      const houseSplitPercentRaw = (payload as Record<string, unknown>).houseSplitPercent
+      let houseSplitPercent = parsePercentValue(houseSplitPercentRaw)
+      if (houseSplitPercentRaw !== undefined && houseSplitPercentRaw !== null && houseSplitPercent === null) {
+        return NextResponse.json({ error: "House Split % must be between 0 and 100" }, { status: 400 })
+      }
+
+      if (houseSplitPercent === null && subagentPercent !== null && houseRepPercent !== null) {
+        const computed = 1 - (subagentPercent + houseRepPercent)
+        houseSplitPercent = computed >= 0 ? computed : 0
+      }
 
       if (!accountId || !name || !ownerId || !stageValue || !leadSourceValue || !estimatedCloseDate) {
         return NextResponse.json({ error: "Account, name, owner, stage, lead source, and estimated close date are required" }, { status: 400 })
@@ -294,6 +367,13 @@ export async function POST(request: NextRequest) {
       // Validate owner must be Active
       const validatedOwnerId = await ensureActiveOwnerOrNull(ownerId, req.user.tenantId)
 
+      let finalDescription = descriptionValue
+      if (subAgent) {
+        finalDescription = finalDescription
+          ? `Subagent: ${subAgent}\n\n${finalDescription}`
+          : `Subagent: ${subAgent}`
+      }
+
       const opportunity = await prisma.opportunity.create({
         data: {
           tenantId: req.user.tenantId,
@@ -301,9 +381,26 @@ export async function POST(request: NextRequest) {
           name,
           stage: stageValue,
           leadSource: leadSourceValue,
+          referredBy: referredByValue,
           estimatedCloseDate: closeDate,
           ownerId: validatedOwnerId,
-          description: subAgent ? `Subagent: ${subAgent}` : null,
+          description: finalDescription,
+          shippingAddress,
+          billingAddress,
+          subagentPercent,
+          houseRepPercent,
+          houseSplitPercent,
+          orderIdHouse,
+          orderIdVendor,
+          orderIdDistributor,
+          accountIdHouse,
+          accountIdVendor,
+          accountIdDistributor,
+          customerIdHouse,
+          customerIdVendor,
+          customerIdDistributor,
+          locationId,
+          customerPurchaseOrder,
           createdById: req.user.id,
           updatedById: req.user.id
         }
@@ -316,5 +413,3 @@ export async function POST(request: NextRequest) {
     }
   })
 }
-
-

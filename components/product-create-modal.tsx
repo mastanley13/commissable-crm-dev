@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { Loader2, X } from "lucide-react"
 import { useToasts } from "./toast"
+import { EditableSwitch } from "./editable-field"
 
 type SelectOption = { value: string; label: string }
 
@@ -32,6 +33,9 @@ interface ProductFormState {
   productNameHouse: string
   partNumberHouse: string
   description: string
+  partNumberDistributor: string
+  distributorProductFamily: string
+  productDescriptionDistributor: string
 }
 
 const INITIAL_FORM: ProductFormState = {
@@ -49,6 +53,9 @@ const INITIAL_FORM: ProductFormState = {
   productNameHouse: "",
   partNumberHouse: "",
   description: "",
+  partNumberDistributor: "",
+  distributorProductFamily: "",
+  productDescriptionDistributor: "",
 }
 
 export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreateModalProps) {
@@ -134,6 +141,9 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
         productNameHouse: form.productNameHouse.trim(),
         partNumberHouse: form.partNumberHouse.trim() || null,
         description: form.description.trim() || null,
+        partNumberDistributor: form.partNumberDistributor.trim() || null,
+        distributorProductFamily: form.distributorProductFamily.trim() || null,
+        productDescriptionDistributor: form.productDescriptionDistributor.trim() || null,
       }
 
       try {
@@ -166,11 +176,11 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 backdrop-blur-sm" onClick={handleClose}>
-      <div className="w-full max-w-5xl rounded-xl bg-white shadow-xl" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
+      <div className="w-full max-w-4xl rounded-xl bg-white shadow-xl max-h-[92vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">Create New Product</h2>
-            <p className="text-sm text-gray-500">Enter the product information below.</p>
+            <h2 className="text-base font-semibold text-gray-900">Create New Product</h2>
+            <p className="text-xs text-gray-500">Enter the product information below.</p>
           </div>
           <button
             type="button"
@@ -182,68 +192,27 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="px-6 py-6">
-          <div className="grid gap-6 lg:grid-cols-2">
-            <div className="space-y-4">
+        <form onSubmit={handleSubmit} className="px-4 py-4">
+          <div className="grid gap-3 lg:grid-cols-2">
+            {/* Left column: Product Name - House through Active */}
+            <div className="space-y-3">
+              {/* Product Name - House */}
               <div className="grid gap-1">
-                <label className="text-xs font-semibold text-gray-600">Active (Y/N)</label>
-                <div className="flex items-center gap-2">
-                  <input id="isActive" type="checkbox" checked={form.isActive} onChange={handleChange("isActive") as any} />
-                  <label htmlFor="isActive" className="text-xs text-gray-700">{form.isActive ? "Active" : "Inactive"}</label>
-                </div>
+                <label className="text-xs font-semibold text-gray-600">Product Name - House</label>
+                <input className="rounded border px-2 py-0.5 text-[13px]" value={form.productNameHouse} onChange={handleChange("productNameHouse")} placeholder="Enter product name" />
+                {errors.productNameHouse ? <p className="text-[10px] text-red-600">{errors.productNameHouse}</p> : null}
               </div>
 
+              {/* Part Number - House */}
               <div className="grid gap-1">
-                <label className="text-xs font-semibold text-gray-600">Distributor Name</label>
-                <select className="rounded border px-2 py-1 text-sm" value={form.distributorAccountId} onChange={handleChange("distributorAccountId")}>
-                  <option value="">-- Select Distributor --</option>
-                  {accounts.map((opt) => (
-                    <option key={opt.value} value={opt.value}>{opt.label}</option>
-                  ))}
-                </select>
+                <label className="text-xs font-semibold text-gray-600">Part Number - House</label>
+                <input className="rounded border px-2 py-0.5 text-[13px]" value={form.partNumberHouse} onChange={handleChange("partNumberHouse")} placeholder="Enter house part #" />
               </div>
 
-              <div className="grid gap-1">
-                <label className="text-xs font-semibold text-gray-600">Vendor Name</label>
-                <select className="rounded border px-2 py-1 text-sm" value={form.vendorAccountId} onChange={handleChange("vendorAccountId")}>
-                  <option value="">-- Select Vendor --</option>
-                  {accounts.map((opt) => (
-                    <option key={opt.value} value={opt.value}>{opt.label}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="grid gap-1">
-                <label className="text-xs font-semibold text-gray-600">Product Family - Vendor</label>
-                <input className="rounded border px-2 py-1 text-sm" value={form.productFamilyVendor} onChange={handleChange("productFamilyVendor")} placeholder="Enter family" />
-              </div>
-
-              <div className="grid gap-1">
-                <label className="text-xs font-semibold text-gray-600">Product Subtype - Vendor</label>
-                <input className="rounded border px-2 py-1 text-sm" value={form.productSubtypeVendor} onChange={handleChange("productSubtypeVendor")} placeholder="Enter subtype" />
-              </div>
-
-              <div className="grid gap-1">
-                <label className="text-xs font-semibold text-gray-600">Product Name - Vendor</label>
-                <input className="rounded border px-2 py-1 text-sm" value={form.productNameVendor} onChange={handleChange("productNameVendor")} placeholder="Enter vendor product name" />
-              </div>
-
-              <div className="grid gap-1">
-                <label className="text-xs font-semibold text-gray-600">Part Number - Vendor</label>
-                <input className="rounded border px-2 py-1 text-sm" value={form.productCode} onChange={handleChange("productCode")} placeholder="Enter vendor part #" />
-                {errors.productCode ? <p className="text-[10px] text-red-600">{errors.productCode}</p> : null}
-              </div>
-
-              <div className="grid gap-1">
-                <label className="text-xs font-semibold text-gray-600">Product Description - Vendor</label>
-                <textarea rows={3} className="rounded border px-2 py-1 text-sm" value={form.productDescriptionVendor} onChange={handleChange("productDescriptionVendor")} placeholder="Add vendor description" />
-              </div>
-            </div>
-
-            <div className="space-y-4">
+              {/* Product Revenue Type */}
               <div className="grid gap-1">
                 <label className="text-xs font-semibold text-gray-600">Product Revenue Type</label>
-                <select className="rounded border px-2 py-1 text-sm" value={form.revenueType} onChange={handleChange("revenueType")}>
+                <select className="rounded border px-2 py-0.5 text-[13px]" value={form.revenueType} onChange={handleChange("revenueType")}>
                   <option value="">Select revenue type</option>
                   {revenueTypes.map((opt) => (
                     <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -252,32 +221,107 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
                 {errors.revenueType ? <p className="text-[10px] text-red-600">{errors.revenueType}</p> : null}
               </div>
 
+              {/* Vendor Name */}
+            <div className="grid gap-1">
+                <label className="text-xs font-semibold text-gray-600">Vendor Name</label>
+                <select className="rounded border px-2 py-0.5 text-[13px]" value={form.vendorAccountId} onChange={handleChange("vendorAccountId")}>
+                  <option value="">-- Select Vendor --</option>
+                  {accounts.map((opt) => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Distributor Name */}
+              <div className="grid gap-1">
+                <label className="text-xs font-semibold text-gray-600">Distributor Name</label>
+                <select className="rounded border px-2 py-0.5 text-[13px]" value={form.distributorAccountId} onChange={handleChange("distributorAccountId")}>
+                  <option value="">-- Select Distributor --</option>
+                  {accounts.map((opt) => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Price Each */}
               <div className="grid gap-1">
                 <label className="text-xs font-semibold text-gray-600">Price Each</label>
-                <input type="number" step="0.01" min="0" className="rounded border px-2 py-1 text-sm" value={form.priceEach} onChange={handleChange("priceEach")} placeholder="0.00" />
+                <input type="number" step="0.01" min="0" className="rounded border px-2 py-0.5 text-[13px]" value={form.priceEach} onChange={handleChange("priceEach")} placeholder="0.00" />
                 {errors.priceEach ? <p className="text-[10px] text-red-600">{errors.priceEach}</p> : null}
               </div>
 
+              {/* Expected Commission Rate % */}
               <div className="grid gap-1">
                 <label className="text-xs font-semibold text-gray-600">Expected Commission Rate %</label>
-                <input type="number" step="0.01" min="0" max="100" className="rounded border px-2 py-1 text-sm" value={form.commissionPercent} onChange={handleChange("commissionPercent")} placeholder="Enter %" />
+                <input type="number" step="0.01" min="0" max="100" className="rounded border px-2 py-0.5 text-[13px]" value={form.commissionPercent} onChange={handleChange("commissionPercent")} placeholder="Enter %" />
                 {errors.commissionPercent ? <p className="text-[10px] text-red-600">{errors.commissionPercent}</p> : null}
               </div>
 
+              {/* Product Name - Vendor */}
               <div className="grid gap-1">
-                <label className="text-xs font-semibold text-gray-600">Product Name - House</label>
-                <input className="rounded border px-2 py-1 text-sm" value={form.productNameHouse} onChange={handleChange("productNameHouse")} placeholder="Enter product name" />
-                {errors.productNameHouse ? <p className="text-[10px] text-red-600">{errors.productNameHouse}</p> : null}
+                <label className="text-xs font-semibold text-gray-600">Product Name - Vendor</label>
+                <input className="rounded border px-2 py-0.5 text-[13px]" value={form.productNameVendor} onChange={handleChange("productNameVendor")} placeholder="Enter vendor product name" />
               </div>
 
+              {/* Part Number - Vendor */}
               <div className="grid gap-1">
-                <label className="text-xs font-semibold text-gray-600">Part Number - House</label>
-                <input className="rounded border px-2 py-1 text-sm" value={form.partNumberHouse} onChange={handleChange("partNumberHouse")} placeholder="Enter house part #" />
+                <label className="text-xs font-semibold text-gray-600">Part Number - Vendor</label>
+                <input className="rounded border px-2 py-0.5 text-[13px]" value={form.productCode} onChange={handleChange("productCode")} placeholder="Enter vendor part #" />
+                {errors.productCode ? <p className="text-[10px] text-red-600">{errors.productCode}</p> : null}
               </div>
 
+              {/* Product Family - Vendor */}
+              <div className="grid gap-1">
+                <label className="text-xs font-semibold text-gray-600">Product Family - Vendor</label>
+                <input className="rounded border px-2 py-0.5 text-[13px]" value={form.productFamilyVendor} onChange={handleChange("productFamilyVendor")} placeholder="Enter family" />
+              </div>
+
+              {/* Product Subtype - Vendor */}
+              <div className="grid gap-1">
+                <label className="text-xs font-semibold text-gray-600">Product Subtype - Vendor</label>
+                <input className="rounded border px-2 py-0.5 text-[13px]" value={form.productSubtypeVendor} onChange={handleChange("productSubtypeVendor")} placeholder="Enter subtype" />
+              </div>
+
+              {/* Active (Y/N) */}
+              <div className="grid gap-1">
+                <label className="text-xs font-semibold text-gray-600">Active (Y/N)</label>
+                <div className="flex items-center gap-2">
+                  <EditableSwitch checked={form.isActive} onChange={handleChange("isActive") as any} />
+                  <span className="text-xs text-gray-700">{form.isActive ? "Active" : "Inactive"}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Right column: Part Number - Distributor through Product Description - Vendor */}
+            <div className="space-y-3">
+              {/* Part Number - Distributor */}
+              <div className="grid gap-1">
+                <label className="text-xs font-semibold text-gray-600">Part Number - Distributor</label>
+                <input className="rounded border px-2 py-0.5 text-[13px]" value={form.partNumberDistributor} onChange={handleChange("partNumberDistributor")} placeholder="Enter distributor part #" />
+              </div>
+
+              {/* Distributor Product Family */}
+              <div className="grid gap-1">
+                <label className="text-xs font-semibold text-gray-600">Distributor Product Family</label>
+                <input className="rounded border px-2 py-0.5 text-[13px]" value={form.distributorProductFamily} onChange={handleChange("distributorProductFamily")} placeholder="Enter family" />
+              </div>
+
+              {/* Product Description - House */}
               <div className="grid gap-1">
                 <label className="text-xs font-semibold text-gray-600">Product Description - House</label>
-                <textarea rows={4} className="rounded border px-2 py-1 text-sm" value={form.description} onChange={handleChange("description")} placeholder="Add description" />
+                <textarea rows={2} className="rounded border px-2 py-0.5 text-[13px]" value={form.description} onChange={handleChange("description")} placeholder="Add description" />
+              </div>
+
+              {/* Product Description - Distributor */}
+              <div className="grid gap-1">
+                <label className="text-xs font-semibold text-gray-600">Product Description - Distributor</label>
+                <textarea rows={2} className="rounded border px-2 py-0.5 text-[13px]" value={form.productDescriptionDistributor} onChange={handleChange("productDescriptionDistributor")} placeholder="Add distributor description" />
+              </div>
+
+              {/* Product Description - Vendor */}
+              <div className="grid gap-1">
+                <label className="text-xs font-semibold text-gray-600">Product Description - Vendor</label>
+                <textarea rows={2} className="rounded border px-2 py-0.5 text-[13px]" value={form.productDescriptionVendor} onChange={handleChange("productDescriptionVendor")} placeholder="Add vendor description" />
               </div>
             </div>
           </div>

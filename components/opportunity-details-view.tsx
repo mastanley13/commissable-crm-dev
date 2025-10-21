@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react"
-import { Check, Loader2, Trash2 } from "lucide-react"
+import { Check, Loader2, Trash2, Calendar } from "lucide-react"
 import { LeadSource, OpportunityStage, OpportunityStatus } from "@prisma/client"
 import { cn } from "@/lib/utils"
 import { ListHeader, type ColumnFilter } from "@/components/list-header"
@@ -537,7 +537,26 @@ function formatDateForInput(value: string | null | undefined): string {
   if (!value) return ""
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return ""
-  return date.toISOString().slice(0, 10)
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, "0")
+  const day = String(date.getDate()).padStart(2, "0")
+  return `${year}/${month}/${day}`
+}
+
+function parseInputDateToISO(value: string | null | undefined): string | null {
+  if (!value) return null
+  const trimmed = value.trim()
+  const match = trimmed.match(/^(\d{4})\/(\d{2})\/(\d{2})$/)
+  if (!match) return null
+  const [, y, m, d] = match
+  const year = Number(y)
+  const month = Number(m)
+  const day = Number(d)
+  if (month < 1 || month > 12) return null
+  const daysInMonth = new Date(year, month, 0).getDate()
+  if (day < 1 || day > daysInMonth) return null
+  // Build ISO-friendly YYYY-MM-DD to avoid locale ambiguity
+  return `${y}-${m}-${d}`
 }
 
 function createOpportunityInlineForm(detail: OpportunityDetailRecord | null | undefined): OpportunityInlineForm | null {
@@ -568,7 +587,10 @@ function buildOpportunityPayload(patch: Partial<OpportunityInlineForm>, draft: O
   if ("stage" in patch) payload.stage = draft.stage || null
   if ("status" in patch) payload.status = draft.status || null
   if ("ownerId" in patch) payload.ownerId = draft.ownerId || null
-  if ("estimatedCloseDate" in patch) payload.estimatedCloseDate = draft.estimatedCloseDate || null
+  if ("estimatedCloseDate" in patch) {
+    const isoLike = parseInputDateToISO(draft.estimatedCloseDate)
+    payload.estimatedCloseDate = isoLike || null
+  }
   if ("leadSource" in patch) payload.leadSource = draft.leadSource || null
   if ("subAgent" in patch) payload.subAgent = draft.subAgent.trim()
   if ("referredBy" in patch) payload.referredBy = draft.referredBy.trim()
@@ -597,8 +619,8 @@ function validateOpportunityForm(form: OpportunityInlineForm): Record<string, st
   }
   if (!form.estimatedCloseDate) {
     errors.estimatedCloseDate = "Estimated close date is required."
-  } else if (Number.isNaN(Date.parse(form.estimatedCloseDate))) {
-    errors.estimatedCloseDate = "Enter a valid date."
+  } else if (!parseInputDateToISO(form.estimatedCloseDate)) {
+    errors.estimatedCloseDate = "Enter a valid date in YYYY/MM/DD format."
   }
   if (form.leadSource && !Object.values(LeadSource).includes(form.leadSource as LeadSource)) {
     errors.leadSource = "Select a valid lead source."
@@ -774,6 +796,25 @@ function EditableOpportunityHeader({
 
   const disableSave = editor.saving || !editor.isDirty
 
+  // Native date picker bridge for YYYY/MM/DD text field
+  const nativeDateRef = useRef<HTMLInputElement | null>(null)
+
+  const nativeDateValue = useMemo(() => {
+    const isoLike = parseInputDateToISO((closeDateField.value as string) ?? "")
+    return isoLike ?? ""
+  }, [closeDateField.value])
+
+  const openNativeCalendar = useCallback(() => {
+    const el = nativeDateRef.current as any
+    if (!el) return
+    if (typeof el.showPicker === "function") {
+      el.showPicker()
+    } else {
+      el.focus()
+      el.click()
+    }
+  }, [])
+
   const renderRow = (
     label: string,
     control: ReactNode,
@@ -903,13 +944,43 @@ function EditableOpportunityHeader({
 
           {renderRow(
             "Estimated Close Date",
-            <EditableField.Input
-              className="w-full"
-              type="date"
-              value={(closeDateField.value as string) ?? ""}
-              onChange={closeDateField.onChange}
-              onBlur={closeDateField.onBlur}
-            />,
+            <div className="relative w-full max-w-md">
+              <EditableField.Input
+                className="w-full pr-9"
+                type="text"
+                placeholder="YYYY/MM/DD"
+                inputMode="numeric"
+                maxLength={10}
+                value={(closeDateField.value as string) ?? ""}
+                onChange={closeDateField.onChange}
+                onBlur={closeDateField.onBlur}
+              />
+              <button
+                type="button"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                onClick={openNativeCalendar}
+                aria-label="Open calendar"
+                title="Open calendar"
+              >
+                <Calendar className="h-4 w-4" />
+              </button>
+              <input
+                ref={nativeDateRef}
+                type="date"
+                className="sr-only"
+                value={nativeDateValue}
+                onChange={e => {
+                  const iso = e.target.value // YYYY-MM-DD
+                  if (!iso) return
+                  const [y, m, d] = iso.split('-')
+                  const display = `${y}/${m}/${d}`
+                  // feed back into editor via onChange shape
+                  closeDateField.onChange({ target: { value: display } } as any)
+                  // trigger validation on blur
+                  closeDateField.onBlur()
+                }}
+              />
+            </div>,
             editor.errors.estimatedCloseDate
           )}
         </div>

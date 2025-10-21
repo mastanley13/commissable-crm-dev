@@ -11,6 +11,13 @@ interface SelectOption {
   label: string
 }
 
+interface AccountOption extends SelectOption {
+  accountName: string
+  accountLegalName: string
+  shippingAddress?: string
+  billingAddress?: string
+}
+
 interface OpportunityCreateModalProps {
   isOpen: boolean
   onClose: () => void
@@ -20,12 +27,30 @@ interface OpportunityCreateModalProps {
 
 interface OpportunityFormState {
   accountId: string
+  accountName: string
+  accountLegalName: string
   name: string
   stage: OpportunityStage
   estimatedCloseDate: string
   ownerId: string
   leadSource: LeadSource
+  shippingAddress: string
+  billingAddress: string
   subAgent: string
+  orderIdHouse: string
+  accountIdHouse: string
+  accountIdVendor: string
+  accountIdDistributor: string
+  customerIdHouse: string
+  customerIdVendor: string
+  customerIdDistributor: string
+  locationId: string
+  orderIdVendor: string
+  orderIdDistributor: string
+  customerPurchaseOrder: string
+  description: string
+  subagentPercent: string
+  houseRepPercent: string
 }
 
 interface OpportunityCreateResponse {
@@ -47,12 +72,30 @@ const leadSourceOptions: SelectOption[] = Object.values(LeadSource).map(source =
 
 const buildInitialForm = (defaultAccountId?: string): OpportunityFormState => ({
   accountId: defaultAccountId ?? "",
+  accountName: "",
+  accountLegalName: "",
   name: "",
   stage: OpportunityStage.Qualification,
   estimatedCloseDate: "",
   ownerId: "",
   leadSource: LeadSource.Referral,
-  subAgent: ""
+  shippingAddress: "",
+  billingAddress: "",
+  subAgent: "",
+  orderIdHouse: "",
+  accountIdHouse: "",
+  accountIdVendor: "",
+  accountIdDistributor: "",
+  customerIdHouse: "",
+  customerIdVendor: "",
+  customerIdDistributor: "",
+  locationId: "",
+  orderIdVendor: "",
+  orderIdDistributor: "",
+  customerPurchaseOrder: "",
+  description: "",
+  subagentPercent: "0.00",
+  houseRepPercent: "0.00"
 })
 
 const formatAccountLabel = (account: any): string => {
@@ -73,7 +116,7 @@ export function OpportunityCreateModal({
   defaultAccountId
 }: OpportunityCreateModalProps) {
   const [form, setForm] = useState<OpportunityFormState>(() => buildInitialForm(defaultAccountId))
-  const [accounts, setAccounts] = useState<SelectOption[]>([])
+  const [accounts, setAccounts] = useState<AccountOption[]>([])
   const [accountQuery, setAccountQuery] = useState("")
   const [accountLoading, setAccountLoading] = useState(false)
   const [owners, setOwners] = useState<SelectOption[]>([])
@@ -81,6 +124,9 @@ export function OpportunityCreateModal({
   const [submitting, setSubmitting] = useState(false)
 
   const { showError, showSuccess } = useToasts()
+  const inputClass =
+    "w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
+  const textareaClass = `${inputClass} min-h-[80px] resize-vertical`
 
   useEffect(() => {
     if (!isOpen) {
@@ -122,21 +168,79 @@ export function OpportunityCreateModal({
 
         const payload = await response.json().catch(() => null)
         const items: any[] = Array.isArray(payload?.data) ? payload.data : []
-        const options = items.map(item => ({
+
+        const buildAddress = (item: any, prefix: "shipping" | "billing") => {
+          const street = typeof item?.[`${prefix}Street`] === "string" ? item[`${prefix}Street`].trim() : ""
+          const street2 = typeof item?.[`${prefix}Street2`] === "string" ? item[`${prefix}Street2`].trim() : ""
+          const city = typeof item?.[`${prefix}City`] === "string" ? item[`${prefix}City`].trim() : ""
+          const state = typeof item?.[`${prefix}State`] === "string" ? item[`${prefix}State`].trim() : ""
+          const zip = typeof item?.[`${prefix}Zip`] === "string" ? item[`${prefix}Zip`].trim() : ""
+          const country = typeof item?.[`${prefix}Country`] === "string" ? item[`${prefix}Country`].trim() : ""
+
+          const parts: string[] = []
+          if (street) parts.push(street)
+          if (street2) parts.push(street2)
+
+          const cityState = [city, state].filter(Boolean).join(", ")
+          if (cityState && zip) {
+            parts.push(`${cityState} ${zip}`)
+          } else if (cityState) {
+            parts.push(cityState)
+          } else if (zip) {
+            parts.push(zip)
+          }
+
+          if (country) parts.push(country)
+          return parts.join(", ")
+        }
+
+        const options: AccountOption[] = items.map(item => ({
           value: item.id,
-          label: formatAccountLabel(item)
+          label: formatAccountLabel(item),
+          accountName: typeof item?.accountName === "string" ? item.accountName : "",
+          accountLegalName: typeof item?.accountLegalName === "string" ? item.accountLegalName : "",
+          shippingAddress: buildAddress(item, "shipping"),
+          billingAddress: buildAddress(item, "billing")
         }))
 
         setAccounts(options)
         setForm(previous => {
+          const existing = options.find(option => option.value === previous.accountId)
+          if (existing) {
+            return {
+              ...previous,
+              accountName: existing.accountName,
+              accountLegalName: existing.accountLegalName,
+              shippingAddress: previous.shippingAddress || existing.shippingAddress || "",
+              billingAddress: previous.billingAddress || existing.billingAddress || ""
+            }
+          }
+
           if (previous.accountId) {
             return previous
           }
-          if (defaultAccountId) {
-            return previous
+
+          const preferredId = defaultAccountId ?? options[0]?.value ?? ""
+          const fallback = options.find(option => option.value === preferredId) ?? options[0]
+          if (!fallback) {
+            return {
+              ...previous,
+              accountId: "",
+              accountName: "",
+              accountLegalName: "",
+              shippingAddress: "",
+              billingAddress: ""
+            }
           }
-          const firstAccount = options[0]
-          return firstAccount ? { ...previous, accountId: firstAccount.value } : previous
+
+          return {
+            ...previous,
+            accountId: fallback.value,
+            accountName: fallback.accountName,
+            accountLegalName: fallback.accountLegalName,
+            shippingAddress: fallback.shippingAddress ?? "",
+            billingAddress: fallback.billingAddress ?? ""
+          }
         })
       } catch (error) {
         if (error instanceof DOMException && error.name === "AbortError") {
@@ -222,6 +326,15 @@ export function OpportunityCreateModal({
     )
   }, [form.accountId, form.estimatedCloseDate, form.leadSource, form.name, form.ownerId, form.stage])
 
+  const houseSplitPercentDisplay = useMemo(() => {
+    const subagentValue = Number.parseFloat(form.subagentPercent)
+    const houseRepValue = Number.parseFloat(form.houseRepPercent)
+    const safeSubagent = Number.isFinite(subagentValue) ? subagentValue : 0
+    const safeHouseRep = Number.isFinite(houseRepValue) ? houseRepValue : 0
+    const computed = Math.max(0, 100 - (safeSubagent + safeHouseRep))
+    return computed.toFixed(2)
+  }, [form.houseRepPercent, form.subagentPercent])
+
   const handleClose = useCallback(() => {
     setForm(buildInitialForm(defaultAccountId))
     setAccountQuery("")
@@ -237,6 +350,45 @@ export function OpportunityCreateModal({
 
     setSubmitting(true)
     try {
+      const normalizeString = (value: string) => {
+        const trimmed = value.trim()
+        return trimmed.length > 0 ? trimmed : null
+      }
+
+      const percentToDecimal = (value: string) => {
+        const trimmed = value.trim()
+        if (trimmed.length === 0) {
+          return null
+        }
+        const numeric = Number.parseFloat(trimmed)
+        if (!Number.isFinite(numeric) || numeric < 0 || numeric > 100) {
+          return null
+        }
+        return numeric / 100
+      }
+
+      const subagentPercentDecimal = percentToDecimal(form.subagentPercent)
+      const houseRepPercentDecimal = percentToDecimal(form.houseRepPercent)
+      const houseSplitPercentDecimal = percentToDecimal(houseSplitPercentDisplay)
+
+      if (subagentPercentDecimal === null && form.subagentPercent.trim().length > 0) {
+        showError("Invalid subagent percent", "Subagent % must be between 0 and 100.")
+        setSubmitting(false)
+        return
+      }
+
+      if (houseRepPercentDecimal === null && form.houseRepPercent.trim().length > 0) {
+        showError("Invalid house rep percent", "House Rep % must be between 0 and 100.")
+        setSubmitting(false)
+        return
+      }
+
+      if (houseSplitPercentDecimal === null && houseSplitPercentDisplay.trim().length > 0) {
+        showError("Invalid house split percent", "House Split % must be between 0 and 100.")
+        setSubmitting(false)
+        return
+      }
+
       const payload = {
         accountId: form.accountId,
         name: form.name.trim(),
@@ -244,7 +396,24 @@ export function OpportunityCreateModal({
         estimatedCloseDate: form.estimatedCloseDate,
         ownerId: form.ownerId,
         leadSource: form.leadSource,
-        subAgent: form.subAgent.trim() || null
+        subAgent: form.subAgent.trim() || null,
+        description: normalizeString(form.description),
+        shippingAddress: normalizeString(form.shippingAddress),
+        billingAddress: normalizeString(form.billingAddress),
+        orderIdHouse: normalizeString(form.orderIdHouse),
+        accountIdHouse: normalizeString(form.accountIdHouse),
+        accountIdVendor: normalizeString(form.accountIdVendor),
+        accountIdDistributor: normalizeString(form.accountIdDistributor),
+        customerIdHouse: normalizeString(form.customerIdHouse),
+        customerIdVendor: normalizeString(form.customerIdVendor),
+        customerIdDistributor: normalizeString(form.customerIdDistributor),
+        locationId: normalizeString(form.locationId),
+        orderIdVendor: normalizeString(form.orderIdVendor),
+        orderIdDistributor: normalizeString(form.orderIdDistributor),
+        customerPurchaseOrder: normalizeString(form.customerPurchaseOrder),
+        subagentPercent: subagentPercentDecimal,
+        houseRepPercent: houseRepPercentDecimal,
+        houseSplitPercent: houseSplitPercentDecimal
       }
 
       const response = await fetch("/api/opportunities", {
@@ -275,12 +444,12 @@ export function OpportunityCreateModal({
     } finally {
       setSubmitting(false)
     }
-  }, [canSubmit, form.accountId, form.estimatedCloseDate, form.leadSource, form.name, form.ownerId, form.stage, form.subAgent, handleClose, onCreated, showError, showSuccess])
+  }, [canSubmit, form, handleClose, houseSplitPercentDisplay, onCreated, showError, showSuccess])
 
-  const selectedAccountLabel = useMemo(() => {
-    const selected = accounts.find(option => option.value === form.accountId)
-    return selected?.label ?? ""
-  }, [accounts, form.accountId])
+  const selectedAccount = useMemo(
+    () => accounts.find(option => option.value === form.accountId) ?? null,
+    [accounts, form.accountId]
+  )
 
   if (!isOpen) {
     return null
@@ -288,7 +457,7 @@ export function OpportunityCreateModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-      <div className="w-full max-w-2xl rounded-xl bg-white shadow-xl">
+      <div className="w-full max-w-5xl rounded-xl bg-white shadow-xl">
         <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
           <div>
             <p className="text-xs font-semibold uppercase text-primary-600">Create Opportunity</p>
@@ -304,28 +473,95 @@ export function OpportunityCreateModal({
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="max-h-[80vh] overflow-y-auto px-6 py-5">
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div className="md:col-span-2">
-              <label className="mb-1 block text-sm font-medium text-gray-700">
-                Account<span className="ml-1 text-red-500">*</span>
-              </label>
-              <div className="grid gap-2 md:grid-cols-[2fr_3fr] md:items-end">
-                <div className="md:col-span-1">
+        <form onSubmit={handleSubmit} className="max-h-[90vh] overflow-y-auto px-6 py-5">
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">
+                  Opportunity Name<span className="ml-1 text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={form.name}
+                  onChange={event => setForm(previous => ({ ...previous, name: event.target.value }))}
+                  className={inputClass}
+                  placeholder="Enter opportunity name"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">
+                  Referred By<span className="ml-1 text-red-500">*</span>
+                </label>
+                <select
+                  value={form.leadSource}
+                  onChange={event => setForm(previous => ({ ...previous, leadSource: event.target.value as LeadSource }))}
+                  className={inputClass}
+                >
+                  {leadSourceOptions.map(option => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">Order ID - Vendor</label>
+                <input
+                  type="text"
+                  value={form.orderIdVendor}
+                  onChange={event => setForm(previous => ({ ...previous, orderIdVendor: event.target.value }))}
+                  className={inputClass}
+                  placeholder="Enter Order ID (Vendor)"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">Order ID - Distributor</label>
+                <input
+                  type="text"
+                  value={form.orderIdDistributor}
+                  onChange={event => setForm(previous => ({ ...previous, orderIdDistributor: event.target.value }))}
+                  className={inputClass}
+                  placeholder="Enter Order ID (Distributor)"
+                />
+              </div>
+
+              <div className="xl:col-span-2">
+                <label className="mb-1 block text-sm font-medium text-gray-700">
+                  Account Name<span className="ml-1 text-red-500">*</span>
+                </label>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-[2fr_3fr] sm:items-end">
                   <input
                     type="text"
                     value={accountQuery}
                     onChange={event => setAccountQuery(event.target.value)}
                     placeholder="Search accounts..."
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    className={inputClass}
                     disabled={accountLoading}
                   />
-                </div>
-                <div className="md:col-span-1">
                   <select
                     value={form.accountId}
-                    onChange={event => setForm(previous => ({ ...previous, accountId: event.target.value }))}
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    onChange={event => {
+                      const selectedId = event.target.value
+                      setForm(previous => {
+                        const match = accounts.find(option => option.value === selectedId)
+                        if (!match) {
+                          return { ...previous, accountId: selectedId }
+                        }
+                        return {
+                          ...previous,
+                          accountId: selectedId,
+                          accountName: match.accountName,
+                          accountLegalName: match.accountLegalName,
+                          shippingAddress: match.shippingAddress ?? '',
+                          billingAddress: match.billingAddress ?? ''
+                        }
+                      })
+                    }}
+                    className={inputClass}
                     disabled={accountLoading}
                   >
                     <option value="">{accountLoading ? "Loading accounts..." : "Select account"}</option>
@@ -336,111 +572,254 @@ export function OpportunityCreateModal({
                     ))}
                   </select>
                 </div>
+                {selectedAccount && (
+                  <p className="mt-1 text-xs text-gray-500">Selected: {selectedAccount.label}</p>
+                )}
               </div>
-              {selectedAccountLabel && (
-                <p className="mt-1 text-xs text-gray-500">Selected: {selectedAccountLabel}</p>
-              )}
-            </div>
 
-            <div className="md:col-span-2">
-              <label className="mb-1 block text-sm font-medium text-gray-700">
-                Opportunity Name<span className="ml-1 text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                value={form.name}
-                onChange={event => setForm(previous => ({ ...previous, name: event.target.value }))}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                placeholder="Enterprise renewal"
-                required
-              />
-            </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">Order ID - House</label>
+                <input
+                  type="text"
+                  value={form.orderIdHouse}
+                  onChange={event => setForm(previous => ({ ...previous, orderIdHouse: event.target.value }))}
+                  className={inputClass}
+                  placeholder="Enter Order ID (House)"
+                />
+              </div>
 
-            <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">
-                Estimated Close Date<span className="ml-1 text-red-500">*</span>
-              </label>
-              <input
-                type="date"
-                value={form.estimatedCloseDate}
-                onChange={event => setForm(previous => ({ ...previous, estimatedCloseDate: event.target.value }))}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                required
-              />
-            </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">Customer PO Number</label>
+                <input
+                  type="text"
+                  value={form.customerPurchaseOrder}
+                  onChange={event => setForm(previous => ({ ...previous, customerPurchaseOrder: event.target.value }))}
+                  className={inputClass}
+                  placeholder="Enter Customer PO Number"
+                />
+              </div>
 
-            <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">
-                Stage<span className="ml-1 text-red-500">*</span>
-              </label>
-              <select
-                value={form.stage}
-                onChange={event => setForm(previous => ({ ...previous, stage: event.target.value as OpportunityStage }))}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
-              >
-                {stageOptions.map(option => (
-                  <option
-                    key={option.value}
-                    value={option.value}
-                    disabled={option.disabled && option.value !== form.stage}
-                    title={option.disabledReason}
-                  >
-                    {formatStageLabel(option)}
-                  </option>
-                ))}
-              </select>
-            </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">Account Legal Name</label>
+                <input
+                  type="text"
+                  value={form.accountLegalName}
+                  readOnly
+                  className={`${inputClass} bg-gray-100 text-gray-700`}
+                  placeholder="Auto-filled from account"
+                />
+              </div>
 
-            <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">
-                Owner<span className="ml-1 text-red-500">*</span>
-              </label>
-              <select
-                value={form.ownerId}
-                onChange={event => setForm(previous => ({ ...previous, ownerId: event.target.value }))}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                disabled={ownersLoading}
-                required
-              >
-                <option value="">{ownersLoading ? "Loading owners..." : "Select owner"}</option>
-                {owners.map(option => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">
+                  Opportunity Stage<span className="ml-1 text-red-500">*</span>
+                </label>
+                <select
+                  value={form.stage}
+                  onChange={event => setForm(previous => ({ ...previous, stage: event.target.value as OpportunityStage }))}
+                  className={inputClass}
+                >
+                  {stageOptions.map(option => (
+                    <option
+                      key={option.value}
+                      value={option.value}
+                      disabled={option.disabled && option.value !== form.stage}
+                      title={option.disabledReason}
+                    >
+                      {formatStageLabel(option)}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-            <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">
-                Referred By<span className="ml-1 text-red-500">*</span>
-              </label>
-              <select
-                value={form.leadSource}
-                onChange={event => setForm(previous => ({ ...previous, leadSource: event.target.value as LeadSource }))}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
-              >
-                {leadSourceOptions.map(option => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">
+                  Estimated Close Date<span className="ml-1 text-red-500">*</span>
+                </label>
+                <input
+                  type="date"
+                  value={form.estimatedCloseDate}
+                  onChange={event => setForm(previous => ({ ...previous, estimatedCloseDate: event.target.value }))}
+                  className={inputClass}
+                  required
+                />
+              </div>
 
-            <div className="md:col-span-2">
-              <label className="mb-1 block text-sm font-medium text-gray-700">Subagent</label>
-              <input
-                type="text"
-                value={form.subAgent}
-                onChange={event => setForm(previous => ({ ...previous, subAgent: event.target.value }))}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                placeholder="Optional subagent"
-              />
-            </div>
-          </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">
+                  Owner<span className="ml-1 text-red-500">*</span>
+                </label>
+                <select
+                  value={form.ownerId}
+                  onChange={event => setForm(previous => ({ ...previous, ownerId: event.target.value }))}
+                  className={inputClass}
+                  disabled={ownersLoading}
+                  required
+                >
+                  <option value="">{ownersLoading ? "Loading owners..." : "Select owner"}</option>
+                  {owners.map(option => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-          <div className="mt-6 flex items-center justify-end gap-3">
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">Subagent</label>
+                <input
+                  type="text"
+                  value={form.subAgent}
+                  onChange={event => setForm(previous => ({ ...previous, subAgent: event.target.value }))}
+                  className={inputClass}
+                  placeholder="Optional subagent"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">Subagent %</label>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.01"
+                  value={form.subagentPercent}
+                  onChange={event => setForm(previous => ({ ...previous, subagentPercent: event.target.value }))}
+                  className={inputClass}
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">House Rep %</label>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.01"
+                  value={form.houseRepPercent}
+                  onChange={event => setForm(previous => ({ ...previous, houseRepPercent: event.target.value }))}
+                  className={inputClass}
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">House Split %</label>
+                <input
+                  type="number"
+                  value={houseSplitPercentDisplay}
+                  readOnly
+                  className={`${inputClass} bg-gray-100 text-gray-700`}
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">Account ID - House</label>
+                <input
+                  type="text"
+                  value={form.accountIdHouse}
+                  onChange={event => setForm(previous => ({ ...previous, accountIdHouse: event.target.value }))}
+                  className={inputClass}
+                  placeholder="Enter Account ID (House)"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">Account ID - Vendor</label>
+                <input
+                  type="text"
+                  value={form.accountIdVendor}
+                  onChange={event => setForm(previous => ({ ...previous, accountIdVendor: event.target.value }))}
+                  className={inputClass}
+                  placeholder="Enter Account ID (Vendor)"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">Account ID - Distributor</label>
+                <input
+                  type="text"
+                  value={form.accountIdDistributor}
+                  onChange={event => setForm(previous => ({ ...previous, accountIdDistributor: event.target.value }))}
+                  className={inputClass}
+                  placeholder="Enter Account ID (Distributor)"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">Customer ID - House</label>
+                <input
+                  type="text"
+                  value={form.customerIdHouse}
+                  onChange={event => setForm(previous => ({ ...previous, customerIdHouse: event.target.value }))}
+                  className={inputClass}
+                  placeholder="Enter Customer ID (House)"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">Customer ID - Vendor</label>
+                <input
+                  type="text"
+                  value={form.customerIdVendor}
+                  onChange={event => setForm(previous => ({ ...previous, customerIdVendor: event.target.value }))}
+                  className={inputClass}
+                  placeholder="Enter Customer ID (Vendor)"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">Customer ID - Distributor</label>
+                <input
+                  type="text"
+                  value={form.customerIdDistributor}
+                  onChange={event => setForm(previous => ({ ...previous, customerIdDistributor: event.target.value }))}
+                  className={inputClass}
+                  placeholder="Enter Customer ID (Distributor)"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">Location ID - Vendor</label>
+                <input
+                  type="text"
+                  value={form.locationId}
+                  onChange={event => setForm(previous => ({ ...previous, locationId: event.target.value }))}
+                  className={inputClass}
+                  placeholder="Enter Location ID (Vendor)"
+                />
+              </div>
+
+              <div className="md:col-span-2 xl:col-span-2">
+                <label className="mb-1 block text-sm font-medium text-gray-700">Shipping Address</label>
+                <textarea
+                  value={form.shippingAddress}
+                  onChange={event => setForm(previous => ({ ...previous, shippingAddress: event.target.value }))}
+                  className={`${textareaClass} min-h-[80px]`}
+                  placeholder="Enter shipping address"
+                />
+              </div>
+
+              <div className="md:col-span-2 xl:col-span-2">
+                <label className="mb-1 block text-sm font-medium text-gray-700">Billing Address</label>
+                <textarea
+                  value={form.billingAddress}
+                  onChange={event => setForm(previous => ({ ...previous, billingAddress: event.target.value }))}
+                  className={`${textareaClass} min-h-[80px]`}
+                  placeholder="Enter billing address"
+                />
+              </div>
+
+              <div className="md:col-span-2 xl:col-span-2">
+                <label className="mb-1 block text-sm font-medium text-gray-700">Opportunity Description</label>
+                <textarea
+                  value={form.description}
+                  onChange={event => setForm(previous => ({ ...previous, description: event.target.value }))}
+                  className={`${textareaClass} min-h-[120px]`}
+                  placeholder="Enter opportunity description"
+                />
+              </div>
+            </div>
+          </div>          <div className="mt-6 flex items-center justify-end gap-3">
             <button
               type="button"
               onClick={handleClose}
@@ -463,3 +842,9 @@ export function OpportunityCreateModal({
     </div>
   )
 }
+
+
+
+
+
+
