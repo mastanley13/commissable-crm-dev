@@ -54,14 +54,15 @@ async function main() {
   const tenant = await prisma.tenant.findFirst({ select: { id: true, name: true } })
   if (!tenant) throw new Error("No tenant found; please create a tenant first")
 
-  const account = await ensureAccount(prisma, tenant.id)
-  const product = await ensureProduct(prisma, tenant.id)
+  const tenantId = tenant.id
+  const account = await ensureAccount(prisma, tenantId)
+  const product = await ensureProduct(prisma, tenantId)
 
   // Helper to create an opportunity with initial ClosedWon_Provisioning
   async function createBaseOpp(name: string) {
     return prisma.opportunity.create({
       data: {
-        tenantId: tenant.id,
+        tenantId,
         accountId: account.id,
         name,
         stage: OpportunityStage.ClosedWon_Provisioning,
@@ -76,7 +77,7 @@ async function main() {
   const oppProvisioning = await createBaseOpp("Demo - Provisioning")
   await prisma.opportunityProduct.create({
     data: {
-      tenantId: tenant.id,
+      tenantId,
       opportunityId: oppProvisioning.id,
       productId: product.id,
       quantity: 1 as any,
@@ -90,7 +91,7 @@ async function main() {
   const oppBilling = await createBaseOpp("Demo - Billing")
   await prisma.opportunityProduct.create({
     data: {
-      tenantId: tenant.id,
+      tenantId,
       opportunityId: oppBilling.id,
       productId: product.id,
       quantity: 2 as any,
@@ -105,7 +106,7 @@ async function main() {
   await prisma.opportunityProduct.createMany({
     data: [
       {
-        tenantId: tenant.id,
+        tenantId,
         opportunityId: oppEnded.id,
         productId: product.id,
         quantity: 1 as any,
@@ -113,7 +114,7 @@ async function main() {
         status: OpportunityProductStatus.BillingEnded,
       },
       {
-        tenantId: tenant.id,
+        tenantId,
         opportunityId: oppEnded.id,
         productId: product.id,
         quantity: 3 as any,

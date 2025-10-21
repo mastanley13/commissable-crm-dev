@@ -363,11 +363,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { opport
       }
 
       // Percent fields (numbers in 0..1 range or null)
-      const percentFields: Array<keyof typeof payload> = [
-        "subagentPercent" as const,
-        "houseRepPercent" as const,
-        "houseSplitPercent" as const
-      ]
+      const percentFields = ["subagentPercent", "houseRepPercent", "houseSplitPercent"] as const
 
       for (const key of percentFields) {
         if (key in payload) {
@@ -396,7 +392,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { opport
         return NextResponse.json({ error: "No updates provided" }, { status: 400 })
       }
 
-      async function updateWithPrisma() {
+      const updateWithPrisma = async () => {
         return prisma.opportunity.update({
           where: { id: existing.id },
           data,
@@ -404,7 +400,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { opport
         })
       }
 
-      async function updateWithRaw() {
+      const updateWithRaw = async () => {
         const sets: string[] = []
         const params: any[] = []
         const pushSet = (col: string, val: unknown, cast?: string) => {
@@ -448,16 +444,23 @@ export async function PATCH(request: NextRequest, { params }: { params: { opport
         return result && result[0] ? { id: result[0].id } : null
       }
 
-      let updated
+      let updated: Awaited<ReturnType<typeof updateWithPrisma>> | null = null
       try {
         updated = await updateWithPrisma()
       } catch (e) {
         // Fallback to raw when Prisma client is out-of-sync with DB schema
-        await updateWithRaw()
-        updated = await prisma.opportunity.findFirst({
-          where: { id: existing.id, tenantId },
-          include: { owner: { select: { firstName: true, lastName: true } } }
-        })
+        const rawResult = await updateWithRaw()
+        if (rawResult) {
+          updated = await prisma.opportunity.findFirst({
+            where: { id: existing.id, tenantId },
+            include: { owner: { select: { firstName: true, lastName: true } } }
+          })
+        }
+      }
+
+      if (!updated) {
+        console.error("Raw opportunity update failed to return updated record", { id: existing.id })
+        return NextResponse.json({ error: "Failed to update opportunity" }, { status: 500 })
       }
 
       await revalidateOpportunityPaths(existing.accountId)

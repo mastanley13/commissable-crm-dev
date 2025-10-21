@@ -423,28 +423,40 @@ function ProductHeader({ product, onEdit }: ProductHeaderProps) {
             </div>
           </FieldRow>
           <FieldRow label="Vendor Name">
-            <EditableField.Select
-              value={(vendorAccountIdField.value as string) ?? ""}
-              onChange={vendorAccountIdField.onChange}
-              onBlur={vendorAccountIdField.onBlur}
-            >
-              <option value="">-- Select Vendor --</option>
-              {(typeof window !== 'undefined' ? (window as any).__productAccountOptions?.vendors ?? [] : []).map((opt: any) => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </EditableField.Select>
+            {product.vendor ? (
+              <Link href={`/accounts/${product.vendor.id}`} className="w-full max-w-md">
+                <div
+                  className={cn(
+                    fieldBoxClass,
+                    "cursor-pointer text-primary-700 hover:border-primary-500 hover:text-primary-800"
+                  )}
+                >
+                  <span className="truncate">{product.vendor.accountName}</span>
+                </div>
+              </Link>
+            ) : (
+              <div className={fieldBoxClass}>
+                <span className="text-gray-500">--</span>
+              </div>
+            )}
           </FieldRow>
           <FieldRow label="Distributor Name">
-            <EditableField.Select
-              value={(distributorAccountIdField.value as string) ?? ""}
-              onChange={distributorAccountIdField.onChange}
-              onBlur={distributorAccountIdField.onBlur}
-            >
-              <option value="">-- Select Distributor --</option>
-              {(typeof window !== 'undefined' ? (window as any).__productAccountOptions?.distributors ?? [] : []).map((opt: any) => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </EditableField.Select>
+            {product.distributor ? (
+              <Link href={`/accounts/${product.distributor.id}`} className="w-full max-w-md">
+                <div
+                  className={cn(
+                    fieldBoxClass,
+                    "cursor-pointer text-primary-700 hover:border-primary-500 hover:text-primary-800"
+                  )}
+                >
+                  <span className="truncate">{product.distributor.accountName}</span>
+                </div>
+              </Link>
+            ) : (
+              <div className={fieldBoxClass}>
+                <span className="text-gray-500">--</span>
+              </div>
+            )}
           </FieldRow>
           <FieldRow label="Price Each">
             <div className={fieldBoxClass}>
