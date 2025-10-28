@@ -203,15 +203,15 @@ export function Topbar() {
   }
 
   return (
-    <div className="relative z-40 bg-white border-b-2 border-blue-900 px-6 py-4">
-      <div className="flex flex-wrap items-center gap-4">
-        <div className="flex items-center gap-4">
+    <div className="relative z-40 bg-white border-b-2 border-blue-900 px-4 py-1.5">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-2">
           <button
             onClick={handleBack}
-            className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+            className="rounded-lg p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
             title="Go back"
           >
-            <ChevronLeft className="h-5 w-5" />
+            <ChevronLeft className="h-4 w-4" />
           </button>
           <Breadcrumb />
         </div>

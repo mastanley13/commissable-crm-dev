@@ -84,8 +84,8 @@ export const EditableTextInput = forwardRef<HTMLInputElement, EditableInputProps
         ref={ref}
         type={type}
         className={cn(
-          "w-full rounded-lg border-2 border-gray-400 bg-white px-2 py-0.5 text-xs text-gray-900 shadow-sm transition focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-200",
-          invalid && "border-red-500 focus:border-red-500 focus:ring-red-200",
+          "w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs text-gray-900 transition focus:border-primary-500 focus:outline-none",
+          invalid && "border-red-500 focus:border-red-500",
           props.disabled && "cursor-not-allowed opacity-70",
           className
         )}
@@ -106,8 +106,8 @@ export const EditableTextarea = forwardRef<HTMLTextAreaElement, EditableTextarea
       ref={ref}
       rows={rows}
       className={cn(
-        "w-full rounded-lg border-2 border-gray-400 bg-white px-2 py-1 text-xs text-gray-900 shadow-sm transition focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-200",
-        invalid && "border-red-500 focus:border-red-500 focus:ring-red-200",
+        "w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs text-gray-900 transition focus:border-primary-500 focus:outline-none",
+        invalid && "border-red-500 focus:border-red-500",
         props.disabled && "cursor-not-allowed opacity-70",
         className
       )}
@@ -126,8 +126,8 @@ export const EditableSelect = forwardRef<HTMLSelectElement, EditableSelectProps>
     <select
       ref={ref}
       className={cn(
-        "w-full rounded-lg border-2 border-gray-400 bg-white px-2 py-1 text-xs text-gray-900 shadow-sm transition focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-200",
-        invalid && "border-red-500 focus:border-red-500 focus:ring-red-200",
+        "w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs text-gray-900 transition focus:border-primary-500 focus:outline-none",
+        invalid && "border-red-500 focus:border-red-500",
         props.disabled && "cursor-not-allowed opacity-70",
         className
       )}

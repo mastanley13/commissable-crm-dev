@@ -158,49 +158,49 @@ export function Breadcrumb({ items, className = '' }: BreadcrumbProps) {
   }, [items, contextItems, pathname])
 
   return (
-    <nav 
-      className={`flex items-center space-x-2 text-sm ${className}`}
+    <nav
+      className={`flex items-center space-x-1 text-[11px] ${className}`}
       aria-label="Breadcrumb"
     >
-      <ol className="flex items-center space-x-2">
+      <ol className="flex items-center space-x-1">
         {breadcrumbItems.map((item, index) => (
           <li key={index} className="flex items-center">
             {index > 0 && (
-              <ChevronRight 
-                className="h-4 w-4 text-gray-400 mx-2" 
-                aria-hidden="true" 
+              <ChevronRight
+                className="h-3 w-3 text-gray-400 mx-1"
+                aria-hidden="true"
               />
             )}
-            
+
             {index === 0 ? (
               // Home icon for first item
               item.href && !item.current ? (
-                <Link 
+                <Link
                   href={item.href}
                   className="flex items-center text-gray-500 hover:text-gray-700 transition-colors"
                   aria-label="Home"
                 >
-                  <Home className="h-4 w-4" />
+                  <Home className="h-3 w-3" />
                 </Link>
               ) : (
-                <span 
+                <span
                   className="flex items-center text-gray-900 font-medium"
                   aria-current={item.current ? 'page' : undefined}
                 >
-                  <Home className="h-4 w-4" />
+                  <Home className="h-3 w-3" />
                 </span>
               )
             ) : (
               // Regular breadcrumb items
               item.href && !item.current ? (
-                <Link 
+                <Link
                   href={item.href}
                   className="text-gray-500 hover:text-gray-700 transition-colors"
                 >
                   {item.name}
                 </Link>
               ) : (
-                <span 
+                <span
                   className="text-gray-900 font-medium"
                   aria-current={item.current ? 'page' : undefined}
                 >

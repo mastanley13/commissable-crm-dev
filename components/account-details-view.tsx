@@ -426,7 +426,7 @@ const TABS: { id: TabKey; label: string }[] = [
 ]
 
 const fieldLabelClass = "text-[11px] font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap flex items-center"
-const fieldBoxClass = "flex min-h-[28px] w-full max-w-md items-center justify-between rounded-lg border-2 border-gray-400 bg-white px-2 py-0.5 text-xs text-gray-900 shadow-sm whitespace-nowrap overflow-hidden text-ellipsis"
+const fieldBoxClass = "flex min-h-[28px] w-full max-w-md items-center justify-between border-b-2 border-gray-300 bg-transparent px-0 py-1 text-[11px] text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis"
 const CONTACT_TABLE_BASE_COLUMNS: Column[] = [
   {
     id: "multi-action",
@@ -803,7 +803,7 @@ function AccountHeader({
   return (
     <div className="rounded-2xl bg-gray-100 p-3 shadow-sm">
       <div className="mb-2 flex items-center justify-between">
-        <p className="text-xs font-semibold uppercase tracking-wide text-primary-600">Account Detail</p>
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-primary-600">Account Detail</p>
         <div className="flex items-center gap-2">
           {onEdit ? (
             <button
@@ -822,9 +822,9 @@ function AccountHeader({
           <FieldRow
             label="Account Name"
             value={
-              <div className="flex items-center gap-2 max-w-md">
+              <div className="flex items-end gap-2 max-w-md">
                 <div className={cn(fieldBoxClass, "flex-1 max-w-none")}>{account.accountName}</div>
-                <div className="flex items-center gap-2 shrink-0 rounded-lg border-2 border-gray-400 bg-white px-2 py-0.5 text-xs font-medium text-gray-600 shadow-sm">
+                <div className="flex items-center gap-2 shrink-0 border-b-2 border-gray-300 bg-transparent px-0 py-1 text-[11px] font-medium text-gray-600">
                   <span>Active (Y/N)</span>
                   <ReadOnlySwitch value={account.active} />
                 </div>
@@ -879,11 +879,11 @@ function AccountHeader({
         <div className="space-y-1.5">
           <div>
             <div className="mb-1 flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-gray-800">Ship To Address</h3>
-              <span className="text-xs font-semibold uppercase tracking-wide text-primary-600">Default</span>
+              <h3 className="text-[11px] font-semibold text-gray-800">Ship To Address</h3>
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-primary-600">Default</span>
             </div>
             {account.shippingAddress ? (
-              <div className="space-y-1 text-sm text-gray-700">
+              <div className="space-y-1 text-[11px] text-gray-700">
                 <FieldRow
                   label="Street"
                   value={<div className={fieldBoxClass}>{account.shippingAddress.line1}</div>}
@@ -911,20 +911,20 @@ function AccountHeader({
                 </div>
               </div>
             ) : (
-              <p className="text-sm text-gray-500">No shipping address on file.</p>
+              <p className="text-[11px] text-gray-500">No shipping address on file.</p>
             )}
           </div>
 
           <div>
             <div className="mb-1 flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-gray-800">Bill To Address</h3>
-              <label className="flex items-center gap-2 text-xs text-gray-600">
+              <h3 className="text-[11px] font-semibold text-gray-800">Bill To Address</h3>
+              <label className="flex items-center gap-2 text-[11px] text-gray-600">
                 <ReadOnlyCheckbox checked={Boolean(account.billingSameAsShipping)} />
                 <span>Same as Ship</span>
               </label>
             </div>
             {account.billingAddress ? (
-              <div className="space-y-1 text-sm text-gray-700">
+              <div className="space-y-1 text-[11px] text-gray-700">
                 <FieldRow
                   label="Street"
                   value={<div className={fieldBoxClass}>{account.billingAddress.line1}</div>}
@@ -952,7 +952,7 @@ function AccountHeader({
                 </div>
               </div>
             ) : (
-              <p className="text-sm text-gray-500">No billing address on file.</p>
+              <p className="text-[11px] text-gray-500">No billing address on file.</p>
             )}
           </div>
         </div>
@@ -1071,12 +1071,12 @@ function EditableAccountHeader({
     <div className="rounded-2xl bg-gray-100 p-3 shadow-sm">
       <div className="mb-2 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-primary-600">Account Detail</p>
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-primary-600">Account Detail</p>
           {editor.isDirty ? (
-            <span className="text-xs font-semibold text-amber-600">Unsaved changes</span>
+            <span className="text-[11px] font-semibold text-amber-600">Unsaved changes</span>
           ) : null}
           {optionsLoading ? (
-            <span className="text-xs text-gray-500">Loading field options...</span>
+            <span className="text-[11px] text-gray-500">Loading field options...</span>
           ) : null}
         </div>
         <button
@@ -1095,7 +1095,7 @@ function EditableAccountHeader({
             label="Account Name"
             value={
               <div className="flex flex-col gap-1">
-                <div className="flex items-center gap-2 max-w-md">
+                <div className="flex items-end gap-2 max-w-md">
                   <EditableField.Input
                     value={(accountNameField.value as string) ?? ""}
                     onChange={accountNameField.onChange}
@@ -1103,7 +1103,7 @@ function EditableAccountHeader({
                     placeholder="Enter account name"
                     className="flex-1"
                   />
-                  <div className="flex items-center gap-2 shrink-0 rounded-lg border-2 border-gray-400 bg-white px-2 py-0.5 text-xs font-medium text-gray-600 shadow-sm">
+                  <div className="flex items-center gap-2 shrink-0 border-b-2 border-gray-300 bg-transparent px-0 py-1 text-[11px] font-medium text-gray-600">
                     <span>Active (Y/N)</span>
                     <EditableField.Switch
                       checked={Boolean(activeField.value)}
@@ -1207,8 +1207,8 @@ function EditableAccountHeader({
         <div className="space-y-1.5">
           <div>
             <div className="mb-1 flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-gray-800">Ship To Address</h3>
-              <span className="text-xs font-semibold uppercase tracking-wide text-primary-600">Default</span>
+              <h3 className="text-[11px] font-semibold text-gray-800">Ship To Address</h3>
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-primary-600">Default</span>
             </div>
             <div className="space-y-1">
               <FieldRow
@@ -1293,8 +1293,8 @@ function EditableAccountHeader({
 
           <div>
             <div className="mb-1 flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-gray-800">Bill To Address</h3>
-              <label className="inline-flex items-center gap-2 text-xs text-gray-600">
+              <h3 className="text-[11px] font-semibold text-gray-800">Bill To Address</h3>
+              <label className="inline-flex items-center gap-2 text-[11px] text-gray-600">
                 <input
                   type="checkbox"
                   className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
@@ -4386,7 +4386,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                 </div>
 
                 <div className="flex flex-1 flex-col min-h-0 overflow-hidden">
-                  <div className="flex flex-wrap gap-1 border-x border-t border-gray-200 bg-gray-100 p-2">
+                  <div className="flex flex-wrap gap-1 border-x border-t border-gray-200 bg-gray-100 pt-2 px-2 pb-0">
                     {TABS.map(tab => (
                       <button
                         key={tab.id}

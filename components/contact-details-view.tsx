@@ -351,8 +351,8 @@ const TABS: { id: "activities" | "opportunities" | "groups"; label: string }[] =
 ]
 
 const fieldLabelClass = "text-[11px] font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap"
-const fieldSubLabelClass = "text-[10px] font-medium text-gray-600"
-const fieldBoxClass = "flex min-h-[28px] w-full max-w-md items-center justify-between rounded-lg border-2 border-gray-400 bg-white px-2 py-0.5 text-xs text-gray-900 shadow-sm whitespace-nowrap overflow-hidden text-ellipsis"
+const fieldSubLabelClass = "text-[11px] font-medium text-gray-600"
+const fieldBoxClass = "flex min-h-[28px] w-full max-w-md items-center justify-between border-b-2 border-gray-300 bg-transparent px-0 py-1 text-[11px] text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis"
 
 const CONTACT_ACTIVITY_TABLE_BASE_COLUMNS: Column[] = [
   {
@@ -626,7 +626,7 @@ function ContactHeader({
     <div className="rounded-2xl bg-gray-100 p-3 shadow-sm">
       <div className="mb-2 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-primary-600">Contact Detail</p>
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-primary-600">Contact Detail</p>
         </div>
         <div className="flex items-center gap-2">
           {onEdit && !isDeleted ? (
@@ -668,19 +668,31 @@ function ContactHeader({
           <FieldRow
             label="Account Name"
             value={
-              <div className="flex items-center gap-2 w-full max-w-md">
+              <div className="flex items-end gap-2 w-full max-w-md">
                 <div className="flex-1 min-w-[12rem]">
                   <div className={fieldBoxClass}>{contact.accountName || "--"}</div>
                 </div>
-                <div className="flex shrink-0 items-center gap-2 rounded-lg border-2 border-gray-400 bg-white px-2 py-0.5 text-xs font-medium text-gray-600 shadow-sm whitespace-nowrap">
+                <div className="flex shrink-0 items-center gap-2 border-b-2 border-gray-300 bg-transparent px-0 py-1 text-[11px] font-medium text-gray-600 whitespace-nowrap">
                   <span>Active (Y/N)</span>
                   <ReadOnlySwitch value={contact.active} />
                 </div>
               </div>
             }
           />
-          <FieldRow label="Work Phone" value={<div className={fieldBoxClass}>{contact.workPhone || "--"}</div>} />
-          <FieldRow label="Extension" value={<div className={fieldBoxClass}>{contact.workPhoneExt || "--"}</div>} />
+          <FieldRow
+            label="Work Phone"
+            value={
+              <div className="flex items-center gap-2 w-full max-w-md">
+                <div className="flex-1 min-w-[12rem]">
+                  <div className={fieldBoxClass}>{contact.workPhone || "--"}</div>
+                </div>
+                <div className="flex shrink-0 items-center gap-2 bg-transparent px-0 py-0 text-[11px] font-medium text-gray-600 whitespace-nowrap">
+                  <span>Extension</span>
+                  <div className="min-w-[3rem] text-center border-b-2 border-gray-300 py-1">{contact.workPhoneExt || "--"}</div>
+                </div>
+              </div>
+            }
+          />
           <FieldRow label="Mobile" value={<div className={fieldBoxClass}>{contact.mobilePhone || "--"}</div>} />
         </div>
         <div className="space-y-1.5 lg:pt-1">
@@ -769,9 +781,9 @@ function EditableContactHeader({
     <div className="rounded-2xl bg-gray-100 p-3 shadow-sm">
       <div className="mb-2 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-primary-600">Contact Detail</p>
-          {editor.isDirty ? <span className="text-xs font-semibold text-amber-600">Unsaved changes</span> : null}
-          {optionsLoading ? <span className="text-xs text-gray-500">Loading field options...</span> : null}
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-primary-600">Contact Detail</p>
+          {editor.isDirty ? <span className="text-[11px] font-semibold text-amber-600">Unsaved changes</span> : null}
+          {optionsLoading ? <span className="text-[11px] text-gray-500">Loading field options...</span> : null}
         </div>
         <button
           type="button"
@@ -842,7 +854,7 @@ function EditableContactHeader({
             label="Account Name"
             value={
               <div className="flex flex-col gap-1">
-                <div className="flex flex-wrap items-center gap-2 w-full max-w-md">
+                <div className="flex flex-wrap items-end gap-2 w-full max-w-md">
                   <div className="flex-1 min-w-[12rem]">
                     <EditableField.Select
                       className="w-full"
@@ -859,7 +871,7 @@ function EditableContactHeader({
                       ))}
                     </EditableField.Select>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0 rounded-lg border-2 border-gray-400 bg-white px-2 py-0.5 text-xs font-medium text-gray-600 shadow-sm">
+                  <div className="flex items-center gap-2 shrink-0 border-b-2 border-gray-300 bg-transparent px-0 py-1 text-[11px] font-medium text-gray-600">
                     <span>Active (Y/N)</span>
                     <ReadOnlySwitch value={contact.active} />
                   </div>
@@ -871,26 +883,36 @@ function EditableContactHeader({
             }
           />
 
-          {renderStandardRow(
-            "Work Phone",
-            <EditableField.Input
-              value={(workPhoneField.value as string) ?? ""}
-              onChange={workPhoneField.onChange}
-              onBlur={workPhoneField.onBlur}
-              placeholder="123-456-7890"
-            />,
-            editor.errors.workPhone
-          )}
-
-          {renderStandardRow(
-            "Extension",
-            <EditableField.Input
-              value={(workPhoneExtField.value as string) ?? ""}
-              onChange={workPhoneExtField.onChange}
-              onBlur={workPhoneExtField.onBlur}
-              placeholder="Ext"
-            />
-          )}
+          <FieldRow
+            label="Work Phone"
+            value={
+              <div className="flex flex-col gap-1">
+                <div className="flex flex-wrap items-center gap-2 w-full max-w-md">
+                  <div className="flex-1 min-w-[12rem]">
+                    <EditableField.Input
+                      value={(workPhoneField.value as string) ?? ""}
+                      onChange={workPhoneField.onChange}
+                      onBlur={workPhoneField.onBlur}
+                      placeholder="123-456-7890"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0 bg-transparent px-0 py-0 text-[11px] font-medium text-gray-600">
+                    <span>Extension</span>
+                    <EditableField.Input
+                      className="w-20"
+                      value={(workPhoneExtField.value as string) ?? ""}
+                      onChange={workPhoneExtField.onChange}
+                      onBlur={workPhoneExtField.onBlur}
+                      placeholder="Ext"
+                    />
+                  </div>
+                </div>
+                {editor.errors.workPhone ? (
+                  <p className="text-[10px] text-red-600">{editor.errors.workPhone}</p>
+                ) : null}
+              </div>
+            }
+          />
 
           {renderStandardRow(
             "Mobile Phone",
@@ -1248,7 +1270,14 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
   }, [showError])
 
   useEffect(() => {
-    if (!shouldEnableInline || optionsLoaded || optionsLoading) {
+    // If inline editing is disabled, ensure loading state is cleared
+    if (!shouldEnableInline) {
+      setOptionsLoading(false)
+      return
+    }
+
+    // Only load once
+    if (optionsLoaded) {
       return
     }
 
@@ -1296,7 +1325,6 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
         setBaseAccountOptions(accounts)
         setBaseOwnerOptions(owners)
         setBaseContactMethodOptions(methods)
-        setOptionsLoaded(true)
       } catch (error) {
         if (!cancelled) {
           const message = error instanceof Error ? error.message : "Failed to load contact options"
@@ -1305,6 +1333,7 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
       } finally {
         if (!cancelled) {
           setOptionsLoading(false)
+          setOptionsLoaded(true)
         }
       }
     }
@@ -1314,7 +1343,7 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
     return () => {
       cancelled = true
     }
-  }, [shouldEnableInline, optionsLoaded, optionsLoading, showError])
+  }, [shouldEnableInline, optionsLoaded, showError])
 
   useEffect(() => {
     setActivityModalOpen(false)
@@ -2407,9 +2436,11 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
   ], [])
 
   const opportunitiesFilterColumns = useMemo(() => [
+    { id: "id", label: "Opportunity ID" },
     { id: "closeDate", label: "Close Date" },
     { id: "opportunityName", label: "Opportunity Name" },
     { id: "stage", label: "Opportunity Stage" },
+    { id: "status", label: "Status" },
     { id: "orderIdHouse", label: "Order ID - House" },
     { id: "owner", label: "Owner" },
     { id: "subAgent", label: "Subagent" },
@@ -2788,10 +2819,12 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
     const query = opportunitiesSearchQuery.trim().toLowerCase()
     if (query.length > 0) {
       rows = rows.filter(row => {
-        const values = [
+        const values: Array<string | number | boolean | undefined | null | Date> = [
+          row.id,
           row.closeDate ? formatDate(row.closeDate as any) : undefined,
           row.opportunityName,
           row.stage,
+          row.status,
           row.orderIdHouse,
           row.owner,
           row.subAgent,
@@ -2801,6 +2834,7 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
           row.orderIdVendor,
         ]
         return values
+          .map(v => (v == null ? undefined : String(v)))
           .filter((value): value is string => typeof value === "string" && value.length > 0)
           .some(value => value.toLowerCase().includes(query))
       })
@@ -3147,7 +3181,7 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
                 </div>
 
                 <div className="flex flex-1 flex-col min-h-0 overflow-hidden">
-                  <div className="flex flex-wrap gap-1 border-x border-t border-gray-200 bg-gray-100 p-2">
+                  <div className="flex flex-wrap gap-1 border-x border-t border-gray-200 bg-gray-100 pt-2 px-2 pb-0">
                     {TABS.map(tab => (
                       <button
                         key={tab.id}

@@ -89,7 +89,7 @@ cd C:\cloud-sql-proxy
 OR
 
 .\cloud_sql_proxy.exe groovy-design-471709-d1:us-central1:commissable-sql --port 5432 --debug-logs
-
+.\cloud_sql_proxy.exe groovy-design-471709-d1:us-central1:commissable-sql --address 127.0.0.1 --port 5432 
 
 ```
 

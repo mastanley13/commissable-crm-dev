@@ -122,10 +122,9 @@ function MetricTile({ fieldId, label, value }: MetricDefinition) {
     )
 
   return (
-    <div className="flex min-w-[160px] flex-col gap-1 rounded-lg border-2 border-gray-300 bg-white px-3 py-2 text-xs text-gray-900 shadow-sm">
-      <span className="text-[10px] font-semibold uppercase tracking-wide text-primary-600">{fieldId}</span>
+    <div className="flex min-w-[140px] flex-col gap-0.5 rounded-lg border-2 border-gray-300 bg-white px-2 py-1.5 text-[11px] text-gray-900 shadow-sm">
       <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">{label}</span>
-      <div className="text-xs font-semibold text-gray-900">{displayValue}</div>
+      <div className="text-[11px] font-semibold text-gray-900">{displayValue}</div>
     </div>
   )
 }
@@ -292,23 +291,11 @@ export function RevenueScheduleDetailsView({
   ]
 
   return (
-    <div className="space-y-5 p-5">
+    <div className="space-y-3 p-2">
       <div className="rounded-2xl bg-gray-100 p-3 shadow-sm">
         <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
           <div className="space-y-0.5">
             <p className="text-xs font-semibold uppercase tracking-wide text-primary-600">Revenue Schedule Detail</p>
-            <h1 className="text-lg font-semibold text-gray-900">Revenue Schedule Details</h1>
-            <p className="text-xs text-gray-500">Spec coverage: Field IDs 04.01.000 - 04.01.030</p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold ${statusPillClass}`}>
-              <span className="h-2 w-2 rounded-full bg-current opacity-80" />
-              Status: {schedule.scheduleStatus ?? "Unknown"}
-            </span>
-            <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold ${disputePillClass}`}>
-              <span className="h-2 w-2 rounded-full bg-current opacity-80" />
-              {schedule.inDispute ? "In Dispute" : "Not In Dispute"}
-            </span>
           </div>
         </div>
 
@@ -323,12 +310,12 @@ export function RevenueScheduleDetailsView({
         </div>
       </div>
 
-      <div className="space-y-2.5">
+      <div className="space-y-1.5">
         <div className="flex items-center justify-between">
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-gray-600">Schedule Summary</h2>
+          <h2 className="text-[11px] font-semibold uppercase tracking-wide text-gray-600">Schedule Summary</h2>
         </div>
         <div className="overflow-x-auto">
-          <div className="flex min-w-max gap-2.5 rounded-2xl bg-gray-100 p-3 shadow-sm">
+          <div className="flex min-w-max gap-2 rounded-2xl bg-gray-100 p-2 shadow-sm">
             {summaryMetrics.map(metric => (
               <MetricTile key={`${metric.fieldId}-${metric.label}`} {...metric} />
             ))}

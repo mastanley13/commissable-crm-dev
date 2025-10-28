@@ -27,7 +27,7 @@ import { ProductBulkActionBar } from "./product-bulk-action-bar"
 import { getOpportunityStageLabel, getOpportunityStageOptions, isOpportunityStageAutoManaged, isOpportunityStageValue, type OpportunityStageOption } from "@/lib/opportunity-stage"
 
 const fieldLabelClass = "text-[11px] font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap"
-const fieldBoxClass = "flex min-h-[28px] w-full max-w-md items-center justify-between rounded-lg border-2 border-gray-400 bg-white px-2 py-0.5 text-xs text-gray-900 shadow-sm whitespace-nowrap overflow-hidden text-ellipsis"
+const fieldBoxClass = "flex min-h-[28px] w-full max-w-md items-center justify-between border-b-2 border-gray-300 bg-transparent px-0 py-1 text-[11px] text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis"
 
 const PRODUCT_FILTER_COLUMNS: Array<{ id: string; label: string }> = [
   { id: "productName", label: "Product Name" },
@@ -354,22 +354,22 @@ function SummaryTab({ opportunity }: { opportunity: OpportunityDetailRecord }) {
 
   return (
     <div className="space-y-6">
-      
+
 
       <div className="grid gap-y-6 gap-x-14 lg:grid-cols-3">
         {summaryColumns.map((column, columnIndex) => (
           <div key={columnIndex} className="space-y-4">
-            <h3 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">
+            <h3 className="text-[11px] font-semibold text-gray-900 border-b border-gray-200 pb-2">
               {column.title}
             </h3>
             {column.sections.map((section, sectionIndex) => (
               <div key={sectionIndex} className="space-y-2">
-                <h4 className="text-xs font-medium text-gray-700 uppercase tracking-wide">
+                <h4 className="text-[11px] font-medium text-gray-700 uppercase tracking-wide">
                   {section.title}
                 </h4>
                 <div className="space-y-1">
                   {section.items.map((item, itemIndex) => (
-                    <div key={itemIndex} className="flex items-center gap-4 text-sm">
+                    <div key={itemIndex} className="flex items-center gap-4 text-[11px]">
                       <span className="text-gray-600">{item.label}</span>
                       <span className="font-medium text-gray-900 whitespace-nowrap">
                         {formatCurrencyValue(item.value)}
@@ -409,8 +409,8 @@ function DetailsIdentifiersTab({ opportunity }: { opportunity: OpportunityDetail
         {fields.map(field => (
           <div key={field.label} className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
             <div className="flex items-center gap-2">
-              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">{field.label}</p>
-              <p className="text-sm font-medium text-gray-900 break-all">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">{field.label}</p>
+              <p className="text-[11px] font-medium text-gray-900 break-all">
                 {field.value && String(field.value).trim().length > 0 ? String(field.value) : "--"}
               </p>
             </div>
@@ -665,7 +665,7 @@ function OpportunityHeader({
       {/* Header with title and controls */}
       <div className="mb-2 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-primary-600">Opportunity Detail</p>
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-primary-600">Opportunity Detail</p>
         </div>
         <div className="flex items-center gap-2">
           {onEdit && (
@@ -832,11 +832,11 @@ function EditableOpportunityHeader({
     <div className="rounded-2xl bg-gray-100 p-3 shadow-sm">
       <div className="mb-2 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-primary-600">Opportunity Detail</p>
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-primary-600">Opportunity Detail</p>
           {editor.isDirty ? (
-            <span className="text-xs font-semibold text-amber-600">Unsaved changes</span>
+            <span className="text-[11px] font-semibold text-amber-600">Unsaved changes</span>
           ) : null}
-          {ownersLoading ? <span className="text-xs text-gray-500">Loading owners...</span> : null}
+          {ownersLoading ? <span className="text-[11px] text-gray-500">Loading owners...</span> : null}
         </div>
         <button
           type="button"
@@ -934,7 +934,7 @@ function EditableOpportunityHeader({
                 ))}
               </EditableField.Select>
               {isAutoManagedStageValue(stageField.value) && (
-                <p className="text-xs text-gray-500">
+                <p className="text-[11px] text-gray-500">
                   Stage updates automatically while products are billing.
                 </p>
               )}
@@ -2728,7 +2728,7 @@ if (loading) {
             {headerNode}
 
             <div className="flex flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-              <div className="flex flex-wrap gap-1 border-b border-gray-200 bg-gray-100 p-2">
+              <div className="flex flex-wrap gap-1 border-b border-gray-200 bg-gray-100 pt-2 px-2 pb-0">
                 {(["products", "revenue-schedules", "activities", "summary", "roles", "details"] as TabKey[]).map(tabId => (
                   <button
                     key={tabId}
