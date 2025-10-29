@@ -137,7 +137,16 @@ export function AccountCreateModal({ isOpen, onClose, onSubmit }: AccountCreateM
   const [industries, setIndustries] = useState<OptionItem[]>([])
   const [parentAccounts, setParentAccounts] = useState<OptionItem[]>([])
   const [owners, setOwners] = useState<OptionItem[]>([])
+  const [parentAccountQuery, setParentAccountQuery] = useState("")
+  const [showParentAccountResults, setShowParentAccountResults] = useState(false)
   const { user } = useAuth()
+
+  useEffect(() => {
+    if (!isOpen) {
+      setShowParentAccountResults(false)
+      setParentAccountQuery("")
+    }
+  }, [isOpen])
 
   useEffect(() => {
     if (!isOpen) {
@@ -145,6 +154,11 @@ export function AccountCreateModal({ isOpen, onClose, onSubmit }: AccountCreateM
     }
 
     setForm(INITIAL_FORM)
+    setParentAccountQuery("")
+    // Pre-select current user as owner immediately if available
+    if (user?.id) {
+      setForm(prev => ({ ...prev, ownerId: user.id }))
+    }
     setErrors({})
     setFormError(null)
     setOptionsLoaded(false)
@@ -165,10 +179,30 @@ export function AccountCreateModal({ isOpen, onClose, onSubmit }: AccountCreateM
           throw new Error("Unable to load field options")
         }
         const data = await response.json()
-        setAccountTypes(Array.isArray(data.accountTypes) ? data.accountTypes : [])
-        setIndustries(Array.isArray(data.industries) ? data.industries : [])
-        setParentAccounts(Array.isArray(data.parentAccounts) ? data.parentAccounts : [])
-        setOwners(Array.isArray(data.owners) ? data.owners : [])
+        setAccountTypes(
+          Array.isArray(data.accountTypes)
+            ? data.accountTypes.map((type: any) => ({ id: type.id, name: type.name ?? type.id }))
+            : []
+        )
+        setIndustries(
+          Array.isArray(data.industries)
+            ? data.industries.map((industry: any) => ({ id: industry.id, name: industry.name ?? industry.id }))
+            : []
+        )
+        setParentAccounts(
+          Array.isArray(data.parentAccounts)
+            ? data.parentAccounts.map((account: any) => ({
+                id: account.id,
+                name: account.accountName ?? account.id
+              }))
+            : []
+        )
+        // Normalize owners to OptionItem shape { id, name }
+        setOwners(
+          Array.isArray(data.owners)
+            ? data.owners.map((o: any) => ({ id: o.id, name: o.fullName ?? o.name ?? "" }))
+            : []
+        )
         setOptionsLoaded(true)
       } catch (error) {
         console.error(error)
@@ -194,6 +228,28 @@ export function AccountCreateModal({ isOpen, onClose, onSubmit }: AccountCreateM
       setForm(prev => ({ ...prev, ownerId: user.id }))
     }
   }, [isOpen, optionsLoaded, owners, user?.id, form.ownerId])
+
+  useEffect(() => {
+    if (!form.parentAccountId) {
+      if (parentAccountQuery !== "") {
+        setParentAccountQuery("")
+      }
+      return
+    }
+
+    const match = parentAccounts.find(account => account.id === form.parentAccountId)
+    if (match && parentAccountQuery !== match.name) {
+      setParentAccountQuery(match.name)
+    }
+  }, [form.parentAccountId, parentAccounts, parentAccountQuery])
+
+  const parentAccountResults = useMemo(() => {
+    const query = parentAccountQuery.trim().toLowerCase()
+    const source = query.length === 0
+      ? parentAccounts
+      : parentAccounts.filter(account => account.name.toLowerCase().includes(query))
+    return source.slice(0, 25)
+  }, [parentAccountQuery, parentAccounts])
 
   const disableBillingFields = form.billingSameAsShipping
 
@@ -394,20 +450,51 @@ export function AccountCreateModal({ isOpen, onClose, onSubmit }: AccountCreateM
                 />
               </div>
 
-              <div>
+              <div className="relative">
                 <label className="mb-1 block text-sm font-medium text-gray-700">Parent Account</label>
-                <select
-                  value={form.parentAccountId}
-                  onChange={handleFieldChange("parentAccountId")}
+                <input
+                  type="text"
+                  value={parentAccountQuery}
+                  onChange={event => {
+                    const value = event.target.value
+                    setParentAccountQuery(value)
+                    setForm(previous => ({ ...previous, parentAccountId: "" }))
+                    if (!showParentAccountResults) {
+                      setShowParentAccountResults(true)
+                    }
+                  }}
+                  onFocus={() => setShowParentAccountResults(true)}
+                  onBlur={() => {
+                    setTimeout(() => setShowParentAccountResults(false), 120)
+                  }}
+                  placeholder="Search parent accounts"
                   className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                >
-                  <option value="">Select</option>
-                  {parentAccounts.map(option => (
-                    <option key={option.id} value={option.id}>
-                      {option.name || option.id}
-                    </option>
-                  ))}
-                </select>
+                  autoComplete="off"
+                />
+                {showParentAccountResults && parentAccountResults.length > 0 ? (
+                  <div className="absolute z-20 mt-1 max-h-52 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg">
+                    {parentAccountResults.map(option => (
+                      <button
+                        key={option.id}
+                        type="button"
+                        onMouseDown={event => event.preventDefault()}
+                        onClick={() => {
+                          setForm(previous => ({ ...previous, parentAccountId: option.id }))
+                          setParentAccountQuery(option.name)
+                          setShowParentAccountResults(false)
+                        }}
+                        className="w-full px-3 py-2 text-left text-sm hover:bg-primary-50"
+                      >
+                        <div className="font-medium text-gray-900">{option.name}</div>
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+                {showParentAccountResults && parentAccountResults.length === 0 && parentAccountQuery.trim().length > 0 ? (
+                  <div className="absolute z-20 mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-500 shadow-lg">
+                    No parent accounts match your search.
+                  </div>
+                ) : null}
               </div>
 
               <div className="grid grid-cols-5 gap-3">

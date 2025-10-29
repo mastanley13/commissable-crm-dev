@@ -800,6 +800,32 @@ function AccountHeader({
   account: AccountDetail
   onEdit?: (account: AccountDetail) => void
 }) {
+  const renderAddressValue = (
+    value: string | null | undefined,
+    placeholder: string,
+    extraClassName?: string
+  ) => {
+    const trimmed = typeof value === "string" ? value.trim() : ""
+    return (
+      <div className={cn(fieldBoxClass, extraClassName)}>
+        {trimmed.length > 0 ? trimmed : <span className="text-gray-400">{placeholder}</span>}
+      </div>
+    )
+  }
+
+  const renderAddressSelectValue = (
+    value: string | null | undefined,
+    placeholder: string
+  ) => {
+    const trimmed = typeof value === "string" ? value.trim() : ""
+    return (
+      <div className={cn(fieldBoxClass, "justify-between max-w-none")}>
+        <span className={trimmed.length > 0 ? undefined : "text-gray-400"}>{trimmed || placeholder}</span>
+        <ChevronDown className="h-4 w-4 text-gray-400" />
+      </div>
+    )
+  }
+
   return (
     <div className="rounded-2xl bg-gray-100 p-3 shadow-sm">
       <div className="mb-2 flex items-center justify-between">
@@ -880,34 +906,18 @@ function AccountHeader({
           <div>
             <div className="mb-1 flex items-center justify-between">
               <h3 className="text-[11px] font-semibold text-gray-800">Ship To Address</h3>
-              <span className="text-[11px] font-semibold uppercase tracking-wide text-primary-600">Default</span>
             </div>
             {account.shippingAddress ? (
               <div className="space-y-1 text-[11px] text-gray-700">
-                <FieldRow
-                  label="Street"
-                  value={<div className={fieldBoxClass}>{account.shippingAddress.line1}</div>}
-                />
-                <FieldRow
-                  label="Shipping St 2"
-                  value={
-                    <div className={fieldBoxClass}>
-                      {account.shippingAddress.shippingStreet2 || account.shippingAddress.line2 || ""}
-                    </div>
-                  }
-                />
-                <div className="grid items-center gap-4 sm:grid-cols-[140px,1fr]">
-                  <span className={fieldLabelClass}>City, State, Zip</span>
-                  <div className="grid max-w-md grid-cols-[2fr,1fr,1fr] gap-1">
-                    <div className={cn(fieldBoxClass, "max-w-none")}>{account.shippingAddress.city}</div>
-                    <div className={cn(fieldBoxClass, "justify-between max-w-none")}>
-                      <span>{account.shippingAddress.state || "-"}</span>
-                      <ChevronDown className="h-4 w-4 text-gray-400" />
-                    </div>
-                    <div className={cn(fieldBoxClass, "max-w-none")}>
-                      {account.shippingAddress.postalCode || "-"}
-                    </div>
-                  </div>
+                {renderAddressValue(account.shippingAddress.line1, "Shipping Street")}
+                {renderAddressValue(
+                  account.shippingAddress.shippingStreet2 || account.shippingAddress.line2,
+                  "Shipping Street 2"
+                )}
+                <div className="grid max-w-md grid-cols-[2fr,1fr,1fr] gap-1">
+                  {renderAddressValue(account.shippingAddress.city, "City", "max-w-none")}
+                  {renderAddressSelectValue(account.shippingAddress.state, "State")}
+                  {renderAddressValue(account.shippingAddress.postalCode, "Zip", "max-w-none")}
                 </div>
               </div>
             ) : (
@@ -925,30 +935,15 @@ function AccountHeader({
             </div>
             {account.billingAddress ? (
               <div className="space-y-1 text-[11px] text-gray-700">
-                <FieldRow
-                  label="Street"
-                  value={<div className={fieldBoxClass}>{account.billingAddress.line1}</div>}
-                />
-                <FieldRow
-                  label="Billing St 2"
-                  value={
-                    <div className={fieldBoxClass}>
-                      {account.billingAddress.billingStreet2 || account.billingAddress.line2 || ""}
-                    </div>
-                  }
-                />
-                <div className="grid items-center gap-4 sm:grid-cols-[140px,1fr]">
-                  <span className={fieldLabelClass}>City, State, Zip</span>
-                  <div className="grid max-w-md grid-cols-[2fr,1fr,1fr] gap-1">
-                    <div className={cn(fieldBoxClass, "max-w-none")}>{account.billingAddress.city}</div>
-                    <div className={cn(fieldBoxClass, "justify-between max-w-none")}>
-                      <span>{account.billingAddress.state || "-"}</span>
-                      <ChevronDown className="h-4 w-4 text-gray-400" />
-                    </div>
-                    <div className={cn(fieldBoxClass, "max-w-none")}>
-                      {account.billingAddress.postalCode || "-"}
-                    </div>
-                  </div>
+                {renderAddressValue(account.billingAddress.line1, "Billing Street")}
+                {renderAddressValue(
+                  account.billingAddress.billingStreet2 || account.billingAddress.line2,
+                  "Billing Street 2"
+                )}
+                <div className="grid max-w-md grid-cols-[2fr,1fr,1fr] gap-1">
+                  {renderAddressValue(account.billingAddress.city, "City", "max-w-none")}
+                  {renderAddressSelectValue(account.billingAddress.state, "State")}
+                  {renderAddressValue(account.billingAddress.postalCode, "Zip", "max-w-none")}
                 </div>
               </div>
             ) : (
@@ -1208,86 +1203,70 @@ function EditableAccountHeader({
           <div>
             <div className="mb-1 flex items-center justify-between">
               <h3 className="text-[11px] font-semibold text-gray-800">Ship To Address</h3>
-              <span className="text-[11px] font-semibold uppercase tracking-wide text-primary-600">Default</span>
             </div>
-            <div className="space-y-1">
-              <FieldRow
-                label="Street"
-                value={
-                  <div className="flex flex-col gap-1">
-                    <div className="max-w-md">
-                      <EditableField.Input
-                        value={(shippingLine1Field.value as string) ?? ""}
-                        onChange={handleShippingLine1Change}
-                        onBlur={shippingLine1Field.onBlur}
-                        placeholder="Street"
-                      />
-                    </div>
-                    {editor.errors["shippingAddress.line1"] ? (
-                      <p className="text-[10px] text-red-600">{editor.errors["shippingAddress.line1"]}</p>
-                    ) : null}
-                  </div>
-                }
-              />
+            <div className="space-y-1 text-[11px] text-gray-700">
+              <div className="flex flex-col gap-1">
+                <div className="max-w-md">
+                  <EditableField.Input
+                    value={(shippingLine1Field.value as string) ?? ""}
+                    onChange={handleShippingLine1Change}
+                    onBlur={shippingLine1Field.onBlur}
+                    placeholder="Shipping Street"
+                  />
+                </div>
+                {editor.errors["shippingAddress.line1"] ? (
+                  <p className="text-[10px] text-red-600">{editor.errors["shippingAddress.line1"]}</p>
+                ) : null}
+              </div>
 
-              <FieldRow
-                label="Shipping St 2"
-                value={
-                  <div className="flex flex-col gap-1">
-                    <div className="max-w-md">
-                      <EditableField.Input
-                        value={(shippingLine2Field.value as string) ?? ""}
-                        onChange={handleShippingLine2Change}
-                        onBlur={shippingLine2Field.onBlur}
-                        placeholder="Suite, Apt, etc."
-                      />
-                    </div>
-                  </div>
-                }
-              />
+              <div className="flex flex-col gap-1">
+                <div className="max-w-md">
+                  <EditableField.Input
+                    value={(shippingLine2Field.value as string) ?? ""}
+                    onChange={handleShippingLine2Change}
+                    onBlur={shippingLine2Field.onBlur}
+                    placeholder="Shipping Street 2"
+                  />
+                </div>
+              </div>
 
-              <FieldRow
-                label="City, State, Zip"
-                value={
-                  <div className="flex flex-col gap-1">
-                    <div className="grid max-w-md grid-cols-[2fr,1fr,1fr] gap-1">
-                      <EditableField.Input
-                        value={(shippingCityField.value as string) ?? ""}
-                        onChange={handleShippingCityChange}
-                        onBlur={shippingCityField.onBlur}
-                        placeholder="City"
-                      />
-                      <EditableField.Select
-                        value={(shippingStateField.value as string) ?? ""}
-                        onChange={handleShippingStateChange}
-                        onBlur={shippingStateField.onBlur}
-                      >
-                        <option value="">State</option>
-                        {US_STATES.map(state => (
-                          <option key={state.code} value={state.code}>
-                            {state.code}
-                          </option>
-                        ))}
-                      </EditableField.Select>
-                      <EditableField.Input
-                        value={(shippingPostalField.value as string) ?? ""}
-                        onChange={handleShippingPostalChange}
-                        onBlur={shippingPostalField.onBlur}
-                        placeholder="Zip"
-                      />
-                    </div>
-                    {editor.errors["shippingAddress.city"] ||
-                    editor.errors["shippingAddress.state"] ||
-                    editor.errors["shippingAddress.postalCode"] ? (
-                      <div className="grid max-w-md grid-cols-[2fr,1fr,1fr] gap-1 text-[10px] text-red-600">
-                        <span>{editor.errors["shippingAddress.city"] ?? ""}</span>
-                        <span>{editor.errors["shippingAddress.state"] ?? ""}</span>
-                        <span>{editor.errors["shippingAddress.postalCode"] ?? ""}</span>
-                      </div>
-                    ) : null}
+              <div className="flex flex-col gap-1">
+                <div className="grid max-w-md grid-cols-[2fr,1fr,1fr] gap-1">
+                  <EditableField.Input
+                    value={(shippingCityField.value as string) ?? ""}
+                    onChange={handleShippingCityChange}
+                    onBlur={shippingCityField.onBlur}
+                    placeholder="City"
+                  />
+                  <EditableField.Select
+                    value={(shippingStateField.value as string) ?? ""}
+                    onChange={handleShippingStateChange}
+                    onBlur={shippingStateField.onBlur}
+                  >
+                    <option value="">State</option>
+                    {US_STATES.map(state => (
+                      <option key={state.code} value={state.code}>
+                        {state.code}
+                      </option>
+                    ))}
+                  </EditableField.Select>
+                  <EditableField.Input
+                    value={(shippingPostalField.value as string) ?? ""}
+                    onChange={handleShippingPostalChange}
+                    onBlur={shippingPostalField.onBlur}
+                    placeholder="Zip"
+                  />
+                </div>
+                {editor.errors["shippingAddress.city"] ||
+                editor.errors["shippingAddress.state"] ||
+                editor.errors["shippingAddress.postalCode"] ? (
+                  <div className="grid max-w-md grid-cols-[2fr,1fr,1fr] gap-1 text-[10px] text-red-600">
+                    <span>{editor.errors["shippingAddress.city"] ?? ""}</span>
+                    <span>{editor.errors["shippingAddress.state"] ?? ""}</span>
+                    <span>{editor.errors["shippingAddress.postalCode"] ?? ""}</span>
                   </div>
-                }
-              />
+                ) : null}
+              </div>
             </div>
           </div>
 
@@ -1305,87 +1284,72 @@ function EditableAccountHeader({
                 <span>Same as Ship</span>
               </label>
             </div>
-            <div className="space-y-1">
-              <FieldRow
-                label="Street"
-                value={
-                  <div className="flex flex-col gap-1">
-                    <div className="max-w-md">
-                      <EditableField.Input
-                        value={(billingLine1Field.value as string) ?? ""}
-                        onChange={billingLine1Field.onChange}
-                        onBlur={billingLine1Field.onBlur}
-                        placeholder="Street"
-                        disabled={billingLinked}
-                      />
-                    </div>
-                    {!billingLinked && editor.errors["billingAddress.line1"] ? (
-                      <p className="text-[10px] text-red-600">{editor.errors["billingAddress.line1"]}</p>
-                    ) : null}
-                  </div>
-                }
-              />
+            <div className="space-y-1 text-[11px] text-gray-700">
+              <div className="flex flex-col gap-1">
+                <div className="max-w-md">
+                  <EditableField.Input
+                    value={(billingLine1Field.value as string) ?? ""}
+                    onChange={billingLine1Field.onChange}
+                    onBlur={billingLine1Field.onBlur}
+                    placeholder="Billing Street"
+                    disabled={billingLinked}
+                  />
+                </div>
+                {!billingLinked && editor.errors["billingAddress.line1"] ? (
+                  <p className="text-[10px] text-red-600">{editor.errors["billingAddress.line1"]}</p>
+                ) : null}
+              </div>
 
-              <FieldRow
-                label="Billing St 2"
-                value={
-                  <div className="flex flex-col gap-1">
-                    <div className="max-w-md">
-                      <EditableField.Input
-                        value={(billingLine2Field.value as string) ?? ""}
-                        onChange={billingLine2Field.onChange}
-                        onBlur={billingLine2Field.onBlur}
-                        placeholder="Suite, Apt, etc."
-                        disabled={billingLinked}
-                      />
-                    </div>
-                  </div>
-                }
-              />
+              <div className="flex flex-col gap-1">
+                <div className="max-w-md">
+                  <EditableField.Input
+                    value={(billingLine2Field.value as string) ?? ""}
+                    onChange={billingLine2Field.onChange}
+                    onBlur={billingLine2Field.onBlur}
+                    placeholder="Billing Street 2"
+                    disabled={billingLinked}
+                  />
+                </div>
+              </div>
 
-              <FieldRow
-                label="City, State, Zip"
-                value={
-                  <div className="flex flex-col gap-1">
-                    <div className="grid max-w-md grid-cols-[2fr,1fr,1fr] gap-1">
-                      <EditableField.Input
-                        value={(billingCityField.value as string) ?? ""}
-                        onChange={billingCityField.onChange}
-                        onBlur={billingCityField.onBlur}
-                        placeholder="City"
-                        disabled={billingLinked}
-                      />
-                      <EditableField.Select
-                        value={(billingStateField.value as string) ?? ""}
-                        onChange={billingStateField.onChange}
-                        onBlur={billingStateField.onBlur}
-                        disabled={billingLinked}
-                      >
-                        <option value="">State</option>
-                        {US_STATES.map(state => (
-                          <option key={state.code} value={state.code}>
-                            {state.code}
-                          </option>
-                        ))}
-                      </EditableField.Select>
-                      <EditableField.Input
-                        value={(billingPostalField.value as string) ?? ""}
-                        onChange={billingPostalField.onChange}
-                        onBlur={billingPostalField.onBlur}
-                        placeholder="Zip"
-                        disabled={billingLinked}
-                      />
-                    </div>
-                    {!billingLinked && (editor.errors["billingAddress.city"] || editor.errors["billingAddress.state"] || editor.errors["billingAddress.postalCode"]) ? (
-                      <div className="grid max-w-md grid-cols-[2fr,1fr,1fr] gap-1 text-[10px] text-red-600">
-                        <span>{editor.errors["billingAddress.city"] ?? ""}</span>
-                        <span>{editor.errors["billingAddress.state"] ?? ""}</span>
-                        <span>{editor.errors["billingAddress.postalCode"] ?? ""}</span>
-                      </div>
-                    ) : null}
+              <div className="flex flex-col gap-1">
+                <div className="grid max-w-md grid-cols-[2fr,1fr,1fr] gap-1">
+                  <EditableField.Input
+                    value={(billingCityField.value as string) ?? ""}
+                    onChange={billingCityField.onChange}
+                    onBlur={billingCityField.onBlur}
+                    placeholder="City"
+                    disabled={billingLinked}
+                  />
+                  <EditableField.Select
+                    value={(billingStateField.value as string) ?? ""}
+                    onChange={billingStateField.onChange}
+                    onBlur={billingStateField.onBlur}
+                    disabled={billingLinked}
+                  >
+                    <option value="">State</option>
+                    {US_STATES.map(state => (
+                      <option key={state.code} value={state.code}>
+                        {state.code}
+                      </option>
+                    ))}
+                  </EditableField.Select>
+                  <EditableField.Input
+                    value={(billingPostalField.value as string) ?? ""}
+                    onChange={billingPostalField.onChange}
+                    onBlur={billingPostalField.onBlur}
+                    placeholder="Zip"
+                    disabled={billingLinked}
+                  />
+                </div>
+                {!billingLinked && (editor.errors["billingAddress.city"] || editor.errors["billingAddress.state"] || editor.errors["billingAddress.postalCode"]) ? (
+                  <div className="grid max-w-md grid-cols-[2fr,1fr,1fr] gap-1 text-[10px] text-red-600">
+                    <span>{editor.errors["billingAddress.city"] ?? ""}</span>
+                    <span>{editor.errors["billingAddress.state"] ?? ""}</span>
+                    <span>{editor.errors["billingAddress.postalCode"] ?? ""}</span>
                   </div>
-                }
-              />
+                ) : null}
+              </div>
             </div>
           </div>
         </div>

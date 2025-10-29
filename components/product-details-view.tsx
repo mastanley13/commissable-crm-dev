@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { ReactNode, useCallback, useMemo } from "react"
+import { ReactNode, useCallback, useMemo, useEffect, useState } from "react"
 import { Edit, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { EditableField } from "./editable-field"
@@ -100,7 +100,7 @@ interface ProductDetailsViewProps {
 
 const fieldLabelClass = "text-[11px] font-semibold uppercase tracking-wide text-gray-500"
 const fieldBoxClass =
-  "flex min-h-[28px] w-full max-w-md items-center justify-between rounded-lg border-2 border-gray-400 bg-white px-2 py-0.5 text-xs text-gray-900 shadow-sm whitespace-nowrap overflow-hidden text-ellipsis"
+  "flex min-h-[28px] w-full max-w-md items-center justify-between border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis"
 
 interface ProductInlineForm {
   active: boolean
@@ -554,6 +554,33 @@ function EditableProductHeader({ product, editor, onSave }: EditableProductHeade
   const familyDistributorField = editor.register("distributorProductFamily")
   const descVendorField = editor.register("productDescriptionVendor")
   const descDistributorField = editor.register("productDescriptionDistributor")
+  const vendorAccountField = editor.register("vendorAccountId")
+  const distributorAccountField = editor.register("distributorAccountId")
+
+  type AccountOption = { value: string; label: string; accountTypeName?: string }
+  const [vendorOptions, setVendorOptions] = useState<AccountOption[]>([])
+  const [distributorOptions, setDistributorOptions] = useState<AccountOption[]>([])
+
+  useEffect(() => {
+    const fromWindow: { vendors?: AccountOption[]; distributors?: AccountOption[] } | undefined =
+      typeof window !== "undefined" ? (window as any).__productAccountOptions : undefined
+    if (fromWindow && (fromWindow.vendors?.length || fromWindow.distributors?.length)) {
+      setVendorOptions(fromWindow.vendors || [])
+      setDistributorOptions(fromWindow.distributors || [])
+      return
+    }
+    ;(async () => {
+      try {
+        const res = await fetch('/api/contacts/options', { cache: 'no-store' })
+        const payload = await res.json().catch(() => null)
+        const accounts: AccountOption[] = Array.isArray(payload?.accounts) ? payload.accounts : []
+        const vendors = accounts.filter(a => (a.accountTypeName || '').toLowerCase().includes('vendor'))
+        const distributors = accounts.filter(a => (a.accountTypeName || '').toLowerCase().includes('distributor'))
+        setVendorOptions(vendors)
+        setDistributorOptions(distributors)
+      } catch {}
+    })()
+  }, [])
 
   const isActive = Boolean(activeField.value)
   const productName = (nameField.value as string) || product.productNameVendor || "Product"
@@ -656,54 +683,45 @@ function EditableProductHeader({ product, editor, onSave }: EditableProductHeade
             editor.errors.revenueType
           )}
 
-          <FieldRow label="Status">
-            <div className="flex min-h-[28px] items-center gap-3 rounded-lg border-2 border-gray-400 bg-white px-2 py-0.5 text-xs text-gray-900 shadow-sm">
+          {renderRow(
+            "Status",
+            <div className="flex min-h-[28px] items-center gap-3">
               <EditableField.Switch
                 checked={Boolean(activeField.value)}
                 onChange={activeField.onChange}
                 onBlur={activeField.onBlur}
               />
-              <span className="font-semibold text-gray-700">{Boolean(activeField.value) ? "Active" : "Inactive"}</span>
+              <span className="text-xs font-semibold text-gray-700">{Boolean(activeField.value) ? "Active" : "Inactive"}</span>
             </div>
-          </FieldRow>
+          )}
 
-          <FieldRow label="Vendor Name">
-            {product.vendor ? (
-              <Link href={`/accounts/${product.vendor.id}`} className="w-full max-w-md">
-                <div
-                  className={cn(
-                    fieldBoxClass,
-                    "cursor-pointer text-primary-700 hover:border-primary-500 hover:text-primary-800"
-                  )}
-                >
-                  <span className="truncate">{product.vendor.accountName}</span>
-                </div>
-              </Link>
-            ) : (
-              <div className={fieldBoxClass}>
-                <span className="text-gray-500">--</span>
-              </div>
-            )}
-          </FieldRow>
+          {renderRow(
+            "Vendor Name",
+            <EditableField.Select
+              value={(vendorAccountField.value as string) ?? ""}
+              onChange={vendorAccountField.onChange}
+              onBlur={vendorAccountField.onBlur}
+            >
+              <option value="">Select vendor</option>
+              {vendorOptions.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </EditableField.Select>
+          )}
 
-          <FieldRow label="Distributor Name">
-            {product.distributor ? (
-              <Link href={`/accounts/${product.distributor.id}`} className="w-full max-w-md">
-                <div
-                  className={cn(
-                    fieldBoxClass,
-                    "cursor-pointer text-primary-700 hover:border-primary-500 hover:text-primary-800"
-                  )}
-                >
-                  <span className="truncate">{product.distributor.accountName}</span>
-                </div>
-              </Link>
-            ) : (
-              <div className={fieldBoxClass}>
-                <span className="text-gray-500">--</span>
-              </div>
-            )}
-          </FieldRow>
+          {renderRow(
+            "Distributor Name",
+            <EditableField.Select
+              value={(distributorAccountField.value as string) ?? ""}
+              onChange={distributorAccountField.onChange}
+              onBlur={distributorAccountField.onBlur}
+            >
+              <option value="">Select distributor</option>
+              {distributorOptions.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </EditableField.Select>
+          )}
 
           
           {renderRow(

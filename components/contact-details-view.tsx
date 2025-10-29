@@ -2818,26 +2818,95 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
     }
     const query = opportunitiesSearchQuery.trim().toLowerCase()
     if (query.length > 0) {
-      rows = rows.filter(row => {
-        const values: Array<string | number | boolean | undefined | null | Date> = [
-          row.id,
-          row.closeDate ? formatDate(row.closeDate as any) : undefined,
-          row.opportunityName,
-          row.stage,
-          row.status,
-          row.orderIdHouse,
-          row.owner,
-          row.subAgent,
-          row.accountIdVendor,
-          row.customerIdVendor,
-          row.locationId,
-          row.orderIdVendor,
-        ]
-        return values
-          .map(v => (v == null ? undefined : String(v)))
-          .filter((value): value is string => typeof value === "string" && value.length > 0)
-          .some(value => value.toLowerCase().includes(query))
-      })
+      // Support simple "column:value" scoped search to avoid overly broad matches
+      // e.g., "subagent:test" or "owner:morgan" or "stage:qualification".
+      const scopedMatch = query.match(/^([a-z_]+)\s*:\s*(.+)$/i)
+      const aliasMap: Record<string, keyof ContactOpportunityRow> = {
+        id: "id",
+        name: "opportunityName",
+        opportunity: "opportunityName",
+        opportunityname: "opportunityName",
+        stage: "stage",
+        status: "status" as any,
+        owner: "owner",
+        subagent: "subAgent",
+        referredby: "subAgent",
+        order: "orderIdHouse",
+        orderid: "orderIdHouse",
+        orderidhouse: "orderIdHouse",
+        house: "orderIdHouse",
+        close: "closeDate" as any,
+        closedate: "closeDate" as any,
+        vendoraccount: "accountIdVendor",
+        accountidvendor: "accountIdVendor",
+        vendorcustomer: "customerIdVendor",
+        customeridvendor: "customerIdVendor",
+        location: "locationId",
+        vendororder: "orderIdVendor",
+        orderidvendor: "orderIdVendor",
+      }
+
+      if (scopedMatch) {
+        const [, rawKey, rawValue] = scopedMatch
+        const key = rawKey.toLowerCase()
+        const value = rawValue.trim().toLowerCase()
+        const mapped = aliasMap[key]
+        if (mapped) {
+          rows = rows.filter(row => {
+            const field = row[mapped]
+            const str = field == null
+              ? undefined
+              : mapped === "closeDate" && field
+              ? String(formatDate(field as any)).toLowerCase()
+              : String(field).toLowerCase()
+            return typeof str === "string" && str.includes(value)
+          })
+        } else {
+          // If unknown key, fall back to global search using entire query
+          rows = rows.filter(row => {
+            const values: Array<string | number | boolean | undefined | null | Date> = [
+              row.id,
+              row.closeDate ? formatDate(row.closeDate as any) : undefined,
+              row.opportunityName,
+              row.stage,
+              row.status,
+              row.orderIdHouse,
+              row.owner,
+              row.subAgent,
+              row.accountIdVendor,
+              row.customerIdVendor,
+              row.locationId,
+              row.orderIdVendor,
+            ]
+            return values
+              .map(v => (v == null ? undefined : String(v)))
+              .filter((val): val is string => typeof val === "string" && val.length > 0)
+              .some(val => val.toLowerCase().includes(query))
+          })
+        }
+      } else {
+        // Global fuzzy search across common fields
+        rows = rows.filter(row => {
+          const values: Array<string | number | boolean | undefined | null | Date> = [
+            row.id,
+            row.closeDate ? formatDate(row.closeDate as any) : undefined,
+            row.opportunityName,
+            row.stage,
+            row.status,
+            row.orderIdHouse,
+            row.owner,
+            row.subAgent,
+            row.accountIdVendor,
+            row.customerIdVendor,
+            row.locationId,
+            row.orderIdVendor,
+          ]
+          return values
+            .map(v => (v == null ? undefined : String(v)))
+            .filter((val): val is string => typeof val === "string" && val.length > 0)
+            .some(val => val.toLowerCase().includes(query))
+        })
+      }
     }
     if (opportunitiesColumnFilters.length > 0) {
       rows = applySimpleFilters(rows as unknown as Record<string, unknown>[], opportunitiesColumnFilters) as unknown as ContactOpportunityRow[]
