@@ -193,15 +193,61 @@ export function RevenueScheduleDetailsView({
     return errors
   }, [])
 
+  const submitInline = useCallback(
+    async (_patch: Partial<RevenueScheduleInlineForm>, draft: RevenueScheduleInlineForm) => {
+      if (!schedule?.id) {
+        throw new Error("Revenue schedule id is required")
+      }
+      const payload: any = {
+        revenueScheduleName: draft.revenueScheduleName?.trim(),
+        revenueScheduleDate: draft.revenueScheduleDate?.trim(),
+        productNameVendor: (draft as any).productNameVendor?.trim?.(),
+        productDescriptionVendor: (draft as any).productDescriptionVendor?.trim?.(),
+        productRevenueType: (draft as any).productRevenueType?.trim?.(),
+        expectedCommissionRatePercent: (draft as any).expectedCommissionRatePercent?.trim?.(),
+        houseSplitPercent: (draft as any).houseSplitPercent?.trim?.(),
+        houseRepSplitPercent: (draft as any).houseRepSplitPercent?.trim?.(),
+        subagentSplitPercent: (draft as any).subagentSplitPercent?.trim?.()
+      }
+      const response = await fetch(`/api/revenue-schedules/${schedule.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      })
+      const body = await response.json().catch(() => null)
+      if (!response.ok) {
+        const message = body?.error ?? "Failed to update revenue schedule"
+        const serverErrors = (body?.errors ?? {}) as Record<string, string>
+        showError("Unable to update revenue schedule", message)
+        const error = new Error(message) as Error & { serverErrors?: Record<string, string> }
+        if (serverErrors && Object.keys(serverErrors).length > 0) {
+          error.serverErrors = serverErrors
+        }
+        throw error
+      }
+      await onRefresh?.()
+      return draft
+    },
+    [schedule?.id, onRefresh, showError]
+  )
+
   const editor = useEntityEditor<RevenueScheduleInlineForm>({
     initial: enableInlineEditing ? inlineInitial : null,
-    validate: enableInlineEditing ? validateInline : undefined
+    validate: enableInlineEditing ? validateInline : undefined,
+    onSubmit: enableInlineEditing ? submitInline : undefined
   })
 
   useUnsavedChangesPrompt(enableInlineEditing && editor.isDirty)
 
   const nameField = enableInlineEditing ? editor.register("revenueScheduleName") : null
   const dateField = enableInlineEditing ? editor.register("revenueScheduleDate") : null
+  const productNameField = enableInlineEditing ? editor.register("productNameVendor" as any) : null
+  const productDescField = enableInlineEditing ? editor.register("productDescriptionVendor" as any) : null
+  const productTypeField = enableInlineEditing ? editor.register("productRevenueType" as any) : null
+  const expectedRateField = enableInlineEditing ? editor.register("expectedCommissionRatePercent" as any) : null
+  const houseSplitField = enableInlineEditing ? editor.register("houseSplitPercent" as any) : null
+  const houseRepSplitField = enableInlineEditing ? editor.register("houseRepSplitPercent" as any) : null
+  const subagentSplitField = enableInlineEditing ? editor.register("subagentSplitPercent" as any) : null
   // derive display values from editor when enabled
   const baseScheduleName = schedule ? (schedule.revenueScheduleName ?? schedule.revenueSchedule ?? `Schedule #${schedule.id}`) : ""
   const scheduleName =
@@ -440,6 +486,118 @@ export function RevenueScheduleDetailsView({
                         />
                       }
                       error={editor.errors.revenueScheduleDate}
+                    />
+                  )
+                }
+                if (enableInlineEditing && field.fieldId === "04.01.002" && productNameField) {
+                  return (
+                    <EditRow
+                      key={`${field.fieldId}-${field.label}`}
+                      label="Product Name - Vendor"
+                      control={
+                        <EditableField.Input
+                          value={(productNameField.value as string) ?? ""}
+                          onChange={productNameField.onChange}
+                          onBlur={productNameField.onBlur}
+                          placeholder="Product name"
+                        />
+                      }
+                    />
+                  )
+                }
+                if (enableInlineEditing && field.fieldId === "04.01.003" && productDescField) {
+                  return (
+                    <EditRow
+                      key={`${field.fieldId}-${field.label}`}
+                      label="Product Description - Vendor"
+                      control={
+                        <EditableField.Input
+                          value={(productDescField.value as string) ?? ""}
+                          onChange={productDescField.onChange}
+                          onBlur={productDescField.onBlur}
+                          placeholder="Description"
+                        />
+                      }
+                    />
+                  )
+                }
+                if (enableInlineEditing && field.fieldId === "04.01.004" && productTypeField) {
+                  return (
+                    <EditRow
+                      key={`${field.fieldId}-${field.label}`}
+                      label="Product Revenue Type"
+                      control={
+                        <EditableField.Input
+                          value={(productTypeField.value as string) ?? ""}
+                          onChange={productTypeField.onChange}
+                          onBlur={productTypeField.onBlur}
+                          placeholder="Revenue type"
+                        />
+                      }
+                    />
+                  )
+                }
+                if (enableInlineEditing && field.fieldId === "04.01.014" && expectedRateField) {
+                  return (
+                    <EditRow
+                      key={`${field.fieldId}-${field.label}`}
+                      label="Commission Rate Expected"
+                      control={
+                        <EditableField.Input
+                          value={(expectedRateField.value as string) ?? ""}
+                          onChange={expectedRateField.onChange}
+                          onBlur={expectedRateField.onBlur}
+                          placeholder="12.50%"
+                        />
+                      }
+                    />
+                  )
+                }
+                if (enableInlineEditing && field.fieldId === "04.01.017" && houseSplitField) {
+                  return (
+                    <EditRow
+                      key={`${field.fieldId}-${field.label}`}
+                      label="House Split %"
+                      control={
+                        <EditableField.Input
+                          value={(houseSplitField.value as string) ?? ""}
+                          onChange={houseSplitField.onChange}
+                          onBlur={houseSplitField.onBlur}
+                          placeholder="20%"
+                        />
+                      }
+                    />
+                  )
+                }
+                if (enableInlineEditing && field.fieldId === "04.01.018" && houseRepSplitField) {
+                  return (
+                    <EditRow
+                      key={`${field.fieldId}-${field.label}`}
+                      label="House Rep Split %"
+                      control={
+                        <EditableField.Input
+                          value={(houseRepSplitField.value as string) ?? ""}
+                          onChange={houseRepSplitField.onChange}
+                          onBlur={houseRepSplitField.onBlur}
+                          placeholder="30%"
+                        />
+                      }
+                    />
+                  )
+                }
+                if (enableInlineEditing && field.fieldId === "04.01.019" && subagentSplitField) {
+                  return (
+                    <EditRow
+                      key={`${field.fieldId}-${field.label}`}
+                      label="Subagent Split %"
+                      control={
+                        <EditableField.Input
+                          value={(subagentSplitField.value as string) ?? ""}
+                          onChange={subagentSplitField.onChange}
+                          onBlur={subagentSplitField.onBlur}
+                          placeholder="50%"
+                        />
+                      }
                     />
                   )
                 }
