@@ -43,6 +43,33 @@ export interface AuthUser {
   }
 }
 
+const DERIVED_PERMISSION_MAP: Record<string, string[]> = {
+  "revenue-schedules.manage": [
+    "accounts.manage",
+    "opportunities.manage"
+  ]
+}
+
+function resolvePermissionCodes(user: AuthUser): Set<string> {
+  const codes = new Set<string>()
+  if (user.role?.permissions) {
+    for (const permission of user.role.permissions) {
+      codes.add(permission.code)
+    }
+  }
+
+  for (const [target, fallbacks] of Object.entries(DERIVED_PERMISSION_MAP)) {
+    if (codes.has(target)) {
+      continue
+    }
+    if (fallbacks.some(code => codes.has(code))) {
+      codes.add(target)
+    }
+  }
+
+  return codes
+}
+
 export async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, SALT_ROUNDS)
 }
@@ -189,11 +216,8 @@ export async function cleanupExpiredSessions(): Promise<number> {
 }
 
 export function hasPermission(user: AuthUser, permissionCode: string): boolean {
-  if (!user.role?.permissions) {
-    return false
-  }
-
-  return user.role.permissions.some(p => p.code === permissionCode)
+  const codes = resolvePermissionCodes(user)
+  return codes.has(permissionCode)
 }
 
 export function hasAnyPermission(user: AuthUser, permissionCodes: string[]): boolean {

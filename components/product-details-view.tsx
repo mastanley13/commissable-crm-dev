@@ -90,6 +90,8 @@ export interface ProductDetailRecord {
   auditLog?: ProductAuditLogEntry[]
 }
 
+type TabKey = "distributor" | "vendor"
+
 interface ProductDetailsViewProps {
   product: ProductDetailRecord | null
   loading?: boolean
@@ -129,6 +131,11 @@ const REVENUE_TYPE_OPTIONS = [
   { value: "NRC_FlatFee", label: "NRC - Flat Fee" },
   { value: "MRC_PerItem", label: "MRC - Per Item" },
   { value: "MRC_FlatFee", label: "MRC - Flat Fee" }
+]
+
+const TABS: { id: TabKey; label: string }[] = [
+  { id: "distributor", label: "Distributor" },
+  { id: "vendor", label: "Vendor" }
 ]
 
 function numberToInputString(value: number | null | undefined): string {
@@ -356,9 +363,11 @@ function humanizeLabel(value: string | null | undefined): string | null {
 interface ProductHeaderProps {
   product: ProductDetailRecord
   onEdit?: (() => void) | null | undefined
+  activeTab: TabKey
+  onTabSelect: (tab: TabKey) => void
 }
 
-function ProductHeader({ product, onEdit }: ProductHeaderProps) {
+function ProductHeader({ product, onEdit, activeTab, onTabSelect }: ProductHeaderProps) {
   const productName = product.productNameHouse || product.productNameVendor || "Product"
   const statusBadge = (
     <span
@@ -374,158 +383,209 @@ function ProductHeader({ product, onEdit }: ProductHeaderProps) {
   const commissionRate = formatPercent(product.commissionPercent)
   const revenueTypeLabel = humanizeLabel(product.revenueType)
   const productDescriptionHouse = product.productDescriptionHouse ?? product.description ?? null
-  const productDescriptionVendor = product.productDescriptionVendor ?? null
 
   return (
-    <div className="rounded-2xl bg-gray-100 p-3 shadow-sm">
-      <div className="mb-2 flex items-center justify-between">
-        <div className="space-y-1">
-          <p className="text-xs font-semibold uppercase tracking-wide text-primary-600">Product Detail</p>
+    <div className="flex flex-col gap-0">
+      {/* Header Section */}
+      <div className="rounded-t-2xl bg-gray-100 p-3 shadow-sm">
+        <div className="mb-2 flex items-center justify-between">
+          <div className="space-y-1">
+            <p className="text-xs font-semibold uppercase tracking-wide text-primary-600">Product Detail</p>
+            <div className="flex items-center gap-2">
+              <h1 className="text-lg font-semibold text-gray-900">{productName}</h1>
+              {statusBadge}
+            </div>
+          </div>
           <div className="flex items-center gap-2">
-            <h1 className="text-lg font-semibold text-gray-900">{productName}</h1>
-            {statusBadge}
+            {onEdit ? (
+              <button
+                type="button"
+                onClick={onEdit}
+                className="inline-flex items-center gap-2 rounded-md bg-primary-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-primary-700"
+              >
+                <Edit className="h-4 w-4" />
+                <span>Update</span>
+              </button>
+            ) : null}
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          {onEdit ? (
-            <button
-              type="button"
-              onClick={onEdit}
-              className="inline-flex items-center gap-2 rounded-md bg-primary-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-primary-700"
-            >
-              <Edit className="h-4 w-4" />
-              <span>Update</span>
-            </button>
-          ) : null}
-        </div>
-      </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <div className="space-y-1.5">
-          <FieldRow label="Product Name - House">
-            <div className={fieldBoxClass}>
-              {product.productNameHouse || <span className="text-gray-500">--</span>}
-            </div>
-          </FieldRow>
-          <FieldRow label="Part Number - House">
-            <div className={fieldBoxClass}>
-              {product.productCode || <span className="text-gray-500">--</span>}
-            </div>
-          </FieldRow>
-          <FieldRow label="Product Family - House">
-            <div className={fieldBoxClass}>
-              {product.productFamilyHouse || <span className="text-gray-500">--</span>}
-            </div>
-          </FieldRow>
-          <FieldRow label="Revenue Type">
-            <div className={fieldBoxClass}>
-              {revenueTypeLabel || <span className="text-gray-500">--</span>}
-            </div>
-          </FieldRow>
-          <FieldRow label="Vendor Name">
-            {product.vendor ? (
-              <Link href={`/accounts/${product.vendor.id}`} className="w-full max-w-md">
-                <div
-                  className={cn(
-                    fieldBoxClass,
-                    "cursor-pointer text-primary-700 hover:border-primary-500 hover:text-primary-800"
-                  )}
-                >
-                  <span className="truncate">{product.vendor.accountName}</span>
-                </div>
-              </Link>
-            ) : (
+        <div className="grid gap-6 lg:grid-cols-2">
+          <div className="space-y-1.5">
+            <FieldRow label="Product Name - House">
+              <div className={fieldBoxClass}>
+                {product.productNameHouse || <span className="text-gray-500">--</span>}
+              </div>
+            </FieldRow>
+            <FieldRow label="Part Number - House">
+              <div className={fieldBoxClass}>
+                {product.productCode || <span className="text-gray-500">--</span>}
+              </div>
+            </FieldRow>
+            <FieldRow label="Product Family - House">
+              <div className={fieldBoxClass}>
+                {product.productFamilyHouse || <span className="text-gray-500">--</span>}
+              </div>
+            </FieldRow>
+            <FieldRow label="House - Product Subtype">
               <div className={fieldBoxClass}>
                 <span className="text-gray-500">--</span>
               </div>
-            )}
-          </FieldRow>
-          <FieldRow label="Distributor Name">
-            {product.distributor ? (
-              <Link href={`/accounts/${product.distributor.id}`} className="w-full max-w-md">
-                <div
-                  className={cn(
-                    fieldBoxClass,
-                    "cursor-pointer text-primary-700 hover:border-primary-500 hover:text-primary-800"
-                  )}
-                >
-                  <span className="truncate">{product.distributor.accountName}</span>
-                </div>
-              </Link>
-            ) : (
-              <div className={fieldBoxClass}>
-                <span className="text-gray-500">--</span>
+            </FieldRow>
+            <FieldRow label="House - Description">
+              <div className={cn(fieldBoxClass, "min-h-[60px] items-start whitespace-pre-wrap py-2")}>
+                {productDescriptionHouse || <span className="text-gray-500">--</span>}
               </div>
-            )}
-          </FieldRow>
-          <FieldRow label="Price Each">
-            <div className={fieldBoxClass}>
-              {priceEach || <span className="text-gray-500">--</span>}
-            </div>
-          </FieldRow>
-          <FieldRow label="Commission">
-            <div className={fieldBoxClass}>
-              {commissionRate || <span className="text-gray-500">--</span>}
-            </div>
-          </FieldRow>
-          <FieldRow label="Product Name - Vendor">
-            <div className={fieldBoxClass}>
-              {product.productNameVendor || <span className="text-gray-500">--</span>}
-            </div>
-          </FieldRow>
-          <FieldRow label="Part Number - Vendor">
-            <div className={fieldBoxClass}>
-              {product.partNumberVendor || <span className="text-gray-500">--</span>}
-            </div>
-          </FieldRow>
-          <FieldRow label="Product Family - Vendor">
-            <div className={fieldBoxClass}>
-              {product.productFamilyVendor || <span className="text-gray-500">--</span>}
-            </div>
-          </FieldRow>
-          <FieldRow label="Subtype - Vendor">
-            <div className={fieldBoxClass}>
-              {product.productSubtypeVendor || <span className="text-gray-500">--</span>}
-            </div>
-          </FieldRow>
-        </div>
+            </FieldRow>
+          </div>
 
-        <div className="space-y-1.5">
-          <FieldRow label="Product Name - Distributor">
-            <div className={fieldBoxClass}>
-              {product.productNameDistributor || <span className="text-gray-500">--</span>}
-            </div>
-          </FieldRow>
-          <FieldRow label="Part Number - Distributor">
-            <div className={fieldBoxClass}>
-              {product.partNumberDistributor || <span className="text-gray-500">--</span>}
-            </div>
-          </FieldRow>
-          <FieldRow label="Distributor Product Family">
-            <div className={fieldBoxClass}>
-              {product.distributorProductFamily || <span className="text-gray-500">--</span>}
-            </div>
-          </FieldRow>
-          <div className="grid items-start gap-6 sm:grid-cols-[200px,1fr]">
-            <span className={cn(fieldLabelClass, "pt-1.5")}>Product Description - House</span>
-            <div className={cn(fieldBoxClass, "min-h-[80px] items-start whitespace-pre-wrap py-2")}>
-              {productDescriptionHouse || <span className="text-gray-500">--</span>}
-            </div>
-          </div>
-          <div className="grid items-start gap-6 sm:grid-cols-[200px,1fr]">
-            <span className={cn(fieldLabelClass, "pt-1.5")}>Product Description - Vendor</span>
-            <div className={cn(fieldBoxClass, "min-h-[80px] items-start whitespace-pre-wrap py-2")}>
-              {productDescriptionVendor || <span className="text-gray-500">--</span>}
-            </div>
-          </div>
-          <div className="grid items-start gap-6 sm:grid-cols-[200px,1fr]">
-            <span className={cn(fieldLabelClass, "pt-1.5")}>Product Description - Distributor</span>
-            <div className={cn(fieldBoxClass, "min-h-[80px] items-start whitespace-pre-wrap py-2")}>
-              {product.productDescriptionDistributor || <span className="text-gray-500">--</span>}
-            </div>
+          <div className="space-y-1.5">
+            <FieldRow label="Price Each">
+              <div className={fieldBoxClass}>
+                {priceEach || <span className="text-gray-500">--</span>}
+              </div>
+            </FieldRow>
+            <FieldRow label="Commission %">
+              <div className={fieldBoxClass}>
+                {product.commissionPercent !== null && product.commissionPercent !== undefined
+                  ? `${product.commissionPercent}%`
+                  : <span className="text-gray-500">--</span>}
+              </div>
+            </FieldRow>
+            <FieldRow label="Revenue Type">
+              <div className={fieldBoxClass}>
+                {revenueTypeLabel || <span className="text-gray-500">--</span>}
+              </div>
+            </FieldRow>
+            <FieldRow label="Status">
+              <div className={fieldBoxClass}>
+                {statusBadge}
+              </div>
+            </FieldRow>
+            <FieldRow label="Vendor Name">
+              {product.vendor ? (
+                <Link href={`/accounts/${product.vendor.id}`} className="w-full max-w-md">
+                  <div
+                    className={cn(
+                      fieldBoxClass,
+                      "cursor-pointer text-primary-700 hover:border-primary-500 hover:text-primary-800"
+                    )}
+                  >
+                    <span className="truncate">{product.vendor.accountName}</span>
+                  </div>
+                </Link>
+              ) : (
+                <div className={fieldBoxClass}>
+                  <span className="text-gray-500">--</span>
+                </div>
+              )}
+            </FieldRow>
+            <FieldRow label="Distributor Name">
+              {product.distributor ? (
+                <Link href={`/accounts/${product.distributor.id}`} className="w-full max-w-md">
+                  <div
+                    className={cn(
+                      fieldBoxClass,
+                      "cursor-pointer text-primary-700 hover:border-primary-500 hover:text-primary-800"
+                    )}
+                  >
+                    <span className="truncate">{product.distributor.accountName}</span>
+                  </div>
+                </Link>
+              ) : (
+                <div className={fieldBoxClass}>
+                  <span className="text-gray-500">--</span>
+                </div>
+              )}
+            </FieldRow>
           </div>
         </div>
       </div>
+
+      {/* Tab Navigation */}
+      <div className="flex flex-wrap gap-1 border-x border-gray-200 bg-gray-100 px-2 pb-0 pt-2">
+        {TABS.map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => onTabSelect(tab.id)}
+            className={cn(
+              "px-3 py-1.5 text-sm font-semibold transition rounded-t-md border shadow-sm",
+              activeTab === tab.id
+                ? "relative -mb-[1px] z-10 border-primary-700 bg-primary-700 text-white hover:bg-primary-800"
+                : "border-blue-300 bg-gradient-to-b from-blue-100 to-blue-200 text-primary-800 hover:from-blue-200 hover:to-blue-300 hover:border-blue-400"
+            )}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Tab Content */}
+      {activeTab === "distributor" && (
+        <div className="rounded-b-2xl border-x border-b border-t-2 border-t-primary-600 border-gray-200 bg-white p-4">
+          <div className="space-y-1.5">
+            <FieldRow label="Distributor - Product Name">
+              <div className={fieldBoxClass}>
+                {product.productNameDistributor || <span className="text-gray-500">--</span>}
+              </div>
+            </FieldRow>
+            <FieldRow label="Distributor - Part Number">
+              <div className={fieldBoxClass}>
+                {product.partNumberDistributor || <span className="text-gray-500">--</span>}
+              </div>
+            </FieldRow>
+            <FieldRow label="Distributor - Product Family">
+              <div className={fieldBoxClass}>
+                {product.distributorProductFamily || <span className="text-gray-500">--</span>}
+              </div>
+            </FieldRow>
+            <FieldRow label="Distributor - Product Subtype">
+              <div className={fieldBoxClass}>
+                <span className="text-gray-500">--</span>
+              </div>
+            </FieldRow>
+            <div className="grid items-start gap-6 sm:grid-cols-[200px,1fr]">
+              <span className={cn(fieldLabelClass, "pt-1.5")}>Distributor - Description</span>
+              <div className={cn(fieldBoxClass, "min-h-[80px] items-start whitespace-pre-wrap py-2")}>
+                {product.productDescriptionDistributor || <span className="text-gray-500">--</span>}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === "vendor" && (
+        <div className="rounded-b-2xl border-x border-b border-t-2 border-t-primary-600 border-gray-200 bg-white p-4">
+          <div className="space-y-1.5">
+            <FieldRow label="Vendor - Product Name">
+              <div className={fieldBoxClass}>
+                {product.productNameVendor || <span className="text-gray-500">--</span>}
+              </div>
+            </FieldRow>
+            <FieldRow label="Vendor - Part Number">
+              <div className={fieldBoxClass}>
+                {product.partNumberVendor || <span className="text-gray-500">--</span>}
+              </div>
+            </FieldRow>
+            <FieldRow label="Vendor - Product Family">
+              <div className={fieldBoxClass}>
+                {product.productFamilyVendor || <span className="text-gray-500">--</span>}
+              </div>
+            </FieldRow>
+            <FieldRow label="Vendor - Product Subtype">
+              <div className={fieldBoxClass}>
+                {product.productSubtypeVendor || <span className="text-gray-500">--</span>}
+              </div>
+            </FieldRow>
+            <div className="grid items-start gap-6 sm:grid-cols-[200px,1fr]">
+              <span className={cn(fieldLabelClass, "pt-1.5")}>Vendor - Description</span>
+              <div className={cn(fieldBoxClass, "min-h-[80px] items-start whitespace-pre-wrap py-2")}>
+                {product.productDescriptionVendor || <span className="text-gray-500">--</span>}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -534,9 +594,11 @@ interface EditableProductHeaderProps {
   product: ProductDetailRecord
   editor: EntityEditor<ProductInlineForm>
   onSave: () => Promise<void>
+  activeTab: TabKey
+  onTabSelect: (tab: TabKey) => void
 }
 
-function EditableProductHeader({ product, editor, onSave }: EditableProductHeaderProps) {
+function EditableProductHeader({ product, editor, onSave, activeTab, onTabSelect }: EditableProductHeaderProps) {
   const activeField = editor.register("active")
   const nameField = editor.register("productNameHouse")
   const vendorNameField = editor.register("productNameVendor")
@@ -607,256 +669,313 @@ function EditableProductHeader({ product, editor, onSave }: EditableProductHeade
   )
 
   return (
-    <div className="rounded-2xl bg-gray-100 p-3 shadow-sm">
-      <div className="mb-2 flex items-center justify-between">
-        <div className="space-y-1">
-          <p className="text-xs font-semibold uppercase tracking-wide text-primary-600">Product Detail</p>
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-lg font-semibold text-gray-900">{productName}</h1>
-            {statusBadge}
-            {editor.isDirty ? (
-              <span className="text-xs font-semibold text-amber-600">Unsaved changes</span>
-            ) : null}
+    <div className="flex flex-col gap-0">
+      {/* Header Section */}
+      <div className="rounded-t-2xl bg-gray-100 p-3 shadow-sm">
+        <div className="mb-2 flex items-center justify-between">
+          <div className="space-y-1">
+            <p className="text-xs font-semibold uppercase tracking-wide text-primary-600">Product Detail</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-lg font-semibold text-gray-900">{productName}</h1>
+              {statusBadge}
+              {editor.isDirty ? (
+                <span className="text-xs font-semibold text-amber-600">Unsaved changes</span>
+              ) : null}
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onSave}
+              disabled={disableSave}
+              className="flex items-center gap-2 rounded-md bg-primary-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {editor.saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Edit className="h-4 w-4" />}
+              <span>Update</span>
+            </button>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={onSave}
-            disabled={disableSave}
-            className="flex items-center gap-2 rounded-md bg-primary-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {editor.saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Edit className="h-4 w-4" />}
-            <span>Update</span>
-          </button>
-        </div>
-      </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <div className="space-y-1.5">
-          {renderRow(
-            "Product Name - House",
-            <EditableField.Input
-              value={(nameField.value as string) ?? ""}
-              onChange={nameField.onChange}
-              onBlur={nameField.onBlur}
-              placeholder="Enter product name"
-            />,
-            editor.errors.productNameHouse
-          )}
+        <div className="grid gap-6 lg:grid-cols-2">
+          <div className="space-y-1.5">
+            {renderRow(
+              "Product Name - House",
+              <EditableField.Input
+                value={(nameField.value as string) ?? ""}
+                onChange={nameField.onChange}
+                onBlur={nameField.onBlur}
+                placeholder="Enter product name"
+              />,
+              editor.errors.productNameHouse
+            )}
 
-          {renderRow(
-            "Part Number - House",
-            <EditableField.Input
-              value={(codeField.value as string) ?? ""}
-              onChange={codeField.onChange}
-              onBlur={codeField.onBlur}
-              placeholder="Enter part #"
-            />,
-            editor.errors.productCode
-          )}
+            {renderRow(
+              "Part Number - House",
+              <EditableField.Input
+                value={(codeField.value as string) ?? ""}
+                onChange={codeField.onChange}
+                onBlur={codeField.onBlur}
+                placeholder="Enter part #"
+              />,
+              editor.errors.productCode
+            )}
 
-          {renderRow(
-            "Product Family - House",
-            <EditableField.Input
-              value={(familyHouseField?.value as string) ?? ""}
-              onChange={familyHouseField.onChange}
-              onBlur={familyHouseField.onBlur}
-              placeholder="Enter family"
-            />
-          )}
-
-          {renderRow(
-            "Revenue Type",
-            <EditableField.Select
-              value={(revenueTypeField.value as string) ?? ""}
-              onChange={revenueTypeField.onChange}
-              onBlur={revenueTypeField.onBlur}
-            >
-              <option value="">Select revenue type</option>
-              {REVENUE_TYPE_OPTIONS.map(option => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </EditableField.Select>,
-            editor.errors.revenueType
-          )}
-
-          {renderRow(
-            "Status",
-            <div className="flex min-h-[28px] items-center gap-3">
-              <EditableField.Switch
-                checked={Boolean(activeField.value)}
-                onChange={activeField.onChange}
-                onBlur={activeField.onBlur}
+            {renderRow(
+              "Product Family - House",
+              <EditableField.Input
+                value={(familyHouseField?.value as string) ?? ""}
+                onChange={familyHouseField.onChange}
+                onBlur={familyHouseField.onBlur}
+                placeholder="Enter family"
               />
-              <span className="text-xs font-semibold text-gray-700">{Boolean(activeField.value) ? "Active" : "Inactive"}</span>
-            </div>
-          )}
+            )}
 
-          {renderRow(
-            "Vendor Name",
-            <EditableField.Select
-              value={(vendorAccountField.value as string) ?? ""}
-              onChange={vendorAccountField.onChange}
-              onBlur={vendorAccountField.onBlur}
-            >
-              <option value="">Select vendor</option>
-              {vendorOptions.map(opt => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </EditableField.Select>
-          )}
+            {renderRow(
+              "House - Product Subtype",
+              <EditableField.Input
+                value=""
+                onChange={() => {}}
+                onBlur={() => {}}
+                placeholder="Enter house subtype"
+                disabled
+              />
+            )}
 
-          {renderRow(
-            "Distributor Name",
-            <EditableField.Select
-              value={(distributorAccountField.value as string) ?? ""}
-              onChange={distributorAccountField.onChange}
-              onBlur={distributorAccountField.onBlur}
-            >
-              <option value="">Select distributor</option>
-              {distributorOptions.map(opt => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </EditableField.Select>
-          )}
+            {renderRow(
+              "House - Description",
+              <EditableField.Textarea
+                rows={3}
+                value={(descriptionField.value as string) ?? ""}
+                onChange={descriptionField.onChange}
+                onBlur={descriptionField.onBlur}
+                placeholder="Add description"
+              />
+            )}
+          </div>
 
-          
-          {renderRow(
-            "Price Each",
-            <EditableField.Input
-              type="number"
-              step="0.01"
-              min="0"
-              value={(priceField.value as string) ?? ""}
-              onChange={priceField.onChange}
-              onBlur={priceField.onBlur}
-              placeholder="0.00"
-            />,
-            editor.errors.commissionPercent
-          )}
+          <div className="space-y-1.5">
+            {renderRow(
+              "Price Each",
+              <EditableField.Input
+                type="number"
+                step="0.01"
+                min="0"
+                value={(priceField.value as string) ?? ""}
+                onChange={priceField.onChange}
+                onBlur={priceField.onBlur}
+                placeholder="0.00"
+              />,
+              editor.errors.priceEach
+            )}
 
-          {renderRow(
-            "Commission %",
-            <EditableField.Input
-              type="number"
-              step="0.01"
-              min="0"
-              max="100"
-              value={(commissionField.value as string) ?? ""}
-              onChange={commissionField.onChange}
-              onBlur={commissionField.onBlur}
-              placeholder="Enter %"
-            />,
-            editor.errors.priceEach
-          )}
+            {renderRow(
+              "Commission %",
+              <EditableField.Input
+                type="number"
+                step="0.01"
+                min="0"
+                max="100"
+                value={(commissionField.value as string) ?? ""}
+                onChange={commissionField.onChange}
+                onBlur={commissionField.onBlur}
+                placeholder="Enter %"
+              />,
+              editor.errors.commissionPercent
+            )}
 
-          {renderRow(
-            "Product Name - Vendor",
-            <EditableField.Input
-              value={(vendorNameField.value as string) ?? ""}
-              onChange={vendorNameField.onChange}
-              onBlur={vendorNameField.onBlur}
-              placeholder="Enter vendor product name"
-            />
-          )}
+            {renderRow(
+              "Revenue Type",
+              <EditableField.Select
+                value={(revenueTypeField.value as string) ?? ""}
+                onChange={revenueTypeField.onChange}
+                onBlur={revenueTypeField.onBlur}
+              >
+                <option value="">Select revenue type</option>
+                {REVENUE_TYPE_OPTIONS.map(option => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </EditableField.Select>,
+              editor.errors.revenueType
+            )}
 
-          {renderRow(
-            "Part Number - Vendor",
-            <EditableField.Input
-              value={(partNumberVendorField?.value as string) ?? ""}
-              onChange={partNumberVendorField.onChange}
-              onBlur={partNumberVendorField.onBlur}
-              placeholder="Enter vendor part #"
-            />
-          )}
+            {renderRow(
+              "Status",
+              <div className="flex min-h-[28px] items-center gap-3">
+                <EditableField.Switch
+                  checked={Boolean(activeField.value)}
+                  onChange={activeField.onChange}
+                  onBlur={activeField.onBlur}
+                />
+                <span className="text-xs font-semibold text-gray-700">{Boolean(activeField.value) ? "Active" : "Inactive"}</span>
+              </div>
+            )}
 
-          {renderRow(
-            "Product Family - Vendor",
-            <EditableField.Input
-              value={(familyVendorField?.value as string) ?? ""}
-              onChange={familyVendorField.onChange}
-              onBlur={familyVendorField.onBlur}
-              placeholder="Enter vendor family"
-            />
-          )}
+            {renderRow(
+              "Vendor Name",
+              <EditableField.Select
+                value={(vendorAccountField.value as string) ?? ""}
+                onChange={vendorAccountField.onChange}
+                onBlur={vendorAccountField.onBlur}
+              >
+                <option value="">Select vendor</option>
+                {vendorOptions.map(opt => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </EditableField.Select>
+            )}
 
-          {renderRow(
-            "Subtype - Vendor",
-            <EditableField.Input
-              value={(subtypeVendorField?.value as string) ?? ""}
-              onChange={subtypeVendorField.onChange}
-              onBlur={subtypeVendorField.onBlur}
-              placeholder="Enter subtype"
-            />
-          )}
-
-          
-
-        </div>
-
-        <div className="space-y-1.5">
-
-          
-
-          {renderRow(
-            "Product Description - Vendor",
-            <EditableField.Textarea
-              rows={3}
-              value={(descVendorField?.value as string) ?? ""}
-              onChange={descVendorField.onChange}
-              onBlur={descVendorField.onBlur}
-              placeholder="Add vendor description"
-            />
-          )}
-
-          
-
-          {renderRow(
-            "Part Number - Distributor",
-            <EditableField.Input
-              value={(partNumberDistributorField?.value as string) ?? ""}
-              onChange={partNumberDistributorField.onChange}
-              onBlur={partNumberDistributorField.onBlur}
-              placeholder="Enter distributor part #"
-            />
-          )}
-
-          {renderRow(
-            "Distributor Product Family",
-            <EditableField.Input
-              value={(familyDistributorField?.value as string) ?? ""}
-              onChange={familyDistributorField.onChange}
-              onBlur={familyDistributorField.onBlur}
-              placeholder="Enter distributor family"
-            />
-          )}
-
-          {renderRow(
-            "Product Description - House",
-            <EditableField.Textarea
-              rows={4}
-              value={(descriptionField.value as string) ?? ""}
-              onChange={descriptionField.onChange}
-              onBlur={descriptionField.onBlur}
-              placeholder="Add description"
-            />
-          )}
-
-          {renderRow(
-            "Product Description - Distributor",
-            <EditableField.Textarea
-              rows={3}
-              value={(descDistributorField?.value as string) ?? ""}
-              onChange={descDistributorField.onChange}
-              onBlur={descDistributorField.onBlur}
-              placeholder="Add distributor description"
-            />
-          )}
+            {renderRow(
+              "Distributor Name",
+              <EditableField.Select
+                value={(distributorAccountField.value as string) ?? ""}
+                onChange={distributorAccountField.onChange}
+                onBlur={distributorAccountField.onBlur}
+              >
+                <option value="">Select distributor</option>
+                {distributorOptions.map(opt => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </EditableField.Select>
+            )}
+          </div>
         </div>
       </div>
+
+      {/* Tab Navigation */}
+      <div className="flex flex-wrap gap-1 border-x border-gray-200 bg-gray-100 px-2 pb-0 pt-2">
+        {TABS.map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => onTabSelect(tab.id)}
+            className={cn(
+              "px-3 py-1.5 text-sm font-semibold transition rounded-t-md border shadow-sm",
+              activeTab === tab.id
+                ? "relative -mb-[1px] z-10 border-primary-700 bg-primary-700 text-white hover:bg-primary-800"
+                : "border-blue-300 bg-gradient-to-b from-blue-100 to-blue-200 text-primary-800 hover:from-blue-200 hover:to-blue-300 hover:border-blue-400"
+            )}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Tab Content */}
+      {activeTab === "distributor" && (
+        <div className="rounded-b-2xl border-x border-b border-t-2 border-t-primary-600 border-gray-200 bg-white p-4">
+          <div className="space-y-1.5">
+            {renderRow(
+              "Distributor - Product Name",
+              <EditableField.Input
+                value={(nameDistributorField?.value as string) ?? ""}
+                onChange={nameDistributorField.onChange}
+                onBlur={nameDistributorField.onBlur}
+                placeholder="Enter distributor product name"
+              />
+            )}
+
+            {renderRow(
+              "Distributor - Part Number",
+              <EditableField.Input
+                value={(partNumberDistributorField?.value as string) ?? ""}
+                onChange={partNumberDistributorField.onChange}
+                onBlur={partNumberDistributorField.onBlur}
+                placeholder="Enter distributor part #"
+              />
+            )}
+
+            {renderRow(
+              "Distributor - Product Family",
+              <EditableField.Input
+                value={(familyDistributorField?.value as string) ?? ""}
+                onChange={familyDistributorField.onChange}
+                onBlur={familyDistributorField.onBlur}
+                placeholder="Enter distributor family"
+              />
+            )}
+
+            {renderRow(
+              "Distributor - Product Subtype",
+              <EditableField.Input
+                value=""
+                onChange={() => {}}
+                onBlur={() => {}}
+                placeholder="Enter distributor subtype"
+                disabled
+              />
+            )}
+
+            {renderRow(
+              "Distributor - Description",
+              <EditableField.Textarea
+                rows={3}
+                value={(descDistributorField?.value as string) ?? ""}
+                onChange={descDistributorField.onChange}
+                onBlur={descDistributorField.onBlur}
+                placeholder="Add distributor description"
+              />
+            )}
+          </div>
+        </div>
+      )}
+
+      {activeTab === "vendor" && (
+        <div className="rounded-b-2xl border-x border-b border-t-2 border-t-primary-600 border-gray-200 bg-white p-4">
+          <div className="space-y-1.5">
+            {renderRow(
+              "Vendor - Product Name",
+              <EditableField.Input
+                value={(vendorNameField.value as string) ?? ""}
+                onChange={vendorNameField.onChange}
+                onBlur={vendorNameField.onBlur}
+                placeholder="Enter vendor product name"
+              />
+            )}
+
+            {renderRow(
+              "Vendor - Part Number",
+              <EditableField.Input
+                value={(partNumberVendorField?.value as string) ?? ""}
+                onChange={partNumberVendorField.onChange}
+                onBlur={partNumberVendorField.onBlur}
+                placeholder="Enter vendor part #"
+              />
+            )}
+
+            {renderRow(
+              "Vendor - Product Family",
+              <EditableField.Input
+                value={(familyVendorField?.value as string) ?? ""}
+                onChange={familyVendorField.onChange}
+                onBlur={familyVendorField.onBlur}
+                placeholder="Enter vendor family"
+              />
+            )}
+
+            {renderRow(
+              "Vendor - Product Subtype",
+              <EditableField.Input
+                value={(subtypeVendorField?.value as string) ?? ""}
+                onChange={subtypeVendorField.onChange}
+                onBlur={subtypeVendorField.onBlur}
+                placeholder="Enter vendor subtype"
+              />
+            )}
+
+            {renderRow(
+              "Vendor - Description",
+              <EditableField.Textarea
+                rows={3}
+                value={(descVendorField?.value as string) ?? ""}
+                onChange={descVendorField.onChange}
+                onBlur={descVendorField.onBlur}
+                placeholder="Add vendor description"
+              />
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -870,6 +989,7 @@ export function ProductDetailsView({
   // Inline editing is enabled for all authenticated users per requirements
   const { showError, showSuccess } = useToasts()
   const shouldEnableInline = Boolean(product)
+  const [activeTab, setActiveTab] = useState<TabKey>("distributor")
   
   // Lightweight options loader for vendor/distributor (uses contacts options endpoint)
   if (typeof window !== 'undefined' && !(window as any).__productAccountOptionsLoaded) {
@@ -951,6 +1071,12 @@ export function ProductDetailsView({
     }
   }, [editor, shouldEnableInline])
 
+  const handleTabSelect = useCallback((tab: TabKey) => {
+    if (tab === activeTab) return
+    // Optional: Add unsaved changes warning if needed
+    setActiveTab(tab)
+  }, [activeTab])
+
   const headerNode = useMemo(() => {
     if (!product) return null
     if (shouldEnableInline) {
@@ -959,11 +1085,13 @@ export function ProductDetailsView({
           product={product}
           editor={editor}
           onSave={handleSaveInline}
+          activeTab={activeTab}
+          onTabSelect={handleTabSelect}
         />
       )
     }
-    return <ProductHeader product={product} onEdit={onEdit} />
-  }, [product, shouldEnableInline, editor, handleSaveInline, onEdit])
+    return <ProductHeader product={product} onEdit={onEdit} activeTab={activeTab} onTabSelect={handleTabSelect} />
+  }, [product, shouldEnableInline, editor, handleSaveInline, onEdit, activeTab, handleTabSelect])
 
   if (loading) {
     return (

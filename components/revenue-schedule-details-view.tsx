@@ -2,9 +2,14 @@
 
 import Link from "next/link"
 import { Loader2, AlertCircle } from "lucide-react"
-import type { ReactNode } from "react"
+import { useCallback, useMemo, type ReactNode } from "react"
 
 import { RevenueScheduleSupportingDetails } from "./revenue-schedule-supporting-details"
+import { useEntityEditor } from "@/hooks/useEntityEditor"
+import { useUnsavedChangesPrompt } from "@/hooks/useUnsavedChangesPrompt"
+import { useAuth } from "@/lib/auth-context"
+import { EditableField } from "./editable-field"
+import { useToasts } from "./toast"
 
 interface FieldDefinition {
   fieldId: string
@@ -64,14 +69,16 @@ interface RevenueScheduleDetailsViewProps {
   loading?: boolean
   error?: string | null
   scheduleKey?: string
+  onRefresh?: () => void
 }
 
 const placeholder = <span className="text-gray-400">--</span>
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-const fieldLabelClass = "text-[11px] font-semibold uppercase tracking-wide text-gray-500"
+const fieldLabelClass =
+  "text-[11px] font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap flex items-center"
 const baseFieldBoxClass =
-  "flex min-h-[28px] w-full items-center gap-2 rounded-lg border-2 border-gray-400 bg-white px-2 py-0.5 text-xs text-gray-900 shadow-sm whitespace-nowrap overflow-hidden text-ellipsis"
+  "flex min-h-[28px] w-full items-center justify-between border-b-2 border-gray-300 bg-transparent px-0 py-1 text-[11px] text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis"
 
 function renderValue(value?: ReactNode) {
   if (value === undefined || value === null) {
@@ -100,10 +107,10 @@ function FieldRow({ label, value, fullWidth }: FieldDefinition) {
       resolvedValue
     )
 
-  const fieldBoxClass = `${baseFieldBoxClass} ${fullWidth ? "max-w-full whitespace-normal break-words" : "max-w-md"}`
+  const fieldBoxClass = `${baseFieldBoxClass} ${fullWidth ? "max-w-full whitespace-normal break-words" : "max-w-[24rem]"}`
 
   return (
-    <div className="grid items-start gap-1.5 sm:grid-cols-[150px,minmax(0,1fr)]">
+    <div className="grid items-center gap-6 sm:grid-cols-[220px,minmax(0,1fr)]">
       <span className={fieldLabelClass}>{label}</span>
       <div className={fieldBoxClass}>{displayValue}</div>
     </div>
@@ -129,12 +136,98 @@ function MetricTile({ fieldId, label, value }: MetricDefinition) {
   )
 }
 
+interface RevenueScheduleInlineForm {
+  revenueScheduleName: string
+  revenueScheduleDate: string
+}
+
+function mapDetailToInline(detail: RevenueScheduleDetailRecord | null): RevenueScheduleInlineForm {
+  const name = detail?.revenueScheduleName ?? detail?.revenueSchedule ?? ""
+  return {
+    revenueScheduleName: name || "",
+    revenueScheduleDate: detail?.revenueScheduleDate ?? ""
+  }
+}
+
+function EditRow({ label, control, error }: { label: string; control: ReactNode; error?: string }) {
+  return (
+    <div className="grid items-center gap-6 sm:grid-cols-[220px,minmax(0,1fr)]">
+      <span className={fieldLabelClass}>{label}</span>
+      <div className="max-w-[24rem] flex w-full flex-col gap-1">
+        {control}
+        {error ? <p className="text-[10px] text-red-600">{error}</p> : null}
+      </div>
+    </div>
+  )
+}
+
 export function RevenueScheduleDetailsView({
   schedule,
   loading = false,
   error,
-  scheduleKey
+  scheduleKey,
+  onRefresh
 }: RevenueScheduleDetailsViewProps) {
+  const { hasPermission } = useAuth()
+  const { showSuccess, showError } = useToasts()
+  const enableInlineEditing = hasPermission("revenue-schedules.manage")
+
+  const inlineInitial = useMemo(() => mapDetailToInline(schedule), [schedule])
+  const validateInline = useCallback((draft: RevenueScheduleInlineForm) => {
+    const errors: Record<string, string> = {}
+    if (!draft.revenueScheduleName || draft.revenueScheduleName.trim().length === 0) {
+      errors.revenueScheduleName = "Revenue schedule name is required."
+    }
+    if (draft.revenueScheduleDate) {
+      const trimmed = draft.revenueScheduleDate.trim()
+      const isoPattern = /^\d{4}-\d{2}-\d{2}$/
+      if (!isoPattern.test(trimmed)) {
+        errors.revenueScheduleDate = "Use YYYY-MM-DD format."
+      } else {
+        const parsed = new Date(trimmed)
+        if (Number.isNaN(parsed.getTime())) {
+          errors.revenueScheduleDate = "Invalid date."
+        }
+      }
+    }
+    return errors
+  }, [])
+
+  const editor = useEntityEditor<RevenueScheduleInlineForm>({
+    initial: enableInlineEditing ? inlineInitial : null,
+    validate: enableInlineEditing ? validateInline : undefined
+  })
+
+  useUnsavedChangesPrompt(enableInlineEditing && editor.isDirty)
+
+  const nameField = enableInlineEditing ? editor.register("revenueScheduleName") : null
+  const dateField = enableInlineEditing ? editor.register("revenueScheduleDate") : null
+  // derive display values from editor when enabled
+  const baseScheduleName = schedule ? (schedule.revenueScheduleName ?? schedule.revenueSchedule ?? `Schedule #${schedule.id}`) : ""
+  const scheduleName =
+    enableInlineEditing && typeof nameField?.value === "string" && (nameField.value as string).length > 0
+      ? (nameField.value as string)
+      : baseScheduleName
+  const scheduleDate = enableInlineEditing && typeof dateField?.value === "string" ? (dateField.value as string) : schedule?.revenueScheduleDate ?? ""
+
+  const handleSave = useCallback(async () => {
+    if (!enableInlineEditing) return
+    try {
+      const result = await editor.submit()
+      if (result) {
+        showSuccess("Revenue schedule updated", "Changes saved.")
+        // Best-effort refresh
+        try { onRefresh && (await onRefresh()) } catch {}
+      }
+    } catch (error) {
+      if (error && typeof error === "object" && "serverErrors" in error) {
+        editor.setErrors((error as { serverErrors?: Record<string, string> }).serverErrors ?? {})
+      } else {
+        showError("Unable to update revenue schedule", error instanceof Error ? error.message : "")
+      }
+    }
+  }, [editor, enableInlineEditing, onRefresh, showError, showSuccess])
+
   if (loading) {
     return (
       <div className="flex min-h-[400px] items-center justify-center">
@@ -184,7 +277,7 @@ export function RevenueScheduleDetailsView({
     )
   }
 
-  const scheduleName = schedule.revenueScheduleName ?? schedule.revenueSchedule ?? `Schedule #${schedule.id}`
+  // scheduleName derived above to reflect inline edits
   const statusPillClass =
     schedule.scheduleStatus?.toLowerCase() === "reconciled"
       ? "bg-emerald-100 text-emerald-700 border-emerald-200"
@@ -196,7 +289,7 @@ export function RevenueScheduleDetailsView({
 
   const columnOne: FieldDefinition[] = [
     { fieldId: "04.01.000", label: "Revenue Schedule Name", value: scheduleName },
-    { fieldId: "04.01.001", label: "Revenue Schedule Date", value: schedule.revenueScheduleDate },
+    { fieldId: "04.01.001", label: "Revenue Schedule Date", value: scheduleDate },
     { fieldId: "04.01.002", label: "Product Name - Vendor", value: schedule.productNameVendor },
     { fieldId: "04.01.003", label: "Product Description - Vendor", value: schedule.productDescriptionVendor },
     { fieldId: "04.01.004", label: "Product Revenue Type", value: schedule.productRevenueType },
@@ -294,17 +387,64 @@ export function RevenueScheduleDetailsView({
     <div className="space-y-3 p-2">
       <div className="rounded-2xl bg-gray-100 p-3 shadow-sm">
         <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
-          <div className="space-y-0.5">
+          <div className="flex items-center gap-3">
             <p className="text-xs font-semibold uppercase tracking-wide text-primary-600">Revenue Schedule Detail</p>
+            {enableInlineEditing && editor.isDirty ? (
+              <span className="text-[11px] font-semibold text-amber-600">Unsaved changes</span>
+            ) : null}
           </div>
+          {enableInlineEditing ? (
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={editor.saving || !editor.isDirty}
+              className="flex items-center gap-2 rounded-md bg-primary-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {editor.saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Update"}
+            </button>
+          ) : null}
         </div>
 
         <div className="grid gap-6 lg:grid-cols-3">
           {topColumns.map((column, index) => (
             <div key={`column-${index}`} className="space-y-1.5">
-              {column.map(field => (
-                <FieldRow key={`${field.fieldId}-${field.label}`} {...field} />
-              ))}
+              {column.map(field => {
+                if (enableInlineEditing && field.fieldId === "04.01.000" && nameField) {
+                  return (
+                    <EditRow
+                      key={`${field.fieldId}-${field.label}`}
+                      label="Revenue Schedule Name"
+                      control={
+                        <EditableField.Input
+                          value={(nameField.value as string) ?? ""}
+                          onChange={nameField.onChange}
+                          onBlur={nameField.onBlur}
+                          placeholder="RS-10001"
+                        />
+                      }
+                      error={editor.errors.revenueScheduleName}
+                    />
+                  )
+                }
+                if (enableInlineEditing && field.fieldId === "04.01.001" && dateField) {
+                  return (
+                    <EditRow
+                      key={`${field.fieldId}-${field.label}`}
+                      label="Revenue Schedule Date"
+                      control={
+                        <EditableField.Input
+                          type="date"
+                          value={(dateField.value as string) ?? ""}
+                          onChange={dateField.onChange}
+                          onBlur={dateField.onBlur}
+                        />
+                      }
+                      error={editor.errors.revenueScheduleDate}
+                    />
+                  )
+                }
+                return <FieldRow key={`${field.fieldId}-${field.label}`} {...field} />
+              })}
             </div>
           ))}
         </div>

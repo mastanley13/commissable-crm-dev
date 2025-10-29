@@ -64,12 +64,12 @@ function DetailLine({ label, value, emphasize = false, underline = false }: Deta
 
   return (
     <div className="space-y-0.5">
-      <div className="grid grid-cols-[minmax(0,220px),minmax(0,1fr)] items-baseline gap-2 text-[11px]">
+      <div className="grid grid-cols-[minmax(0,1fr),auto] items-baseline gap-4 text-[11px]">
         <span className={labelClasses}>{label}</span>
         <span className={valueClasses}>{resolvedValue}</span>
       </div>
       {underline ? (
-        <div className="grid grid-cols-[minmax(0,220px),minmax(0,1fr)]">
+        <div className="grid grid-cols-[minmax(0,1fr),auto] gap-4">
           <span />
           <div className="flex flex-col gap-[2px] pb-0.5">
             <span className="h-px w-full bg-slate-300" />
@@ -300,7 +300,7 @@ export function RevenueScheduleSupportingDetails({ schedule }: { schedule: Reven
 
     return (
       <div className="space-y-3">
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap justify-center gap-2">
           {financialSplits.map(split => {
             const isActive = split.id === activeSplitId
             return (
@@ -317,7 +317,7 @@ export function RevenueScheduleSupportingDetails({ schedule }: { schedule: Reven
             )
           })}
         </div>
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div className="grid gap-24 lg:grid-cols-2">
           <div className="space-y-2">
             <h3 className="text-[11px] font-semibold text-slate-900">{activeSplit.leftHeading}</h3>
             <div className="space-y-2">
@@ -341,7 +341,7 @@ export function RevenueScheduleSupportingDetails({ schedule }: { schedule: Reven
 
   const renderOpportunityDetails = () => (
     <div className="space-y-3">
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-24 lg:grid-cols-2">
         {opportunityColumns.map((column, columnIndex) => (
           <div key={`opportunity-column-${columnIndex}`} className="space-y-2">
             {column.map(field => (
@@ -355,7 +355,7 @@ export function RevenueScheduleSupportingDetails({ schedule }: { schedule: Reven
 
   const renderProductDetails = () => (
     <div className="space-y-3">
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-24 lg:grid-cols-2">
         {productColumns.map((column, columnIndex) => (
           <div key={`product-column-${columnIndex}`} className="space-y-2">
             {column.map(field => (

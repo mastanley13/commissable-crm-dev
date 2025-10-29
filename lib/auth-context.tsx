@@ -1,6 +1,6 @@
 'use client'
 
-import React, { createContext, useContext, useEffect, useState } from 'react'
+import React, { createContext, useContext, useEffect, useMemo, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 
 export interface AuthUser {
@@ -35,6 +35,34 @@ interface AuthContextType {
   hasAnyPermission: (permissionCodes: string[]) => boolean
   hasAllPermissions: (permissionCodes: string[]) => boolean
 }
+
+const DERIVED_PERMISSION_MAP: Record<string, string[]> = {
+  "revenue-schedules.manage": [
+    "accounts.manage",
+    "opportunities.manage"
+  ]
+}
+
+function buildPermissionSet(user: AuthUser | null): Set<string> {
+  const codes = new Set<string>()
+  if (user?.role?.permissions) {
+    for (const permission of user.role.permissions) {
+      codes.add(permission.code)
+    }
+  }
+
+  for (const [target, fallbacks] of Object.entries(DERIVED_PERMISSION_MAP)) {
+    if (codes.has(target)) {
+      continue
+    }
+    if (fallbacks.some(code => codes.has(code))) {
+      codes.add(target)
+    }
+  }
+
+  return codes
+}
+
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
@@ -114,21 +142,19 @@ export function AuthProvider({ children }: AuthProviderProps) {
     await checkAuth()
   }
 
-  const hasPermission = (permissionCode: string): boolean => {
-    if (!user?.role?.permissions) {
-      return false
-    }
+  const permissionCodes = useMemo(() => buildPermissionSet(user), [user])
 
-    return user.role.permissions.some(p => p.code === permissionCode)
-  }
+  const hasPermission = useCallback((permissionCode: string): boolean => {
+    return permissionCodes.has(permissionCode)
+  }, [permissionCodes])
 
-  const hasAnyPermission = (permissionCodes: string[]): boolean => {
-    return permissionCodes.some(code => hasPermission(code))
-  }
+  const hasAnyPermission = useCallback((permissionCodesToCheck: string[]): boolean => {
+    return permissionCodesToCheck.some(code => hasPermission(code))
+  }, [hasPermission])
 
-  const hasAllPermissions = (permissionCodes: string[]): boolean => {
-    return permissionCodes.every(code => hasPermission(code))
-  }
+  const hasAllPermissions = useCallback((permissionCodesToCheck: string[]): boolean => {
+    return permissionCodesToCheck.every(code => hasPermission(code))
+  }, [hasPermission])
 
   useEffect(() => {
     checkAuth()

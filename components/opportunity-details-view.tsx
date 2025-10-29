@@ -27,7 +27,7 @@ import { ProductBulkActionBar } from "./product-bulk-action-bar"
 import { getOpportunityStageLabel, getOpportunityStageOptions, isOpportunityStageAutoManaged, isOpportunityStageValue, type OpportunityStageOption } from "@/lib/opportunity-stage"
 
 const fieldLabelClass = "text-[11px] font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap"
-const fieldBoxClass = "flex min-h-[28px] w-full max-w-md items-center justify-between border-b-2 border-gray-300 bg-transparent px-0 py-1 text-[11px] text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis"
+const fieldBoxClass = "flex min-h-[28px] w-full max-w-md items-center justify-between border-b-2 border-gray-300 bg-transparent px-0 py-1 text-[11px] text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis tabular-nums"
 
 const PRODUCT_FILTER_COLUMNS: Array<{ id: string; label: string }> = [
   { id: "productName", label: "Product Name" },
@@ -356,7 +356,7 @@ function SummaryTab({ opportunity }: { opportunity: OpportunityDetailRecord }) {
     <div className="space-y-6">
 
 
-      <div className="grid gap-y-6 gap-x-14 lg:grid-cols-3">
+      <div className="grid gap-y-6 gap-x-32 lg:grid-cols-3">
         {summaryColumns.map((column, columnIndex) => (
           <div key={columnIndex} className="space-y-4">
             <h3 className="text-[11px] font-semibold text-gray-900 border-b border-gray-200 pb-2">
@@ -369,9 +369,9 @@ function SummaryTab({ opportunity }: { opportunity: OpportunityDetailRecord }) {
                 </h4>
                 <div className="space-y-1">
                   {section.items.map((item, itemIndex) => (
-                    <div key={itemIndex} className="flex items-center gap-4 text-[11px]">
+                    <div key={itemIndex} className="grid grid-cols-[1fr_auto] items-baseline gap-x-4 text-[11px]">
                       <span className="text-gray-600">{item.label}</span>
-                      <span className="font-medium text-gray-900 whitespace-nowrap">
+                      <span className="font-medium text-gray-900 text-right tabular-nums whitespace-nowrap">
                         {formatCurrencyValue(item.value)}
                       </span>
                     </div>
@@ -428,12 +428,27 @@ function formatCurrency(value: number | null | undefined): string {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value)
 }
 
-function formatPercent(value: number | null | undefined): string {
+function normalisePercentValue(value: number | null | undefined): number | null {
   if (value === null || value === undefined || Number.isNaN(value)) {
+    return null
+  }
+  return value > 1 ? value / 100 : value
+}
+
+function formatPercent(value: number | null | undefined): string {
+  const normalised = normalisePercentValue(value)
+  if (normalised === null) {
     return "--"
   }
-  const normalized = value > 1 ? value : value * 100
-  return `${normalized.toFixed(0)}%`
+  try {
+    return new Intl.NumberFormat("en-US", {
+      style: "percent",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(normalised)
+  } catch {
+    return `${(normalised * 100).toFixed(2)}%`
+  }
 }
 
 function formatNumber(value: number | null | undefined): string {
@@ -501,21 +516,50 @@ interface OpportunityInlineForm {
 }
 
 function percentToInputString(value: number | null | undefined): string {
-  if (value === null || value === undefined || Number.isNaN(value)) {
-    return ""
-  }
-  const percentValue = value > 1 ? value : value * 100
-  const rounded = Math.round((percentValue + Number.EPSILON) * 100) / 100
-  return Number.isInteger(rounded) ? String(Math.trunc(rounded)) : String(rounded)
+  const normalised = normalisePercentValue(value)
+  if (normalised === null) return ""
+  return `${(normalised * 100).toFixed(2)}%`
 }
 
 function inputStringToPercent(value: string): number | null {
   const trimmed = value.trim()
   if (!trimmed) return null
-  const parsed = Number(trimmed)
+  // Accept values like "20", "20.00", "20%", "20.00 %"
+  const normalised = trimmed.replace(/\s+/g, "").replace(/%$/, "")
+  if (!normalised) return null
+  const parsed = Number(normalised)
   if (!Number.isFinite(parsed)) return null
   if (parsed === 0) return 0
+  // If user typed 0..100 treat numbers >1 as percentage points
   return parsed > 1 ? parsed / 100 : parsed
+}
+
+function calculateHouseSplitPercent({
+  subagentPercent,
+  houseRepPercent,
+  fallbackPercent
+}: {
+  subagentPercent: number | null | undefined
+  houseRepPercent: number | null | undefined
+  fallbackPercent?: number | null | undefined
+}): number | null {
+  const subagent = normalisePercentValue(subagentPercent)
+  const houseRep = normalisePercentValue(houseRepPercent)
+  const fallback = normalisePercentValue(fallbackPercent)
+
+  if (subagent == null && houseRep == null) {
+    if (fallback != null) {
+      return fallback
+    }
+    return 1
+  }
+
+  const computed = 1 - ((subagent ?? 0) + (houseRep ?? 0))
+  if (!Number.isFinite(computed)) {
+    return fallback ?? 1
+  }
+  const clamped = Math.max(0, Math.min(1, computed))
+  return clamped
 }
 
 function normaliseStage(stage: string | null | undefined): OpportunityStage | "" {
@@ -562,6 +606,12 @@ function parseInputDateToISO(value: string | null | undefined): string | null {
 function createOpportunityInlineForm(detail: OpportunityDetailRecord | null | undefined): OpportunityInlineForm | null {
   if (!detail) return null
 
+  const derivedHouseSplitPercent = calculateHouseSplitPercent({
+    subagentPercent: detail.subagentPercent,
+    houseRepPercent: detail.houseRepPercent,
+    fallbackPercent: detail.houseSplitPercent
+  })
+
   return {
     name: detail.name ?? "",
     stage: normaliseStage(detail.stage),
@@ -575,7 +625,7 @@ function createOpportunityInlineForm(detail: OpportunityDetailRecord | null | un
     billingAddress: detail.billingAddress ?? "",
     subagentPercent: percentToInputString(detail.subagentPercent ?? null),
     houseRepPercent: percentToInputString(detail.houseRepPercent ?? null),
-    houseSplitPercent: percentToInputString(detail.houseSplitPercent ?? null),
+    houseSplitPercent: percentToInputString(derivedHouseSplitPercent),
     description: detail.description ?? ""
   }
 }
@@ -597,9 +647,20 @@ function buildOpportunityPayload(patch: Partial<OpportunityInlineForm>, draft: O
   if ("shippingAddress" in patch) payload.shippingAddress = draft.shippingAddress.trim()
   if ("billingAddress" in patch) payload.billingAddress = draft.billingAddress.trim()
   if ("description" in patch) payload.description = draft.description.trim()
-  if ("subagentPercent" in patch) payload.subagentPercent = inputStringToPercent(draft.subagentPercent)
-  if ("houseRepPercent" in patch) payload.houseRepPercent = inputStringToPercent(draft.houseRepPercent)
-  if ("houseSplitPercent" in patch) payload.houseSplitPercent = inputStringToPercent(draft.houseSplitPercent)
+  const parsedSubagentPercent = inputStringToPercent(draft.subagentPercent)
+  const parsedHouseRepPercent = inputStringToPercent(draft.houseRepPercent)
+  const parsedHouseSplitPercent = inputStringToPercent(draft.houseSplitPercent)
+  const derivedHouseSplitPercent = calculateHouseSplitPercent({
+    subagentPercent: parsedSubagentPercent,
+    houseRepPercent: parsedHouseRepPercent,
+    fallbackPercent: parsedHouseSplitPercent
+  })
+
+  if ("subagentPercent" in patch) payload.subagentPercent = parsedSubagentPercent
+  if ("houseRepPercent" in patch) payload.houseRepPercent = parsedHouseRepPercent
+  if ("houseSplitPercent" in patch || "subagentPercent" in patch || "houseRepPercent" in patch) {
+    payload.houseSplitPercent = derivedHouseSplitPercent
+  }
 
   return payload
 }
@@ -635,8 +696,8 @@ function validateOpportunityForm(form: OpportunityInlineForm): Record<string, st
   for (const [field, message] of percentRules) {
     const raw = form[field]
     if (!raw.trim()) continue
-    const parsed = Number(raw)
-    if (!Number.isFinite(parsed) || parsed < 0 || parsed > 100) {
+    const parsedFraction = inputStringToPercent(raw)
+    if (parsedFraction === null || parsedFraction < 0 || parsedFraction > 1) {
       errors[field] = message
     }
   }
@@ -750,7 +811,15 @@ function OpportunityHeader({
             <div className={fieldBoxClass}>{formatPercent(opportunity.houseRepPercent)}</div>
           </FieldRow>
           <FieldRow label="House Split %">
-            <div className={fieldBoxClass}>{formatPercent(opportunity.houseSplitPercent)}</div>
+            <div className={fieldBoxClass}>
+              {formatPercent(
+                calculateHouseSplitPercent({
+                  subagentPercent: opportunity.subagentPercent,
+                  houseRepPercent: opportunity.houseRepPercent,
+                  fallbackPercent: opportunity.houseSplitPercent
+                })
+              )}
+            </div>
           </FieldRow>
           <FieldRow label="Description">
             <div className={fieldBoxClass}>
@@ -791,6 +860,29 @@ function EditableOpportunityHeader({
   const houseRepPercentField = editor.register("houseRepPercent")
   const houseSplitPercentField = editor.register("houseSplitPercent")
   const descriptionField = editor.register("description")
+
+  useEffect(() => {
+    if (!editor.draft) return
+
+    const subagentInput = typeof subagentPercentField.value === "string" ? subagentPercentField.value.trim() : ""
+    const houseRepInput = typeof houseRepPercentField.value === "string" ? houseRepPercentField.value.trim() : ""
+
+    const parsedSubagent = inputStringToPercent(subagentInput)
+    const parsedHouseRep = inputStringToPercent(houseRepInput)
+    const currentValue = typeof houseSplitPercentField.value === "string" ? houseSplitPercentField.value : ""
+    const parsedCurrent = inputStringToPercent(currentValue)
+    const computed = calculateHouseSplitPercent({
+      subagentPercent: parsedSubagent,
+      houseRepPercent: parsedHouseRep,
+      fallbackPercent: parsedCurrent
+    })
+
+    const targetValue = computed === null ? "" : percentToInputString(computed)
+
+    if (targetValue !== currentValue) {
+      editor.setField("houseSplitPercent", targetValue)
+    }
+  }, [editor, subagentPercentField.value, houseRepPercentField.value, houseSplitPercentField.value])
 
   void leadSourceField
 
@@ -1022,14 +1114,17 @@ function EditableOpportunityHeader({
           {renderRow(
             "Subagent %",
             <EditableField.Input
-              className="w-full"
-              type="number"
-              step="0.01"
-              min="0"
-              max="100"
+              className="w-full pr-6"
+              type="text"
+              inputMode="decimal"
+              placeholder="0.00%"
               value={(subagentPercentField.value as string) ?? ""}
               onChange={subagentPercentField.onChange}
-              onBlur={subagentPercentField.onBlur}
+              onBlur={(e: any) => {
+                const formatted = percentToInputString(inputStringToPercent(String(e.target.value)))
+                editor.setField("subagentPercent", formatted)
+                subagentPercentField.onBlur()
+              }}
             />,
             editor.errors.subagentPercent
           )}
@@ -1037,14 +1132,17 @@ function EditableOpportunityHeader({
           {renderRow(
             "House Rep %",
             <EditableField.Input
-              className="w-full"
-              type="number"
-              step="0.01"
-              min="0"
-              max="100"
+              className="w-full pr-6"
+              type="text"
+              inputMode="decimal"
+              placeholder="0.00%"
               value={(houseRepPercentField.value as string) ?? ""}
               onChange={houseRepPercentField.onChange}
-              onBlur={houseRepPercentField.onBlur}
+              onBlur={(e: any) => {
+                const formatted = percentToInputString(inputStringToPercent(String(e.target.value)))
+                editor.setField("houseRepPercent", formatted)
+                houseRepPercentField.onBlur()
+              }}
             />,
             editor.errors.houseRepPercent
           )}
@@ -1052,13 +1150,13 @@ function EditableOpportunityHeader({
           {renderRow(
             "House Split %",
             <EditableField.Input
-              className="w-full"
-              type="number"
-              step="0.01"
-              min="0"
-              max="100"
+              className="w-full pr-6"
+              type="text"
+              inputMode="decimal"
+              placeholder="0.00%"
               value={(houseSplitPercentField.value as string) ?? ""}
-              onChange={houseSplitPercentField.onChange}
+              readOnly
+              title="House Split % is auto-calculated."
               onBlur={houseSplitPercentField.onBlur}
             />,
             editor.errors.houseSplitPercent

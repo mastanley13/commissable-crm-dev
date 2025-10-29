@@ -35,7 +35,8 @@ export function CopyProtectionWrapper({ children, className = "" }: CopyProtecti
     const container = containerRef.current
 
     // Block keyboard shortcuts
-    const handleKeyDown = (event: KeyboardEvent) => {
+    const isInteractive = (el: EventTarget | null) => { if (!(el instanceof HTMLElement)) return false; const tag = el.tagName.toLowerCase(); return (el.isContentEditable || tag === "input" || tag === "textarea" || tag === "select"); };
+    const handleKeyDown = (event: KeyboardEvent) => { if (isInteractive(event.target)) return;
       // Block Ctrl+C, Ctrl+A, Ctrl+X, Ctrl+V
       if (event.ctrlKey && ['c', 'a', 'x', 'v'].includes(event.key.toLowerCase())) {
         event.preventDefault()
@@ -67,7 +68,7 @@ export function CopyProtectionWrapper({ children, className = "" }: CopyProtecti
     }
 
     // Block right-click context menu
-    const handleContextMenu = (event: MouseEvent) => {
+    const handleContextMenu = (event: MouseEvent) => { if (isInteractive(event.target)) return;
       event.preventDefault()
       event.stopPropagation()
       showCopyProtectionMessage()
@@ -75,14 +76,14 @@ export function CopyProtectionWrapper({ children, className = "" }: CopyProtecti
     }
 
     // Block text selection
-    const handleSelectStart = (event: Event) => {
+    const handleSelectStart = (event: Event) => { if (isInteractive(event.target)) return;
       event.preventDefault()
       event.stopPropagation()
       return false
     }
 
     // Block drag and drop
-    const handleDragStart = (event: DragEvent) => {
+    const handleDragStart = (event: DragEvent) => { if (isInteractive(event.target)) return;
       event.preventDefault()
       event.stopPropagation()
       return false

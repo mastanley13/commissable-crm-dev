@@ -6,15 +6,27 @@
 
 **Document Purpose**
 
+Notes:
+- Complete: Clear intent and scope.
+- Action: Keep this section synchronized with API/schema updates as other sections evolve.
+
 This guide provides development staff with a clear understanding of data sources, relationships, and processing logic for the Revenue Schedule creation functionality. Every field's origin and destination is mapped to ensure accurate implementation.
 
 ---
 
 **Quick Overview**
 
+Notes:
+- Complete: Summary is solid.
+- Action: Replace diagram encoding artifacts; redraw a simple Markdown flow for readability.
+
 When a user creates a Revenue Schedule, data flows from **5 core sources** through **3 processing steps** to create **2 main entities**. This guide maps exactly where every piece of data comes from and where it goes.
 
 **High-Level Data Flow**
+
+Notes:
+- Issue: Diagram contains unreadable characters (mojibake) and misaligned boxes.
+- Action: Replace with a plain Markdown list/flow and ensure counts match sources/steps/entities.
 
 DATA SOURCES                    PROCESSING                    ENTITIES CREATED  
 ┌─────────────────┐             ┌─────────────────┐          ┌─────────────────┐  
@@ -29,7 +41,16 @@ DATA SOURCES                    PROCESSING                    ENTITIES CREATED
 
 **Data Sources and Field Origins**
 
+Notes:
+- Complete: Accounts, Opportunities, Product Catalog, User Inputs, Commission Splits documented.
+- Missing: Contacts and Deposits sections with fields, relationships, and usage.
+- Action: Add Contacts/Deposits subsections comparable to others, focusing on reconciliation and notifications.
+
 **Account Data (Pre-existing Records)**
+
+Notes:
+- Complete: Field mapping and usage are clear.
+- Action: Cross-check owner/permissions mapping to UI and reports.
 
 **Source Table:** accounts **Relationship:** One-to-many with opportunities **Access:** Read-only during schedule creation
 
@@ -43,6 +64,10 @@ DATA SOURCES                    PROCESSING                    ENTITIES CREATED
 
 **Opportunity Data (Pre-existing Records)**
 
+Notes:
+- Complete: Adequate context and fields.
+- Action: Ensure stage values align with Markdown-Notes/Opportunity_Stages_Update_Plan.md and downstream logic.
+
 **Source Table:** opportunities **Relationship:** Parent container for line items **Access:** Read-only during schedule creation
 
 | Field Name | Database Column | Usage Notes |
@@ -55,6 +80,10 @@ DATA SOURCES                    PROCESSING                    ENTITIES CREATED
 
 **Product Catalog Data (Cascading Lookups)**
 
+Notes:
+- Complete: Lookup chain described.
+- Action: Specify hierarchical validation (distributor → vendor → family → product), caching strategy, and manual override behavior.
+
 **Source Tables:** distributors, vendors, product\_families, products **Relationship:** Hierarchical filtering chain **Access:** Read-only, provides defaults and validation
 
 | Field Name | Source Table | Lookup Chain | Notes |
@@ -66,6 +95,11 @@ DATA SOURCES                    PROCESSING                    ENTITIES CREATED
 | Default Price | products.default\_price | Auto-populated | User can override |
 
 **User Form Input (New Data Entry)**
+
+Notes:
+- Clarify domain for expectedCommissionRate (percent 0–100 vs fraction 0–1).
+- Define rounding/precision and timezone; startDate normalized to the 1st of month (UTC).
+- Validate ranges and sanitize optional fields (e.g., orderId).
 
 **Source:** User interface form submission **Validation:** Applied before database operations **Storage:** opportunity\_line\_items table
 
@@ -80,6 +114,10 @@ DATA SOURCES                    PROCESSING                    ENTITIES CREATED
 
 **Commission Split Configuration**
 
+Notes:
+- Enforce sum to 100% with ±0.01 tolerance; define exact tolerance.
+- List storage columns for each split field and provide example validation messages.
+
 **Source:** User configuration or manual entry **Validation:** Must sum to 100% (±0.01 tolerance) **Storage:** revenue\_schedules table
 
 | Field Name | Data Type | Validation | Usage |
@@ -92,7 +130,15 @@ DATA SOURCES                    PROCESSING                    ENTITIES CREATED
 
 **Data Processing Logic**
 
+Notes:
+- Good structure. Link steps explicitly to API sequence and DB operations.
+- Action: Ensure each step specifies exact error codes and payload shapes.
+
 **Step 1: Form Validation**
+
+Notes:
+- Add explicit numeric/date validation rules and error code mapping.
+- Clarify commission rate domain and split tolerance in this section.
 
 **Function:** validateScheduleForm() **Purpose:** Ensure data integrity before processing
 
@@ -122,6 +168,10 @@ function validateScheduleForm(formData) {
 
 **Step 2: Schedule Generation Logic**
 
+Notes:
+- Define order of operations: gross → net adjustments → commission → splits.
+- Specify rounding policy and precision to avoid penny drift across months.
+
 **Function:** generateRevenueSchedules() **Purpose:** Create multiple schedule records based on periods
 
 // Schedule Generation Logic  
@@ -150,6 +200,10 @@ function generateRevenueSchedules(lineItemData) {
 }
 
 **Step 3: Database Transaction**
+
+Notes:
+- Replace placeholder with specific bulk-insert approach (batched insert/upsert).
+- Define transaction isolation level, retry policy, and idempotency safeguards.
 
 **Function:** createRevenueScheduleTransaction() **Purpose:** Atomic creation of line item and schedules
 
@@ -190,6 +244,11 @@ COMMIT TRANSACTION;
 
 **Entity Relationships and Database Schema**
 
+Notes:
+- Fix diagram encoding; add full base DDLs for opportunity_line_items, revenue_schedules, deposit_line_items.
+- Add unique index to prevent duplicate M2M: (line_item_id, schedule_date, isM2M).
+- Add performance indexes and explicit cascade rules.
+
 **Primary Relationships**
 
 accounts (1) ────────────── (many) opportunities  
@@ -226,6 +285,11 @@ deposits ───────────────────────�
 ---
 
 **API Endpoints and Data Flow**
+
+Notes:
+- Add contracts for GET/PUT/DELETE schedules and list with pagination/filters.
+- Define POST idempotency (request-id), auth scopes, and correlation IDs.
+- Map error cases to HTTP status and structured error codes.
 
 **Frontend to Backend Communication**
 
@@ -311,6 +375,10 @@ Request Body:
 
 **Calculation Formulas and Business Logic**
 
+Notes:
+- Fix encoding in formulas; provide clear examples.
+- Define rounding order and precision; clarify expected vs. actual usage handling.
+
 **Core Financial Calculations**
 
 | Field | Formula | Example |
@@ -346,6 +414,10 @@ function calculateScheduleDates(startDate, periods) {
 ---
 
 **Critical Dependencies and Error Handling**
+
+Notes:
+- Expand with retry policy, timeouts, rate limiting, and fallback strategies.
+- Define canonical error codes and logging standards.
 
 **System Dependencies**
 
@@ -392,6 +464,10 @@ try {
 ---
 
 **Month-to-Month (M2M) Automated Schedule Creation**
+
+Notes:
+- Add concurrency guard and idempotent insertion with unique index.
+- Provide manual run/dry-run mode, timezone behavior, and re-entry when billing resumes.
 
 **Business Context**
 
@@ -466,6 +542,10 @@ async function processMonthToMonthSchedules() {
 
 **Status Management**
 
+Notes:
+- Add schedule-level statuses (Unreconciled, Partially Reconciled, Reconciled, Disputed, Voided) and transitions.
+- Document interactions between line item status and schedule statuses.
+
 | Status | Trigger | Action | Business Purpose |
 | ----- | ----- | ----- | ----- |
 | **Billing** | Initial contract active | Normal schedule creation | Standard billing cycle |
@@ -473,6 +553,10 @@ async function processMonthToMonthSchedules() {
 | **Billing Ended** | No billing activity \>3 months in M2M | Flag schedules for deletion | Cleanup inactive products |
 
 **M2M Cleanup Logic**
+
+Notes:
+- Confirm deposit join semantics; add indexes to support query.
+- Define retention window and final purge policy for flagged schedules.
 
 // Quarterly cleanup process for inactive M2M products  
 async function cleanupInactiveM2MProducts() {  
@@ -515,6 +599,10 @@ async function cleanupInactiveM2MProducts() {
 
 **Database Schema Changes**
 
+Notes:
+- Add base DDLs (create table) for core entities; include NOT NULLs, defaults, and constraints.
+- Include unique indexes and migration/backfill order; ensure backward compatibility.
+
 **Required Table Modifications**
 
 \-- Add M2M tracking fields to opportunity\_line\_items  
@@ -540,6 +628,11 @@ MODIFY COLUMN status ENUM(
 ) NOT NULL DEFAULT 'Active';
 
 **Scheduled Job Implementation**
+
+Notes:
+- Clarify timezone; add advisory lock to prevent overlap, and structured logging/metrics.
+- Provide one-shot/manual run command for ops and dry-run mode.
+- Avoid feature flags by controlling activation via cron scheduling and idempotent operations.
 
 **Cron Job Configuration**
 
@@ -573,6 +666,10 @@ schedule.schedule('0 3 1 \*/3 \*', async () \=\> {
 
 **Reporting Integration**
 
+Notes:
+- Add filters (date range, account/opportunity/rep) and sorting.
+- Note required indexes and include split totals where relevant.
+
 **M2M Products Report Query**
 
 \-- Products eligible for contract renewal (M2M status)  
@@ -598,6 +695,10 @@ GROUP BY ol.id, a.name, o.name, d.name, v.name, p.name, ol.m2m\_start\_date
 ORDER BY ol.m2m\_start\_date ASC;
 
 **Error Handling and Monitoring**
+
+Notes:
+- Define concrete metrics (schedules_created, duplicates_prevented, failures, durations) and alert thresholds.
+- Add daily validation job to detect missed/duplicate schedules.
 
 **Critical Monitoring Points**
 
@@ -632,6 +733,10 @@ async function validateM2MProcess() {
 }
 
 **Testing Requirements**
+
+Notes:
+- Add tests for idempotency, concurrency, duplicate prevention, timezone rollovers, and migrations.
+- Include full E2E flows (create → reconcile → M2M → cleanup).
 
 **Unit Tests for M2M Logic**
 
@@ -674,6 +779,10 @@ describe('Month-to-Month Schedule Creation', () \=\> {
 ---
 
 **Testing and Quality Assurance**
+
+Notes:
+- Add acceptance criteria, fixtures for predictable data, and pre-prod validation plan.
+- Note operational gating via cron enablement (no feature flags required).
 
 **Unit Test Coverage Requirements**
 
@@ -728,6 +837,11 @@ describe('Revenue Schedule Creation', () \=\> {
 
 **Implementation Checklist**
 
+Notes:
+- Expand with sub-tasks mapped to doc sections (schemas, endpoints, idempotency, jobs, tests, monitoring).
+- Link items to issue tracker for execution and sign-off.
+- Rollout without feature flags: run additive DB migrations first; enable cron after validation.
+
 **Database Schema**
 
 * \[ \] Create/verify opportunity\_line\_items table  
@@ -764,6 +878,10 @@ describe('Revenue Schedule Creation', () \=\> {
 
 **Performance Considerations**
 
+Notes:
+- Add concrete index recommendations and query budgets; define batch sizes and pooling configs.
+- Consider partitioning strategy and bulk-insert tuning.
+
 **Optimization Strategies**
 
 **Database Performance**
@@ -793,7 +911,57 @@ describe('Revenue Schedule Creation', () \=\> {
 **Last Updated:** August 18, 2025  
 **Next Review:** September 1, 2025
 
+Notes:
+- Update version and timestamps after integrating the above notes and missing sections.
+- Track open decisions (commission rate domain, rounding order) in an “Open Issues” appendix.
+
 ---
 
 *This document serves as the definitive technical reference for implementing Revenue Schedule functionality. All developers should refer to this guide during implementation and update it as the system evolves.*
 
+---
+
+**Phased Implementation Plan**
+
+- Goal: Deliver Revenue Schedules and M2M automation safely without feature flags; gate activation via ops (cron) and idempotent DB constraints.
+
+**Phase 0: Foundations & Schema**
+- Add base tables and constraints: `opportunity_line_items`, `revenue_schedules`, `deposit_line_items` (additive, backward-compatible).
+- Add indexes and unique constraint `(line_item_id, schedule_date, isM2M)`; create advisory lock key for jobs.
+- Migrations deployed across environments; no behavioral changes yet. Success: migrations run clean, no perf regressions.
+
+**Phase 1: Create API (Manual Use)**
+- Implement POST create endpoint with validation, calculation, transaction, and idempotency (request-id).
+- Add unit/integration tests; provide a one-shot CLI/admin endpoint to create schedules manually (UI not wired).
+- Success: creates line item + N schedules; idempotent on retry; audit logs captured.
+
+**Phase 2: UI Form & Validation**
+- Build cascading selectors (distributor → vendor → family → product) with caching; add real-time validation and error display.
+- Submit to create API; show success/failure; ensure rounding/precision and timezone rules applied.
+- Success: happy path works via UI; invalid inputs return structured errors; UX acceptance criteria met.
+
+**Phase 3: Reconciliation & Statuses**
+- Define schedule statuses and transitions; implement deposit → schedule matching (full/partial), tolerance, and adjustments.
+- Add reconciliation endpoints or backend service; update reports and status visibility.
+- Success: deposits reconcile schedules; statuses reflect state; partial allocations supported.
+
+**Phase 4: M2M Automation**
+- Implement monthly creation job with advisory lock + unique index guard; add dry-run/report mode.
+- Implement cleanup job for inactive M2M; monitoring and alerts (duplicates prevented, failures, duration).
+- Success: dry-run clean; enable cron; no duplicates; product statuses transition correctly.
+
+**Phase 5: Reporting & Monitoring**
+- Add M2M and schedule reports (filters/pagination); ship metrics, dashboards, and alerts; daily health check job.
+- Success: stakeholders can track creation, reconciliation, and M2M lifecycle; alerts fire on anomalies.
+
+**Phase 6: Hardening & Performance**
+- Load-test schedule creation and jobs; tune batch sizes, indexes, and pooling; document SLOs and runbooks.
+- Success: meets latency and throughput targets; operational playbooks validated.
+
+**Activation (No Feature Flags)**
+- Gate behavior via ops: deploy code with cron disabled; run Phase 4 dry-run; enable cron upon approval.
+- Idempotency protections (unique index + transactional upsert) make accidental reruns safe.
+
+**Rollback**
+- Disable cron and job entry points; revert UI to hide entry, if needed.
+- Keep additive DB changes; if required, drop only non-breaking indexes added in this feature.

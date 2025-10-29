@@ -105,6 +105,7 @@ export default function RevenueScheduleDetailPage() {
         loading={loading}
         error={error}
         scheduleKey={scheduleParam}
+        onRefresh={fetchSchedule}
       />
     </CopyProtectionWrapper>
   )

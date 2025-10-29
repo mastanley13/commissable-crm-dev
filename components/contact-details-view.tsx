@@ -2732,11 +2732,6 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
                     />
                   </span>
                 </button>
-                <div className="flex gap-0.5">
-                  <button type="button" className={`p-1 rounded transition-colors ${activeValue ? 'text-red-500 hover:text-red-700' : 'text-gray-400 hover:text-gray-600'}`} title="Delete group" onClick={(e) => { e.stopPropagation(); requestGroupDelete(row) }}>
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                </div>
               </div>
             )
           }

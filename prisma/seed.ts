@@ -120,6 +120,7 @@ async function seed() {
     // Finance / Reconciliation
     prisma.permission.create({ data: { code: "finance.view", name: "View Finance", category: "Finance" } }),
     prisma.permission.create({ data: { code: "reconciliation.view", name: "View Reconciliation", category: "Finance" } }),
+    prisma.permission.create({ data: { code: "revenue-schedules.manage", name: "Manage Revenue Schedules", category: "Finance" } }),
 
     // System / Settings
     prisma.permission.create({ data: { code: "tables.customize", name: "Customize Tables", category: "System" } }),
@@ -158,7 +159,7 @@ async function seed() {
         // Contacts
         "contacts.read", "contacts.create", "contacts.update", "contacts.delete", "contacts.export", "contacts.manage",
         // Finance/System
-        "finance.view", "reconciliation.view", "tables.customize", "system.settings.read", "system.settings.write",
+        "finance.view", "reconciliation.view", "revenue-schedules.manage", "tables.customize", "system.settings.read", "system.settings.write",
         // Activities
         "activities.read", "activities.create", "activities.update", "activities.delete", "activities.export", "activities.manage",
         // Admin
@@ -175,6 +176,7 @@ async function seed() {
         "contacts.read", "contacts.create", "contacts.update", "contacts.delete", "contacts.export", "contacts.manage",
         // Activities
         "activities.read", "activities.create", "activities.update", "activities.delete", "activities.export", "activities.manage",
+        "revenue-schedules.manage",
         "tables.customize"
       ]
     },
