@@ -478,12 +478,22 @@ export function RevenueScheduleDetailsView({
                       key={`${field.fieldId}-${field.label}`}
                       label="Revenue Schedule Date"
                       control={
-                        <EditableField.Input
-                          type="date"
-                          value={(dateField.value as string) ?? ""}
-                          onChange={dateField.onChange}
-                          onBlur={dateField.onBlur}
-                        />
+                        <div className="relative">
+                          <EditableField.Input
+                            type="date"
+                            value={(dateField.value as string) ?? ""}
+                            onChange={dateField.onChange}
+                            onBlur={dateField.onBlur}
+                            className="pr-6 [color-scheme:light] [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-0 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-datetime-edit]:opacity-0 [&::-webkit-datetime-edit]:focus:opacity-100"
+                            style={{ colorScheme: 'light' } as React.CSSProperties}
+                            onFocus={(e) => {
+                              e.currentTarget.classList.add('date-input-focused')
+                            }}
+                          />
+                          <span className="pointer-events-none absolute left-0 top-1/2 -translate-y-1/2 text-xs text-gray-900">
+                            {(dateField.value as string) || <span className="text-gray-400">YYYY-MM-DD</span>}
+                          </span>
+                        </div>
                       }
                       error={editor.errors.revenueScheduleDate}
                     />

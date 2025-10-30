@@ -437,14 +437,26 @@ export function ActivityNoteCreateModal({
                 </div>
 
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <div>
+                  <div className="relative">
                     <label className="mb-1 block text-sm font-medium text-gray-700">Activity Date</label>
-                    <input
-                      type="date"
-                      value={form.activityDate}
-                      onChange={event => setForm(prev => ({ ...prev, activityDate: event.target.value }))}
-                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                    />
+                    <div className="relative">
+                      <input
+                        type="date"
+                        value={form.activityDate}
+                        onChange={event => setForm(prev => ({ ...prev, activityDate: event.target.value }))}
+                        className="w-full rounded-lg border border-gray-300 px-3 py-2 pr-10 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500 [color-scheme:light] [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-2 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-datetime-edit]:opacity-0 [&::-webkit-datetime-edit]:focus:opacity-100"
+                        style={{ colorScheme: 'light' }}
+                        onFocus={(e) => {
+                          e.currentTarget.classList.add('date-input-focused')
+                        }}
+                        onBlur={(e) => {
+                          e.currentTarget.classList.remove('date-input-focused')
+                        }}
+                      />
+                      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-900">
+                        {form.activityDate || <span className="text-gray-400">YYYY-MM-DD</span>}
+                      </span>
+                    </div>
                   </div>
                   <div>
                     <label className="mb-1 block text-sm font-medium text-gray-700">Assigned Owner</label>

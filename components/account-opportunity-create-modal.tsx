@@ -11,6 +11,10 @@ interface SelectOption {
   label: string
 }
 
+interface ContactOption extends SelectOption {
+  accountName?: string
+}
+
 interface OpportunityCreateModalProps {
   isOpen: boolean
   accountId: string
@@ -25,18 +29,15 @@ interface OpportunityFormState {
   estimatedCloseDate: string
   ownerId: string
   leadSource: LeadSource
+  referredByContactId: string
   subAgent: string
+  subagentContactId: string
 }
 
 const stageOptions: OpportunityStageOption[] = getOpportunityStageOptions()
 
 const formatStageLabel = (option: OpportunityStageOption) =>
   option.autoManaged ? `${option.label} (auto-managed)` : option.label
-
-const leadSourceOptions: SelectOption[] = Object.values(LeadSource).map(source => ({
-  value: source,
-  label: source.replace(/([A-Z])/g, " $1").trim()
-}))
 
 export function OpportunityCreateModal({ isOpen, accountId, accountName, onClose, onCreated }: OpportunityCreateModalProps) {
   const [form, setForm] = useState<OpportunityFormState>({
@@ -45,9 +46,21 @@ export function OpportunityCreateModal({ isOpen, accountId, accountName, onClose
     estimatedCloseDate: "",
     ownerId: "",
     leadSource: LeadSource.Referral,
-    subAgent: ""
+    referredByContactId: "",
+    subAgent: "",
+    subagentContactId: ""
   })
   const [owners, setOwners] = useState<SelectOption[]>([])
+  const [ownerQuery, setOwnerQuery] = useState("")
+  const [showOwnerDropdown, setShowOwnerDropdown] = useState(false)
+  const [contacts, setContacts] = useState<ContactOption[]>([])
+  const [contactQuery, setContactQuery] = useState("")
+  const [contactsLoading, setContactsLoading] = useState(false)
+  const [showContactDropdown, setShowContactDropdown] = useState(false)
+  const [subagents, setSubagents] = useState<ContactOption[]>([])
+  const [subagentQuery, setSubagentQuery] = useState("")
+  const [subagentsLoading, setSubagentsLoading] = useState(false)
+  const [showSubagentDropdown, setShowSubagentDropdown] = useState(false)
   const [loading, setLoading] = useState(false)
   const [optionsLoading, setOptionsLoading] = useState(false)
   const { showError, showSuccess } = useToasts()
@@ -63,8 +76,13 @@ export function OpportunityCreateModal({ isOpen, accountId, accountName, onClose
       estimatedCloseDate: "",
       ownerId: "",
       leadSource: LeadSource.Referral,
-      subAgent: ""
+      referredByContactId: "",
+      subAgent: "",
+      subagentContactId: ""
     })
+    setContactQuery("")
+    setOwnerQuery("")
+    setSubagentQuery("")
 
     setOptionsLoading(true)
     fetch("/api/admin/users?limit=100&status=Active", { cache: "no-store" })
@@ -74,12 +92,17 @@ export function OpportunityCreateModal({ isOpen, accountId, accountName, onClose
         }
         const payload = await response.json()
         const items = Array.isArray(payload?.data?.users) ? payload.data.users : []
-        setOwners(
-          items.map((user: any) => ({
-            value: user.id,
-            label: user.fullName || user.email
-          }))
-        )
+        const ownerOptions = items.map((user: any) => ({
+          value: user.id,
+          label: user.fullName || user.email
+        }))
+        setOwners(ownerOptions)
+
+        // Set default owner to first user and populate query
+        if (ownerOptions.length > 0) {
+          setForm(prev => ({ ...prev, ownerId: ownerOptions[0].value }))
+          setOwnerQuery(ownerOptions[0].label)
+        }
       })
       .catch(() => {
         setOwners([])
@@ -88,13 +111,149 @@ export function OpportunityCreateModal({ isOpen, accountId, accountName, onClose
       .finally(() => setOptionsLoading(false))
   }, [isOpen, showError])
 
+  useEffect(() => {
+    if (!isOpen) {
+      return
+    }
+
+    const controller = new AbortController()
+    const fetchContacts = async () => {
+      setContactsLoading(true)
+      try {
+        const params = new URLSearchParams({
+          page: "1",
+          pageSize: "50"
+        })
+
+        const trimmedQuery = contactQuery.trim()
+        if (trimmedQuery.length > 0) {
+          params.set("q", trimmedQuery)
+        }
+
+        const response = await fetch(`/api/contacts?${params.toString()}`, {
+          cache: "no-store",
+          signal: controller.signal
+        })
+
+        if (!response.ok) {
+          throw new Error("Failed to load contacts")
+        }
+
+        const payload = await response.json()
+        const items: any[] = Array.isArray(payload?.data) ? payload.data : []
+
+        const options: ContactOption[] = items.map(item => {
+          const fullName = item.fullName?.trim() || ""
+
+          return {
+            value: item.id,
+            label: fullName || "Unnamed contact",
+            accountName: item.accountName || undefined
+          }
+        })
+
+        setContacts(options)
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          return
+        }
+        console.error("Unable to load contacts", error)
+        setContacts([])
+      } finally {
+        setContactsLoading(false)
+      }
+    }
+
+    const debounce = setTimeout(() => {
+      void fetchContacts()
+    }, 250)
+
+    return () => {
+      controller.abort()
+      clearTimeout(debounce)
+    }
+  }, [isOpen, contactQuery])
+
+  useEffect(() => {
+    if (!isOpen) {
+      return
+    }
+
+    const controller = new AbortController()
+    const fetchSubagents = async () => {
+      setSubagentsLoading(true)
+      try {
+        const params = new URLSearchParams({
+          page: "1",
+          pageSize: "50"
+        })
+
+        const trimmedQuery = subagentQuery.trim()
+        if (trimmedQuery.length > 0) {
+          params.set("q", trimmedQuery)
+        }
+
+        // Filter by contactType = Subagent
+        params.set("contactType", "Subagent")
+
+        const response = await fetch(`/api/contacts?${params.toString()}`, {
+          cache: "no-store",
+          signal: controller.signal
+        })
+
+        if (!response.ok) {
+          throw new Error("Failed to load subagents")
+        }
+
+        const payload = await response.json()
+        const items: any[] = Array.isArray(payload?.data) ? payload.data : []
+
+        const options: ContactOption[] = items.map(item => {
+          const fullName = item.fullName?.trim() || ""
+
+          return {
+            value: item.id,
+            label: fullName || "Unnamed contact",
+            accountName: item.accountName || undefined
+          }
+        })
+
+        setSubagents(options)
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          return
+        }
+        console.error("Unable to load subagents", error)
+        setSubagents([])
+      } finally {
+        setSubagentsLoading(false)
+      }
+    }
+
+    const debounce = setTimeout(() => {
+      void fetchSubagents()
+    }, 250)
+
+    return () => {
+      controller.abort()
+      clearTimeout(debounce)
+    }
+  }, [isOpen, subagentQuery])
+
+  const filteredOwners = useMemo(() => {
+    if (!ownerQuery.trim()) {
+      return owners
+    }
+    const query = ownerQuery.toLowerCase()
+    return owners.filter(owner => owner.label.toLowerCase().includes(query))
+  }, [owners, ownerQuery])
+
   const canSubmit = useMemo(() => {
     return Boolean(
       accountId &&
       form.name.trim().length >= 3 &&
       form.stage &&
       form.ownerId &&
-      form.leadSource &&
       form.estimatedCloseDate
     )
   }, [accountId, form])
@@ -115,7 +274,9 @@ export function OpportunityCreateModal({ isOpen, accountId, accountName, onClose
         estimatedCloseDate: form.estimatedCloseDate,
         ownerId: form.ownerId,
         leadSource: form.leadSource,
-        subAgent: form.subAgent.trim() || null
+        referredByContactId: form.referredByContactId || null,
+        subAgent: form.subAgent.trim() || null,
+        subagentContactId: form.subagentContactId || null
       }
 
       const response = await fetch("/api/opportunities", {
@@ -178,15 +339,27 @@ export function OpportunityCreateModal({ isOpen, accountId, accountName, onClose
                 required
               />
             </div>
-            <div>
+            <div className="relative">
               <label className="mb-1 block text-sm font-medium text-gray-700">Estimated Close Date<span className="ml-1 text-red-500">*</span></label>
-              <input
-                type="date"
-                value={form.estimatedCloseDate}
-                onChange={event => setForm(prev => ({ ...prev, estimatedCloseDate: event.target.value }))}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                required
-              />
+              <div className="relative">
+                <input
+                  type="date"
+                  value={form.estimatedCloseDate}
+                  onChange={event => setForm(prev => ({ ...prev, estimatedCloseDate: event.target.value }))}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 pr-10 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500 [color-scheme:light] [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-2 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-datetime-edit]:opacity-0 [&::-webkit-datetime-edit]:focus:opacity-100"
+                  style={{ colorScheme: 'light' }}
+                  onFocus={(e) => {
+                    e.currentTarget.classList.add('date-input-focused')
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.classList.remove('date-input-focused')
+                  }}
+                  required
+                />
+                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-900">
+                  {form.estimatedCloseDate || <span className="text-gray-400">YYYY-MM-DD</span>}
+                </span>
+              </div>
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium text-gray-700">Stage<span className="ml-1 text-red-500">*</span></label>
@@ -207,42 +380,122 @@ export function OpportunityCreateModal({ isOpen, accountId, accountName, onClose
                 ))}
               </select>
             </div>
-            <div>
+            <div className="relative">
               <label className="mb-1 block text-sm font-medium text-gray-700">Owner<span className="ml-1 text-red-500">*</span></label>
-              <select
-                value={form.ownerId}
-                onChange={event => setForm(prev => ({ ...prev, ownerId: event.target.value }))}
+              <input
+                type="text"
+                value={ownerQuery}
+                onChange={event => {
+                  setOwnerQuery(event.target.value)
+                  setShowOwnerDropdown(true)
+                }}
+                onFocus={() => setShowOwnerDropdown(true)}
+                onBlur={() => {
+                  // Delay hiding to allow click on dropdown items
+                  setTimeout(() => setShowOwnerDropdown(false), 200)
+                }}
+                placeholder="Type to search owners..."
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                required
                 disabled={optionsLoading}
-              >
-                <option value="">{optionsLoading ? "Loading owners..." : "Select owner"}</option>
-                {owners.map(option => (
-                  <option key={option.value} value={option.value}>{option.label}</option>
-                ))}
-              </select>
+                required
+              />
+              {showOwnerDropdown && ownerQuery.length > 0 && filteredOwners.length > 0 && (
+                <div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
+                  {filteredOwners.map(option => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => {
+                        setForm(prev => ({ ...prev, ownerId: option.value }))
+                        setOwnerQuery(option.label)
+                        setShowOwnerDropdown(false)
+                      }}
+                      className="w-full px-3 py-2 text-left text-sm hover:bg-primary-50 focus:bg-primary-50 focus:outline-none"
+                    >
+                      <div className="font-medium text-gray-900">{option.label}</div>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">Referred By<span className="ml-1 text-red-500">*</span></label>
-              <select
-                value={form.leadSource}
-                onChange={event => setForm(prev => ({ ...prev, leadSource: event.target.value as LeadSource }))}
+            <div className="relative">
+              <label className="mb-1 block text-sm font-medium text-gray-700">Referred By</label>
+              <input
+                type="text"
+                value={contactQuery}
+                onChange={event => {
+                  setContactQuery(event.target.value)
+                  setShowContactDropdown(true)
+                }}
+                onFocus={() => setShowContactDropdown(true)}
+                onBlur={() => {
+                  // Delay hiding to allow click on dropdown items
+                  setTimeout(() => setShowContactDropdown(false), 200)
+                }}
+                placeholder="Type to search contacts..."
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
-              >
-                {leadSourceOptions.map(option => (
-                  <option key={option.value} value={option.value}>{option.label}</option>
-                ))}
-              </select>
+                disabled={contactsLoading}
+              />
+              {showContactDropdown && contactQuery.length > 0 && contacts.length > 0 && (
+                <div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
+                  {contacts.map(option => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => {
+                        setForm(prev => ({ ...prev, referredByContactId: option.value }))
+                        setContactQuery(option.label)
+                        setShowContactDropdown(false)
+                      }}
+                      className="w-full px-3 py-2 text-left text-sm hover:bg-primary-50 focus:bg-primary-50 focus:outline-none"
+                    >
+                      <div className="font-medium text-gray-900">{option.label}</div>
+                      {option.accountName && (
+                        <div className="text-xs text-gray-500">{option.accountName}</div>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
-            <div>
+            <div className="relative">
               <label className="mb-1 block text-sm font-medium text-gray-700">Subagent</label>
               <input
                 type="text"
-                value={form.subAgent}
-                onChange={event => setForm(prev => ({ ...prev, subAgent: event.target.value }))}
+                value={subagentQuery}
+                onChange={event => {
+                  setSubagentQuery(event.target.value)
+                  setShowSubagentDropdown(true)
+                }}
+                onFocus={() => setShowSubagentDropdown(true)}
+                onBlur={() => {
+                  setTimeout(() => setShowSubagentDropdown(false), 200)
+                }}
+                placeholder="Type to search subagents..."
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                placeholder="Optional subagent"
+                disabled={subagentsLoading}
               />
+              {showSubagentDropdown && subagentQuery.length > 0 && subagents.length > 0 && (
+                <div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
+                  {subagents.map(option => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => {
+                        setForm(prev => ({ ...prev, subagentContactId: option.value, subAgent: option.label }))
+                        setSubagentQuery(option.label)
+                        setShowSubagentDropdown(false)
+                      }}
+                      className="w-full px-3 py-2 text-left text-sm hover:bg-primary-50 focus:bg-primary-50 focus:outline-none"
+                    >
+                      <div className="font-medium text-gray-900">{option.label}</div>
+                      {option.accountName && (
+                        <div className="text-xs text-gray-500">{option.accountName}</div>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 

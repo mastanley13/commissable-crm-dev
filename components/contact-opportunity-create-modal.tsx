@@ -10,12 +10,17 @@ interface SelectOption {
   label: string
 }
 
+interface ContactOption extends SelectOption {
+  accountName?: string
+}
+
 interface ContactOpportunityFormState {
   opportunityName: string
   stage: string
   estimatedCloseDate: string
   owner: string
   referredBy: string
+  referredByContactId: string
   primaryAccount: string
   splitWithAgency: boolean
   notes: string
@@ -36,6 +41,7 @@ const createInitialState = (accountName?: string): ContactOpportunityFormState =
   estimatedCloseDate: "",
   owner: "",
   referredBy: "Referral",
+  referredByContactId: "",
   primaryAccount: accountName ?? "",
   splitWithAgency: false,
   notes: ""
@@ -57,7 +63,13 @@ export function ContactOpportunityCreateModal({ isOpen, contactName, accountId, 
   const [form, setForm] = useState<ContactOpportunityFormState>(() => createInitialState(accountName))
   const [loading, setLoading] = useState(false)
   const [ownerOptions, setOwnerOptions] = useState<SelectOption[]>([])
+  const [ownerQuery, setOwnerQuery] = useState("")
+  const [showOwnerDropdown, setShowOwnerDropdown] = useState(false)
   const [ownersLoading, setOwnersLoading] = useState(false)
+  const [contacts, setContacts] = useState<ContactOption[]>([])
+  const [contactQuery, setContactQuery] = useState("")
+  const [showContactDropdown, setShowContactDropdown] = useState(false)
+  const [contactsLoading, setContactsLoading] = useState(false)
   const { showError, showSuccess } = useToasts()
 
   useEffect(() => {
@@ -66,6 +78,8 @@ export function ContactOpportunityCreateModal({ isOpen, contactName, accountId, 
     }
 
     setForm(createInitialState(accountName))
+    setContactQuery("")
+    setOwnerQuery("")
   }, [isOpen, accountName])
 
   useEffect(() => {
@@ -90,7 +104,12 @@ export function ContactOpportunityCreateModal({ isOpen, contactName, accountId, 
           label: user.fullName || user.email
         }))
         setOwnerOptions(options)
-        setForm(prev => (prev.owner || !options[0] ? prev : { ...prev, owner: options[0].value }))
+
+        // Set default owner and populate query
+        if (options.length > 0) {
+          setForm(prev => (prev.owner ? prev : { ...prev, owner: options[0].value }))
+          setOwnerQuery(options[0].label)
+        }
       } catch (error) {
         if (!cancelled) {
           setOwnerOptions([])
@@ -108,6 +127,77 @@ export function ContactOpportunityCreateModal({ isOpen, contactName, accountId, 
       cancelled = true
     }
   }, [isOpen])
+
+  useEffect(() => {
+    if (!isOpen) {
+      return
+    }
+
+    const controller = new AbortController()
+    const fetchContacts = async () => {
+      setContactsLoading(true)
+      try {
+        const params = new URLSearchParams({
+          page: "1",
+          pageSize: "50"
+        })
+
+        const trimmedQuery = contactQuery.trim()
+        if (trimmedQuery.length > 0) {
+          params.set("q", trimmedQuery)
+        }
+
+        const response = await fetch(`/api/contacts?${params.toString()}`, {
+          cache: "no-store",
+          signal: controller.signal
+        })
+
+        if (!response.ok) {
+          throw new Error("Failed to load contacts")
+        }
+
+        const payload = await response.json()
+        const items: any[] = Array.isArray(payload?.data) ? payload.data : []
+
+        const options: ContactOption[] = items.map(item => {
+          const fullName = item.fullName?.trim() || ""
+
+          return {
+            value: item.id,
+            label: fullName || "Unnamed contact",
+            accountName: item.accountName || undefined
+          }
+        })
+
+        setContacts(options)
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          return
+        }
+        console.error("Unable to load contacts", error)
+        setContacts([])
+      } finally {
+        setContactsLoading(false)
+      }
+    }
+
+    const debounce = setTimeout(() => {
+      void fetchContacts()
+    }, 250)
+
+    return () => {
+      controller.abort()
+      clearTimeout(debounce)
+    }
+  }, [isOpen, contactQuery])
+
+  const filteredOwners = useMemo(() => {
+    if (!ownerQuery.trim()) {
+      return ownerOptions
+    }
+    const query = ownerQuery.toLowerCase()
+    return ownerOptions.filter(owner => owner.label.toLowerCase().includes(query))
+  }, [ownerOptions, ownerQuery])
 
   const canSubmit = useMemo(() => {
     return Boolean(form.opportunityName.trim() && form.owner && accountId)
@@ -132,6 +222,7 @@ export function ContactOpportunityCreateModal({ isOpen, contactName, accountId, 
       estimatedCloseDate: form.estimatedCloseDate || null,
       ownerId: form.owner,
       leadSource: form.referredBy,
+      referredByContactId: form.referredByContactId || null,
       subAgent: form.splitWithAgency ? "Partner agency" : null,
       notes: form.notes.trim() || undefined
     }
@@ -219,43 +310,104 @@ export function ContactOpportunityCreateModal({ isOpen, contactName, accountId, 
               </select>
             </div>
 
-            <div>
+            <div className="relative">
               <label className="mb-1 block text-sm font-medium text-gray-700">Estimated Close Date</label>
-              <input
-                type="date"
-                value={form.estimatedCloseDate}
-                onChange={event => setForm(prev => ({ ...prev, estimatedCloseDate: event.target.value }))}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
-              />
+              <div className="relative">
+                <input
+                  type="date"
+                  value={form.estimatedCloseDate}
+                  onChange={event => setForm(prev => ({ ...prev, estimatedCloseDate: event.target.value }))}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 pr-10 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500 [color-scheme:light] [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-2 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-datetime-edit]:opacity-0 [&::-webkit-datetime-edit]:focus:opacity-100"
+                  style={{ colorScheme: 'light' }}
+                  onFocus={(e) => {
+                    e.currentTarget.classList.add('date-input-focused')
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.classList.remove('date-input-focused')
+                  }}
+                />
+                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-900">
+                  {form.estimatedCloseDate || <span className="text-gray-400">YYYY-MM-DD</span>}
+                </span>
+              </div>
             </div>
 
-            <div>
+            <div className="relative">
               <label className="mb-1 block text-sm font-medium text-gray-700">Opportunity Owner<span className="ml-1 text-red-500">*</span></label>
-              <select
-                value={form.owner}
-                onChange={event => setForm(prev => ({ ...prev, owner: event.target.value }))}
+              <input
+                type="text"
+                value={ownerQuery}
+                onChange={event => {
+                  setOwnerQuery(event.target.value)
+                  setShowOwnerDropdown(true)
+                }}
+                onFocus={() => setShowOwnerDropdown(true)}
+                onBlur={() => {
+                  setTimeout(() => setShowOwnerDropdown(false), 200)
+                }}
+                placeholder="Type to search owners..."
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
                 disabled={ownersLoading}
                 required
-              >
-                <option value="">{ownersLoading ? "Loading owners..." : "Select owner"}</option>
-                {ownerOptions.map(option => (
-                  <option key={option.value} value={option.value}>{option.label}</option>
-                ))}
-              </select>
+              />
+              {showOwnerDropdown && ownerQuery.length > 0 && filteredOwners.length > 0 && (
+                <div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
+                  {filteredOwners.map(option => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => {
+                        setForm(prev => ({ ...prev, owner: option.value }))
+                        setOwnerQuery(option.label)
+                        setShowOwnerDropdown(false)
+                      }}
+                      className="w-full px-3 py-2 text-left text-sm hover:bg-primary-50 focus:bg-primary-50 focus:outline-none"
+                    >
+                      <div className="font-medium text-gray-900">{option.label}</div>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
-            <div>
+            <div className="relative">
               <label className="mb-1 block text-sm font-medium text-gray-700">Referred By</label>
-              <select
-                value={form.referredBy}
-                onChange={event => setForm(prev => ({ ...prev, referredBy: event.target.value }))}
+              <input
+                type="text"
+                value={contactQuery}
+                onChange={event => {
+                  setContactQuery(event.target.value)
+                  setShowContactDropdown(true)
+                }}
+                onFocus={() => setShowContactDropdown(true)}
+                onBlur={() => {
+                  setTimeout(() => setShowContactDropdown(false), 200)
+                }}
+                placeholder="Type to search contacts..."
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
-              >
-                {LEAD_SOURCE_OPTIONS.map(option => (
-                  <option key={option.value} value={option.value}>{option.label}</option>
-                ))}
-              </select>
+                disabled={contactsLoading}
+              />
+              {showContactDropdown && contactQuery.length > 0 && contacts.length > 0 && (
+                <div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
+                  {contacts.map(option => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => {
+                        setForm(prev => ({ ...prev, referredByContactId: option.value }))
+                        setContactQuery(option.label)
+                        setShowContactDropdown(false)
+                      }}
+                      className="w-full px-3 py-2 text-left text-sm hover:bg-primary-50 focus:bg-primary-50 focus:outline-none"
+                    >
+                      <div className="font-medium text-gray-900">{option.label}</div>
+                      {option.accountName && (
+                        <div className="text-xs text-gray-500">{option.accountName}</div>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="md:col-span-2">

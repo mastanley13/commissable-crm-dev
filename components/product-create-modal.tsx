@@ -175,8 +175,8 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 backdrop-blur-sm" onClick={handleClose}>
-      <div className="w-full max-w-4xl rounded-xl bg-white shadow-xl max-h-[92vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 backdrop-blur-sm">
+      <div className="w-full max-w-4xl rounded-xl bg-white shadow-xl max-h-[92vh] overflow-y-auto">
         <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
           <div>
             <h2 className="text-base font-semibold text-gray-900">Create New Product</h2>

@@ -391,10 +391,9 @@ export function AccountCreateModal({ isOpen, onClose, onSubmit }: AccountCreateM
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 backdrop-blur-sm">
       <div
         className="w-full max-w-5xl rounded-xl bg-white shadow-xl"
-        onClick={event => event.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
           <div>
