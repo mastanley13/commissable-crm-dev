@@ -233,7 +233,7 @@ export function ListHeader({
   const hasFiltersApplied = groupedColumnFilters.length > 0;
 
   return (
-    <div className="bg-white border-b border-blue-900 px-6 py-2">
+    <div className="bg-white px-6 py-2">
       {title && (
         <div className="mb-2 flex items-center justify-between">
           <h2 className="text-base font-semibold text-gray-900">{title}</h2>
@@ -295,7 +295,8 @@ export function ListHeader({
             <button
               type="button"
               onClick={onSettingsClick}
-              className="rounded p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+              className="rounded p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-600"
+              title="Column Settings"
             >
               <Settings className="h-4 w-4" />
             </button>

@@ -256,7 +256,7 @@ export default function ReconciliationPage() {
             
             <button
               onClick={() => setShowColumnSettings(true)}
-              className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors"
+              className="p-2 text-gray-500 rounded-lg hover:bg-gray-100 hover:text-gray-600 transition-colors"
               title="Column Settings"
             >
               <Settings className="h-4 w-4" />

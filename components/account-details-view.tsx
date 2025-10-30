@@ -784,10 +784,13 @@ function ReadOnlyCheckbox({ checked }: { checked: boolean }) {
   )
 }
 
-function FieldRow({ label, value }: { label: string; value: ReactNode }) {
+function FieldRow({ label, value, labelExtra }: { label: string; value: ReactNode; labelExtra?: ReactNode }) {
   return (
-    <div className="grid items-center gap-4 sm:grid-cols-[140px,1fr]">
-      <span className={fieldLabelClass}>{label}</span>
+    <div className="grid items-start gap-4 sm:grid-cols-[140px,1fr]">
+      <div className="flex flex-col gap-1">
+        <span className={fieldLabelClass}>{label}</span>
+        {labelExtra}
+      </div>
       <div>{value}</div>
     </div>
   )
@@ -850,7 +853,7 @@ function AccountHeader({
             value={
               <div className="flex items-end gap-2 max-w-md">
                 <div className={cn(fieldBoxClass, "flex-1 max-w-none")}>{account.accountName}</div>
-                <div className="flex items-center gap-2 shrink-0 border-b-2 border-gray-300 bg-transparent px-0 py-1 text-[11px] font-medium text-gray-600">
+                <div className="flex items-center gap-2 shrink-0 bg-transparent px-0 py-1 text-[11px] font-medium text-gray-600">
                   <span>Active (Y/N)</span>
                   <ReadOnlySwitch value={account.active} />
                 </div>
@@ -903,53 +906,91 @@ function AccountHeader({
         </div>
 
         <div className="space-y-1.5">
-          <div>
-            <div className="mb-1 flex items-center justify-between">
-              <h3 className="text-[11px] font-semibold text-gray-800">Ship To Address</h3>
-            </div>
-            {account.shippingAddress ? (
-              <div className="space-y-1 text-[11px] text-gray-700">
-                {renderAddressValue(account.shippingAddress.line1, "Shipping Street")}
-                {renderAddressValue(
+          <FieldRow
+            label="Ship To Address"
+            value={
+              account.shippingAddress ? (
+                renderAddressValue(account.shippingAddress.line1, "Shipping Street")
+              ) : (
+                <p className="text-[11px] text-gray-500">No shipping address on file.</p>
+              )
+            }
+          />
+          <FieldRow
+            label=""
+            value={
+              account.shippingAddress ? (
+                renderAddressValue(
                   account.shippingAddress.shippingStreet2 || account.shippingAddress.line2,
                   "Shipping Street 2"
-                )}
+                )
+              ) : (
+                <div className="min-h-[28px]"></div>
+              )
+            }
+          />
+          <FieldRow
+            label=""
+            value={
+              account.shippingAddress ? (
                 <div className="grid max-w-md grid-cols-[2fr,1fr,1fr] gap-1">
                   {renderAddressValue(account.shippingAddress.city, "City", "max-w-none")}
                   {renderAddressSelectValue(account.shippingAddress.state, "State")}
                   {renderAddressValue(account.shippingAddress.postalCode, "Zip", "max-w-none")}
                 </div>
-              </div>
-            ) : (
-              <p className="text-[11px] text-gray-500">No shipping address on file.</p>
-            )}
-          </div>
-
-          <div>
-            <div className="mb-1 flex items-center justify-between">
-              <h3 className="text-[11px] font-semibold text-gray-800">Bill To Address</h3>
-              <label className="flex items-center gap-2 text-[11px] text-gray-600">
+              ) : (
+                <div className="min-h-[28px]"></div>
+              )
+            }
+          />
+          {/* Empty row to align with Account Type */}
+          <FieldRow
+            label=""
+            value={<div className="min-h-[28px]"></div>}
+          />
+          <FieldRow
+            label="Bill To Address"
+            value={
+              account.billingAddress ? (
+                renderAddressValue(account.billingAddress.line1, "Billing Street")
+              ) : (
+                <p className="text-[11px] text-gray-500">No billing address on file.</p>
+              )
+            }
+          />
+          <FieldRow
+            label=""
+            labelExtra={
+              <label className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
                 <ReadOnlyCheckbox checked={Boolean(account.billingSameAsShipping)} />
-                <span>Same as Ship</span>
+                <span>Same as Ship To</span>
               </label>
-            </div>
-            {account.billingAddress ? (
-              <div className="space-y-1 text-[11px] text-gray-700">
-                {renderAddressValue(account.billingAddress.line1, "Billing Street")}
-                {renderAddressValue(
+            }
+            value={
+              account.billingAddress ? (
+                renderAddressValue(
                   account.billingAddress.billingStreet2 || account.billingAddress.line2,
                   "Billing Street 2"
-                )}
+                )
+              ) : (
+                <div className="min-h-[28px]"></div>
+              )
+            }
+          />
+          <FieldRow
+            label=""
+            value={
+              account.billingAddress ? (
                 <div className="grid max-w-md grid-cols-[2fr,1fr,1fr] gap-1">
                   {renderAddressValue(account.billingAddress.city, "City", "max-w-none")}
                   {renderAddressSelectValue(account.billingAddress.state, "State")}
                   {renderAddressValue(account.billingAddress.postalCode, "Zip", "max-w-none")}
                 </div>
-              </div>
-            ) : (
-              <p className="text-[11px] text-gray-500">No billing address on file.</p>
-            )}
-          </div>
+              ) : (
+                <div className="min-h-[28px]"></div>
+              )
+            }
+          />
         </div>
       </div>
     </div>
@@ -1098,7 +1139,7 @@ function EditableAccountHeader({
                     placeholder="Enter account name"
                     className="flex-1"
                   />
-                  <div className="flex items-center gap-2 shrink-0 border-b-2 border-gray-300 bg-transparent px-0 py-1 text-[11px] font-medium text-gray-600">
+                  <div className="flex items-center gap-2 shrink-0 bg-transparent px-0 py-1 text-[11px] font-medium text-gray-600">
                     <span>Active (Y/N)</span>
                     <EditableField.Switch
                       checked={Boolean(activeField.value)}
@@ -1200,11 +1241,9 @@ function EditableAccountHeader({
         </div>
 
         <div className="space-y-1.5">
-          <div>
-            <div className="mb-1 flex items-center justify-between">
-              <h3 className="text-[11px] font-semibold text-gray-800">Ship To Address</h3>
-            </div>
-            <div className="space-y-1 text-[11px] text-gray-700">
+          <FieldRow
+            label="Ship To Address"
+            value={
               <div className="flex flex-col gap-1">
                 <div className="max-w-md">
                   <EditableField.Input
@@ -1218,18 +1257,26 @@ function EditableAccountHeader({
                   <p className="text-[10px] text-red-600">{editor.errors["shippingAddress.line1"]}</p>
                 ) : null}
               </div>
+            }
+          />
 
-              <div className="flex flex-col gap-1">
-                <div className="max-w-md">
-                  <EditableField.Input
-                    value={(shippingLine2Field.value as string) ?? ""}
-                    onChange={handleShippingLine2Change}
-                    onBlur={shippingLine2Field.onBlur}
-                    placeholder="Shipping Street 2"
-                  />
-                </div>
+          <FieldRow
+            label=""
+            value={
+              <div className="max-w-md">
+                <EditableField.Input
+                  value={(shippingLine2Field.value as string) ?? ""}
+                  onChange={handleShippingLine2Change}
+                  onBlur={shippingLine2Field.onBlur}
+                  placeholder="Shipping Street 2"
+                />
               </div>
+            }
+          />
 
+          <FieldRow
+            label=""
+            value={
               <div className="flex flex-col gap-1">
                 <div className="grid max-w-md grid-cols-[2fr,1fr,1fr] gap-1">
                   <EditableField.Input
@@ -1267,24 +1314,18 @@ function EditableAccountHeader({
                   </div>
                 ) : null}
               </div>
-            </div>
-          </div>
+            }
+          />
 
-          <div>
-            <div className="mb-1 flex items-center justify-between">
-              <h3 className="text-[11px] font-semibold text-gray-800">Bill To Address</h3>
-              <label className="inline-flex items-center gap-2 text-[11px] text-gray-600">
-                <input
-                  type="checkbox"
-                  className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                  checked={Boolean(billingSameField.value)}
-                  onChange={handleBillingSameChange}
-                  disabled={editor.saving}
-                />
-                <span>Same as Ship</span>
-              </label>
-            </div>
-            <div className="space-y-1 text-[11px] text-gray-700">
+          {/* Empty row to align with Account Type */}
+          <FieldRow
+            label=""
+            value={<div className="min-h-[28px]"></div>}
+          />
+
+          <FieldRow
+            label="Bill To Address"
+            value={
               <div className="flex flex-col gap-1">
                 <div className="max-w-md">
                   <EditableField.Input
@@ -1299,19 +1340,39 @@ function EditableAccountHeader({
                   <p className="text-[10px] text-red-600">{editor.errors["billingAddress.line1"]}</p>
                 ) : null}
               </div>
+            }
+          />
 
-              <div className="flex flex-col gap-1">
-                <div className="max-w-md">
-                  <EditableField.Input
-                    value={(billingLine2Field.value as string) ?? ""}
-                    onChange={billingLine2Field.onChange}
-                    onBlur={billingLine2Field.onBlur}
-                    placeholder="Billing Street 2"
-                    disabled={billingLinked}
-                  />
-                </div>
+          <FieldRow
+            label=""
+            labelExtra={
+              <label className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                  checked={Boolean(billingSameField.value)}
+                  onChange={handleBillingSameChange}
+                  disabled={editor.saving}
+                />
+                <span>Same as Ship To</span>
+              </label>
+            }
+            value={
+              <div className="max-w-md">
+                <EditableField.Input
+                  value={(billingLine2Field.value as string) ?? ""}
+                  onChange={billingLine2Field.onChange}
+                  onBlur={billingLine2Field.onBlur}
+                  placeholder="Billing Street 2"
+                  disabled={billingLinked}
+                />
               </div>
+            }
+          />
 
+          <FieldRow
+            label=""
+            value={
               <div className="flex flex-col gap-1">
                 <div className="grid max-w-md grid-cols-[2fr,1fr,1fr] gap-1">
                   <EditableField.Input
@@ -1350,8 +1411,8 @@ function EditableAccountHeader({
                   </div>
                 ) : null}
               </div>
-            </div>
-          </div>
+            }
+          />
         </div>
       </div>
     </div>
