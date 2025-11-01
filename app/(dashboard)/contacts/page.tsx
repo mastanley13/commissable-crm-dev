@@ -1250,6 +1250,7 @@ export default function ContactsPage() {
         columnFilters={columnFilters}
         onColumnFiltersChange={handleColumnFiltersChange}
         statusFilter={filters.isPrimary ? "active" : "all"}
+        showCreateButton={false}
       />
 
       {(error || preferenceError) && (

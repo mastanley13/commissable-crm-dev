@@ -257,7 +257,7 @@ export function ActivityNoteCreateModal({
     onClose()
   }
 
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>, saveAndNew: boolean = false) => {
     event.preventDefault()
     if (!canSubmit) {
       showError("Missing information", "Please complete the required fields before saving.")
@@ -356,7 +356,19 @@ export function ActivityNoteCreateModal({
       }
 
       onSuccess?.()
-      handleClose()
+      
+      if (saveAndNew) {
+        // Reset form for new entry
+        const newState = createInitialState()
+        // Reset createdById to current user if available
+        if (user?.id) {
+          newState.createdById = user.id
+        }
+        setForm(newState)
+        setAttachments([])
+      } else {
+        handleClose()
+      }
     } catch (error) {
       console.error("Failed to create activity", error)
       showError("Unable to create activity", error instanceof Error ? error.message : "Unknown error")
@@ -614,12 +626,25 @@ export function ActivityNoteCreateModal({
               Cancel
             </button>
             <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault()
+                const syntheticEvent = e as unknown as React.FormEvent<HTMLFormElement>
+                handleSubmit(syntheticEvent, true)
+              }}
+              className="flex items-center gap-2 rounded-full border border-primary-600 bg-white px-6 py-2 text-sm font-semibold text-primary-600 transition hover:bg-primary-50 disabled:cursor-not-allowed disabled:border-gray-300 disabled:text-gray-400"
+              disabled={loading || !canSubmit}
+            >
+              {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+              Save and New
+            </button>
+            <button
               type="submit"
               className="flex items-center gap-2 rounded-full bg-primary-600 px-6 py-2 text-sm font-semibold text-white transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-primary-400"
               disabled={loading || !canSubmit}
             >
               {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-              Save Activity & Note
+              Save
             </button>
           </div>
         </form>
