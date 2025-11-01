@@ -56,6 +56,8 @@ export function ContactGroupCreateModal({ isOpen, contactName, accountId, contac
   const [loading, setLoading] = useState(false)
   const [ownerOptions, setOwnerOptions] = useState<SelectOption[]>([])
   const [ownersLoading, setOwnersLoading] = useState(false)
+  const [ownerQuery, setOwnerQuery] = useState("")
+  const [showOwnerDropdown, setShowOwnerDropdown] = useState(false)
   const [activeTab, setActiveTab] = useState<"create" | "add">("create")
   const [groupOptions, setGroupOptions] = useState<SelectOption[]>([])
   const [groupsLoading, setGroupsLoading] = useState(false)
@@ -74,6 +76,7 @@ export function ContactGroupCreateModal({ isOpen, contactName, accountId, contac
     }
 
     setForm(createInitialState())
+    setOwnerQuery("")
     setActiveTab("create")
     setSelectedGroupId("")
     setSelectedGroups([])
@@ -105,7 +108,11 @@ export function ContactGroupCreateModal({ isOpen, contactName, accountId, contac
           label: user.fullName || user.email
         }))
         setOwnerOptions(options)
-        setForm(prev => (prev.owner || !options[0] ? prev : { ...prev, owner: options[0].value }))
+        // Default owner + prefill query like opportunity modal
+        if (options.length > 0) {
+          setForm(prev => (prev.owner ? prev : { ...prev, owner: options[0].value }))
+          setOwnerQuery(options[0].label)
+        }
       } catch (error) {
         if (!cancelled) {
           setOwnerOptions([])
@@ -127,6 +134,12 @@ export function ContactGroupCreateModal({ isOpen, contactName, accountId, contac
   const canSubmit = useMemo(() => {
     return Boolean(form.groupName.trim() && form.owner)
   }, [form.groupName, form.owner])
+
+  const filteredOwners = useMemo(() => {
+    if (!ownerQuery.trim()) return ownerOptions
+    const q = ownerQuery.toLowerCase()
+    return ownerOptions.filter(o => o.label.toLowerCase().includes(q))
+  }, [ownerOptions, ownerQuery])
 
   const handleClose = () => {
     setForm(createInitialState())
@@ -406,20 +419,40 @@ export function ContactGroupCreateModal({ isOpen, contactName, accountId, contac
               </select>
             </div>
 
-            <div>
+            <div className="relative">
               <label className="mb-1 block text-sm font-medium text-gray-700">Group Owner<span className="ml-1 text-red-500">*</span></label>
-              <select
-                value={form.owner}
-                onChange={event => setForm(prev => ({ ...prev, owner: event.target.value }))}
+              <input
+                type="text"
+                value={ownerQuery}
+                onChange={e => {
+                  setOwnerQuery(e.target.value)
+                  setShowOwnerDropdown(true)
+                }}
+                onFocus={() => setShowOwnerDropdown(true)}
+                onBlur={() => setTimeout(() => setShowOwnerDropdown(false), 200)}
+                placeholder="Type to search owners..."
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
                 disabled={ownersLoading}
                 required
-              >
-                <option value="">{ownersLoading ? "Loading owners..." : "Select owner"}</option>
-                {ownerOptions.map(option => (
-                  <option key={option.value} value={option.value}>{option.label}</option>
-                ))}
-              </select>
+              />
+              {showOwnerDropdown && ownerQuery.length > 0 && filteredOwners.length > 0 && (
+                <div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
+                  {filteredOwners.map(option => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => {
+                        setForm(prev => ({ ...prev, owner: option.value }))
+                        setOwnerQuery(option.label)
+                        setShowOwnerDropdown(false)
+                      }}
+                      className="w-full px-3 py-2 text-left text-sm hover:bg-primary-50 focus:bg-primary-50 focus:outline-none"
+                    >
+                      <div className="font-medium text-gray-900">{option.label}</div>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             <label className="flex items-center gap-2 md:col-span-2">

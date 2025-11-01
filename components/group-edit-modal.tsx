@@ -70,6 +70,8 @@ function createInitialForm(group: AccountGroupRow | null): GroupFormState {
 export function GroupEditModal({ isOpen, group, onClose, onSuccess }: GroupEditModalProps) {
   const [form, setForm] = useState<GroupFormState>(() => createInitialForm(group))
   const [owners, setOwners] = useState<SelectOption[]>([])
+  const [ownerQuery, setOwnerQuery] = useState("")
+  const [showOwnerDropdown, setShowOwnerDropdown] = useState(false)
   const [loading, setLoading] = useState(false)
   const [optionsLoading, setOptionsLoading] = useState(false)
   const [detailsLoading, setDetailsLoading] = useState(false)
@@ -99,12 +101,11 @@ export function GroupEditModal({ isOpen, group, onClose, onSuccess }: GroupEditM
         }
         const payload = await response.json()
         const items = Array.isArray(payload?.data?.users) ? payload.data.users : []
-        setOwners(
-          items.map((user: any) => ({
-            value: user.id,
-            label: user.fullName || user.email
-          }))
-        )
+        const ownerOptions = items.map((user: any) => ({
+          value: user.id,
+          label: user.fullName || user.email
+        }))
+        setOwners(ownerOptions)
       })
       .catch(() => {
         setOwners([])
@@ -139,6 +140,15 @@ export function GroupEditModal({ isOpen, group, onClose, onSuccess }: GroupEditM
       .finally(() => setDetailsLoading(false))
   }, [isOpen, group?.id, showError])
 
+  // Sync owner text with selected ownerId when options or form change
+  useEffect(() => {
+    if (!isOpen) return
+    const match = owners.find(o => o.value === form.ownerId)
+    if (match) {
+      setOwnerQuery(match.label)
+    }
+  }, [isOpen, owners, form.ownerId])
+
   // Track which specific validations are failing
   const validationState = useMemo(() => ({
     hasName: form.name.trim().length >= 3,
@@ -149,6 +159,12 @@ export function GroupEditModal({ isOpen, group, onClose, onSuccess }: GroupEditM
     validationState.hasName && validationState.hasOwner,
     [validationState]
   )
+
+  const filteredOwners = useMemo(() => {
+    if (!ownerQuery.trim()) return owners
+    const q = ownerQuery.toLowerCase()
+    return owners.filter(o => o.label.toLowerCase().includes(q))
+  }, [owners, ownerQuery])
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -253,22 +269,42 @@ export function GroupEditModal({ isOpen, group, onClose, onSuccess }: GroupEditM
                 ))}
               </select>
             </div>
-            <div>
+            <div className="relative">
               <label className="mb-1 block text-sm font-medium text-gray-700">Group Owner<span className="ml-1 text-red-500">*</span></label>
-              <select
-                value={form.ownerId}
-                onChange={event => setForm(prev => ({ ...prev, ownerId: event.target.value }))}
+              <input
+                type="text"
+                value={ownerQuery}
+                onChange={e => {
+                  setOwnerQuery(e.target.value)
+                  setShowOwnerDropdown(true)
+                }}
+                onFocus={() => setShowOwnerDropdown(true)}
+                onBlur={() => setTimeout(() => setShowOwnerDropdown(false), 200)}
+                placeholder="Type to search owners..."
                 className={`w-full rounded-lg border px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500 ${
                   !validationState.hasOwner && form.ownerId === "" ? 'border-amber-300' : 'border-gray-300'
                 }`}
-                required
                 disabled={optionsLoading}
-              >
-                <option value="">{optionsLoading ? "Loading contacts..." : "Select owner"}</option>
-                {owners.map(option => (
-                  <option key={option.value} value={option.value}>{option.label}</option>
-                ))}
-              </select>
+                required
+              />
+              {showOwnerDropdown && ownerQuery.length > 0 && filteredOwners.length > 0 && (
+                <div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
+                  {filteredOwners.map(option => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => {
+                        setForm(prev => ({ ...prev, ownerId: option.value }))
+                        setOwnerQuery(option.label)
+                        setShowOwnerDropdown(false)
+                      }}
+                      className="w-full px-3 py-2 text-left text-sm hover:bg-primary-50 focus:bg-primary-50 focus:outline-none"
+                    >
+                      <div className="font-medium text-gray-900">{option.label}</div>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium text-gray-700">Active</label>

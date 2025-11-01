@@ -21,6 +21,8 @@ interface ContactOpportunityFormState {
   owner: string
   referredBy: string
   referredByContactId: string
+  subAgent: string
+  subagentContactId: string
   primaryAccount: string
   splitWithAgency: boolean
   notes: string
@@ -42,6 +44,8 @@ const createInitialState = (accountName?: string): ContactOpportunityFormState =
   owner: "",
   referredBy: "Referral",
   referredByContactId: "",
+  subAgent: "",
+  subagentContactId: "",
   primaryAccount: accountName ?? "",
   splitWithAgency: false,
   notes: ""
@@ -70,6 +74,10 @@ export function ContactOpportunityCreateModal({ isOpen, contactName, accountId, 
   const [contactQuery, setContactQuery] = useState("")
   const [showContactDropdown, setShowContactDropdown] = useState(false)
   const [contactsLoading, setContactsLoading] = useState(false)
+  const [subagents, setSubagents] = useState<ContactOption[]>([])
+  const [subagentQuery, setSubagentQuery] = useState("")
+  const [showSubagentDropdown, setShowSubagentDropdown] = useState(false)
+  const [subagentsLoading, setSubagentsLoading] = useState(false)
   const { showError, showSuccess } = useToasts()
 
   useEffect(() => {
@@ -80,6 +88,7 @@ export function ContactOpportunityCreateModal({ isOpen, contactName, accountId, 
     setForm(createInitialState(accountName))
     setContactQuery("")
     setOwnerQuery("")
+    setSubagentQuery("")
   }, [isOpen, accountName])
 
   useEffect(() => {
@@ -191,6 +200,48 @@ export function ContactOpportunityCreateModal({ isOpen, contactName, accountId, 
     }
   }, [isOpen, contactQuery])
 
+  // Load subagents (Contact Type = Subagent) for typeahead
+  useEffect(() => {
+    if (!isOpen) {
+      return
+    }
+
+    const controller = new AbortController()
+    const fetchSubagents = async () => {
+      setSubagentsLoading(true)
+      try {
+        const params = new URLSearchParams({ page: "1", pageSize: "50", contactType: "Subagent" })
+        const q = subagentQuery.trim()
+        if (q.length > 0) params.set("q", q)
+
+        const response = await fetch(`/api/contacts?${params.toString()}`, {
+          cache: "no-store",
+          signal: controller.signal
+        })
+        if (!response.ok) throw new Error("Failed to load subagents")
+
+        const payload = await response.json().catch(() => null)
+        const items: any[] = Array.isArray(payload?.data) ? payload.data : []
+        const options: ContactOption[] = items.map(item => ({
+          value: item.id,
+          label: (item.fullName?.trim() || "Unnamed contact"),
+          accountName: item.accountName || undefined
+        }))
+        setSubagents(options)
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          return
+        }
+        setSubagents([])
+      } finally {
+        setSubagentsLoading(false)
+      }
+    }
+
+    const debounce = setTimeout(() => { void fetchSubagents() }, 250)
+    return () => { controller.abort(); clearTimeout(debounce) }
+  }, [isOpen, subagentQuery])
+
   const filteredOwners = useMemo(() => {
     if (!ownerQuery.trim()) {
       return ownerOptions
@@ -215,6 +266,8 @@ export function ContactOpportunityCreateModal({ isOpen, contactName, accountId, 
       return
     }
 
+    const computedSubAgent = (form.subAgent?.trim() || (form.splitWithAgency ? "Partner agency" : "")) || null
+
     const payload = {
       accountId,
       name: form.opportunityName.trim(),
@@ -223,7 +276,8 @@ export function ContactOpportunityCreateModal({ isOpen, contactName, accountId, 
       ownerId: form.owner,
       leadSource: form.referredBy,
       referredByContactId: form.referredByContactId || null,
-      subAgent: form.splitWithAgency ? "Partner agency" : null,
+      subAgent: computedSubAgent,
+      subagentContactId: form.subagentContactId || null,
       notes: form.notes.trim() || undefined
     }
 
@@ -397,6 +451,44 @@ export function ContactOpportunityCreateModal({ isOpen, contactName, accountId, 
                         setForm(prev => ({ ...prev, referredByContactId: option.value }))
                         setContactQuery(option.label)
                         setShowContactDropdown(false)
+                      }}
+                      className="w-full px-3 py-2 text-left text-sm hover:bg-primary-50 focus:bg-primary-50 focus:outline-none"
+                    >
+                      <div className="font-medium text-gray-900">{option.label}</div>
+                      {option.accountName && (
+                        <div className="text-xs text-gray-500">{option.accountName}</div>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="relative">
+              <label className="mb-1 block text-sm font-medium text-gray-700">Subagent</label>
+              <input
+                type="text"
+                value={subagentQuery}
+                onChange={event => {
+                  setSubagentQuery(event.target.value)
+                  setShowSubagentDropdown(true)
+                }}
+                onFocus={() => setShowSubagentDropdown(true)}
+                onBlur={() => setTimeout(() => setShowSubagentDropdown(false), 200)}
+                placeholder="Type to search subagents..."
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                disabled={subagentsLoading}
+              />
+              {showSubagentDropdown && subagentQuery.length > 0 && subagents.length > 0 && (
+                <div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
+                  {subagents.map(option => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => {
+                        setForm(prev => ({ ...prev, subagentContactId: option.value, subAgent: option.label }))
+                        setSubagentQuery(option.label)
+                        setShowSubagentDropdown(false)
                       }}
                       className="w-full px-3 py-2 text-left text-sm hover:bg-primary-50 focus:bg-primary-50 focus:outline-none"
                     >

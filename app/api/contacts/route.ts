@@ -177,6 +177,7 @@ export async function GET(request: NextRequest) {
         const isPrimary = searchParams.get("isPrimary")
         const isDecisionMaker = searchParams.get("isDecisionMaker")
         const preferredContactMethod = searchParams.get("preferredContactMethod")
+        const contactTypeName = searchParams.get("contactType")?.trim() ?? ""
         const columnFiltersParam = searchParams.get("columnFilters")
         const filterGroupsParam = searchParams.get("filterGroups")
 
@@ -209,6 +210,14 @@ export async function GET(request: NextRequest) {
         }
         if (ownerId) {
           whereClause.ownerId = ownerId
+        }
+        if (contactTypeName) {
+          // Constrain to contacts where the related AccountType name matches (case-insensitive)
+          whereClause.accountType = {
+            is: {
+              name: { equals: contactTypeName, mode: "insensitive" }
+            }
+          }
         }
         if (isPrimary !== null && isPrimary !== undefined && isPrimary !== "") {
           whereClause.isPrimary = isPrimary === "true"

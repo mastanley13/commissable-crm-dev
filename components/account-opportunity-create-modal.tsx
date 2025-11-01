@@ -193,10 +193,11 @@ export function OpportunityCreateModal({ isOpen, accountId, accountName, onClose
           params.set("q", trimmedQuery)
         }
 
-        // Filter by contactType = Subagent
-        params.set("contactType", "Subagent")
+        // Filter by Account Type = Subagent and status Active
+        params.set("accountType", "Subagent")
+        params.set("status", "Active")
 
-        const response = await fetch(`/api/contacts?${params.toString()}`, {
+        const response = await fetch(`/api/accounts?${params.toString()}`, {
           cache: "no-store",
           signal: controller.signal
         })
@@ -209,12 +210,16 @@ export function OpportunityCreateModal({ isOpen, accountId, accountName, onClose
         const items: any[] = Array.isArray(payload?.data) ? payload.data : []
 
         const options: ContactOption[] = items.map(item => {
-          const fullName = item.fullName?.trim() || ""
+          const name = (item.accountName ?? "").trim()
+          const legal = (item.accountLegalName ?? "").trim()
+          const label = name && legal && name.toLowerCase() !== legal.toLowerCase()
+            ? `${name} (${legal})`
+            : name || legal || "Unnamed account"
 
           return {
             value: item.id,
-            label: fullName || "Unnamed contact",
-            accountName: item.accountName || undefined
+            label,
+            accountName: undefined
           }
         })
 
@@ -482,16 +487,13 @@ export function OpportunityCreateModal({ isOpen, accountId, accountName, onClose
                       key={option.value}
                       type="button"
                       onClick={() => {
-                        setForm(prev => ({ ...prev, subagentContactId: option.value, subAgent: option.label }))
+                        setForm(prev => ({ ...prev, subAgent: option.label, subagentContactId: null as any }))
                         setSubagentQuery(option.label)
                         setShowSubagentDropdown(false)
                       }}
                       className="w-full px-3 py-2 text-left text-sm hover:bg-primary-50 focus:bg-primary-50 focus:outline-none"
                     >
                       <div className="font-medium text-gray-900">{option.label}</div>
-                      {option.accountName && (
-                        <div className="text-xs text-gray-500">{option.accountName}</div>
-                      )}
                     </button>
                   ))}
                 </div>

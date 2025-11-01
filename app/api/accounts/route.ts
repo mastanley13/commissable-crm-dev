@@ -87,6 +87,8 @@ export async function GET(request: NextRequest) {
         const page = Number(searchParams.get("page") ?? "1")
         const pageSize = Number(searchParams.get("pageSize") ?? "25")
         const query = searchParams.get("q")?.trim() ?? ""
+        const accountTypeName = searchParams.get("accountType")?.trim() ?? ""
+        const status = searchParams.get("status")?.trim() ?? ""
 
         const whereClause: Record<string, unknown> = { tenantId }
 
@@ -96,6 +98,20 @@ export async function GET(request: NextRequest) {
             { accountLegalName: { contains: query, mode: "insensitive" } },
             { owner: { is: { fullName: { contains: query, mode: "insensitive" } } } }
           ]
+        }
+
+        if (accountTypeName) {
+          whereClause.accountType = {
+            is: { name: { equals: accountTypeName, mode: "insensitive" } }
+          }
+        }
+
+        if (status) {
+          if (status.toLowerCase() === "active") {
+            whereClause.status = "Active"
+          } else if (status.toLowerCase() === "inactive") {
+            whereClause.status = "Inactive"
+          }
         }
 
         const [accounts, total] = await Promise.all([

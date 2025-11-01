@@ -11,6 +11,10 @@ interface SelectOption {
   label: string
 }
 
+interface ContactOption extends SelectOption {
+  accountName?: string
+}
+
 interface AccountOption extends SelectOption {
   accountName: string
   accountLegalName: string
@@ -121,6 +125,10 @@ export function OpportunityCreateModal({
   const [accountLoading, setAccountLoading] = useState(false)
   const [owners, setOwners] = useState<SelectOption[]>([])
   const [ownersLoading, setOwnersLoading] = useState(false)
+  const [subagents, setSubagents] = useState<ContactOption[]>([])
+  const [subagentQuery, setSubagentQuery] = useState("")
+  const [subagentsLoading, setSubagentsLoading] = useState(false)
+  const [showSubagentDropdown, setShowSubagentDropdown] = useState(false)
   const [submitting, setSubmitting] = useState(false)
 
   const { showError, showSuccess } = useToasts()
@@ -451,6 +459,46 @@ export function OpportunityCreateModal({
     [accounts, form.accountId]
   )
 
+  // Load subagents lazily based on typeahead query
+  useEffect(() => {
+    if (!isOpen) return
+    const controller = new AbortController()
+    const run = async () => {
+      setSubagentsLoading(true)
+      try {
+        const params = new URLSearchParams({ page: "1", pageSize: "50", contactType: "Subagent" })
+        const q = subagentQuery.trim()
+        if (q.length > 0) params.set("q", q)
+        const res = await fetch(`/api/contacts?${params.toString()}`, { cache: "no-store", signal: controller.signal })
+        if (!res.ok) throw new Error("Failed to load subagents")
+        const payload = await res.json().catch(() => null)
+        const items: any[] = Array.isArray(payload?.data) ? payload.data : []
+        const options: ContactOption[] = items.map(item => ({
+          value: item.id,
+          label: (item.fullName?.trim() || "Unnamed contact"),
+          accountName: item.accountName || undefined
+        }))
+        setSubagents(options)
+      } catch (e) {
+        if (!(e instanceof DOMException && e.name === "AbortError")) {
+          setSubagents([])
+        }
+      } finally {
+        setSubagentsLoading(false)
+      }
+    }
+    const debounce = setTimeout(() => { void run() }, 250)
+    return () => { controller.abort(); clearTimeout(debounce) }
+  }, [isOpen, subagentQuery])
+
+  // Reset subagent UI when opening/closing
+  useEffect(() => {
+    if (!isOpen) return
+    setSubagentQuery("")
+    setSubagents([])
+    setShowSubagentDropdown(false)
+  }, [isOpen])
+
   if (!isOpen) {
     return null
   }
@@ -679,13 +727,42 @@ export function OpportunityCreateModal({
 
               <div>
                 <label className="mb-1 block text-sm font-medium text-gray-700">Subagent</label>
-                <input
-                  type="text"
-                  value={form.subAgent}
-                  onChange={event => setForm(previous => ({ ...previous, subAgent: event.target.value }))}
-                  className={inputClass}
-                  placeholder="Optional subagent"
-                />
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={subagentQuery}
+                    onChange={event => {
+                      setSubagentQuery(event.target.value)
+                      setShowSubagentDropdown(true)
+                    }}
+                    onFocus={() => setShowSubagentDropdown(true)}
+                    onBlur={() => setTimeout(() => setShowSubagentDropdown(false), 200)}
+                    className={inputClass}
+                    placeholder="Type to search subagents..."
+                    disabled={subagentsLoading}
+                  />
+                  {showSubagentDropdown && subagentQuery.length > 0 && subagents.length > 0 && (
+                    <div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
+                      {subagents.map(option => (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() => {
+                            setForm(prev => ({ ...prev, subAgent: option.label }))
+                            setSubagentQuery(option.label)
+                            setShowSubagentDropdown(false)
+                          }}
+                          className="w-full px-3 py-2 text-left text-sm hover:bg-primary-50 focus:bg-primary-50 focus:outline-none"
+                        >
+                          <div className="font-medium text-gray-900">{option.label}</div>
+                          {option.accountName && (
+                            <div className="text-xs text-gray-500">{option.accountName}</div>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div>
@@ -854,7 +931,6 @@ export function OpportunityCreateModal({
     </div>
   )
 }
-
 
 
 

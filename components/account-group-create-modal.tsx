@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react"
 import { Loader2, X } from "lucide-react"
 import { GroupType, GroupVisibility } from "@prisma/client"
 import { useToasts } from "@/components/toast"
+import { useAuth } from "@/lib/auth-context"
 
 interface SelectOption {
   value: string
@@ -47,6 +48,8 @@ export function GroupCreateModal({ isOpen, accountId, accountName, onClose, onCr
     isActive: true
   })
   const [owners, setOwners] = useState<SelectOption[]>([])
+  const [ownerQuery, setOwnerQuery] = useState("")
+  const [showOwnerDropdown, setShowOwnerDropdown] = useState(false)
   const [loading, setLoading] = useState(false)
   const [optionsLoading, setOptionsLoading] = useState(false)
   const [submitMode, setSubmitMode] = useState<"save" | "saveAndNew">("save")
@@ -62,6 +65,7 @@ export function GroupCreateModal({ isOpen, accountId, accountName, onClose, onCr
   const [addDetailsLoading, setAddDetailsLoading] = useState(false)
   const [initialAddDetails, setInitialAddDetails] = useState<{ ownerId?: string; visibility?: GroupVisibility; description?: string } | null>(null)
   const { showError, showSuccess } = useToasts()
+  const { user } = useAuth()
 
   useEffect(() => {
     if (!isOpen) {
@@ -72,7 +76,7 @@ export function GroupCreateModal({ isOpen, accountId, accountName, onClose, onCr
       name: "",
       type: GroupType.SalesTeam,
       visibility: GroupVisibility.Private,
-      ownerId: "",
+      ownerId: user?.id || "",
       description: "",
       isActive: true
     })
@@ -93,19 +97,28 @@ export function GroupCreateModal({ isOpen, accountId, accountName, onClose, onCr
         }
         const payload = await response.json()
         const items = Array.isArray(payload?.data?.users) ? payload.data.users : []
-        setOwners(
-          items.map((user: any) => ({
-            value: user.id,
-            label: user.fullName || user.email
-          }))
-        )
+        const ownerOptions = items.map((userItem: any) => ({
+          value: userItem.id,
+          label: userItem.fullName || userItem.email
+        }))
+        setOwners(ownerOptions)
+        // Default to current user if available, otherwise use first option
+        if (ownerOptions.length > 0) {
+          const currentUserOption = user?.id ? ownerOptions.find(o => o.value === user.id) : null
+          const defaultOwner = currentUserOption || ownerOptions[0]
+          // Only set if not already set (from initial state above)
+          setForm(prev => ({ ...prev, ownerId: prev.ownerId || defaultOwner.value }))
+          // Set the query to match the owner
+          const ownerToQuery = currentUserOption || ownerOptions[0]
+          setOwnerQuery(ownerToQuery.label)
+        }
       })
       .catch(() => {
         setOwners([])
         showError("Unable to load group owners", "Please try again later")
       })
       .finally(() => setOptionsLoading(false))
-  }, [isOpen, showError])
+  }, [isOpen, showError, user?.id])
 
   // Load groups when switching to Add tab
   useEffect(() => {
@@ -121,7 +134,7 @@ export function GroupCreateModal({ isOpen, accountId, accountName, onClose, onCr
         if (cancelled) return
         const opts = items.map((g: any) => ({ value: g.value ?? g.id, label: g.label ?? g.name }))
         setGroupOptions(opts)
-        setSelectedGroupId(prev => prev || (opts[0]?.value ?? ""))
+        setSelectedGroupId("")
       } finally {
         if (!cancelled) setGroupsLoading(false)
       }
@@ -162,26 +175,6 @@ export function GroupCreateModal({ isOpen, accountId, accountName, onClose, onCr
     }
     setLoading(true)
     try {
-      // If exactly one group selected, patch before adding
-      if (selectedGroups.length === 1 && initialAddDetails) {
-        const targetId = selectedGroups[0].value
-        const patch: Record<string, any> = {}
-        if (addGroupOwnerId && addGroupOwnerId !== initialAddDetails.ownerId) patch.ownerId = addGroupOwnerId
-        if (addGroupVisibility && addGroupVisibility !== initialAddDetails.visibility) patch.visibility = addGroupVisibility
-        if ((addGroupDescription ?? "").trim() !== (initialAddDetails.description ?? "")) patch.description = (addGroupDescription ?? "").trim()
-        if (Object.keys(patch).length > 0) {
-          const updateRes = await fetch(`/api/groups/${targetId}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(patch)
-          })
-          if (!updateRes.ok) {
-            const payload = await updateRes.json().catch(() => null)
-            throw new Error(payload?.error || "Failed to update group")
-          }
-        }
-      }
-
       const outcomes = await Promise.allSettled(
         selectedGroups.map(async (g) => {
           const res = await fetch(`/api/groups/${g.value}/members`, {
@@ -216,6 +209,12 @@ export function GroupCreateModal({ isOpen, accountId, accountName, onClose, onCr
 
   const canSubmit = useMemo(() => form.name.trim().length >= 3 && form.ownerId.length > 0, [form.name, form.ownerId])
   const canAddExisting = useMemo(() => Boolean(selectedGroups.length > 0 && accountId), [selectedGroups.length, accountId])
+
+  const filteredOwners = useMemo(() => {
+    if (!ownerQuery.trim()) return owners
+    const q = ownerQuery.toLowerCase()
+    return owners.filter(o => o.label.toLowerCase().includes(q))
+  }, [owners, ownerQuery])
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -343,20 +342,40 @@ export function GroupCreateModal({ isOpen, accountId, accountName, onClose, onCr
                 ))}
               </select>
             </div>
-            <div>
+            <div className="relative">
               <label className="mb-1 block text-sm font-medium text-gray-700">Group Owner<span className="ml-1 text-red-500">*</span></label>
-              <select
-                value={form.ownerId}
-                onChange={event => setForm(prev => ({ ...prev, ownerId: event.target.value }))}
+              <input
+                type="text"
+                value={ownerQuery}
+                onChange={e => {
+                  setOwnerQuery(e.target.value)
+                  setShowOwnerDropdown(true)
+                }}
+                onFocus={() => setShowOwnerDropdown(true)}
+                onBlur={() => setTimeout(() => setShowOwnerDropdown(false), 200)}
+                placeholder="Type to search owners..."
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                required
                 disabled={optionsLoading}
-              >
-                <option value="">{optionsLoading ? "Loading contacts..." : "Select owner"}</option>
-                {owners.map(option => (
-                  <option key={option.value} value={option.value}>{option.label}</option>
-                ))}
-              </select>
+                required
+              />
+              {showOwnerDropdown && ownerQuery.length > 0 && filteredOwners.length > 0 && (
+                <div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
+                  {filteredOwners.map(option => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => {
+                        setForm(prev => ({ ...prev, ownerId: option.value }))
+                        setOwnerQuery(option.label)
+                        setShowOwnerDropdown(false)
+                      }}
+                      className="w-full px-3 py-2 text-left text-sm hover:bg-primary-50 focus:bg-primary-50 focus:outline-none"
+                    >
+                      <div className="font-medium text-gray-900">{option.label}</div>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium text-gray-700">Active</label>
@@ -450,29 +469,12 @@ export function GroupCreateModal({ isOpen, accountId, accountName, onClose, onCr
                 </div>
               )}
             </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">Group Owner</label>
-              <select value={addGroupOwnerId} onChange={(e) => setAddGroupOwnerId(e.target.value)} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500" disabled={optionsLoading || selectedGroups.length !== 1 || addDetailsLoading}>
-                <option value="">{optionsLoading ? "Loading owners..." : "Keep current owner"}</option>
-                {owners.map(o => (<option key={o.value} value={o.value}>{o.label}</option>))}
-              </select>
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">Visibility</label>
-              <select value={addGroupVisibility} onChange={(e) => setAddGroupVisibility(e.target.value as GroupVisibility)} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500" disabled={selectedGroups.length !== 1 || addDetailsLoading}>
-                {visibilityOptions.map(v => (<option key={v.value} value={v.value}>{v.label}</option>))}
-              </select>
-            </div>
-            <div className="md:col-span-2">
-              <label className="mb-1 block text-sm font-medium text-gray-700">Description</label>
-              <textarea rows={3} value={addGroupDescription} onChange={(e) => setAddGroupDescription(e.target.value)} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500" placeholder={addDetailsLoading ? "Loading description..." : "Update group description (optional)"} disabled={selectedGroups.length !== 1 || addDetailsLoading} />
-            </div>
           </div>
           <div className="mt-6 flex flex-wrap items-center justify-end gap-3">
             <button type="button" onClick={onClose} className="rounded-full bg-gray-200 px-5 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-300">Cancel</button>
             <button type="submit" disabled={loading || !canAddExisting} className="flex items-center gap-2 rounded-full bg-primary-600 px-6 py-2 text-sm font-semibold text-white transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-primary-400">
               {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-              {Object.keys(initialAddDetails || {}).length ? "Update & Add" : "Add to Group"}
+              Add to Group
             </button>
           </div>
         </form>
