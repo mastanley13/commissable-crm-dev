@@ -32,6 +32,9 @@ interface OpportunityFormState {
   referredByContactId: string
   subAgent: string
   subagentContactId: string
+  houseRepPercent: string
+  subagentPercent: string
+  description: string
 }
 
 const stageOptions: OpportunityStageOption[] = getOpportunityStageOptions()
@@ -48,8 +51,12 @@ export function OpportunityCreateModal({ isOpen, accountId, accountName, onClose
     leadSource: LeadSource.Referral,
     referredByContactId: "",
     subAgent: "",
-    subagentContactId: ""
+    subagentContactId: "",
+    houseRepPercent: "",
+    subagentPercent: "",
+    description: ""
   })
+  const [accountLegalName, setAccountLegalName] = useState<string>("")
   const [owners, setOwners] = useState<SelectOption[]>([])
   const [ownerQuery, setOwnerQuery] = useState("")
   const [showOwnerDropdown, setShowOwnerDropdown] = useState(false)
@@ -78,11 +85,28 @@ export function OpportunityCreateModal({ isOpen, accountId, accountName, onClose
       leadSource: LeadSource.Referral,
       referredByContactId: "",
       subAgent: "",
-      subagentContactId: ""
+      subagentContactId: "",
+      houseRepPercent: "",
+      subagentPercent: "",
+      description: ""
     })
     setContactQuery("")
     setOwnerQuery("")
     setSubagentQuery("")
+
+    // Fetch account legal name
+    if (accountId) {
+      fetch(`/api/accounts/${accountId}`, { cache: "no-store" })
+        .then(async response => {
+          if (response.ok) {
+            const payload = await response.json()
+            setAccountLegalName(payload?.data?.accountLegalName ?? "")
+          }
+        })
+        .catch(() => {
+          setAccountLegalName("")
+        })
+    }
 
     setOptionsLoading(true)
     fetch("/api/admin/users?limit=100&status=Active", { cache: "no-store" })
@@ -109,7 +133,7 @@ export function OpportunityCreateModal({ isOpen, accountId, accountName, onClose
         showError("Unable to load owners", "Please try again later")
       })
       .finally(() => setOptionsLoading(false))
-  }, [isOpen, showError])
+  }, [isOpen, accountId, showError])
 
   useEffect(() => {
     if (!isOpen) {
@@ -253,13 +277,25 @@ export function OpportunityCreateModal({ isOpen, accountId, accountName, onClose
     return owners.filter(owner => owner.label.toLowerCase().includes(query))
   }, [owners, ownerQuery])
 
+  // Calculate House Split % (100% - Subagent % - House Rep %)
+  const houseSplitPercent = useMemo(() => {
+    const subagent = parseFloat(form.subagentPercent) || 0
+    const houseRep = parseFloat(form.houseRepPercent) || 0
+    const calculated = 100 - subagent - houseRep
+    return calculated >= 0 ? calculated.toFixed(2) : "0.00"
+  }, [form.subagentPercent, form.houseRepPercent])
+
   const canSubmit = useMemo(() => {
     return Boolean(
       accountId &&
       form.name.trim().length >= 3 &&
       form.stage &&
       form.ownerId &&
-      form.estimatedCloseDate
+      form.estimatedCloseDate &&
+      form.referredByContactId &&
+      form.houseRepPercent &&
+      form.subagentPercent &&
+      form.description.trim()
     )
   }, [accountId, form])
 
@@ -279,9 +315,12 @@ export function OpportunityCreateModal({ isOpen, accountId, accountName, onClose
         estimatedCloseDate: form.estimatedCloseDate,
         ownerId: form.ownerId,
         leadSource: form.leadSource,
-        referredByContactId: form.referredByContactId || null,
+        referredBy: form.referredByContactId || null,
         subAgent: form.subAgent.trim() || null,
-        subagentContactId: form.subagentContactId || null
+        subagentContactId: form.subagentContactId || null,
+        houseRepPercent: form.houseRepPercent ? parseFloat(form.houseRepPercent) / 100 : null,
+        subagentPercent: form.subagentPercent ? parseFloat(form.subagentPercent) / 100 : null,
+        description: form.description.trim() || null
       }
 
       const response = await fetch("/api/opportunities", {
@@ -333,6 +372,27 @@ export function OpportunityCreateModal({ isOpen, accountId, accountName, onClose
         </div>
         <form onSubmit={handleSubmit} className="max-h-[80vh] overflow-y-auto px-6 py-5">
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            {/* Field 01.08..000: Account Legal Name - Read-only */}
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">Account Legal Name</label>
+              <input
+                type="text"
+                value={accountLegalName}
+                readOnly
+                className="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-600"
+              />
+            </div>
+            {/* Field 01.08..004: Account Name - Read-only */}
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">Account Name</label>
+              <input
+                type="text"
+                value={accountName}
+                readOnly
+                className="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-600"
+              />
+            </div>
+            {/* Field 01.08..002: Opportunity Name - Required */}
             <div className="md:col-span-2">
               <label className="mb-1 block text-sm font-medium text-gray-700">Opportunity Name<span className="ml-1 text-red-500">*</span></label>
               <input
@@ -344,6 +404,7 @@ export function OpportunityCreateModal({ isOpen, accountId, accountName, onClose
                 required
               />
             </div>
+            {/* Field 01.08..001: Estimated Close Date - Required */}
             <div className="relative">
               <label className="mb-1 block text-sm font-medium text-gray-700">Estimated Close Date<span className="ml-1 text-red-500">*</span></label>
               <div className="relative">
@@ -366,6 +427,7 @@ export function OpportunityCreateModal({ isOpen, accountId, accountName, onClose
                 </span>
               </div>
             </div>
+            {/* Field 01.08..003: Stage - Required */}
             <div>
               <label className="mb-1 block text-sm font-medium text-gray-700">Stage<span className="ml-1 text-red-500">*</span></label>
               <select
@@ -385,6 +447,7 @@ export function OpportunityCreateModal({ isOpen, accountId, accountName, onClose
                 ))}
               </select>
             </div>
+            {/* Field 01.08..005: Owner - Required */}
             <div className="relative">
               <label className="mb-1 block text-sm font-medium text-gray-700">Owner<span className="ml-1 text-red-500">*</span></label>
               <input
@@ -423,8 +486,9 @@ export function OpportunityCreateModal({ isOpen, accountId, accountName, onClose
                 </div>
               )}
             </div>
+            {/* Field 01.08..007: Referred By - Required */}
             <div className="relative">
-              <label className="mb-1 block text-sm font-medium text-gray-700">Referred By</label>
+              <label className="mb-1 block text-sm font-medium text-gray-700">Referred By<span className="ml-1 text-red-500">*</span></label>
               <input
                 type="text"
                 value={contactQuery}
@@ -440,6 +504,7 @@ export function OpportunityCreateModal({ isOpen, accountId, accountName, onClose
                 placeholder="Type to search contacts..."
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
                 disabled={contactsLoading}
+                required
               />
               {showContactDropdown && contactQuery.length > 0 && contacts.length > 0 && (
                 <div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
@@ -463,6 +528,7 @@ export function OpportunityCreateModal({ isOpen, accountId, accountName, onClose
                 </div>
               )}
             </div>
+            {/* Field 01.08..006: Subagent - Optional */}
             <div className="relative">
               <label className="mb-1 block text-sm font-medium text-gray-700">Subagent</label>
               <input
@@ -498,6 +564,57 @@ export function OpportunityCreateModal({ isOpen, accountId, accountName, onClose
                   ))}
                 </div>
               )}
+            </div>
+            {/* Field 01.08..009: House Rep % - Required */}
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">House Rep %<span className="ml-1 text-red-500">*</span></label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                max="100"
+                value={form.houseRepPercent}
+                onChange={event => setForm(prev => ({ ...prev, houseRepPercent: event.target.value }))}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                placeholder="0.00"
+                required
+              />
+            </div>
+            {/* Field 01.08..010: Subagent % - Required */}
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">Subagent %<span className="ml-1 text-red-500">*</span></label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                max="100"
+                value={form.subagentPercent}
+                onChange={event => setForm(prev => ({ ...prev, subagentPercent: event.target.value }))}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                placeholder="0.00"
+                required
+              />
+            </div>
+            {/* Field 01.08..008: House Split % - Calculated (Read-only) */}
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">House Split %</label>
+              <input
+                type="text"
+                value={`${houseSplitPercent}%`}
+                readOnly
+                className="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-600"
+              />
+            </div>
+            {/* Field 01.08..011: Opportunity Description - Required */}
+            <div className="md:col-span-2">
+              <label className="mb-1 block text-sm font-medium text-gray-700">Opportunity Description<span className="ml-1 text-red-500">*</span></label>
+              <textarea
+                value={form.description}
+                onChange={event => setForm(prev => ({ ...prev, description: event.target.value }))}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500 min-h-[80px] resize-vertical"
+                placeholder="Enter opportunity description"
+                required
+              />
             </div>
           </div>
 

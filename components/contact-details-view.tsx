@@ -345,9 +345,9 @@ function validateContactForm(form: ContactInlineForm): Record<string, string> {
 
 
 const TABS: { id: "activities" | "opportunities" | "groups"; label: string }[] = [
-  { id: "activities", label: "Activities & Notes" },
   { id: "opportunities", label: "Opportunities" },
-  { id: "groups", label: "Groups" }
+  { id: "groups", label: "Groups" },
+  { id: "activities", label: "Activities & Notes" }
 ]
 
 const fieldLabelClass = "text-[11px] font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap"
@@ -1049,7 +1049,7 @@ function TabToolbar({ onCreateNew, disabled, activeFilter = "active", onFilterCh
 export function ContactDetailsView({ contact, loading = false, error, onEdit, onContactUpdated, onRefresh }: ContactDetailsViewProps) {
   const router = useRouter()
   const { hasPermission } = useAuth()
-  const [activeTab, setActiveTab] = useState<"activities" | "opportunities" | "groups">("activities")
+  const [activeTab, setActiveTab] = useState<"activities" | "opportunities" | "groups">("opportunities")
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [isDeleted, setIsDeleted] = useState(false)
   const { showError, showSuccess, showInfo } = useToasts()
@@ -2670,6 +2670,32 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
       if (column.id === "closeDate") {
         return { ...column, render: (value?: string | Date | null) => formatDate(value) }
       }
+
+      if (column.id === "opportunityName") {
+        return {
+          ...column,
+          render: (value: unknown, row: ContactOpportunityRow) => {
+            const label = String(value ?? '')
+            const opportunityId = row?.id
+
+            if (!opportunityId) {
+              return <span className="font-medium text-primary-600">{label}</span>
+            }
+
+            return (
+              <Link
+                href={`/opportunities/${opportunityId}`}
+                className="cursor-pointer font-medium text-primary-600 hover:text-primary-800 hover:underline"
+                onClick={(event) => event.stopPropagation()}
+                prefetch={false}
+              >
+                {label}
+              </Link>
+            )
+          },
+        }
+      }
+
       return column
     })
   }, [contactOpportunityPreferenceColumns, selectedOpportunities, requestOpportunityDelete, handleToggleOpportunityStatus])
