@@ -37,7 +37,6 @@ interface ContactFormData {
   mobilePhone: string
   emailAddress: string
   description: string
-  active: boolean
 }
 
 interface AccountAddressResponse {
@@ -76,8 +75,7 @@ function buildInitialContactForm(defaultAccountId?: string): ContactFormData {
     extension: "",
     mobilePhone: "",
     emailAddress: "",
-    description: "",
-    active: true
+    description: ""
   }
 }
 
@@ -245,7 +243,7 @@ export function ContactCreateModal({ isOpen, onClose, onSuccess, options, defaul
         mobilePhone: formData.mobilePhone.trim() || undefined,
         emailAddress: formData.emailAddress.trim() || undefined,
         description: formData.description.trim() || undefined,
-        isPrimary: formData.active
+        isPrimary: true // Always default to Active
       }
 
       const response = await fetch("/api/contacts", {
@@ -342,7 +340,7 @@ export function ContactCreateModal({ isOpen, onClose, onSuccess, options, defaul
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 backdrop-blur-sm">
       <div
-        className="w-full max-w-5xl rounded-xl bg-white shadow-xl"
+        className="w-full max-w-3xl rounded-xl bg-white shadow-xl"
       >
         <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
           <div>
@@ -366,9 +364,9 @@ export function ContactCreateModal({ isOpen, onClose, onSuccess, options, defaul
             </div>
           )}
 
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-6">
             <div className="space-y-4">
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-[120px_1fr_1fr] gap-3">
                 <div>
                   <label className="mb-1 block text-sm font-medium text-gray-700" htmlFor="contact-suffix">Suffix</label>
                   <select
@@ -382,7 +380,6 @@ export function ContactCreateModal({ isOpen, onClose, onSuccess, options, defaul
                     <option value="Ms.">Ms.</option>
                     <option value="Mrs.">Mrs.</option>
                     <option value="Dr.">Dr.</option>
-                    <option value="Prof.">Prof.</option>
                   </select>
                 </div>
                 <div>
@@ -416,26 +413,6 @@ export function ContactCreateModal({ isOpen, onClose, onSuccess, options, defaul
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700" htmlFor="contact-account">
-                  Account Name <span className="text-red-500">*</span>
-                </label>
-                <select
-                  id="contact-account"
-                  value={formData.accountId}
-                  onChange={event => handleInputChange("accountId", event.target.value)}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                  required
-                >
-                  <option value="">Select</option>
-                  {options?.accounts.map(account => (
-                    <option key={account.value} value={account.value}>
-                      {account.label} {account.accountNumber ? `(${account.accountNumber})` : ""}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
                 <label className="mb-1 block text-sm font-medium text-gray-700" htmlFor="contact-job-title">
                   Job Title
                 </label>
@@ -446,6 +423,20 @@ export function ContactCreateModal({ isOpen, onClose, onSuccess, options, defaul
                   onChange={event => handleInputChange("jobTitle", event.target.value)}
                   placeholder="Enter Job Title"
                   className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700" htmlFor="contact-contact-type">
+                  Contact Type
+                </label>
+                <input
+                  id="contact-contact-type"
+                  type="text"
+                  value={selectedAccount?.accountTypeName || ""}
+                  readOnly
+                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 focus:outline-none cursor-not-allowed"
+                  placeholder="Select an account to view contact type"
                 />
               </div>
 
@@ -493,22 +484,6 @@ export function ContactCreateModal({ isOpen, onClose, onSuccess, options, defaul
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Active (Y/N)</label>
-                <div className="flex items-center gap-3 rounded-lg border border-gray-300 bg-white px-3 py-2">
-                  <span className="text-sm text-gray-600">{formData.active ? "Yes" : "No"}</span>
-                  <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-gray-600">
-                    <input
-                      type="checkbox"
-                      className="h-5 w-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                      checked={formData.active}
-                      onChange={() => handleInputChange("active", !formData.active)}
-                    />
-                    <span>Active</span>
-                  </label>
-                </div>
-              </div>
-
-              <div>
                 <label className="mb-1 block text-sm font-medium text-gray-700" htmlFor="contact-email">
                   Email Address
                 </label>
@@ -535,14 +510,6 @@ export function ContactCreateModal({ isOpen, onClose, onSuccess, options, defaul
                   className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                 />
               </div>
-            </div>
-
-            <div className="space-y-4">
-              {renderAddressCard("Ship To Address", addresses.shipping)}
-              {renderAddressCard("Bill To Address", addresses.billing, {
-                showSameAsShip: true,
-                sameAsShip: addresses.billingSameAsShipping
-              })}
             </div>
           </div>
 
