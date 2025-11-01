@@ -333,9 +333,15 @@ export function mapOpportunityToRow(opportunity: OpportunityWithRelations) {
     : ""
 
   const accountLegalName = opportunity.account?.accountLegalName ?? ""
+  const accountName = opportunity.account?.accountName ?? ""
   const formattedOpportunityId = typeof opportunity.id === "string"
     ? opportunity.id.slice(0, 8).toUpperCase()
     : ""
+
+  // Convert percentage fields from Decimal to number
+  const subagentPercent = opportunity.subagentPercent != null ? toNumber(opportunity.subagentPercent) : null
+  const houseRepPercent = opportunity.houseRepPercent != null ? toNumber(opportunity.houseRepPercent) : null
+  const houseSplitPercent = opportunity.houseSplitPercent != null ? toNumber(opportunity.houseSplitPercent) : null
 
   return {
     id: opportunity.id,
@@ -345,6 +351,7 @@ export function mapOpportunityToRow(opportunity: OpportunityWithRelations) {
     type: opportunity.type ?? OpportunityType.NewBusiness,
     orderIdHouse: opportunity.orderIdHouse ?? derivedOrderId,
     accountLegalName,
+    accountName,
     opportunityName: opportunity.name ?? "",
     stage: opportunity.stage ?? "",
     distributorName,
@@ -357,6 +364,9 @@ export function mapOpportunityToRow(opportunity: OpportunityWithRelations) {
     expectedUsageGrossTotal,
     expectedCommissionGrossTotal,
     subAgent,
+    subagentPercent,
+    houseRepPercent,
+    houseSplitPercent,
     accountIdHouse: opportunity.accountIdHouse ?? "",
     accountIdVendor: opportunity.accountIdVendor ?? "",
     accountIdDistributor: opportunity.accountIdDistributor ?? "",
@@ -368,6 +378,7 @@ export function mapOpportunityToRow(opportunity: OpportunityWithRelations) {
     orderIdDistributor: opportunity.orderIdDistributor ?? "",
     customerPurchaseOrder: opportunity.customerPurchaseOrder ?? "",
     opportunityId: formattedOpportunityId,
+    description: opportunity.description ?? "",
     isDeleted: !isActive
   }
 }

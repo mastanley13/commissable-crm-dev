@@ -94,6 +94,18 @@ export interface AccountOpportunityRow {
   closeDate?: string | Date | null
   referredBy?: string
   isDeleted?: boolean
+  subAgent?: string
+  subagentPercent?: number | null
+  houseRepPercent?: number | null
+  houseSplitPercent?: number | null
+  accountIdHouse?: string
+  accountIdVendor?: string
+  accountLegalName?: string
+  accountName?: string
+  customerIdVendor?: string
+  locationId?: string
+  description?: string
+  opportunityId?: string
 }
 
 export interface AccountGroupRow {
@@ -567,24 +579,6 @@ const OPPORTUNITY_TABLE_BASE_COLUMNS: Column[] = [
     accessor: "stage",
   },
   {
-    id: "distributorName",
-    label: "Distributor Name",
-    width: 180,
-    minWidth: 150,
-    maxWidth: 220,
-    sortable: true,
-    accessor: "distributorName",
-  },
-  {
-    id: "vendorName",
-    label: "Vendor Name",
-    width: 180,
-    minWidth: 150,
-    maxWidth: 220,
-    sortable: true,
-    accessor: "vendorName",
-  },
-  {
     id: "referredBy",
     label: "Referred By",
     width: 150,
@@ -610,6 +604,114 @@ const OPPORTUNITY_TABLE_BASE_COLUMNS: Column[] = [
     maxWidth: 200,
     sortable: true,
     accessor: "closeDate",
+  },
+  {
+    id: "subAgent",
+    label: "Subagent",
+    width: 150,
+    minWidth: 120,
+    maxWidth: 200,
+    sortable: true,
+    accessor: "subAgent",
+  },
+  {
+    id: "subagentPercent",
+    label: "Subagent %",
+    width: 120,
+    minWidth: 100,
+    maxWidth: 150,
+    sortable: true,
+    accessor: "subagentPercent",
+  },
+  {
+    id: "accountIdHouse",
+    label: "Account ID - House",
+    width: 150,
+    minWidth: 120,
+    maxWidth: 200,
+    sortable: true,
+    accessor: "accountIdHouse",
+  },
+  {
+    id: "accountIdVendor",
+    label: "Account ID - Vendor",
+    width: 150,
+    minWidth: 120,
+    maxWidth: 200,
+    sortable: true,
+    accessor: "accountIdVendor",
+  },
+  {
+    id: "accountLegalName",
+    label: "Account Legal Name",
+    width: 200,
+    minWidth: 150,
+    maxWidth: 300,
+    sortable: true,
+    accessor: "accountLegalName",
+  },
+  {
+    id: "accountName",
+    label: "Account Name",
+    width: 200,
+    minWidth: 150,
+    maxWidth: 300,
+    sortable: true,
+    accessor: "accountName",
+  },
+  {
+    id: "customerIdVendor",
+    label: "Customer ID - Vendor",
+    width: 150,
+    minWidth: 120,
+    maxWidth: 200,
+    sortable: true,
+    accessor: "customerIdVendor",
+  },
+  {
+    id: "houseRepPercent",
+    label: "House Rep %",
+    width: 120,
+    minWidth: 100,
+    maxWidth: 150,
+    sortable: true,
+    accessor: "houseRepPercent",
+  },
+  {
+    id: "houseSplitPercent",
+    label: "House Split %",
+    width: 120,
+    minWidth: 100,
+    maxWidth: 150,
+    sortable: true,
+    accessor: "houseSplitPercent",
+  },
+  {
+    id: "locationId",
+    label: "Location ID",
+    width: 150,
+    minWidth: 120,
+    maxWidth: 200,
+    sortable: true,
+    accessor: "locationId",
+  },
+  {
+    id: "description",
+    label: "Opportunity Description",
+    width: 250,
+    minWidth: 200,
+    maxWidth: 400,
+    sortable: true,
+    accessor: "description",
+  },
+  {
+    id: "opportunityId",
+    label: "Opportunity ID",
+    width: 150,
+    minWidth: 120,
+    maxWidth: 200,
+    sortable: true,
+    accessor: "opportunityId",
   }
 ]
 
@@ -1931,8 +2033,6 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
     { id: "orderIdHouse", label: "Order ID - House" },
     { id: "opportunityName", label: "Opportunity Name" },
     { id: "stage", label: "Opportunity Stage" },
-    { id: "distributorName", label: "Distributor Name" },
-    { id: "vendorName", label: "Vendor Name" },
     { id: "referredBy", label: "Referred By" },
     { id: "owner", label: "Owner" },
     { id: "closeDate", label: "Close Date" },
@@ -3165,8 +3265,6 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
       "Order ID - House",
       "Opportunity Name",
       "Opportunity Stage",
-      "Distributor Name",
-      "Vendor Name",
       "Referred By",
       "Owner",
       "Close Date"
@@ -3199,8 +3297,6 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
           row.orderIdHouse,
           row.opportunityName,
           row.stage,
-          row.distributorName,
-          row.vendorName,
           row.referredBy,
           row.owner,
           formatCsvDate(row.closeDate ?? null)
@@ -3998,6 +4094,46 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
           render: (value?: string | Date | null) => formatDate(value)
         }
       }
+
+      if (column.id === "subagentPercent" || column.id === "houseRepPercent" || column.id === "houseSplitPercent") {
+        return {
+          ...column,
+          render: (value: unknown) => {
+            if (value === null || value === undefined) return "--"
+            const num = typeof value === "number" ? value : Number(value)
+            if (!Number.isFinite(num)) return "--"
+            // Normalize: if > 1, it's already a percentage; if <= 1, it's a decimal
+            const normalized = num > 1 ? num / 100 : num
+            return `${(normalized * 100).toFixed(2)}%`
+          }
+        }
+      }
+
+      if (column.id === "opportunityName") {
+        return {
+          ...column,
+          render: (value: unknown, row: AccountOpportunityRow) => {
+            const label = String(value ?? '')
+            const opportunityId = row?.id
+
+            if (!opportunityId) {
+              return <span className="font-medium text-primary-600">{label}</span>
+            }
+
+            return (
+              <Link
+                href={`/opportunities/${opportunityId}`}
+                className="cursor-pointer font-medium text-primary-600 hover:text-primary-800 hover:underline"
+                onClick={(event) => event.stopPropagation()}
+                prefetch={false}
+              >
+                {label}
+              </Link>
+            )
+          },
+        }
+      }
+
       return column
     })
   }, [

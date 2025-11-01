@@ -257,7 +257,10 @@ export async function GET(
       }),
       prisma.opportunity.findMany({
         where: { tenantId, accountId },
-        include: { owner: { select: { firstName: true, lastName: true } } },
+        include: { 
+          owner: { select: { firstName: true, lastName: true } },
+          account: { select: { accountName: true, accountLegalName: true } }
+        },
         orderBy: { createdAt: "desc" }
       }),
       prisma.groupMember.findMany({
