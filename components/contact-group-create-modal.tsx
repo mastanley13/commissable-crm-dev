@@ -18,7 +18,6 @@ interface ContactGroupFormState {
   ownerId: string
   description: string
   isActive: boolean
-  addContactAsMember: boolean
 }
 
 export interface ContactGroupCreateModalProps {
@@ -47,20 +46,25 @@ export function ContactGroupCreateModal({ isOpen, contactName, accountId, contac
     visibility: GroupVisibility.Private,
     ownerId: "",
     description: "",
-    isActive: true,
-    addContactAsMember: true
+    isActive: true
   })
-  const [loading, setLoading] = useState(false)
-  const [ownerOptions, setOwnerOptions] = useState<SelectOption[]>([])
-  const [ownersLoading, setOwnersLoading] = useState(false)
+  const [owners, setOwners] = useState<SelectOption[]>([])
   const [ownerQuery, setOwnerQuery] = useState("")
   const [showOwnerDropdown, setShowOwnerDropdown] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [optionsLoading, setOptionsLoading] = useState(false)
   const [submitMode, setSubmitMode] = useState<"save" | "saveAndNew">("save")
+  // Add-to-existing tab state
   const [activeTab, setActiveTab] = useState<"create" | "add">("create")
-  const [groupOptions, setGroupOptions] = useState<SelectOption[]>([])
   const [groupsLoading, setGroupsLoading] = useState(false)
+  const [groupOptions, setGroupOptions] = useState<SelectOption[]>([])
   const [selectedGroupId, setSelectedGroupId] = useState("")
   const [selectedGroups, setSelectedGroups] = useState<SelectOption[]>([])
+  const [addGroupOwnerId, setAddGroupOwnerId] = useState("")
+  const [addGroupVisibility, setAddGroupVisibility] = useState<GroupVisibility>(GroupVisibility.Private)
+  const [addGroupDescription, setAddGroupDescription] = useState("")
+  const [addDetailsLoading, setAddDetailsLoading] = useState(false)
+  const [initialAddDetails, setInitialAddDetails] = useState<{ ownerId?: string; visibility?: GroupVisibility; description?: string } | null>(null)
   const { showError, showSuccess } = useToasts()
   const { user } = useAuth()
 
@@ -75,15 +79,18 @@ export function ContactGroupCreateModal({ isOpen, contactName, accountId, contac
       visibility: GroupVisibility.Private,
       ownerId: user?.id || "",
       description: "",
-      isActive: true,
-      addContactAsMember: true
+      isActive: true
     })
     setSubmitMode("save")
     setActiveTab("create")
     setSelectedGroupId("")
     setSelectedGroups([])
+    setAddGroupOwnerId("")
+    setAddGroupVisibility(GroupVisibility.Private)
+    setAddGroupDescription("")
+    setInitialAddDetails(null)
 
-    setOwnersLoading(true)
+    setOptionsLoading(true)
     fetch("/api/admin/users?limit=100", { cache: "no-store" })
       .then(async response => {
         if (!response.ok) {
@@ -95,7 +102,7 @@ export function ContactGroupCreateModal({ isOpen, contactName, accountId, contac
           value: userItem.id,
           label: userItem.fullName || userItem.email
         }))
-        setOwnerOptions(ownerOptions)
+        setOwners(ownerOptions)
         // Default to current user if available, otherwise use first option
         if (ownerOptions.length > 0) {
           const currentUserOption = user?.id ? ownerOptions.find(o => o.value === user.id) : null
@@ -108,85 +115,11 @@ export function ContactGroupCreateModal({ isOpen, contactName, accountId, contac
         }
       })
       .catch(() => {
-        setOwnerOptions([])
+        setOwners([])
         showError("Unable to load group owners", "Please try again later")
       })
-      .finally(() => setOwnersLoading(false))
+      .finally(() => setOptionsLoading(false))
   }, [isOpen, showError, user?.id])
-
-  const canSubmit = useMemo(() => form.name.trim().length >= 3 && form.ownerId.length > 0, [form.name, form.ownerId])
-
-  const filteredOwners = useMemo(() => {
-    if (!ownerQuery.trim()) return ownerOptions
-    const q = ownerQuery.toLowerCase()
-    return ownerOptions.filter(o => o.label.toLowerCase().includes(q))
-  }, [ownerOptions, ownerQuery])
-
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    if (!canSubmit) {
-      showError("Missing information", "Group name and owner are required.")
-      return
-    }
-
-    setLoading(true)
-    try {
-      const payload: Record<string, unknown> = {
-        name: form.name.trim(),
-        groupType: form.type,
-        visibility: form.visibility,
-        ownerId: form.ownerId,
-        description: form.description.trim() || null,
-        isActive: form.isActive
-      }
-
-      if (accountId) {
-        payload.accountId = accountId
-      }
-      if (form.addContactAsMember && contactId) {
-        payload.contactId = contactId
-      }
-
-      const response = await fetch("/api/groups", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify(payload)
-      })
-
-      if (!response.ok) {
-        const errorPayload = await response.json().catch(() => null)
-        throw new Error(errorPayload?.error ?? "Failed to create group")
-      }
-
-      const data = await response.json().catch(() => null)
-      const groupId: string | undefined = data?.data?.id
-      showSuccess("Group created", form.addContactAsMember && contactName
-        ? `${contactName} has been added to the new group.`
-        : "The group has been created.")
-      onSuccess?.()
-
-      if (submitMode === "saveAndNew") {
-        setForm(prev => ({
-          ...prev,
-          name: "",
-          description: ""
-        }))
-        setSubmitMode("save")
-      } else {
-        onClose()
-      }
-    } catch (error) {
-      console.error("Failed to create group", error)
-      showError(
-        "Unable to create group",
-        error instanceof Error ? error.message : "Unknown error"
-      )
-    } finally {
-      setLoading(false)
-    }
-  }
 
   // Load groups when switching to Add tab
   useEffect(() => {
@@ -211,7 +144,104 @@ export function ContactGroupCreateModal({ isOpen, contactName, accountId, contac
     return () => { cancelled = true }
   }, [isOpen, activeTab])
 
+  // Prefill group details once a group is chosen
+  useEffect(() => {
+    if (!isOpen || activeTab !== "add" || selectedGroups.length !== 1) return
+    let cancelled = false
+    async function loadDetails() {
+      setAddDetailsLoading(true)
+      try {
+        const res = await fetch(`/api/groups/${selectedGroups[0].value}`, { cache: "no-store" })
+        if (!res.ok) throw new Error("Failed to load group details")
+        const payload = await res.json().catch(() => null)
+        const data = payload?.data || {}
+        if (cancelled) return
+        setInitialAddDetails({ ownerId: data.ownerId || "", visibility: data.visibility || GroupVisibility.Private, description: data.description || "" })
+        setAddGroupOwnerId(data.ownerId || "")
+        setAddGroupVisibility(data.visibility || GroupVisibility.Private)
+        setAddGroupDescription(data.description || "")
+      } finally {
+        if (!cancelled) setAddDetailsLoading(false)
+      }
+    }
+    loadDetails()
+    return () => { cancelled = true }
+  }, [isOpen, activeTab, selectedGroups])
+
+  const canSubmit = useMemo(() => form.name.trim().length >= 3 && form.ownerId.length > 0, [form.name, form.ownerId])
   const canAddExisting = useMemo(() => Boolean(selectedGroups.length > 0 && contactId), [selectedGroups.length, contactId])
+
+  const filteredOwners = useMemo(() => {
+    if (!ownerQuery.trim()) return owners
+    const q = ownerQuery.toLowerCase()
+    return owners.filter(o => o.label.toLowerCase().includes(q))
+  }, [owners, ownerQuery])
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (!canSubmit) {
+      showError("Missing information", "Group name and owner are required.")
+      return
+    }
+
+    setLoading(true)
+    try {
+      const payload: Record<string, unknown> = {
+        name: form.name.trim(),
+        groupType: form.type,
+        visibility: form.visibility,
+        ownerId: form.ownerId,
+        description: form.description.trim() || null,
+        isActive: form.isActive
+      }
+
+      if (accountId) {
+        payload.accountId = accountId
+      }
+      if (contactId) {
+        payload.contactId = contactId
+      }
+
+      const response = await fetch("/api/groups", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(payload)
+      })
+
+      if (!response.ok) {
+        const errorPayload = await response.json().catch(() => null)
+        throw new Error(errorPayload?.error ?? "Failed to create group")
+      }
+
+      const data = await response.json().catch(() => null)
+      const groupId: string | undefined = data?.data?.id
+      showSuccess("Group created", contactName && contactId
+        ? `${contactName} has been added to the new group.`
+        : "The group has been created.")
+      onSuccess?.()
+
+      if (submitMode === "saveAndNew") {
+        setForm(prev => ({
+          ...prev,
+          name: "",
+          description: ""
+        }))
+        setSubmitMode("save")
+      } else {
+        onClose()
+      }
+    } catch (error) {
+      console.error("Failed to create group", error)
+      showError(
+        "Unable to create group",
+        error instanceof Error ? error.message : "Unknown error"
+      )
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const handleAddExisting = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -336,7 +366,7 @@ export function ContactGroupCreateModal({ isOpen, contactName, accountId, contac
                 onBlur={() => setTimeout(() => setShowOwnerDropdown(false), 200)}
                 placeholder="Type to search owners..."
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                disabled={ownersLoading}
+                disabled={optionsLoading}
                 required
               />
               {showOwnerDropdown && ownerQuery.length > 0 && filteredOwners.length > 0 && (
@@ -380,21 +410,7 @@ export function ContactGroupCreateModal({ isOpen, contactName, accountId, contac
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
                 placeholder="Describe the purpose of this group"
               />
-              <p className="mt-1 text-xs text-gray-500">Maximum 500 characters.</p>
             </div>
-            {contactId && (
-              <div className="md:col-span-2">
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={form.addContactAsMember}
-                    onChange={event => setForm(prev => ({ ...prev, addContactAsMember: event.target.checked }))}
-                    className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                  />
-                  <span className="text-sm text-gray-700">Automatically add {contactName ?? "this contact"} as a member</span>
-                </label>
-              </div>
-            )}
           </div>
 
           <div className="mt-6 flex flex-wrap items-center justify-end gap-3">

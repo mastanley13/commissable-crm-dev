@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react"
+import { useSearchParams } from "next/navigation"
 import { Check, Loader2, Trash2, Calendar } from "lucide-react"
 import { LeadSource, OpportunityStage, OpportunityStatus } from "@prisma/client"
 import { cn } from "@/lib/utils"
@@ -55,9 +56,9 @@ const PRODUCT_TABLE_BASE_COLUMNS: Column[] = [
   {
     id: "multi-action",
     label: "Select All",
-    width: 220,
-    minWidth: 180,
-    maxWidth: 260,
+    width: 140,
+    minWidth: 100,
+    maxWidth: 180,
     type: "multi-action",
     hideable: false
   },
@@ -71,8 +72,8 @@ const PRODUCT_TABLE_BASE_COLUMNS: Column[] = [
   { id: "expectedUsage", label: "Expected Usage", width: 160, minWidth: 140, accessor: "expectedUsage", sortable: true },
   { id: "revenueStartDate", label: "Start Date", width: 150, minWidth: 130, accessor: "revenueStartDate", sortable: true },
   { id: "revenueEndDate", label: "End Date", width: 150, minWidth: 130, accessor: "revenueEndDate", sortable: true },
-  { id: "distributorName", label: "Distributor", width: 200, minWidth: 160, accessor: "distributorName" },
-  { id: "vendorName", label: "Vendor", width: 200, minWidth: 160, accessor: "vendorName" },
+  { id: "distributorName", label: "Distributor", width: 200, minWidth: 120, accessor: "distributorName", sortable: true },
+  { id: "vendorName", label: "Vendor", width: 200, minWidth: 120, accessor: "vendorName", sortable: true },
   { id: "createdAt", label: "Created", width: 160, minWidth: 140, accessor: "createdAt", sortable: true },
   { id: "updatedAt", label: "Updated", width: 160, minWidth: 140, accessor: "updatedAt", sortable: true }
 ]
@@ -1215,8 +1216,18 @@ export function OpportunityDetailsView({
 }: OpportunityDetailsViewProps) {
   const { user: authUser, hasPermission, hasAnyPermission } = useAuth()
   const { showError, showSuccess } = useToasts()
+  const searchParams = useSearchParams()
 
-  const [activeTab, setActiveTab] = useState<TabKey>("summary")
+  const getInitialTab = (): TabKey => {
+    const tabParam = searchParams?.get("tab")
+    const validTabs: TabKey[] = ["summary", "products", "revenue-schedules", "activities", "roles", "details"]
+    if (tabParam && validTabs.includes(tabParam as TabKey)) {
+      return tabParam as TabKey
+    }
+    return "products"
+  }
+
+  const [activeTab, setActiveTab] = useState<TabKey>(getInitialTab())
 
   const isAssignedToUser = Boolean(opportunity?.owner?.id && opportunity.owner.id === authUser?.id)
   const canEditOpportunity =

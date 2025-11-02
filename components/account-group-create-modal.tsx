@@ -399,7 +399,6 @@ export function GroupCreateModal({ isOpen, accountId, accountName, onClose, onCr
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
                 placeholder="Describe the purpose of this group"
               />
-              <p className="mt-1 text-xs text-gray-500">Maximum 500 characters.</p>
             </div>
           </div>
 

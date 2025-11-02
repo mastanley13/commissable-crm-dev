@@ -113,13 +113,14 @@ html, body {
   align-items: flex-start;
   padding-top: 16px;
   padding-bottom: 16px;
+  padding-left: 12px;
+  padding-right: 12px;
 }
 
 .table-header-content {
-  flex: 1;
+  flex: 0 1 auto;
   min-width: 0; /* Allows flex shrinking */
   overflow: hidden;
-  justify-content: space-between;
 }
 
 .table-row {
@@ -206,9 +207,8 @@ html, body {
   }
 
   .table-header-content {
-    flex: 1;
+    flex: 0 1 auto;
     min-width: 0;
     overflow: hidden;
-    justify-content: space-between;
   }
 }

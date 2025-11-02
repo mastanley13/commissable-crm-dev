@@ -12,7 +12,6 @@ import { OpportunityBulkActionBar } from '@/components/opportunity-bulk-action-b
 import { OpportunityBulkOwnerModal } from '@/components/opportunity-bulk-owner-modal'
 import { OpportunityBulkStatusModal } from '@/components/opportunity-bulk-status-modal'
 import { OpportunityEditModal } from '@/components/opportunity-edit-modal'
-import { OpportunityCreateModal } from '@/components/opportunity-create-modal'
 import { TwoStageDeleteDialog } from '@/components/two-stage-delete-dialog'
 import { useToasts } from '@/components/toast'
 import type { DeletionConstraint } from '@/lib/deletion'
@@ -100,22 +99,13 @@ const BASE_COLUMNS: Column[] = [
     type: 'multi-action',
   },
   {
-    id: 'closeDate',
-    label: 'Close Date',
-    width: 160,
+    id: 'opportunityId',
+    label: 'Opportunity ID',
+    width: 180,
     minWidth: 140,
-    maxWidth: 220,
-    sortable: true,
-    accessor: 'closeDate',
-  },
-  {
-    id: 'accountLegalName',
-    label: 'Account Legal Name',
-    width: 220,
-    minWidth: 180,
-    maxWidth: 320,
-    sortable: true,
-    accessor: 'accountLegalName',
+    maxWidth: 260,
+    accessor: 'opportunityId',
+    hidden: true,
   },
   {
     id: 'opportunityName',
@@ -127,6 +117,42 @@ const BASE_COLUMNS: Column[] = [
     accessor: 'opportunityName',
   },
   {
+    id: 'accountName',
+    label: 'Account Name',
+    width: 220,
+    minWidth: 180,
+    maxWidth: 320,
+    accessor: 'accountName',
+    hidden: true,
+  },
+  {
+    id: 'accountLegalName',
+    label: 'Account Legal Name',
+    width: 220,
+    minWidth: 180,
+    maxWidth: 320,
+    sortable: true,
+    accessor: 'accountLegalName',
+  },
+  {
+    id: 'subagent',
+    label: 'Subagent',
+    width: 200,
+    minWidth: 160,
+    maxWidth: 280,
+    accessor: 'subagent',
+    hidden: true,
+  },
+  {
+    id: 'owner',
+    label: 'Owner',
+    width: 200,
+    minWidth: 160,
+    maxWidth: 280,
+    sortable: true,
+    accessor: 'owner',
+  },
+  {
     id: 'stage',
     label: 'Opportunity Stage',
     width: 180,
@@ -136,6 +162,78 @@ const BASE_COLUMNS: Column[] = [
     accessor: 'stage',
   },
   {
+    id: 'closeDate',
+    label: 'Close Date',
+    width: 160,
+    minWidth: 140,
+    maxWidth: 220,
+    sortable: true,
+    accessor: 'closeDate',
+  },
+  {
+    id: 'referredBy',
+    label: 'Referred By',
+    width: 200,
+    minWidth: 160,
+    maxWidth: 280,
+    accessor: 'referredBy',
+    hidden: true,
+  },
+  {
+    id: 'shippingAddress',
+    label: 'Shipping Address',
+    width: 240,
+    minWidth: 200,
+    maxWidth: 360,
+    accessor: 'shippingAddress',
+    hidden: true,
+  },
+  {
+    id: 'billingAddress',
+    label: 'Billing Address',
+    width: 240,
+    minWidth: 200,
+    maxWidth: 360,
+    accessor: 'billingAddress',
+    hidden: true,
+  },
+  {
+    id: 'subagentPercent',
+    label: 'Subagent %',
+    width: 140,
+    minWidth: 120,
+    maxWidth: 180,
+    accessor: 'subagentPercent',
+    hidden: true,
+  },
+  {
+    id: 'houseRepPercent',
+    label: 'House Rep %',
+    width: 140,
+    minWidth: 120,
+    maxWidth: 180,
+    accessor: 'houseRepPercent',
+    hidden: true,
+  },
+  {
+    id: 'houseSplitPercent',
+    label: 'House Split %',
+    width: 140,
+    minWidth: 120,
+    maxWidth: 180,
+    accessor: 'houseSplitPercent',
+    hidden: true,
+  },
+  {
+    id: 'opportunityDescription',
+    label: 'Opportunity Description',
+    width: 280,
+    minWidth: 220,
+    maxWidth: 400,
+    accessor: 'opportunityDescription',
+    hidden: true,
+  },
+  {
     id: 'orderIdHouse',
     label: 'Order ID - House',
     width: 150,
@@ -143,6 +241,43 @@ const BASE_COLUMNS: Column[] = [
     maxWidth: 200,
     sortable: true,
     accessor: 'orderIdHouse',
+    hidden: true,
+  },
+  {
+    id: 'distributorName',
+    label: 'Distributor Name',
+    width: 200,
+    minWidth: 160,
+    maxWidth: 280,
+    accessor: 'distributorName',
+    hidden: true,
+  },
+  {
+    id: 'vendorName',
+    label: 'Vendor Name',
+    width: 200,
+    minWidth: 160,
+    maxWidth: 280,
+    accessor: 'vendorName',
+    hidden: true,
+  },
+  {
+    id: 'expectedUsageGrossTotal',
+    label: 'Expected Usage Gross-Total',
+    width: 200,
+    minWidth: 160,
+    maxWidth: 280,
+    accessor: 'expectedUsageGrossTotal',
+    hidden: true,
+  },
+  {
+    id: 'expectedCommissionGrossTotal',
+    label: 'Expected Commission Gross-Total',
+    width: 220,
+    minWidth: 180,
+    maxWidth: 320,
+    accessor: 'expectedCommissionGrossTotal',
+    hidden: true,
   },
   {
     id: 'accountIdVendor',
@@ -171,65 +306,6 @@ const BASE_COLUMNS: Column[] = [
     accessor: 'locationId',
     hidden: true,
   },
-  {
-    id: 'opportunityId',
-    label: 'Opportunity ID',
-    width: 180,
-    minWidth: 140,
-    maxWidth: 260,
-    accessor: 'opportunityId',
-    hidden: true,
-  },
-  {
-    id: 'distributorName',
-    label: 'Distributor Name',
-    width: 200,
-    minWidth: 160,
-    maxWidth: 280,
-    accessor: 'distributorName',
-  },
-  {
-    id: 'vendorName',
-    label: 'Vendor Name',
-    width: 200,
-    minWidth: 160,
-    maxWidth: 280,
-    accessor: 'vendorName',
-  },
-  {
-    id: 'expectedUsageGrossTotal',
-    label: 'Expected Usage Gross-Total',
-    width: 200,
-    minWidth: 160,
-    maxWidth: 280,
-    accessor: 'expectedUsageGrossTotal',
-  },
-  {
-    id: 'expectedCommissionGrossTotal',
-    label: 'Expected Commission Gross-Total',
-    width: 220,
-    minWidth: 180,
-    maxWidth: 320,
-    accessor: 'expectedCommissionGrossTotal',
-  },
-  {
-    id: 'owner',
-    label: 'Opportunity Owner',
-    width: 200,
-    minWidth: 160,
-    maxWidth: 280,
-    sortable: true,
-    accessor: 'owner',
-  },
-  {
-    id: 'referredBy',
-    label: 'Referred By',
-    width: 200,
-    minWidth: 160,
-    maxWidth: 280,
-    accessor: 'referredBy',
-    hidden: true,
-  },
 ]
 interface OpportunityRow {
   id: string
@@ -238,12 +314,14 @@ interface OpportunityRow {
   status?: OpportunityStatus | string | null
   orderIdHouse?: string | null
   accountLegalName?: string | null
+  accountName?: string | null
   opportunityName: string
   stage?: string | null
   distributorName?: string | null
   vendorName?: string | null
   referredBy?: string | null
   subAgent?: string | null
+  subagent?: string | null
   owner?: string | null
   ownerId?: string | null
   estimatedCloseDate?: string | null
@@ -261,6 +339,12 @@ interface OpportunityRow {
   orderIdDistributor?: string | null
   customerPurchaseOrder?: string | null
   opportunityId?: string | null
+  shippingAddress?: string | null
+  billingAddress?: string | null
+  subagentPercent?: number | null
+  houseRepPercent?: number | null
+  houseSplitPercent?: number | null
+  opportunityDescription?: string | null
   isDeleted?: boolean
 }
 
@@ -300,7 +384,6 @@ export default function OpportunitiesPage() {
     direction: 'desc',
   })
   const [showColumnSettings, setShowColumnSettings] = useState(false)
-  const [showCreateModal, setShowCreateModal] = useState(false)
   const [bulkActionLoading, setBulkActionLoading] = useState(false)
   const [showBulkOwnerModal, setShowBulkOwnerModal] = useState(false)
   const [showBulkStatusModal, setShowBulkStatusModal] = useState(false)
@@ -580,7 +663,7 @@ export default function OpportunitiesPage() {
       if (!row?.id) {
         return
       }
-      router.push(`/opportunities/${row.id}`)
+      router.push(`/opportunities/${row.id}?tab=products`)
     },
     [router],
   )
@@ -622,18 +705,6 @@ export default function OpportunitiesPage() {
     setBulkDeleteTargets([])
     setOpportunityToDelete(null)
   }, [])
-
-  const handleCreateOpportunity = useCallback(() => {
-    setShowCreateModal(true)
-  }, [])
-
-  const handleCloseCreateModal = useCallback(() => {
-    setShowCreateModal(false)
-  }, [])
-
-  const handleCreateOpportunitySuccess = useCallback(() => {
-    reloadOpportunities()
-  }, [reloadOpportunities])
 
   const handleBulkExportCsv = useCallback(() => {
     const rows =
@@ -1258,7 +1329,7 @@ export default function OpportunitiesPage() {
 
             return (
               <Link
-                href={`/opportunities/${opportunityId}`}
+                href={`/opportunities/${opportunityId}?tab=products`}
                 className="cursor-pointer font-medium text-blue-600 hover:text-blue-800"
                 onClick={(event) => event.stopPropagation()}
                 prefetch={false}
@@ -1315,6 +1386,16 @@ export default function OpportunitiesPage() {
         }
       }
 
+      if (column.id === 'subagentPercent' || column.id === 'houseRepPercent' || column.id === 'houseSplitPercent') {
+        return {
+          ...column,
+          render: (value: unknown) => {
+            const numValue = typeof value === 'number' ? value : Number(value) || 0
+            return `${(numValue * 100).toFixed(2)}%`
+          },
+        }
+      }
+
       return column
     })
   }, [
@@ -1332,7 +1413,7 @@ export default function OpportunitiesPage() {
         searchPlaceholder="Search opportunities..."
         onSearch={handleSearch}
         onFilterChange={handleStatusFilterChange}
-        onCreateClick={handleCreateOpportunity}
+        showCreateButton={false}
         onSettingsClick={() => setShowColumnSettings(true)}
         filterColumns={OPPORTUNITY_FILTER_OPTIONS}
         columnFilters={columnFilters}
@@ -1381,12 +1462,6 @@ export default function OpportunitiesPage() {
           />
       </div>
       </div>
-
-      <OpportunityCreateModal
-        isOpen={showCreateModal}
-        onClose={handleCloseCreateModal}
-        onCreated={handleCreateOpportunitySuccess}
-      />
 
       <OpportunityBulkOwnerModal
         isOpen={showBulkOwnerModal}

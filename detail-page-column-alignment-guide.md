@@ -3,6 +3,12 @@
 ## Overview
 This guide ensures consistent horizontal row alignment between left and right columns in two-column detail page layouts. When both columns use the same spacing system, rows should align perfectly across the page.
 
+## For AI Coding Agents:
+Use this prompt template:
+Reference the alignment guide at detail-page-column-alignment-guide.md
+Create a detail page with [describe your fields]
+Ensure rows align according to the guide's principles 
+
 ## Key Principles
 
 ### 1. Use Consistent Row Components

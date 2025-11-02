@@ -784,7 +784,7 @@ export function DynamicTable({
                   <div
                     key={column.id}
                     className={cn(
-                      "table-cell bg-blue-500 font-semibold text-white relative select-none border-b-2 border-blue-700 border-r-2 border-blue-700 last:border-r-0",
+                      "table-cell bg-blue-500 font-semibold text-white text-[11px] relative select-none border-b-2 border-blue-700 border-r-2 border-blue-700 last:border-r-0",
                       column.sortable && column.id !== "select" && "cursor-pointer hover:bg-blue-600"
                     )}
                     draggable
@@ -793,14 +793,14 @@ export function DynamicTable({
                     onDrop={event => handleDrop(event, column.id)}
                     onClick={() => column.id !== "select" && handleSort(column)}
                   >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2 flex-1 min-w-0 table-header-content">
+                    <div className="flex items-center">
+                      <div className="flex items-center gap-2 table-header-content">
                         {column.id === "select" && onSelectAll ? (
-                          <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-2">
                             <input
                               ref={selectAllRef}
                               type="checkbox"
-                              className="w-4 h-4 text-primary-600 bg-gray-100 border-gray-300 rounded focus:ring-primary-500"
+                              className="w-4 h-4 text-primary-600 bg-gray-100 border-gray-300 rounded focus:ring-primary-500 flex-shrink-0"
                               checked={data.length > 0 && selectedItems.length === data.length}
                               onClick={event => event.stopPropagation()}
                               onChange={event => {
@@ -809,19 +809,19 @@ export function DynamicTable({
                               }}
                             />
                             {!hideSelectAllLabel && (
-                              <div className="flex flex-col leading-tight flex-1 min-w-0">
-                                <span className="text-xs font-semibold uppercase tracking-wide text-blue-100 break-words">
+                              <div className="flex flex-col leading-tight">
+                                <span className="text-[11px] font-semibold uppercase tracking-wide text-blue-100 break-words whitespace-nowrap">
                                   {selectHeaderLabel ?? 'Select All'}
                                 </span>
                               </div>
                             )}
                           </div>
                         ) : column.type === "multi-action" && onSelectAll ? (
-                          <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-2">
                             <input
                               ref={selectAllRef}
                               type="checkbox"
-                              className="w-4 h-4 text-primary-600 bg-gray-100 border-gray-300 rounded focus:ring-primary-500"
+                              className="w-4 h-4 text-primary-600 bg-gray-100 border-gray-300 rounded focus:ring-primary-500 flex-shrink-0"
                               checked={data.length > 0 && selectedItems.length === data.length}
                               onClick={event => event.stopPropagation()}
                               onChange={event => {
@@ -830,8 +830,8 @@ export function DynamicTable({
                               }}
                             />
                             {!hideSelectAllLabel && (
-                              <div className="flex flex-col leading-tight flex-1 min-w-0">
-                                <span className="text-xs font-semibold uppercase tracking-wide text-blue-100 break-words">{column.label}</span>
+                              <div className="flex flex-col leading-tight">
+                                <span className="break-words leading-tight whitespace-nowrap">{column.label}</span>
                               </div>
                             )}
                           </div>
@@ -1011,7 +1011,6 @@ export function DynamicTable({
     </div>
   )
 }
-
 
 
 

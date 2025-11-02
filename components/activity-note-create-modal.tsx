@@ -19,7 +19,6 @@ interface ActivityNoteFormState {
   activityDate: string
   activityOwner: string
   createdById: string
-  location: string
   activityDescription: string
   noteTitle: string
   noteBody: string
@@ -75,7 +74,6 @@ const createInitialState = (): ActivityNoteFormState => ({
   activityDate: todayLocalYMD(),
   activityOwner: "",
   createdById: "",
-  location: "",
   activityDescription: "",
   noteTitle: "",
   noteBody: "",
@@ -98,6 +96,7 @@ export function ActivityNoteCreateModal({
   const [ownerOptions, setOwnerOptions] = useState<SelectOption[]>([])
   const [ownersLoading, setOwnersLoading] = useState(false)
   const [attachments, setAttachments] = useState<PendingAttachment[]>([])
+  const [activeTab, setActiveTab] = useState<"activity" | "note">("activity")
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const { showError, showSuccess } = useToasts()
   const { user } = useAuth()
@@ -109,6 +108,7 @@ export function ActivityNoteCreateModal({
 
     setForm(createInitialState())
     setAttachments([])
+    setActiveTab("activity")
   }, [isOpen])
 
   // Default Created By to current user when options/auth are available
@@ -222,34 +222,31 @@ export function ActivityNoteCreateModal({
     setAttachments(prev => prev.filter(item => item.id !== id))
   }
 
-  const { headerTitle, subtitle } = useMemo(() => {
+  const headerTitle = useMemo(() => {
+    const baseTitle = activeTab === "activity" ? "Log Activity" : "Create Note"
     switch (context) {
       case "account":
-        return {
-          headerTitle: "Log Activity / Note for Account",
-          subtitle: entityName ? `Account: ${entityName}` : undefined
-        }
+        return `${baseTitle} for Account`
       case "contact":
-        return {
-          headerTitle: "Log Activity / Note for Contact",
-          subtitle: entityName ? `Contact: ${entityName}` : undefined
-        }
+        return `${baseTitle} for Contact`
       case "opportunity":
       default:
-        return {
-          headerTitle: "Log Activity / Note for Opportunity",
-          subtitle: opportunityName ? `Opportunity: ${opportunityName}` : undefined
-        }
+        return `${baseTitle} for Opportunity`
     }
-  }, [context, entityName, opportunityName])
+  }, [context, activeTab])
 
   const canSubmit = useMemo(() => {
-    if (!form.activitySubject.trim()) return false
+    if (activeTab === "activity") {
+      if (!form.activitySubject.trim()) return false
+    } else {
+      // For note tab, require at least note title or body
+      if (!form.noteTitle.trim() && !form.noteBody.trim()) return false
+    }
     if (context === "account" && !accountId) return false
     if (context === "contact" && !contactId) return false
     if (context === "opportunity" && !opportunityId) return false
     return true
-  }, [accountId, contactId, context, form.activitySubject, opportunityId])
+  }, [accountId, contactId, context, form.activitySubject, form.noteTitle, form.noteBody, activeTab, opportunityId])
 
   const handleClose = () => {
     setForm(createInitialState())
@@ -264,14 +261,26 @@ export function ActivityNoteCreateModal({
       return
     }
 
+    // Determine subject based on active tab
+    let subject = ""
+    if (activeTab === "activity") {
+      subject = form.activitySubject.trim()
+    } else {
+      // For note tab, use note title as subject, or fallback to "Note"
+      subject = form.noteTitle.trim() || "Note"
+    }
+
     const descriptionSegments: string[] = []
     if (form.activityDescription.trim()) {
       descriptionSegments.push(form.activityDescription.trim())
     }
     if (form.noteTitle.trim() || form.noteBody.trim()) {
       const noteLines: string[] = []
-      if (form.noteTitle.trim()) {
+      if (form.noteTitle.trim() && activeTab === "activity") {
+        // Only add "Note:" prefix if we're in activity tab and combining
         noteLines.push(`Note: ${form.noteTitle.trim()}`)
+      } else if (form.noteTitle.trim()) {
+        noteLines.push(form.noteTitle.trim())
       }
       if (form.noteBody.trim()) {
         noteLines.push(form.noteBody.trim())
@@ -283,13 +292,12 @@ export function ActivityNoteCreateModal({
     }
 
     const payload = {
-      subject: form.activitySubject.trim(),
-      type: form.activityType,
-      status: form.activityStatus,
-      dueDate: form.activityDate || null,
-      assigneeId: form.activityOwner || null,
-      location: form.location.trim() || null,
-      description: descriptionSegments.length ? descriptionSegments.join("\n\n") : null,
+      subject: subject,
+      type: activeTab === "activity" ? form.activityType : ActivityType.Note,
+      status: activeTab === "activity" ? form.activityStatus : DEFAULT_OPEN_ACTIVITY_STATUS,
+      dueDate: activeTab === "activity" ? (form.activityDate || null) : null,
+      assigneeId: activeTab === "activity" ? (form.activityOwner || null) : null,
+      description: descriptionSegments.length ? descriptionSegments.join("\n\n") : (form.noteBody.trim() || null),
       accountId: accountId ?? null,
       contactId: contactId ?? null,
       opportunityId: opportunityId ?? null,
@@ -383,12 +391,11 @@ export function ActivityNoteCreateModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-      <div className="w-full max-w-4xl rounded-2xl bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
+      <div className="w-full max-w-4xl rounded-2xl bg-white shadow-xl flex flex-col max-h-[90vh]">
+        <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4 flex-shrink-0">
           <div>
-            <p className="text-xs font-semibold uppercase text-primary-600">Create Activity & Note</p>
+            <p className="text-xs font-semibold uppercase text-primary-600">{activeTab === "activity" ? "Create Activity" : "Create Note"}</p>
             <h2 className="text-lg font-semibold text-gray-900">{headerTitle}</h2>
-            {subtitle && <p className="text-sm text-gray-500">{subtitle}</p>}
           </div>
           <button
             type="button"
@@ -400,15 +407,31 @@ export function ActivityNoteCreateModal({
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="max-h-[80vh] overflow-y-auto px-6 py-5">
-          <div className="grid gap-6 lg:grid-cols-2">
-            <section className="space-y-4">
-              <div>
-                <h3 className="text-sm font-semibold text-gray-900">Activity Details</h3>
-                <p className="text-xs text-gray-500">Capture the interaction details you want to log.</p>
-              </div>
+        {/* Tab Switch */}
+        <div className="px-6 pt-4 flex-shrink-0">
+          <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1 text-sm">
+            <button 
+              type="button" 
+              className={`rounded-md px-3 py-1.5 ${activeTab === "activity" ? "bg-white text-primary-700 shadow-sm" : "text-gray-600 hover:text-gray-800"}`} 
+              onClick={() => setActiveTab("activity")}
+            >
+              Activity
+            </button>
+            <button 
+              type="button" 
+              className={`rounded-md px-3 py-1.5 ${activeTab === "note" ? "bg-white text-primary-700 shadow-sm" : "text-gray-600 hover:text-gray-800"}`} 
+              onClick={() => setActiveTab("note")}
+            >
+              Note
+            </button>
+          </div>
+        </div>
 
-              <div className="space-y-3">
+        <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0">
+          <div className="flex-1 overflow-y-auto px-6 py-5 min-h-0">
+            {activeTab === "activity" ? (
+              <div className="space-y-6">
+                <div className="space-y-3">
                 <div>
                   <label className="mb-1 block text-sm font-medium text-gray-700">Subject<span className="ml-1 text-red-500">*</span></label>
                   <input
@@ -423,6 +446,20 @@ export function ActivityNoteCreateModal({
 
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div>
+                    <label className="mb-1 block text-sm font-medium text-gray-700">Created By</label>
+                    <select
+                      value={form.createdById}
+                      onChange={event => setForm(prev => ({ ...prev, createdById: event.target.value }))}
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      disabled={ownersLoading}
+                    >
+                      <option value="">{ownersLoading ? "Loading users..." : (user?.id ? "Current user" : "Select user")}</option>
+                      {ownerOptions.map(option => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
                     <label className="mb-1 block text-sm font-medium text-gray-700">Activity Type</label>
                     <select
                       value={form.activityType}
@@ -430,18 +467,6 @@ export function ActivityNoteCreateModal({
                       className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
                     >
                       {TYPE_OPTIONS.map(option => (
-                        <option key={option.value} value={option.value}>{option.label}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-sm font-medium text-gray-700">Status</label>
-                    <select
-                      value={form.activityStatus}
-                      onChange={event => setForm(prev => ({ ...prev, activityStatus: event.target.value as ActivityStatus }))}
-                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                    >
-                      {STATUS_OPTIONS.map(option => (
                         <option key={option.value} value={option.value}>{option.label}</option>
                       ))}
                     </select>
@@ -487,32 +512,6 @@ export function ActivityNoteCreateModal({
                 </div>
 
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-700">Created By</label>
-                  <select
-                    value={form.createdById}
-                    onChange={event => setForm(prev => ({ ...prev, createdById: event.target.value }))}
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                    disabled={ownersLoading}
-                  >
-                    <option value="">{ownersLoading ? "Loading users..." : (user?.id ? "Current user" : "Select user")}</option>
-                    {ownerOptions.map(option => (
-                      <option key={option.value} value={option.value}>{option.label}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-700">Location</label>
-                  <input
-                    type="text"
-                    value={form.location}
-                    onChange={event => setForm(prev => ({ ...prev, location: event.target.value }))}
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                    placeholder="Virtual call"
-                  />
-                </div>
-
-                <div>
                   <label className="mb-1 block text-sm font-medium text-gray-700">Description</label>
                   <textarea
                     rows={3}
@@ -522,18 +521,64 @@ export function ActivityNoteCreateModal({
                     placeholder="Share any relevant details discussed."
                   />
                 </div>
-              </div>
-            </section>
 
-            <section className="space-y-4">
-              <div>
-                <h3 className="text-sm font-semibold text-gray-900">Note Details</h3>
-                <p className="text-xs text-gray-500">Use notes to capture follow-ups or customer context.</p>
-              </div>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm font-medium text-gray-700">Attachments</label>
+                    <span className="text-xs text-gray-500">{attachments.length}/{MAX_ATTACHMENTS} attached</span>
+                  </div>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    multiple
+                    className="hidden"
+                    onChange={handleFileSelection}
+                    disabled={loading}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="flex items-center gap-2 rounded-full border border-dashed border-primary-300 px-4 py-2 text-sm font-medium text-primary-600 transition hover:border-primary-400 hover:text-primary-700"
+                    disabled={loading || attachments.length >= MAX_ATTACHMENTS}
+                  >
+                    <Paperclip className="h-4 w-4" />
+                    {attachments.length >= MAX_ATTACHMENTS ? "Attachment limit reached" : "Add attachments"}
+                  </button>
+                  <p className="text-xs text-gray-500">Up to {MAX_ATTACHMENTS} files, {formatFileSize(MAX_ATTACHMENT_SIZE)} max each.</p>
 
+                  {attachments.length > 0 && (
+                    <ul className="space-y-2">
+                      {attachments.map(item => (
+                        <li
+                          key={item.id}
+                          className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-3 py-2"
+                        >
+                          <div className="flex min-w-0 items-center gap-2 text-sm text-gray-700">
+                            <Paperclip className="h-4 w-4 flex-shrink-0 text-primary-500" />
+                            <span className="truncate" title={item.file.name}>{item.file.name}</span>
+                            <span className="flex-shrink-0 text-xs text-gray-500">{formatFileSize(item.file.size)}</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveAttachment(item.id)}
+                            className="rounded-full p-1 text-gray-400 transition hover:bg-red-50 hover:text-red-500"
+                            aria-label={`Remove ${item.file.name}`}
+                            disabled={loading}
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-6">
               <div className="space-y-3">
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-700">Note Title</label>
+                  <label className="mb-1 block text-sm font-medium text-gray-700">Note Title<span className="ml-1 text-red-500">*</span></label>
                   <input
                     type="text"
                     value={form.noteTitle}
@@ -543,24 +588,15 @@ export function ActivityNoteCreateModal({
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-700">Note Details</label>
+                  <label className="mb-1 block text-sm font-medium text-gray-700">Note Details<span className="ml-1 text-red-500">*</span></label>
                   <textarea
-                    rows={8}
+                    rows={10}
                     value={form.noteBody}
                     onChange={event => setForm(prev => ({ ...prev, noteBody: event.target.value }))}
                     className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
                     placeholder="Document key discussion points, blockers, or commitments."
                   />
                 </div>
-                <label className="flex items-center gap-2 text-sm text-gray-700">
-                  <input
-                    type="checkbox"
-                    checked={form.shareWithTeam}
-                    onChange={event => setForm(prev => ({ ...prev, shareWithTeam: event.target.checked }))}
-                    className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                  />
-                  <span>Share note with the broader team</span>
-                </label>
               </div>
 
               <div className="space-y-3">
@@ -613,10 +649,11 @@ export function ActivityNoteCreateModal({
                   </ul>
                 )}
               </div>
-            </section>
+            </div>
+          )}
           </div>
 
-          <div className="mt-6 flex items-center justify-end gap-3 border-t border-gray-200 pt-4">
+          <div className="mt-6 mb-6 flex items-center justify-end gap-3 border-t border-gray-200 pt-4 flex-shrink-0 px-6">
             <button
               type="button"
               onClick={handleClose}
