@@ -374,45 +374,45 @@ export function OpportunityCreateModal({ isOpen, accountId, accountName, onClose
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             {/* Field 01.08..000: Account Legal Name - Read-only */}
             <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">Account Legal Name</label>
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Account Legal Name</label>
               <input
                 type="text"
                 value={accountLegalName}
                 readOnly
-                className="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-600"
+                className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
               />
             </div>
             {/* Field 01.08..004: Account Name - Read-only */}
             <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">Account Name</label>
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Account Name</label>
               <input
                 type="text"
                 value={accountName}
                 readOnly
-                className="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-600"
+                className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
               />
             </div>
             {/* Field 01.08..002: Opportunity Name - Required */}
             <div className="md:col-span-2">
-              <label className="mb-1 block text-sm font-medium text-gray-700">Opportunity Name<span className="ml-1 text-red-500">*</span></label>
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Opportunity Name<span className="ml-1 text-red-500">*</span></label>
               <input
                 type="text"
                 value={form.name}
                 onChange={event => setForm(prev => ({ ...prev, name: event.target.value }))}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
                 placeholder="Enter opportunity name"
                 required
               />
             </div>
             {/* Field 01.08..001: Estimated Close Date - Required */}
             <div className="relative">
-              <label className="mb-1 block text-sm font-medium text-gray-700">Estimated Close Date<span className="ml-1 text-red-500">*</span></label>
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Estimated Close Date<span className="ml-1 text-red-500">*</span></label>
               <div className="relative">
                 <input
                   type="date"
                   value={form.estimatedCloseDate}
                   onChange={event => setForm(prev => ({ ...prev, estimatedCloseDate: event.target.value }))}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 pr-10 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500 [color-scheme:light] [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-2 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-datetime-edit]:opacity-0 [&::-webkit-datetime-edit]:focus:opacity-100"
+                  className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 pr-10 text-xs focus:outline-none focus:border-primary-500 [color-scheme:light] [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-2 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-datetime-edit]:opacity-0 [&::-webkit-datetime-edit]:focus:opacity-100"
                   style={{ colorScheme: 'light' }}
                   onFocus={(e) => {
                     e.currentTarget.classList.add('date-input-focused')
@@ -422,18 +422,18 @@ export function OpportunityCreateModal({ isOpen, accountId, accountName, onClose
                   }}
                   required
                 />
-                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-900">
+                <span className="pointer-events-none absolute left-0 top-1/2 -translate-y-1/2 text-xs text-gray-900">
                   {form.estimatedCloseDate || <span className="text-gray-400">YYYY-MM-DD</span>}
                 </span>
               </div>
             </div>
             {/* Field 01.08..003: Stage - Required */}
             <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">Stage<span className="ml-1 text-red-500">*</span></label>
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Stage<span className="ml-1 text-red-500">*</span></label>
               <select
                 value={form.stage}
                 onChange={event => setForm(prev => ({ ...prev, stage: event.target.value as OpportunityStage }))}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
               >
                 {stageOptions.map(option => (
                   <option
@@ -449,7 +449,7 @@ export function OpportunityCreateModal({ isOpen, accountId, accountName, onClose
             </div>
             {/* Field 01.08..005: Owner - Required */}
             <div className="relative">
-              <label className="mb-1 block text-sm font-medium text-gray-700">Owner<span className="ml-1 text-red-500">*</span></label>
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Owner<span className="ml-1 text-red-500">*</span></label>
               <input
                 type="text"
                 value={ownerQuery}
@@ -463,7 +463,7 @@ export function OpportunityCreateModal({ isOpen, accountId, accountName, onClose
                   setTimeout(() => setShowOwnerDropdown(false), 200)
                 }}
                 placeholder="Type to search owners..."
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
                 disabled={optionsLoading}
                 required
               />
@@ -488,7 +488,7 @@ export function OpportunityCreateModal({ isOpen, accountId, accountName, onClose
             </div>
             {/* Field 01.08..007: Referred By - Required */}
             <div className="relative">
-              <label className="mb-1 block text-sm font-medium text-gray-700">Referred By<span className="ml-1 text-red-500">*</span></label>
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Referred By<span className="ml-1 text-red-500">*</span></label>
               <input
                 type="text"
                 value={contactQuery}
@@ -502,7 +502,7 @@ export function OpportunityCreateModal({ isOpen, accountId, accountName, onClose
                   setTimeout(() => setShowContactDropdown(false), 200)
                 }}
                 placeholder="Type to search contacts..."
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
                 disabled={contactsLoading}
                 required
               />
@@ -530,7 +530,7 @@ export function OpportunityCreateModal({ isOpen, accountId, accountName, onClose
             </div>
             {/* Field 01.08..006: Subagent - Optional */}
             <div className="relative">
-              <label className="mb-1 block text-sm font-medium text-gray-700">Subagent</label>
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Subagent</label>
               <input
                 type="text"
                 value={subagentQuery}
@@ -543,7 +543,7 @@ export function OpportunityCreateModal({ isOpen, accountId, accountName, onClose
                   setTimeout(() => setShowSubagentDropdown(false), 200)
                 }}
                 placeholder="Type to search subagents..."
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
                 disabled={subagentsLoading}
               />
               {showSubagentDropdown && subagentQuery.length > 0 && subagents.length > 0 && (
@@ -567,7 +567,7 @@ export function OpportunityCreateModal({ isOpen, accountId, accountName, onClose
             </div>
             {/* Field 01.08..009: House Rep % - Required */}
             <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">House Rep %<span className="ml-1 text-red-500">*</span></label>
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">House Rep %<span className="ml-1 text-red-500">*</span></label>
               <input
                 type="number"
                 step="0.01"
@@ -575,14 +575,14 @@ export function OpportunityCreateModal({ isOpen, accountId, accountName, onClose
                 max="100"
                 value={form.houseRepPercent}
                 onChange={event => setForm(prev => ({ ...prev, houseRepPercent: event.target.value }))}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
                 placeholder="0.00"
                 required
               />
             </div>
             {/* Field 01.08..010: Subagent % - Required */}
             <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">Subagent %<span className="ml-1 text-red-500">*</span></label>
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Subagent %<span className="ml-1 text-red-500">*</span></label>
               <input
                 type="number"
                 step="0.01"
@@ -590,28 +590,28 @@ export function OpportunityCreateModal({ isOpen, accountId, accountName, onClose
                 max="100"
                 value={form.subagentPercent}
                 onChange={event => setForm(prev => ({ ...prev, subagentPercent: event.target.value }))}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
                 placeholder="0.00"
                 required
               />
             </div>
             {/* Field 01.08..008: House Split % - Calculated (Read-only) */}
             <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">House Split %</label>
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">House Split %</label>
               <input
                 type="text"
                 value={`${houseSplitPercent}%`}
                 readOnly
-                className="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-600"
+                className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
               />
             </div>
             {/* Field 01.08..011: Opportunity Description - Required */}
             <div className="md:col-span-2">
-              <label className="mb-1 block text-sm font-medium text-gray-700">Opportunity Description<span className="ml-1 text-red-500">*</span></label>
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Opportunity Description<span className="ml-1 text-red-500">*</span></label>
               <textarea
                 value={form.description}
                 onChange={event => setForm(prev => ({ ...prev, description: event.target.value }))}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500 min-h-[80px] resize-vertical"
+                className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500 min-h-[80px] resize-vertical"
                 placeholder="Enter opportunity description"
                 required
               />
@@ -622,7 +622,7 @@ export function OpportunityCreateModal({ isOpen, accountId, accountName, onClose
             <button
               type="button"
               onClick={onClose}
-              className="rounded-full bg-gray-200 px-5 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-300"
+              className="rounded-full bg-gray-200 px-5 py-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500 transition hover:bg-gray-300"
             >
               Cancel
             </button>

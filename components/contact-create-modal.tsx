@@ -277,11 +277,11 @@ export function ContactCreateModal({ isOpen, onClose, onSuccess, options, defaul
 
   const renderReadOnlyInput = (label: string, value?: string) => (
     <div>
-      <label className="mb-1 block text-xs font-medium text-gray-600">{label}</label>
+      <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">{label}</label>
       <input
         value={value || ""}
         readOnly
-        className="w-full rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-sm text-gray-700 focus:outline-none"
+        className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
       />
     </div>
   )
@@ -368,12 +368,12 @@ export function ContactCreateModal({ isOpen, onClose, onSuccess, options, defaul
             <div className="space-y-4">
               <div className="grid grid-cols-[120px_1fr_1fr] gap-3">
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-700" htmlFor="contact-suffix">Suffix</label>
+                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500" htmlFor="contact-suffix">Suffix</label>
                   <select
                     id="contact-suffix"
                     value={formData.suffix}
                     onChange={event => handleInputChange("suffix", event.target.value)}
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
                   >
                     <option value="">Select</option>
                     <option value="Mr.">Mr.</option>
@@ -383,7 +383,7 @@ export function ContactCreateModal({ isOpen, onClose, onSuccess, options, defaul
                   </select>
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-700" htmlFor="contact-first-name">
+                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500" htmlFor="contact-first-name">
                     First Name <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -391,13 +391,13 @@ export function ContactCreateModal({ isOpen, onClose, onSuccess, options, defaul
                     type="text"
                     value={formData.firstName}
                     onChange={event => handleInputChange("firstName", event.target.value)}
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
                     placeholder="Enter First Name"
                     required
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-700" htmlFor="contact-last-name">
+                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500" htmlFor="contact-last-name">
                     Last Name <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -405,7 +405,7 @@ export function ContactCreateModal({ isOpen, onClose, onSuccess, options, defaul
                     type="text"
                     value={formData.lastName}
                     onChange={event => handleInputChange("lastName", event.target.value)}
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
                     placeholder="Enter Last Name"
                     required
                   />
@@ -413,7 +413,7 @@ export function ContactCreateModal({ isOpen, onClose, onSuccess, options, defaul
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700" htmlFor="contact-job-title">
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500" htmlFor="contact-job-title">
                   Job Title
                 </label>
                 <input
@@ -422,12 +422,12 @@ export function ContactCreateModal({ isOpen, onClose, onSuccess, options, defaul
                   value={formData.jobTitle}
                   onChange={event => handleInputChange("jobTitle", event.target.value)}
                   placeholder="Enter Job Title"
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
                 />
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700" htmlFor="contact-contact-type">
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500" htmlFor="contact-contact-type">
                   Contact Type
                 </label>
                 <input
@@ -435,14 +435,14 @@ export function ContactCreateModal({ isOpen, onClose, onSuccess, options, defaul
                   type="text"
                   value={selectedAccount?.accountTypeName || ""}
                   readOnly
-                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 focus:outline-none cursor-not-allowed"
+                  className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
                   placeholder="Select an account to view contact type"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-700" htmlFor="contact-work-phone">
+                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500" htmlFor="contact-work-phone">
                     Work Phone
                   </label>
                   <input
@@ -451,11 +451,11 @@ export function ContactCreateModal({ isOpen, onClose, onSuccess, options, defaul
                     value={formData.workPhone}
                     onChange={event => handleInputChange("workPhone", event.target.value)}
                     placeholder="+1-555-123-4567"
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-700" htmlFor="contact-extension">
+                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500" htmlFor="contact-extension">
                     Extension
                   </label>
                   <input
@@ -464,13 +464,13 @@ export function ContactCreateModal({ isOpen, onClose, onSuccess, options, defaul
                     value={formData.extension}
                     onChange={event => handleInputChange("extension", event.target.value)}
                     placeholder="Extension"
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700" htmlFor="contact-mobile">
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500" htmlFor="contact-mobile">
                   Mobile
                 </label>
                 <input
@@ -479,12 +479,12 @@ export function ContactCreateModal({ isOpen, onClose, onSuccess, options, defaul
                   value={formData.mobilePhone}
                   onChange={event => handleInputChange("mobilePhone", event.target.value)}
                   placeholder="+1-555-987-6543"
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
                 />
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700" htmlFor="contact-email">
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500" htmlFor="contact-email">
                   Email Address
                 </label>
                 <input
@@ -493,12 +493,12 @@ export function ContactCreateModal({ isOpen, onClose, onSuccess, options, defaul
                   value={formData.emailAddress}
                   onChange={event => handleInputChange("emailAddress", event.target.value)}
                   placeholder="Enter Email"
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
                 />
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700" htmlFor="contact-description">
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500" htmlFor="contact-description">
                   Description
                 </label>
                 <textarea
@@ -507,7 +507,7 @@ export function ContactCreateModal({ isOpen, onClose, onSuccess, options, defaul
                   value={formData.description}
                   onChange={event => handleInputChange("description", event.target.value)}
                   placeholder="Enter Description"
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
                 />
               </div>
             </div>
@@ -517,7 +517,7 @@ export function ContactCreateModal({ isOpen, onClose, onSuccess, options, defaul
             <button
               type="button"
               onClick={handleClose}
-              className="rounded-full bg-gray-200 px-5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-300"
+              className="rounded-full bg-gray-200 px-5 py-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500 hover:bg-gray-300"
               disabled={loading}
             >
               Cancel

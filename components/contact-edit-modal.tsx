@@ -360,7 +360,7 @@ export function ContactEditModal({ isOpen, onClose, onSuccess, contact }: Contac
       <input
         value={value || ""}
         readOnly
-        className="w-full rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-sm text-gray-700 focus:outline-none"
+        className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
       />
     </div>
   )
@@ -449,14 +449,14 @@ export function ContactEditModal({ isOpen, onClose, onSuccess, contact }: Contac
             <div className="space-y-4">
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-700" htmlFor="edit-contact-suffix">
+                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500" htmlFor="edit-contact-suffix">
                     Suffix
                   </label>
                   <select
                     id="edit-contact-suffix"
                     value={form.suffix}
                     onChange={handleFieldChange("suffix")}
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
                   >
                     <option value="">Select</option>
                     <option value="Mr.">Mr.</option>
@@ -467,7 +467,7 @@ export function ContactEditModal({ isOpen, onClose, onSuccess, contact }: Contac
                   </select>
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-700" htmlFor="edit-contact-first-name">
+                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500" htmlFor="edit-contact-first-name">
                     First Name <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -475,13 +475,13 @@ export function ContactEditModal({ isOpen, onClose, onSuccess, contact }: Contac
                     type="text"
                     value={form.firstName}
                     onChange={handleFieldChange("firstName")}
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
                     placeholder="Enter First Name"
                     required
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-700" htmlFor="edit-contact-last-name">
+                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500" htmlFor="edit-contact-last-name">
                     Last Name <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -489,7 +489,7 @@ export function ContactEditModal({ isOpen, onClose, onSuccess, contact }: Contac
                     type="text"
                     value={form.lastName}
                     onChange={handleFieldChange("lastName")}
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
                     placeholder="Enter Last Name"
                     required
                   />
@@ -497,14 +497,14 @@ export function ContactEditModal({ isOpen, onClose, onSuccess, contact }: Contac
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700" htmlFor="edit-contact-account">
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500" htmlFor="edit-contact-account">
                   Account Name <span className="text-red-500">*</span>
                 </label>
                 <select
                   id="edit-contact-account"
                   value={form.accountId}
                   onChange={handleFieldChange("accountId")}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
                   required
                 >
                   <option value="">Select</option>
@@ -517,7 +517,7 @@ export function ContactEditModal({ isOpen, onClose, onSuccess, contact }: Contac
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700" htmlFor="edit-contact-job-title">
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500" htmlFor="edit-contact-job-title">
                   Job Title
                 </label>
                 <input
@@ -526,13 +526,13 @@ export function ContactEditModal({ isOpen, onClose, onSuccess, contact }: Contac
                   value={form.jobTitle}
                   onChange={handleFieldChange("jobTitle")}
                   placeholder="Enter Job Title"
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-700" htmlFor="edit-contact-work-phone">
+                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500" htmlFor="edit-contact-work-phone">
                     Work Phone
                   </label>
                   <input
@@ -541,11 +541,11 @@ export function ContactEditModal({ isOpen, onClose, onSuccess, contact }: Contac
                     value={form.workPhone}
                     onChange={handleFieldChange("workPhone")}
                     placeholder="+1-555-123-4567"
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-700" htmlFor="edit-contact-extension">
+                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500" htmlFor="edit-contact-extension">
                     Extension
                   </label>
                   <input
@@ -554,13 +554,13 @@ export function ContactEditModal({ isOpen, onClose, onSuccess, contact }: Contac
                     value={form.extension}
                     onChange={handleFieldChange("extension")}
                     placeholder="Extension"
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700" htmlFor="edit-contact-mobile">
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500" htmlFor="edit-contact-mobile">
                   Mobile
                 </label>
                 <input
@@ -569,12 +569,12 @@ export function ContactEditModal({ isOpen, onClose, onSuccess, contact }: Contac
                   value={form.mobilePhone}
                   onChange={handleFieldChange("mobilePhone")}
                   placeholder="+1-555-987-6543"
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
                 />
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Active (Y/N)</label>
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Active (Y/N)</label>
                 <div className="flex items-center gap-3 rounded-lg border border-gray-300 bg-white px-3 py-2">
                   <span className="text-sm text-gray-600">{form.active ? "Yes" : "No"}</span>
                   <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-gray-600">
@@ -590,7 +590,7 @@ export function ContactEditModal({ isOpen, onClose, onSuccess, contact }: Contac
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700" htmlFor="edit-contact-email">
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500" htmlFor="edit-contact-email">
                   Email Address
                 </label>
                 <input
@@ -599,12 +599,12 @@ export function ContactEditModal({ isOpen, onClose, onSuccess, contact }: Contac
                   value={form.emailAddress}
                   onChange={handleFieldChange("emailAddress")}
                   placeholder="Enter Email"
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
                 />
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700" htmlFor="edit-contact-description">
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500" htmlFor="edit-contact-description">
                   Description
                 </label>
                 <textarea
@@ -613,7 +613,7 @@ export function ContactEditModal({ isOpen, onClose, onSuccess, contact }: Contac
                   value={form.description}
                   onChange={handleFieldChange("description")}
                   placeholder="Enter Description"
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
                 />
               </div>
             </div>
@@ -631,7 +631,7 @@ export function ContactEditModal({ isOpen, onClose, onSuccess, contact }: Contac
             <button
               type="button"
               onClick={handleClose}
-              className="rounded-full bg-gray-200 px-5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-300"
+              className="rounded-full bg-gray-200 px-5 py-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500 hover:bg-gray-300"
               disabled={submitting}
             >
               Cancel

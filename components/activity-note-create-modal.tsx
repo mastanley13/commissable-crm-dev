@@ -433,12 +433,12 @@ export function ActivityNoteCreateModal({
               <div className="space-y-6">
                 <div className="space-y-3">
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-700">Subject<span className="ml-1 text-red-500">*</span></label>
+                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Subject<span className="ml-1 text-red-500">*</span></label>
                   <input
                     type="text"
                     value={form.activitySubject}
                     onChange={(event) => setForm(prev => ({ ...prev, activitySubject: event.target.value }))}
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
                     placeholder="Discovery follow-up"
                     required
                   />
@@ -446,11 +446,11 @@ export function ActivityNoteCreateModal({
 
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div>
-                    <label className="mb-1 block text-sm font-medium text-gray-700">Created By</label>
+                    <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Created By</label>
                     <select
                       value={form.createdById}
                       onChange={event => setForm(prev => ({ ...prev, createdById: event.target.value }))}
-                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
                       disabled={ownersLoading}
                     >
                       <option value="">{ownersLoading ? "Loading users..." : (user?.id ? "Current user" : "Select user")}</option>
@@ -460,11 +460,11 @@ export function ActivityNoteCreateModal({
                     </select>
                   </div>
                   <div>
-                    <label className="mb-1 block text-sm font-medium text-gray-700">Activity Type</label>
+                    <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Activity Type</label>
                     <select
                       value={form.activityType}
                       onChange={event => setForm(prev => ({ ...prev, activityType: event.target.value as ActivityType }))}
-                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
                     >
                       {TYPE_OPTIONS.map(option => (
                         <option key={option.value} value={option.value}>{option.label}</option>
@@ -475,13 +475,13 @@ export function ActivityNoteCreateModal({
 
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div className="relative">
-                    <label className="mb-1 block text-sm font-medium text-gray-700">Activity Date</label>
+                    <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Activity Date</label>
                     <div className="relative">
                       <input
                         type="date"
                         value={form.activityDate}
                         onChange={event => setForm(prev => ({ ...prev, activityDate: event.target.value }))}
-                        className="w-full rounded-lg border border-gray-300 px-3 py-2 pr-10 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500 [color-scheme:light] [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-2 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-datetime-edit]:opacity-0 [&::-webkit-datetime-edit]:focus:opacity-100"
+                        className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 pr-10 text-xs focus:outline-none focus:border-primary-500 [color-scheme:light] [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-2 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-datetime-edit]:opacity-0 [&::-webkit-datetime-edit]:focus:opacity-100"
                         style={{ colorScheme: 'light' }}
                         onFocus={(e) => {
                           e.currentTarget.classList.add('date-input-focused')
@@ -496,11 +496,11 @@ export function ActivityNoteCreateModal({
                     </div>
                   </div>
                   <div>
-                    <label className="mb-1 block text-sm font-medium text-gray-700">Assigned Owner</label>
+                    <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Assigned Owner</label>
                     <select
                       value={form.activityOwner}
                       onChange={event => setForm(prev => ({ ...prev, activityOwner: event.target.value }))}
-                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
                       disabled={ownersLoading}
                     >
                       <option value="">{ownersLoading ? "Loading owners..." : "Select owner"}</option>
@@ -512,19 +512,19 @@ export function ActivityNoteCreateModal({
                 </div>
 
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-700">Description</label>
+                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Description</label>
                   <textarea
                     rows={3}
                     value={form.activityDescription}
                     onChange={event => setForm(prev => ({ ...prev, activityDescription: event.target.value }))}
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
                     placeholder="Share any relevant details discussed."
                   />
                 </div>
 
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <label className="text-sm font-medium text-gray-700">Attachments</label>
+                    <label className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Attachments</label>
                     <span className="text-xs text-gray-500">{attachments.length}/{MAX_ATTACHMENTS} attached</span>
                   </div>
                   <input
@@ -578,22 +578,22 @@ export function ActivityNoteCreateModal({
             <div className="space-y-6">
               <div className="space-y-3">
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-700">Note Title<span className="ml-1 text-red-500">*</span></label>
+                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Note Title<span className="ml-1 text-red-500">*</span></label>
                   <input
                     type="text"
                     value={form.noteTitle}
                     onChange={event => setForm(prev => ({ ...prev, noteTitle: event.target.value }))}
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
                     placeholder="Next steps or summary"
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-700">Note Details<span className="ml-1 text-red-500">*</span></label>
+                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Note Details<span className="ml-1 text-red-500">*</span></label>
                   <textarea
                     rows={10}
                     value={form.noteBody}
                     onChange={event => setForm(prev => ({ ...prev, noteBody: event.target.value }))}
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
                     placeholder="Document key discussion points, blockers, or commitments."
                   />
                 </div>
@@ -601,7 +601,7 @@ export function ActivityNoteCreateModal({
 
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <label className="text-sm font-medium text-gray-700">Attachments</label>
+                  <label className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Attachments</label>
                   <span className="text-xs text-gray-500">{attachments.length}/{MAX_ATTACHMENTS} attached</span>
                 </div>
                 <input
@@ -657,7 +657,7 @@ export function ActivityNoteCreateModal({
             <button
               type="button"
               onClick={handleClose}
-              className="rounded-full border border-gray-300 px-5 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+              className="rounded-full border border-gray-300 px-5 py-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500 transition hover:bg-gray-50"
               disabled={loading}
             >
               Cancel

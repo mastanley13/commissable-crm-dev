@@ -2613,9 +2613,10 @@ export function OpportunityDetailsView({
                     void handleToggleLineItemActive(row.id, !activeValue, row.productName)
                   }}
                   className={cn(
-                    "relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-300 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500",
-                    activeValue ? "bg-blue-600" : "bg-gray-300",
-                    toggleDisabled ? "cursor-not-allowed" : "cursor-pointer hover:bg-blue-500"
+                    "relative inline-flex items-center rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500",
+                    "h-6 w-11",
+                    activeValue ? "bg-primary-600" : "bg-gray-300",
+                    toggleDisabled ? "cursor-not-allowed" : "cursor-pointer hover:bg-primary-700"
                   )}
                   aria-label={activeValue ? "Mark product inactive" : "Mark product active"}
                   disabled={toggleDisabled}
@@ -2623,8 +2624,8 @@ export function OpportunityDetailsView({
                 >
                   <span
                     className={cn(
-                      "inline-block h-4 w-4 rounded-full bg-white shadow transition-transform duration-300 ease-in-out",
-                      activeValue ? "translate-x-4 ring-1 ring-blue-300" : "translate-x-1",
+                      "inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform",
+                      activeValue ? "translate-x-5" : "translate-x-1",
                       toggleDisabled ? "opacity-80" : ""
                     )}
                   />

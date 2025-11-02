@@ -14,6 +14,7 @@ import { useToasts } from '@/components/toast'
 import { Check, Trash2 } from 'lucide-react'
 import { isRowInactive } from '@/lib/row-state'
 import { calculateMinWidth } from '@/lib/column-width-utils'
+import { cn } from '@/lib/utils'
 
 const PRODUCT_FILTER_OPTIONS = [
   { id: 'productNameVendor', label: 'Product Name - Vendor' },
@@ -865,14 +866,16 @@ export default function ProductsPage() {
                   title={row.active ? 'Active' : 'Inactive'}
                 >
                   <span
-                    className={`h-5 w-9 rounded-full transition-colors duration-300 ease-in-out ${
-                      row.active ? 'bg-blue-600' : 'bg-gray-300'
-                    }`}
+                    className={cn(
+                      "relative inline-flex h-6 w-11 items-center rounded-full transition-colors",
+                      row.active ? 'bg-primary-600' : 'bg-gray-300'
+                    )}
                   >
                     <span
-                      className={`mt-0.5 inline-block h-4 w-4 rounded-full bg-white shadow transition-transform duration-300 ease-in-out ${
-                        row.active ? 'translate-x-4' : 'translate-x-1'
-                      }`}
+                      className={cn(
+                        "inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform",
+                        row.active ? 'translate-x-5' : 'translate-x-1'
+                      )}
                     />
                   </span>
                 </button>

@@ -11,6 +11,7 @@ import type { DeletionConstraint } from "@/lib/deletion"
 import { useToasts } from "@/components/toast"
 import { useTablePreferences } from "@/hooks/useTablePreferences"
 import { formatPhoneNumber } from "@/lib/utils"
+import { cn } from "@/lib/utils"
 import { CopyProtectionWrapper } from "@/components/copy-protection"
 import { ContactBulkActionBar } from "@/components/contact-bulk-action-bar"
 import { ContactBulkOwnerModal } from "@/components/contact-bulk-owner-modal"
@@ -1232,14 +1233,16 @@ export default function ContactsPage() {
                   title={activeValue ? "Active" : "Inactive"}
                 >
                   <span
-                    className={`w-9 h-5 rounded-full transition-colors duration-300 ease-in-out ${
-                      activeValue ? "bg-blue-600" : "bg-gray-300"
-                    }`}
+                    className={cn(
+                      "relative inline-flex h-6 w-11 items-center rounded-full transition-colors",
+                      activeValue ? "bg-primary-600" : "bg-gray-300"
+                    )}
                   >
                     <span
-                      className={`inline-block w-4 h-4 bg-white rounded-full shadow transition-transform duration-300 ease-in-out transform ${
-                        activeValue ? "translate-x-4" : "translate-x-1"
-                      } mt-0.5 ${activeValue ? "ring-1 ring-blue-300" : ""}`}
+                      className={cn(
+                        "inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform",
+                        activeValue ? "translate-x-5" : "translate-x-1"
+                      )}
                     />
                   </span>
                 </button>

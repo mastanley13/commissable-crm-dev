@@ -249,7 +249,7 @@ export function ActivityCreateModal({ isOpen, onClose, onCreated, defaultAccount
         <form onSubmit={handleSubmit} className="max-h-[80vh] overflow-y-auto px-6 py-4">
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="col-span-1">
-              <label className="block text-sm font-medium text-gray-700">Subject<span className="ml-1 text-red-500">*</span></label>
+              <label className="block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Subject<span className="ml-1 text-red-500">*</span></label>
               <input
                 type="text"
                 value={form.subject}
@@ -259,7 +259,7 @@ export function ActivityCreateModal({ isOpen, onClose, onCreated, defaultAccount
               />
             </div>
             <div className="col-span-1">
-              <label className="block text-sm font-medium text-gray-700">Activity Date</label>
+              <label className="block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Activity Date</label>
               <input
                 type="date"
                 value={form.dueDate}
@@ -268,7 +268,7 @@ export function ActivityCreateModal({ isOpen, onClose, onCreated, defaultAccount
               />
             </div>
             <div className="col-span-1">
-              <label className="block text-sm font-medium text-gray-700">Activity Type</label>
+              <label className="block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Activity Type</label>
               <select
                 value={form.type}
                 onChange={event => setForm(prev => ({ ...prev, type: event.target.value as ActivityType }))}
@@ -282,7 +282,7 @@ export function ActivityCreateModal({ isOpen, onClose, onCreated, defaultAccount
               </select>
             </div>
             <div className="col-span-1">
-              <label className="block text-sm font-medium text-gray-700">Owner</label>
+              <label className="block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Owner</label>
               <select
                 value={form.assigneeId}
                 onChange={event => setForm(prev => ({ ...prev, assigneeId: event.target.value }))}
@@ -295,7 +295,7 @@ export function ActivityCreateModal({ isOpen, onClose, onCreated, defaultAccount
               </select>
             </div>
             <div className="col-span-2">
-              <label className="block text-sm font-medium text-gray-700">Description</label>
+              <label className="block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Description</label>
               <textarea
                 value={form.description}
                 onChange={event => setForm(prev => ({ ...prev, description: event.target.value }))}
@@ -304,7 +304,7 @@ export function ActivityCreateModal({ isOpen, onClose, onCreated, defaultAccount
               />
             </div>
             <div className="col-span-1">
-              <label className="block text-sm font-medium text-gray-700">Location</label>
+              <label className="block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Location</label>
               <input
                 type="text"
                 value={form.location}
@@ -313,7 +313,7 @@ export function ActivityCreateModal({ isOpen, onClose, onCreated, defaultAccount
               />
             </div>
             <div className="col-span-1">
-              <label className="block text-sm font-medium text-gray-700">Status</label>
+              <label className="block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Status</label>
               <select
                 value={form.status}
                 onChange={event => setForm(prev => ({ ...prev, status: event.target.value as ActivityStatus }))}
@@ -325,7 +325,7 @@ export function ActivityCreateModal({ isOpen, onClose, onCreated, defaultAccount
               </select>
             </div>
             <div className="col-span-1">
-              <label className="block text-sm font-medium text-gray-700">Account</label>
+              <label className="block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Account</label>
               <input
                 type="text"
                 value={accountQuery || form.accountName}
@@ -357,7 +357,7 @@ export function ActivityCreateModal({ isOpen, onClose, onCreated, defaultAccount
               )}
             </div>
             <div className="col-span-1">
-              <label className="block text-sm font-medium text-gray-700">Contact</label>
+              <label className="block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Contact</label>
               <input
                 type="text"
                 value={contactQuery || form.contactName}
@@ -389,7 +389,7 @@ export function ActivityCreateModal({ isOpen, onClose, onCreated, defaultAccount
               )}
             </div>
             <div className="col-span-2">
-              <label className="block text-sm font-medium text-gray-700">Attachments</label>
+              <label className="block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Attachments</label>
               <input
                 type="file"
                 multiple
@@ -404,7 +404,7 @@ export function ActivityCreateModal({ isOpen, onClose, onCreated, defaultAccount
           <div className="mt-6 flex items-center justify-end gap-3 border-t border-gray-200 pt-4">
             <button
               type="button"
-              className="inline-flex items-center gap-2 rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              className="inline-flex items-center gap-2 rounded-md border border-gray-300 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500 hover:bg-gray-50"
               onClick={() => { resetForm(); onClose() }}
               disabled={loading}
             >

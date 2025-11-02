@@ -133,7 +133,7 @@ export function OpportunityCreateModal({
 
   const { showError, showSuccess } = useToasts()
   const inputClass =
-    "w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
+    "w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
   const textareaClass = `${inputClass} min-h-[80px] resize-vertical`
 
   useEffect(() => {
@@ -525,7 +525,7 @@ export function OpportunityCreateModal({
           <div className="space-y-6">
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">
                   Opportunity Name<span className="ml-1 text-red-500">*</span>
                 </label>
                 <input
@@ -539,7 +539,7 @@ export function OpportunityCreateModal({
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">
                   Referred By<span className="ml-1 text-red-500">*</span>
                 </label>
                 <select
@@ -556,7 +556,7 @@ export function OpportunityCreateModal({
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Order ID - Vendor</label>
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Order ID - Vendor</label>
                 <input
                   type="text"
                   value={form.orderIdVendor}
@@ -567,7 +567,7 @@ export function OpportunityCreateModal({
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Order ID - Distributor</label>
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Order ID - Distributor</label>
                 <input
                   type="text"
                   value={form.orderIdDistributor}
@@ -578,7 +578,7 @@ export function OpportunityCreateModal({
               </div>
 
               <div className="xl:col-span-2">
-                <label className="mb-1 block text-sm font-medium text-gray-700">
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">
                   Account Name<span className="ml-1 text-red-500">*</span>
                 </label>
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-[2fr_3fr] sm:items-end">
@@ -626,7 +626,7 @@ export function OpportunityCreateModal({
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Order ID - House</label>
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Order ID - House</label>
                 <input
                   type="text"
                   value={form.orderIdHouse}
@@ -637,7 +637,7 @@ export function OpportunityCreateModal({
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Customer PO Number</label>
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Customer PO Number</label>
                 <input
                   type="text"
                   value={form.customerPurchaseOrder}
@@ -648,7 +648,7 @@ export function OpportunityCreateModal({
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Account Legal Name</label>
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Account Legal Name</label>
                 <input
                   type="text"
                   value={form.accountLegalName}
@@ -659,7 +659,7 @@ export function OpportunityCreateModal({
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">
                   Opportunity Stage<span className="ml-1 text-red-500">*</span>
                 </label>
                 <select
@@ -681,7 +681,7 @@ export function OpportunityCreateModal({
               </div>
 
               <div className="relative">
-                <label className="mb-1 block text-sm font-medium text-gray-700">
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">
                   Estimated Close Date<span className="ml-1 text-red-500">*</span>
                 </label>
                 <div className="relative">
@@ -689,7 +689,7 @@ export function OpportunityCreateModal({
                     type="date"
                     value={form.estimatedCloseDate}
                     onChange={event => setForm(previous => ({ ...previous, estimatedCloseDate: event.target.value }))}
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 pr-10 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500 [color-scheme:light] [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-2 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-datetime-edit]:opacity-0 [&::-webkit-datetime-edit]:focus:opacity-100"
+                    className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 pr-10 text-xs focus:outline-none focus:border-primary-500 [color-scheme:light] [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-2 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-datetime-edit]:opacity-0 [&::-webkit-datetime-edit]:focus:opacity-100"
                     style={{ colorScheme: 'light' }}
                     onFocus={(e) => {
                       e.currentTarget.classList.add('date-input-focused')
@@ -706,7 +706,7 @@ export function OpportunityCreateModal({
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">
                   Owner<span className="ml-1 text-red-500">*</span>
                 </label>
                 <select
@@ -726,7 +726,7 @@ export function OpportunityCreateModal({
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Subagent</label>
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Subagent</label>
                 <div className="relative">
                   <input
                     type="text"
@@ -766,7 +766,7 @@ export function OpportunityCreateModal({
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Subagent %</label>
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Subagent %</label>
                 <input
                   type="number"
                   min="0"
@@ -779,7 +779,7 @@ export function OpportunityCreateModal({
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">House Rep %</label>
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">House Rep %</label>
                 <input
                   type="number"
                   min="0"
@@ -792,7 +792,7 @@ export function OpportunityCreateModal({
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">House Split %</label>
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">House Split %</label>
                 <input
                   type="number"
                   value={houseSplitPercentDisplay}
@@ -802,7 +802,7 @@ export function OpportunityCreateModal({
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Account ID - House</label>
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Account ID - House</label>
                 <input
                   type="text"
                   value={form.accountIdHouse}
@@ -813,7 +813,7 @@ export function OpportunityCreateModal({
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Account ID - Vendor</label>
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Account ID - Vendor</label>
                 <input
                   type="text"
                   value={form.accountIdVendor}
@@ -824,7 +824,7 @@ export function OpportunityCreateModal({
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Account ID - Distributor</label>
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Account ID - Distributor</label>
                 <input
                   type="text"
                   value={form.accountIdDistributor}
@@ -835,7 +835,7 @@ export function OpportunityCreateModal({
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Customer ID - House</label>
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Customer ID - House</label>
                 <input
                   type="text"
                   value={form.customerIdHouse}
@@ -846,7 +846,7 @@ export function OpportunityCreateModal({
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Customer ID - Vendor</label>
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Customer ID - Vendor</label>
                 <input
                   type="text"
                   value={form.customerIdVendor}
@@ -857,7 +857,7 @@ export function OpportunityCreateModal({
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Customer ID - Distributor</label>
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Customer ID - Distributor</label>
                 <input
                   type="text"
                   value={form.customerIdDistributor}
@@ -868,7 +868,7 @@ export function OpportunityCreateModal({
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Location ID - Vendor</label>
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Location ID - Vendor</label>
                 <input
                   type="text"
                   value={form.locationId}
@@ -879,7 +879,7 @@ export function OpportunityCreateModal({
               </div>
 
               <div className="md:col-span-2 xl:col-span-2">
-                <label className="mb-1 block text-sm font-medium text-gray-700">Shipping Address</label>
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Shipping Address</label>
                 <textarea
                   value={form.shippingAddress}
                   onChange={event => setForm(previous => ({ ...previous, shippingAddress: event.target.value }))}
@@ -889,7 +889,7 @@ export function OpportunityCreateModal({
               </div>
 
               <div className="md:col-span-2 xl:col-span-2">
-                <label className="mb-1 block text-sm font-medium text-gray-700">Billing Address</label>
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Billing Address</label>
                 <textarea
                   value={form.billingAddress}
                   onChange={event => setForm(previous => ({ ...previous, billingAddress: event.target.value }))}
@@ -899,7 +899,7 @@ export function OpportunityCreateModal({
               </div>
 
               <div className="md:col-span-2 xl:col-span-2">
-                <label className="mb-1 block text-sm font-medium text-gray-700">Opportunity Description</label>
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Opportunity Description</label>
                 <textarea
                   value={form.description}
                   onChange={event => setForm(previous => ({ ...previous, description: event.target.value }))}
@@ -912,7 +912,7 @@ export function OpportunityCreateModal({
             <button
               type="button"
               onClick={handleClose}
-              className="rounded-full bg-gray-200 px-5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-300"
+              className="rounded-full bg-gray-200 px-5 py-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500 hover:bg-gray-300"
               disabled={submitting}
             >
               Cancel

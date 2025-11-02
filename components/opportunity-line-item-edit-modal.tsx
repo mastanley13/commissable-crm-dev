@@ -297,7 +297,7 @@ export function OpportunityLineItemEditModal({
           <div className="space-y-6">
             <div>
               <div className="flex items-center justify-between">
-                <label className="text-sm font-medium text-gray-700">Product</label>
+                <label className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Product</label>
                 <div className="flex items-center gap-2">
                   <div className="relative">
                     <input
@@ -338,7 +338,7 @@ export function OpportunityLineItemEditModal({
                         productId: event.target.value
                       }))
                     }
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                    className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
                     required
                   >
                     {productOptions.map(option => {
@@ -375,7 +375,7 @@ export function OpportunityLineItemEditModal({
 
             <div className="grid gap-4 md:grid-cols-2">
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">
                   Quantity<span className="ml-1 text-red-500">*</span>
                 </label>
                 <input
@@ -394,7 +394,7 @@ export function OpportunityLineItemEditModal({
                 />
               </div>
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Unit Price</label>
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Unit Price</label>
                 <input
                   type="number"
                   min="0"
@@ -410,7 +410,7 @@ export function OpportunityLineItemEditModal({
                 />
               </div>
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Expected Usage</label>
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Expected Usage</label>
                 <input
                   type="number"
                   min="0"
@@ -426,7 +426,7 @@ export function OpportunityLineItemEditModal({
                 />
               </div>
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Expected Revenue</label>
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Expected Revenue</label>
                 <input
                   type="number"
                   min="0"
@@ -443,7 +443,7 @@ export function OpportunityLineItemEditModal({
                 />
               </div>
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Expected Commission</label>
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Expected Commission</label>
                 <input
                   type="number"
                   min="0"
@@ -459,7 +459,7 @@ export function OpportunityLineItemEditModal({
                 />
               </div>
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Start Date</label>
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Start Date</label>
                 <input
                   type="date"
                   value={form.revenueStartDate}
@@ -473,7 +473,7 @@ export function OpportunityLineItemEditModal({
                 />
               </div>
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">End Date</label>
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">End Date</label>
                 <input
                   type="date"
                   value={form.revenueEndDate}
@@ -493,7 +493,7 @@ export function OpportunityLineItemEditModal({
             <button
               type="button"
               onClick={onClose}
-              className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-md border border-gray-300 bg-white px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60"
               disabled={loading}
             >
               Cancel

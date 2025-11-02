@@ -319,22 +319,22 @@ export function ContactGroupCreateModal({ isOpen, contactName, accountId, contac
         <form onSubmit={handleSubmit} className="max-h-[80vh] overflow-y-auto px-6 py-5">
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="md:col-span-2">
-              <label className="mb-1 block text-sm font-medium text-gray-700">Group Name<span className="ml-1 text-red-500">*</span></label>
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Group Name<span className="ml-1 text-red-500">*</span></label>
               <input
                 type="text"
                 value={form.name}
                 onChange={event => setForm(prev => ({ ...prev, name: event.target.value }))}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
                 placeholder="Enter group name"
                 required
               />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">Group Type</label>
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Group Type</label>
               <select
                 value={form.type}
                 onChange={event => setForm(prev => ({ ...prev, type: event.target.value as GroupType }))}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
               >
                 {groupTypeOptions.map(option => (
                   <option key={option.value} value={option.value}>{option.label}</option>
@@ -342,11 +342,11 @@ export function ContactGroupCreateModal({ isOpen, contactName, accountId, contac
               </select>
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">Visibility</label>
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Visibility</label>
               <select
                 value={form.visibility}
                 onChange={event => setForm(prev => ({ ...prev, visibility: event.target.value as GroupVisibility }))}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
               >
                 {visibilityOptions.map(option => (
                   <option key={option.value} value={option.value}>{option.label}</option>
@@ -354,7 +354,7 @@ export function ContactGroupCreateModal({ isOpen, contactName, accountId, contac
               </select>
             </div>
             <div className="relative">
-              <label className="mb-1 block text-sm font-medium text-gray-700">Group Owner<span className="ml-1 text-red-500">*</span></label>
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Group Owner<span className="ml-1 text-red-500">*</span></label>
               <input
                 type="text"
                 value={ownerQuery}
@@ -365,7 +365,7 @@ export function ContactGroupCreateModal({ isOpen, contactName, accountId, contac
                 onFocus={() => setShowOwnerDropdown(true)}
                 onBlur={() => setTimeout(() => setShowOwnerDropdown(false), 200)}
                 placeholder="Type to search owners..."
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
                 disabled={optionsLoading}
                 required
               />
@@ -389,9 +389,9 @@ export function ContactGroupCreateModal({ isOpen, contactName, accountId, contac
               )}
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">Active</label>
-              <div className="flex items-center gap-3 rounded-lg border border-gray-300 px-3 py-2">
-                <span className="text-sm text-gray-700">{form.isActive ? "Yes" : "No"}</span>
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Active</label>
+              <div className="flex items-center gap-3 px-0 py-1">
+                <span className="text-xs text-gray-600">{form.isActive ? "Yes" : "No"}</span>
                 <button
                   type="button"
                   onClick={() => setForm(prev => ({ ...prev, isActive: !prev.isActive }))}
@@ -402,12 +402,12 @@ export function ContactGroupCreateModal({ isOpen, contactName, accountId, contac
               </div>
             </div>
             <div className="md:col-span-2">
-              <label className="mb-1 block text-sm font-medium text-gray-700">Description</label>
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Description</label>
               <textarea
                 value={form.description}
                 onChange={event => setForm(prev => ({ ...prev, description: event.target.value.slice(0, 500) }))}
                 rows={3}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
                 placeholder="Describe the purpose of this group"
               />
             </div>
@@ -417,7 +417,7 @@ export function ContactGroupCreateModal({ isOpen, contactName, accountId, contac
             <button
               type="button"
               onClick={onClose}
-              className="rounded-full bg-gray-200 px-5 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-300"
+              className="rounded-full bg-gray-200 px-5 py-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500 transition hover:bg-gray-300"
             >
               Cancel
             </button>
@@ -447,7 +447,7 @@ export function ContactGroupCreateModal({ isOpen, contactName, accountId, contac
         <form onSubmit={handleAddExisting} className="max-h-[80vh] overflow-y-auto px-6 py-5">
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="md:col-span-2">
-              <label className="mb-1 block text-sm font-medium text-gray-700">Select Groups<span className="ml-1 text-red-500">*</span></label>
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Select Groups<span className="ml-1 text-red-500">*</span></label>
               <select
                 value={selectedGroupId}
                 onChange={(e) => {
@@ -458,7 +458,7 @@ export function ContactGroupCreateModal({ isOpen, contactName, accountId, contac
                   if (!option) return
                   setSelectedGroups(prev => prev.some(p => p.value === id) ? prev : [...prev, option])
                 }}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
                 disabled={groupsLoading || !contactId}
               >
                 <option value="">{groupsLoading ? "Loading groups..." : "Add a group..."}</option>
@@ -481,7 +481,7 @@ export function ContactGroupCreateModal({ isOpen, contactName, accountId, contac
             </div>
           </div>
           <div className="mt-6 flex flex-wrap items-center justify-end gap-3">
-            <button type="button" onClick={onClose} className="rounded-full bg-gray-200 px-5 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-300">Cancel</button>
+            <button type="button" onClick={onClose} className="rounded-full bg-gray-200 px-5 py-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500 transition hover:bg-gray-300">Cancel</button>
             <button type="submit" disabled={loading || !canAddExisting} className="flex items-center gap-2 rounded-full bg-primary-600 px-6 py-2 text-sm font-semibold text-white transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-primary-400">
               {loading && <Loader2 className="h-4 w-4 animate-spin" />}
               Add to Group

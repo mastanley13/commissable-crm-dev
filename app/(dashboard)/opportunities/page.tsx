@@ -19,6 +19,7 @@ import { OpportunityStatus } from '@prisma/client'
 import { Check, Trash2 } from 'lucide-react'
 import { isRowInactive } from '@/lib/row-state'
 import { calculateMinWidth } from '@/lib/column-width-utils'
+import { cn } from '@/lib/utils'
 import {
   getOpportunityStageLabel,
   isOpportunityStageAutoManaged,
@@ -1276,21 +1277,24 @@ export default function OpportunitiesPage() {
                       void handleOpportunityToggleActive(row, !activeValue)
                     }
                   }}
-                  className={`relative inline-flex cursor-pointer items-center rounded-full transition-opacity ${
+                  className={cn(
+                    "relative inline-flex cursor-pointer items-center rounded-full transition-opacity",
                     isUpdating ? 'opacity-60' : ''
-                  }`}
+                  )}
                   disabled={isUpdating}
                   title={activeValue ? 'Active' : 'Inactive'}
                 >
                   <span
-                    className={`h-5 w-9 rounded-full transition-colors duration-300 ease-in-out ${
-                      activeValue ? 'bg-blue-600' : 'bg-gray-300'
-                    }`}
+                    className={cn(
+                      "relative inline-flex h-6 w-11 items-center rounded-full transition-colors",
+                      activeValue ? 'bg-primary-600' : 'bg-gray-300'
+                    )}
                   >
                     <span
-                      className={`mt-0.5 inline-block h-4 w-4 rounded-full bg-white shadow transition-transform duration-300 ease-in-out ${
-                        activeValue ? 'translate-x-4' : 'translate-x-1'
-                      }`}
+                      className={cn(
+                        "inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform",
+                        activeValue ? 'translate-x-5' : 'translate-x-1'
+                      )}
                     />
                   </span>
                 </button>

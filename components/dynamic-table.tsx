@@ -660,35 +660,31 @@ export function DynamicTable({
     switch (column.type) {
       case "toggle":
         return (
-          <label className="relative inline-flex items-center cursor-pointer">
-            <input
-              type="checkbox"
-              checked={Boolean(value)}
-              className="sr-only"
-              onChange={(event) => {
-                if (onToggle) {
-                  onToggle(row, column.id, event.target.checked)
-                }
-              }}
-            />
-            <div
-              className={`w-10 h-5 rounded-full transition-colors ${
-                value ? "bg-blue-600" : "bg-gray-300"
-              }`}
-              onClick={(event) => {
-                event.preventDefault()
-                if (onToggle) {
-                  onToggle(row, column.id, !value)
-                }
-              }}
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation()
+              if (onToggle) {
+                onToggle(row, column.id, !value)
+              }
+            }}
+            className="relative inline-flex items-center cursor-pointer"
+            title={value ? "Active" : "Inactive"}
+          >
+            <span
+              className={cn(
+                "relative inline-flex h-6 w-11 items-center rounded-full transition-colors",
+                value ? "bg-primary-600" : "bg-gray-300"
+              )}
             >
-              <div
-                className={`w-4 h-4 bg-white rounded-full shadow-sm transition-transform transform ${
+              <span
+                className={cn(
+                  "inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform",
                   value ? "translate-x-5" : "translate-x-1"
-                } mt-0.5`}
-              ></div>
-            </div>
-          </label>
+                )}
+              />
+            </span>
+          </button>
         )
       case "action": {
         if (!isRowInactive(row)) return null

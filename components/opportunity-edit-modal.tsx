@@ -217,7 +217,7 @@ export function OpportunityEditModal({ isOpen, opportunityId, onClose, onSuccess
           <form className="space-y-6 px-6 py-6" onSubmit={handleSubmit}>
             <div className="grid gap-4 md:grid-cols-2">
               <div className="md:col-span-2">
-                <label className="mb-1 block text-sm font-medium text-gray-700" htmlFor="opportunity-name">
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500" htmlFor="opportunity-name">
                   Opportunity name
                 </label>
                 <input
@@ -233,7 +233,7 @@ export function OpportunityEditModal({ isOpen, opportunityId, onClose, onSuccess
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700" htmlFor="opportunity-stage">
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500" htmlFor="opportunity-stage">
                   Stage
                 </label>
                 <select
@@ -262,7 +262,7 @@ export function OpportunityEditModal({ isOpen, opportunityId, onClose, onSuccess
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700" htmlFor="opportunity-status">
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500" htmlFor="opportunity-status">
                   Status
                 </label>
                 <select
@@ -283,7 +283,7 @@ export function OpportunityEditModal({ isOpen, opportunityId, onClose, onSuccess
 
             <div className="grid gap-4 md:grid-cols-2">
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700" htmlFor="opportunity-owner">
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500" htmlFor="opportunity-owner">
                   Owner <span className="text-red-500">*</span>
                 </label>
                 <select
@@ -305,7 +305,7 @@ export function OpportunityEditModal({ isOpen, opportunityId, onClose, onSuccess
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700" htmlFor="opportunity-lead-source">
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500" htmlFor="opportunity-lead-source">
                   Lead source
                 </label>
                 <select
@@ -327,7 +327,7 @@ export function OpportunityEditModal({ isOpen, opportunityId, onClose, onSuccess
 
             <div className="grid gap-4 md:grid-cols-2">
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700" htmlFor="opportunity-estimated-close">
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500" htmlFor="opportunity-estimated-close">
                   Estimated close date <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -343,7 +343,7 @@ export function OpportunityEditModal({ isOpen, opportunityId, onClose, onSuccess
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700" htmlFor="opportunity-subagent">
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500" htmlFor="opportunity-subagent">
                   Sub-agent
                 </label>
                 <input
@@ -379,7 +379,7 @@ export function OpportunityEditModal({ isOpen, opportunityId, onClose, onSuccess
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60"
+                className="rounded-md border border-gray-300 bg-white px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60"
                 disabled={loading}
               >
                 Cancel

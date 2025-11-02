@@ -333,23 +333,23 @@ export function ContactOpportunityCreateModal({ isOpen, contactName, accountId, 
         <form onSubmit={handleSubmit} className="max-h-[80vh] overflow-y-auto px-6 py-5">
           <div className="grid gap-4 md:grid-cols-2">
             <div className="md:col-span-2">
-              <label className="mb-1 block text-sm font-medium text-gray-700">Opportunity Name<span className="ml-1 text-red-500">*</span></label>
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Opportunity Name<span className="ml-1 text-red-500">*</span></label>
               <input
                 type="text"
                 value={form.opportunityName}
                 onChange={event => setForm(prev => ({ ...prev, opportunityName: event.target.value }))}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
                 placeholder="Enterprise renewal"
                 required
               />
             </div>
 
             <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">Stage</label>
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Stage</label>
               <select
                 value={form.stage}
                 onChange={event => setForm(prev => ({ ...prev, stage: event.target.value }))}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
               >
                 {STAGE_OPTIONS.map(option => (
                   <option
@@ -365,13 +365,13 @@ export function ContactOpportunityCreateModal({ isOpen, contactName, accountId, 
             </div>
 
             <div className="relative">
-              <label className="mb-1 block text-sm font-medium text-gray-700">Estimated Close Date</label>
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Estimated Close Date</label>
               <div className="relative">
                 <input
                   type="date"
                   value={form.estimatedCloseDate}
                   onChange={event => setForm(prev => ({ ...prev, estimatedCloseDate: event.target.value }))}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 pr-10 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500 [color-scheme:light] [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-2 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-datetime-edit]:opacity-0 [&::-webkit-datetime-edit]:focus:opacity-100"
+                  className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 pr-10 text-xs focus:outline-none focus:border-primary-500 [color-scheme:light] [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-2 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-datetime-edit]:opacity-0 [&::-webkit-datetime-edit]:focus:opacity-100"
                   style={{ colorScheme: 'light' }}
                   onFocus={(e) => {
                     e.currentTarget.classList.add('date-input-focused')
@@ -387,7 +387,7 @@ export function ContactOpportunityCreateModal({ isOpen, contactName, accountId, 
             </div>
 
             <div className="relative">
-              <label className="mb-1 block text-sm font-medium text-gray-700">Opportunity Owner<span className="ml-1 text-red-500">*</span></label>
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Opportunity Owner<span className="ml-1 text-red-500">*</span></label>
               <input
                 type="text"
                 value={ownerQuery}
@@ -400,7 +400,7 @@ export function ContactOpportunityCreateModal({ isOpen, contactName, accountId, 
                   setTimeout(() => setShowOwnerDropdown(false), 200)
                 }}
                 placeholder="Type to search owners..."
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
                 disabled={ownersLoading}
                 required
               />
@@ -425,7 +425,7 @@ export function ContactOpportunityCreateModal({ isOpen, contactName, accountId, 
             </div>
 
             <div className="relative">
-              <label className="mb-1 block text-sm font-medium text-gray-700">Referred By</label>
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Referred By</label>
               <input
                 type="text"
                 value={contactQuery}
@@ -438,7 +438,7 @@ export function ContactOpportunityCreateModal({ isOpen, contactName, accountId, 
                   setTimeout(() => setShowContactDropdown(false), 200)
                 }}
                 placeholder="Type to search contacts..."
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
                 disabled={contactsLoading}
               />
               {showContactDropdown && contactQuery.length > 0 && contacts.length > 0 && (
@@ -465,7 +465,7 @@ export function ContactOpportunityCreateModal({ isOpen, contactName, accountId, 
             </div>
 
             <div className="relative">
-              <label className="mb-1 block text-sm font-medium text-gray-700">Subagent</label>
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Subagent</label>
               <input
                 type="text"
                 value={subagentQuery}
@@ -476,7 +476,7 @@ export function ContactOpportunityCreateModal({ isOpen, contactName, accountId, 
                 onFocus={() => setShowSubagentDropdown(true)}
                 onBlur={() => setTimeout(() => setShowSubagentDropdown(false), 200)}
                 placeholder="Type to search subagents..."
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
                 disabled={subagentsLoading}
               />
               {showSubagentDropdown && subagentQuery.length > 0 && subagents.length > 0 && (
@@ -503,12 +503,12 @@ export function ContactOpportunityCreateModal({ isOpen, contactName, accountId, 
             </div>
 
             <div className="md:col-span-2">
-              <label className="mb-1 block text-sm font-medium text-gray-700">Primary Account</label>
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Primary Account</label>
               <input
                 type="text"
                 value={form.primaryAccount}
                 onChange={event => setForm(prev => ({ ...prev, primaryAccount: event.target.value }))}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
                 placeholder="Algave LLC"
               />
             </div>
@@ -524,12 +524,12 @@ export function ContactOpportunityCreateModal({ isOpen, contactName, accountId, 
             </label>
 
             <div className="md:col-span-2">
-              <label className="mb-1 block text-sm font-medium text-gray-700">Internal Notes</label>
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Internal Notes</label>
               <textarea
                 rows={4}
                 value={form.notes}
                 onChange={event => setForm(prev => ({ ...prev, notes: event.target.value }))}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
                 placeholder="Add context, next steps, or deal risks for the team."
               />
             </div>
@@ -539,7 +539,7 @@ export function ContactOpportunityCreateModal({ isOpen, contactName, accountId, 
             <button
               type="button"
               onClick={handleClose}
-              className="rounded-full border border-gray-300 px-5 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+              className="rounded-full border border-gray-300 px-5 py-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500 transition hover:bg-gray-50"
               disabled={loading}
             >
               Cancel

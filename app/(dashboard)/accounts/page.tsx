@@ -22,6 +22,7 @@ import { AccountBulkStatusModal } from "@/components/account-bulk-status-modal";
 import { Trash2, Check } from "lucide-react";
 import { isRowInactive } from "@/lib/row-state";
 import { calculateMinWidth } from "@/lib/column-width-utils";
+import { cn } from "@/lib/utils";
 
 
 interface AccountRow {
@@ -1505,14 +1506,17 @@ export default function AccountsPage() {
                   title={activeValue ? "Active" : "Inactive"}
                 >
                   <span
-                    className={`w-9 h-5 rounded-full transition-colors duration-300 ease-in-out ${
-                      activeValue ? "bg-blue-600" : "bg-gray-300"
-                    } ${isUpdating ? "opacity-50" : ""}`}
+                    className={cn(
+                      "relative inline-flex h-6 w-11 items-center rounded-full transition-colors",
+                      activeValue ? "bg-primary-600" : "bg-gray-300",
+                      isUpdating ? "opacity-50" : ""
+                    )}
                   >
                     <span
-                      className={`inline-block w-4 h-4 bg-white rounded-full shadow transition-transform duration-300 ease-in-out transform ${
-                        activeValue ? "translate-x-4" : "translate-x-1"
-                      } mt-0.5 ${activeValue ? "ring-1 ring-blue-300" : ""}`}
+                      className={cn(
+                        "inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform",
+                        activeValue ? "translate-x-5" : "translate-x-1"
+                      )}
                     />
                   </span>
                 </button>

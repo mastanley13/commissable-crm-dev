@@ -673,7 +673,7 @@ function ContactHeader({
                 <div className="flex-1 min-w-[12rem]">
                   <div className={fieldBoxClass}>{contact.accountName || "--"}</div>
                 </div>
-                <div className="flex shrink-0 items-center gap-2 border-b-2 border-gray-300 bg-transparent px-0 py-1 text-[11px] font-medium text-gray-600 whitespace-nowrap">
+                <div className="flex shrink-0 items-center gap-2 bg-transparent px-0 py-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap">
                   <span>Active (Y/N)</span>
                   <ReadOnlySwitch value={contact.active} />
                 </div>
@@ -687,8 +687,8 @@ function ContactHeader({
                 <div className="flex-1 min-w-[12rem]">
                   <div className={fieldBoxClass}>{contact.workPhone || "--"}</div>
                 </div>
-                <div className="flex shrink-0 items-center gap-2 bg-transparent px-0 py-0 text-[11px] font-medium text-gray-600 whitespace-nowrap">
-                  <span>Extension</span>
+                <div className="flex shrink-0 items-center gap-2 bg-transparent px-0 py-0 text-[11px] font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap">
+                  <span>Ext</span>
                   <div className="min-w-[3rem] text-center border-b-2 border-gray-300 py-1">{contact.workPhoneExt || "--"}</div>
                 </div>
               </div>
@@ -872,7 +872,7 @@ function EditableContactHeader({
                       ))}
                     </EditableField.Select>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0 border-b-2 border-gray-300 bg-transparent px-0 py-1 text-[11px] font-medium text-gray-600">
+                  <div className="flex items-center gap-2 shrink-0 bg-transparent px-0 py-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap">
                     <span>Active (Y/N)</span>
                     <ReadOnlySwitch value={contact.active} />
                   </div>
@@ -897,8 +897,8 @@ function EditableContactHeader({
                       placeholder="123-456-7890"
                     />
                   </div>
-                  <div className="flex items-center gap-2 shrink-0 bg-transparent px-0 py-0 text-[11px] font-medium text-gray-600">
-                    <span>Extension</span>
+                  <div className="flex items-center gap-2 shrink-0 bg-transparent px-0 py-0 text-[11px] font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap">
+                    <span>Ext</span>
                     <EditableField.Input
                       className="w-20"
                       value={(workPhoneExtField.value as string) ?? ""}
@@ -2528,14 +2528,16 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
                   title={activeValue ? "Active" : "Inactive"}
                 >
                   <span
-                    className={`w-9 h-5 rounded-full transition-colors duration-300 ease-in-out ${
-                      activeValue ? "bg-blue-600" : "bg-gray-300"
-                    }`}
+                    className={cn(
+                      "relative inline-flex h-6 w-11 items-center rounded-full transition-colors",
+                      activeValue ? "bg-primary-600" : "bg-gray-300"
+                    )}
                   >
                     <span
-                      className={`inline-block w-4 h-4 bg-white rounded-full shadow transition-transform duration-300 ease-in-out transform ${
-                        activeValue ? "translate-x-4" : "translate-x-1"
-                      } mt-0.5 ${activeValue ? "ring-1 ring-blue-300" : ""}`}
+                      className={cn(
+                        "inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform",
+                        activeValue ? "translate-x-5" : "translate-x-1"
+                      )}
                     />
                   </span>
                 </button>
@@ -2629,14 +2631,16 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
                   title={activeValue ? "Active" : "Inactive"}
                 >
                   <span
-                    className={`w-9 h-5 rounded-full transition-colors duration-300 ease-in-out ${
-                      activeValue ? "bg-blue-600" : "bg-gray-300"
-                    }`}
+                    className={cn(
+                      "relative inline-flex h-6 w-11 items-center rounded-full transition-colors",
+                      activeValue ? "bg-primary-600" : "bg-gray-300"
+                    )}
                   >
                     <span
-                      className={`inline-block w-4 h-4 bg-white rounded-full shadow transition-transform duration-300 ease-in-out transform ${
-                        activeValue ? "translate-x-4" : "translate-x-1"
-                      } mt-0.5 ${activeValue ? "ring-1 ring-blue-300" : ""}`}
+                      className={cn(
+                        "inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform",
+                        activeValue ? "translate-x-5" : "translate-x-1"
+                      )}
                     />
                   </span>
                 </button>
@@ -2764,14 +2768,16 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
                   title={activeValue ? "Active" : "Inactive"}
                 >
                   <span
-                    className={`w-9 h-5 rounded-full transition-colors duration-300 ease-in-out ${
-                      activeValue ? "bg-blue-600" : "bg-gray-300"
-                    }`}
+                    className={cn(
+                      "relative inline-flex h-6 w-11 items-center rounded-full transition-colors",
+                      activeValue ? "bg-primary-600" : "bg-gray-300"
+                    )}
                   >
                     <span
-                      className={`inline-block w-4 h-4 bg-white rounded-full shadow transition-transform duration-300 ease-in-out transform ${
-                        activeValue ? "translate-x-4" : "translate-x-1"
-                      } mt-0.5 ${activeValue ? "ring-1 ring-blue-300" : ""}`}
+                      className={cn(
+                        "inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform",
+                        activeValue ? "translate-x-5" : "translate-x-1"
+                      )}
                     />
                   </span>
                 </button>

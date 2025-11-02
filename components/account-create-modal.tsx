@@ -398,7 +398,6 @@ export function AccountCreateModal({ isOpen, onClose, onSubmit }: AccountCreateM
         <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
           <div>
             <h2 className="text-lg font-semibold text-gray-900">Add Account</h2>
-            <p className="text-sm text-gray-500">Fill out the details below to add a new account.</p>
           </div>
           <button
             type="button"
@@ -426,12 +425,12 @@ export function AccountCreateModal({ isOpen, onClose, onSubmit }: AccountCreateM
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             <div className="space-y-4">
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Account Name *</label>
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Account Name <span className="text-red-500">*</span></label>
                 <input
                   type="text"
                   value={form.accountName}
                   onChange={handleFieldChange("accountName")}
-                  className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 ${errors.accountName ? "border-red-400" : "border-gray-300"}`}
+                  className={`w-full border-b-2 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500 ${errors.accountName ? "border-red-500 focus:border-red-500" : "border-gray-300"}`}
                   placeholder="Enter Account Name"
                   required
                 />
@@ -439,18 +438,18 @@ export function AccountCreateModal({ isOpen, onClose, onSubmit }: AccountCreateM
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Account Legal Name</label>
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Account Legal Name</label>
                 <input
                   type="text"
                   value={form.accountLegalName}
                   onChange={handleFieldChange("accountLegalName")}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
                   placeholder="Enter Legal Name"
                 />
               </div>
 
               <div className="relative">
-                <label className="mb-1 block text-sm font-medium text-gray-700">Parent Account</label>
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Parent Account</label>
                 <input
                   type="text"
                   value={parentAccountQuery}
@@ -467,7 +466,7 @@ export function AccountCreateModal({ isOpen, onClose, onSubmit }: AccountCreateM
                     setTimeout(() => setShowParentAccountResults(false), 120)
                   }}
                   placeholder="Search parent accounts"
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
                   autoComplete="off"
                 />
                 {showParentAccountResults && parentAccountResults.length > 0 ? (
@@ -498,11 +497,11 @@ export function AccountCreateModal({ isOpen, onClose, onSubmit }: AccountCreateM
 
               <div className="grid grid-cols-5 gap-3">
                 <div className="col-span-3">
-                  <label className="mb-1 block text-sm font-medium text-gray-700">Account Type *</label>
+                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Account Type <span className="text-red-500">*</span></label>
                   <select
                     value={form.accountTypeId}
                     onChange={handleFieldChange("accountTypeId")}
-                    className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 ${errors.accountTypeId ? "border-red-400" : "border-gray-300"}`}
+                    className={`w-full border-b-2 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500 ${errors.accountTypeId ? "border-red-500 focus:border-red-500" : "border-gray-300"}`}
                     required
                   >
                     <option value="">- Select -</option>
@@ -515,10 +514,10 @@ export function AccountCreateModal({ isOpen, onClose, onSubmit }: AccountCreateM
                   {errors.accountTypeId && <p className="mt-1 text-xs text-red-600">{errors.accountTypeId}</p>}
                 </div>
                 <div className="col-span-2">
-                  <label className="mb-1 block text-sm font-medium text-gray-700">Active (Y/N)</label>
-                  <div className="flex items-center gap-3 rounded-lg border border-gray-300 px-3 py-2">
-                    <span className="text-sm text-gray-600">{form.active ? "Yes" : "No"}</span>
-                    <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-gray-600">
+                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Active (Y/N)</label>
+                  <div className="flex items-center gap-3 px-0 py-1">
+                    <span className="text-xs text-gray-600">{form.active ? "Yes" : "No"}</span>
+                    <label className="inline-flex cursor-pointer items-center gap-2 text-xs text-gray-600">
                       <input
                         type="checkbox"
                         className="h-5 w-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
@@ -532,11 +531,11 @@ export function AccountCreateModal({ isOpen, onClose, onSubmit }: AccountCreateM
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Account Owner</label>
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Account Owner</label>
                 <select
                   value={form.ownerId}
                   onChange={handleFieldChange("ownerId")}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
                 >
                   <option value="">Select</option>
                   {owners.map(option => (
@@ -548,23 +547,23 @@ export function AccountCreateModal({ isOpen, onClose, onSubmit }: AccountCreateM
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Website URL</label>
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Website URL</label>
                 <input
                   type="url"
                   value={form.websiteUrl}
                   onChange={handleFieldChange("websiteUrl")}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
                   placeholder="www.commissable.com"
                 />
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Description</label>
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Description</label>
                 <textarea
                   value={form.description}
                   onChange={handleFieldChange("description")}
                   rows={4}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
                   placeholder="Enter Description"
                 />
               </div>
@@ -575,12 +574,12 @@ export function AccountCreateModal({ isOpen, onClose, onSubmit }: AccountCreateM
                 <h3 className="text-sm font-semibold text-gray-800">Ship To Address</h3>
                 <div className="mt-3 space-y-3">
                   <div>
-                    <label className="mb-1 block text-xs font-medium text-gray-600">Shipping Street *</label>
+                    <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Shipping Street <span className="text-red-500">*</span></label>
                     <input
                       type="text"
                       value={form.shippingAddress.line1}
                       onChange={handleShippingChange("line1")}
-                      className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 ${errors["shippingAddress.line1"] ? "border-red-400" : "border-gray-300"}`}
+                      className={`w-full border-b-2 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500 ${errors["shippingAddress.line1"] ? "border-red-500 focus:border-red-500" : "border-gray-300"}`}
                       placeholder="Shipping Street"
                     />
                     {errors["shippingAddress.line1"] && (
@@ -588,23 +587,23 @@ export function AccountCreateModal({ isOpen, onClose, onSubmit }: AccountCreateM
                     )}
                   </div>
                   <div>
-                    <label className="mb-1 block text-xs font-medium text-gray-600">Shipping Street 2</label>
+                    <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Shipping Street 2</label>
                     <input
                       type="text"
                       value={form.shippingAddress.line2}
                       onChange={handleShippingChange("line2")}
-                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
                       placeholder="Shipping Street 2"
                     />
                   </div>
                   <div className="grid grid-cols-3 gap-3">
                     <div className="col-span-2">
-                      <label className="mb-1 block text-xs font-medium text-gray-600">Shipping City *</label>
+                      <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Shipping City <span className="text-red-500">*</span></label>
                       <input
                         type="text"
                         value={form.shippingAddress.city}
                         onChange={handleShippingChange("city")}
-                        className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 ${errors["shippingAddress.city"] ? "border-red-400" : "border-gray-300"}`}
+                        className={`w-full border-b-2 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500 ${errors["shippingAddress.city"] ? "border-red-500 focus:border-red-500" : "border-gray-300"}`}
                         placeholder="Shipping City"
                       />
                       {errors["shippingAddress.city"] && (
@@ -612,11 +611,11 @@ export function AccountCreateModal({ isOpen, onClose, onSubmit }: AccountCreateM
                       )}
                     </div>
                     <div>
-                      <label className="mb-1 block text-xs font-medium text-gray-600">State</label>
+                      <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">State</label>
                       <select
                         value={form.shippingAddress.state}
                         onChange={handleShippingChange("state")}
-                        className="w-full rounded-lg border border-gray-300 px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
                       >
                         <option value="">- State -</option>
                         {US_STATES.map(state => (
@@ -629,21 +628,21 @@ export function AccountCreateModal({ isOpen, onClose, onSubmit }: AccountCreateM
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="mb-1 block text-xs font-medium text-gray-600">Shipping Zip</label>
+                      <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Shipping Zip</label>
                       <input
                         type="text"
                         value={form.shippingAddress.postalCode}
                         onChange={handleShippingChange("postalCode")}
-                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
                         placeholder="Shipping Zip"
                       />
                     </div>
                     <div>
-                      <label className="mb-1 block text-xs font-medium text-gray-600">Country</label>
+                      <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Country</label>
                       <select
                         value={form.shippingAddress.country}
                         onChange={handleShippingChange("country")}
-                        className="w-full rounded-lg border border-gray-300 px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
                       >
                         <option value="United States">United States</option>
                         <option value="Canada">Canada</option>
@@ -669,12 +668,12 @@ export function AccountCreateModal({ isOpen, onClose, onSubmit }: AccountCreateM
                 </div>
                 <div className="mt-3 space-y-3">
                   <div>
-                    <label className="mb-1 block text-xs font-medium text-gray-600">Billing Street {form.billingSameAsShipping ? "" : "*"}</label>
+                    <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Billing Street {form.billingSameAsShipping ? "" : <span className="text-red-500">*</span>}</label>
                     <input
                       type="text"
                       value={form.billingAddress.line1}
                       onChange={handleBillingChange("line1")}
-                      className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 ${errors["billingAddress.line1"] ? "border-red-400" : "border-gray-300"}`}
+                      className={`w-full border-b-2 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500 ${errors["billingAddress.line1"] ? "border-red-500 focus:border-red-500" : "border-gray-300"}`}
                       placeholder="Billing Street"
                       disabled={disableBillingFields}
                     />
@@ -683,24 +682,24 @@ export function AccountCreateModal({ isOpen, onClose, onSubmit }: AccountCreateM
                     )}
                   </div>
                   <div>
-                    <label className="mb-1 block text-xs font-medium text-gray-600">Billing Street 2</label>
+                    <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Billing Street 2</label>
                     <input
                       type="text"
                       value={form.billingAddress.line2}
                       onChange={handleBillingChange("line2")}
-                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
                       placeholder="Billing Street 2"
                       disabled={disableBillingFields}
                     />
                   </div>
                   <div className="grid grid-cols-3 gap-3">
                     <div className="col-span-2">
-                      <label className="mb-1 block text-xs font-medium text-gray-600">Billing City {form.billingSameAsShipping ? "" : "*"}</label>
+                      <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Billing City {form.billingSameAsShipping ? "" : <span className="text-red-500">*</span>}</label>
                       <input
                         type="text"
                         value={form.billingAddress.city}
                         onChange={handleBillingChange("city")}
-                        className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 ${errors["billingAddress.city"] ? "border-red-400" : "border-gray-300"}`}
+                        className={`w-full border-b-2 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500 ${errors["billingAddress.city"] ? "border-red-500 focus:border-red-500" : "border-gray-300"}`}
                         placeholder="Billing City"
                         disabled={disableBillingFields}
                       />
@@ -709,11 +708,11 @@ export function AccountCreateModal({ isOpen, onClose, onSubmit }: AccountCreateM
                       )}
                     </div>
                     <div>
-                      <label className="mb-1 block text-xs font-medium text-gray-600">State</label>
+                      <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">State</label>
                       <select
                         value={form.billingAddress.state}
                         onChange={handleBillingChange("state")}
-                        className="w-full rounded-lg border border-gray-300 px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
                         disabled={disableBillingFields}
                       >
                         <option value="">- State -</option>
@@ -727,22 +726,22 @@ export function AccountCreateModal({ isOpen, onClose, onSubmit }: AccountCreateM
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="mb-1 block text-xs font-medium text-gray-600">Billing Zip</label>
+                      <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Billing Zip</label>
                       <input
                         type="text"
                         value={form.billingAddress.postalCode}
                         onChange={handleBillingChange("postalCode")}
-                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
                         placeholder="Billing Zip"
                         disabled={disableBillingFields}
                       />
                     </div>
                     <div>
-                      <label className="mb-1 block text-xs font-medium text-gray-600">Country</label>
+                      <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Country</label>
                       <select
                         value={form.billingAddress.country}
                         onChange={handleBillingChange("country")}
-                        className="w-full rounded-lg border border-gray-300 px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
                         disabled={disableBillingFields}
                       >
                         <option value="United States">United States</option>
