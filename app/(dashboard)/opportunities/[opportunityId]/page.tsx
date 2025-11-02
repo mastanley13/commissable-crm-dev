@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { useParams, useRouter } from "next/navigation"
+import { useParams, useRouter, useSearchParams } from "next/navigation"
 import { OpportunityDetailsView } from "@/components/opportunity-details-view"
 import { CopyProtectionWrapper } from "@/components/copy-protection"
 import { useBreadcrumbs } from "@/lib/breadcrumb-context"
@@ -11,6 +11,7 @@ import { OpportunityDetailRecord } from "@/components/opportunity-types"
 export default function OpportunityDetailPage() {
   const params = useParams()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { setBreadcrumbs } = useBreadcrumbs()
   const { showError } = useToasts()
 
@@ -197,11 +198,63 @@ export default function OpportunityDetailPage() {
 
   useEffect(() => {
     if (opportunity) {
+      const ctx = (searchParams?.get('ctx') || '').toLowerCase()
+      const ctxId = searchParams?.get('ctxId') || undefined
+      const ctxName = searchParams?.get('ctxName') || undefined
+
+      const via = (searchParams?.get('via') || '').toLowerCase()
+      const viaId = searchParams?.get('viaId') || undefined
+      const viaName = searchParams?.get('viaName') || undefined
+
+      // Accounts -> Contact -> Opportunity path
+      if (ctx === 'accounts' && via === 'contacts' && ctxId && viaId) {
+        setBreadcrumbs([
+          { name: 'Home', href: '/dashboard' },
+          { name: 'Accounts', href: '/accounts' },
+          { name: 'Account Details', href: `/accounts/${ctxId}` },
+          { name: ctxName || opportunity.account?.accountName || 'Account', href: `/accounts/${ctxId}` },
+          { name: 'Contacts', href: `/accounts/${ctxId}?tab=contacts` },
+          { name: 'Contact Details', href: `/contacts/${viaId}?ctx=accounts&ctxId=${encodeURIComponent(ctxId)}${ctxName ? `&ctxName=${encodeURIComponent(ctxName)}` : ''}` },
+          { name: viaName || 'Contact', href: `/contacts/${viaId}?ctx=accounts&ctxId=${encodeURIComponent(ctxId)}${ctxName ? `&ctxName=${encodeURIComponent(ctxName)}` : ''}` },
+          { name: 'Opportunity Details', href: `/opportunities/${opportunity.id}?ctx=accounts&ctxId=${encodeURIComponent(ctxId)}${ctxName ? `&ctxName=${encodeURIComponent(ctxName)}` : ''}&via=contacts&viaId=${encodeURIComponent(viaId)}${viaName ? `&viaName=${encodeURIComponent(viaName)}` : ''}` },
+          { name: opportunity.name || 'Opportunity', current: true }
+        ])
+        return
+      }
+
+      // Contacts -> Opportunity path
+      if (ctx === 'contacts' && ctxId) {
+        setBreadcrumbs([
+          { name: 'Home', href: '/dashboard' },
+          { name: 'Contacts', href: '/contacts' },
+          { name: 'Contact Details', href: `/contacts/${ctxId}` },
+          { name: ctxName || 'Contact', href: `/contacts/${ctxId}` },
+          { name: 'Opportunity Details', href: `/opportunities/${opportunity.id}?ctx=contacts&ctxId=${encodeURIComponent(ctxId)}${ctxName ? `&ctxName=${encodeURIComponent(ctxName)}` : ''}` },
+          { name: opportunity.name || 'Opportunity', current: true }
+        ])
+        return
+      }
+
+      // Accounts -> Opportunity path
+      if (ctx === 'accounts' && ctxId) {
+        setBreadcrumbs([
+          { name: 'Home', href: '/dashboard' },
+          { name: 'Accounts', href: '/accounts' },
+          { name: 'Account Details', href: `/accounts/${ctxId}` },
+          { name: ctxName || opportunity.account?.accountName || 'Account', href: `/accounts/${ctxId}` },
+          { name: 'Opportunities', href: `/accounts/${ctxId}?tab=opportunities` },
+          { name: 'Details', href: `/opportunities/${opportunity.id}?ctx=accounts&ctxId=${encodeURIComponent(ctxId)}${ctxName ? `&ctxName=${encodeURIComponent(ctxName)}` : ''}` },
+          { name: opportunity.name || 'Opportunity', current: true }
+        ])
+        return
+      }
+
+      // Default Opportunities module path
       setBreadcrumbs([
-        { name: "Home", href: "/dashboard" },
-        { name: "Opportunities", href: "/opportunities" },
-        { name: "Details", href: `/opportunities/${opportunity.id}` },
-        { name: opportunity.name || "Opportunity", current: true }
+        { name: 'Home', href: '/dashboard' },
+        { name: 'Opportunities', href: '/opportunities' },
+        { name: 'Details', href: `/opportunities/${opportunity.id}` },
+        { name: opportunity.name || 'Opportunity', current: true }
       ])
     } else {
       setBreadcrumbs(null)
@@ -210,7 +263,7 @@ export default function OpportunityDetailPage() {
     return () => {
       setBreadcrumbs(null)
     }
-  }, [opportunity, setBreadcrumbs])
+  }, [opportunity, setBreadcrumbs, searchParams])
 
   const handleRefresh = useCallback(async () => {
     await fetchOpportunity()

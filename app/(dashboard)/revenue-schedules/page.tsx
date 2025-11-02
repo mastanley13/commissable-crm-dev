@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ListHeader } from '@/components/list-header'
 import { DynamicTable, Column, PaginationInfo } from '@/components/dynamic-table'
@@ -11,6 +11,7 @@ import { isRowInactive } from '@/lib/row-state'
 import { CopyProtectionWrapper } from '@/components/copy-protection'
 import { useToasts } from '@/components/toast'
 import { RevenueSchedulesBulkActionBar } from '@/components/revenue-schedules-bulk-action-bar'
+import { calculateMinWidth } from '@/lib/column-width-utils'
 
 // Local UUID v1-v5 matcher used to detect schedule IDs vs. human codes
 const UUID_REGEX = /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i
@@ -21,7 +22,7 @@ const revenueScheduleColumns: Column[] = [
     id: 'multi-action',
     label: 'Select All',
     width: 200,
-    minWidth: 160,
+    minWidth: calculateMinWidth({ label: 'Select All', type: 'multi-action', sortable: false }),
     maxWidth: 240,
     type: 'multi-action',
     accessor: 'checkbox',
@@ -30,7 +31,7 @@ const revenueScheduleColumns: Column[] = [
     id: 'distributorName', // 04.00.000
     label: 'Distributor Name',
     width: 180,
-    minWidth: 140,
+    minWidth: calculateMinWidth({ label: 'Distributor Name', type: 'text', sortable: true }),
     maxWidth: 280,
     sortable: true,
     type: 'text',
@@ -39,7 +40,7 @@ const revenueScheduleColumns: Column[] = [
     id: 'vendorName', // 04.00.001
     label: 'Vendor Name',
     width: 160,
-    minWidth: 130,
+    minWidth: calculateMinWidth({ label: 'Vendor Name', type: 'text', sortable: true }),
     maxWidth: 260,
     sortable: true,
     type: 'text',
@@ -53,7 +54,7 @@ const revenueScheduleColumns: Column[] = [
     id: 'accountName', // 04.00.002
     label: 'Account Name',
     width: 170,
-    minWidth: 130,
+    minWidth: calculateMinWidth({ label: 'Account Name', type: 'text', sortable: true }),
     maxWidth: 280,
     sortable: true,
     type: 'text',
@@ -67,7 +68,7 @@ const revenueScheduleColumns: Column[] = [
     id: 'productNameVendor', // 04.00.003
     label: 'Product Name - Vendor',
     width: 200,
-    minWidth: 150,
+    minWidth: calculateMinWidth({ label: 'Product Name - Vendor', type: 'text', sortable: true }),
     maxWidth: 320,
     sortable: true,
     type: 'text',
@@ -81,7 +82,7 @@ const revenueScheduleColumns: Column[] = [
     id: 'revenueScheduleDate', // 04.00.004
     label: 'Revenue Schedule Date',
     width: 160,
-    minWidth: 130,
+    minWidth: calculateMinWidth({ label: 'Revenue Schedule Date', type: 'text', sortable: true }),
     maxWidth: 220,
     sortable: true,
     type: 'text',
@@ -90,7 +91,7 @@ const revenueScheduleColumns: Column[] = [
     id: 'revenueScheduleName', // 04.00.005
     label: 'Revenue Schedule Name',
     width: 170,
-    minWidth: 130,
+    minWidth: calculateMinWidth({ label: 'Revenue Schedule Name', type: 'text', sortable: true }),
     maxWidth: 240,
     sortable: true,
     type: 'text',
@@ -99,7 +100,7 @@ const revenueScheduleColumns: Column[] = [
     id: 'quantity', // 04.00.006
     label: 'Quantity',
     width: 120,
-    minWidth: 100,
+    minWidth: calculateMinWidth({ label: 'Quantity', type: 'text', sortable: true }),
     maxWidth: 180,
     sortable: true,
     type: 'text',
@@ -108,7 +109,7 @@ const revenueScheduleColumns: Column[] = [
     id: 'priceEach', // 04.00.007
     label: 'Price Each',
     width: 140,
-    minWidth: 120,
+    minWidth: calculateMinWidth({ label: 'Price Each', type: 'text', sortable: true }),
     maxWidth: 200,
     sortable: true,
     type: 'text',
@@ -117,7 +118,7 @@ const revenueScheduleColumns: Column[] = [
     id: 'expectedUsageGross', // 04.00.008
     label: 'Expected Usage Gross',
     width: 170,
-    minWidth: 130,
+    minWidth: calculateMinWidth({ label: 'Expected Usage Gross', type: 'text', sortable: true }),
     maxWidth: 240,
     sortable: true,
     type: 'text',
@@ -126,7 +127,7 @@ const revenueScheduleColumns: Column[] = [
     id: 'expectedUsageAdjustment', // 04.00.009
     label: 'Expected Usage Adjustment',
     width: 190,
-    minWidth: 140,
+    minWidth: calculateMinWidth({ label: 'Expected Usage Adjustment', type: 'text', sortable: true }),
     maxWidth: 260,
     sortable: true,
     type: 'text',
@@ -135,7 +136,7 @@ const revenueScheduleColumns: Column[] = [
     id: 'expectedUsageNet', // 04.00.010
     label: 'Expected Usage Net',
     width: 170,
-    minWidth: 130,
+    minWidth: calculateMinWidth({ label: 'Expected Usage Net', type: 'text', sortable: true }),
     maxWidth: 240,
     sortable: true,
     type: 'text',
@@ -144,7 +145,7 @@ const revenueScheduleColumns: Column[] = [
     id: 'actualUsage', // 04.00.011
     label: 'Actual Usage',
     width: 150,
-    minWidth: 130,
+    minWidth: calculateMinWidth({ label: 'Actual Usage', type: 'text', sortable: true }),
     maxWidth: 220,
     sortable: true,
     type: 'text',
@@ -153,7 +154,7 @@ const revenueScheduleColumns: Column[] = [
     id: 'usageBalance', // 04.00.012
     label: 'Usage Balance',
     width: 160,
-    minWidth: 130,
+    minWidth: calculateMinWidth({ label: 'Usage Balance', type: 'text', sortable: true }),
     maxWidth: 220,
     sortable: true,
     type: 'text',
@@ -162,7 +163,7 @@ const revenueScheduleColumns: Column[] = [
     id: 'expectedCommissionNet', // 04.00.013
     label: 'Expected Commission Net',
     width: 200,
-    minWidth: 150,
+    minWidth: calculateMinWidth({ label: 'Expected Commission Net', type: 'text', sortable: true }),
     maxWidth: 280,
     sortable: true,
     type: 'text',
@@ -171,7 +172,7 @@ const revenueScheduleColumns: Column[] = [
     id: 'actualCommission', // 04.00.014
     label: 'Actual Commission',
     width: 170,
-    minWidth: 140,
+    minWidth: calculateMinWidth({ label: 'Actual Commission', type: 'text', sortable: true }),
     maxWidth: 240,
     sortable: true,
     type: 'text',
@@ -180,7 +181,7 @@ const revenueScheduleColumns: Column[] = [
     id: 'commissionDifference', // 04.00.015
     label: 'Commission Difference',
     width: 200,
-    minWidth: 150,
+    minWidth: calculateMinWidth({ label: 'Commission Difference', type: 'text', sortable: true }),
     maxWidth: 280,
     sortable: true,
     type: 'text',
@@ -189,7 +190,7 @@ const revenueScheduleColumns: Column[] = [
     id: 'customerIdVendor', // 04.00.016
     label: 'Customer ID - Vendor',
     width: 180,
-    minWidth: 140,
+    minWidth: calculateMinWidth({ label: 'Customer ID - Vendor', type: 'text', sortable: true }),
     maxWidth: 260,
     sortable: true,
     type: 'text',
@@ -198,7 +199,7 @@ const revenueScheduleColumns: Column[] = [
     id: 'orderIdVendor', // 04.00.017
     label: 'Order ID - Vendor',
     width: 170,
-    minWidth: 130,
+    minWidth: calculateMinWidth({ label: 'Order ID - Vendor', type: 'text', sortable: true }),
     maxWidth: 240,
     sortable: true,
     type: 'text',
@@ -207,7 +208,7 @@ const revenueScheduleColumns: Column[] = [
     id: 'locationId', // 04.00.018
     label: 'Location ID',
     width: 150,
-    minWidth: 120,
+    minWidth: calculateMinWidth({ label: 'Location ID', type: 'text', sortable: true }),
     maxWidth: 220,
     sortable: true,
     type: 'text',
@@ -216,7 +217,7 @@ const revenueScheduleColumns: Column[] = [
     id: 'opportunityId', // 04.00.019
     label: 'Opportunity ID',
     width: 140,
-    minWidth: 120,
+    minWidth: calculateMinWidth({ label: 'Opportunity ID', type: 'text', sortable: true }),
     maxWidth: 200,
     sortable: true,
     type: 'text',
@@ -225,7 +226,7 @@ const revenueScheduleColumns: Column[] = [
     id: 'customerIdDistributor', // 04.00.020
     label: 'Customer ID - Distributor',
     width: 190,
-    minWidth: 140,
+    minWidth: calculateMinWidth({ label: 'Customer ID - Distributor', type: 'text', sortable: true }),
     maxWidth: 260,
     sortable: true,
     type: 'text',
@@ -234,7 +235,7 @@ const revenueScheduleColumns: Column[] = [
     id: 'orderIdDistributor', // 04.00.021
     label: 'Order ID - Distributor',
     width: 190,
-    minWidth: 140,
+    minWidth: calculateMinWidth({ label: 'Order ID - Distributor', type: 'text', sortable: true }),
     maxWidth: 260,
     sortable: true,
     type: 'text',
@@ -243,7 +244,7 @@ const revenueScheduleColumns: Column[] = [
     id: 'scheduleStatus', // 04.00.022
     label: 'Schedule Status',
     width: 160,
-    minWidth: 130,
+    minWidth: calculateMinWidth({ label: 'Schedule Status', type: 'text', sortable: true }),
     maxWidth: 220,
     sortable: true,
     type: 'text',
@@ -252,7 +253,7 @@ const revenueScheduleColumns: Column[] = [
     id: 'inDispute', // 04.00.023
     label: 'In Dispute',
     width: 140,
-    minWidth: 110,
+    minWidth: calculateMinWidth({ label: 'In Dispute', type: 'text', sortable: true }),
     maxWidth: 200,
     sortable: true,
     type: 'text',
@@ -307,6 +308,9 @@ const filterOptions: { id: FilterableColumnKey; label: string }[] = [
   { id: 'scheduleStatus', label: 'Schedule Status' },
 ]
 
+const TABLE_BOTTOM_RESERVE = 110
+const TABLE_MIN_BODY_HEIGHT = 320
+
 export default function RevenueSchedulesPage() {
   const { showSuccess, showError, ToastContainer } = useToasts()
   const router = useRouter()
@@ -323,6 +327,8 @@ export default function RevenueSchedulesPage() {
   const [endDate, setEndDate] = useState<string>('')
   const [activeFilter, setActiveFilter] = useState<'all' | 'active'>('active')
   const [columnFilters, setColumnFilters] = useState<{ columnId: FilterableColumnKey; value: string }[]>([])
+  const [tableBodyHeight, setTableBodyHeight] = useState<number>()
+  const tableAreaNodeRef = useRef<HTMLDivElement | null>(null)
 
   const fetchRevenueSchedules = useCallback(async () => {
     setLoading(true)
@@ -394,6 +400,65 @@ export default function RevenueSchedulesPage() {
     }
     setRsColumnsNormalized(true)
   }, [preferenceColumns, preferenceLoading, handleColumnsChange, rsColumnsNormalized])
+
+  const measureTableArea = useCallback(() => {
+    const node = tableAreaNodeRef.current
+    if (!node || typeof window === 'undefined') {
+      return
+    }
+
+    const rect = node.getBoundingClientRect()
+    const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0
+    if (viewportHeight <= 0) {
+      return
+    }
+
+    const available = viewportHeight - rect.top - TABLE_BOTTOM_RESERVE
+    if (!Number.isFinite(available)) {
+      return
+    }
+
+    const nextHeight = Math.max(TABLE_MIN_BODY_HEIGHT, Math.floor(available))
+    if (nextHeight !== tableBodyHeight) {
+      setTableBodyHeight(nextHeight)
+    }
+  }, [tableBodyHeight])
+
+  const tableAreaRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      tableAreaNodeRef.current = node
+      if (node) {
+        window.requestAnimationFrame(() => {
+          measureTableArea()
+        })
+      }
+    },
+    [measureTableArea],
+  )
+
+  useLayoutEffect(() => {
+    measureTableArea()
+  }, [measureTableArea])
+
+  useEffect(() => {
+    const handleResize = () => measureTableArea()
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [measureTableArea])
+
+  useEffect(() => {
+    window.requestAnimationFrame(() => {
+      measureTableArea()
+    })
+  }, [
+    measureTableArea,
+    revenueSchedules.length,
+    selectedSchedules.length,
+    loading,
+    preferenceLoading,
+    currentPage,
+    pageSize,
+  ])
 
   const handleSearch = (query: string) => {
     if (!query.trim()) {
@@ -782,21 +847,22 @@ export default function RevenueSchedulesPage() {
         <div className="px-4 text-sm text-red-600">{preferenceError}</div>
       )}
 
-      <div className="flex-1 p-4 min-h-0">
-        <RevenueSchedulesBulkActionBar
-          count={selectedSchedules.length}
-          onDelete={() => {
-            if (selectedSchedules.length === 0) {
-              showError('No items selected', 'Select at least one item to delete.')
-              return
-            }
-            // For schedules, we only support soft-delete as a UX placeholder. Replace with real API when available
-            const remainingIds = new Set(selectedSchedules)
-            setRevenueSchedules(prev => prev.filter(row => !remainingIds.has(row.id)))
-            setSelectedSchedules([])
-            showSuccess('Deleted', 'Selected schedules have been removed from the list.')
-          }}
-          onExportCsv={() => {
+      <div className="flex-1 min-h-0 p-4 pt-0 flex flex-col gap-4">
+        <div className="flex-shrink-0">
+          <RevenueSchedulesBulkActionBar
+            count={selectedSchedules.length}
+            onDelete={() => {
+              if (selectedSchedules.length === 0) {
+                showError('No items selected', 'Select at least one item to delete.')
+                return
+              }
+              // For schedules, we only support soft-delete as a UX placeholder. Replace with real API when available
+              const remainingIds = new Set(selectedSchedules)
+              setRevenueSchedules(prev => prev.filter(row => !remainingIds.has(row.id)))
+              setSelectedSchedules([])
+              showSuccess('Deleted', 'Selected schedules have been removed from the list.')
+            }}
+            onExportCsv={() => {
             if (selectedSchedules.length === 0) {
               showError('No items selected', 'Select at least one item to export.')
               return
@@ -898,24 +964,28 @@ export default function RevenueSchedulesPage() {
             showSuccess(`Exported ${rows.length} item${rows.length === 1 ? '' : 's'}`, 'Check your downloads for the CSV file.')
           }}
         />
+        </div>
 
-        <DynamicTable
-          columns={tableColumns}
-          data={schedulesWithSelection}
-          onSort={handleSort}
-          onRowClick={handleRowClick}
-          loading={tableLoading}
-          emptyMessage="No revenue schedules found"
-          onColumnsChange={handleColumnsChange}
-          pagination={paginationInfo}
-          onPageChange={handlePageChange}
-          onPageSizeChange={handlePageSizeChange}
-          selectedItems={selectedSchedules.map(String)}
-          onItemSelect={(id, selected, row) => handleSelectSchedule(String(id), selected)}
-          onSelectAll={handleSelectAll}
-          autoSizeColumns={false}
-          alwaysShowPagination
-        />
+        <div ref={tableAreaRef} className="flex-1 min-h-0">
+          <DynamicTable
+            columns={tableColumns}
+            data={schedulesWithSelection}
+            onSort={handleSort}
+            onRowClick={handleRowClick}
+            loading={tableLoading}
+            emptyMessage="No revenue schedules found"
+            onColumnsChange={handleColumnsChange}
+            pagination={paginationInfo}
+            onPageChange={handlePageChange}
+            onPageSizeChange={handlePageSizeChange}
+            selectedItems={selectedSchedules.map(String)}
+            onItemSelect={(id, selected, row) => handleSelectSchedule(String(id), selected)}
+            onSelectAll={handleSelectAll}
+            autoSizeColumns={false}
+            alwaysShowPagination
+            maxBodyHeight={tableBodyHeight}
+          />
+        </div>
       </div>
 
       <ColumnChooserModal

@@ -770,7 +770,7 @@ export function DynamicTable({
       <div className="relative" style={maxBodyHeight ? { flex: '0 1 auto', minHeight: 0 } : { flex: '1 1 0%', minHeight: 0 }}>
         <div
           className="table-scroll-container overflow-x-auto overflow-y-auto"
-          style={maxBodyHeight ? { maxHeight: `${maxBodyHeight}px` } : undefined}
+          style={maxBodyHeight ? { minHeight: `${maxBodyHeight}px`, maxHeight: `${maxBodyHeight}px`, height: `${maxBodyHeight}px` } : undefined}
           role="table"
           aria-label="Data table"
         >
@@ -793,57 +793,57 @@ export function DynamicTable({
                     onDrop={event => handleDrop(event, column.id)}
                     onClick={() => column.id !== "select" && handleSort(column)}
                   >
-                    <div className="flex items-center">
-                      <div className="flex items-center gap-2 table-header-content">
-                        {column.id === "select" && onSelectAll ? (
-                          <div className="flex items-center gap-2">
-                            <input
-                              ref={selectAllRef}
-                              type="checkbox"
-                              className="w-4 h-4 text-primary-600 bg-gray-100 border-gray-300 rounded focus:ring-primary-500 flex-shrink-0"
-                              checked={data.length > 0 && selectedItems.length === data.length}
-                              onClick={event => event.stopPropagation()}
-                              onChange={event => {
-                                event.stopPropagation()
-                                onSelectAll(event.target.checked)
-                              }}
-                            />
-                            {!hideSelectAllLabel && (
-                              <div className="flex flex-col leading-tight">
-                                <span className="text-[11px] font-semibold uppercase tracking-wide text-blue-100 break-words whitespace-nowrap">
-                                  {selectHeaderLabel ?? 'Select All'}
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                        ) : column.type === "multi-action" && onSelectAll ? (
-                          <div className="flex items-center gap-2">
-                            <input
-                              ref={selectAllRef}
-                              type="checkbox"
-                              className="w-4 h-4 text-primary-600 bg-gray-100 border-gray-300 rounded focus:ring-primary-500 flex-shrink-0"
-                              checked={data.length > 0 && selectedItems.length === data.length}
-                              onClick={event => event.stopPropagation()}
-                              onChange={event => {
-                                event.stopPropagation()
-                                onSelectAll(event.target.checked)
-                              }}
-                            />
-                            {!hideSelectAllLabel && (
-                              <div className="flex flex-col leading-tight">
-                                <span className="break-words leading-tight whitespace-nowrap">{column.label}</span>
-                              </div>
-                            )}
-                          </div>
-                        ) : (
-                          <>
-                            <span className="break-words leading-tight flex-1 min-w-0">{column.label}</span>
-                            {column.sortable && (
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      {column.id === "select" && onSelectAll ? (
+                        <>
+                          <input
+                            ref={selectAllRef}
+                            type="checkbox"
+                            className="w-[11px] h-[11px] text-primary-600 bg-gray-100 border-gray-300 rounded focus:ring-primary-500 flex-shrink-0"
+                            checked={data.length > 0 && selectedItems.length === data.length}
+                            onClick={event => event.stopPropagation()}
+                            onChange={event => {
+                              event.stopPropagation()
+                              onSelectAll(event.target.checked)
+                            }}
+                          />
+                          {!hideSelectAllLabel && (
+                            <span className="break-words leading-tight whitespace-nowrap flex-1 min-w-0">
+                              {selectHeaderLabel ?? 'Select All'}
+                            </span>
+                          )}
+                          {/* Invisible placeholder to match SortTriangles height */}
+                          <div className="flex-shrink-0 w-2.5 h-2.5 opacity-0" aria-hidden="true" />
+                        </>
+                      ) : column.type === "multi-action" && onSelectAll ? (
+                        <>
+                          <input
+                            ref={selectAllRef}
+                            type="checkbox"
+                            className="w-[11px] h-[11px] text-primary-600 bg-gray-100 border-gray-300 rounded focus:ring-primary-500 flex-shrink-0"
+                            checked={data.length > 0 && selectedItems.length === data.length}
+                            onClick={event => event.stopPropagation()}
+                            onChange={event => {
+                              event.stopPropagation()
+                              onSelectAll(event.target.checked)
+                            }}
+                          />
+                          {!hideSelectAllLabel && (
+                            <span className="break-words leading-tight whitespace-nowrap flex-1 min-w-0">{column.label}</span>
+                          )}
+                          {/* Invisible placeholder to match SortTriangles height */}
+                          <div className="flex-shrink-0 w-2.5 h-2.5 opacity-0" aria-hidden="true" />
+                        </>
+                      ) : (
+                        <>
+                          <span className="break-words leading-tight flex-1 min-w-0">{column.label}</span>
+                          {column.sortable && (
+                            <div className="flex-shrink-0">
                               <SortTriangles direction={sortConfig?.key === column.id ? sortConfig.direction : null} />
-                            )}
-                          </>
-                        )}
-                      </div>
+                            </div>
+                          )}
+                        </>
+                      )}
                     </div>
 
                     {column.resizable !== false && (
@@ -927,7 +927,7 @@ export function DynamicTable({
 
       {/* Pagination Footer - moved outside grid container */}
       {shouldRenderPagination && pagination && (
-        <div className="px-4 py-2 border-t-2 border-gray-400 bg-gray-50 w-full flex-shrink-0">
+        <div className="px-3 py-2 border-t-2 border-gray-400 bg-gray-50 w-full flex-shrink-0">
           <div className="flex items-center justify-between text-sm text-gray-700">
             <div className="flex items-center gap-2">
               <button

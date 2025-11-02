@@ -14,6 +14,7 @@ import { applySimpleFilters } from "@/lib/filter-utils"
 import { EditableField } from "@/components/editable-field"
 import { useEntityEditor, type EntityEditor } from "@/hooks/useEntityEditor"
 import { useUnsavedChangesPrompt } from "@/hooks/useUnsavedChangesPrompt"
+import { calculateMinWidth } from "@/lib/column-width-utils"
 import {
   OpportunityDetailRecord,
   OpportunityLineItemRecord,
@@ -57,25 +58,25 @@ const PRODUCT_TABLE_BASE_COLUMNS: Column[] = [
     id: "multi-action",
     label: "Select All",
     width: 140,
-    minWidth: 100,
+    minWidth: calculateMinWidth({ label: "Select All", type: "multi-action", sortable: false }),
     maxWidth: 180,
     type: "multi-action",
     hideable: false
   },
-  { id: "productName", label: "Product", width: 240, minWidth: 200, accessor: "productName", sortable: true },
-  { id: "productCode", label: "Product Code", width: 160, minWidth: 140, accessor: "productCode", sortable: true },
-  { id: "revenueType", label: "Revenue Type", width: 160, minWidth: 140, accessor: "revenueType", sortable: true },
-  { id: "quantity", label: "Quantity", width: 120, minWidth: 100, accessor: "quantity", sortable: true },
-  { id: "unitPrice", label: "Unit Price", width: 140, minWidth: 120, accessor: "unitPrice", sortable: true },
-  { id: "expectedRevenue", label: "Expected Revenue", width: 180, minWidth: 160, accessor: "expectedRevenue", sortable: true },
-  { id: "expectedCommission", label: "Expected Commission", width: 200, minWidth: 180, accessor: "expectedCommission", sortable: true },
-  { id: "expectedUsage", label: "Expected Usage", width: 160, minWidth: 140, accessor: "expectedUsage", sortable: true },
-  { id: "revenueStartDate", label: "Start Date", width: 150, minWidth: 130, accessor: "revenueStartDate", sortable: true },
-  { id: "revenueEndDate", label: "End Date", width: 150, minWidth: 130, accessor: "revenueEndDate", sortable: true },
-  { id: "distributorName", label: "Distributor", width: 200, minWidth: 120, accessor: "distributorName", sortable: true },
-  { id: "vendorName", label: "Vendor", width: 200, minWidth: 120, accessor: "vendorName", sortable: true },
-  { id: "createdAt", label: "Created", width: 160, minWidth: 140, accessor: "createdAt", sortable: true },
-  { id: "updatedAt", label: "Updated", width: 160, minWidth: 140, accessor: "updatedAt", sortable: true }
+  { id: "productName", label: "Product", width: 240, minWidth: calculateMinWidth({ label: "Product", type: "text", sortable: true }), accessor: "productName", sortable: true },
+  { id: "productCode", label: "Product Code", width: 160, minWidth: calculateMinWidth({ label: "Product Code", type: "text", sortable: true }), accessor: "productCode", sortable: true },
+  { id: "revenueType", label: "Revenue Type", width: 160, minWidth: calculateMinWidth({ label: "Revenue Type", type: "text", sortable: true }), accessor: "revenueType", sortable: true },
+  { id: "quantity", label: "Quantity", width: 120, minWidth: calculateMinWidth({ label: "Quantity", type: "text", sortable: true }), accessor: "quantity", sortable: true },
+  { id: "unitPrice", label: "Unit Price", width: 140, minWidth: calculateMinWidth({ label: "Unit Price", type: "text", sortable: true }), accessor: "unitPrice", sortable: true },
+  { id: "expectedRevenue", label: "Expected Revenue", width: 180, minWidth: calculateMinWidth({ label: "Expected Revenue", type: "text", sortable: true }), accessor: "expectedRevenue", sortable: true },
+  { id: "expectedCommission", label: "Expected Commission", width: 200, minWidth: calculateMinWidth({ label: "Expected Commission", type: "text", sortable: true }), accessor: "expectedCommission", sortable: true },
+  { id: "expectedUsage", label: "Expected Usage", width: 160, minWidth: calculateMinWidth({ label: "Expected Usage", type: "text", sortable: true }), accessor: "expectedUsage", sortable: true },
+  { id: "revenueStartDate", label: "Start Date", width: 150, minWidth: calculateMinWidth({ label: "Start Date", type: "text", sortable: true }), accessor: "revenueStartDate", sortable: true },
+  { id: "revenueEndDate", label: "End Date", width: 150, minWidth: calculateMinWidth({ label: "End Date", type: "text", sortable: true }), accessor: "revenueEndDate", sortable: true },
+  { id: "distributorName", label: "Distributor", width: 200, minWidth: calculateMinWidth({ label: "Distributor", type: "text", sortable: true }), accessor: "distributorName", sortable: true },
+  { id: "vendorName", label: "Vendor", width: 200, minWidth: calculateMinWidth({ label: "Vendor", type: "text", sortable: true }), accessor: "vendorName", sortable: true },
+  { id: "createdAt", label: "Created", width: 160, minWidth: calculateMinWidth({ label: "Created", type: "text", sortable: true }), accessor: "createdAt", sortable: true },
+  { id: "updatedAt", label: "Updated", width: 160, minWidth: calculateMinWidth({ label: "Updated", type: "text", sortable: true }), accessor: "updatedAt", sortable: true }
 ]
 
 const REVENUE_FILTER_COLUMNS: Array<{ id: string; label: string }> = [
@@ -92,32 +93,32 @@ const REVENUE_TABLE_BASE_COLUMNS: Column[] = [
     id: "multi-action",
     label: "Select All",
     width: 200,
-    minWidth: 160,
+    minWidth: calculateMinWidth({ label: "Select All", type: "multi-action", sortable: false }),
     maxWidth: 240,
     type: "multi-action",
     hideable: false
   },
-  { id: "productNameVendor", label: "Product Name - Vendor", width: 220, minWidth: 180, accessor: "productNameVendor", sortable: true },
-  { id: "vendorName", label: "Vendor Name", width: 200, minWidth: 160, accessor: "vendorName", sortable: true },
-  { id: "distributorName", label: "Distributor Name", width: 200, minWidth: 160, accessor: "distributorName", sortable: true },
-  { id: "scheduleNumber", label: "Revenue Schedule", width: 180, minWidth: 150, accessor: "scheduleNumber", sortable: true },
-  { id: "scheduleDate", label: "Schedule Date", width: 160, minWidth: 130, accessor: "scheduleDate", sortable: true },
-  { id: "status", label: "Status", width: 150, minWidth: 130, accessor: "status", sortable: true },
-  { id: "quantity", label: "Quantity", width: 120, minWidth: 100, accessor: "quantity", sortable: true },
-  { id: "unitPrice", label: "Price Each", width: 140, minWidth: 120, accessor: "unitPrice", sortable: true },
-  { id: "expectedUsageGross", label: "Expected Usage Gross", width: 200, minWidth: 160, accessor: "expectedUsageGross", sortable: true },
-  { id: "expectedUsageAdjustment", label: "Expected Usage Adjustment", width: 220, minWidth: 180, accessor: "expectedUsageAdjustment", sortable: true },
-  { id: "expectedUsageNet", label: "Expected Usage Net", width: 200, minWidth: 160, accessor: "expectedUsageNet", sortable: true },
-  { id: "actualUsage", label: "Actual Usage", width: 180, minWidth: 150, accessor: "actualUsage", sortable: true },
-  { id: "usageBalance", label: "Usage Balance", width: 180, minWidth: 150, accessor: "usageBalance", sortable: true },
-  { id: "expectedCommissionGross", label: "Expected Commission Gross", width: 220, minWidth: 180, accessor: "expectedCommissionGross", sortable: true },
-  { id: "expectedCommissionAdjustment", label: "Expected Commission Adjustment", width: 240, minWidth: 200, accessor: "expectedCommissionAdjustment", sortable: true },
-  { id: "expectedCommissionNet", label: "Expected Commission Net", width: 220, minWidth: 180, accessor: "expectedCommissionNet", sortable: true },
-  { id: "actualCommission", label: "Actual Commission", width: 200, minWidth: 160, accessor: "actualCommission", sortable: true },
-  { id: "commissionDifference", label: "Commission Difference", width: 200, minWidth: 160, accessor: "commissionDifference", sortable: true },
-  { id: "expectedCommissionRatePercent", label: "Expected Commission Rate %", width: 220, minWidth: 180, accessor: "expectedCommissionRatePercent", sortable: true },
-  { id: "actualCommissionRatePercent", label: "Actual Commission Rate %", width: 200, minWidth: 160, accessor: "actualCommissionRatePercent", sortable: true },
-  { id: "commissionRateDifferencePercent", label: "Commission Rate Difference", width: 220, minWidth: 180, accessor: "commissionRateDifferencePercent", sortable: true }
+  { id: "productNameVendor", label: "Product Name - Vendor", width: 220, minWidth: calculateMinWidth({ label: "Product Name - Vendor", type: "text", sortable: true }), accessor: "productNameVendor", sortable: true },
+  { id: "vendorName", label: "Vendor Name", width: 200, minWidth: calculateMinWidth({ label: "Vendor Name", type: "text", sortable: true }), accessor: "vendorName", sortable: true },
+  { id: "distributorName", label: "Distributor Name", width: 200, minWidth: calculateMinWidth({ label: "Distributor Name", type: "text", sortable: true }), accessor: "distributorName", sortable: true },
+  { id: "scheduleNumber", label: "Revenue Schedule", width: 180, minWidth: calculateMinWidth({ label: "Revenue Schedule", type: "text", sortable: true }), accessor: "scheduleNumber", sortable: true },
+  { id: "scheduleDate", label: "Schedule Date", width: 160, minWidth: calculateMinWidth({ label: "Schedule Date", type: "text", sortable: true }), accessor: "scheduleDate", sortable: true },
+  { id: "status", label: "Status", width: 150, minWidth: calculateMinWidth({ label: "Status", type: "text", sortable: true }), accessor: "status", sortable: true },
+  { id: "quantity", label: "Quantity", width: 120, minWidth: calculateMinWidth({ label: "Quantity", type: "text", sortable: true }), accessor: "quantity", sortable: true },
+  { id: "unitPrice", label: "Price Each", width: 140, minWidth: calculateMinWidth({ label: "Price Each", type: "text", sortable: true }), accessor: "unitPrice", sortable: true },
+  { id: "expectedUsageGross", label: "Expected Usage Gross", width: 200, minWidth: calculateMinWidth({ label: "Expected Usage Gross", type: "text", sortable: true }), accessor: "expectedUsageGross", sortable: true },
+  { id: "expectedUsageAdjustment", label: "Expected Usage Adjustment", width: 220, minWidth: calculateMinWidth({ label: "Expected Usage Adjustment", type: "text", sortable: true }), accessor: "expectedUsageAdjustment", sortable: true },
+  { id: "expectedUsageNet", label: "Expected Usage Net", width: 200, minWidth: calculateMinWidth({ label: "Expected Usage Net", type: "text", sortable: true }), accessor: "expectedUsageNet", sortable: true },
+  { id: "actualUsage", label: "Actual Usage", width: 180, minWidth: calculateMinWidth({ label: "Actual Usage", type: "text", sortable: true }), accessor: "actualUsage", sortable: true },
+  { id: "usageBalance", label: "Usage Balance", width: 180, minWidth: calculateMinWidth({ label: "Usage Balance", type: "text", sortable: true }), accessor: "usageBalance", sortable: true },
+  { id: "expectedCommissionGross", label: "Expected Commission Gross", width: 220, minWidth: calculateMinWidth({ label: "Expected Commission Gross", type: "text", sortable: true }), accessor: "expectedCommissionGross", sortable: true },
+  { id: "expectedCommissionAdjustment", label: "Expected Commission Adjustment", width: 240, minWidth: calculateMinWidth({ label: "Expected Commission Adjustment", type: "text", sortable: true }), accessor: "expectedCommissionAdjustment", sortable: true },
+  { id: "expectedCommissionNet", label: "Expected Commission Net", width: 220, minWidth: calculateMinWidth({ label: "Expected Commission Net", type: "text", sortable: true }), accessor: "expectedCommissionNet", sortable: true },
+  { id: "actualCommission", label: "Actual Commission", width: 200, minWidth: calculateMinWidth({ label: "Actual Commission", type: "text", sortable: true }), accessor: "actualCommission", sortable: true },
+  { id: "commissionDifference", label: "Commission Difference", width: 200, minWidth: calculateMinWidth({ label: "Commission Difference", type: "text", sortable: true }), accessor: "commissionDifference", sortable: true },
+  { id: "expectedCommissionRatePercent", label: "Expected Commission Rate %", width: 220, minWidth: calculateMinWidth({ label: "Expected Commission Rate %", type: "text", sortable: true }), accessor: "expectedCommissionRatePercent", sortable: true },
+  { id: "actualCommissionRatePercent", label: "Actual Commission Rate %", width: 200, minWidth: calculateMinWidth({ label: "Actual Commission Rate %", type: "text", sortable: true }), accessor: "actualCommissionRatePercent", sortable: true },
+  { id: "commissionRateDifferencePercent", label: "Commission Rate Difference", width: 220, minWidth: calculateMinWidth({ label: "Commission Rate Difference", type: "text", sortable: true }), accessor: "commissionRateDifferencePercent", sortable: true }
 ]
 
 const REVENUE_INACTIVE_STATUSES = new Set(["completed", "closed", "inactive", "cancelled"])
@@ -157,7 +158,7 @@ const ROLE_TABLE_BASE_COLUMNS: Column[] = [
     id: "multi-action",
     label: "Select All",
     width: 200,
-    minWidth: 160,
+    minWidth: 100,
     maxWidth: 240,
     type: "multi-action",
     hideable: false

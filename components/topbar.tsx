@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState, type ChangeEvent, type Keyboa
 import { usePathname, useRouter } from "next/navigation"
 import { Search, MessageSquare, ChevronLeft, Bell, Loader2 } from "lucide-react"
 import { Breadcrumb } from "@/components/breadcrumb"
+import { pushIfModuleListPath } from "@/lib/breadcrumb-history"
 
 type SearchSuggestion = {
   id: string
@@ -201,6 +202,12 @@ export function Topbar() {
       router.back()
     }
   }
+
+  // Record module list visits in session history for cross‑module breadcrumb trails
+  useEffect(() => {
+    if (!pathname) return
+    pushIfModuleListPath(pathname)
+  }, [pathname])
 
   return (
     <div className="relative z-40 bg-white border-b-2 border-blue-900 px-4 py-1.5">

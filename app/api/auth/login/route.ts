@@ -166,10 +166,20 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('Login error:', error)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
+    const message = error instanceof Error ? error.message : 'Unknown error'
+    // Surface a clearer message in development for common setup issue
+    if (message.includes('No tenants available')) {
+      const payload: any = { error: 'Database not initialized' }
+      if (process.env.NODE_ENV !== 'production') {
+        payload.hint = 'Run: npx prisma db push && npm run db:seed'
+      }
+      return NextResponse.json(payload, { status: 503 })
+    }
+    const payload: any = { error: 'Internal server error' }
+    if (process.env.NODE_ENV !== 'production' && error instanceof Error) {
+      payload.detail = error.message
+    }
+    return NextResponse.json(payload, { status: 500 })
   }
 }
 

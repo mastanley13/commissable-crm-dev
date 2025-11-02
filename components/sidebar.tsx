@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
-import { usePathname } from 'next/navigation'
+import { usePathname, useSearchParams } from 'next/navigation'
 import { navigation } from '@/lib/nav'
 import { cn } from '@/lib/utils'
 import { ChevronLeft, ChevronRight, Settings, LogOut } from 'lucide-react'
@@ -11,6 +11,7 @@ import { useAuth } from '@/lib/auth-context'
 
 export function Sidebar() {
   const pathname = usePathname()
+  const searchParams = useSearchParams()
   const [collapsed, setCollapsed] = useState(false)
   const [showUserMenu, setShowUserMenu] = useState(false)
   const { user, logout } = useAuth()
@@ -59,9 +60,13 @@ export function Sidebar() {
       <nav className="flex-1 py-4 overflow-visible">
         <ul className="relative space-y-3 overflow-visible">
           {navigation.map((item) => {
-            // Enhanced active state detection - highlights module even on detail pages
-            const isActive = pathname === item.href || 
-              (item.href !== '/dashboard' && pathname.startsWith(item.href + '/'))
+            // Enhanced active state detection with optional contextual override from query string
+            // If a contextual module is provided (e.g. ?ctx=accounts), keep that module highlighted
+            const ctx = (searchParams?.get('ctx') || '').toLowerCase()
+            const ctxHref = ctx ? `/${ctx}` : null
+            const isActive = ctxHref
+              ? item.href === ctxHref
+              : (pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href + '/')))
             const Icon = item.icon
 
             return (
@@ -124,10 +129,10 @@ export function Sidebar() {
       </nav>
 
       {/* User Profile */}
-      <div className="relative p-4 border-t border-sidebar-dark">
+      <div className="relative px-3 py-2 border-t border-sidebar-dark">
         <button
           onClick={() => setShowUserMenu(!showUserMenu)}
-          className="w-full flex items-center hover:bg-sidebar-dark rounded-lg p-2 transition-colors"
+          className="w-full flex items-center hover:bg-sidebar-dark rounded-lg py-1 transition-colors"
         >
           <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0">
             <span className="text-white text-sm font-medium">
@@ -136,8 +141,8 @@ export function Sidebar() {
           </div>
           {!collapsed && user && (
             <div className="ml-3 text-left">
-              <p className="text-sm font-medium text-white">{user.fullName}</p>
-              <p className="text-xs text-blue-200">{user.role?.name}</p>
+              <p className="text-sm font-medium text-white leading-tight">{user.fullName}</p>
+              <p className="text-xs text-blue-200 leading-tight">{user.role?.name}</p>
             </div>
           )}
         </button>
@@ -177,4 +182,3 @@ export function Sidebar() {
     </div>
   )
 }
-

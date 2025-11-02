@@ -1,11 +1,12 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { ChevronRight, Home } from 'lucide-react'
 import { navigation } from '@/lib/nav'
 import { useBreadcrumbs } from '@/lib/breadcrumb-context'
+import { mergeHistoryWithTrail, pushFromBreadcrumbs } from '@/lib/breadcrumb-history'
 
 export interface BreadcrumbItem {
   name: string
@@ -149,13 +150,23 @@ export function Breadcrumb({ items, className = '' }: BreadcrumbProps) {
   const pathname = usePathname()
   const { items: contextItems } = useBreadcrumbs()
 
-  const breadcrumbItems = useMemo(() => {
-    if (items) return items
-    if (contextItems && contextItems.length > 0) {
-      return contextItems
-    }
-    return generateBreadcrumbs(pathname)
+  const baseItems = useMemo(() => {
+    return items
+      ? items
+      : (contextItems && contextItems.length > 0)
+        ? contextItems
+        : generateBreadcrumbs(pathname)
   }, [items, contextItems, pathname])
+
+  // Push current page into history using computed crumbs
+  useEffect(() => {
+    pushFromBreadcrumbs(baseItems, pathname)
+  }, [baseItems, pathname])
+
+  // Merge with session history so cross‑module visits appear consistently
+  const breadcrumbItems = useMemo(() => {
+    return mergeHistoryWithTrail(baseItems, pathname)
+  }, [baseItems, pathname])
 
   return (
     <nav

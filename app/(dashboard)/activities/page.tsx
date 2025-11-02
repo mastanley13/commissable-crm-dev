@@ -17,7 +17,7 @@ const activityColumns: Column[] = [
     id: 'actions',
     label: 'Select All',
     width: 100,
-    minWidth: 80,
+    minWidth: 100,
     maxWidth: 120,
     type: 'action',
     render: () => (

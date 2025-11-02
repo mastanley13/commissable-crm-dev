@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { ChangeEvent, ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import {
   ChevronDown,
   Edit,
@@ -28,6 +28,7 @@ import { GroupCreateModal } from "./account-group-create-modal"
 import { GroupEditModal } from "./group-edit-modal"
 import { ActivityNoteCreateModal } from "./activity-note-create-modal"
 import { ColumnChooserModal } from "./column-chooser-modal"
+import { calculateMinWidth } from "@/lib/column-width-utils"
 import { OpportunityBulkActionBar } from "./opportunity-bulk-action-bar"
 import { GroupBulkActionBar } from "./group-bulk-action-bar"
 import { OpportunityBulkOwnerModal } from "./opportunity-bulk-owner-modal"
@@ -444,7 +445,7 @@ const CONTACT_TABLE_BASE_COLUMNS: Column[] = [
     id: "multi-action",
     label: "Select All",
     width: 180,
-    minWidth: 150,
+    minWidth: calculateMinWidth({ label: "Select All", type: "multi-action", sortable: false }),
     maxWidth: 220,
     type: "multi-action",
   },
@@ -452,7 +453,7 @@ const CONTACT_TABLE_BASE_COLUMNS: Column[] = [
     id: "suffix",
     label: "Suffix",
     width: 100,
-    minWidth: 80,
+    minWidth: calculateMinWidth({ label: "Suffix", type: "text", sortable: true }),
     maxWidth: 140,
     sortable: true,
     accessor: "suffix",
@@ -461,7 +462,7 @@ const CONTACT_TABLE_BASE_COLUMNS: Column[] = [
     id: "fullName",
     label: "Full Name",
     width: 220,
-    minWidth: 180,
+    minWidth: calculateMinWidth({ label: "Full Name", type: "text", sortable: true }),
     maxWidth: 320,
     sortable: true,
     accessor: "fullName",
@@ -470,7 +471,7 @@ const CONTACT_TABLE_BASE_COLUMNS: Column[] = [
     id: "firstName",
     label: "First Name",
     width: 180,
-    minWidth: 150,
+    minWidth: calculateMinWidth({ label: "First Name", type: "text", sortable: true }),
     maxWidth: 250,
     sortable: true,
     accessor: "firstName",
@@ -480,7 +481,7 @@ const CONTACT_TABLE_BASE_COLUMNS: Column[] = [
     id: "lastName",
     label: "Last Name",
     width: 180,
-    minWidth: 150,
+    minWidth: calculateMinWidth({ label: "Last Name", type: "text", sortable: true }),
     maxWidth: 250,
     sortable: true,
     accessor: "lastName",
@@ -490,7 +491,7 @@ const CONTACT_TABLE_BASE_COLUMNS: Column[] = [
     id: "jobTitle",
     label: "Job Title",
     width: 200,
-    minWidth: 150,
+    minWidth: calculateMinWidth({ label: "Job Title", type: "text", sortable: true }),
     maxWidth: 280,
     sortable: true,
     accessor: "jobTitle",
@@ -499,7 +500,7 @@ const CONTACT_TABLE_BASE_COLUMNS: Column[] = [
     id: "contactType",
     label: "Contact Type",
     width: 180,
-    minWidth: 140,
+    minWidth: calculateMinWidth({ label: "Contact Type", type: "text", sortable: true }),
     maxWidth: 240,
     sortable: true,
     accessor: "contactType",
@@ -508,7 +509,7 @@ const CONTACT_TABLE_BASE_COLUMNS: Column[] = [
     id: "emailAddress",
     label: "Email",
     width: 240,
-    minWidth: 200,
+    minWidth: calculateMinWidth({ label: "Email", type: "email", sortable: true }),
     maxWidth: 320,
     sortable: true,
     accessor: "emailAddress",
@@ -517,7 +518,7 @@ const CONTACT_TABLE_BASE_COLUMNS: Column[] = [
     id: "workPhone",
     label: "Work Phone",
     width: 180,
-    minWidth: 150,
+    minWidth: calculateMinWidth({ label: "Work Phone", type: "phone", sortable: true }),
     maxWidth: 220,
     sortable: true,
     accessor: "workPhone",
@@ -526,7 +527,7 @@ const CONTACT_TABLE_BASE_COLUMNS: Column[] = [
     id: "mobile",
     label: "Mobile",
     width: 180,
-    minWidth: 150,
+    minWidth: calculateMinWidth({ label: "Mobile", type: "phone", sortable: true }),
     maxWidth: 220,
     sortable: true,
     accessor: "mobile",
@@ -535,7 +536,7 @@ const CONTACT_TABLE_BASE_COLUMNS: Column[] = [
     id: "extension",
     label: "Extension",
     width: 120,
-    minWidth: 90,
+    minWidth: calculateMinWidth({ label: "Extension", type: "text", sortable: true }),
     maxWidth: 150,
     sortable: true,
     accessor: "extension",
@@ -547,7 +548,7 @@ const OPPORTUNITY_TABLE_BASE_COLUMNS: Column[] = [
     id: "multi-action",
     label: "Select All",
     width: 200,
-    minWidth: 160,
+    minWidth: calculateMinWidth({ label: "Select All", type: "multi-action", sortable: false }),
     maxWidth: 240,
     type: "multi-action",
   },
@@ -555,7 +556,7 @@ const OPPORTUNITY_TABLE_BASE_COLUMNS: Column[] = [
     id: "orderIdHouse",
     label: "Order ID - House",
     width: 150,
-    minWidth: 120,
+    minWidth: calculateMinWidth({ label: "Order ID - House", type: "text", sortable: true }),
     maxWidth: 200,
     sortable: true,
     accessor: "orderIdHouse",
@@ -564,7 +565,7 @@ const OPPORTUNITY_TABLE_BASE_COLUMNS: Column[] = [
     id: "opportunityName",
     label: "Opportunity Name",
     width: 250,
-    minWidth: 200,
+    minWidth: calculateMinWidth({ label: "Opportunity Name", type: "text", sortable: true }),
     maxWidth: 350,
     sortable: true,
     accessor: "opportunityName",
@@ -573,7 +574,7 @@ const OPPORTUNITY_TABLE_BASE_COLUMNS: Column[] = [
     id: "stage",
     label: "Opportunity Stage",
     width: 180,
-    minWidth: 150,
+    minWidth: calculateMinWidth({ label: "Opportunity Stage", type: "text", sortable: true }),
     maxWidth: 220,
     sortable: true,
     accessor: "stage",
@@ -582,7 +583,7 @@ const OPPORTUNITY_TABLE_BASE_COLUMNS: Column[] = [
     id: "referredBy",
     label: "Referred By",
     width: 150,
-    minWidth: 120,
+    minWidth: calculateMinWidth({ label: "Referred By", type: "text", sortable: true }),
     maxWidth: 200,
     sortable: true,
     accessor: "referredBy",
@@ -591,7 +592,7 @@ const OPPORTUNITY_TABLE_BASE_COLUMNS: Column[] = [
     id: "owner",
     label: "Owner",
     width: 150,
-    minWidth: 120,
+    minWidth: calculateMinWidth({ label: "Owner", type: "text", sortable: true }),
     maxWidth: 200,
     sortable: true,
     accessor: "owner",
@@ -600,7 +601,7 @@ const OPPORTUNITY_TABLE_BASE_COLUMNS: Column[] = [
     id: "closeDate",
     label: "Close Date",
     width: 150,
-    minWidth: 120,
+    minWidth: calculateMinWidth({ label: "Close Date", type: "text", sortable: true }),
     maxWidth: 200,
     sortable: true,
     accessor: "closeDate",
@@ -609,7 +610,7 @@ const OPPORTUNITY_TABLE_BASE_COLUMNS: Column[] = [
     id: "subAgent",
     label: "Subagent",
     width: 150,
-    minWidth: 120,
+    minWidth: calculateMinWidth({ label: "Subagent", type: "text", sortable: true }),
     maxWidth: 200,
     sortable: true,
     accessor: "subAgent",
@@ -618,7 +619,7 @@ const OPPORTUNITY_TABLE_BASE_COLUMNS: Column[] = [
     id: "subagentPercent",
     label: "Subagent %",
     width: 120,
-    minWidth: 100,
+    minWidth: calculateMinWidth({ label: "Subagent %", type: "text", sortable: true }),
     maxWidth: 150,
     sortable: true,
     accessor: "subagentPercent",
@@ -627,7 +628,7 @@ const OPPORTUNITY_TABLE_BASE_COLUMNS: Column[] = [
     id: "accountIdHouse",
     label: "Account ID - House",
     width: 150,
-    minWidth: 120,
+    minWidth: calculateMinWidth({ label: "Account ID - House", type: "text", sortable: true }),
     maxWidth: 200,
     sortable: true,
     accessor: "accountIdHouse",
@@ -636,7 +637,7 @@ const OPPORTUNITY_TABLE_BASE_COLUMNS: Column[] = [
     id: "accountIdVendor",
     label: "Account ID - Vendor",
     width: 150,
-    minWidth: 120,
+    minWidth: calculateMinWidth({ label: "Account ID - Vendor", type: "text", sortable: true }),
     maxWidth: 200,
     sortable: true,
     accessor: "accountIdVendor",
@@ -645,7 +646,7 @@ const OPPORTUNITY_TABLE_BASE_COLUMNS: Column[] = [
     id: "accountLegalName",
     label: "Account Legal Name",
     width: 200,
-    minWidth: 150,
+    minWidth: calculateMinWidth({ label: "Account Legal Name", type: "text", sortable: true }),
     maxWidth: 300,
     sortable: true,
     accessor: "accountLegalName",
@@ -654,7 +655,7 @@ const OPPORTUNITY_TABLE_BASE_COLUMNS: Column[] = [
     id: "accountName",
     label: "Account Name",
     width: 200,
-    minWidth: 150,
+    minWidth: calculateMinWidth({ label: "Account Name", type: "text", sortable: true }),
     maxWidth: 300,
     sortable: true,
     accessor: "accountName",
@@ -663,7 +664,7 @@ const OPPORTUNITY_TABLE_BASE_COLUMNS: Column[] = [
     id: "customerIdVendor",
     label: "Customer ID - Vendor",
     width: 150,
-    minWidth: 120,
+    minWidth: calculateMinWidth({ label: "Customer ID - Vendor", type: "text", sortable: true }),
     maxWidth: 200,
     sortable: true,
     accessor: "customerIdVendor",
@@ -672,7 +673,7 @@ const OPPORTUNITY_TABLE_BASE_COLUMNS: Column[] = [
     id: "houseRepPercent",
     label: "House Rep %",
     width: 120,
-    minWidth: 100,
+    minWidth: calculateMinWidth({ label: "House Rep %", type: "text", sortable: true }),
     maxWidth: 150,
     sortable: true,
     accessor: "houseRepPercent",
@@ -681,7 +682,7 @@ const OPPORTUNITY_TABLE_BASE_COLUMNS: Column[] = [
     id: "houseSplitPercent",
     label: "House Split %",
     width: 120,
-    minWidth: 100,
+    minWidth: calculateMinWidth({ label: "House Split %", type: "text", sortable: true }),
     maxWidth: 150,
     sortable: true,
     accessor: "houseSplitPercent",
@@ -690,7 +691,7 @@ const OPPORTUNITY_TABLE_BASE_COLUMNS: Column[] = [
     id: "locationId",
     label: "Location ID",
     width: 150,
-    minWidth: 120,
+    minWidth: calculateMinWidth({ label: "Location ID", type: "text", sortable: true }),
     maxWidth: 200,
     sortable: true,
     accessor: "locationId",
@@ -699,7 +700,7 @@ const OPPORTUNITY_TABLE_BASE_COLUMNS: Column[] = [
     id: "description",
     label: "Opportunity Description",
     width: 250,
-    minWidth: 200,
+    minWidth: calculateMinWidth({ label: "Opportunity Description", type: "text", sortable: true }),
     maxWidth: 400,
     sortable: true,
     accessor: "description",
@@ -708,7 +709,7 @@ const OPPORTUNITY_TABLE_BASE_COLUMNS: Column[] = [
     id: "opportunityId",
     label: "Opportunity ID",
     width: 150,
-    minWidth: 120,
+    minWidth: calculateMinWidth({ label: "Opportunity ID", type: "text", sortable: true }),
     maxWidth: 200,
     sortable: true,
     accessor: "opportunityId",
@@ -720,7 +721,7 @@ const GROUP_TABLE_BASE_COLUMNS: Column[] = [
     id: "multi-action",
     label: "Select All",
     width: 200,
-    minWidth: 160,
+    minWidth: calculateMinWidth({ label: "Select All", type: "multi-action", sortable: false }),
     maxWidth: 240,
     type: "multi-action",
   },
@@ -729,7 +730,7 @@ const GROUP_TABLE_BASE_COLUMNS: Column[] = [
     id: "groupName",
     label: "Group Name",
     width: 220,
-    minWidth: 160,
+    minWidth: calculateMinWidth({ label: "Group Name", type: "text", sortable: true }),
     maxWidth: 320,
     sortable: true,
     accessor: "groupName"
@@ -738,7 +739,7 @@ const GROUP_TABLE_BASE_COLUMNS: Column[] = [
     id: "visibility",
     label: "Public/Private",
     width: 160,
-    minWidth: 130,
+    minWidth: calculateMinWidth({ label: "Public/Private", type: "text", sortable: true }),
     maxWidth: 220,
     sortable: true,
     accessor: "visibility"
@@ -747,7 +748,7 @@ const GROUP_TABLE_BASE_COLUMNS: Column[] = [
     id: "description",
     label: "Group Description",
     width: 260,
-    minWidth: 200,
+    minWidth: calculateMinWidth({ label: "Group Description", type: "text", sortable: true }),
     maxWidth: 400,
     sortable: true,
     accessor: "description"
@@ -756,7 +757,7 @@ const GROUP_TABLE_BASE_COLUMNS: Column[] = [
     id: "owner",
     label: "Group Owner",
     width: 200,
-    minWidth: 150,
+    minWidth: calculateMinWidth({ label: "Group Owner", type: "text", sortable: true }),
     maxWidth: 260,
     sortable: true,
     accessor: "owner"
@@ -768,7 +769,7 @@ const ACTIVITY_TABLE_BASE_COLUMNS: Column[] = [
     id: "multi-action",
     label: "Select All",
     width: 200,
-    minWidth: 160,
+    minWidth: calculateMinWidth({ label: "Select All", type: "multi-action", sortable: false }),
     maxWidth: 240,
     type: "multi-action",
   },
@@ -776,7 +777,7 @@ const ACTIVITY_TABLE_BASE_COLUMNS: Column[] = [
     id: "activityDate",
     label: "Activity Date",
     width: 150,
-    minWidth: 120,
+    minWidth: calculateMinWidth({ label: "Activity Date", type: "text", sortable: true }),
     maxWidth: 200,
     sortable: true,
     accessor: "activityDate"
@@ -785,7 +786,7 @@ const ACTIVITY_TABLE_BASE_COLUMNS: Column[] = [
     id: "activityType",
     label: "Activity Type",
     width: 150,
-    minWidth: 120,
+    minWidth: calculateMinWidth({ label: "Activity Type", type: "text", sortable: true }),
     maxWidth: 200,
     sortable: true,
     accessor: "activityType"
@@ -794,7 +795,7 @@ const ACTIVITY_TABLE_BASE_COLUMNS: Column[] = [
     id: "description",
     label: "Activity Description",
     width: 250,
-    minWidth: 200,
+    minWidth: calculateMinWidth({ label: "Activity Description", type: "text", sortable: true }),
     maxWidth: 400,
     sortable: true,
     accessor: "description"
@@ -803,7 +804,7 @@ const ACTIVITY_TABLE_BASE_COLUMNS: Column[] = [
     id: "accountName",
     label: "Account Name",
     width: 180,
-    minWidth: 150,
+    minWidth: calculateMinWidth({ label: "Account Name", type: "text", sortable: true }),
     maxWidth: 250,
     sortable: true,
     accessor: "accountName"
@@ -812,7 +813,7 @@ const ACTIVITY_TABLE_BASE_COLUMNS: Column[] = [
     id: "attachment",
     label: "Attachment",
     width: 120,
-    minWidth: 100,
+    minWidth: calculateMinWidth({ label: "Attachment", type: "text", sortable: true }),
     maxWidth: 150,
     sortable: true,
     accessor: "attachment"
@@ -821,7 +822,7 @@ const ACTIVITY_TABLE_BASE_COLUMNS: Column[] = [
     id: "fileName",
     label: "File Name",
     width: 150,
-    minWidth: 120,
+    minWidth: calculateMinWidth({ label: "File Name", type: "text", sortable: true }),
     maxWidth: 200,
     sortable: true,
     accessor: "fileName"
@@ -830,7 +831,7 @@ const ACTIVITY_TABLE_BASE_COLUMNS: Column[] = [
     id: "createdBy",
     label: "Created By",
     width: 150,
-    minWidth: 120,
+    minWidth: calculateMinWidth({ label: "Created By", type: "text", sortable: true }),
     maxWidth: 200,
     sortable: true,
     accessor: "createdBy"
@@ -1565,6 +1566,7 @@ function TabToolbar({ suffix }: TabToolbarProps) {
 
 export function AccountDetailsView({ account, loading = false, error, onEdit, onRefresh }: AccountDetailsViewProps) {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { showSuccess, showError } = useToasts()
   const { hasPermission } = useAuth()
   const canManageAccounts = hasPermission("accounts.manage")
@@ -1579,6 +1581,14 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
     () => (shouldEnableInline ? createAccountInlineForm(account) : null),
     [shouldEnableInline, account]
   )
+
+  // Sync initial tab selection from query param for breadcrumb deep links
+  useEffect(() => {
+    const tab = (searchParams?.get('tab') || '').toLowerCase()
+    if (tab === 'contacts' || tab === 'opportunities' || tab === 'groups' || tab === 'activities') {
+      setActiveTab(tab as TabKey)
+    }
+  }, [searchParams])
 
   const submitAccount = useCallback(
     async (patch: Partial<AccountInlineForm>, draft: AccountInlineForm) => {
@@ -4038,7 +4048,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
           render: (value?: string, row?: AccountContactRow) => (
             row?.id ? (
               <Link
-                href={`/contacts/${row.id}`}
+                href={`/contacts/${row.id}?ctx=accounts${account?.id ? `&ctxId=${encodeURIComponent(account.id)}` : ''}${account?.accountName ? `&ctxName=${encodeURIComponent(account.accountName)}` : ''}`}
                 className="text-primary-600 transition hover:text-primary-700 hover:underline"
               >
                 {value || "View contact"}
@@ -4122,7 +4132,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
 
             return (
               <Link
-                href={`/opportunities/${opportunityId}`}
+                href={`/opportunities/${opportunityId}?ctx=accounts${account?.id ? `&ctxId=${encodeURIComponent(account.id)}` : ''}${account?.accountName ? `&ctxName=${encodeURIComponent(account.accountName)}` : ''}`}
                 className="cursor-pointer font-medium text-primary-600 hover:text-primary-800 hover:underline"
                 onClick={(event) => event.stopPropagation()}
                 prefetch={false}

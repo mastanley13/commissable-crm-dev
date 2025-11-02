@@ -15,7 +15,7 @@ const ticketColumns: Column[] = [
     id: 'multi-action',
     label: 'Select All',
     width: 200,
-    minWidth: 160,
+    minWidth: 100,
     maxWidth: 240,
     type: 'multi-action',
     accessor: 'select'

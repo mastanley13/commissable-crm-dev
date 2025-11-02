@@ -1,13 +1,14 @@
 ﻿"use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { useParams } from "next/navigation"
+import { useParams, useSearchParams } from "next/navigation"
 import { ContactDetailsView, ContactDetail } from "@/components/contact-details-view"
 import { CopyProtectionWrapper } from "@/components/copy-protection"
 import { useBreadcrumbs } from "@/lib/breadcrumb-context"
 
 export default function ContactDetailPage() {
   const params = useParams()
+  const searchParams = useSearchParams()
   const contactId = useMemo(() => {
     const value = params?.contactId
     if (typeof value === "string") return value
@@ -80,12 +81,30 @@ export default function ContactDetailPage() {
 
   useEffect(() => {
     if (contact) {
-      setBreadcrumbs([
-        { name: 'Home', href: '/dashboard' },
-        { name: 'Contacts', href: '/contacts' },
-        { name: 'Contact Details', href: `/contacts/${contact.id}` },
-        { name: contact.firstName ? `${contact.firstName} ${contact.lastName}`.trim() : contact.accountName || 'Contact', current: true }
-      ])
+      const ctx = (searchParams?.get('ctx') || '').toLowerCase()
+      const ctxId = searchParams?.get('ctxId') || undefined
+      const ctxName = searchParams?.get('ctxName') || undefined
+
+      if (ctx === 'accounts' && ctxId) {
+        // When arriving from an Account context, keep breadcrumbs under Accounts
+        setBreadcrumbs([
+          { name: 'Home', href: '/dashboard' },
+          { name: 'Accounts', href: '/accounts' },
+          { name: 'Account Details', href: `/accounts/${ctxId}` },
+          { name: ctxName || contact.accountName || 'Account', href: `/accounts/${ctxId}` },
+          { name: 'Contacts', href: `/accounts/${ctxId}?tab=contacts` },
+          { name: 'Contact Details', href: `/contacts/${contact.id}?ctx=accounts&ctxId=${encodeURIComponent(ctxId)}${ctxName ? `&ctxName=${encodeURIComponent(ctxName)}` : ''}` },
+          { name: contact.firstName ? `${contact.firstName} ${contact.lastName}`.trim() : contact.accountName || 'Contact', current: true }
+        ])
+      } else {
+        // Default breadcrumb under Contacts module
+        setBreadcrumbs([
+          { name: 'Home', href: '/dashboard' },
+          { name: 'Contacts', href: '/contacts' },
+          { name: 'Contact Details', href: `/contacts/${contact.id}` },
+          { name: contact.firstName ? `${contact.firstName} ${contact.lastName}`.trim() : contact.accountName || 'Contact', current: true }
+        ])
+      }
     } else {
       setBreadcrumbs(null)
     }
@@ -93,7 +112,7 @@ export default function ContactDetailPage() {
     return () => {
       setBreadcrumbs(null)
     }
-  }, [contact, setBreadcrumbs])
+  }, [contact, setBreadcrumbs, searchParams])
 
 
   const handleContactUpdated = (updatedContact: ContactDetail) => {

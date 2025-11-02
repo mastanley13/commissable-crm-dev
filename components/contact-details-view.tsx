@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { ChangeEvent, ReactNode, useCallback, useEffect, useState, useMemo, useRef, useLayoutEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Loader2, Filter, Paperclip, Plus, Search, Settings, Trash2, ChevronDown, Check } from "lucide-react"
 import { OpportunityStatus } from "@prisma/client"
 
@@ -18,6 +18,7 @@ import { ContactGroupCreateModal } from "./contact-group-create-modal"
 import { ListHeader, type ColumnFilter } from "./list-header"
 import { useTablePreferences } from "@/hooks/useTablePreferences"
 import { applySimpleFilters } from "@/lib/filter-utils"
+import { calculateMinWidth } from "@/lib/column-width-utils"
 import { ColumnChooserModal } from "./column-chooser-modal"
 import { OpportunityEditModal } from "./opportunity-edit-modal"
 import { GroupEditModal } from "./group-edit-modal"
@@ -359,7 +360,7 @@ const CONTACT_ACTIVITY_TABLE_BASE_COLUMNS: Column[] = [
     id: "multi-action",
     label: "Select All",
     width: 200,
-    minWidth: 160,
+    minWidth: calculateMinWidth({ label: "Select All", type: "multi-action", sortable: false }),
     maxWidth: 240,
     type: "multi-action",
   },
@@ -367,7 +368,7 @@ const CONTACT_ACTIVITY_TABLE_BASE_COLUMNS: Column[] = [
     id: "id",
     label: "Activity ID",
     width: 180,
-    minWidth: 140,
+    minWidth: calculateMinWidth({ label: "Activity ID", type: "text", sortable: true }),
     maxWidth: 240,
     sortable: true,
     accessor: "id"
@@ -376,7 +377,7 @@ const CONTACT_ACTIVITY_TABLE_BASE_COLUMNS: Column[] = [
     id: "activityDate",
     label: "Activity Date",
     width: 150,
-    minWidth: 120,
+    minWidth: calculateMinWidth({ label: "Activity Date", type: "text", sortable: true }),
     maxWidth: 200,
     sortable: true,
     accessor: "activityDate"
@@ -385,7 +386,7 @@ const CONTACT_ACTIVITY_TABLE_BASE_COLUMNS: Column[] = [
     id: "activityType",
     label: "Activity Type",
     width: 160,
-    minWidth: 130,
+    minWidth: calculateMinWidth({ label: "Activity Type", type: "text", sortable: true }),
     maxWidth: 220,
     sortable: true,
     accessor: "activityType"
@@ -394,7 +395,7 @@ const CONTACT_ACTIVITY_TABLE_BASE_COLUMNS: Column[] = [
     id: "activityOwner",
     label: "Activity Owner",
     width: 180,
-    minWidth: 140,
+    minWidth: calculateMinWidth({ label: "Activity Owner", type: "text", sortable: true }),
     maxWidth: 240,
     sortable: true,
     accessor: "activityOwner"
@@ -403,7 +404,7 @@ const CONTACT_ACTIVITY_TABLE_BASE_COLUMNS: Column[] = [
     id: "description",
     label: "Activity Description",
     width: 260,
-    minWidth: 200,
+    minWidth: calculateMinWidth({ label: "Activity Description", type: "text", sortable: true }),
     maxWidth: 420,
     sortable: true,
     accessor: "description"
@@ -412,7 +413,7 @@ const CONTACT_ACTIVITY_TABLE_BASE_COLUMNS: Column[] = [
     id: "activityStatus",
     label: "Activity Status",
     width: 160,
-    minWidth: 130,
+    minWidth: calculateMinWidth({ label: "Activity Status", type: "text", sortable: true }),
     maxWidth: 220,
     sortable: true,
     accessor: "activityStatus"
@@ -421,7 +422,7 @@ const CONTACT_ACTIVITY_TABLE_BASE_COLUMNS: Column[] = [
     id: "attachment",
     label: "Attachment",
     width: 140,
-    minWidth: 110,
+    minWidth: calculateMinWidth({ label: "Attachment", type: "text", sortable: true }),
     maxWidth: 200,
     sortable: true,
     accessor: "attachment"
@@ -430,7 +431,7 @@ const CONTACT_ACTIVITY_TABLE_BASE_COLUMNS: Column[] = [
     id: "fileName",
     label: "File Name",
     width: 220,
-    minWidth: 180,
+    minWidth: calculateMinWidth({ label: "File Name", type: "text", sortable: true }),
     maxWidth: 280,
     sortable: true,
     accessor: "fileName"
@@ -443,7 +444,7 @@ const CONTACT_OPPORTUNITY_TABLE_BASE_COLUMNS: Column[] = [
     id: "multi-action",
     label: "Select All",
     width: 200,
-    minWidth: 160,
+    minWidth: calculateMinWidth({ label: "Select All", type: "multi-action", sortable: false }),
     maxWidth: 240,
     type: "multi-action",
   },
@@ -451,7 +452,7 @@ const CONTACT_OPPORTUNITY_TABLE_BASE_COLUMNS: Column[] = [
     id: "closeDate",
     label: "Close Date",
     width: 160,
-    minWidth: 130,
+    minWidth: calculateMinWidth({ label: "Close Date", type: "text", sortable: true }),
     maxWidth: 220,
     sortable: true,
     accessor: "closeDate"
@@ -460,7 +461,7 @@ const CONTACT_OPPORTUNITY_TABLE_BASE_COLUMNS: Column[] = [
     id: "opportunityName",
     label: "Opportunity Name",
     width: 250,
-    minWidth: 200,
+    minWidth: calculateMinWidth({ label: "Opportunity Name", type: "text", sortable: true }),
     maxWidth: 350,
     sortable: true,
     accessor: "opportunityName"
@@ -469,7 +470,7 @@ const CONTACT_OPPORTUNITY_TABLE_BASE_COLUMNS: Column[] = [
     id: "stage",
     label: "Opportunity Stage",
     width: 180,
-    minWidth: 150,
+    minWidth: calculateMinWidth({ label: "Opportunity Stage", type: "text", sortable: true }),
     maxWidth: 220,
     sortable: true,
     accessor: "stage"
@@ -478,7 +479,7 @@ const CONTACT_OPPORTUNITY_TABLE_BASE_COLUMNS: Column[] = [
     id: "orderIdHouse",
     label: "Order ID - House",
     width: 170,
-    minWidth: 140,
+    minWidth: calculateMinWidth({ label: "Order ID - House", type: "text", sortable: true }),
     maxWidth: 220,
     sortable: true,
     accessor: "orderIdHouse"
@@ -487,7 +488,7 @@ const CONTACT_OPPORTUNITY_TABLE_BASE_COLUMNS: Column[] = [
     id: "owner",
     label: "Owner",
     width: 160,
-    minWidth: 130,
+    minWidth: calculateMinWidth({ label: "Owner", type: "text", sortable: true }),
     maxWidth: 220,
     sortable: true,
     accessor: "owner"
@@ -496,7 +497,7 @@ const CONTACT_OPPORTUNITY_TABLE_BASE_COLUMNS: Column[] = [
     id: "subAgent",
     label: "Subagent",
     width: 180,
-    minWidth: 140,
+    minWidth: calculateMinWidth({ label: "Subagent", type: "text", sortable: true }),
     maxWidth: 240,
     sortable: true,
     accessor: "subAgent"
@@ -505,7 +506,7 @@ const CONTACT_OPPORTUNITY_TABLE_BASE_COLUMNS: Column[] = [
     id: "accountIdVendor",
     label: "Account ID - Vendor",
     width: 200,
-    minWidth: 160,
+    minWidth: calculateMinWidth({ label: "Account ID - Vendor", type: "text", sortable: true }),
     maxWidth: 260,
     sortable: true,
     accessor: "accountIdVendor"
@@ -514,7 +515,7 @@ const CONTACT_OPPORTUNITY_TABLE_BASE_COLUMNS: Column[] = [
     id: "customerIdVendor",
     label: "Customer ID - Vendor",
     width: 200,
-    minWidth: 160,
+    minWidth: calculateMinWidth({ label: "Customer ID - Vendor", type: "text", sortable: true }),
     maxWidth: 260,
     sortable: true,
     accessor: "customerIdVendor"
@@ -523,7 +524,7 @@ const CONTACT_OPPORTUNITY_TABLE_BASE_COLUMNS: Column[] = [
     id: "locationId",
     label: "Location ID",
     width: 170,
-    minWidth: 140,
+    minWidth: calculateMinWidth({ label: "Location ID", type: "text", sortable: true }),
     maxWidth: 220,
     sortable: true,
     accessor: "locationId"
@@ -532,7 +533,7 @@ const CONTACT_OPPORTUNITY_TABLE_BASE_COLUMNS: Column[] = [
     id: "orderIdVendor",
     label: "Order ID - Vendor",
     width: 180,
-    minWidth: 150,
+    minWidth: calculateMinWidth({ label: "Order ID - Vendor", type: "text", sortable: true }),
     maxWidth: 240,
     sortable: true,
     accessor: "orderIdVendor"
@@ -544,7 +545,7 @@ const CONTACT_GROUP_TABLE_BASE_COLUMNS: Column[] = [
     id: "multi-action",
     label: "Select All",
     width: 200,
-    minWidth: 160,
+    minWidth: calculateMinWidth({ label: "Select All", type: "multi-action", sortable: false }),
     maxWidth: 240,
     type: "multi-action",
   },
@@ -552,7 +553,7 @@ const CONTACT_GROUP_TABLE_BASE_COLUMNS: Column[] = [
     id: "groupName",
     label: "Group Name",
     width: 220,
-    minWidth: 160,
+    minWidth: calculateMinWidth({ label: "Group Name", type: "text", sortable: true }),
     maxWidth: 320,
     sortable: true,
     accessor: "groupName"
@@ -561,7 +562,7 @@ const CONTACT_GROUP_TABLE_BASE_COLUMNS: Column[] = [
     id: "visibility",
     label: "Public/Private",
     width: 180,
-    minWidth: 140,
+    minWidth: calculateMinWidth({ label: "Public/Private", type: "text", sortable: true }),
     maxWidth: 240,
     sortable: true,
     accessor: "visibility"
@@ -570,7 +571,7 @@ const CONTACT_GROUP_TABLE_BASE_COLUMNS: Column[] = [
     id: "description",
     label: "Group Description",
     width: 260,
-    minWidth: 200,
+    minWidth: calculateMinWidth({ label: "Group Description", type: "text", sortable: true }),
     maxWidth: 400,
     sortable: true,
     accessor: "description"
@@ -579,7 +580,7 @@ const CONTACT_GROUP_TABLE_BASE_COLUMNS: Column[] = [
     id: "owner",
     label: "Group Owner",
     width: 200,
-    minWidth: 150,
+    minWidth: calculateMinWidth({ label: "Group Owner", type: "text", sortable: true }),
     maxWidth: 260,
     sortable: true,
     accessor: "owner"
@@ -1048,6 +1049,7 @@ function TabToolbar({ onCreateNew, disabled, activeFilter = "active", onFilterCh
 
 export function ContactDetailsView({ contact, loading = false, error, onEdit, onContactUpdated, onRefresh }: ContactDetailsViewProps) {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { hasPermission } = useAuth()
   const [activeTab, setActiveTab] = useState<"activities" | "opportunities" | "groups">("opportunities")
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
@@ -2682,9 +2684,24 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
               return <span className="font-medium text-primary-600">{label}</span>
             }
 
+            const parentCtx = (searchParams?.get('ctx') || '').toLowerCase()
+            const parentCtxId = searchParams?.get('ctxId') || undefined
+            const parentCtxName = searchParams?.get('ctxName') || undefined
+
+            const contactName = contact
+              ? `${contact.firstName || ''} ${contact.lastName || ''}`.trim() || contact.accountName || 'Contact'
+              : 'Contact'
+
+            // Preserve Accounts context if present for left‑nav highlight, but carry 'via=contacts' to build breadcrumbs
+            // Otherwise, set ctx=contacts so breadcrumbs and (optionally) highlight reflect Contacts context
+            const query = parentCtx === 'accounts'
+              ? `?ctx=accounts${parentCtxId ? `&ctxId=${encodeURIComponent(parentCtxId)}` : ''}${parentCtxName ? `&ctxName=${encodeURIComponent(parentCtxName)}` : ''}` +
+                `${contact?.id ? `&via=contacts&viaId=${encodeURIComponent(contact.id)}&viaName=${encodeURIComponent(contactName)}` : ''}`
+              : `${contact?.id ? `?ctx=contacts&ctxId=${encodeURIComponent(contact.id)}&ctxName=${encodeURIComponent(contactName)}` : ''}`
+
             return (
               <Link
-                href={`/opportunities/${opportunityId}`}
+                href={`/opportunities/${opportunityId}${query}`}
                 className="cursor-pointer font-medium text-primary-600 hover:text-primary-800 hover:underline"
                 onClick={(event) => event.stopPropagation()}
                 prefetch={false}

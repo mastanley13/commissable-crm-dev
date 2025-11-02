@@ -6,7 +6,6 @@ datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
-  // Use a separate connection for Prisma's shadow database during migrate dev
 }
 
 model Tenant {
@@ -408,57 +407,57 @@ model ContactPreference {
 }
 
 model Opportunity {
-  id                 String               @id @default(uuid()) @db.Uuid
-  tenantId           String               @db.Uuid
-  accountId          String               @db.Uuid
-  ownerId            String?              @db.Uuid
-  createdById        String?              @db.Uuid
-  updatedById        String?              @db.Uuid
-  name               String
-  stage              OpportunityStage     @default(Qualification)
-  status             OpportunityStatus    @default(Open)
-  type               OpportunityType      @default(NewBusiness)
-  leadSource         LeadSource           @default(Referral)
-  referredBy         String?
-  amount             Decimal?             @db.Decimal(16, 2)
-  expectedCommission Decimal?             @db.Decimal(16, 2)
-  probability        Decimal?             @db.Decimal(5, 2)
-  forecastCategory   String?
-  estimatedCloseDate DateTime?
-  actualCloseDate    DateTime?
-  nextStep           String?
-  competitors        String?
-  lossReason         String?
-  description        String?
-  shippingAddress    String?
-  billingAddress     String?
-  subagentPercent    Decimal?             @db.Decimal(5, 4)
-  houseRepPercent    Decimal?             @db.Decimal(5, 4)
-  houseSplitPercent  Decimal?             @db.Decimal(5, 4)
-  orderIdHouse       String?
-  orderIdVendor      String?
-  orderIdDistributor String?
-  accountIdHouse     String?
-  accountIdVendor    String?
-  accountIdDistributor String?
-  customerIdHouse    String?
-  customerIdVendor   String?
+  id                    String               @id @default(uuid()) @db.Uuid
+  tenantId              String               @db.Uuid
+  accountId             String               @db.Uuid
+  ownerId               String?              @db.Uuid
+  createdById           String?              @db.Uuid
+  updatedById           String?              @db.Uuid
+  name                  String
+  stage                 OpportunityStage     @default(Qualification)
+  status                OpportunityStatus    @default(Open)
+  type                  OpportunityType      @default(NewBusiness)
+  leadSource            LeadSource           @default(Referral)
+  amount                Decimal?             @db.Decimal(16, 2)
+  expectedCommission    Decimal?             @db.Decimal(16, 2)
+  probability           Decimal?             @db.Decimal(5, 2)
+  forecastCategory      String?
+  estimatedCloseDate    DateTime?
+  actualCloseDate       DateTime?
+  nextStep              String?
+  competitors           String?
+  lossReason            String?
+  description           String?
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+  billingAddress        String?
+  houseRepPercent       Decimal?             @db.Decimal(5, 4)
+  houseSplitPercent     Decimal?             @db.Decimal(5, 4)
+  referredBy            String?
+  shippingAddress       String?
+  subagentPercent       Decimal?             @db.Decimal(5, 4)
+  accountIdDistributor  String?
+  accountIdHouse        String?
+  accountIdVendor       String?
   customerIdDistributor String?
-  locationId         String?
+  customerIdHouse       String?
+  customerIdVendor      String?
   customerPurchaseOrder String?
-  distributorName    String?
-  vendorName         String?
-  createdAt          DateTime             @default(now())
-  updatedAt          DateTime             @updatedAt
-  activities         Activity[]
-  account            Account              @relation(fields: [accountId], references: [id])
-  createdBy          User?                @relation("OpportunityCreatedBy", fields: [createdById], references: [id])
-  owner              User?                @relation("OpportunityOwner", fields: [ownerId], references: [id])
-  tenant             Tenant               @relation(fields: [tenantId], references: [id])
-  updatedBy          User?                @relation("OpportunityUpdatedBy", fields: [updatedById], references: [id])
-  products           OpportunityProduct[]
-  revenueSchedules   RevenueSchedule[]
-  tickets            Ticket[]
+  distributorName       String?
+  locationId            String?
+  orderIdDistributor    String?
+  orderIdHouse          String?
+  orderIdVendor         String?
+  vendorName            String?
+  activities            Activity[]
+  account               Account              @relation(fields: [accountId], references: [id])
+  createdBy             User?                @relation("OpportunityCreatedBy", fields: [createdById], references: [id])
+  owner                 User?                @relation("OpportunityOwner", fields: [ownerId], references: [id])
+  tenant                Tenant               @relation(fields: [tenantId], references: [id])
+  updatedBy             User?                @relation("OpportunityUpdatedBy", fields: [updatedById], references: [id])
+  products              OpportunityProduct[]
+  revenueSchedules      RevenueSchedule[]
+  tickets               Ticket[]
 
   @@index([tenantId, accountId])
   @@index([tenantId, ownerId])
@@ -467,63 +466,63 @@ model Opportunity {
 }
 
 model OpportunityProduct {
-  id                 String            @id @default(uuid()) @db.Uuid
-  tenantId           String            @db.Uuid
-  opportunityId      String            @db.Uuid
-  productId          String            @db.Uuid
-  status             OpportunityProductStatus @default(Provisioning)
-  active             Boolean           @default(true)
-  quantity           Decimal?          @db.Decimal(16, 2)
-  unitPrice          Decimal?          @db.Decimal(16, 2)
-  expectedUsage      Decimal?          @db.Decimal(16, 2)
-  expectedRevenue    Decimal?          @db.Decimal(16, 2)
-  expectedCommission Decimal?          @db.Decimal(16, 2)
+  id                 String                   @id @default(uuid()) @db.Uuid
+  tenantId           String                   @db.Uuid
+  opportunityId      String                   @db.Uuid
+  productId          String                   @db.Uuid
+  quantity           Decimal?                 @db.Decimal(16, 2)
+  unitPrice          Decimal?                 @db.Decimal(16, 2)
+  expectedUsage      Decimal?                 @db.Decimal(16, 2)
+  expectedRevenue    Decimal?                 @db.Decimal(16, 2)
+  expectedCommission Decimal?                 @db.Decimal(16, 2)
   revenueStartDate   DateTime?
   revenueEndDate     DateTime?
-  createdAt          DateTime          @default(now())
-  updatedAt          DateTime          @updatedAt
-  opportunity        Opportunity       @relation(fields: [opportunityId], references: [id])
-  product            Product           @relation(fields: [productId], references: [id])
-  tenant             Tenant            @relation(fields: [tenantId], references: [id])
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
+  active             Boolean                  @default(true)
+  status             OpportunityProductStatus @default(Provisioning)
+  opportunity        Opportunity              @relation(fields: [opportunityId], references: [id])
+  product            Product                  @relation(fields: [productId], references: [id])
+  tenant             Tenant                   @relation(fields: [tenantId], references: [id])
   revenueSchedules   RevenueSchedule[]
 
   @@index([tenantId, opportunityId])
 }
 
 model Product {
-  id                   String               @id @default(uuid()) @db.Uuid
-  tenantId             String               @db.Uuid
-  productCode          String
-  productNameHouse     String
-  productNameVendor    String?
-  productFamilyHouse   String?
-  productFamilyVendor  String?
-  productSubtypeVendor String?
-  productNameDistributor String?
-  partNumberVendor     String?
-  partNumberDistributor String?
-  partNumberHouse      String?
-  distributorProductFamily String?
-  description          String?
-  productDescriptionVendor String?
+  id                            String               @id @default(uuid()) @db.Uuid
+  tenantId                      String               @db.Uuid
+  productCode                   String
+  productNameHouse              String
+  productNameVendor             String?
+  description                   String?
+  revenueType                   RevenueType
+  commissionPercent             Decimal?             @db.Decimal(5, 2)
+  priceEach                     Decimal?             @db.Decimal(16, 2)
+  isActive                      Boolean              @default(true)
+  vendorAccountId               String?              @db.Uuid
+  distributorAccountId          String?              @db.Uuid
+  createdById                   String?              @db.Uuid
+  updatedById                   String?              @db.Uuid
+  createdAt                     DateTime             @default(now())
+  updatedAt                     DateTime             @updatedAt
+  distributorProductFamily      String?
+  partNumberDistributor         String?
+  partNumberVendor              String?
   productDescriptionDistributor String?
-  revenueType          RevenueType
-  commissionPercent    Decimal?             @db.Decimal(5, 2)
-  priceEach            Decimal?             @db.Decimal(16, 2)
-  isActive             Boolean              @default(true)
-  vendorAccountId      String?              @db.Uuid
-  distributorAccountId String?              @db.Uuid
-  createdById          String?              @db.Uuid
-  updatedById          String?              @db.Uuid
-  createdAt            DateTime             @default(now())
-  updatedAt            DateTime             @updatedAt
-  opportunityProducts  OpportunityProduct[]
-  createdBy            User?                @relation("ProductCreatedBy", fields: [createdById], references: [id])
-  distributor          Account?             @relation("ProductDistributor", fields: [distributorAccountId], references: [id])
-  tenant               Tenant               @relation(fields: [tenantId], references: [id])
-  updatedBy            User?                @relation("ProductUpdatedBy", fields: [updatedById], references: [id])
-  vendor               Account?             @relation("ProductVendor", fields: [vendorAccountId], references: [id])
-  revenueSchedules     RevenueSchedule[]
+  productDescriptionVendor      String?
+  productFamilyHouse            String?
+  productFamilyVendor           String?
+  productNameDistributor        String?
+  productSubtypeVendor          String?
+  partNumberHouse               String?
+  opportunityProducts           OpportunityProduct[]
+  createdBy                     User?                @relation("ProductCreatedBy", fields: [createdById], references: [id])
+  distributor                   Account?             @relation("ProductDistributor", fields: [distributorAccountId], references: [id])
+  tenant                        Tenant               @relation(fields: [tenantId], references: [id])
+  updatedBy                     User?                @relation("ProductUpdatedBy", fields: [updatedById], references: [id])
+  vendor                        Account?             @relation("ProductVendor", fields: [vendorAccountId], references: [id])
+  revenueSchedules              RevenueSchedule[]
 
   @@unique([tenantId, productCode])
   @@index([tenantId, isActive])
@@ -959,9 +958,9 @@ enum OpportunityStage {
   Discovery
   Proposal
   Negotiation
-  OnHold
   ClosedWon
   ClosedLost
+  OnHold
   ClosedWon_Provisioning
   ClosedWon_Billing
   ClosedWon_BillingEnded

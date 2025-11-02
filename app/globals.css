@@ -110,17 +110,19 @@ html, body {
 
 .table-header .table-cell {
   min-height: auto;
-  align-items: flex-start;
-  padding-top: 16px;
-  padding-bottom: 16px;
+  align-items: center; /* Center align all header content */
+  padding-top: 12px;
+  padding-bottom: 12px;
   padding-left: 12px;
   padding-right: 12px;
 }
 
 .table-header-content {
-  flex: 0 1 auto;
+  flex: 1 1 auto;
   min-width: 0; /* Allows flex shrinking */
-  overflow: hidden;
+  overflow: visible; /* Changed to visible to allow wrapping */
+  display: flex;
+  align-items: flex-start; /* Changed to flex-start for wrapped headers */
 }
 
 .table-row {
@@ -201,14 +203,16 @@ html, body {
 
   .table-header .table-cell {
     min-height: auto;
-    align-items: flex-start;
+    align-items: center; /* Center align all header content */
     padding-top: 12px;
     padding-bottom: 12px;
   }
 
   .table-header-content {
-    flex: 0 1 auto;
+    flex: 1 1 auto;
     min-width: 0;
-    overflow: hidden;
+    overflow: visible; /* Changed to visible to allow wrapping */
+    display: flex;
+    align-items: flex-start; /* Changed to flex-start for wrapped headers */
   }
 }

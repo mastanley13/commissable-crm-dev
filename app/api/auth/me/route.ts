@@ -34,9 +34,10 @@ export async function GET(request: NextRequest) {
 
   } catch (error) {
     console.error('Auth check error:', error)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
+    const payload: any = { error: 'Internal server error' }
+    if (process.env.NODE_ENV !== 'production' && error instanceof Error) {
+      payload.detail = error.message
+    }
+    return NextResponse.json(payload, { status: 500 })
   }
 }

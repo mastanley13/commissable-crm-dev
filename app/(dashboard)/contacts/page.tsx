@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { ListHeader, type ColumnFilter as ListColumnFilter } from "@/components/list-header"
 import { DynamicTable, Column } from "@/components/dynamic-table"
@@ -18,6 +18,7 @@ import { ContactBulkStatusModal } from "@/components/contact-bulk-status-modal"
 import { ContactEditModal } from "@/components/contact-edit-modal"
 import { Trash2, Check } from "lucide-react"
 import { isRowInactive } from "@/lib/row-state"
+import { calculateMinWidth } from "@/lib/column-width-utils"
 
 interface ContactRow {
   id: string
@@ -89,7 +90,7 @@ const contactColumns: Column[] = [
     id: "multi-action",
     label: "Select All",
     width: 200,
-    minWidth: 160,
+    minWidth: calculateMinWidth({ label: "Select All", type: "multi-action", sortable: false }),
     maxWidth: 240,
     type: "multi-action",
     accessor: "select",
@@ -99,7 +100,7 @@ const contactColumns: Column[] = [
     id: "suffix",
     label: "Suffix",
     width: 100,
-    minWidth: 80,
+    minWidth: calculateMinWidth({ label: "Suffix", type: "text", sortable: true }),
     maxWidth: 120,
     sortable: true,
     type: "text",
@@ -109,7 +110,7 @@ const contactColumns: Column[] = [
     id: "fullName",
     label: "Full Name",
     width: 180,
-    minWidth: 140,
+    minWidth: calculateMinWidth({ label: "Full Name", type: "text", sortable: true }),
     maxWidth: 300,
     sortable: true,
     type: "text",
@@ -124,7 +125,7 @@ const contactColumns: Column[] = [
     id: "extension",
     label: "Extension",
     width: 100,
-    minWidth: 80,
+    minWidth: calculateMinWidth({ label: "Extension", type: "text", sortable: true }),
     maxWidth: 150,
     sortable: true,
     type: "text",
@@ -134,7 +135,7 @@ const contactColumns: Column[] = [
     id: "workPhone",
     label: "Work Phone",
     width: 140,
-    minWidth: 120,
+    minWidth: calculateMinWidth({ label: "Work Phone", type: "phone", sortable: true }),
     maxWidth: 180,
     sortable: true,
     type: "phone",
@@ -148,7 +149,7 @@ const contactColumns: Column[] = [
     id: "contactType",
     label: "Contact Type",
     width: 120,
-    minWidth: 100,
+    minWidth: calculateMinWidth({ label: "Contact Type", type: "text", sortable: true }),
     maxWidth: 180,
     sortable: true,
     type: "text"
@@ -157,7 +158,7 @@ const contactColumns: Column[] = [
     id: "emailAddress",
     label: "Email Address",
     width: 200,
-    minWidth: 160,
+    minWidth: calculateMinWidth({ label: "Email Address", type: "email", sortable: true }),
     maxWidth: 300,
     sortable: true,
     type: "email",
@@ -171,7 +172,7 @@ const contactColumns: Column[] = [
     id: "jobTitle",
     label: "Job Title",
     width: 140,
-    minWidth: 100,
+    minWidth: calculateMinWidth({ label: "Job Title", type: "text", sortable: true }),
     maxWidth: 250,
     sortable: true,
     type: "text"
@@ -180,7 +181,7 @@ const contactColumns: Column[] = [
     id: "mobile",
     label: "Mobile",
     width: 140,
-    minWidth: 120,
+    minWidth: calculateMinWidth({ label: "Mobile", type: "phone", sortable: true }),
     maxWidth: 180,
     sortable: true,
     type: "phone",
@@ -194,7 +195,7 @@ const contactColumns: Column[] = [
     id: "isPrimary",
     label: "Active (Y/N)",
     width: 120,
-    minWidth: 100,
+    minWidth: calculateMinWidth({ label: "Active (Y/N)", type: "text", sortable: true }),
     maxWidth: 160,
     sortable: true,
     type: "text",
@@ -205,7 +206,7 @@ const contactColumns: Column[] = [
     id: "isDecisionMaker",
     label: "Decision Maker",
     width: 140,
-    minWidth: 100,
+    minWidth: calculateMinWidth({ label: "Decision Maker", type: "text", sortable: true }),
     maxWidth: 180,
     sortable: true,
     type: "text",
@@ -216,7 +217,7 @@ const contactColumns: Column[] = [
     id: "preferredContactMethod",
     label: "Preferred Contact Method",
     width: 180,
-    minWidth: 140,
+    minWidth: calculateMinWidth({ label: "Preferred Contact Method", type: "text", sortable: true }),
     maxWidth: 240,
     sortable: true,
     type: "text",
@@ -234,6 +235,9 @@ const contactFilterOptions = [
   { id: "workPhone", label: "Work Phone" },
   { id: "extension", label: "Extension" }
 ];
+
+const TABLE_BOTTOM_RESERVE = 110
+const TABLE_MIN_BODY_HEIGHT = 320
 
 export default function ContactsPage() {
   const [contacts, setContacts] = useState<ContactRow[]>([])
@@ -263,6 +267,8 @@ export default function ContactsPage() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [contactToEdit, setContactToEdit] = useState<ContactRow | null>(null)
   const [showEditModal, setShowEditModal] = useState(false)
+  const [tableBodyHeight, setTableBodyHeight] = useState<number>()
+  const tableAreaNodeRef = useRef<HTMLDivElement | null>(null)
   const router = useRouter()
   
   const { showSuccess, showError, ToastContainer } = useToasts()
@@ -279,6 +285,65 @@ export default function ContactsPage() {
     saveChanges,
     saveChangesOnModalClose,
   } = useTablePreferences("contacts:list", contactColumns)
+
+  const measureTableArea = useCallback(() => {
+    const node = tableAreaNodeRef.current
+    if (!node || typeof window === 'undefined') {
+      return
+    }
+
+    const rect = node.getBoundingClientRect()
+    const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0
+    if (viewportHeight <= 0) {
+      return
+    }
+
+    const available = viewportHeight - rect.top - TABLE_BOTTOM_RESERVE
+    if (!Number.isFinite(available)) {
+      return
+    }
+
+    const nextHeight = Math.max(TABLE_MIN_BODY_HEIGHT, Math.floor(available))
+    if (nextHeight !== tableBodyHeight) {
+      setTableBodyHeight(nextHeight)
+    }
+  }, [tableBodyHeight])
+
+  const tableAreaRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      tableAreaNodeRef.current = node
+      if (node) {
+        window.requestAnimationFrame(() => {
+          measureTableArea()
+        })
+      }
+    },
+    [measureTableArea],
+  )
+
+  useLayoutEffect(() => {
+    measureTableArea()
+  }, [measureTableArea])
+
+  useEffect(() => {
+    const handleResize = () => measureTableArea()
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [measureTableArea])
+
+  useEffect(() => {
+    window.requestAnimationFrame(() => {
+      measureTableArea()
+    })
+  }, [
+    measureTableArea,
+    contacts.length,
+    selectedContacts.length,
+    loading,
+    preferenceLoading,
+    pagination.page,
+    pagination.pageSize,
+  ])
 
   const loadContacts = useCallback(async () => {
     setLoading(true)
@@ -1254,40 +1319,46 @@ export default function ContactsPage() {
       />
 
       {(error || preferenceError) && (
-        <div className="px-4 text-sm text-red-600">{error || preferenceError}</div>
+        <div className="px-3 text-sm text-red-600">{error || preferenceError}</div>
       )}
 
-      <div className="flex-1 p-4 min-h-0">
-        <ContactBulkActionBar
-          count={selectedContacts.length}
-          disabled={bulkActionLoading}
-          onSoftDelete={openBulkDeleteDialog}
-          onExportCsv={handleBulkExportCsv}
-          onChangeOwner={() => setShowBulkOwnerModal(true)}
-          onUpdateStatus={() => setShowBulkStatusModal(true)}
-        />
-        <DynamicTable
-          columns={tableColumns}
-          data={contacts}
-          onSort={handleSort}
-          onRowClick={handleRowClick}
-          loading={tableLoading}
-          emptyMessage="No contacts found"
-          onColumnsChange={handleColumnsChange}
-          pagination={pagination}
-          onPageChange={handlePageChange}
-          onPageSizeChange={handlePageSizeChange}
-          selectedItems={selectedContacts}
-          onItemSelect={handleContactSelect}
-          onSelectAll={handleSelectAll}
-          onToggle={(row, columnId, value) => {
-            if (columnId === "active") {
-              handleToggleContactStatus(row, value)
-            }
-          }}
-          fillContainerWidth
-          autoSizeColumns={false} // Explicitly disable auto-sizing to prevent conflicts
-        />
+      <div className="flex-1 min-h-0 p-4 pt-0 flex flex-col gap-4">
+        <div className="flex-shrink-0">
+          <ContactBulkActionBar
+            count={selectedContacts.length}
+            disabled={bulkActionLoading}
+            onSoftDelete={openBulkDeleteDialog}
+            onExportCsv={handleBulkExportCsv}
+            onChangeOwner={() => setShowBulkOwnerModal(true)}
+            onUpdateStatus={() => setShowBulkStatusModal(true)}
+          />
+        </div>
+        <div ref={tableAreaRef} className="flex-1 min-h-0">
+          <DynamicTable
+            columns={tableColumns}
+            data={contacts}
+            onSort={handleSort}
+            onRowClick={handleRowClick}
+            loading={tableLoading}
+            emptyMessage="No contacts found"
+            onColumnsChange={handleColumnsChange}
+            pagination={pagination}
+            onPageChange={handlePageChange}
+            onPageSizeChange={handlePageSizeChange}
+            selectedItems={selectedContacts}
+            onItemSelect={handleContactSelect}
+            onSelectAll={handleSelectAll}
+            onToggle={(row, columnId, value) => {
+              if (columnId === "active") {
+                handleToggleContactStatus(row, value)
+              }
+            }}
+            fillContainerWidth
+            autoSizeColumns={false}
+            alwaysShowPagination
+            maxBodyHeight={tableBodyHeight}
+          />
+        </div>
       </div>
 
       <ContactBulkOwnerModal

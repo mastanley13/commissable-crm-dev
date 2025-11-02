@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ListHeader } from "@/components/list-header";
 import { DynamicTable, Column, PaginationInfo } from "@/components/dynamic-table";
@@ -21,6 +21,7 @@ import { AccountReassignmentModal } from "@/components/account-reassignment-moda
 import { AccountBulkStatusModal } from "@/components/account-bulk-status-modal";
 import { Trash2, Check } from "lucide-react";
 import { isRowInactive } from "@/lib/row-state";
+import { calculateMinWidth } from "@/lib/column-width-utils";
 
 
 interface AccountRow {
@@ -101,7 +102,7 @@ const accountColumns: Column[] = [
     id: "multi-action",
     label: "Select All",
     width: 200,
-    minWidth: 180,
+    minWidth: calculateMinWidth({ label: "Select All", type: "multi-action", sortable: false }),
     maxWidth: 240,
     type: "multi-action",
     accessor: "select",
@@ -110,7 +111,7 @@ const accountColumns: Column[] = [
     id: "accountName",
     label: "Account Name",
     width: 180,
-    minWidth: 120,
+    minWidth: calculateMinWidth({ label: "Account Name", type: "text", sortable: true }),
     maxWidth: 300,
     sortable: true,
     type: "text",
@@ -125,7 +126,7 @@ const accountColumns: Column[] = [
     id: "accountLegalName",
     label: "Account Legal Name",
     width: 180,
-    minWidth: 120,
+    minWidth: calculateMinWidth({ label: "Account Legal Name", type: "text", sortable: true }),
     maxWidth: 300,
     sortable: true,
     type: "text",
@@ -139,7 +140,7 @@ const accountColumns: Column[] = [
     id: "accountNumber",
     label: "Account Number",
     width: 160,
-    minWidth: 140,
+    minWidth: calculateMinWidth({ label: "Account Number", type: "text", sortable: true }),
     maxWidth: 260,
     sortable: true,
     type: "text",
@@ -149,7 +150,7 @@ const accountColumns: Column[] = [
     id: "accountType",
     label: "Account Type",
     width: 140,
-    minWidth: 100,
+    minWidth: calculateMinWidth({ label: "Account Type", type: "text", sortable: true }),
     maxWidth: 220,
     sortable: true,
     type: "text",
@@ -158,7 +159,7 @@ const accountColumns: Column[] = [
     id: "accountOwner",
     label: "Account Owner",
     width: 160,
-    minWidth: 120,
+    minWidth: calculateMinWidth({ label: "Account Owner", type: "text", sortable: true }),
     maxWidth: 250,
     sortable: true,
     type: "text",
@@ -167,7 +168,7 @@ const accountColumns: Column[] = [
     id: "accountStatus",
     label: "Active (Y/N)",
     width: 140,
-    minWidth: 120,
+    minWidth: calculateMinWidth({ label: "Active (Y/N)", type: "text", sortable: true }),
     maxWidth: 220,
     sortable: true,
     type: "text",
@@ -179,7 +180,7 @@ const accountColumns: Column[] = [
     id: "parentAccount",
     label: "Parent Account",
     width: 200,
-    minWidth: 160,
+    minWidth: calculateMinWidth({ label: "Parent Account", type: "text", sortable: true }),
     maxWidth: 280,
     sortable: true,
     type: "text",
@@ -189,7 +190,7 @@ const accountColumns: Column[] = [
     id: "industry",
     label: "Industry",
     width: 200,
-    minWidth: 160,
+    minWidth: calculateMinWidth({ label: "Industry", type: "text", sortable: true }),
     maxWidth: 280,
     sortable: true,
     type: "text",
@@ -199,7 +200,7 @@ const accountColumns: Column[] = [
     id: "websiteUrl",
     label: "Website URL",
     width: 220,
-    minWidth: 160,
+    minWidth: calculateMinWidth({ label: "Website URL", type: "text", sortable: true }),
     maxWidth: 320,
     sortable: true,
     type: "text",
@@ -222,7 +223,7 @@ const accountColumns: Column[] = [
     id: "description",
     label: "Description",
     width: 260,
-    minWidth: 200,
+    minWidth: calculateMinWidth({ label: "Description", type: "text", sortable: true }),
     maxWidth: 420,
     sortable: true,
     type: "text",
@@ -232,7 +233,7 @@ const accountColumns: Column[] = [
     id: "shippingState",
     label: "Shipping State",
     width: 130,
-    minWidth: 100,
+    minWidth: calculateMinWidth({ label: "Shipping State", type: "text", sortable: true }),
     maxWidth: 180,
     sortable: true,
     type: "text",
@@ -241,7 +242,7 @@ const accountColumns: Column[] = [
     id: "shippingCity",
     label: "Shipping City",
     width: 150,
-    minWidth: 110,
+    minWidth: calculateMinWidth({ label: "Shipping City", type: "text", sortable: true }),
     maxWidth: 220,
     sortable: true,
     type: "text",
@@ -250,7 +251,7 @@ const accountColumns: Column[] = [
     id: "shippingZip",
     label: "Shipping Zip",
     width: 130,
-    minWidth: 100,
+    minWidth: calculateMinWidth({ label: "Shipping Zip", type: "text", sortable: true }),
     maxWidth: 180,
     sortable: true,
     type: "text",
@@ -259,7 +260,7 @@ const accountColumns: Column[] = [
     id: "shippingStreet",
     label: "Shipping Street",
     width: 220,
-    minWidth: 180,
+    minWidth: calculateMinWidth({ label: "Shipping Street", type: "text", sortable: true }),
     maxWidth: 360,
     sortable: true,
     type: "text",
@@ -268,7 +269,7 @@ const accountColumns: Column[] = [
     id: "shippingStreet2",
     label: "Shipping Street 2",
     width: 220,
-    minWidth: 180,
+    minWidth: calculateMinWidth({ label: "Shipping Street 2", type: "text", sortable: true }),
     maxWidth: 360,
     sortable: true,
     type: "text",
@@ -277,7 +278,7 @@ const accountColumns: Column[] = [
     id: "shippingCountry",
     label: "Shipping Country",
     width: 180,
-    minWidth: 150,
+    minWidth: calculateMinWidth({ label: "Shipping Country", type: "text", sortable: true }),
     maxWidth: 260,
     sortable: true,
     type: "text",
@@ -287,7 +288,7 @@ const accountColumns: Column[] = [
     id: "billingStreet",
     label: "Billing Street",
     width: 220,
-    minWidth: 180,
+    minWidth: calculateMinWidth({ label: "Billing Street", type: "text", sortable: true }),
     maxWidth: 360,
     sortable: true,
     type: "text",
@@ -297,7 +298,7 @@ const accountColumns: Column[] = [
     id: "billingStreet2",
     label: "Billing Street 2",
     width: 220,
-    minWidth: 180,
+    minWidth: calculateMinWidth({ label: "Billing Street 2", type: "text", sortable: true }),
     maxWidth: 360,
     sortable: true,
     type: "text",
@@ -307,7 +308,7 @@ const accountColumns: Column[] = [
     id: "billingCity",
     label: "Billing City",
     width: 150,
-    minWidth: 120,
+    minWidth: calculateMinWidth({ label: "Billing City", type: "text", sortable: true }),
     maxWidth: 220,
     sortable: true,
     type: "text",
@@ -317,7 +318,7 @@ const accountColumns: Column[] = [
     id: "billingState",
     label: "Billing State",
     width: 130,
-    minWidth: 100,
+    minWidth: calculateMinWidth({ label: "Billing State", type: "text", sortable: true }),
     maxWidth: 180,
     sortable: true,
     type: "text",
@@ -327,7 +328,7 @@ const accountColumns: Column[] = [
     id: "billingZip",
     label: "Billing Zip",
     width: 130,
-    minWidth: 100,
+    minWidth: calculateMinWidth({ label: "Billing Zip", type: "text", sortable: true }),
     maxWidth: 180,
     sortable: true,
     type: "text",
@@ -337,7 +338,7 @@ const accountColumns: Column[] = [
     id: "billingCountry",
     label: "Billing Country",
     width: 180,
-    minWidth: 150,
+    minWidth: calculateMinWidth({ label: "Billing Country", type: "text", sortable: true }),
     maxWidth: 260,
     sortable: true,
     type: "text",
@@ -373,6 +374,9 @@ type ColumnFilterState = {
   value: string;
 } | null;
 
+const TABLE_BOTTOM_RESERVE = 110
+const TABLE_MIN_BODY_HEIGHT = 320
+
 export default function AccountsPage() {
   const router = useRouter();
   const { showSuccess, showError, ToastContainer } = useToasts();
@@ -400,6 +404,8 @@ export default function AccountsPage() {
   const [accountToEdit, setAccountToEdit] = useState<AccountRow | null>(null);
   const [showEditModal, setShowEditModal] = useState<boolean>(false);
   const [accountColumnsNormalized, setAccountColumnsNormalized] = useState(false);
+  const [tableBodyHeight, setTableBodyHeight] = useState<number>();
+  const tableAreaNodeRef = useRef<HTMLDivElement | null>(null);
 
   const {
     columns: preferenceColumns,
@@ -444,6 +450,65 @@ export default function AccountsPage() {
 
     setAccountColumnsNormalized(true);
   }, [preferenceColumns, preferenceLoading, handleColumnsChange, accountColumnsNormalized]);
+
+  const measureTableArea = useCallback(() => {
+    const node = tableAreaNodeRef.current
+    if (!node || typeof window === 'undefined') {
+      return
+    }
+
+    const rect = node.getBoundingClientRect()
+    const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0
+    if (viewportHeight <= 0) {
+      return
+    }
+
+    const available = viewportHeight - rect.top - TABLE_BOTTOM_RESERVE
+    if (!Number.isFinite(available)) {
+      return
+    }
+
+    const nextHeight = Math.max(TABLE_MIN_BODY_HEIGHT, Math.floor(available))
+    if (nextHeight !== tableBodyHeight) {
+      setTableBodyHeight(nextHeight)
+    }
+  }, [tableBodyHeight])
+
+  const tableAreaRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      tableAreaNodeRef.current = node
+      if (node) {
+        window.requestAnimationFrame(() => {
+          measureTableArea()
+        })
+      }
+    },
+    [measureTableArea],
+  )
+
+  useLayoutEffect(() => {
+    measureTableArea()
+  }, [measureTableArea])
+
+  useEffect(() => {
+    const handleResize = () => measureTableArea()
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [measureTableArea])
+
+  useEffect(() => {
+    window.requestAnimationFrame(() => {
+      measureTableArea()
+    })
+  }, [
+    measureTableArea,
+    accounts.length,
+    selectedAccounts.length,
+    loading,
+    preferenceLoading,
+    page,
+    pageSize,
+  ])
 
   const applyFilters = useCallback(
     (
@@ -1576,15 +1641,17 @@ export default function AccountsPage() {
         </div>
       )}
 
-      <div className="flex-1 p-4 min-h-0">
-        <AccountBulkActionBar
-          count={selectedAccounts.length}
-          disabled={bulkActionLoading}
-          onSoftDelete={openBulkDeleteDialog}
-          onExportCsv={handleBulkExportCsv}
-          onChangeOwner={() => setShowReassignModal(true)}
-          onUpdateStatus={() => setShowBulkStatusModal(true)}
-        />
+      <div className="flex-1 min-h-0 p-4 pt-0 flex flex-col gap-4">
+        <div className="flex-shrink-0">
+          <AccountBulkActionBar
+            count={selectedAccounts.length}
+            disabled={bulkActionLoading}
+            onSoftDelete={openBulkDeleteDialog}
+            onExportCsv={handleBulkExportCsv}
+            onChangeOwner={() => setShowReassignModal(true)}
+            onUpdateStatus={() => setShowBulkStatusModal(true)}
+          />
+        </div>
       <AccountReassignmentModal
         isOpen={showReassignModal}
         selectedAccountIds={selectedAccounts}
@@ -1621,27 +1688,30 @@ export default function AccountsPage() {
         }}
       />
 
-        <DynamicTable
-          columns={tableColumns}
-          data={paginatedAccounts}
-          onSort={handleSort}
-          onRowClick={handleRowClick}
-          loading={tableLoading}
-          emptyMessage="No accounts found"
-          onColumnsChange={handleColumnsChange}
-          pagination={paginationInfo}
-          onPageChange={handlePageChange}
-          onPageSizeChange={handlePageSizeChange}
-          selectedItems={selectedAccounts}
-          onItemSelect={handleAccountSelect}
-          onSelectAll={handleSelectAll}
-          onToggle={(row, columnId, value) => {
-            if (columnId === "active") {
-              handleToggleActive(row as AccountRow, value);
-            }
-          }}
-          alwaysShowPagination
-        />
+        <div ref={tableAreaRef} className="flex-1 min-h-0">
+          <DynamicTable
+            columns={tableColumns}
+            data={paginatedAccounts}
+            onSort={handleSort}
+            onRowClick={handleRowClick}
+            loading={tableLoading}
+            emptyMessage="No accounts found"
+            onColumnsChange={handleColumnsChange}
+            pagination={paginationInfo}
+            onPageChange={handlePageChange}
+            onPageSizeChange={handlePageSizeChange}
+            selectedItems={selectedAccounts}
+            onItemSelect={handleAccountSelect}
+            onSelectAll={handleSelectAll}
+            onToggle={(row, columnId, value) => {
+              if (columnId === "active") {
+                handleToggleActive(row as AccountRow, value);
+              }
+            }}
+            alwaysShowPagination
+            maxBodyHeight={tableBodyHeight}
+          />
+        </div>
       </div>
 
       <AccountBulkOwnerModal
