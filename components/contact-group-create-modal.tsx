@@ -98,14 +98,14 @@ export function ContactGroupCreateModal({ isOpen, contactName, accountId, contac
         }
         const payload = await response.json()
         const items = Array.isArray(payload?.data?.users) ? payload.data.users : []
-        const ownerOptions = items.map((userItem: any) => ({
+        const ownerOptions: SelectOption[] = items.map((userItem: any) => ({
           value: userItem.id,
           label: userItem.fullName || userItem.email
         }))
         setOwners(ownerOptions)
         // Default to current user if available, otherwise use first option
         if (ownerOptions.length > 0) {
-          const currentUserOption = user?.id ? ownerOptions.find(o => o.value === user.id) : null
+          const currentUserOption = user?.id ? ownerOptions.find((o: SelectOption) => o.value === user.id) : null
           const defaultOwner = currentUserOption || ownerOptions[0]
           // Only set if not already set (from initial state above)
           setForm(prev => ({ ...prev, ownerId: prev.ownerId || defaultOwner.value }))
@@ -493,5 +493,4 @@ export function ContactGroupCreateModal({ isOpen, contactName, accountId, contac
     </div>
   )
 }
-
 
