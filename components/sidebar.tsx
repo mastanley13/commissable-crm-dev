@@ -25,21 +25,21 @@ export function Sidebar() {
     style={{ overflow: 'visible' }}
     >
       {/* Header */}
-      <div id="sidebar-header" className="relative p-4 pb-6 border-b border-sidebar-dark rounded-br-[40px]">
+      <div id="sidebar-header" className="relative p-3 pb-4 border-b border-sidebar-dark rounded-br-[40px]">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
-            <div className="w-8 h-8 bg-white rounded-md flex items-center justify-center p-1">
+            <div className="w-6 h-6 bg-white rounded-md flex items-center justify-center p-0.5">
               <Image 
                 src="/commissable-logo.png" 
                 alt="Commissable Logo" 
-                width={24} 
-                height={24}
+                width={18} 
+                height={18}
                 className="object-contain"
                 style={{ width: 'auto', height: 'auto' }}
               />
             </div>
             {!collapsed && (
-              <span className="font-semibold text-lg">COMMISSABLE</span>
+              <span className="font-semibold text-base tracking-wide leading-none">COMMISSABLE</span>
             )}
           </div>
           <button

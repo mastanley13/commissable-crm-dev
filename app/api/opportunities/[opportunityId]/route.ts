@@ -86,6 +86,16 @@ function formatSubAgentDescription(value: string | null | undefined) {
   return `Subagent: ${finalValue}`
 }
 
+const opportunityActivityInclude = {
+  creator: { select: { firstName: true, lastName: true } },
+  assignee: { select: { firstName: true, lastName: true } },
+  attachments: {
+    include: {
+      uploadedBy: { select: { firstName: true, lastName: true } }
+    }
+  }
+} as const
+
 export async function GET(request: NextRequest, { params }: { params: { opportunityId: string } }) {
   return withPermissions(request, OPPORTUNITY_VIEW_PERMISSIONS, async (req) => {
     try {
@@ -145,6 +155,13 @@ export async function GET(request: NextRequest, { params }: { params: { opportun
               }
             },
             orderBy: { scheduleDate: "asc" }
+          },
+          activities: {
+            include: opportunityActivityInclude as any,
+            orderBy: [
+              { dueDate: "desc" },
+              { createdAt: "desc" }
+            ]
           }
         }
       })

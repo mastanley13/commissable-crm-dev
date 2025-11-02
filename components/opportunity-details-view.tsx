@@ -15,13 +15,20 @@ import { EditableField } from "@/components/editable-field"
 import { useEntityEditor, type EntityEditor } from "@/hooks/useEntityEditor"
 import { useUnsavedChangesPrompt } from "@/hooks/useUnsavedChangesPrompt"
 import { calculateMinWidth } from "@/lib/column-width-utils"
+import { DEFAULT_OPEN_ACTIVITY_STATUS } from "@/lib/activity-status"
 import {
   OpportunityDetailRecord,
+  OpportunityActivityRecord,
   OpportunityLineItemRecord,
   OpportunityRevenueScheduleRecord
 } from "./opportunity-types"
 import { OpportunityLineItemCreateModal } from "./opportunity-line-item-create-modal"
 import { OpportunityLineItemEditModal } from "./opportunity-line-item-edit-modal"
+import { ActivityNoteCreateModal } from "./activity-note-create-modal"
+import { ActivityNoteEditModal } from "./activity-note-edit-modal"
+import { ActivityBulkActionBar } from "./activity-bulk-action-bar"
+import { ActivityBulkOwnerModal } from "./activity-bulk-owner-modal"
+import { ActivityBulkStatusModal } from "./activity-bulk-status-modal"
 import { ConfirmDialog } from "./confirm-dialog"
 import { useAuth } from "@/lib/auth-context"
 import { useToasts } from "@/components/toast"
@@ -37,6 +44,108 @@ const PRODUCT_FILTER_COLUMNS: Array<{ id: string; label: string }> = [
   { id: "revenueType", label: "Revenue Type" },
   { id: "distributorName", label: "Distributor" },
   { id: "vendorName", label: "Vendor" }
+]
+
+const ACTIVITY_FILTER_COLUMNS: Array<{ id: string; label: string }> = [
+  { id: "activityDate", label: "Activity Date" },
+  { id: "activityType", label: "Activity Type" },
+  { id: "activityStatus", label: "Activity Status" },
+  { id: "description", label: "Description" },
+  { id: "activityOwner", label: "Activity Owner" },
+  { id: "createdBy", label: "Created By" }
+]
+
+const ACTIVITY_TABLE_BASE_COLUMNS: Column[] = [
+  {
+    id: "multi-action",
+    label: "Select All",
+    width: 200,
+    minWidth: calculateMinWidth({ label: "Select All", type: "multi-action", sortable: false }),
+    maxWidth: 240,
+    type: "multi-action",
+    hideable: false
+  },
+  {
+    id: "id",
+    label: "Activity ID",
+    width: 180,
+    minWidth: calculateMinWidth({ label: "Activity ID", type: "text", sortable: true }),
+    maxWidth: 220,
+    accessor: "id",
+    sortable: true
+  },
+  {
+    id: "activityDate",
+    label: "Activity Date",
+    width: 160,
+    minWidth: calculateMinWidth({ label: "Activity Date", type: "text", sortable: true }),
+    maxWidth: 220,
+    accessor: "activityDate",
+    sortable: true
+  },
+  {
+    id: "activityType",
+    label: "Activity Type",
+    width: 160,
+    minWidth: calculateMinWidth({ label: "Activity Type", type: "text", sortable: true }),
+    maxWidth: 220,
+    accessor: "activityType",
+    sortable: true
+  },
+  {
+    id: "activityOwner",
+    label: "Activity Owner",
+    width: 180,
+    minWidth: calculateMinWidth({ label: "Activity Owner", type: "text", sortable: true }),
+    maxWidth: 240,
+    accessor: "activityOwner",
+    sortable: true
+  },
+  {
+    id: "description",
+    label: "Activity Description",
+    width: 260,
+    minWidth: calculateMinWidth({ label: "Activity Description", type: "text", sortable: true }),
+    maxWidth: 400,
+    accessor: "description",
+    sortable: true
+  },
+  {
+    id: "activityStatus",
+    label: "Activity Status",
+    width: 160,
+    minWidth: calculateMinWidth({ label: "Activity Status", type: "text", sortable: true }),
+    maxWidth: 220,
+    accessor: "activityStatus",
+    sortable: true
+  },
+  {
+    id: "attachment",
+    label: "Attachment",
+    width: 140,
+    minWidth: calculateMinWidth({ label: "Attachment", type: "text", sortable: true }),
+    maxWidth: 200,
+    accessor: "attachment",
+    sortable: true
+  },
+  {
+    id: "fileName",
+    label: "File Name",
+    width: 220,
+    minWidth: calculateMinWidth({ label: "File Name", type: "text", sortable: true }),
+    maxWidth: 280,
+    accessor: "fileName",
+    sortable: true
+  },
+  {
+    id: "createdBy",
+    label: "Created By",
+    width: 180,
+    minWidth: calculateMinWidth({ label: "Created By", type: "text", sortable: true }),
+    maxWidth: 240,
+    accessor: "createdBy",
+    sortable: true
+  }
 ]
 
 type OwnerOption = { value: string; label: string }
@@ -209,6 +318,20 @@ interface OpportunityRoleRow {
   phoneExtension: string
   mobile: string
   isActive: boolean
+}
+
+interface OpportunityActivityRow {
+  id: string
+  active: boolean
+  activityDate?: string | Date | null
+  activityType?: string | null
+  activityStatus?: string | null
+  description?: string | null
+  activityOwner?: string | null
+  createdBy?: string | null
+  attachment: string
+  fileName: string | null
+  attachments?: OpportunityActivityRecord["attachments"]
 }
 
 function SummaryTab({ opportunity }: { opportunity: OpportunityDetailRecord }) {
@@ -1464,6 +1587,32 @@ export function OpportunityDetailsView({
     saveChangesOnModalClose: saveRevenuePrefsOnModalClose
   } = useTablePreferences("opportunities:detail:revenue-schedules", REVENUE_TABLE_BASE_COLUMNS)
 
+  // Activities & notes state
+  const [activitySearchQuery, setActivitySearchQuery] = useState("")
+  const [activitiesColumnFilters, setActivitiesColumnFilters] = useState<ColumnFilter[]>([])
+  const [activityStatusFilter, setActivityStatusFilter] = useState<"active" | "inactive">("active")
+  const [activitiesCurrentPage, setActivitiesCurrentPage] = useState(1)
+  const [activitiesPageSize, setActivitiesPageSize] = useState(10)
+  const [selectedActivities, setSelectedActivities] = useState<string[]>([])
+  const [activityModalOpen, setActivityModalOpen] = useState(false)
+  const [activityBulkActionLoading, setActivityBulkActionLoading] = useState(false)
+  const [showActivityBulkOwnerModal, setShowActivityBulkOwnerModal] = useState(false)
+  const [showActivityBulkStatusModal, setShowActivityBulkStatusModal] = useState(false)
+  const [editingActivity, setEditingActivity] = useState<OpportunityActivityRecord | null>(null)
+  const [showActivityEditModal, setShowActivityEditModal] = useState(false)
+  const [showActivityColumnSettings, setShowActivityColumnSettings] = useState(false)
+
+  const {
+    columns: activityPreferenceColumns,
+    loading: activityPreferencesLoading,
+    saving: activityPreferencesSaving,
+    hasUnsavedChanges: activityHasUnsavedChanges,
+    lastSaved: activityLastSaved,
+    handleColumnsChange: handleActivityTableColumnsChange,
+    saveChanges: saveActivityPreferences,
+    saveChangesOnModalClose: saveActivityPrefsOnModalClose
+  } = useTablePreferences("opportunities:detail:activities", ACTIVITY_TABLE_BASE_COLUMNS)
+
   // History tab state
   const [historyRows, setHistoryRows] = useState<OpportunityHistoryRow[]>([])
   const [historyLoading, setHistoryLoading] = useState(false)
@@ -1523,6 +1672,7 @@ export function OpportunityDetailsView({
     rolePreferencesLoading,
     productPreferencesLoading,
     revenuePreferencesLoading,
+    activityPreferencesLoading,
     historyPreferencesLoading
   ])
 
@@ -1899,6 +2049,129 @@ export function OpportunityDetailsView({
     return filteredRevenueRows.slice(start, start + revenuePageSize)
   }, [filteredRevenueRows, revenueCurrentPage, revenuePageSize])
 
+  const activityRows = useMemo<OpportunityActivityRow[]>(() => {
+    if (!opportunity?.activities || opportunity.activities.length === 0) {
+      return []
+    }
+
+    return opportunity.activities.map(activity => ({
+      id: activity.id,
+      active: activity.active !== false,
+      activityDate: activity.activityDate ?? null,
+      activityType: activity.activityType ?? null,
+      activityStatus: activity.activityStatus ?? null,
+      description: activity.description ?? "",
+      activityOwner: activity.activityOwner ?? "",
+      createdBy: activity.createdBy ?? "",
+      attachment: activity.attachment ?? "None",
+      fileName: activity.fileName ?? "",
+      attachments: activity.attachments ?? []
+    }))
+  }, [opportunity?.activities])
+
+  const filteredActivities = useMemo(() => {
+    let rows = [...activityRows]
+
+    if (activityStatusFilter === "active") {
+      rows = rows.filter(row => row.active)
+    } else if (activityStatusFilter === "inactive") {
+      rows = rows.filter(row => !row.active)
+    }
+
+    if (activitySearchQuery.trim().length > 0) {
+      const search = activitySearchQuery.trim().toLowerCase()
+      rows = rows.filter(row =>
+        [
+          row.description,
+          row.activityType,
+          row.activityOwner,
+          row.activityStatus,
+          row.fileName,
+          row.createdBy
+        ]
+          .filter(Boolean)
+          .some(value => String(value).toLowerCase().includes(search))
+      )
+    }
+
+    if (activitiesColumnFilters.length > 0) {
+      const filtered = applySimpleFilters(
+        rows as unknown as Record<string, unknown>[],
+        activitiesColumnFilters
+      )
+      rows = filtered as unknown as OpportunityActivityRow[]
+    }
+
+    return rows
+  }, [activityRows, activityStatusFilter, activitySearchQuery, activitiesColumnFilters])
+
+  const paginatedActivities = useMemo(() => {
+    const start = (activitiesCurrentPage - 1) * activitiesPageSize
+    return filteredActivities.slice(start, start + activitiesPageSize)
+  }, [filteredActivities, activitiesCurrentPage, activitiesPageSize])
+
+  const activitiesPagination = useMemo(() => {
+    const total = filteredActivities.length
+    const totalPages = Math.max(Math.ceil(total / activitiesPageSize), 1)
+    return { page: activitiesCurrentPage, pageSize: activitiesPageSize, total, totalPages }
+  }, [filteredActivities.length, activitiesCurrentPage, activitiesPageSize])
+
+  useEffect(() => {
+    const maxPage = Math.max(Math.ceil(filteredActivities.length / activitiesPageSize), 1)
+    if (activitiesCurrentPage > maxPage) {
+      setActivitiesCurrentPage(maxPage)
+    }
+  }, [filteredActivities.length, activitiesCurrentPage, activitiesPageSize])
+
+  useEffect(() => {
+    setSelectedActivities(previous => previous.filter(id => activityRows.some(row => row.id === id)))
+  }, [activityRows])
+
+  useEffect(() => {
+    setActivityStatusFilter("active")
+    setActivitySearchQuery("")
+    setActivitiesColumnFilters([])
+    setActivitiesCurrentPage(1)
+    setSelectedActivities([])
+    setActivityModalOpen(false)
+    setShowActivityBulkOwnerModal(false)
+    setShowActivityBulkStatusModal(false)
+    setEditingActivity(null)
+    setShowActivityEditModal(false)
+  }, [opportunity?.id])
+
+  const handleActivitiesPageChange = useCallback((page: number) => {
+    setActivitiesCurrentPage(page)
+  }, [])
+
+  const handleActivitiesPageSizeChange = useCallback((size: number) => {
+    setActivitiesPageSize(size)
+    setActivitiesCurrentPage(1)
+  }, [])
+
+  const handleActivitySelect = useCallback((activityId: string, selected: boolean) => {
+    setSelectedActivities(previous => {
+      if (selected) {
+        if (previous.includes(activityId)) {
+          return previous
+        }
+        return [...previous, activityId]
+      }
+      return previous.filter(id => id !== activityId)
+    })
+  }, [])
+
+  const handleSelectAllActivities = useCallback(
+    (selected: boolean) => {
+      if (selected) {
+        setSelectedActivities(paginatedActivities.map(row => row.id))
+        return
+      }
+      setSelectedActivities([])
+    },
+    [paginatedActivities]
+  )
+
   const revenuePagination = useMemo(() => {
     const total = filteredRevenueRows.length
     const totalPages = Math.max(Math.ceil(total / revenuePageSize), 1)
@@ -2154,6 +2427,492 @@ export function OpportunityDetailsView({
       "Check your downloads for the CSV file."
     )
   }, [selectedRevenueSchedules.length, selectedRevenueRows, showError, showSuccess])
+
+  const handleCreateActivity = useCallback(() => {
+    if (!opportunity) {
+      showError("Opportunity not loaded", "Load an opportunity before logging activities.")
+      return
+    }
+    setActivityModalOpen(true)
+  }, [opportunity, showError])
+
+  const handleCloseActivityModal = useCallback(() => {
+    setActivityModalOpen(false)
+  }, [])
+
+  const handleActivityCreated = useCallback(async () => {
+    setActivityModalOpen(false)
+    showSuccess("Activity created", "The activity list will refresh shortly.")
+    await onRefresh?.()
+  }, [showSuccess, onRefresh])
+
+  const handleEditActivity = useCallback((activity: OpportunityActivityRow) => {
+    setEditingActivity(activity)
+    setShowActivityEditModal(true)
+  }, [])
+
+  const handleCloseActivityEditModal = useCallback(() => {
+    setShowActivityEditModal(false)
+    setEditingActivity(null)
+  }, [])
+
+  const handleActivityEditSuccess = useCallback(async () => {
+    setShowActivityEditModal(false)
+    setEditingActivity(null)
+    showSuccess("Activity updated", "The activity has been updated successfully.")
+    await onRefresh?.()
+  }, [showSuccess, onRefresh])
+
+  const handleDeleteActivity = useCallback(
+    async (activity: OpportunityActivityRow) => {
+      const confirmed = window.confirm("Are you sure you want to delete this activity?")
+      if (!confirmed) {
+        return
+      }
+
+      try {
+        const response = await fetch(`/api/activities/${activity.id}`, { method: "DELETE" })
+        if (!response.ok) {
+          const payload = await response.json().catch(() => null)
+          throw new Error(payload?.error || "Failed to delete activity")
+        }
+        showSuccess("Activity deleted", "The activity has been removed.")
+        setSelectedActivities(previous => previous.filter(id => id !== activity.id))
+        await onRefresh?.()
+      } catch (error) {
+        console.error("Delete activity error:", error)
+        const message = error instanceof Error ? error.message : "Please try again."
+        showError("Failed to delete activity", message)
+      }
+    },
+    [showError, showSuccess, onRefresh]
+  )
+
+  const handleToggleActivityStatus = useCallback(
+    async (activity: OpportunityActivityRow, newStatus: boolean) => {
+      if (!activity?.id) {
+        showError("Activity unavailable", "Unable to locate this activity record.")
+        return
+      }
+
+      try {
+        const status = newStatus ? DEFAULT_OPEN_ACTIVITY_STATUS : "Completed"
+        const response = await fetch(`/api/activities/${activity.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status })
+        })
+
+        if (!response.ok) {
+          const payload = await response.json().catch(() => null)
+          throw new Error(payload?.error || "Failed to update activity status")
+        }
+
+        showSuccess(
+          newStatus ? "Activity reopened" : "Activity completed",
+          `Activity ${newStatus ? "marked as open" : "marked as completed"}.`
+        )
+        await onRefresh?.()
+      } catch (error) {
+        console.error("Failed to update activity status", error)
+        const message = error instanceof Error ? error.message : "Unable to update activity status"
+        showError("Failed to update activity", message)
+      }
+    },
+    [showError, showSuccess, onRefresh]
+  )
+
+  const handleBulkActivityOwnerUpdate = useCallback(
+    async (ownerId: string | null) => {
+      if (selectedActivities.length === 0) {
+        showError("No activities selected", "Select at least one activity to update.")
+        return
+      }
+
+      setActivityBulkActionLoading(true)
+      try {
+        const outcomes = await Promise.allSettled(
+          selectedActivities.map(async activityId => {
+            const response = await fetch(`/api/activities/${activityId}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ assigneeId: ownerId })
+            })
+            if (!response.ok) {
+              const payload = await response.json().catch(() => null)
+              throw new Error(payload?.error || "Failed to update activity owner")
+            }
+            return activityId
+          })
+        )
+
+        const successes: string[] = []
+        const failures: Array<{ activityId: string; message: string }> = []
+        outcomes.forEach((result, index) => {
+          const activityId = selectedActivities[index]
+          if (result.status === "fulfilled") {
+            successes.push(activityId)
+          } else {
+            const message =
+              result.reason instanceof Error ? result.reason.message : "Unexpected error"
+            failures.push({ activityId, message })
+          }
+        })
+
+        if (successes.length > 0) {
+          showSuccess(
+            `Updated ${successes.length} activit${successes.length === 1 ? "y" : "ies"}`,
+            "New owner assigned successfully."
+          )
+        }
+
+        if (failures.length > 0) {
+          const nameMap = new Map(
+            (opportunity?.activities ?? []).map(activity => [
+              activity.id,
+              activity.description || activity.activityType || "Activity"
+            ])
+          )
+          const detail = failures
+            .map(({ activityId, message }) => `${nameMap.get(activityId) || "Activity"}: ${message}`)
+            .join("; ")
+          showError("Failed to update owner for some activities", detail)
+        }
+
+        setSelectedActivities(failures.map(item => item.activityId))
+        if (failures.length === 0) {
+          setShowActivityBulkOwnerModal(false)
+        }
+        await onRefresh?.()
+      } catch (error) {
+        console.error("Bulk activity owner update failed", error)
+        showError(
+          "Bulk activity owner update failed",
+          error instanceof Error ? error.message : "Unable to update activity owners."
+        )
+      } finally {
+        setActivityBulkActionLoading(false)
+      }
+    },
+    [selectedActivities, opportunity?.activities, onRefresh, showError, showSuccess]
+  )
+
+  const handleBulkActivityStatusUpdate = useCallback(
+    async (isActive: boolean) => {
+      if (selectedActivities.length === 0) {
+        showError("No activities selected", "Select at least one activity to update.")
+        return
+      }
+
+      setActivityBulkActionLoading(true)
+      try {
+        const outcomes = await Promise.allSettled(
+          selectedActivities.map(async activityId => {
+            const response = await fetch(`/api/activities/${activityId}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ status: isActive ? DEFAULT_OPEN_ACTIVITY_STATUS : "Completed" })
+            })
+            if (!response.ok) {
+              const payload = await response.json().catch(() => null)
+              throw new Error(payload?.error || "Failed to update activity status")
+            }
+            return activityId
+          })
+        )
+
+        const successes: string[] = []
+        const failures: Array<{ activityId: string; message: string }> = []
+        outcomes.forEach((result, index) => {
+          const activityId = selectedActivities[index]
+          if (result.status === "fulfilled") {
+            successes.push(activityId)
+          } else {
+            const message =
+              result.reason instanceof Error ? result.reason.message : "Unexpected error"
+            failures.push({ activityId, message })
+          }
+        })
+
+        if (successes.length > 0) {
+          showSuccess(
+            `Marked ${successes.length} activit${successes.length === 1 ? "y" : "ies"} as ${isActive ? "open" : "completed"}`,
+            "The status has been updated successfully."
+          )
+        }
+
+        if (failures.length > 0) {
+          const nameMap = new Map(
+            (opportunity?.activities ?? []).map(activity => [
+              activity.id,
+              activity.description || activity.activityType || "Activity"
+            ])
+          )
+          const detail = failures
+            .map(({ activityId, message }) => `${nameMap.get(activityId) || "Activity"}: ${message}`)
+            .join("; ")
+          showError("Failed to update status for some activities", detail)
+        }
+
+        setSelectedActivities(failures.map(item => item.activityId))
+        if (failures.length === 0) {
+          setShowActivityBulkStatusModal(false)
+        }
+        await onRefresh?.()
+      } catch (error) {
+        console.error("Bulk activity status update failed", error)
+        showError(
+          "Bulk activity status update failed",
+          error instanceof Error ? error.message : "Unable to update activity status."
+        )
+      } finally {
+        setActivityBulkActionLoading(false)
+      }
+    },
+    [selectedActivities, opportunity?.activities, onRefresh, showError, showSuccess]
+  )
+
+  const handleBulkActivityDelete = useCallback(async () => {
+    if (selectedActivities.length === 0) {
+      showError("No activities selected", "Select at least one activity to delete.")
+      return
+    }
+
+    const confirmDelete = window.confirm(
+      `Delete ${selectedActivities.length} selected activit${selectedActivities.length === 1 ? "y" : "ies"}? This action cannot be undone.`
+    )
+    if (!confirmDelete) {
+      return
+    }
+
+    setActivityBulkActionLoading(true)
+    try {
+      const outcomes = await Promise.allSettled(
+        selectedActivities.map(async activityId => {
+          const response = await fetch(`/api/activities/${activityId}`, { method: "DELETE" })
+          if (!response.ok) {
+            const payload = await response.json().catch(() => null)
+            throw new Error(payload?.error || "Failed to delete activity")
+          }
+          return activityId
+        })
+      )
+
+      const successes: string[] = []
+      const failures: Array<{ activityId: string; message: string }> = []
+      outcomes.forEach((result, index) => {
+        const activityId = selectedActivities[index]
+        if (result.status === "fulfilled") {
+          successes.push(activityId)
+        } else {
+          const message =
+            result.reason instanceof Error ? result.reason.message : "Unexpected error"
+          failures.push({ activityId, message })
+        }
+      })
+
+      if (successes.length > 0) {
+        showSuccess(
+          `Deleted ${successes.length} activit${successes.length === 1 ? "y" : "ies"}`,
+          "The selected activities have been removed."
+        )
+      }
+
+      if (failures.length > 0) {
+        const nameMap = new Map(
+          (opportunity?.activities ?? []).map(activity => [
+            activity.id,
+            activity.description || activity.activityType || "Activity"
+          ])
+        )
+        const detail = failures
+          .map(({ activityId, message }) => `${nameMap.get(activityId) || "Activity"}: ${message}`)
+          .join("; ")
+        showError("Failed to delete some activities", detail)
+      }
+
+      setSelectedActivities(failures.map(item => item.activityId))
+      await onRefresh?.()
+    } catch (error) {
+      console.error("Bulk activity delete failed", error)
+      showError(
+        "Bulk activity delete failed",
+        error instanceof Error ? error.message : "Unable to delete activities."
+      )
+    } finally {
+      setActivityBulkActionLoading(false)
+    }
+  }, [selectedActivities, opportunity?.activities, onRefresh, showError, showSuccess])
+
+  const handleActivityExportCsv = useCallback(() => {
+    if (selectedActivities.length === 0) {
+      showError("No activities selected", "Select at least one activity to export.")
+      return
+    }
+
+    const rows = paginatedActivities.filter(row => selectedActivities.includes(row.id))
+    if (rows.length === 0) {
+      showError("Activities unavailable", "Unable to locate the selected activities. Refresh and try again.")
+      return
+    }
+
+    const headers = [
+      "Activity Date",
+      "Activity Type",
+      "Description",
+      "Activity Owner",
+      "Created By",
+      "Status",
+      "File Name",
+      "Attachment"
+    ]
+
+    const escapeCsv = (value: unknown) => {
+      if (value === null || value === undefined) {
+        return ""
+      }
+      const stringValue = String(value)
+      return /[",\n]/.test(stringValue) ? `"${stringValue.replace(/"/g, '""')}"` : stringValue
+    }
+
+    const formatDateValue = (value: string | Date | null | undefined) => {
+      if (!value) {
+        return ""
+      }
+      const stringValue = value instanceof Date ? value.toISOString() : value
+      return formatDate(stringValue)
+    }
+
+    const lines = [
+      headers.join(","),
+      ...rows.map(row =>
+        [
+          formatDateValue(row.activityDate),
+          row.activityType ?? "",
+          row.description ?? "",
+          row.activityOwner ?? "",
+          row.createdBy ?? "",
+          row.activityStatus ?? "",
+          row.fileName ?? "",
+          row.attachment ?? ""
+        ]
+          .map(escapeCsv)
+          .join(",")
+      )
+    ]
+
+    const blob = new Blob([lines.join("\r\n")], { type: "text/csv;charset=utf-8;" })
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    const timestamp = new Date().toISOString().replace(/[:T]/g, "-").split(".")[0]
+    link.href = url
+    link.download = `activities-export-${timestamp}.csv`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+
+    showSuccess(
+      `Exported ${rows.length} activity${rows.length === 1 ? "" : "ies"}`,
+      "Check your downloads for the CSV file."
+    )
+  }, [selectedActivities, paginatedActivities, showError, showSuccess])
+
+  const activityTableColumns = useMemo(() => {
+    return activityPreferenceColumns.map(column => {
+      if (column.id === "multi-action") {
+        return {
+          ...column,
+          render: (_: unknown, row: OpportunityActivityRow) => {
+            const checked = selectedActivities.includes(row.id)
+            const activeValue = !!row.active
+
+            return (
+              <div className="flex items-center gap-2" data-disable-row-click="true">
+                <label
+                  className="flex cursor-pointer items-center justify-center"
+                  onClick={event => event.stopPropagation()}
+                >
+                  <input
+                    type="checkbox"
+                    className="sr-only"
+                    checked={checked}
+                    aria-label={`Select activity ${row.id}`}
+                    onChange={() => handleActivitySelect(row.id, !checked)}
+                  />
+                  <span
+                    className={cn(
+                      "flex h-4 w-4 items-center justify-center rounded border transition-colors",
+                      checked
+                        ? "border-primary-500 bg-primary-600 text-white"
+                        : "border-gray-300 bg-white text-transparent"
+                    )}
+                  >
+                    <Check className="h-3 w-3" aria-hidden="true" />
+                  </span>
+                </label>
+                <button
+                  type="button"
+                  onClick={event => {
+                    event.stopPropagation()
+                    handleToggleActivityStatus(row, !activeValue)
+                  }}
+                  className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
+                  title={activeValue ? "Active" : "Inactive"}
+                >
+                  <span
+                    className={cn(
+                      "absolute inset-0 rounded-full transition-colors",
+                      activeValue ? "bg-primary-600" : "bg-gray-300"
+                    )}
+                  />
+                  <span
+                    className={cn(
+                      "relative inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform",
+                      activeValue ? "translate-x-5" : "translate-x-1"
+                    )}
+                  />
+                </button>
+                {!activeValue && (
+                  <button
+                    type="button"
+                    className="p-1 text-red-500 transition-colors hover:text-red-700"
+                    onClick={event => {
+                      event.stopPropagation()
+                      handleDeleteActivity(row)
+                    }}
+                    aria-label="Delete activity"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+            )
+          }
+        }
+      }
+
+      if (column.id === "activityDate") {
+        return {
+          ...column,
+          render: (value: unknown) => {
+            if (!value) {
+              return "--"
+            }
+            const dateValue =
+              value instanceof Date ? value.toISOString() : typeof value === "string" ? value : String(value)
+            return formatDate(dateValue)
+          }
+        }
+      }
+
+      return {
+        ...column,
+        render: (value: unknown) =>
+          value === null || value === undefined || String(value).trim().length === 0 ? "--" : String(value)
+      }
+    })
+  }, [activityPreferenceColumns, selectedActivities, handleActivitySelect, handleToggleActivityStatus, handleDeleteActivity])
 
   const summarizeChangedFields = useCallback((changed: any): { summary: string; details: string[] } => {
     const details: string[] = []
@@ -3006,8 +3765,56 @@ if (loading) {
                     </div>
                   </div>
                 ) : activeTab === "activities" ? (
-                  <div className="flex flex-1 flex-col overflow-hidden rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-6 text-sm text-gray-600">
-                    Activities & Notes are being rebuilt. Check back soon.
+                  <div className="grid flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-3 overflow-hidden">
+                    <ListHeader
+                      onCreateClick={handleCreateActivity}
+                      showCreateButton={Boolean(opportunity)}
+                      onSearch={setActivitySearchQuery}
+                      searchPlaceholder="Search activities"
+                      filterColumns={ACTIVITY_FILTER_COLUMNS}
+                      columnFilters={activitiesColumnFilters}
+                      onColumnFiltersChange={setActivitiesColumnFilters}
+                      onSettingsClick={() => setShowActivityColumnSettings(true)}
+                      statusFilter={activityStatusFilter}
+                      onFilterChange={value =>
+                        setActivityStatusFilter(value === "inactive" ? "inactive" : "active")
+                      }
+                      hasUnsavedTableChanges={activityHasUnsavedChanges}
+                      isSavingTableChanges={activityPreferencesSaving}
+                      lastTableSaved={activityLastSaved ?? undefined}
+                      onSaveTableChanges={saveActivityPreferences}
+                    />
+
+                    <ActivityBulkActionBar
+                      count={selectedActivities.length}
+                      disabled={activityBulkActionLoading}
+                      onSoftDelete={handleBulkActivityDelete}
+                      onExportCsv={handleActivityExportCsv}
+                      onChangeOwner={() => setShowActivityBulkOwnerModal(true)}
+                      onUpdateStatus={() => setShowActivityBulkStatusModal(true)}
+                    />
+
+                    <div className="flex min-h-0 flex-col overflow-hidden" ref={tableAreaRefCallback}>
+                      <DynamicTable
+                        className="flex flex-col"
+                        columns={activityTableColumns}
+                        data={paginatedActivities}
+                        loading={activityPreferencesLoading}
+                        onColumnsChange={handleActivityTableColumnsChange}
+                        emptyMessage="No activities found for this opportunity"
+                        maxBodyHeight={tableBodyMaxHeight}
+                        pagination={activitiesPagination}
+                        onPageChange={handleActivitiesPageChange}
+                        onPageSizeChange={handleActivitiesPageSizeChange}
+                        selectedItems={selectedActivities}
+                        onItemSelect={handleActivitySelect}
+                        onSelectAll={handleSelectAllActivities}
+                        selectHeaderLabel="Select All"
+                        onRowClick={(row: OpportunityActivityRow) => handleEditActivity(row)}
+                        fillContainerWidth
+                        alwaysShowPagination
+                      />
+                    </div>
                   </div>
                 ) : activeTab === "history" ? (
 
@@ -3069,6 +3876,16 @@ if (loading) {
             />
 
             <ColumnChooserModal
+              isOpen={showActivityColumnSettings}
+              columns={activityPreferenceColumns}
+              onApply={handleActivityTableColumnsChange}
+              onClose={async () => {
+                setShowActivityColumnSettings(false)
+                await saveActivityPrefsOnModalClose()
+              }}
+            />
+
+            <ColumnChooserModal
               isOpen={showRevenueColumnSettings}
               columns={revenuePreferenceColumns}
               onApply={handleRevenueColumnsChange}
@@ -3089,6 +3906,42 @@ if (loading) {
           </div>
         </div>
       </div>
+
+      {opportunity && (
+        <ActivityNoteCreateModal
+          isOpen={activityModalOpen}
+          context="opportunity"
+          entityName={opportunity.name}
+          opportunityId={opportunity.id}
+          accountId={opportunity.account?.id}
+          onClose={handleCloseActivityModal}
+          onSuccess={handleActivityCreated}
+        />
+      )}
+
+      <ActivityNoteEditModal
+        isOpen={showActivityEditModal}
+        activityId={editingActivity?.id ?? null}
+        opportunityId={opportunity?.id}
+        accountId={opportunity?.account?.id}
+        onClose={handleCloseActivityEditModal}
+        onSuccess={handleActivityEditSuccess}
+      />
+
+      <ActivityBulkOwnerModal
+        isOpen={showActivityBulkOwnerModal}
+        owners={ownerSelectOptions}
+        onClose={() => setShowActivityBulkOwnerModal(false)}
+        onSubmit={handleBulkActivityOwnerUpdate}
+        isSubmitting={activityBulkActionLoading}
+      />
+
+      <ActivityBulkStatusModal
+        isOpen={showActivityBulkStatusModal}
+        onClose={() => setShowActivityBulkStatusModal(false)}
+        onSubmit={handleBulkActivityStatusUpdate}
+        isSubmitting={activityBulkActionLoading}
+      />
 
       <OpportunityLineItemCreateModal
         isOpen={showCreateLineItemModal}

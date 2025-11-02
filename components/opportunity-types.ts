@@ -55,6 +55,29 @@ export interface OpportunityRoleRecord {
   active?: boolean
 }
 
+export interface OpportunityActivityAttachment {
+  id: string
+  fileName: string
+  fileSize: number
+  mimeType: string
+  uploadedAt?: string | null
+  uploadedByName?: string
+}
+
+export interface OpportunityActivityRecord {
+  id: string
+  active: boolean
+  activityDate?: string | Date | null
+  activityType?: string | null
+  activityStatus?: string | null
+  description?: string | null
+  activityOwner?: string | null
+  createdBy?: string | null
+  attachment?: string | null
+  fileName?: string | null
+  attachments?: OpportunityActivityAttachment[]
+}
+
 export interface OpportunityIdentifiers {
   accountIdHouse?: string | null
   accountIdVendor?: string | null
@@ -152,4 +175,5 @@ export interface OpportunityDetailRecord {
   roles?: OpportunityRoleRecord[]
   identifiers?: OpportunityIdentifiers
   revenueSchedules?: OpportunityRevenueScheduleRecord[]
+  activities?: OpportunityActivityRecord[]
 }

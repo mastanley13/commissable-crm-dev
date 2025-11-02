@@ -1,4 +1,5 @@
-import { OpportunityStatus, OpportunityStage, OpportunityType } from "@prisma/client"
+import { ActivityStatus, OpportunityStatus, OpportunityStage, OpportunityType } from "@prisma/client"
+import { isActivityOpen } from "@/lib/activity-status"
 
 type RelatedAccount = {
   id?: string
@@ -13,6 +14,28 @@ type RelatedProduct = {
     distributor?: { accountName?: string | null } | null
     vendor?: { accountName?: string | null } | null
   } | null
+}
+
+type ActivityAttachmentWithRelations = {
+  id: string
+  fileName: string
+  fileSize?: number | null
+  mimeType?: string | null
+  uploadedAt?: string | Date | null
+  uploadedBy?: { firstName?: string | null; lastName?: string | null } | null
+}
+
+type ActivityWithRelations = {
+  id: string
+  subject?: string | null
+  description?: string | null
+  status?: ActivityStatus | string | null
+  activityType?: string | null
+  dueDate?: string | Date | null
+  createdAt?: string | Date | null
+  creator?: { firstName?: string | null; lastName?: string | null } | null
+  assignee?: { firstName?: string | null; lastName?: string | null } | null
+  attachments?: ActivityAttachmentWithRelations[] | null
 }
 
 type RevenueScheduleWithRelations = {
@@ -74,6 +97,7 @@ type OpportunityWithRelations = {
   account?: RelatedAccount | null
   products?: (RelatedProduct | OpportunityProductWithRelations)[] | null
   revenueSchedules?: RevenueScheduleWithRelations[] | null
+  activities?: ActivityWithRelations[] | null
   expectedCommission?: unknown
   amount?: unknown
   probability?: unknown
@@ -132,6 +156,29 @@ export type OpportunityLineItemDetail = {
   createdAt?: string | null
   updatedAt?: string | null
   active?: boolean
+}
+
+export type OpportunityActivityAttachment = {
+  id: string
+  fileName: string
+  fileSize: number
+  mimeType: string
+  uploadedAt: string | null
+  uploadedByName: string
+}
+
+export type OpportunityActivityDetail = {
+  id: string
+  active: boolean
+  activityDate: string | Date | null
+  activityType: string | null
+  activityStatus: string | null
+  description: string | null
+  activityOwner: string | null
+  createdBy: string | null
+  attachment: string
+  fileName: string | null
+  attachments: OpportunityActivityAttachment[]
 }
 
 export type OpportunityDetailSummary = {
@@ -200,6 +247,7 @@ export type OpportunityDetailSummary = {
   }
   lineItems: OpportunityLineItemDetail[]
   revenueSchedules: OpportunityRevenueScheduleDetail[]
+  activities: OpportunityActivityDetail[]
 }
 
 export type OpportunityRevenueScheduleDetail = {
@@ -488,6 +536,66 @@ function mapRevenueScheduleToDetail(schedule: RevenueScheduleWithRelations): Opp
   }
 }
 
+function mapActivityAttachmentSummary(attachment: ActivityAttachmentWithRelations): OpportunityActivityAttachment {
+  const uploadedByName = attachment.uploadedBy
+    ? `${attachment.uploadedBy.firstName ?? ""} ${attachment.uploadedBy.lastName ?? ""}`.trim()
+    : ""
+
+  return {
+    id: attachment.id,
+    fileName: attachment.fileName,
+    fileSize: Number.isFinite(Number(attachment.fileSize)) ? Number(attachment.fileSize) : 0,
+    mimeType: attachment.mimeType ?? "application/octet-stream",
+    uploadedAt: formatDateValue(attachment.uploadedAt ?? null),
+    uploadedByName: uploadedByName || "Unknown"
+  }
+}
+
+function mapOpportunityActivity(activity: ActivityWithRelations): OpportunityActivityDetail {
+  const ownerName = activity.assignee
+    ? `${activity.assignee.firstName ?? ""} ${activity.assignee.lastName ?? ""}`.trim()
+    : ""
+
+  const creatorName = activity.creator
+    ? `${activity.creator.firstName ?? ""} ${activity.creator.lastName ?? ""}`.trim()
+    : ""
+
+  const attachments = Array.isArray(activity.attachments)
+    ? activity.attachments.map(mapActivityAttachmentSummary)
+    : []
+
+  const attachmentCount = attachments.length
+  const attachmentLabel = attachmentCount === 0 ? "None" : `${attachmentCount} file${attachmentCount === 1 ? "" : "s"}`
+  const primaryFileName = attachments[0]?.fileName ?? null
+
+  const rawStatus = activity.status ?? null
+  let normalizedStatus: ActivityStatus | null = null
+  if (rawStatus && typeof rawStatus === "string") {
+    const match = (Object.values(ActivityStatus) as string[]).find(
+      candidate => candidate === rawStatus || candidate.toLowerCase() === rawStatus.toLowerCase()
+    )
+    normalizedStatus = match ? (match as ActivityStatus) : null
+  } else if (rawStatus && typeof rawStatus === "object") {
+    normalizedStatus = rawStatus as ActivityStatus
+  }
+
+  const isActive = normalizedStatus ? isActivityOpen(normalizedStatus) : false
+
+  return {
+    id: activity.id,
+    active: isActive,
+    activityDate: (activity.dueDate ?? activity.createdAt) ?? null,
+    activityType: activity.activityType ?? null,
+    activityStatus: typeof rawStatus === "string" ? rawStatus : normalizedStatus ?? null,
+    description: activity.subject ?? activity.description ?? null,
+    activityOwner: ownerName || null,
+    createdBy: creatorName || null,
+    attachment: attachmentLabel,
+    fileName: primaryFileName,
+    attachments
+  }
+}
+
 export function mapOpportunityToDetail(opportunity: OpportunityWithRelations): OpportunityDetailSummary {
   const amount = toNumber(opportunity.amount)
   const probability = toNumber(opportunity.probability)
@@ -500,6 +608,10 @@ export function mapOpportunityToDetail(opportunity: OpportunityWithRelations): O
 
   const revenueSchedules = Array.isArray(opportunity.revenueSchedules)
     ? opportunity.revenueSchedules.map(mapRevenueScheduleToDetail)
+    : []
+
+  const activities = Array.isArray(opportunity.activities)
+    ? opportunity.activities.map(mapOpportunityActivity)
     : []
 
   const expectedRevenueTotals = detailedProducts.reduce((total, item) => total + item.expectedRevenue, 0)
@@ -581,6 +693,7 @@ export function mapOpportunityToDetail(opportunity: OpportunityWithRelations): O
       expectedUsageTotal
     },
     lineItems: detailedProducts,
-    revenueSchedules
+    revenueSchedules,
+    activities
   }
 }
