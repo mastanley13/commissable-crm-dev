@@ -761,7 +761,11 @@ export function DynamicTable({
   }
 
   return (
-    <div className={cn("bg-white rounded-lg border-2 border-gray-400", maxBodyHeight ? "flex flex-col" : "flex flex-col flex-1", className)}>
+    <div className={cn(
+      "bg-white rounded-lg border-2 border-gray-400 overflow-hidden",
+      maxBodyHeight ? "flex flex-col" : "flex flex-col flex-1",
+      className
+    )}>
       {/* Table container */}
       <div className="relative" style={maxBodyHeight ? { flex: '0 1 auto', minHeight: 0 } : { flex: '1 1 0%', minHeight: 0 }}>
         <div
@@ -771,7 +775,7 @@ export function DynamicTable({
           aria-label="Data table"
         >
           {visibleColumns.length > 0 && (
-            <div className="table-header shadow-sm">
+            <div className="table-header shadow-sm rounded-t-lg overflow-hidden">
               <div
                 className="table-grid"
                 style={gridStyles}
@@ -780,7 +784,7 @@ export function DynamicTable({
                   <div
                     key={column.id}
                     className={cn(
-                      "table-cell bg-blue-500 font-semibold text-white text-[11px] relative select-none border-b-2 border-blue-700 border-r-2 border-blue-700 last:border-r-0",
+                      "table-cell bg-blue-500 font-semibold text-white text-[11px] uppercase tracking-wide relative select-none border-b-2 border-blue-700 border-r-2 border-blue-700 last:border-r-0 first:rounded-tl-lg last:rounded-tr-lg",
                       column.sortable && column.id !== "select" && "cursor-pointer hover:bg-blue-600"
                     )}
                     draggable
@@ -804,7 +808,7 @@ export function DynamicTable({
                             }}
                           />
                           {!hideSelectAllLabel && (
-                            <span className="break-words leading-tight whitespace-nowrap flex-1 min-w-0">
+                            <span className="break-words leading-tight whitespace-nowrap flex-1 min-w-0 uppercase tracking-wide">
                               {selectHeaderLabel ?? 'Select All'}
                             </span>
                           )}
@@ -825,14 +829,14 @@ export function DynamicTable({
                             }}
                           />
                           {!hideSelectAllLabel && (
-                            <span className="break-words leading-tight whitespace-nowrap flex-1 min-w-0">{column.label}</span>
+                            <span className="break-words leading-tight whitespace-nowrap flex-1 min-w-0 uppercase tracking-wide">{column.label}</span>
                           )}
                           {/* Invisible placeholder to match SortTriangles height */}
                           <div className="flex-shrink-0 w-2.5 h-2.5 opacity-0" aria-hidden="true" />
                         </>
                       ) : (
                         <>
-                          <span className="break-words leading-tight flex-1 min-w-0">{column.label}</span>
+                          <span className="break-words leading-tight flex-1 min-w-0 uppercase tracking-wide">{column.label}</span>
                           {column.sortable && (
                             <div className="flex-shrink-0">
                               <SortTriangles direction={sortConfig?.key === column.id ? sortConfig.direction : null} />
@@ -923,7 +927,7 @@ export function DynamicTable({
 
       {/* Pagination Footer - moved outside grid container */}
       {shouldRenderPagination && pagination && (
-        <div className="px-3 py-2 border-t-2 border-gray-400 bg-gray-50 w-full flex-shrink-0">
+        <div className="px-3 py-2 border-t-2 border-gray-400 bg-gray-50 w-full flex-shrink-0 rounded-b-lg">
           <div className="flex items-center justify-between text-sm text-gray-700">
             <div className="flex items-center gap-2">
               <button
@@ -1007,8 +1011,6 @@ export function DynamicTable({
     </div>
   )
 }
-
-
 
 
 

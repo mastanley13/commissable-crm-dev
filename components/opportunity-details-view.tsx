@@ -343,21 +343,109 @@ function SummaryTab({ opportunity }: { opportunity: OpportunityDetailRecord }) {
   const computeNet = (gross?: number, adjustments?: number) =>
     gross !== undefined && adjustments !== undefined ? gross - adjustments : undefined
 
-  const expectedUsageGross = toNumberOrUndefined(metrics.expectedUsageGrossTotal ?? opportunity.totals.expectedUsageTotal)
-  const expectedUsageAdjustments = toNumberOrUndefined(metrics.expectedUsageAdjustmentsGrossTotal)
+  // Fallback helpers: sum across revenue schedules when metrics are missing
+  const sumFromSchedules = (key: string): number | undefined => {
+    const rows = opportunity?.revenueSchedules
+    if (!Array.isArray(rows) || rows.length === 0) return undefined
+    const total = rows.reduce((acc: number, row: any) => {
+      const v = row?.[key]
+      return acc + (typeof v === "number" && Number.isFinite(v) ? v : 0)
+    }, 0)
+    return Number.isFinite(total) ? total : undefined
+  }
+
+  // Derive allocation totals using schedule-level splits if available; otherwise
+  // fall back to the opportunity-level split percents.
+  const deriveAllocationTotals = (grossKey: string) => {
+    const rows = opportunity?.revenueSchedules
+    let rep = 0
+    let subagent = 0
+    let house = 0
+
+    if (Array.isArray(rows) && rows.length > 0) {
+      for (const row of rows) {
+        const gross = typeof row?.[grossKey] === "number" ? (row as any)[grossKey] : 0
+        // Accept numbers (0..1 or 0..100), strings like "20%", or undefined
+        const parseSplit = (value: unknown): number | null => {
+          if (typeof value === "number") {
+            // Treat >1 as percentage points
+            return value > 1 ? value / 100 : value
+          }
+          if (typeof value === "string") {
+            const trimmed = value.trim()
+            if (!trimmed) return null
+            const normalized = trimmed.replace(/\s+/g, "").replace(/%$/, "")
+            const n = Number(normalized)
+            if (!Number.isFinite(n)) return null
+            return n > 1 ? n / 100 : n
+          }
+          return null
+        }
+
+        const repPct = parseSplit((row as any)?.houseRepSplitPercent)
+        const subPct = parseSplit((row as any)?.subagentSplitPercent)
+        const housePct = parseSplit((row as any)?.houseSplitPercent)
+
+        const resolvedRep = repPct ?? normalisePercentValue(opportunity.houseRepPercent) ?? 0
+        const resolvedSub = subPct ?? normalisePercentValue(opportunity.subagentPercent) ?? 0
+        const resolvedHouse = housePct ?? calculateHouseSplitPercent({
+          subagentPercent: opportunity.subagentPercent,
+          houseRepPercent: opportunity.houseRepPercent,
+          fallbackPercent: opportunity.houseSplitPercent
+        }) ?? 0
+
+        rep += gross * resolvedRep
+        subagent += gross * resolvedSub
+        house += gross * resolvedHouse
+      }
+      return { rep, subagent, house }
+    }
+
+    // No rows: attempt to allocate from metrics if present
+    const gross = toNumberOrUndefined((opportunity as any)?.totals?.[grossKey]) ?? 0
+    const repPct = normalisePercentValue(opportunity.houseRepPercent) ?? 0
+    const subPct = normalisePercentValue(opportunity.subagentPercent) ?? 0
+    const housePct = calculateHouseSplitPercent({
+      subagentPercent: opportunity.subagentPercent,
+      houseRepPercent: opportunity.houseRepPercent,
+      fallbackPercent: opportunity.houseSplitPercent
+    }) ?? 0
+    return {
+      rep: gross * repPct,
+      subagent: gross * subPct,
+      house: gross * housePct
+    }
+  }
+
+  const expectedUsageGross = toNumberOrUndefined(
+    metrics.expectedUsageGrossTotal ?? opportunity.totals.expectedUsageTotal ?? sumFromSchedules("expectedUsageGross")
+  )
+  const expectedUsageAdjustments = toNumberOrUndefined(
+    (metrics.expectedUsageAdjustmentsGrossTotal ?? sumFromSchedules("expectedUsageAdjustment") ?? 0)
+  )
   const expectedUsageNet = computeNet(expectedUsageGross, expectedUsageAdjustments)
 
   const expectedCommissionGross =
-    toNumberOrUndefined(metrics.expectedCommissionGrossTotal ?? opportunity.totals.expectedCommissionTotal)
-  const expectedCommissionAdjustments = toNumberOrUndefined(metrics.expectedCommissionAdjustmentsGrossTotal)
+    toNumberOrUndefined(
+      metrics.expectedCommissionGrossTotal ?? opportunity.totals.expectedCommissionTotal ?? sumFromSchedules("expectedCommissionGross")
+    )
+  const expectedCommissionAdjustments = toNumberOrUndefined(
+    (metrics.expectedCommissionAdjustmentsGrossTotal ?? sumFromSchedules("expectedCommissionAdjustment") ?? 0)
+  )
   const expectedCommissionNet = computeNet(expectedCommissionGross, expectedCommissionAdjustments)
 
-  const actualUsageGross = toNumberOrUndefined(metrics.actualUsageGrossTotal)
-  const actualUsageAdjustments = toNumberOrUndefined(metrics.actualUsageAdjustmentsGrossTotal)
+  const actualUsageGross = toNumberOrUndefined(metrics.actualUsageGrossTotal ?? sumFromSchedules("actualUsage"))
+  const actualUsageAdjustments = toNumberOrUndefined(
+    (metrics.actualUsageAdjustmentsGrossTotal ?? sumFromSchedules("actualUsageAdjustment") ?? 0)
+  )
   const actualUsageNet = computeNet(actualUsageGross, actualUsageAdjustments)
 
-  const actualCommissionGross = toNumberOrUndefined(metrics.actualCommissionGrossTotal)
-  const actualCommissionAdjustments = toNumberOrUndefined(metrics.actualCommissionAdjustmentsGrossTotal)
+  const actualCommissionGross = toNumberOrUndefined(
+    metrics.actualCommissionGrossTotal ?? sumFromSchedules("actualCommission")
+  )
+  const actualCommissionAdjustments = toNumberOrUndefined(
+    (metrics.actualCommissionAdjustmentsGrossTotal ?? sumFromSchedules("actualCommissionAdjustment") ?? 0)
+  )
   const actualCommissionNet = computeNet(actualCommissionGross, actualCommissionAdjustments)
 
   const remainingUsageGross =
@@ -383,6 +471,15 @@ function SummaryTab({ opportunity }: { opportunity: OpportunityDetailRecord }) {
       ? expectedCommissionAdjustments - actualCommissionAdjustments
       : undefined)
   const remainingCommissionNet = computeNet(remainingCommissionGross, remainingCommissionAdjustments)
+
+  // Allocation totals (House Rep, Subagent, House) fallbacks
+  const expectedAlloc = deriveAllocationTotals("expectedCommissionGross")
+  const actualAlloc = deriveAllocationTotals("actualCommission")
+  const remainingAlloc = {
+    rep: (expectedAlloc.rep ?? 0) - (actualAlloc.rep ?? 0),
+    subagent: (expectedAlloc.subagent ?? 0) - (actualAlloc.subagent ?? 0),
+    house: (expectedAlloc.house ?? 0) - (actualAlloc.house ?? 0)
+  }
 
   const formatCurrencyValue = (value: number | undefined) =>
     value === undefined ? "--" : formatCurrency(value)
@@ -410,9 +507,9 @@ function SummaryTab({ opportunity }: { opportunity: OpportunityDetailRecord }) {
         {
           title: "Commission Allocation",
           items: [
-            { label: "Expected Commission Gross Total House Rep", value: toNumberOrUndefined(metrics.expectedCommissionHouseRepTotal) },
-            { label: "Expected Commission Gross Total Subagent", value: toNumberOrUndefined(metrics.expectedCommissionSubAgentTotal) },
-            { label: "Expected Commission Gross Total House", value: toNumberOrUndefined(metrics.expectedCommissionHouseTotal) }
+            { label: "Expected Commission Gross Total House Rep", value: toNumberOrUndefined(metrics.expectedCommissionHouseRepTotal ?? expectedAlloc.rep) },
+            { label: "Expected Commission Gross Total Subagent", value: toNumberOrUndefined(metrics.expectedCommissionSubAgentTotal ?? expectedAlloc.subagent) },
+            { label: "Expected Commission Gross Total House", value: toNumberOrUndefined(metrics.expectedCommissionHouseTotal ?? expectedAlloc.house) }
           ]
         }
       ]
@@ -439,9 +536,9 @@ function SummaryTab({ opportunity }: { opportunity: OpportunityDetailRecord }) {
         {
           title: "Commission Allocation",
           items: [
-            { label: "Actual Commission Gross Total House Rep", value: toNumberOrUndefined(metrics.actualCommissionHouseRepTotal) },
-            { label: "Actual Commission Gross Total Subagent", value: toNumberOrUndefined(metrics.actualCommissionSubAgentTotal) },
-            { label: "Actual Commission Gross Total House", value: toNumberOrUndefined(metrics.actualCommissionHouseTotal) }
+            { label: "Actual Commission Gross Total House Rep", value: toNumberOrUndefined(metrics.actualCommissionHouseRepTotal ?? actualAlloc.rep) },
+            { label: "Actual Commission Gross Total Subagent", value: toNumberOrUndefined(metrics.actualCommissionSubAgentTotal ?? actualAlloc.subagent) },
+            { label: "Actual Commission Gross Total House", value: toNumberOrUndefined(metrics.actualCommissionHouseTotal ?? actualAlloc.house) }
           ]
         }
       ]
@@ -468,9 +565,9 @@ function SummaryTab({ opportunity }: { opportunity: OpportunityDetailRecord }) {
         {
           title: "Commission Allocation",
           items: [
-            { label: "Remaining Commission Gross Total House Rep", value: toNumberOrUndefined(metrics.remainingCommissionHouseRepTotal) },
-            { label: "Remaining Commission Gross Total Subagent", value: toNumberOrUndefined(metrics.remainingCommissionSubAgentTotal) },
-            { label: "Remaining Commission Gross Total House", value: toNumberOrUndefined(metrics.remainingCommissionHouseTotal) }
+            { label: "Remaining Commission Gross Total House Rep", value: toNumberOrUndefined(metrics.remainingCommissionHouseRepTotal ?? remainingAlloc.rep) },
+            { label: "Remaining Commission Gross Total Subagent", value: toNumberOrUndefined(metrics.remainingCommissionSubAgentTotal ?? remainingAlloc.subagent) },
+            { label: "Remaining Commission Gross Total House", value: toNumberOrUndefined(metrics.remainingCommissionHouseTotal ?? remainingAlloc.house) }
           ]
         }
       ]
@@ -550,7 +647,14 @@ function formatCurrency(value: number | null | undefined): string {
   if (value === null || value === undefined || Number.isNaN(value)) {
     return "--"
   }
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value)
+  // Use accounting-style negatives with leading minus per spec: -($X.XX)
+  const isNegative = value < 0
+  const abs = Math.abs(value)
+  const formatted = new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD"
+  }).format(abs)
+  return isNegative ? `-(${formatted})` : formatted
 }
 
 function normalisePercentValue(value: number | null | undefined): number | null {
@@ -851,7 +955,7 @@ function OpportunityHeader({
       {/* Header with title and controls */}
       <div className="mb-2 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-primary-600">Opportunity Detail</p>
+          <p className="text-[13px] font-semibold uppercase tracking-wide text-primary-600">Opportunity Detail</p>
         </div>
         <div className="flex items-center gap-2">
           {onEdit && (
@@ -1049,7 +1153,7 @@ function EditableOpportunityHeader({
     <div className="rounded-2xl bg-gray-100 p-3 shadow-sm">
       <div className="mb-2 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-primary-600">Opportunity Detail</p>
+          <p className="text-[13px] font-semibold uppercase tracking-wide text-primary-600">Opportunity Detail</p>
           {editor.isDirty ? (
             <span className="text-[11px] font-semibold text-amber-600">Unsaved changes</span>
           ) : null}

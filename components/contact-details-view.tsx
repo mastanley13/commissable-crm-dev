@@ -627,7 +627,7 @@ function ContactHeader({
     <div className="rounded-2xl bg-gray-100 p-3 shadow-sm">
       <div className="mb-2 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-primary-600">Contact Detail</p>
+          <p className="text-[13px] font-semibold uppercase tracking-wide text-primary-600">Contact Detail</p>
         </div>
         <div className="flex items-center gap-2">
           {onEdit && !isDeleted ? (
@@ -782,7 +782,7 @@ function EditableContactHeader({
     <div className="rounded-2xl bg-gray-100 p-3 shadow-sm">
       <div className="mb-2 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-primary-600">Contact Detail</p>
+          <p className="text-[13px] font-semibold uppercase tracking-wide text-primary-600">Contact Detail</p>
           {editor.isDirty ? <span className="text-[11px] font-semibold text-amber-600">Unsaved changes</span> : null}
           {optionsLoading ? <span className="text-[11px] text-gray-500">Loading field options...</span> : null}
         </div>

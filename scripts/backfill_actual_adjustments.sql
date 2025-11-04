@@ -1,0 +1,2 @@
+UPDATE "RevenueSchedule" SET "actualUsageAdjustment" = 0 WHERE "actualUsageAdjustment" IS NULL;
+UPDATE "RevenueSchedule" SET "actualCommissionAdjustment" = 0 WHERE "actualCommissionAdjustment" IS NULL;

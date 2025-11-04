@@ -390,7 +390,7 @@ function ProductHeader({ product, onEdit, activeTab, onTabSelect }: ProductHeade
       <div className="rounded-t-2xl bg-gray-100 p-3 shadow-sm">
         <div className="mb-2 flex items-center justify-between">
           <div className="space-y-1">
-            <p className="text-xs font-semibold uppercase tracking-wide text-primary-600">Product Detail</p>
+            <p className="text-[13px] font-semibold uppercase tracking-wide text-primary-600">Product Detail</p>
             <div className="flex items-center gap-2">
               <h1 className="text-lg font-semibold text-gray-900">{productName}</h1>
               {statusBadge}
@@ -674,7 +674,7 @@ function EditableProductHeader({ product, editor, onSave, activeTab, onTabSelect
       <div className="rounded-t-2xl bg-gray-100 p-3 shadow-sm">
         <div className="mb-2 flex items-center justify-between">
           <div className="space-y-1">
-            <p className="text-xs font-semibold uppercase tracking-wide text-primary-600">Product Detail</p>
+            <p className="text-[13px] font-semibold uppercase tracking-wide text-primary-600">Product Detail</p>
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-lg font-semibold text-gray-900">{productName}</h1>
               {statusBadge}

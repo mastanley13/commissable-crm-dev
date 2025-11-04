@@ -935,7 +935,7 @@ function AccountHeader({
   return (
     <div className="rounded-2xl bg-gray-100 p-3 shadow-sm">
       <div className="mb-2 flex items-center justify-between">
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-primary-600">Account Detail</p>
+        <p className="text-[13px] font-semibold uppercase tracking-wide text-primary-600">Account Detail</p>
         <div className="flex items-center gap-2">
           {onEdit ? (
             <button
@@ -1210,7 +1210,7 @@ function EditableAccountHeader({
     <div className="rounded-2xl bg-gray-100 p-3 shadow-sm">
       <div className="mb-2 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-primary-600">Account Detail</p>
+          <p className="text-[13px] font-semibold uppercase tracking-wide text-primary-600">Account Detail</p>
           {editor.isDirty ? (
             <span className="text-[11px] font-semibold text-amber-600">Unsaved changes</span>
           ) : null}

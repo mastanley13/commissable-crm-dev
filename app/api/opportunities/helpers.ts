@@ -46,8 +46,10 @@ type RevenueScheduleWithRelations = {
   expectedUsage?: unknown
   usageAdjustment?: unknown
   actualUsage?: unknown
+  actualUsageAdjustment?: unknown
   expectedCommission?: unknown
   actualCommission?: unknown
+  actualCommissionAdjustment?: unknown
   createdAt?: string | Date | null
   updatedAt?: string | Date | null
   distributor?: { accountName?: string | null } | null
@@ -248,6 +250,29 @@ export type OpportunityDetailSummary = {
   lineItems: OpportunityLineItemDetail[]
   revenueSchedules: OpportunityRevenueScheduleDetail[]
   activities: OpportunityActivityDetail[]
+  summaryMetrics?: {
+    expectedUsageGrossTotal?: number
+    expectedUsageAdjustmentsGrossTotal?: number
+    actualUsageGrossTotal?: number
+    actualUsageAdjustmentsGrossTotal?: number
+    remainingUsageGrossTotal?: number
+    remainingUsageAdjustmentsGrossTotal?: number
+    expectedCommissionGrossTotal?: number
+    expectedCommissionAdjustmentsGrossTotal?: number
+    actualCommissionGrossTotal?: number
+    actualCommissionAdjustmentsGrossTotal?: number
+    remainingCommissionGrossTotal?: number
+    remainingCommissionAdjustmentsGrossTotal?: number
+    expectedCommissionHouseRepTotal?: number
+    expectedCommissionSubAgentTotal?: number
+    expectedCommissionHouseTotal?: number
+    actualCommissionHouseRepTotal?: number
+    actualCommissionSubAgentTotal?: number
+    actualCommissionHouseTotal?: number
+    remainingCommissionHouseRepTotal?: number
+    remainingCommissionSubAgentTotal?: number
+    remainingCommissionHouseTotal?: number
+  }
 }
 
 export type OpportunityRevenueScheduleDetail = {
@@ -269,6 +294,8 @@ export type OpportunityRevenueScheduleDetail = {
   expectedCommissionAdjustment: number
   expectedCommissionNet: number
   actualCommission: number
+  actualUsageAdjustment: number
+  actualCommissionAdjustment: number
   commissionDifference: number
   expectedCommissionRatePercent: number
   actualCommissionRatePercent: number
@@ -482,6 +509,7 @@ function mapRevenueScheduleToDetail(schedule: RevenueScheduleWithRelations): Opp
   const expectedUsageNet = expectedUsageGross + expectedUsageAdjustment
 
   const actualUsage = toNumber(schedule.actualUsage)
+  const actualUsageAdjustment = toNumber((schedule as any).actualUsageAdjustment)
   const usageBalance = expectedUsageNet - actualUsage
 
   const expectedCommissionRaw = toNumber(schedule.expectedCommission)
@@ -493,6 +521,7 @@ function mapRevenueScheduleToDetail(schedule: RevenueScheduleWithRelations): Opp
   const expectedCommissionNet = expectedCommissionGross + expectedCommissionAdjustment
 
   const actualCommission = toNumber(schedule.actualCommission)
+  const actualCommissionAdjustment = toNumber((schedule as any).actualCommissionAdjustment)
   const commissionDifference = expectedCommissionNet - actualCommission
 
   const derivedExpectedRateDecimal =
@@ -522,11 +551,13 @@ function mapRevenueScheduleToDetail(schedule: RevenueScheduleWithRelations): Opp
     expectedUsageAdjustment,
     expectedUsageNet,
     actualUsage,
+    actualUsageAdjustment,
     usageBalance,
     expectedCommissionGross,
     expectedCommissionAdjustment,
     expectedCommissionNet,
     actualCommission,
+    actualCommissionAdjustment,
     commissionDifference,
     expectedCommissionRatePercent: expectedCommissionRateDecimal,
     actualCommissionRatePercent: actualCommissionRateDecimal,
@@ -593,6 +624,79 @@ function mapOpportunityActivity(activity: ActivityWithRelations): OpportunityAct
     attachment: attachmentLabel,
     fileName: primaryFileName,
     attachments
+  }
+}
+
+function normalisePercent(value: unknown): number {
+  const n = toNumber(value)
+  if (!Number.isFinite(n)) return 0
+  return n > 1 ? n / 100 : n
+}
+
+function computeSummaryMetrics(opportunity: OpportunityWithRelations, revenueSchedules: OpportunityRevenueScheduleDetail[]) {
+  const sum = (arr: number[]) => arr.reduce((a, b) => a + (Number.isFinite(b) ? b : 0), 0)
+
+  const expectedUsageGrossTotal = sum(revenueSchedules.map(r => r.expectedUsageGross))
+  const expectedUsageAdjustmentsGrossTotal = sum(revenueSchedules.map(r => r.expectedUsageAdjustment))
+  const actualUsageGrossTotal = sum(revenueSchedules.map(r => r.actualUsage))
+  const actualUsageAdjustmentsGrossTotal = sum(revenueSchedules.map(r => r.actualUsageAdjustment ?? 0))
+  const remainingUsageGrossTotal = expectedUsageGrossTotal - actualUsageGrossTotal
+  const remainingUsageAdjustmentsGrossTotal = expectedUsageAdjustmentsGrossTotal - actualUsageAdjustmentsGrossTotal
+
+  const expectedCommissionGrossTotal = sum(revenueSchedules.map(r => r.expectedCommissionGross))
+  const expectedCommissionAdjustmentsGrossTotal = sum(revenueSchedules.map(r => r.expectedCommissionAdjustment))
+  const actualCommissionGrossTotal = sum(revenueSchedules.map(r => r.actualCommission))
+  const actualCommissionAdjustmentsGrossTotal = sum(revenueSchedules.map(r => r.actualCommissionAdjustment ?? 0))
+  const remainingCommissionGrossTotal = expectedCommissionGrossTotal - actualCommissionGrossTotal
+  const remainingCommissionAdjustmentsGrossTotal = expectedCommissionAdjustmentsGrossTotal - actualCommissionAdjustmentsGrossTotal
+
+  // Allocation totals
+  const repPct = normalisePercent(opportunity.houseRepPercent)
+  const subPct = normalisePercent(opportunity.subagentPercent)
+  const housePct = (() => {
+    const explicit = normalisePercent(opportunity.houseSplitPercent)
+    if (explicit > 0) return explicit
+    const computed = 1 - (repPct + subPct)
+    return Math.max(0, Math.min(1, computed))
+  })()
+
+  const expectedCommissionNetTotal = sum(revenueSchedules.map(r => r.expectedCommissionNet))
+  const actualCommissionNetTotal = sum(revenueSchedules.map(r => r.actualCommission))
+
+  const expectedCommissionHouseRepTotal = expectedCommissionNetTotal * repPct
+  const expectedCommissionSubAgentTotal = expectedCommissionNetTotal * subPct
+  const expectedCommissionHouseTotal = expectedCommissionNetTotal * housePct
+
+  const actualCommissionHouseRepTotal = actualCommissionNetTotal * repPct
+  const actualCommissionSubAgentTotal = actualCommissionNetTotal * subPct
+  const actualCommissionHouseTotal = actualCommissionNetTotal * housePct
+
+  const remainingCommissionHouseRepTotal = expectedCommissionHouseRepTotal - actualCommissionHouseRepTotal
+  const remainingCommissionSubAgentTotal = expectedCommissionSubAgentTotal - actualCommissionSubAgentTotal
+  const remainingCommissionHouseTotal = expectedCommissionHouseTotal - actualCommissionHouseTotal
+
+  return {
+    expectedUsageGrossTotal,
+    expectedUsageAdjustmentsGrossTotal,
+    actualUsageGrossTotal,
+    actualUsageAdjustmentsGrossTotal,
+    remainingUsageGrossTotal,
+    remainingUsageAdjustmentsGrossTotal,
+    expectedCommissionGrossTotal,
+    expectedCommissionAdjustmentsGrossTotal,
+    actualCommissionGrossTotal,
+    actualCommissionAdjustmentsGrossTotal,
+    remainingCommissionGrossTotal,
+    remainingCommissionAdjustmentsGrossTotal,
+    expectedCommissionHouseRepTotal,
+    expectedCommissionSubAgentTotal,
+    expectedCommissionHouseTotal,
+    actualCommissionHouseRepTotal,
+    actualCommissionSubAgentTotal,
+    actualCommissionHouseTotal,
+    remainingCommissionHouseRepTotal,
+    remainingCommissionSubAgentTotal,
+    remainingCommissionHouseTotal
   }
 }
 
@@ -694,6 +798,7 @@ export function mapOpportunityToDetail(opportunity: OpportunityWithRelations): O
     },
     lineItems: detailedProducts,
     revenueSchedules,
+    summaryMetrics: computeSummaryMetrics(opportunity, revenueSchedules),
     activities
   }
 }

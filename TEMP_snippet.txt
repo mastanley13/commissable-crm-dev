@@ -1,0 +1,140 @@
+  }
+
+  return (
+    <div className={cn("bg-white rounded-lg border-2 border-gray-400", maxBodyHeight ? "flex flex-col" : "flex flex-col flex-1", className)}>
+      {/* Table container */}
+      <div className="relative" style={maxBodyHeight ? { flex: '0 1 auto', minHeight: 0 } : { flex: '1 1 0%', minHeight: 0 }}>
+        <div
+          className="table-scroll-container overflow-x-auto overflow-y-auto"
+          style={maxBodyHeight ? { minHeight: `${maxBodyHeight}px`, maxHeight: `${maxBodyHeight}px`, height: `${maxBodyHeight}px` } : undefined}
+          role="table"
+          aria-label="Data table"
+        >
+          {visibleColumns.length > 0 && (
+            <div className="table-header shadow-sm">
+              <div
+                className="table-grid"
+                style={gridStyles}
+              >
+                {visibleColumns.map(column => (
+                  <div
+                    key={column.id}
+                    className={cn(
+                      "table-cell bg-blue-500 font-semibold text-white text-[11px] relative select-none border-b-2 border-blue-700 border-r-2 border-blue-700 last:border-r-0",
+                      column.sortable && column.id !== "select" && "cursor-pointer hover:bg-blue-600"
+                    )}
+                    draggable
+                    onDragStart={event => handleDragStart(event, column.id)}
+                    onDragOver={handleDragOver}
+                    onDrop={event => handleDrop(event, column.id)}
+                    onClick={() => column.id !== "select" && handleSort(column)}
+                  >
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      {column.id === "select" && onSelectAll ? (
+                        <>
+                          <input
+                            ref={selectAllRef}
+                            type="checkbox"
+                            className="w-[11px] h-[11px] text-primary-600 bg-gray-100 border-gray-300 rounded focus:ring-primary-500 flex-shrink-0"
+                            checked={data.length > 0 && selectedItems.length === data.length}
+                            onClick={event => event.stopPropagation()}
+                            onChange={event => {
+                              event.stopPropagation()
+                              onSelectAll(event.target.checked)
+                            }}
+                          />
+                          {!hideSelectAllLabel && (
+                            <span className="break-words leading-tight whitespace-nowrap flex-1 min-w-0">
+                              {selectHeaderLabel ?? 'Select All'}
+                            </span>
+                          )}
+                          {/* Invisible placeholder to match SortTriangles height */}
+                          <div className="flex-shrink-0 w-2.5 h-2.5 opacity-0" aria-hidden="true" />
+                        </>
+                      ) : column.type === "multi-action" && onSelectAll ? (
+                        <>
+                          <input
+                            ref={selectAllRef}
+                            type="checkbox"
+                            className="w-[11px] h-[11px] text-primary-600 bg-gray-100 border-gray-300 rounded focus:ring-primary-500 flex-shrink-0"
+                            checked={data.length > 0 && selectedItems.length === data.length}
+                            onClick={event => event.stopPropagation()}
+                            onChange={event => {
+                              event.stopPropagation()
+                              onSelectAll(event.target.checked)
+                            }}
+                          />
+                          {!hideSelectAllLabel && (
+                            <span className="break-words leading-tight whitespace-nowrap flex-1 min-w-0">{column.label}</span>
+                          )}
+                          {/* Invisible placeholder to match SortTriangles height */}
+                          <div className="flex-shrink-0 w-2.5 h-2.5 opacity-0" aria-hidden="true" />
+                        </>
+                      ) : (
+                        <>
+                          <span className="break-words leading-tight flex-1 min-w-0">{column.label}</span>
+                          {column.sortable && (
+                            <div className="flex-shrink-0">
+                              <SortTriangles direction={sortConfig?.key === column.id ? sortConfig.direction : null} />
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+
+                    {column.resizable !== false && (
+                      <div
+                        className={cn(
+                          "column-resizer",
+                          resizing?.columnId === column.id && "resizing"
+                        )}
+                        onMouseDown={event => handleMouseDown(event, column.id)}
+                        onDoubleClick={() => handleDoubleClick(column.id)}
+                        title="Drag to resize, double-click to auto-fit"
+                      />
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          <div
+            ref={tableRef}
+            className="table-grid"
+            style={gridStyles}
+          >
+        {visibleColumns.length === 0 ? (
+          <div
+            className="col-span-full p-10 text-center text-gray-500"
+            style={{ gridColumn: `1 / ${columnCount + 1}` }}
+          >
+            No columns selected. Use the settings menu to add columns back to the table.
+          </div>
+        ) : data.length === 0 ? (
+          <div
+            className="col-span-full p-8 text-center text-gray-500"
+            style={{ gridColumn: `1 / ${columnCount + 1}` }}
+          >
+            {emptyMessage}
+          </div>
+        ) : (
+          data.map((row, rowIndex) => {
+            const rowSelected = isRowSelected(row)
+            return (
+              <div
+                key={rowIndex}
+                className="table-row contents"
+                data-row-selected={rowSelected ? "true" : undefined}
+              >
+                {visibleColumns.map((column, columnIndex) => (
+                  <div
+                    key={`${rowIndex}-${column.id}`}
+                    className={cn(
+                      "table-cell text-sm text-gray-900 transition-colors",
+                      onRowClick && "cursor-pointer",
+                      // Alternating row colors using UNOHARAIRO (#F7FCFE)
+                      rowIndex % 2 === 1 && !rowSelected && "bg-[#F7FCFE]",
+                      rowSelected && "bg-primary-50 font-medium",
+                      rowSelected && columnIndex === 0 && "border-l-4 border-primary-400",
+                      rowSelected && columnIndex === visibleColumns.length - 1 && "border-r-4 border-primary-100"
+                    )}

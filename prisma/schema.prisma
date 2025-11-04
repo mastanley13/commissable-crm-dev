@@ -543,8 +543,10 @@ model RevenueSchedule {
   expectedUsage        Decimal?              @db.Decimal(16, 2)
   usageAdjustment      Decimal?              @db.Decimal(16, 2)
   actualUsage          Decimal?              @db.Decimal(16, 2)
+  actualUsageAdjustment Decimal?             @db.Decimal(16, 2)
   expectedCommission   Decimal?              @db.Decimal(16, 2)
   actualCommission     Decimal?              @db.Decimal(16, 2)
+  actualCommissionAdjustment Decimal?        @db.Decimal(16, 2)
   orderIdHouse         String?
   distributorOrderId   String?
   status               RevenueScheduleStatus @default(Projected)

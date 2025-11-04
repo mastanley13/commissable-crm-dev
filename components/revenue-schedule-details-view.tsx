@@ -365,7 +365,6 @@ export function RevenueScheduleDetailsView({
             className="flex w-full items-center justify-between gap-2 text-primary-600 transition hover:text-primary-700"
           >
             <span className="truncate">{schedule.opportunityName}</span>
-            <span aria-hidden="true" className="text-xs">-&gt;</span>
           </Link>
         ) : (
           schedule.opportunityName
@@ -434,7 +433,7 @@ export function RevenueScheduleDetailsView({
       <div className="rounded-2xl bg-gray-100 p-3 shadow-sm">
         <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-primary-600">Revenue Schedule Detail</p>
+            <p className="text-[13px] font-semibold uppercase tracking-wide text-primary-600">Revenue Schedule Detail</p>
             {enableInlineEditing && editor.isDirty ? (
               <span className="text-[11px] font-semibold text-amber-600">Unsaved changes</span>
             ) : null}
