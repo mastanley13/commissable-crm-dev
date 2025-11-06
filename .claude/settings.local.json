@@ -23,7 +23,8 @@
       "Bash(cd:*)",
       "Bash(tasklist)",
       "Bash(findstr:*)",
-      "Bash(mkdir:*)"
+      "Bash(mkdir:*)",
+      "Bash(nul)"
     ],
     "deny": []
   }

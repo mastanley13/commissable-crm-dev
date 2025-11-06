@@ -57,6 +57,7 @@ interface ListHeaderProps {
   lastTableSaved?: Date;
   onSaveTableChanges?: () => Promise<void>;
   compact?: boolean;
+  inTab?: boolean; // When true, uses px-3 instead of px-4 to align with tabs
 }
 
 const DEFAULT_FILTER_COLUMNS: FilterColumnOption[] = [
@@ -100,6 +101,7 @@ export function ListHeader({
   lastTableSaved,
   onSaveTableChanges,
   compact = false,
+  inTab = false,
 }: ListHeaderProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState<"active" | "inactive">("active");
@@ -245,9 +247,10 @@ export function ListHeader({
   const inputYPadding = compact ? "py-1" : "py-1.5"
   const btnPad = compact ? "px-2.5 py-1" : "px-3 py-1.5"
   const iconBtnPad = compact ? "p-1" : "p-1.5"
+  const horizontalPadding = inTab ? "px-0" : "px-4"
 
   return (
-    <div className={`bg-white px-0 ${padY}`}>
+    <div className={`bg-white ${horizontalPadding} ${padY}`}>
       {title && (
         <div className="mb-2 flex items-center justify-between">
           <h2 className="text-base font-semibold text-gray-900">{title}</h2>

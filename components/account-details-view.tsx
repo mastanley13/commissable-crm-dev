@@ -4595,6 +4595,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                     <div className="grid flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0 px-3 pb-0">
                       <div className="border-t-2 border-t-primary-600 -mr-3">
                         <ListHeader
+                        inTab
                         onCreateClick={handleCreateContact}
                         onFilterChange={(filter: string) => setActiveFilter(filter === "active" ? "active" : "inactive")}
                         statusFilter={activeFilter}
@@ -4676,6 +4677,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                     <div className="grid flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0 px-3 pb-0">
                       <div className="border-t-2 border-t-primary-600 -mr-3">
                         <ListHeader
+                        inTab
                         onCreateClick={handleCreateOpportunity}
                         onFilterChange={(filter: string) => setActiveFilter(filter === "active" ? "active" : "inactive")}
                         statusFilter={activeFilter}
@@ -4735,6 +4737,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                     <div className="grid flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0 px-3 pb-0">
                       <div className="border-t-2 border-t-primary-600 -mr-3">
                         <ListHeader
+                        inTab
                         onCreateClick={handleCreateGroup}
                         onFilterChange={(filter: string) => setActiveFilter(filter === "active" ? "active" : "inactive")}
                         statusFilter={activeFilter}
@@ -4789,6 +4792,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                     <div className="grid flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0 px-3 pb-0">
                       <div className="border-t-2 border-t-primary-600 -mr-3">
                         <ListHeader
+                        inTab
                         onCreateClick={handleCreateActivity}
                         onFilterChange={(filter: string) => setActiveFilter(filter === "active" ? "active" : "inactive")}
                         statusFilter={activeFilter}

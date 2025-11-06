@@ -553,26 +553,50 @@ export function RevenueScheduleSupportingDetails({ schedule }: { schedule: Reven
   const renderReconciledDeposits = () => (
     <div className="space-y-3">
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[720px] overflow-hidden rounded-2xl border border-slate-200 text-[11px]">
+        <table className="w-full min-w-[720px] table-fixed overflow-hidden rounded-2xl border border-slate-200 text-[11px]">
           <thead className="bg-indigo-50 text-indigo-700">
             <tr>
-              {["Item", "Deposit Date", "Payee", "Product Name - Vendor", "Usage Actual", "Commission Actual", "Payment Method", "Payment Reference"].map(header => (
-                <th key={header} className="px-2 py-1.5 text-left text-[11px] font-semibold uppercase tracking-wide">
-                  {header}
-                </th>
-              ))}
+              {[
+                "Item",
+                "Deposit Date",
+                "Payee",
+                "Product Name - Vendor",
+                "Usage Actual",
+                "Commission Actual",
+                "Payment Method",
+                "Payment Reference"
+              ].map(header => {
+                const isNumeric = header === "Usage Actual" || header === "Commission Actual"
+                const widthMap: Record<string, string> = {
+                  "Item": "w-[64px] min-w-[64px]",
+                  "Product Name - Vendor": "w-[300px] min-w-[300px]",
+                  "Usage Actual": "w-[120px] min-w-[120px]",
+                  "Commission Actual": "w-[140px] min-w-[140px]",
+                  "Payment Method": "w-[160px] min-w-[160px]"
+                }
+                const widthClass = widthMap[header] ?? ""
+                const alignClass = isNumeric ? "text-right" : "text-left"
+                return (
+                  <th
+                    key={header}
+                    className={`px-2 py-1.5 ${alignClass} ${widthClass} text-[11px] font-semibold uppercase tracking-wide tabular-nums`}
+                  >
+                    {header}
+                  </th>
+                )
+              })}
             </tr>
           </thead>
           <tbody className="bg-white text-slate-700">
             {reconciledDeposits.map(row => (
               <tr key={`deposit-${row.item}`} className="border-t border-slate-100">
-                <td className="px-2 py-1.5 font-semibold text-slate-900">{row.item}</td>
+                <td className="px-2 py-1.5 font-semibold text-slate-900 w-[64px] min-w-[64px]">{row.item}</td>
                 <td className="px-2 py-1.5">{row.depositDate}</td>
                 <td className="px-2 py-1.5">{row.payee}</td>
-                <td className="px-2 py-1.5">{row.product}</td>
-                <td className="px-2 py-1.5 text-right">{row.usageActual}</td>
-                <td className="px-2 py-1.5 text-right">{row.commissionActual}</td>
-                <td className="px-2 py-1.5">{row.paymentMethod}</td>
+                <td className="px-2 py-1.5 w-[300px] min-w-[300px]"><span className="block truncate">{row.product}</span></td>
+                <td className="px-2 py-1.5 text-right tabular-nums w-[120px] min-w-[120px]">{row.usageActual}</td>
+                <td className="px-2 py-1.5 text-right tabular-nums w-[140px] min-w-[140px]">{row.commissionActual}</td>
+                <td className="px-2 py-1.5 w-[160px] min-w-[160px]"><span className="block truncate">{row.paymentMethod}</span></td>
                 <td className="px-2 py-1.5">{row.paymentReference}</td>
               </tr>
             ))}
@@ -580,8 +604,8 @@ export function RevenueScheduleSupportingDetails({ schedule }: { schedule: Reven
               <td className="px-2 py-1.5 text-[11px] font-semibold" colSpan={4}>
                 Deposit Totals
               </td>
-              <td className="px-2 py-1.5 text-right text-[11px] font-semibold">{depositTotals.usageActual}</td>
-              <td className="px-2 py-1.5 text-right text-[11px] font-semibold">{depositTotals.commissionActual}</td>
+              <td className="px-2 py-1.5 text-right text-[11px] font-semibold tabular-nums w-[120px] min-w-[120px]">{depositTotals.usageActual}</td>
+              <td className="px-2 py-1.5 text-right text-[11px] font-semibold tabular-nums w-[140px] min-w-[140px]">{depositTotals.commissionActual}</td>
               <td className="px-2 py-1.5" colSpan={2} />
             </tr>
           </tbody>
@@ -593,26 +617,39 @@ export function RevenueScheduleSupportingDetails({ schedule }: { schedule: Reven
   const renderPaymentsMade = () => (
     <div className="space-y-3">
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[640px] overflow-hidden rounded-2xl border border-slate-200 text-[11px]">
+        <table className="w-full min-w-[720px] table-fixed overflow-hidden rounded-2xl border border-slate-200 text-[11px]">
           <thead className="bg-indigo-50 text-indigo-700">
             <tr>
-              {["Item", "Payment Date", "Payee", "Split %", "Amount Paid", "Payment Method", "Payment Reference"].map(header => (
-                <th key={header} className="px-2 py-1.5 text-left text-[11px] font-semibold uppercase tracking-wide">
-                  {header}
-                </th>
-              ))}
+              {["Item", "Payment Date", "Payee", "Split %", "Amount Paid", "Payment Method", "Payment Reference"].map(header => {
+                const isNumeric = header === "Split %" || header === "Amount Paid"
+                const widthMap: Record<string, string> = {
+                  "Item": "w-[64px] min-w-[64px]",
+                  "Payment Date": "w-[120px] min-w-[120px]",
+                  "Payee": "w-[200px] min-w-[200px]",
+                  "Split %": "w-[100px] min-w-[100px]",
+                  "Amount Paid": "w-[160px] min-w-[160px]",
+                  "Payment Method": "w-[160px] min-w-[160px]"
+                }
+                const widthClass = widthMap[header] ?? ""
+                const alignClass = isNumeric ? "text-right" : "text-left"
+                return (
+                  <th key={header} className={`px-2 py-1.5 ${alignClass} ${widthClass} text-[11px] font-semibold uppercase tracking-wide tabular-nums`}>
+                    {header}
+                  </th>
+                )
+              })}
             </tr>
           </thead>
           <tbody className="bg-white text-slate-700">
             {paymentsMade.map(row => (
               <tr key={`payment-${row.item}`} className="border-t border-slate-100">
-                <td className="px-2 py-1.5 font-semibold text-slate-900">{row.item}</td>
-                <td className="px-2 py-1.5">{row.paymentDate}</td>
-                <td className="px-2 py-1.5">{row.payee}</td>
-                <td className="px-2 py-1.5 text-right">{row.split}</td>
-                <td className="px-2 py-1.5 text-right">{row.amount}</td>
-                <td className="px-2 py-1.5">{row.method}</td>
-                <td className="px-2 py-1.5">{row.reference}</td>
+                <td className="px-2 py-1.5 font-semibold text-slate-900 w-[64px] min-w-[64px]">{row.item}</td>
+                <td className="px-2 py-1.5 w-[120px] min-w-[120px]">{row.paymentDate}</td>
+                <td className="px-2 py-1.5 w-[200px] min-w-[200px]"><span className="block truncate">{row.payee}</span></td>
+                <td className="px-2 py-1.5 text-right tabular-nums w-[100px] min-w-[100px]">{row.split}</td>
+                <td className="px-2 py-1.5 text-right tabular-nums w-[120px] min-w-[120px]">{row.amount}</td>
+                <td className="px-2 py-1.5 w-[160px] min-w-[160px]"><span className="block truncate">{row.method}</span></td>
+                <td className="px-2 py-1.5"><span className="block truncate">{row.reference}</span></td>
               </tr>
             ))}
           </tbody>
@@ -624,6 +661,7 @@ export function RevenueScheduleSupportingDetails({ schedule }: { schedule: Reven
   const renderActivitiesNotes = () => (
     <div className="space-y-2">
       <ListHeader
+        inTab
         compact
         searchPlaceholder="Search activities"
         onSearch={handleSearch}
@@ -636,27 +674,25 @@ export function RevenueScheduleSupportingDetails({ schedule }: { schedule: Reven
         onCreateClick={() => setCreateModalOpen(true)}
       />
 
-      <div className="rounded-3xl border border-slate-200 bg-white p-2 shadow-inner">
-        <DynamicTable
-          columns={activityColumnsWithRender}
-          data={filteredActivities}
-          loading={activitiesLoading}
-          emptyMessage={activitiesError ?? "No data available in table"}
-          onColumnsChange={handleActivityColumnsChange}
-          pagination={activitiesPagination}
-          onPageChange={handleActivitiesPageChange}
-          onPageSizeChange={handleActivitiesPageSizeChange}
-          selectedItems={selectedActivityIds}
-          onItemSelect={(id, selected) => handleActivityItemSelect(id, selected)}
-          onSelectAll={handleSelectAllActivities}
-          alwaysShowPagination={true}
-          fillContainerWidth={true}
-          autoSizeColumns={true}
-          maxBodyHeight={240}
-          hideSelectAllLabel={false}
-          selectHeaderLabel="Select All"
-        />
-      </div>
+      <DynamicTable
+        columns={activityColumnsWithRender}
+        data={filteredActivities}
+        loading={activitiesLoading}
+        emptyMessage={activitiesError ?? "No data available in table"}
+        onColumnsChange={handleActivityColumnsChange}
+        pagination={activitiesPagination}
+        onPageChange={handleActivitiesPageChange}
+        onPageSizeChange={handleActivitiesPageSizeChange}
+        selectedItems={selectedActivityIds}
+        onItemSelect={(id, selected) => handleActivityItemSelect(id, selected)}
+        onSelectAll={handleSelectAllActivities}
+        alwaysShowPagination={true}
+        fillContainerWidth={true}
+        autoSizeColumns={true}
+        maxBodyHeight={300}
+        hideSelectAllLabel={false}
+        selectHeaderLabel="Select All"
+      />
 
       <ColumnChooserModal
         isOpen={columnChooserOpen}

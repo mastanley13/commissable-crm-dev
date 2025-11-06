@@ -939,8 +939,8 @@ function validateOpportunityForm(form: OpportunityInlineForm): Record<string, st
 
 function FieldRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="grid items-center gap-4 sm:grid-cols-[140px,1fr]">
-      <span className={fieldLabelClass}>{label}</span>
+    <div className="grid items-start gap-3 sm:grid-cols-[180px,minmax(0,1fr)]">
+      <span className={cn(fieldLabelClass, "flex items-center min-h-[28px]")}>{label}</span>
       <div>{children}</div>
     </div>
   )
@@ -954,7 +954,7 @@ function OpportunityHeader({
   onEdit?: () => void
 }) {
   return (
-    <div className="rounded-2xl bg-gray-100 p-3 shadow-sm">
+    <div className="rounded-2xl bg-gray-100 p-3 shadow-sm h-[300px] overflow-y-auto">
       {/* Header with title and controls */}
       <div className="mb-2 flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -1153,7 +1153,7 @@ function EditableOpportunityHeader({
   )
 
   return (
-    <div className="rounded-2xl bg-gray-100 p-3 shadow-sm">
+    <div className="rounded-2xl bg-gray-100 p-3 shadow-sm h-[300px] overflow-y-auto">
       <div className="mb-2 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <p className="text-[13px] font-semibold uppercase tracking-wide text-primary-600">Opportunity Detail</p>
@@ -1398,7 +1398,7 @@ function EditableOpportunityHeader({
             "Description",
             <EditableField.Textarea
               className="w-full"
-              rows={3}
+              rows={1}
               value={(descriptionField.value as string) ?? ""}
               onChange={descriptionField.onChange}
               onBlur={descriptionField.onBlur}
@@ -3745,6 +3745,7 @@ if (loading) {
                  
                   <div className="grid flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-3 overflow-hidden">
                     <ListHeader
+                      inTab
                       showCreateButton
                       onCreateClick={() => setShowCreateLineItemModal(true)}
                       createButtonLabel="Add New"
@@ -3795,6 +3796,7 @@ if (loading) {
                 ) : activeTab === "roles" ? (
                   <div className="grid flex-1 grid-rows-[auto_minmax(0,1fr)] gap-3 overflow-hidden">
                     <ListHeader
+                      inTab
                       showCreateButton
                       createButtonLabel="Add Role"
                       onCreateClick={() => setShowCreateRoleModal(true)}
@@ -3839,6 +3841,7 @@ if (loading) {
                 ) : activeTab === "revenue-schedules" ? (
                   <div className="grid flex-1 grid-rows-[auto_minmax(0,1fr)] gap-3 overflow-hidden">
                     <ListHeader
+                      inTab
                       onCreateClick={() => setShowRevenueCreateModal(true)}
                       showCreateButton={Boolean(opportunity)}
                       onSearch={setRevenueSearchQuery}
@@ -3881,6 +3884,7 @@ if (loading) {
                 ) : activeTab === "activities" ? (
                   <div className="grid flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-3 overflow-hidden">
                     <ListHeader
+                      inTab
                       onCreateClick={handleCreateActivity}
                       showCreateButton={Boolean(opportunity)}
                       onSearch={setActivitySearchQuery}
@@ -3936,6 +3940,7 @@ if (loading) {
 
                   <div className="grid flex-1 grid-rows-[auto_minmax(0,1fr)] gap-3 overflow-hidden">
                     <ListHeader
+                      inTab
                       showCreateButton={false}
                       onSearch={setHistorySearchQuery}
                       searchPlaceholder="Search history"
@@ -4145,5 +4150,6 @@ if (loading) {
       /></>
   )
 }
+
 
 

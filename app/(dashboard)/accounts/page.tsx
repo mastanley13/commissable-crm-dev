@@ -1712,6 +1712,8 @@ export default function AccountsPage() {
                 handleToggleActive(row as AccountRow, value);
               }
             }}
+            fillContainerWidth
+            autoSizeColumns={false}
             alwaysShowPagination
             maxBodyHeight={tableBodyHeight}
           />

@@ -122,7 +122,7 @@ export function useTablePreferences(
   const fetchPreferences = useCallback(async () => {
     setLoading(true)
     try {
-      const response = await fetch('/api/table-preferences/' + pageKey, {
+      const response = await fetch('/api/table-preferences/' + encodeURIComponent(pageKey), {
         method: "GET",
         cache: "no-store"
       })
@@ -163,7 +163,7 @@ export function useTablePreferences(
   const persistPreferences = useCallback(async (updatedColumns: Column[]) => {
     try {
       setSaving(true)
-      const response = await fetch(`/api/table-preferences/${pageKey}`, {
+      const response = await fetch(`/api/table-preferences/${encodeURIComponent(pageKey)}` , {
         method: "POST",
         headers: {
           "Content-Type": "application/json"

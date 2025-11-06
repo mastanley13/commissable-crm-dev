@@ -338,9 +338,12 @@ export function DynamicTable({
     const containerWidth = Math.max(computedWidth, fallbackWidth)
     const totalFixedWidth = visibleColumns.reduce((total, col) => total + col.width, 0)
 
+    // Use fill mode only when not in a manual-resize overflow scenario
+    const useFillMode = fillContainerWidth && !(isManuallyResized && totalFixedWidth > containerWidth)
+
     const formatTrack = (width: number, index: number, total: number, column?: Column) => {
       const rounded = Math.max(1, Math.round(width))
-      if (fillContainerWidth && total > 0 && index === total - 1) {
+      if (useFillMode && total > 0 && index === total - 1) {
         const minWidth = column?.minWidth ? Math.max(column.minWidth, rounded) : rounded
         return `minmax(${minWidth}px, 1fr)`
       }
@@ -356,7 +359,8 @@ export function DynamicTable({
     
     // If total width is greater than container and we want to fill container,
     // shrink resizable columns proportionally while respecting min widths
-    if (fillContainerWidth && totalFixedWidth > containerWidth) {
+    // BUT if the user manually resized, allow overflow and horizontal scroll.
+    if (fillContainerWidth && totalFixedWidth > containerWidth && !isManuallyResized) {
       const minWidthFor = (c: Column) => (c.minWidth ?? 80)
 
       // Initial proportional shrink
@@ -394,6 +398,19 @@ export function DynamicTable({
         gridTemplate,
         totalTableWidth: containerWidth,
         shouldUseFullWidth: true
+      }
+    }
+
+    // Overflow scenario with manual resize: keep user widths and allow horizontal scroll
+    if (fillContainerWidth && totalFixedWidth > containerWidth && isManuallyResized) {
+      const gridTemplate = visibleColumns
+        .map((col, index) => `${Math.max(1, Math.round(col.width))}px`)
+        .join(" ")
+
+      return {
+        gridTemplate,
+        totalTableWidth: totalFixedWidth,
+        shouldUseFullWidth: false,
       }
     }
 
@@ -794,7 +811,7 @@ export function DynamicTable({
 
   if (loading) {
     return (
-      <div className="bg-white rounded-lg border-2 border-gray-400">
+      <div className="bg-white border-2 border-gray-400">
         <div className="p-8 text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto"></div>
           <p className="mt-4 text-gray-500">Loading...</p>
@@ -804,7 +821,7 @@ export function DynamicTable({
   }
 
   return (
-    <div className={cn("bg-white rounded-lg border-2 border-gray-400", maxBodyHeight ? "flex flex-col" : "flex flex-col flex-1", className)}>
+    <div className={cn("bg-white border-2 border-gray-400", maxBodyHeight ? "flex flex-col" : "flex flex-col flex-1", className)}>
       {/* Table container */}
       <div className="relative" style={maxBodyHeight ? { flex: '0 1 auto', minHeight: 0 } : { flex: '1 1 0%', minHeight: 0 }}>
         <div
@@ -1000,7 +1017,7 @@ export function DynamicTable({
                     buttons.push(
                       <button
                         key={pageNum}
-                        className={`px-2 py-1 rounded transition-colors ${
+                        className={`px-2 py-1 transition-colors ${
                           pageNum === pagination.page
                             ? "bg-primary-600 text-white"
                             : "text-gray-500 hover:text-gray-700 hover:bg-gray-100"
@@ -1032,7 +1049,7 @@ export function DynamicTable({
               <div className="flex items-center gap-2">
                 <span>Show</span>
                 <select
-                  className="border border-gray-300 rounded px-2 py-1 text-sm"
+                  className="border border-gray-300 px-2 py-1 text-sm"
                   value={pagination.pageSize}
                   onChange={event => onPageSizeChange?.(Number(event.target.value))}
                 >

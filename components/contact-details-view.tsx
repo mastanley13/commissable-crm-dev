@@ -351,9 +351,9 @@ const TABS: { id: "activities" | "opportunities" | "groups"; label: string }[] =
   { id: "activities", label: "Activities & Notes" }
 ]
 
-const fieldLabelClass = "text-[11px] font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap flex items-center"
+const fieldLabelClass = "text-[11px] font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap"
 const fieldSubLabelClass = "text-[11px] font-medium text-gray-600"
-const fieldBoxClass = "flex min-h-[28px] w-full max-w-md items-center justify-between border-b-2 border-gray-300 bg-transparent px-0 py-1 text-[11px] text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis"
+const fieldBoxClass = "flex min-h-[28px] w-full max-w-md items-center justify-between border-b-2 border-gray-300 bg-transparent px-0 py-1 text-[11px] text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis tabular-nums"
 
 export const CONTACT_ACTIVITY_TABLE_BASE_COLUMNS: Column[] = [
   {
@@ -607,12 +607,16 @@ function ReadOnlySwitch({ value }: { value: boolean }) {
 
 function FieldRow({ label, value, labelExtra }: { label: string; value: ReactNode; labelExtra?: ReactNode }) {
   return (
-    <div className="grid items-start gap-3 sm:grid-cols-[140px,1fr]">
-      <div className="flex flex-col gap-1">
-        <span className={fieldLabelClass}>{label}</span>
-        {labelExtra}
-      </div>
-      <div>{value}</div>
+    <div className="grid items-start gap-3 sm:grid-cols-[180px,minmax(0,1fr)]">
+      {labelExtra ? (
+        <div className="flex flex-col gap-1">
+          <span className={cn(fieldLabelClass, "flex items-center min-h-[28px]")}>{label}</span>
+          {labelExtra}
+        </div>
+      ) : (
+        <span className={cn(fieldLabelClass, "flex items-center min-h-[28px]")}>{label}</span>
+      )}
+      <div className="min-w-0">{value}</div>
     </div>
   )
 }
@@ -627,7 +631,7 @@ function ContactHeader({
   isDeleted: boolean
 }) {
   return (
-    <div className="rounded-2xl bg-gray-100 p-3 shadow-sm h-[300px] overflow-y-auto">
+    <div className="rounded-2xl bg-gray-100 p-3 shadow-sm min-h-[300px]">
       <div className="mb-2 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <p className="text-[13px] font-semibold uppercase tracking-wide text-primary-600">Contact Detail</p>
@@ -645,36 +649,36 @@ function ContactHeader({
         </div>
       </div>
 
-      <div className="grid gap-x-6 gap-y-1.5 grid-cols-2">
+      <div className="grid gap-6 lg:grid-cols-2">
         {/* Row 1: Name & Job Title */}
         <FieldRow
           label="Name"
           value={
-            <div className="flex items-end gap-1 max-w-md">
-              <div className={cn(fieldBoxClass, "flex-1 max-w-none")}>
+            <div className="grid grid-cols-[1fr,1fr,6rem] gap-2 w-full max-w-md">
+              <div className={cn(fieldBoxClass)}>
                 {contact.firstName || <span className="text-gray-400">First</span>}
               </div>
-              <div className={cn(fieldBoxClass, "flex-1 max-w-none")}>
+              <div className={cn(fieldBoxClass)}>
                 {contact.lastName || <span className="text-gray-400">Last</span>}
               </div>
-              <div className={cn(fieldBoxClass, "w-24 flex-none")}>
+              <div className={cn(fieldBoxClass)}>
                 {contact.suffix || <span className="text-gray-400">Suffix</span>}
               </div>
             </div>
           }
         />
-        <FieldRow label="Job Title" value={<div className={fieldBoxClass}>{contact.jobTitle || "--"}</div>} />
+        <FieldRow label="Job Title" value={<div className={cn(fieldBoxClass, "max-w-md")}>{contact.jobTitle || "--"}</div>} />
 
         {/* Row 2: Contact Type & Email Address */}
-        <FieldRow label="Contact Type" value={<div className={fieldBoxClass}>{contact.contactType || "--"}</div>} />
-        <FieldRow label="Email Address" value={<div className={fieldBoxClass}>{contact.emailAddress || "--"}</div>} />
+        <FieldRow label="Contact Type" value={<div className={cn(fieldBoxClass, "max-w-md")}>{contact.contactType || "--"}</div>} />
+        <FieldRow label="Email Address" value={<div className={cn(fieldBoxClass, "max-w-md")}>{contact.emailAddress || "--"}</div>} />
 
         {/* Row 3: Account Name & Shipping Address */}
         <FieldRow
           label="Account Name"
           value={
-            <div className="flex items-end gap-2 max-w-md">
-              <div className={cn(fieldBoxClass, "flex-1 max-w-none")}>{contact.accountName || "--"}</div>
+            <div className="flex items-center gap-2 w-full max-w-md">
+              <div className={cn(fieldBoxClass)}>{contact.accountName || "--"}</div>
               <div className="flex items-center gap-2 shrink-0 bg-transparent px-0 py-1 text-[11px] font-medium text-gray-600">
                 <span>Active (Y/N)</span>
                 <ReadOnlySwitch value={contact.active} />
@@ -684,15 +688,15 @@ function ContactHeader({
         />
         <FieldRow
           label="Shipping Address"
-          value={<div className={fieldBoxClass}>{contact.accountShippingAddress || "--"}</div>}
+          value={<div className={cn(fieldBoxClass, "max-w-md")}>{contact.accountShippingAddress || "--"}</div>}
         />
 
         {/* Row 4: Work Phone & Contact ID */}
         <FieldRow
           label="Work Phone"
           value={
-            <div className="flex items-end gap-2 max-w-md">
-              <div className={cn(fieldBoxClass, "flex-1 max-w-none")}>{contact.workPhone || "--"}</div>
+            <div className="flex items-center gap-2 w-full max-w-md">
+              <div className={cn(fieldBoxClass)}>{contact.workPhone || "--"}</div>
               <div className="flex items-center gap-2 shrink-0 bg-transparent px-0 py-1 text-[11px] font-medium text-gray-600">
                 <span>EXT</span>
                 <div className="min-w-[3rem] text-center border-b-2 border-gray-300 py-1">{contact.workPhoneExt || "--"}</div>
@@ -700,13 +704,13 @@ function ContactHeader({
             </div>
           }
         />
-        <FieldRow label="Contact ID" value={<div className={fieldBoxClass}>{contact.id}</div>} />
+        <FieldRow label="Contact ID" value={<div className={cn(fieldBoxClass, "max-w-md")}>{contact.id}</div>} />
 
         {/* Row 5: Mobile Phone & Description */}
-        <FieldRow label="Mobile" value={<div className={fieldBoxClass}>{contact.mobilePhone || "--"}</div>} />
+        <FieldRow label="Mobile" value={<div className={cn(fieldBoxClass, "max-w-md")}>{contact.mobilePhone || "--"}</div>} />
         <FieldRow
           label="Description"
-          value={<div className={fieldBoxClass}>{contact.description || "No description provided."}</div>}
+          value={<div className={cn(fieldBoxClass, "max-w-md")}>{contact.description || "No description provided."}</div>}
         />
       </div>
     </div>
@@ -736,7 +740,7 @@ function EditableContactHeader({
   void _contactMethodOptions
   if (!editor.draft) {
     return (
-      <div className="rounded-2xl bg-gray-100 p-3 shadow-sm h-[300px] overflow-y-auto">
+      <div className="rounded-2xl bg-gray-100 p-3 shadow-sm min-h-[300px]">
         <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-6 text-sm text-gray-500">
           <Loader2 className="h-4 w-4 animate-spin text-primary-600" />
           Preparing inline editor...
@@ -765,12 +769,12 @@ function EditableContactHeader({
     editor.setField("contactType", selected?.accountTypeName ?? editor.draft?.contactType ?? "")
   }
 
-  const renderStandardRow = (label: string, control: ReactNode, error?: string, wrapperClassName = "w-full max-w-md") => (
+  const renderStandardRow = (label: string, control: ReactNode, error?: string) => (
     <FieldRow
       label={label}
       value={
-        <div className="flex flex-col gap-1">
-          <div className={wrapperClassName}>{control}</div>
+        <div className="max-w-md flex w-full flex-col gap-1">
+          {control}
           {error ? <p className="text-[10px] text-red-600">{error}</p> : null}
         </div>
       }
@@ -778,7 +782,7 @@ function EditableContactHeader({
   )
 
   return (
-    <div className="rounded-2xl bg-gray-100 p-3 shadow-sm h-[300px] overflow-y-auto">
+    <div className="rounded-2xl bg-gray-100 p-3 shadow-sm min-h-[300px]">
       <div className="mb-2 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <p className="text-[13px] font-semibold uppercase tracking-wide text-primary-600">Contact Detail</p>
@@ -847,14 +851,14 @@ function EditableContactHeader({
 
           {renderStandardRow(
             "Contact Type",
-            <div className={fieldBoxClass}>{editor.draft?.contactType || "--"}</div>
+            <div className={cn(fieldBoxClass, "max-w-md")}>{editor.draft?.contactType || "--"}</div>
           )}
 
           <FieldRow
             label="Account Name"
             value={
               <div className="flex flex-col gap-1">
-                <div className="flex flex-wrap items-end gap-2 w-full max-w-md">
+                <div className="flex flex-wrap items-center gap-2 w-full max-w-md">
                   <div className="flex-1 min-w-[12rem]">
                     <EditableField.Select
                       className="w-full"
@@ -952,12 +956,12 @@ function EditableContactHeader({
 
           {renderStandardRow(
             "Shipping Address",
-            <div className={fieldBoxClass}>{contact.accountShippingAddress || "--"}</div>
+            <div className={cn(fieldBoxClass, "max-w-md")}>{contact.accountShippingAddress || "--"}</div>
           )}
 
           {renderStandardRow(
             "Contact ID",
-            <div className={fieldBoxClass}>{contact.id}</div>
+            <div className={cn(fieldBoxClass, "max-w-md")}>{contact.id}</div>
           )}
 
           {renderStandardRow(
@@ -1158,7 +1162,7 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
   const [groupOwners, setGroupOwners] = useState<Array<{ value: string; label: string }>>([])
 
   useEffect(() => {
-    setActiveTab("activities")
+    setActiveTab("opportunities")
     setIsDeleted(Boolean(contact?.deletedAt))
   }, [contact?.id, contact?.deletedAt])
 
@@ -3314,6 +3318,7 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
                     <div className="grid flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0 px-3 pb-0">
                       <div className="border-t-2 border-t-primary-600 -mr-3">
                         <ListHeader
+                        inTab
                         onCreateClick={handleCreateNewClick}
                         onFilterChange={setActiveFilter as unknown as (filter: string) => void}
                         statusFilter={activeFilter}
@@ -3364,6 +3369,7 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
                     <div className="grid flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0 px-3 pb-0">
                       <div className="border-t-2 border-t-primary-600 -mr-3">
                         <ListHeader
+                        inTab
                         onCreateClick={handleCreateNewClick}
                         onFilterChange={setActiveFilter as unknown as (filter: string) => void}
                         statusFilter={activeFilter}
@@ -3414,6 +3420,7 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
                     <div className="grid flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0 px-3 pb-0">
                       <div className="border-t-2 border-t-primary-600 -mr-3">
                         <ListHeader
+                        inTab
                         onCreateClick={handleCreateNewClick}
                         onFilterChange={setActiveFilter as unknown as (filter: string) => void}
                         statusFilter={activeFilter}

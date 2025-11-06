@@ -387,7 +387,7 @@ function ProductHeader({ product, onEdit, activeTab, onTabSelect }: ProductHeade
   return (
     <div className="flex flex-col gap-0">
       {/* Header Section */}
-      <div className="rounded-t-2xl bg-gray-100 p-3 shadow-sm">
+      <div className="rounded-t-2xl bg-gray-100 p-3 shadow-sm h-[300px] overflow-y-auto">
         <div className="mb-2 flex items-center justify-between">
           <div className="space-y-1">
             <p className="text-[13px] font-semibold uppercase tracking-wide text-primary-600">Product Detail</p>
@@ -675,7 +675,7 @@ function EditableProductHeader({ product, editor, onSave, activeTab, onTabSelect
   return (
     <div className="flex flex-col gap-0">
       {/* Header Section */}
-      <div className="rounded-t-2xl bg-gray-100 p-3 shadow-sm">
+      <div className="rounded-t-2xl bg-gray-100 p-3 shadow-sm h-[300px] overflow-y-auto">
         <div className="mb-2 flex items-center justify-between">
           <div className="space-y-1">
             <p className="text-[13px] font-semibold uppercase tracking-wide text-primary-600">Product Detail</p>
@@ -1138,7 +1138,7 @@ export function ProductDetailsView({
   }
 
   return (
-    <div className="flex flex-col px-4 py-6 sm:px-6 lg:px-8">
+    <div className="flex flex-col px-4 sm:px-6 lg:px-8">
       <div className="w-full">
         {headerNode}
 

@@ -129,7 +129,7 @@ function MetricTile({ fieldId, label, value }: MetricDefinition) {
     )
 
   return (
-    <div className="flex min-w-[110px] flex-1 flex-col justify-between gap-0.5 rounded-lg border-2 border-gray-300 bg-white px-2 py-1.5 text-[11px] text-gray-900 shadow-sm">
+    <div className="flex min-w-[110px] flex-1 flex-col justify-between gap-0.5 border-2 border-gray-300 bg-white px-2 py-1.5 text-[11px] text-gray-900 shadow-sm">
       <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 whitespace-normal break-words leading-tight">{label}</span>
       <div className="text-left text-[11px] font-semibold text-gray-900 whitespace-nowrap">{displayValue}</div>
     </div>
@@ -429,7 +429,7 @@ export function RevenueScheduleDetailsView({
 
   return (
     <div className="space-y-3 p-2">
-      <div className="rounded-2xl bg-gray-100 p-3 shadow-sm">
+      <div className="rounded-2xl bg-gray-100 p-3 shadow-sm h-[300px] overflow-y-auto">
         <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <p className="text-[13px] font-semibold uppercase tracking-wide text-primary-600">Revenue Schedule Detail</p>
