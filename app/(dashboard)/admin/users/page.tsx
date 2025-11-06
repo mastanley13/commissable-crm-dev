@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { ListHeader } from '@/components/list-header'
 import { DynamicTable, Column, PaginationInfo } from '@/components/dynamic-table'
 import { ColumnChooserModal } from '@/components/column-chooser-modal'
+import { UserCreateModal } from '@/components/user-create-modal'
 import { useTablePreferences } from '@/hooks/useTablePreferences'
 import { TableChangeNotification } from '@/components/table-change-notification'
 import { PermissionGate } from '@/components/auth/permission-gate'
@@ -145,6 +146,7 @@ export default function AdminUsersPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [showColumnSettings, setShowColumnSettings] = useState(false)
+  const [showCreateModal, setShowCreateModal] = useState(false)
   const [currentPage, setCurrentPage] = useState<number>(1)
   const [pageSize, setPageSize] = useState<number>(25)
 
@@ -221,8 +223,7 @@ export default function AdminUsersPage() {
   }
 
   const handleCreateUser = () => {
-    console.log('Create new user')
-    // Open create user modal or navigate to create page
+    setShowCreateModal(true)
   }
 
   const handleFilterChange = (filter: string) => {
@@ -332,6 +333,15 @@ export default function AdminUsersPage() {
           onClose={async () => {
             setShowColumnSettings(false)
             await saveChangesOnModalClose()
+          }}
+        />
+
+        {/* User Create Modal */}
+        <UserCreateModal
+          isOpen={showCreateModal}
+          onClose={() => setShowCreateModal(false)}
+          onCreated={() => {
+            void fetchUsers()
           }}
         />
       </div>

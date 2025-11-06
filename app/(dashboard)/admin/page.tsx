@@ -1,7 +1,6 @@
 'use client'
 
 import Link from 'next/link'
-import { ListHeader } from '@/components/list-header'
 import { Shield, Users, Settings, Key, Database, UserCheck } from 'lucide-react'
 
 const adminSections = [
@@ -52,11 +51,6 @@ const adminSections = [
 export default function AdminPage() {
   return (
     <div className="h-full flex flex-col">
-      <ListHeader
-        searchPlaceholder="Search admin settings..."
-        showCreateButton={false}
-      />
-      
       <div className="flex-1 p-6">
         <div className="mb-8">
           <h1 className="text-2xl font-bold text-gray-900 mb-2">Administration Panel</h1>

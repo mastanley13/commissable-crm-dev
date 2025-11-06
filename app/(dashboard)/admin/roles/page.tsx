@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react'
 import { ListHeader } from '@/components/list-header'
 import { DynamicTable, Column, PaginationInfo } from '@/components/dynamic-table'
 import { ColumnChooserModal } from '@/components/column-chooser-modal'
+import { RoleCreateModal } from '@/components/role-create-modal'
 import { useTablePreferences } from '@/hooks/useTablePreferences'
 import { TableChangeNotification } from '@/components/table-change-notification'
 import { PermissionGate } from '@/components/auth/permission-gate'
@@ -77,6 +78,7 @@ export default function AdminRolesPage() {
   const [error, setError] = useState('')
   const [selectedRole, setSelectedRole] = useState<Role | null>(null)
   const [editModalOpen, setEditModalOpen] = useState(false)
+  const [showCreateModal, setShowCreateModal] = useState(false)
   const [modalLoading, setModalLoading] = useState(false)
   const [modalError, setModalError] = useState<string | null>(null)
   const [showColumnSettings, setShowColumnSettings] = useState(false)
@@ -286,8 +288,7 @@ export default function AdminRolesPage() {
   }
 
   const handleCreateRole = () => {
-    console.log('Create new role')
-    // Open create role modal or navigate to create page
+    setShowCreateModal(true)
   }
 
   const handleFilterChange = (filter: string) => {
@@ -422,6 +423,15 @@ export default function AdminRolesPage() {
           error={modalError}
           onClose={handleCloseModal}
           onSave={handleSaveRole}
+        />
+
+        {/* Role Create Modal */}
+        <RoleCreateModal
+          isOpen={showCreateModal}
+          onClose={() => setShowCreateModal(false)}
+          onCreated={() => {
+            void fetchRoles()
+          }}
         />
       </div>
     </PermissionGate>

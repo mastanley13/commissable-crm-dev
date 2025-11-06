@@ -144,11 +144,6 @@ export default function ReconciliationPage() {
     // Navigate to reconciliation detail page or open modal
   }, [])
 
-  const handleCreateReconciliation = () => {
-    console.log('Create new reconciliation record')
-    // Open create reconciliation modal or navigate to create page
-  }
-
   const handleFilterChange = (filter: string) => {
     if (filter === 'active') {
       setFilteredReconciliation(reconciliation.filter(record => record.active))
@@ -247,13 +242,6 @@ export default function ReconciliationPage() {
 
           {/* Center - Controls */}
           <div className="flex items-center gap-2">
-            <button
-              onClick={handleCreateReconciliation}
-              className="inline-flex items-center px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 transition-colors"
-            >
-              Create New
-            </button>
-            
             <button
               onClick={() => setShowColumnSettings(true)}
               className="p-2 text-gray-500 rounded-lg hover:bg-gray-100 hover:text-gray-600 transition-colors"

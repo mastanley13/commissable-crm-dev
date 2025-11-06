@@ -145,6 +145,16 @@ export async function GET(request: NextRequest) {
             case "productSubtypeVendor":
               andConditions.push({ productSubtypeVendor: { contains: rawValue, mode: "insensitive" } })
               break
+            case "vendorId":
+            case "vendorAccountId":
+              // Strict match by vendor account id
+              andConditions.push({ vendorAccountId: rawValue })
+              break
+            case "distributorId":
+            case "distributorAccountId":
+              // Strict match by distributor account id
+              andConditions.push({ distributorAccountId: rawValue })
+              break
             case "partNumberVendor":
               andConditions.push({ productCode: { contains: rawValue, mode: "insensitive" } })
               break

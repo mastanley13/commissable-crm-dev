@@ -9,6 +9,7 @@ import { TableChangeNotification } from '@/components/table-change-notification'
 import { groupsData } from '@/lib/mock-data'
 import { Edit, Trash2, Users, Settings, Check } from 'lucide-react'
 import { isRowInactive } from '@/lib/row-state'
+import { GroupCreateModal } from '@/components/group-create-modal'
 
 export const groupColumns: Column[] = [
   {
@@ -85,6 +86,7 @@ export default function GroupsPage() {
   const [currentPage, setCurrentPage] = useState<number>(1)
   const [pageSize, setPageSize] = useState<number>(25)
   const [selectedGroupIds, setSelectedGroupIds] = useState<number[]>([])
+  const [showCreateModal, setShowCreateModal] = useState(false)
 
   const {
     columns: preferenceColumns,
@@ -132,8 +134,7 @@ export default function GroupsPage() {
   }, [])
 
   const handleCreateGroup = () => {
-    console.log('Create new group')
-    // Open create group modal or navigate to create page
+    setShowCreateModal(true)
   }
 
   const handleFilterChange = (filter: string) => {
@@ -344,6 +345,16 @@ export default function GroupsPage() {
         onClose={async () => {
           setShowColumnSettings(false)
           await saveChangesOnModalClose()
+        }}
+      />
+
+      <GroupCreateModal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onCreated={(groupId) => {
+          console.log('Group created with ID:', groupId)
+          // TODO: Refresh groups list when API integration is complete
+          setShowCreateModal(false)
         }}
       />
     </div>

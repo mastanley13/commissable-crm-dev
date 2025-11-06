@@ -9,7 +9,6 @@ import { useTablePreferences } from '@/hooks/useTablePreferences'
 import { TableChangeNotification } from '@/components/table-change-notification'
 import { Edit, Trash2, Settings } from 'lucide-react'
 import { isRowInactive } from '@/lib/row-state'
-import { ActivityCreateModal } from '@/components/activities/activity-create-modal'
 import { ActivityListItem } from '@/lib/activity-service'
 
 export const activityColumns: Column[] = [
@@ -315,7 +314,6 @@ export default function ActivitiesPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showColumnSettings, setShowColumnSettings] = useState(false)
-  const [showCreateModal, setShowCreateModal] = useState(false)
   const [currentPage, setCurrentPage] = useState<number>(1)
   const [pageSize, setPageSize] = useState<number>(25)
 
@@ -428,17 +426,6 @@ export default function ActivitiesPage() {
     // Navigate to activity detail page or open modal
   }
 
-  const handleCreateActivity = () => {
-    setShowCreateModal(true)
-  }
-
-  const handleActivityCreated = (activityId: string) => {
-    console.log('Activity created with ID:', activityId)
-    setShowCreateModal(false)
-    // Refresh activities data
-    fetchActivities()
-  }
-
   const handleFilterChange = (filter: string) => {
     if (filter === 'active') {
       setFilteredActivities(activities.filter(activity => activity.active === true))
@@ -490,7 +477,7 @@ export default function ActivitiesPage() {
         searchPlaceholder="Search Here"
         onSearch={handleSearch}
         onFilterChange={handleFilterChange}
-        onCreateClick={handleCreateActivity}
+        showCreateButton={false}
         onSettingsClick={() => setShowColumnSettings(true)}
         filterColumns={activityFilterColumns}
         canExport={true}
@@ -556,12 +543,6 @@ export default function ActivitiesPage() {
         }}
       />
 
-      {/* Create Activity Modal */}
-      <ActivityCreateModal
-        isOpen={showCreateModal}
-        onClose={() => setShowCreateModal(false)}
-        onCreated={handleActivityCreated}
-      />
     </div>
   )
 }

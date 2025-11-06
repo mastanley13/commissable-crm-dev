@@ -3294,7 +3294,7 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
                 </div>
 
                 <div className="flex flex-1 flex-col min-h-0 overflow-hidden">
-                  <div className="flex flex-wrap gap-1 border-x border-t border-gray-200 bg-gray-100 pt-2 px-2 pb-0">
+                  <div className="flex flex-wrap gap-1 border-x border-t border-gray-200 bg-gray-100 pt-2 px-3 pb-0">
                     {TABS.map(tab => (
                       <button
                         key={tab.id}
@@ -3312,8 +3312,9 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
                   </div>
 
                   {activeTab === "activities" && (
-                    <div className="grid flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-1 border-x border-b border-t-2 border-t-primary-600 border-gray-200 bg-white min-h-0 overflow-hidden pt-0.5 px-3 pb-0">
-                      <ListHeader
+                    <div className="grid flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0 px-3 pb-0">
+                      <div className="border-t-2 border-t-primary-600 -mr-3">
+                        <ListHeader
                         onCreateClick={handleCreateNewClick}
                         onFilterChange={setActiveFilter as unknown as (filter: string) => void}
                         statusFilter={activeFilter}
@@ -3356,12 +3357,14 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
                           alwaysShowPagination
                         />
                       </div>
+                      </div>
                     </div>
                   )}
 
                   {activeTab === "opportunities" && (
-                    <div className="grid flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-1 border-x border-b border-t-2 border-t-primary-600 border-gray-200 bg-white min-h-0 overflow-hidden pt-0.5 px-3 pb-0">
-                      <ListHeader
+                    <div className="grid flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0 px-3 pb-0">
+                      <div className="border-t-2 border-t-primary-600 -mr-3">
+                        <ListHeader
                         onCreateClick={handleCreateNewClick}
                         onFilterChange={setActiveFilter as unknown as (filter: string) => void}
                         statusFilter={activeFilter}
@@ -3370,7 +3373,7 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
                         columnFilters={opportunitiesColumnFilters}
                         onColumnFiltersChange={handleOpportunitiesColumnFiltersChange}
                         onSettingsClick={() => setShowOpportunitiesColumnSettings(true)}
-                        showCreateButton={Boolean(contact) && !isDeleted && !loading}
+                        showCreateButton={false}
                         searchPlaceholder="Search opportunities"
                       />
                       <OpportunityBulkActionBar
@@ -3404,12 +3407,14 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
                           alwaysShowPagination
                         />
                       </div>
+                      </div>
                     </div>
                   )}
 
                   {activeTab === "groups" && (
-                    <div className="grid flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-1 border-x border-b border-t-2 border-t-primary-600 border-gray-200 bg-white min-h-0 overflow-hidden pt-0.5 px-3 pb-0">
-                      <ListHeader
+                    <div className="grid flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0 px-3 pb-0">
+                      <div className="border-t-2 border-t-primary-600 -mr-3">
+                        <ListHeader
                         onCreateClick={handleCreateNewClick}
                         onFilterChange={setActiveFilter as unknown as (filter: string) => void}
                         statusFilter={activeFilter}
@@ -3451,6 +3456,7 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
                           maxBodyHeight={tableBodyMaxHeight}
                           alwaysShowPagination
                         />
+                      </div>
                       </div>
                     </div>
                   )}

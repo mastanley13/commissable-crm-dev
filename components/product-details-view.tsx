@@ -503,7 +503,7 @@ function ProductHeader({ product, onEdit, activeTab, onTabSelect }: ProductHeade
       </div>
 
       {/* Tab Navigation */}
-      <div className="flex flex-wrap gap-1 border-x border-gray-200 bg-gray-100 px-2 pb-0 pt-2">
+      <div className="flex flex-wrap gap-1 border-x border-gray-200 bg-gray-100 px-3 pb-0 pt-2">
         {TABS.map(tab => (
           <button
             key={tab.id}
@@ -522,8 +522,9 @@ function ProductHeader({ product, onEdit, activeTab, onTabSelect }: ProductHeade
 
       {/* Tab Content */}
       {activeTab === "distributor" && (
-        <div className="rounded-b-2xl border-x border-b border-t-2 border-t-primary-600 border-gray-200 bg-white p-4">
-          <div className="space-y-1.5">
+        <div className="rounded-b-2xl border-x border-b border-gray-200 bg-white pt-0 px-3 pb-4">
+          <div className="border-t-2 border-t-primary-600 -mr-3">
+            <div className="space-y-1.5">
             <FieldRow label="Distributor - Product Name">
               <div className={fieldBoxClass}>
                 {product.productNameDistributor || <span className="text-gray-500">--</span>}
@@ -551,12 +552,14 @@ function ProductHeader({ product, onEdit, activeTab, onTabSelect }: ProductHeade
               </div>
             </div>
           </div>
+          </div>
         </div>
       )}
 
       {activeTab === "vendor" && (
-        <div className="rounded-b-2xl border-x border-b border-t-2 border-t-primary-600 border-gray-200 bg-white p-4">
-          <div className="space-y-1.5">
+        <div className="rounded-b-2xl border-x border-b border-gray-200 bg-white pt-0 px-3 pb-4">
+          <div className="border-t-2 border-t-primary-600 -mr-3">
+            <div className="space-y-1.5">
             <FieldRow label="Vendor - Product Name">
               <div className={fieldBoxClass}>
                 {product.productNameVendor || <span className="text-gray-500">--</span>}
@@ -583,6 +586,7 @@ function ProductHeader({ product, onEdit, activeTab, onTabSelect }: ProductHeade
                 {product.productDescriptionVendor || <span className="text-gray-500">--</span>}
               </div>
             </div>
+          </div>
           </div>
         </div>
       )}
@@ -844,7 +848,7 @@ function EditableProductHeader({ product, editor, onSave, activeTab, onTabSelect
       </div>
 
       {/* Tab Navigation */}
-      <div className="flex flex-wrap gap-1 border-x border-gray-200 bg-gray-100 px-2 pb-0 pt-2">
+      <div className="flex flex-wrap gap-1 border-x border-gray-200 bg-gray-100 px-3 pb-0 pt-2">
         {TABS.map(tab => (
           <button
             key={tab.id}
@@ -863,8 +867,9 @@ function EditableProductHeader({ product, editor, onSave, activeTab, onTabSelect
 
       {/* Tab Content */}
       {activeTab === "distributor" && (
-        <div className="rounded-b-2xl border-x border-b border-t-2 border-t-primary-600 border-gray-200 bg-white p-4">
-          <div className="space-y-1.5">
+        <div className="rounded-b-2xl border-x border-b border-gray-200 bg-white pt-0 px-3 pb-4">
+          <div className="border-t-2 border-t-primary-600 -mr-3">
+            <div className="space-y-1.5">
             {renderRow(
               "Distributor - Product Name",
               <EditableField.Input
@@ -917,12 +922,14 @@ function EditableProductHeader({ product, editor, onSave, activeTab, onTabSelect
               />
             )}
           </div>
+          </div>
         </div>
       )}
 
       {activeTab === "vendor" && (
-        <div className="rounded-b-2xl border-x border-b border-t-2 border-t-primary-600 border-gray-200 bg-white p-4">
-          <div className="space-y-1.5">
+        <div className="rounded-b-2xl border-x border-b border-gray-200 bg-white pt-0 px-3 pb-4">
+          <div className="border-t-2 border-t-primary-600 -mr-3">
+            <div className="space-y-1.5">
             {renderRow(
               "Vendor - Product Name",
               <EditableField.Input
@@ -973,6 +980,7 @@ function EditableProductHeader({ product, editor, onSave, activeTab, onTabSelect
                 placeholder="Add vendor description"
               />
             )}
+          </div>
           </div>
         </div>
       )}

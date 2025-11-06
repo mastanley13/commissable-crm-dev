@@ -3703,7 +3703,7 @@ if (loading) {
             {headerNode}
 
             <div className="flex flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-              <div className="flex flex-wrap gap-1 border-b border-gray-200 bg-gray-100 pt-2 px-2 pb-0">
+              <div className="flex flex-wrap gap-1 border-b border-gray-200 bg-gray-100 pt-2 px-3 pb-0">
                 {(["products", "revenue-schedules", "activities", "summary", "roles", "details"] as TabKey[]).map(tabId => (
                   <button
                     key={tabId}
@@ -3733,7 +3733,8 @@ if (loading) {
                 ))}
               </div>
 
-              <div className="min-h-[320px] border-t-2 border-t-primary-600 border-gray-200 bg-white p-4 flex flex-col overflow-hidden">
+              <div className="min-h-[320px] border-gray-200 bg-white pt-0 px-3 pb-4 flex flex-col overflow-hidden">
+                <div className="border-t-2 border-t-primary-600 -mr-3">
                 {activeTab === "summary" ? (
                   <SummaryTab opportunity={opportunity} />
                 ) : activeTab === "products" ? (
@@ -3952,6 +3953,7 @@ if (loading) {
                     </div>
                   </div>
                 ) : null}
+                </div>
               </div>
             </div>
 

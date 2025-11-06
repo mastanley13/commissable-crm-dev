@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { ListHeader } from '@/components/list-header'
 import { Settings, User, Bell, Shield, Mail, Globe, Database, Palette } from 'lucide-react'
 
 type SettingsSection = {
@@ -160,11 +159,6 @@ export default function SettingsPage() {
 
   return (
     <div className="h-full flex flex-col">
-      <ListHeader
-        searchPlaceholder="Search settings..."
-        showCreateButton={false}
-      />
-      
       <div className="flex-1 flex">
         {/* Settings Navigation */}
         <div className="w-64 bg-white border-r border-gray-200 p-4">

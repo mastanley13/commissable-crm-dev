@@ -4,6 +4,7 @@ import { useState, useCallback, useMemo } from 'react'
 import { ListHeader } from '@/components/list-header'
 import { DynamicTable, Column, PaginationInfo } from '@/components/dynamic-table'
 import { ColumnChooserModal } from '@/components/column-chooser-modal'
+import { ReportCreateModal } from '@/components/report-create-modal'
 import { useTablePreferences } from '@/hooks/useTablePreferences'
 import { TableChangeNotification } from '@/components/table-change-notification'
 import { reportsData } from '@/lib/mock-data'
@@ -97,6 +98,7 @@ export default function ReportsPage() {
   const [filteredReports, setFilteredReports] = useState(reportsData)
   const [loading, setLoading] = useState(false)
   const [showColumnSettings, setShowColumnSettings] = useState(false)
+  const [showCreateModal, setShowCreateModal] = useState(false)
   const [currentPage, setCurrentPage] = useState<number>(1)
   const [pageSize, setPageSize] = useState<number>(25)
 
@@ -146,8 +148,14 @@ export default function ReportsPage() {
   }, [])
 
   const handleCreateReport = () => {
-    console.log('Create new report')
-    // Open create report modal or navigate to create page
+    setShowCreateModal(true)
+  }
+
+  const handleReportCreated = (reportId: string) => {
+    // Refresh reports list or add new report to state
+    // For now, we'll just close the modal
+    // In a real implementation, you'd fetch the updated list or add the new report
+    console.log('Report created:', reportId)
   }
 
   const handleFilterChange = (filter: string) => {
@@ -335,6 +343,12 @@ export default function ReportsPage() {
           setShowColumnSettings(false)
           await saveChangesOnModalClose()
         }}
+      />
+
+      <ReportCreateModal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onCreated={handleReportCreated}
       />
     </div>
   )
