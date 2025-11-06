@@ -91,7 +91,7 @@ const OPPORTUNITY_FILTER_OPTIONS = [
   { id: 'status', label: 'Status' },
 ]
 
-const BASE_COLUMNS: Column[] = [
+export const BASE_COLUMNS: Column[] = [
   {
     id: 'multi-action',
     label: 'Select All',

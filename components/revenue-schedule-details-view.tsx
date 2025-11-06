@@ -107,10 +107,10 @@ function FieldRow({ label, value, fullWidth }: FieldDefinition) {
       resolvedValue
     )
 
-  const fieldBoxClass = `${baseFieldBoxClass} ${fullWidth ? "max-w-full whitespace-normal break-words" : "max-w-[24rem]"}`
+  const fieldBoxClass = `${baseFieldBoxClass} ${fullWidth ? "max-w-[18rem] whitespace-normal break-words" : "max-w-[18rem]"}`
 
   return (
-    <div className="grid items-center gap-6 sm:grid-cols-[220px,minmax(0,1fr)]">
+    <div className="grid items-center gap-3 sm:grid-cols-[180px,minmax(0,1fr)]">
       <span className={fieldLabelClass}>{label}</span>
       <div className={fieldBoxClass}>{displayValue}</div>
     </div>
@@ -129,9 +129,9 @@ function MetricTile({ fieldId, label, value }: MetricDefinition) {
     )
 
   return (
-    <div className="flex min-w-[140px] flex-col gap-0.5 rounded-lg border-2 border-gray-300 bg-white px-2 py-1.5 text-[11px] text-gray-900 shadow-sm">
-      <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">{label}</span>
-      <div className="text-[11px] font-semibold text-gray-900">{displayValue}</div>
+    <div className="flex min-w-[110px] flex-1 flex-col justify-between gap-0.5 rounded-lg border-2 border-gray-300 bg-white px-2 py-1.5 text-[11px] text-gray-900 shadow-sm">
+      <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 whitespace-normal break-words leading-tight">{label}</span>
+      <div className="text-left text-[11px] font-semibold text-gray-900 whitespace-nowrap">{displayValue}</div>
     </div>
   )
 }
@@ -151,9 +151,9 @@ function mapDetailToInline(detail: RevenueScheduleDetailRecord | null): RevenueS
 
 function EditRow({ label, control, error }: { label: string; control: ReactNode; error?: string }) {
   return (
-    <div className="grid items-center gap-6 sm:grid-cols-[220px,minmax(0,1fr)]">
+    <div className="grid items-center gap-3 sm:grid-cols-[180px,minmax(0,1fr)]">
       <span className={fieldLabelClass}>{label}</span>
-      <div className="max-w-[24rem] flex w-full flex-col gap-1">
+      <div className="max-w-[18rem] flex w-full flex-col gap-1">
         {control}
         {error ? <p className="text-[10px] text-red-600">{error}</p> : null}
       </div>
@@ -409,23 +409,22 @@ export function RevenueScheduleDetailsView({
   const topColumns = [columnOne, columnTwo, columnThree]
 
   const summaryMetrics: MetricDefinition[] = [
-    { fieldId: "04.01.021", label: "Revenue Schedule Name", value: scheduleName },
     { fieldId: "04.01.022", label: "Quantity", value: schedule.quantity },
     { fieldId: "04.01.023", label: "Price Each", value: schedule.priceEach },
-    { fieldId: "N/A", label: "Expected Usage Gross", value: schedule.expectedUsageGross ?? schedule.expectedUsage },
+    { fieldId: "N/A", label: "Usage Gross (Est.)", value: schedule.expectedUsageGross ?? schedule.expectedUsage },
     {
       fieldId: "04.01.024",
-      label: "Expected Usage Adjustment",
+      label: "Usage Adjustment",
       value: schedule.expectedUsageAdjustment ?? schedule.expectedUsage
     },
-    { fieldId: "04.01.025", label: "Expected Usage Net", value: schedule.expectedUsageNet },
-    { fieldId: "04.01.026", label: "Actual Usage", value: schedule.actualUsage },
+    { fieldId: "04.01.025", label: "Usage Net (Est.)", value: schedule.expectedUsageNet },
+    { fieldId: "04.01.026", label: "Usage (Actual)", value: schedule.actualUsage },
     { fieldId: "04.01.027", label: "Usage Balance", value: schedule.usageBalance },
-    { fieldId: "04.01.028", label: "Expected Commission Gross", value: schedule.expectedCommissionGross },
-    { fieldId: "04.01.029", label: "Expected Commission Adjustment", value: schedule.expectedCommissionAdjustment },
-    { fieldId: "04.01.030", label: "Expected Commission Net", value: schedule.expectedCommissionNet },
-    { fieldId: "N/A", label: "Commission Actual", value: schedule.actualCommission },
-    { fieldId: "N/A", label: "Commission Difference", value: schedule.commissionDifference }
+    { fieldId: "04.01.028", label: "Commission Gross (Est.)", value: schedule.expectedCommissionGross },
+    { fieldId: "04.01.029", label: "Commission Adjustment", value: schedule.expectedCommissionAdjustment },
+    { fieldId: "04.01.030", label: "Commission Net (Est.)", value: schedule.expectedCommissionNet },
+    { fieldId: "N/A", label: "Commission (Actual)", value: schedule.actualCommission },
+    { fieldId: "N/A", label: "Commission Variance", value: schedule.commissionDifference }
   ]
 
   return (
@@ -617,16 +616,12 @@ export function RevenueScheduleDetailsView({
         </div>
       </div>
 
-      <div className="space-y-1.5">
-        <div className="flex items-center justify-between">
-          <h2 className="text-[11px] font-semibold uppercase tracking-wide text-gray-600">Schedule Summary</h2>
-        </div>
-        <div className="overflow-x-auto">
-          <div className="flex min-w-max gap-2 rounded-2xl bg-gray-100 p-2 shadow-sm">
-            {summaryMetrics.map(metric => (
-              <MetricTile key={`${metric.fieldId}-${metric.label}`} {...metric} />
-            ))}
-          </div>
+      <div className="border-t-2 border-blue-900 bg-blue-100 px-3 py-1.5">
+        <h2 className="text-[11px] font-semibold uppercase tracking-wide text-gray-600 mb-1.5">Schedule Summary</h2>
+        <div className="flex flex-wrap gap-2">
+          {summaryMetrics.map(metric => (
+            <MetricTile key={`${metric.fieldId}-${metric.label}`} {...metric} />
+          ))}
         </div>
       </div>
 

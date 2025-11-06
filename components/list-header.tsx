@@ -34,8 +34,10 @@ interface ListHeaderProps {
   onSearch?: (query: string) => void;
   onFilterChange?: (filter: string) => void;
   showStatusFilter?: boolean; // new: allow hiding default Active/Inactive toggle
+  showColumnFilters?: boolean; // new: allow hiding column filter UI
   showCreateButton?: boolean;
   onCreateClick?: () => void;
+  createButtonLabel?: string;
   onSettingsClick?: () => void;
   filterColumns?: FilterColumnOption[];
   columnFilters?: ColumnFilter[];
@@ -74,8 +76,10 @@ export function ListHeader({
   onSearch,
   onFilterChange,
   showStatusFilter = true,
+  showColumnFilters = true,
   showCreateButton = true,
   onCreateClick,
+  createButtonLabel = "Create New",
   onSettingsClick,
   filterColumns,
   columnFilters,
@@ -104,11 +108,12 @@ export function ListHeader({
   const [saveFilterName, setSaveFilterName] = useState("");
 
   const columnOptions = useMemo(() => {
+    if (!showColumnFilters) return [] as FilterColumnOption[];
     if (Array.isArray(filterColumns) && filterColumns.length > 0) {
       return filterColumns;
     }
     return DEFAULT_FILTER_COLUMNS;
-  }, [filterColumns]);
+  }, [filterColumns, showColumnFilters]);
 
   const columnLabelMap = useMemo(() => {
     return new Map(columnOptions.map(option => [option.id, option.label]));
@@ -288,7 +293,7 @@ export function ListHeader({
                 onClick={onCreateClick}
                 className="rounded bg-primary-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-primary-700"
               >
-                Create New
+                {createButtonLabel}
               </button>
             )}
 
@@ -328,7 +333,7 @@ export function ListHeader({
               </div>
             )}
 
-            {columnOptions.length > 0 && (
+            {showColumnFilters && columnOptions.length > 0 && (
               <>
                 <div className="relative">
                   <select
@@ -363,7 +368,7 @@ export function ListHeader({
                   Apply Filter
                 </button>
 
-                {savedFilterSets && savedFilterSets.length > 0 && (
+                {showColumnFilters && savedFilterSets && savedFilterSets.length > 0 && (
                   <div className="relative">
                     <button
                       type="button"

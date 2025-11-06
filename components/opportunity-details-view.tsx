@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import Link from "next/link"
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react"
@@ -55,7 +55,7 @@ const ACTIVITY_FILTER_COLUMNS: Array<{ id: string; label: string }> = [
   { id: "createdBy", label: "Created By" }
 ]
 
-const ACTIVITY_TABLE_BASE_COLUMNS: Column[] = [
+export const ACTIVITY_TABLE_BASE_COLUMNS: Column[] = [
   {
     id: "multi-action",
     label: "Select All",
@@ -162,7 +162,7 @@ const isAutoManagedStageValue = (value: unknown): boolean => {
   return isOpportunityStageValue(value) && isOpportunityStageAutoManaged(value)
 }
 
-const PRODUCT_TABLE_BASE_COLUMNS: Column[] = [
+export const PRODUCT_TABLE_BASE_COLUMNS: Column[] = [
   {
     id: "multi-action",
     label: "Select All",
@@ -197,7 +197,7 @@ const REVENUE_FILTER_COLUMNS: Array<{ id: string; label: string }> = [
   { id: "distributorName", label: "Distributor" }
 ]
 
-const REVENUE_TABLE_BASE_COLUMNS: Column[] = [
+export const REVENUE_TABLE_BASE_COLUMNS: Column[] = [
   {
     id: "multi-action",
     label: "Select All",
@@ -262,7 +262,7 @@ const ROLE_FILTER_COLUMNS: Array<{ id: string; label: string }> = [
   { id: "mobile", label: "Mobile" }
 ]
 
-const ROLE_TABLE_BASE_COLUMNS: Column[] = [
+export const ROLE_TABLE_BASE_COLUMNS: Column[] = [
   {
     id: "multi-action",
     label: "Select All",
@@ -288,7 +288,7 @@ const HISTORY_FILTER_COLUMNS: Array<{ id: string; label: string }> = [
   { id: "summary", label: "Summary" }
 ]
 
-const HISTORY_TABLE_BASE_COLUMNS: Column[] = [
+export const HISTORY_TABLE_BASE_COLUMNS: Column[] = [
   { id: "createdAt", label: "When", width: 200, minWidth: 180, accessor: "createdAt" },
   { id: "action", label: "Action", width: 140, minWidth: 120, accessor: "action" },
   { id: "actorName", label: "Actor", width: 200, minWidth: 160, accessor: "actorName" },
@@ -364,7 +364,8 @@ function SummaryTab({ opportunity }: { opportunity: OpportunityDetailRecord }) {
 
     if (Array.isArray(rows) && rows.length > 0) {
       for (const row of rows) {
-        const gross = typeof row?.[grossKey] === "number" ? (row as any)[grossKey] : 0
+        const __grossVal: unknown = (row as any)?.[grossKey];
+        const gross = typeof __grossVal === "number" ? (__grossVal as number) : 0
         // Accept numbers (0..1 or 0..100), strings like "20%", or undefined
         const parseSplit = (value: unknown): number | null => {
           if (typeof value === "number") {
@@ -1411,10 +1412,10 @@ function EditableOpportunityHeader({
 
 function formatChangeValue(value: unknown): string {
   if (value === null || value === undefined) {
-    return "—"
+    return "?"
   }
   if (typeof value === "string") {
-    return value.length > 60 ? `${value.slice(0, 57)}…` : value
+    return value.length > 60 ? `${value.slice(0, 57)}?` : value
   }
   if (typeof value === "number" || typeof value === "boolean") {
     return String(value)
@@ -3735,57 +3736,16 @@ if (loading) {
               <div className="min-h-[320px] border-t-2 border-t-primary-600 border-gray-200 bg-white p-4 flex flex-col overflow-hidden">
                 {activeTab === "summary" ? (
                   <SummaryTab opportunity={opportunity} />
-                ) : activeTab === "roles" ? (
-                  <div className="grid flex-1 grid-rows-[auto_minmax(0,1fr)] gap-3 overflow-hidden">
-                    <ListHeader
-                      showCreateButton={false}
-                      onSearch={setRolesSearchQuery}
-                      searchPlaceholder="Search roles"
-                      filterColumns={ROLE_FILTER_COLUMNS}
-                      columnFilters={roleColumnFilters}
-                      onColumnFiltersChange={setRoleColumnFilters}
-                      onSettingsClick={() => setShowRoleColumnSettings(true)}
-                      statusFilter={roleStatusFilter}
-                      onFilterChange={value => setRoleStatusFilter(value === "inactive" ? "inactive" : "active")}
-                      hasUnsavedTableChanges={roleHasUnsavedChanges}
-                      isSavingTableChanges={rolePreferencesSaving}
-                      lastTableSaved={roleLastSaved ?? undefined}
-                      onSaveTableChanges={saveRolePreferences}
-                    />
-
-                    <div className="flex min-h-0 flex-col overflow-hidden" ref={tableAreaRefCallback}>
-                      <DynamicTable
-                        className="flex flex-col"
-                        columns={roleTableColumns}
-                        data={paginatedRoleRows}
-                        loading={rolePreferencesLoading}
-                        onColumnsChange={handleRoleColumnsChange}
-                        emptyMessage="No roles are assigned to this opportunity yet"
-                        maxBodyHeight={tableBodyMaxHeight}
-                        pagination={rolePagination}
-                        onPageChange={handleRolePageChange}
-                        onPageSizeChange={handleRolePageSizeChange}
-                        selectedItems={selectedRoles}
-                        onItemSelect={handleRoleSelect}
-                        onSelectAll={handleSelectAllRoles}
-                        selectHeaderLabel="Select All"
-                        fillContainerWidth
-                        alwaysShowPagination
-                      />
-                    </div>
-                  </div>
-                ) : activeTab === "details" ? (
-                  <DetailsIdentifiersTab opportunity={opportunity} />
                 ) : activeTab === "products" ? (
+                 
                   <div className="grid flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-3 overflow-hidden">
                     <ListHeader
-                      showCreateButton={canModifyLineItems}
+                      showCreateButton
                       onCreateClick={() => setShowCreateLineItemModal(true)}
+                      createButtonLabel="Add New"
                       onSearch={setProductSearchQuery}
                       searchPlaceholder="Search line items"
-                      filterColumns={PRODUCT_FILTER_COLUMNS}
-                      columnFilters={productColumnFilters}
-                      onColumnFiltersChange={setProductColumnFilters}
+                      showColumnFilters={false}
                       onSettingsClick={() => setShowProductColumnSettings(true)}
                       statusFilter={productStatusFilter}
                       onFilterChange={value =>
@@ -3796,6 +3756,40 @@ if (loading) {
                       lastTableSaved={productLastSaved ?? undefined}
                       onSaveTableChanges={saveProductTablePreferences}
                     />
+
+                    <ProductBulkActionBar
+                      count={selectedLineItems.length}
+                      disabled={lineItemBulkActionLoading || lineItemDeleteLoading}
+                      onDelete={handleBulkDeleteLineItems}
+                      onExportCsv={handleBulkExportLineItems}
+                      onActivate={handleBulkActivateLineItems}
+                      onDeactivate={handleBulkDeactivateLineItems}
+                    />
+
+                    <div className="flex min-h-0 flex-col overflow-hidden" ref={tableAreaRefCallback}>
+                      <DynamicTable
+                        className="flex flex-col"
+                        columns={productTableColumns}
+                        data={paginatedProductRows}
+                        loading={productPreferencesLoading}
+                        onColumnsChange={handleProductTableColumnsChange}
+                        emptyMessage="No product line items"
+                        maxBodyHeight={tableBodyMaxHeight}
+                        pagination={productPagination}
+                        onPageChange={handleProductPageChange}
+                        onPageSizeChange={handleProductPageSizeChange}
+                        selectedItems={selectedLineItems}
+                        onItemSelect={handleLineItemSelect}
+                        onSelectAll={handleSelectAllLineItems}
+                        selectHeaderLabel="Select All"
+                        alwaysShowPagination
+                        fillContainerWidth
+                      />
+                    </div>
+                  </div>
+                ) : activeTab === "roles" ? (
+                  <div className="grid flex-1 grid-rows-[auto_minmax(0,1fr)] gap-3 overflow-hidden">
+                    
 
                     <ProductBulkActionBar
                       count={selectedLineItems.length}
@@ -3826,7 +3820,7 @@ if (loading) {
                       fillContainerWidth
                     />
                   </div>
-                </div>
+                  </div>
                 ) : activeTab === "revenue-schedules" ? (
                   <div className="grid flex-1 grid-rows-[auto_minmax(0,1fr)] gap-3 overflow-hidden">
                     <ListHeader
@@ -3920,6 +3914,8 @@ if (loading) {
                       />
                     </div>
                   </div>
+                ) : activeTab === "details" ? (
+                  <DetailsIdentifiersTab opportunity={opportunity} />
                 ) : activeTab === "history" ? (
 
                   <div className="grid flex-1 grid-rows-[auto_minmax(0,1fr)] gap-3 overflow-hidden">
@@ -4050,6 +4046,7 @@ if (loading) {
       <OpportunityLineItemCreateModal
         isOpen={showCreateLineItemModal}
         opportunityId={opportunity.id}
+        orderIdHouse={opportunity?.identifiers?.orderIdHouse}
         onClose={() => setShowCreateLineItemModal(false)}
         onSuccess={async () => {
           await onRefresh?.()
@@ -4103,3 +4100,5 @@ if (loading) {
       /></>
   )
 }
+
+

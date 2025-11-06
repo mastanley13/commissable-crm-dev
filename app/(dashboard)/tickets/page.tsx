@@ -10,7 +10,7 @@ import { ticketsData } from '@/lib/mock-data'
 import { Edit, Trash2, Settings, Check } from 'lucide-react'
 import { isRowInactive } from '@/lib/row-state'
 
-const ticketColumns: Column[] = [
+export const ticketColumns: Column[] = [
   {
     id: 'multi-action',
     label: 'Select All',

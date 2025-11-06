@@ -5,6 +5,22 @@ type RelatedAccount = {
   id?: string
   accountName?: string | null
   accountLegalName?: string | null
+  shippingAddress?: {
+    line1?: string | null
+    line2?: string | null
+    city?: string | null
+    state?: string | null
+    postalCode?: string | null
+    country?: string | null
+  } | null
+  billingAddress?: {
+    line1?: string | null
+    line2?: string | null
+    city?: string | null
+    state?: string | null
+    postalCode?: string | null
+    country?: string | null
+  } | null
 }
 
 type RelatedProduct = {
@@ -732,6 +748,21 @@ export function mapOpportunityToDetail(opportunity: OpportunityWithRelations): O
       }
     : null
 
+  const formatAccountAddress = (addr?: RelatedAccount["shippingAddress"]): string | null => {
+    if (!addr) return null
+    const parts = [addr.line1, addr.line2, addr.city, addr.state, addr.postalCode]
+      .map(v => (typeof v === "string" ? v.trim() : ""))
+      .filter(Boolean)
+    if (parts.length === 0) return null
+    return parts.join(", ")
+  }
+
+  const normalizeStringOrNull = (value: unknown): string | null => {
+    if (typeof value !== "string") return null
+    const trimmed = value.trim()
+    return trimmed.length > 0 ? trimmed : null
+  }
+
   const owner = {
     id: opportunity.ownerId ?? null,
     name: opportunity.owner?.fullName
@@ -772,8 +803,8 @@ export function mapOpportunityToDetail(opportunity: OpportunityWithRelations): O
     lossReason: opportunity.lossReason ?? null,
     description: opportunity.description ?? null,
     subAgent: extractSubAgent(opportunity.description),
-    shippingAddress: opportunity.shippingAddress ?? null,
-    billingAddress: opportunity.billingAddress ?? null,
+    shippingAddress: normalizeStringOrNull(opportunity.shippingAddress) ?? formatAccountAddress(opportunity.account?.shippingAddress) ?? null,
+    billingAddress: normalizeStringOrNull(opportunity.billingAddress) ?? formatAccountAddress(opportunity.account?.billingAddress) ?? null,
     subagentPercent: Number.isFinite(toNumber(opportunity.subagentPercent)) ? toNumber(opportunity.subagentPercent) : null,
     houseRepPercent: Number.isFinite(toNumber(opportunity.houseRepPercent)) ? toNumber(opportunity.houseRepPercent) : null,
     houseSplitPercent: Number.isFinite(toNumber(opportunity.houseSplitPercent)) ? toNumber(opportunity.houseSplitPercent) : null,

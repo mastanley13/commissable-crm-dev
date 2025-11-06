@@ -116,7 +116,19 @@ export async function GET(request: NextRequest, { params }: { params: { opportun
         where: { id: opportunityId, tenantId },
         include: {
           owner: { select: { id: true, firstName: true, lastName: true, fullName: true } },
-          account: { select: { id: true, accountName: true, accountLegalName: true } },
+          account: {
+            select: {
+              id: true,
+              accountName: true,
+              accountLegalName: true,
+              shippingAddress: {
+                select: { line1: true, line2: true, city: true, state: true, postalCode: true, country: true }
+              },
+              billingAddress: {
+                select: { line1: true, line2: true, city: true, state: true, postalCode: true, country: true }
+              }
+            }
+          },
           createdBy: { select: { id: true, fullName: true } },
           updatedBy: { select: { id: true, fullName: true } },
           products: {

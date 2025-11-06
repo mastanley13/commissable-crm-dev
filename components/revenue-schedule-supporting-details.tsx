@@ -60,16 +60,16 @@ function renderValue(value?: React.ReactNode) {
 function DetailLine({ label, value, emphasize = false, underline = false }: DetailLineProps) {
   const resolvedValue = renderValue(value)
   const labelClasses = emphasize ? "font-semibold text-slate-700" : "text-slate-600"
-  const valueClasses = `text-right ${emphasize ? "font-semibold text-slate-900" : "text-slate-700"}`
+  const valueClasses = `text-left ${emphasize ? "font-semibold text-slate-900" : "text-slate-700"}`
 
   return (
     <div className="space-y-0.5">
-      <div className="grid grid-cols-[minmax(0,1fr),auto] items-baseline gap-4 text-[11px]">
+      <div className="grid grid-cols-[minmax(auto,200px),auto] items-baseline gap-3 text-[11px]">
         <span className={labelClasses}>{label}</span>
         <span className={valueClasses}>{resolvedValue}</span>
       </div>
       {underline ? (
-        <div className="grid grid-cols-[minmax(0,1fr),auto] gap-4">
+        <div className="grid grid-cols-[minmax(auto,200px),auto] gap-3">
           <span />
           <div className="flex flex-col gap-[2px] pb-0.5">
             <span className="h-px w-full bg-slate-300" />
@@ -141,12 +141,12 @@ export function RevenueScheduleSupportingDetails({ schedule }: { schedule: Reven
         leftFields: [
           { label: "Commission Actual", value: commissionActual },
           { label: "House Split %", value: `X ${houseSplit}` },
-          { label: "Commission Net House", value: expectedNet, emphasize: true, underline: true }
+          { label: "Commission Net House", value: expectedNet, emphasize: true }
         ],
         rightFields: [
           { label: "Commission Balance Total", value: commissionDifference },
           { label: "House Split %", value: `X ${houseSplit}` },
-          { label: "Commission Net Receivables House", value: commissionDifference, emphasize: true, underline: true }
+          { label: "Commission Net Receivables House", value: commissionDifference, emphasize: true }
         ]
       },
       {
@@ -157,12 +157,12 @@ export function RevenueScheduleSupportingDetails({ schedule }: { schedule: Reven
         leftFields: [
           { label: "Commission Actual", value: commissionActual },
           { label: "House Rep Split %", value: `X ${houseRepSplit}` },
-          { label: "Commission Net House Rep", value: expectedNet, emphasize: true, underline: true }
+          { label: "Commission Net House Rep", value: expectedNet, emphasize: true }
         ],
         rightFields: [
           { label: "Commission Balance Total", value: commissionDifference },
           { label: "House Rep Split %", value: `X ${houseRepSplit}` },
-          { label: "Commission Net Receivables House Rep", value: commissionDifference, emphasize: true, underline: true }
+          { label: "Commission Net Receivables House Rep", value: commissionDifference, emphasize: true }
         ]
       },
       {
@@ -173,12 +173,12 @@ export function RevenueScheduleSupportingDetails({ schedule }: { schedule: Reven
         leftFields: [
           { label: "Commission Actual", value: commissionActual },
           { label: "Subagent Split %", value: `X ${subagentSplit}` },
-          { label: "Commission Net Subagent", value: expectedNet, emphasize: true, underline: true }
+          { label: "Commission Net Subagent", value: expectedNet, emphasize: true }
         ],
         rightFields: [
           { label: "Commission Balance Total", value: commissionDifference },
           { label: "Subagent Split %", value: `X ${subagentSplit}` },
-          { label: "Commission Net Receivables Subagent", value: commissionDifference, emphasize: true, underline: true }
+          { label: "Commission Net Receivables Subagent", value: commissionDifference, emphasize: true }
         ]
       }
     ]
@@ -317,8 +317,8 @@ export function RevenueScheduleSupportingDetails({ schedule }: { schedule: Reven
             )
           })}
         </div>
-        <div className="grid gap-24 lg:grid-cols-2">
-          <div className="space-y-2">
+        <div className="grid gap-4 lg:grid-cols-2">
+          <div className="space-y-2 max-w-md">
             <h3 className="text-[11px] font-semibold text-slate-900">{activeSplit.leftHeading}</h3>
             <div className="space-y-2">
               {activeSplit.leftFields.map(field => (
@@ -326,7 +326,7 @@ export function RevenueScheduleSupportingDetails({ schedule }: { schedule: Reven
               ))}
             </div>
           </div>
-          <div className="space-y-2">
+          <div className="space-y-2 max-w-md">
             <h3 className="text-[11px] font-semibold text-slate-900">{activeSplit.rightHeading}</h3>
             <div className="space-y-2">
               {activeSplit.rightFields.map(field => (
@@ -341,9 +341,9 @@ export function RevenueScheduleSupportingDetails({ schedule }: { schedule: Reven
 
   const renderOpportunityDetails = () => (
     <div className="space-y-3">
-      <div className="grid gap-24 lg:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-2">
         {opportunityColumns.map((column, columnIndex) => (
-          <div key={`opportunity-column-${columnIndex}`} className="space-y-2">
+          <div key={`opportunity-column-${columnIndex}`} className="space-y-2 max-w-md">
             {column.map(field => (
               <DetailLine key={`opportunity-${columnIndex}-${field.label}`} {...field} />
             ))}
@@ -355,9 +355,9 @@ export function RevenueScheduleSupportingDetails({ schedule }: { schedule: Reven
 
   const renderProductDetails = () => (
     <div className="space-y-3">
-      <div className="grid gap-24 lg:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-2">
         {productColumns.map((column, columnIndex) => (
-          <div key={`product-column-${columnIndex}`} className="space-y-2">
+          <div key={`product-column-${columnIndex}`} className="space-y-2 max-w-md">
             {column.map(field => (
               <DetailLine key={`product-${columnIndex}-${field.label}`} {...field} />
             ))}

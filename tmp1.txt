@@ -1,0 +1,71 @@
+              setRevenueSchedules(prev => prev.filter(row => !remainingIds.has(row.id)))
+              setSelectedSchedules([])
+              showSuccess('Deleted', 'Selected schedules have been removed from the list.')
+            }}
+            onExportCsv={() => {
+            if (selectedSchedules.length === 0) {
+              showError('No items selected', 'Select at least one item to export.')
+              return
+            }
+            const rows = revenueSchedules.filter(r => selectedSchedules.includes(r.id))
+            if (rows.length === 0) {
+              showError('Items not available', 'Unable to locate the selected items. Refresh and try again.')
+              return
+            }
+            const headers = [
+              'Distributor Name',
+              'Account Name',
+              'Vendor Name',
+              'Product Name - Vendor',
+              'Revenue Schedule Date',
+              'Revenue Schedule Name',
+              'Quantity',
+              'Price Each',
+              'Expected Usage Gross',
+              'Expected Usage Adjustment',
+              'Expected Usage Net',
+              'Actual Usage',
+              'Usage Balance',
+              'Expected Commission Net',
+              'Actual Commission',
+              'Commission Difference',
+              'Customer ID - Vendor',
+              'Order ID - Vendor',
+              'Location ID',
+              'Opportunity ID',
+              'Customer ID - Distributor',
+              'Order ID - Distributor',
+              'Schedule Status',
+              'In Dispute',
+            ]
+            const escapeCsv = (value: string | null | undefined) => {
+              if (value === null || value === undefined) return ''
+              const sv = String(value)
+              return (sv.includes('"') || sv.includes(',') || sv.includes('\n') || sv.includes('\r')) ? `"${sv.replace(/"/g, '""')}"` : sv
+            }
+            const isBlank = (value: unknown) => {
+              if (typeof value !== 'string') return true
+              const trimmed = value.trim()
+              return trimmed === '' || trimmed === '-'
+            }
+            const lines = [
+              headers.join(','),
+              ...rows.map(row => {
+                const rawGross = row.expectedUsageGross ?? row.expectedUsage
+                const rawAdj = row.expectedUsageAdjustment ?? row.usageAdjustment
+                const gross = parseCurrency(rawGross)
+                const adj = parseCurrency(rawAdj)
+                const net = gross + adj
+                const rawActualUsage = row.actualUsage
+                const actualUsageValue = parseCurrency(rawActualUsage)
+                const usageBalance = net - actualUsageValue
+                const commissionDiff = parseCurrency(row.expectedCommissionNet) - parseCurrency(row.actualCommission)
+                const hasNetInputs = !isBlank(rawGross) || !isBlank(rawAdj)
+                const hasActualUsage = !isBlank(rawActualUsage)
+                const hasCommissionInputs = !isBlank(row.expectedCommissionNet) || !isBlank(row.actualCommission)
+                return [
+                  row.distributorName,
+                  row.accountName,
+                  row.vendorName,
+                  row.productNameVendor,
+                  row.revenueScheduleDate,

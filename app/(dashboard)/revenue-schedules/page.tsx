@@ -16,8 +16,9 @@ import { calculateMinWidth } from '@/lib/column-width-utils'
 // Local UUID v1-v5 matcher used to detect schedule IDs vs. human codes
 const UUID_REGEX = /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i
 
-// Column configuration aligned to 04.00.000-04.00.023
-const revenueScheduleColumns: Column[] = [
+// Column configuration aligned to Opportunity → Revenue Schedules tab
+// and the requested column set for the main list
+export const revenueScheduleColumns: Column[] = [
   {
     id: 'multi-action',
     label: 'Select All',
@@ -51,20 +52,6 @@ const revenueScheduleColumns: Column[] = [
     ),
   },
   {
-    id: 'accountName', // 04.00.002
-    label: 'Account Name',
-    width: 170,
-    minWidth: calculateMinWidth({ label: 'Account Name', type: 'text', sortable: true }),
-    maxWidth: 280,
-    sortable: true,
-    type: 'text',
-    render: (value) => (
-      <span className="text-blue-600 hover:text-blue-800 cursor-pointer">
-        {value}
-      </span>
-    ),
-  },
-  {
     id: 'productNameVendor', // 04.00.003
     label: 'Product Name - Vendor',
     width: 200,
@@ -80,18 +67,18 @@ const revenueScheduleColumns: Column[] = [
   },
   {
     id: 'revenueScheduleDate', // 04.00.004
-    label: 'Revenue Schedule Date',
+    label: 'Schedule Date',
     width: 160,
-    minWidth: calculateMinWidth({ label: 'Revenue Schedule Date', type: 'text', sortable: true }),
+    minWidth: calculateMinWidth({ label: 'Schedule Date', type: 'text', sortable: true }),
     maxWidth: 220,
     sortable: true,
     type: 'text',
   },
   {
     id: 'revenueScheduleName', // 04.00.005
-    label: 'Revenue Schedule Name',
+    label: 'Revenue Schedule',
     width: 170,
-    minWidth: calculateMinWidth({ label: 'Revenue Schedule Name', type: 'text', sortable: true }),
+    minWidth: calculateMinWidth({ label: 'Revenue Schedule', type: 'text', sortable: true }),
     maxWidth: 240,
     sortable: true,
     type: 'text',
@@ -160,6 +147,24 @@ const revenueScheduleColumns: Column[] = [
     type: 'text',
   },
   {
+    id: 'expectedCommissionGross', // added to match Opportunity tab
+    label: 'Expected Commission Gross',
+    width: 200,
+    minWidth: calculateMinWidth({ label: 'Expected Commission Gross', type: 'text', sortable: true }),
+    maxWidth: 280,
+    sortable: true,
+    type: 'text',
+  },
+  {
+    id: 'expectedCommissionAdjustment', // added to match Opportunity tab
+    label: 'Expected Commission Adjustment',
+    width: 220,
+    minWidth: calculateMinWidth({ label: 'Expected Commission Adjustment', type: 'text', sortable: true }),
+    maxWidth: 300,
+    sortable: true,
+    type: 'text',
+  },
+  {
     id: 'expectedCommissionNet', // 04.00.013
     label: 'Expected Commission Net',
     width: 200,
@@ -187,100 +192,52 @@ const revenueScheduleColumns: Column[] = [
     type: 'text',
   },
   {
-    id: 'customerIdVendor', // 04.00.016
-    label: 'Customer ID - Vendor',
-    width: 180,
-    minWidth: calculateMinWidth({ label: 'Customer ID - Vendor', type: 'text', sortable: true }),
-    maxWidth: 260,
-    sortable: true,
-    type: 'text',
-  },
-  {
-    id: 'orderIdVendor', // 04.00.017
-    label: 'Order ID - Vendor',
-    width: 170,
-    minWidth: calculateMinWidth({ label: 'Order ID - Vendor', type: 'text', sortable: true }),
-    maxWidth: 240,
-    sortable: true,
-    type: 'text',
-  },
-  {
-    id: 'locationId', // 04.00.018
-    label: 'Location ID',
-    width: 150,
-    minWidth: calculateMinWidth({ label: 'Location ID', type: 'text', sortable: true }),
-    maxWidth: 220,
-    sortable: true,
-    type: 'text',
-  },
-  {
-    id: 'opportunityId', // 04.00.019
-    label: 'Opportunity ID',
-    width: 140,
-    minWidth: calculateMinWidth({ label: 'Opportunity ID', type: 'text', sortable: true }),
-    maxWidth: 200,
-    sortable: true,
-    type: 'text',
-  },
-  {
-    id: 'customerIdDistributor', // 04.00.020
-    label: 'Customer ID - Distributor',
-    width: 190,
-    minWidth: calculateMinWidth({ label: 'Customer ID - Distributor', type: 'text', sortable: true }),
-    maxWidth: 260,
-    sortable: true,
-    type: 'text',
-  },
-  {
-    id: 'orderIdDistributor', // 04.00.021
-    label: 'Order ID - Distributor',
-    width: 190,
-    minWidth: calculateMinWidth({ label: 'Order ID - Distributor', type: 'text', sortable: true }),
-    maxWidth: 260,
-    sortable: true,
-    type: 'text',
-  },
-  {
     id: 'scheduleStatus', // 04.00.022
-    label: 'Schedule Status',
+    label: 'Status',
     width: 160,
-    minWidth: calculateMinWidth({ label: 'Schedule Status', type: 'text', sortable: true }),
+    minWidth: calculateMinWidth({ label: 'Status', type: 'text', sortable: true }),
     maxWidth: 220,
     sortable: true,
     type: 'text',
   },
   {
-    id: 'inDispute', // 04.00.023
-    label: 'In Dispute',
-    width: 140,
-    minWidth: calculateMinWidth({ label: 'In Dispute', type: 'text', sortable: true }),
-    maxWidth: 200,
+    id: 'expectedCommissionRatePercent',
+    label: 'Expected Commission Rate %',
+    width: 220,
+    minWidth: calculateMinWidth({ label: 'Expected Commission Rate %', type: 'text', sortable: true }),
+    maxWidth: 280,
     sortable: true,
     type: 'text',
-    render: (value) => {
-      const truthy = value === true || value === 'true' || value === 'Yes'
-      return truthy ? 'Yes' : 'No'
-    },
+  },
+  {
+    id: 'actualCommissionRatePercent',
+    label: 'Actual Commission Rate %',
+    width: 200,
+    minWidth: calculateMinWidth({ label: 'Actual Commission Rate %', type: 'text', sortable: true }),
+    maxWidth: 260,
+    sortable: true,
+    type: 'text',
+  },
+  {
+    id: 'commissionRateDifference',
+    label: 'Commission Rate Difference',
+    width: 220,
+    minWidth: calculateMinWidth({ label: 'Commission Rate Difference', type: 'text', sortable: true }),
+    maxWidth: 280,
+    sortable: true,
+    type: 'text',
   },
 ]
 type FilterableColumnKey =
-  | 'accountName'
   | 'vendorName'
   | 'distributorName'
   | 'productNameVendor'
   | 'revenueScheduleName'
   | 'revenueScheduleDate'
-  | 'opportunityId'
-  | 'customerIdDistributor'
-  | 'customerIdVendor'
-  | 'orderIdVendor'
-  | 'orderIdDistributor'
-  | 'locationId'
   | 'scheduleStatus'
 
 const RS_DEFAULT_VISIBLE_COLUMN_IDS = new Set<string>([
   'distributorName',
-  'accountName',
   'vendorName',
   'productNameVendor',
   'revenueScheduleDate',
@@ -288,24 +245,16 @@ const RS_DEFAULT_VISIBLE_COLUMN_IDS = new Set<string>([
   'expectedUsageGross',
   'expectedUsageAdjustment',
   'expectedUsageNet',
-  'opportunityId',
   'scheduleStatus',
 ])
 
 const filterOptions: { id: FilterableColumnKey; label: string }[] = [
-  { id: 'accountName', label: 'Account Name' },
   { id: 'vendorName', label: 'Vendor Name' },
   { id: 'distributorName', label: 'Distributor Name' },
   { id: 'productNameVendor', label: 'Product Name - Vendor' },
-  { id: 'revenueScheduleName', label: 'Revenue Schedule Name' },
-  { id: 'revenueScheduleDate', label: 'Revenue Schedule Date' },
-  { id: 'opportunityId', label: 'Opportunity ID' },
-  { id: 'customerIdDistributor', label: 'Customer ID - Distributor' },
-  { id: 'customerIdVendor', label: 'Customer ID - Vendor' },
-  { id: 'orderIdVendor', label: 'Order ID - Vendor' },
-  { id: 'orderIdDistributor', label: 'Order ID - Distributor' },
-  { id: 'locationId', label: 'Location ID' },
-  { id: 'scheduleStatus', label: 'Schedule Status' },
+  { id: 'revenueScheduleName', label: 'Revenue Schedule' },
+  { id: 'revenueScheduleDate', label: 'Schedule Date' },
+  { id: 'scheduleStatus', label: 'Status' },
 ]
 
 const TABLE_BOTTOM_RESERVE = 110
@@ -581,6 +530,14 @@ export default function RevenueSchedulesPage() {
       return `$${n.toFixed(2)}`
     }
   }
+  const formatPercent = (f: number | null): string => {
+    if (f === null || !Number.isFinite(f)) return '-'
+    try {
+      return new Intl.NumberFormat('en-US', { style: 'percent', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(f)
+    } catch {
+      return `${(f * 100).toFixed(2)}%`
+    }
+  }
 
   // Apply status and column filters
   const filteredByStatusAndColumns = useMemo(() => {
@@ -670,6 +627,16 @@ export default function RevenueSchedulesPage() {
       const commissionDifferenceValue = expectedCommissionValue - actualCommissionValue
       const commissionDifferenceDisplay = hasCommissionInputs ? formatCurrency(commissionDifferenceValue) : '-'
 
+      // Derived commission rate percentages (fractions)
+      const expectedRateFraction = hasNetInputs && netValue !== 0 ? (expectedCommissionValue / netValue) : null
+      const actualRateFraction = hasActualUsage && actualUsageValue !== 0 ? (actualCommissionValue / actualUsageValue) : null
+      const rateDiffFraction = (expectedRateFraction !== null && actualRateFraction !== null)
+        ? (expectedRateFraction - actualRateFraction)
+        : null
+      const expectedRateDisplay = (expectedRateFraction !== null) ? formatPercent(expectedRateFraction) : '-'
+      const actualRateDisplay = (actualRateFraction !== null) ? formatPercent(actualRateFraction) : '-'
+      const rateDiffDisplay = (rateDiffFraction !== null) ? formatPercent(rateDiffFraction) : '-'
+
       return {
         ...row,
         expectedUsageGross: isBlank(rawGross) ? (row as any).expectedUsageGross ?? '-' : rawGross,
@@ -677,6 +644,9 @@ export default function RevenueSchedulesPage() {
         expectedUsageNet: netDisplay,
         usageBalance: usageBalanceDisplay,
         commissionDifference: commissionDifferenceDisplay,
+        expectedCommissionRatePercent: expectedRateDisplay,
+        actualCommissionRatePercent: actualRateDisplay,
+        commissionRateDifference: rateDiffDisplay,
       }
     })
   }, [filteredByStatusAndColumns])
@@ -874,11 +844,10 @@ export default function RevenueSchedulesPage() {
             }
             const headers = [
               'Distributor Name',
-              'Account Name',
               'Vendor Name',
               'Product Name - Vendor',
-              'Revenue Schedule Date',
-              'Revenue Schedule Name',
+              'Schedule Date',
+              'Revenue Schedule',
               'Quantity',
               'Price Each',
               'Expected Usage Gross',
@@ -886,17 +855,15 @@ export default function RevenueSchedulesPage() {
               'Expected Usage Net',
               'Actual Usage',
               'Usage Balance',
+              'Expected Commission Gross',
+              'Expected Commission Adjustment',
               'Expected Commission Net',
               'Actual Commission',
               'Commission Difference',
-              'Customer ID - Vendor',
-              'Order ID - Vendor',
-              'Location ID',
-              'Opportunity ID',
-              'Customer ID - Distributor',
-              'Order ID - Distributor',
-              'Schedule Status',
-              'In Dispute',
+              'Expected Commission Rate %',
+              'Actual Commission Rate %',
+              'Commission Rate Difference',
+              'Status',
             ]
             const escapeCsv = (value: string | null | undefined) => {
               if (value === null || value === undefined) return ''
@@ -923,9 +890,16 @@ export default function RevenueSchedulesPage() {
                 const hasNetInputs = !isBlank(rawGross) || !isBlank(rawAdj)
                 const hasActualUsage = !isBlank(rawActualUsage)
                 const hasCommissionInputs = !isBlank(row.expectedCommissionNet) || !isBlank(row.actualCommission)
+                // Rate percentages derived consistently with table
+                const expectedRateFraction = hasNetInputs && net > 0 ? (parseCurrency(row.expectedCommissionNet) / net) : null
+                const actualRateFraction = hasActualUsage && actualUsageValue > 0 ? (parseCurrency(row.actualCommission) / actualUsageValue) : null
+                const rateDiffFraction = (expectedRateFraction !== null && actualRateFraction !== null)
+                  ? (expectedRateFraction - actualRateFraction)
+                  : null
+                const fmtPct = (f: number | null) => f === null ? '-' : `${(f * 100).toFixed(2)}%`
+
                 return [
                   row.distributorName,
-                  row.accountName,
                   row.vendorName,
                   row.productNameVendor,
                   row.revenueScheduleDate,
@@ -937,17 +911,15 @@ export default function RevenueSchedulesPage() {
                   hasNetInputs ? formatCurrency(net) : '-',
                   rawActualUsage,
                   (hasActualUsage || hasNetInputs) ? formatCurrency(usageBalance) : '-',
+                  row.expectedCommissionGross,
+                  row.expectedCommissionAdjustment,
                   row.expectedCommissionNet,
                   row.actualCommission,
                   hasCommissionInputs ? formatCurrency(commissionDiff) : '-',
-                  row.customerIdVendor,
-                  row.orderIdVendor,
-                  row.locationId,
-                  row.opportunityId,
-                  row.customerIdDistributor ?? row.distributorId,
-                  row.orderIdDistributor,
+                  fmtPct(expectedRateFraction),
+                  fmtPct(actualRateFraction),
+                  fmtPct(rateDiffFraction),
                   row.scheduleStatus,
-                  row.inDispute ? 'Yes' : 'No',
                 ].map(escapeCsv).join(',')
               })
             ]

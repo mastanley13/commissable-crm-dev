@@ -10,7 +10,7 @@ import { groupsData } from '@/lib/mock-data'
 import { Edit, Trash2, Users, Settings, Check } from 'lucide-react'
 import { isRowInactive } from '@/lib/row-state'
 
-const groupColumns: Column[] = [
+export const groupColumns: Column[] = [
   {
     id: 'multi-action',
     label: 'Select All',

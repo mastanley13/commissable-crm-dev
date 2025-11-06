@@ -86,7 +86,7 @@ const CONTACT_DEFAULT_VISIBLE_COLUMN_IDS = new Set<string>([
   "mobile"
 ])
 
-const contactColumns: Column[] = [
+export const contactColumns: Column[] = [
   {
     id: "multi-action",
     label: "Select All",

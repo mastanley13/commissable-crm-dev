@@ -440,7 +440,7 @@ const TABS: { id: TabKey; label: string }[] = [
 
 const fieldLabelClass = "text-[11px] font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap flex items-center"
 const fieldBoxClass = "flex min-h-[28px] w-full max-w-md items-center justify-between border-b-2 border-gray-300 bg-transparent px-0 py-1 text-[11px] text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis"
-const CONTACT_TABLE_BASE_COLUMNS: Column[] = [
+export const CONTACT_TABLE_BASE_COLUMNS: Column[] = [
   {
     id: "multi-action",
     label: "Select All",
@@ -543,7 +543,7 @@ const CONTACT_TABLE_BASE_COLUMNS: Column[] = [
   },
 ]
 
-const OPPORTUNITY_TABLE_BASE_COLUMNS: Column[] = [
+export const OPPORTUNITY_TABLE_BASE_COLUMNS: Column[] = [
   {
     id: "multi-action",
     label: "Select All",
@@ -716,7 +716,7 @@ const OPPORTUNITY_TABLE_BASE_COLUMNS: Column[] = [
   }
 ]
 
-const GROUP_TABLE_BASE_COLUMNS: Column[] = [
+export const GROUP_TABLE_BASE_COLUMNS: Column[] = [
   {
     id: "multi-action",
     label: "Select All",
@@ -764,7 +764,7 @@ const GROUP_TABLE_BASE_COLUMNS: Column[] = [
   }
 ]
 
-const ACTIVITY_TABLE_BASE_COLUMNS: Column[] = [
+export const ACTIVITY_TABLE_BASE_COLUMNS: Column[] = [
   {
     id: "multi-action",
     label: "Select All",

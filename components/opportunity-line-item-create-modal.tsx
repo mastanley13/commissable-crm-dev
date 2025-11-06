@@ -1,7 +1,7 @@
-"use client"
+﻿"use client"
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react"
-import { Loader2, Search, X } from "lucide-react"
+import { X } from "lucide-react"
 import { useToasts } from "@/components/toast"
 
 interface ProductOption {
@@ -12,11 +12,14 @@ interface ProductOption {
   productCode?: string | null
   revenueType?: string | null
   priceEach?: number | null
+  commissionPercent?: number | null
+  productFamilyVendor?: string | null
 }
 
 interface OpportunityLineItemCreateModalProps {
   isOpen: boolean
   opportunityId: string
+  orderIdHouse?: string | null
   onClose: () => void
   onSuccess?: () => Promise<void> | void
 }
@@ -30,431 +33,285 @@ interface LineItemFormState {
   expectedCommission: string
   revenueStartDate: string
   revenueEndDate: string
+  commissionPercent: string
+  schedulePeriods: string
+  commissionStartDate: string
 }
 
 const INITIAL_FORM_STATE: LineItemFormState = {
   productId: "",
-  quantity: "",
+  quantity: "1",
   unitPrice: "",
   expectedUsage: "",
   expectedRevenue: "",
   expectedCommission: "",
   revenueStartDate: "",
-  revenueEndDate: ""
+  revenueEndDate: "",
+  commissionPercent: "",
+  schedulePeriods: "",
+  commissionStartDate: ""
 }
 
-export function OpportunityLineItemCreateModal({
-  isOpen,
-  opportunityId,
-  onClose,
-  onSuccess
-}: OpportunityLineItemCreateModalProps) {
+export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdHouse, onClose, onSuccess }: OpportunityLineItemCreateModalProps) {
   const [form, setForm] = useState<LineItemFormState>(INITIAL_FORM_STATE)
-  const [expectedRevenueDirty, setExpectedRevenueDirty] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [productQuery, setProductQuery] = useState("")
+
+  // Typeahead state
+  const [distributorInput, setDistributorInput] = useState("")
+  const [vendorInput, setVendorInput] = useState("")
+  const [familyInput, setFamilyInput] = useState("")
+  const [productInput, setProductInput] = useState("")
+  const [showProductDropdown, setShowProductDropdown] = useState(false)
+
+  const [distributorOptions, setDistributorOptions] = useState<Array<{ value: string; label: string }>>([])
+  const [vendorOptions, setVendorOptions] = useState<Array<{ value: string; label: string }>>([])
+  const [familyOptions, setFamilyOptions] = useState<string[]>([])
   const [productOptions, setProductOptions] = useState<ProductOption[]>([])
-  const [productLoading, setProductLoading] = useState(false)
+
   const { showError, showSuccess } = useToasts()
 
-  const fetchProducts = useCallback(async (query?: string) => {
-    try {
-      setProductLoading(true)
-      const params = new URLSearchParams({
-        page: "1",
-        pageSize: "25"
-      })
-      if (query && query.trim().length > 0) {
-        params.set("q", query.trim())
-      }
+  // Accounts lookup (Distributor/Vendor)
+  const fetchAccounts = useCallback(async (type: 'Distributor' | 'Vendor', query: string) => {
+    const params = new URLSearchParams({ page: '1', pageSize: '25', accountType: type })
+    if (query.trim()) params.set('q', query.trim())
+    const res = await fetch(`/api/accounts?${params.toString()}`, { cache: 'no-store' })
+    if (!res.ok) return [] as Array<{ value: string; label: string }>
+    const payload = await res.json().catch(() => null)
+    const items: any[] = Array.isArray(payload?.data?.accounts) ? payload.data.accounts : Array.isArray(payload?.data) ? payload.data : []
+    return items.map((a: any) => ({ value: a.id, label: a.accountName || a.accountLegalName || 'Account' }))
+  }, [])
 
-      const response = await fetch(`/api/products?${params.toString()}`, { cache: "no-store" })
-      if (!response.ok) {
-        throw new Error("Failed to load products")
-      }
+  // Products lookup, filtered by inputs
+  const fetchProducts = useCallback(async () => {
+    const params = new URLSearchParams({ page: '1', pageSize: '25' })
+    const filters: Array<{ columnId: string; value: string }> = []
+    if (distributorInput.trim()) filters.push({ columnId: 'distributorName', value: distributorInput.trim() })
+    if (vendorInput.trim()) filters.push({ columnId: 'vendorName', value: vendorInput.trim() })
+    if (familyInput.trim()) filters.push({ columnId: 'productFamilyVendor', value: familyInput.trim() })
+    if (productInput.trim()) filters.push({ columnId: 'productNameVendor', value: productInput.trim() })
+    if (filters.length > 0) params.set('filters', JSON.stringify(filters))
+    const res = await fetch(`/api/products?${params.toString()}`, { cache: 'no-store' })
+    if (!res.ok) { setProductOptions([]); return }
+    const payload = await res.json().catch(() => null)
+    const items = Array.isArray(payload?.data) ? payload.data : []
+    const mapped: ProductOption[] = items.map((it: any) => ({
+      id: it.id,
+      name: it.productNameHouse || it.productNameVendor || 'Product',
+      vendorName: it.vendorName,
+      distributorName: it.distributorName,
+      productCode: it.partNumberVendor,
+      revenueType: it.revenueType,
+      priceEach: typeof it.priceEach === 'number' ? it.priceEach : null,
+      commissionPercent: typeof it.commissionPercent === 'number' ? it.commissionPercent : null,
+      productFamilyVendor: it.productFamilyVendor ?? null
+    }))
+    setProductOptions(mapped)
+    const fams = Array.from(new Set(mapped.map(p => p.productFamilyVendor).filter(Boolean))) as string[]
+    setFamilyOptions(fams)
+  }, [distributorInput, vendorInput, familyInput, productInput])
 
-      const payload = await response.json().catch(() => null)
-      const items = Array.isArray(payload?.data) ? payload.data : []
-      const mapped: ProductOption[] = items.map((item: any) => ({
-        id: item.id,
-        name: item.productNameHouse || item.productNameVendor || "Product",
-        vendorName: item.vendorName,
-        distributorName: item.distributorName,
-        productCode: item.partNumberVendor,
-        revenueType: item.revenueType,
-        priceEach: typeof item.priceEach === "number" ? item.priceEach : null
-      }))
-
-      setProductOptions(mapped)
-    } catch (error) {
-      console.error(error)
-      setProductOptions([])
-      showError("Unable to load products", "Please try searching again later.")
-    } finally {
-      setProductLoading(false)
-    }
-  }, [showError])
-
+  // Debounce product fetch
   useEffect(() => {
-    if (!isOpen) {
-      return
-    }
+    if (!isOpen) return
+    const t = setTimeout(() => { void fetchProducts() }, 200)
+    return () => clearTimeout(t)
+  }, [isOpen, fetchProducts])
 
+  // Fetch account suggestions on type
+  useEffect(() => {
+    let cancelled = false
+    const run = async () => {
+      const [d, v] = await Promise.all([
+        fetchAccounts('Distributor', distributorInput),
+        fetchAccounts('Vendor', vendorInput)
+      ])
+      if (!cancelled) { setDistributorOptions(d); setVendorOptions(v) }
+    }
+    void run()
+    return () => { cancelled = true }
+  }, [distributorInput, vendorInput, fetchAccounts])
+
+  // Reset on open
+  useEffect(() => {
+    if (!isOpen) return
     setForm(INITIAL_FORM_STATE)
-    setExpectedRevenueDirty(false)
-    setProductQuery("")
-    fetchProducts().catch(() => null)
-  }, [fetchProducts, isOpen])
+    setDistributorInput(''); setVendorInput(''); setFamilyInput(''); setProductInput('')
+    setDistributorOptions([]); setVendorOptions([]); setFamilyOptions([]); setProductOptions([])
+    const now = new Date(); const first = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1))
+    setForm(prev => ({ ...prev, commissionStartDate: first.toISOString().slice(0,10) }))
+  }, [isOpen])
 
+  // Expected revenue auto-calc when quantity/price change
+  const [expectedRevenueDirty, setExpectedRevenueDirty] = useState(false)
   useEffect(() => {
-    if (expectedRevenueDirty) {
-      return
-    }
-
-    const quantity = Number(form.quantity)
-    const unitPrice = Number(form.unitPrice)
-
-    if (Number.isFinite(quantity) && Number.isFinite(unitPrice)) {
-      const computed = quantity * unitPrice
-      if (!Number.isNaN(computed)) {
-        setForm(prev => ({
-          ...prev,
-          expectedRevenue: computed.toFixed(2)
-        }))
-      }
-    }
+    if (expectedRevenueDirty) return
+    const q = Number(form.quantity); const p = Number(form.unitPrice)
+    if (Number.isFinite(q) && Number.isFinite(p)) setForm(prev => ({ ...prev, expectedRevenue: (q*p).toFixed(2) }))
   }, [form.quantity, form.unitPrice, expectedRevenueDirty])
 
-  const selectedProduct = useMemo(
-    () => productOptions.find(option => option.id === form.productId) ?? null,
-    [form.productId, productOptions]
-  )
+  // Prefill unit price + commission % from selected product
+  const selectedProduct = useMemo(() => productOptions.find(p => p.id === form.productId) ?? null, [productOptions, form.productId])
+  useEffect(() => {
+    if (!selectedProduct) return
+    setForm(prev => ({
+      ...prev,
+      unitPrice: selectedProduct.priceEach != null ? String(selectedProduct.priceEach) : prev.unitPrice,
+      commissionPercent: selectedProduct.commissionPercent != null ? String(selectedProduct.commissionPercent) : prev.commissionPercent
+    }))
+  }, [selectedProduct])
 
-  const handleSearchSubmit = async () => {
-    await fetchProducts(productQuery)
-  }
-
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-
-    if (!form.productId) {
-      showError("Missing product", "Select a product before saving.")
-      return
-    }
-
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    if (!form.productId) { showError('Missing product', 'Select a product before saving.'); return }
     const quantityValue = Number(form.quantity)
-    if (!Number.isFinite(quantityValue) || quantityValue <= 0) {
-      showError("Invalid quantity", "Quantity must be greater than zero.")
-      return
-    }
-
-    const payload: Record<string, unknown> = {
-      productId: form.productId,
-      quantity: quantityValue
-    }
-
-    const unitPriceValue = Number(form.unitPrice)
-    if (Number.isFinite(unitPriceValue)) {
-      payload.unitPrice = unitPriceValue
-    }
-
-    const expectedUsageValue = Number(form.expectedUsage)
-    if (Number.isFinite(expectedUsageValue)) {
-      payload.expectedUsage = expectedUsageValue
-    }
-
-    const expectedRevenueValue = Number(form.expectedRevenue)
-    if (Number.isFinite(expectedRevenueValue)) {
-      payload.expectedRevenue = expectedRevenueValue
-    }
-
-    const expectedCommissionValue = Number(form.expectedCommission)
-    if (Number.isFinite(expectedCommissionValue)) {
-      payload.expectedCommission = expectedCommissionValue
-    }
-
-    if (form.revenueStartDate) {
-      payload.revenueStartDate = form.revenueStartDate
-    }
-
-    if (form.revenueEndDate) {
-      payload.revenueEndDate = form.revenueEndDate
-    }
-
+    if (!Number.isFinite(quantityValue) || quantityValue <= 0) { showError('Invalid quantity', 'Quantity must be greater than zero.'); return }
+    const payload: Record<string, unknown> = { productId: form.productId, quantity: quantityValue }
+    const unitPriceValue = Number(form.unitPrice); if (Number.isFinite(unitPriceValue)) payload.unitPrice = unitPriceValue
+    const expectedUsageValue = Number(form.expectedUsage); if (Number.isFinite(expectedUsageValue)) payload.expectedUsage = expectedUsageValue
+    const expectedRevenueValue = Number(form.expectedRevenue); if (Number.isFinite(expectedRevenueValue)) payload.expectedRevenue = expectedRevenueValue
+    const expectedCommissionValue = Number(form.expectedCommission); if (Number.isFinite(expectedCommissionValue)) payload.expectedCommission = expectedCommissionValue
+    if (form.revenueStartDate) payload.revenueStartDate = form.revenueStartDate
+    if (form.revenueEndDate) payload.revenueEndDate = form.revenueEndDate
+    const commissionPercentValue = form.commissionPercent.trim() ? Number(form.commissionPercent) : NaN
+    if (Number.isFinite(commissionPercentValue)) payload.commissionPercent = commissionPercentValue
+    const schedulePeriodsValue = Number(form.schedulePeriods); if (Number.isFinite(schedulePeriodsValue) && schedulePeriodsValue > 0) payload.schedulePeriods = schedulePeriodsValue
+    if (form.commissionStartDate) payload.commissionStartDate = form.commissionStartDate
     setLoading(true)
     try {
-      const response = await fetch(`/api/opportunities/${opportunityId}/line-items`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify(payload)
-      })
-
-      if (!response.ok) {
-        const errorPayload = await response.json().catch(() => null)
-        throw new Error(errorPayload?.error ?? "Failed to create line item")
-      }
-
-      showSuccess("Line item added", "The product has been added to this opportunity.")
-      await onSuccess?.()
-      onClose()
-    } catch (error) {
-      console.error(error)
-      showError(
-        "Unable to create line item",
-        error instanceof Error ? error.message : "Please try again later."
-      )
-    } finally {
-      setLoading(false)
-    }
+      const res = await fetch(`/api/opportunities/${opportunityId}/line-items`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+      if (!res.ok) { const ep = await res.json().catch(()=>null); throw new Error(ep?.error ?? 'Failed to create line item') }
+      showSuccess('Line item added', 'The product has been added to this opportunity.')
+      await onSuccess?.(); onClose()
+    } catch (err: any) {
+      console.error(err); showError('Unable to create line item', err?.message ?? 'Please try again later.')
+    } finally { setLoading(false) }
   }
 
-  if (!isOpen) {
-    return null
-  }
+  if (!isOpen) return null
+
+  const labelCls = 'mb-0.5 block text-[11px] font-semibold uppercase tracking-wide text-gray-500'
+  const inputCls = 'w-full border-b-2 border-gray-300 bg-transparent px-0 py-1.5 text-xs focus:outline-none focus:border-primary-500'
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 px-4">
-      <div className="w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
+      <div className="w-full max-w-3xl overflow-hidden rounded-2xl bg-white shadow-xl">
+        <div className="flex items-center justify-between border-b border-gray-200 px-6 py-3">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-primary-600">
-              Add Line Item
-            </p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-primary-600">Add Line Item</p>
             <h2 className="text-lg font-semibold text-gray-900">New Opportunity Product</h2>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-full p-1 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
-            aria-label="Close"
-            disabled={loading}
-          >
+          <button type="button" onClick={onClose} className="rounded-full p-1 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600" aria-label="Close" disabled={loading}>
             <X className="h-5 w-5" />
           </button>
         </div>
 
-        <form className="max-h-[80vh] overflow-y-auto px-6 py-6" onSubmit={handleSubmit}>
-          <div className="space-y-6">
-            <div>
-              <div className="flex items-center justify-between">
-                <label className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Product</label>
-                <div className="flex items-center gap-2">
-                  <div className="relative">
-                    <input
-                      type="text"
-                      value={productQuery}
-                      onChange={event => setProductQuery(event.target.value)}
-                      placeholder="Search products"
-                      className="w-48 rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-                    />
-                    <Search className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleSearchSubmit}
-                    className="rounded-md bg-primary-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-primary-700"
-                  >
-                    Search
-                  </button>
+        <form className="max-h-[80vh] overflow-y-auto px-6 py-3" onSubmit={handleSubmit}>
+                  <div className="grid gap-x-8 gap-y-3 md:grid-cols-2">
+            {/* Row 1 */}
+            <div className="relative">
+              <label className={labelCls}>Distributor Name</label>
+              <input value={distributorInput} onChange={e=>setDistributorInput(e.target.value)} placeholder="Type distributor name" className={inputCls} />
+              {distributorInput && distributorOptions.length > 0 && (
+                <div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
+                  {distributorOptions.filter(o=>o.label.toLowerCase().includes(distributorInput.toLowerCase())).map(opt=> (
+                    <button key={opt.value} type="button" className="w-full px-3 py-2 text-left text-sm hover:bg-primary-50" onClick={()=>{ setDistributorInput(opt.label) }}>
+                      <div className="font-medium text-gray-900">{opt.label}</div>
+                    </button>
+                  ))}
                 </div>
-              </div>
-
-              <div className="mt-3">
-                {productLoading ? (
-                  <div className="flex items-center justify-center gap-2 rounded-lg border border-dashed border-gray-300 bg-gray-50 py-6 text-sm text-gray-500">
-                    <Loader2 className="h-4 w-4 animate-spin text-primary-600" />
-                    Loading products...
-                  </div>
-                ) : productOptions.length === 0 ? (
-                  <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 px-4 py-6 text-sm text-gray-500">
-                    No products found. Try a different search term.
-                  </div>
-                ) : (
-                  <select
-                    value={form.productId}
-                    onChange={event =>
-                      setForm(current => ({
-                        ...current,
-                        productId: event.target.value
-                      }))
-                    }
-                    className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
-                    required
-                  >
-                    <option value="">Select a product...</option>
-                    {productOptions.map(option => (
-                      <option key={option.id} value={option.id}>
-                        {option.name}
-                        {option.productCode ? ` • ${option.productCode}` : ""}
-                        {option.vendorName ? ` • ${option.vendorName}` : ""}
-                      </option>
-                    ))}
-                  </select>
-                )}
-
-                {selectedProduct ? (
-                  <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600">
-                    <p className="font-medium text-gray-900">{selectedProduct.name}</p>
-                    <div className="mt-1 flex flex-wrap gap-x-3 text-xs text-gray-500">
-                      {selectedProduct.vendorName ? <span>Vendor: {selectedProduct.vendorName}</span> : null}
-                      {selectedProduct.distributorName ? (
-                        <span>Distributor: {selectedProduct.distributorName}</span>
-                      ) : null}
-                      {selectedProduct.revenueType ? <span>Type: {selectedProduct.revenueType}</span> : null}
-                      {Number.isFinite(selectedProduct.priceEach) ? (
-                        <span>Price: ${selectedProduct.priceEach?.toFixed(2)}</span>
-                      ) : null}
-                    </div>
-                  </div>
-                ) : null}
-              </div>
+              )}
+            </div>
+            <div>
+              <label className={labelCls}>Quantity<span className="ml-1 text-red-500">*</span></label>
+              <input type="number" min="0" step="0.01" value={form.quantity} onChange={e=>setForm(prev=>({...prev, quantity: e.target.value}))} className={inputCls} required />
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
-              <div>
-                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">
-                  Quantity<span className="ml-1 text-red-500">*</span>
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={form.quantity}
-                  onChange={event =>
-                    setForm(current => ({
-                      ...current,
-                      quantity: event.target.value
-                    }))
-                  }
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-                  required
-                />
+            {/* Row 2 */}
+            <div className="relative">
+              <label className={labelCls}>Vendor Name</label>
+              <input value={vendorInput} onChange={e=>setVendorInput(e.target.value)} placeholder="Type vendor name" className={inputCls} />
+              {vendorInput && vendorOptions.length > 0 && (
+                <div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
+                  {vendorOptions.filter(o=>o.label.toLowerCase().includes(vendorInput.toLowerCase())).map(opt=> (
+                    <button key={opt.value} type="button" className="w-full px-3 py-2 text-left text-sm hover:bg-primary-50" onClick={()=>{ setVendorInput(opt.label) }}>
+                      <div className="font-medium text-gray-900">{opt.label}</div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div>
+              <label className={labelCls}>Price Each</label>
+              <input type="number" min="0" step="0.01" value={form.unitPrice} onChange={e=>setForm(prev=>({...prev, unitPrice: e.target.value}))} className={inputCls} />
+            </div>
+
+            {/* Row 3 */}
+            <div className="relative">
+              <label className={labelCls}>Product Family - Vendor</label>
+              <input value={familyInput} onChange={e=>setFamilyInput(e.target.value)} placeholder="e.g., UCaaS" className={inputCls} />
+              {familyInput && familyOptions.length > 0 && (
+                <div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
+                  {familyOptions.filter(f=>f.toLowerCase().includes(familyInput.toLowerCase())).map(f=> (
+                    <button key={f} type="button" className="w-full px-3 py-2 text-left text-sm hover:bg-primary-50" onClick={()=>{ setFamilyInput(f) }}>
+                      <div className="font-medium text-gray-900">{f}</div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div>
+              <label className={labelCls}>Expected Commission Rate %</label>
+              <input type="number" min="0" max="100" step="0.01" value={form.commissionPercent} onChange={e=>setForm(prev=>({...prev, commissionPercent: e.target.value}))} className={inputCls} placeholder="e.g., 10.00" />
+            </div>
+
+            {/* Row 4 */}
+            <div>
+              <label className={labelCls}>Product Name - Vendor</label>
+              <div className="relative">
+                <input value={productInput} onChange={e=>{ setProductInput(e.target.value); setShowProductDropdown(true) }} onFocus={()=>setShowProductDropdown(true)} onBlur={()=>setTimeout(()=>setShowProductDropdown(false),200)} placeholder="Select a product..." className={inputCls} required />
+                {showProductDropdown && (
+                  <div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
+                    {productOptions.filter(p=>{
+                      const q = productInput.toLowerCase();
+                      return !q || p.name.toLowerCase().includes(q) || (p.productCode??'').toLowerCase().includes(q) || (p.vendorName??'').toLowerCase().includes(q)
+                    }).map(option => {
+                      const meta = [option.productCode ?? '', option.vendorName ?? ''].filter(Boolean).join(' - ')
+                      return (
+                        <button key={option.id} type="button" onClick={()=>{ setForm(prev=>({...prev, productId: option.id})); setProductInput(option.name); setShowProductDropdown(false) }} className="w-full px-3 py-2 text-left text-sm hover:bg-primary-50">
+                          <div className="font-medium text-gray-900">{option.name}</div>
+                          {meta && <div className="text-xs text-gray-500">{meta}</div>}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
-              <div>
-                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Unit Price</label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={form.unitPrice}
-                  onChange={event =>
-                    setForm(current => ({
-                      ...current,
-                      unitPrice: event.target.value
-                    }))
-                  }
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Expected Usage</label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={form.expectedUsage}
-                  onChange={event =>
-                    setForm(current => ({
-                      ...current,
-                      expectedUsage: event.target.value
-                    }))
-                  }
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Expected Revenue</label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={form.expectedRevenue}
-                  onChange={event => {
-                    setExpectedRevenueDirty(true)
-                    setForm(current => ({
-                      ...current,
-                      expectedRevenue: event.target.value
-                    }))
-                  }}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Expected Commission</label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={form.expectedCommission}
-                  onChange={event =>
-                    setForm(current => ({
-                      ...current,
-                      expectedCommission: event.target.value
-                    }))
-                  }
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Start Date</label>
-                <input
-                  type="date"
-                  value={form.revenueStartDate}
-                  onChange={event =>
-                    setForm(current => ({
-                      ...current,
-                      revenueStartDate: event.target.value
-                    }))
-                  }
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">End Date</label>
-                <input
-                  type="date"
-                  value={form.revenueEndDate}
-                  onChange={event =>
-                    setForm(current => ({
-                      ...current,
-                      revenueEndDate: event.target.value
-                    }))
-                  }
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-                />
-              </div>
+            </div>
+            <div>
+              <label className={labelCls}>Revenue Schedule Periods</label>
+              <input type="number" min="1" step="1" value={form.schedulePeriods} onChange={e=>setForm(prev=>({...prev, schedulePeriods: e.target.value}))} className={inputCls} placeholder="e.g., 12" />
+            </div>
+
+            {/* Row 5 */}
+            <div>
+              <label className={labelCls}>Order ID - House</label>
+              <input value={orderIdHouse ?? ''} readOnly className={`${inputCls} text-gray-700`} />
+            </div>
+            <div>
+              <label className={labelCls}>Expected Commission Start Date</label>
+              <input type="date" value={form.commissionStartDate} onChange={e=>setForm(prev=>({...prev, commissionStartDate: e.target.value}))} className={inputCls} />
             </div>
           </div>
-
           <div className="mt-6 flex items-center justify-end gap-3 border-t border-gray-200 pt-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-md border border-gray-300 bg-white px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={loading}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="inline-flex items-center gap-2 rounded-md bg-primary-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-primary-300"
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  <span>Saving...</span>
-                </>
-              ) : (
-                "Add Line Item"
-              )}
-            </button>
+            <button type="button" onClick={onClose} className="rounded-md border border-gray-300 bg-white px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60" disabled={loading}>Cancel</button>
+            <button type="submit" disabled={loading} className="inline-flex items-center gap-2 rounded-md bg-primary-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-primary-300">Add Line Item</button>
           </div>
         </form>
       </div>
     </div>
   )
 }
+
+
+
 

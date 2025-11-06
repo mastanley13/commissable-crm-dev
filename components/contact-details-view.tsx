@@ -355,7 +355,7 @@ const fieldLabelClass = "text-[11px] font-semibold uppercase tracking-wide text-
 const fieldSubLabelClass = "text-[11px] font-medium text-gray-600"
 const fieldBoxClass = "flex min-h-[28px] w-full max-w-md items-center justify-between border-b-2 border-gray-300 bg-transparent px-0 py-1 text-[11px] text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis"
 
-const CONTACT_ACTIVITY_TABLE_BASE_COLUMNS: Column[] = [
+export const CONTACT_ACTIVITY_TABLE_BASE_COLUMNS: Column[] = [
   {
     id: "multi-action",
     label: "Select All",
@@ -439,7 +439,7 @@ const CONTACT_ACTIVITY_TABLE_BASE_COLUMNS: Column[] = [
 ]
 
 
-const CONTACT_OPPORTUNITY_TABLE_BASE_COLUMNS: Column[] = [
+export const CONTACT_OPPORTUNITY_TABLE_BASE_COLUMNS: Column[] = [
   {
     id: "multi-action",
     label: "Select All",
@@ -540,7 +540,7 @@ const CONTACT_OPPORTUNITY_TABLE_BASE_COLUMNS: Column[] = [
   }
 ]
 
-const CONTACT_GROUP_TABLE_BASE_COLUMNS: Column[] = [
+export const CONTACT_GROUP_TABLE_BASE_COLUMNS: Column[] = [
   {
     id: "multi-action",
     label: "Select All",

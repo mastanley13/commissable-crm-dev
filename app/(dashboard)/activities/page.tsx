@@ -12,7 +12,7 @@ import { isRowInactive } from '@/lib/row-state'
 import { ActivityCreateModal } from '@/components/activities/activity-create-modal'
 import { ActivityListItem } from '@/lib/activity-service'
 
-const activityColumns: Column[] = [
+export const activityColumns: Column[] = [
   {
     id: 'actions',
     label: 'Select All',

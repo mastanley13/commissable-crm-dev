@@ -306,8 +306,8 @@ export async function POST(request: NextRequest) {
       const descriptionInput = typeof payload.description === "string" ? payload.description.trim() : ""
       const descriptionValue = descriptionInput.length > 0 ? descriptionInput : null
       const referredByValue = coerceOptionalString((payload as Record<string, unknown>).referredBy)
-      const shippingAddress = coerceOptionalString((payload as Record<string, unknown>).shippingAddress)
-      const billingAddress = coerceOptionalString((payload as Record<string, unknown>).billingAddress)
+      let shippingAddress = coerceOptionalString((payload as Record<string, unknown>).shippingAddress)
+      let billingAddress = coerceOptionalString((payload as Record<string, unknown>).billingAddress)
       const accountIdHouse = coerceOptionalString((payload as Record<string, unknown>).accountIdHouse)
       const accountIdVendor = coerceOptionalString((payload as Record<string, unknown>).accountIdVendor)
       const accountIdDistributor = coerceOptionalString((payload as Record<string, unknown>).accountIdDistributor)
@@ -372,6 +372,32 @@ export async function POST(request: NextRequest) {
         finalDescription = finalDescription
           ? `Subagent: ${subAgent}\n\n${finalDescription}`
           : `Subagent: ${subAgent}`
+      }
+
+      // If shipping/billing not provided, default them from the Account's addresses
+      if (!shippingAddress || !billingAddress) {
+        const accountWithAddresses = await prisma.account.findFirst({
+          where: { id: accountId, tenantId: req.user.tenantId },
+          select: {
+            shippingAddress: { select: { line1: true, line2: true, city: true, state: true, postalCode: true } },
+            billingAddress: { select: { line1: true, line2: true, city: true, state: true, postalCode: true } }
+          }
+        })
+
+        const formatAddr = (addr?: { line1?: string | null; line2?: string | null; city?: string | null; state?: string | null; postalCode?: string | null } | null) => {
+          if (!addr) return null
+          const parts = [addr.line1, addr.line2, addr.city, addr.state, addr.postalCode]
+            .map(v => (typeof v === "string" ? v.trim() : ""))
+            .filter(Boolean)
+          return parts.length > 0 ? parts.join(", ") : null
+        }
+
+        if (!shippingAddress) {
+          shippingAddress = formatAddr(accountWithAddresses?.shippingAddress)
+        }
+        if (!billingAddress) {
+          billingAddress = formatAddr(accountWithAddresses?.billingAddress)
+        }
       }
 
       const opportunity = await prisma.opportunity.create({

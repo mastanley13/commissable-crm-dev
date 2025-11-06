@@ -135,7 +135,7 @@ export async function POST(
 
       const product = await prisma.product.findFirst({
         where: { id: productId, tenantId },
-        select: { id: true }
+        select: { id: true, vendorAccountId: true, distributorAccountId: true, commissionPercent: true }
       })
 
       if (!product) {
@@ -150,34 +150,88 @@ export async function POST(
         statusValue = payload.status
       }
 
-      const lineItem = await prisma.opportunityProduct.create({
-        data: {
-          tenantId,
-          opportunityId: existingOpportunity.id,
-          productId: product.id,
-          quantity: decimalFromNumber(quantityNumber),
-          unitPrice: decimalFromNumber(unitPriceNumber),
-          expectedUsage: decimalFromNumber(expectedUsageNumber),
-          expectedRevenue: decimalFromNumber(expectedRevenueNumber),
-          expectedCommission: decimalFromNumber(expectedCommissionNumber),
-          revenueStartDate: parseDateInput(payload.revenueStartDate),
-          revenueEndDate: parseDateInput(payload.revenueEndDate),
-          ...(statusValue ? { status: statusValue } : {})
-        },
-        include: {
-          product: {
-            select: {
-              id: true,
-              productNameHouse: true,
-              productNameVendor: true,
-              productCode: true,
-              revenueType: true,
-              priceEach: true,
-              distributor: { select: { id: true, accountName: true } },
-              vendor: { select: { id: true, accountName: true } }
+      // Optional schedule generation inputs
+      const schedulePeriodsRaw = (payload as any).schedulePeriods
+      const schedulePeriods = typeof schedulePeriodsRaw === 'number' ? schedulePeriodsRaw : Number(schedulePeriodsRaw)
+      const commissionStartDate = parseDateInput((payload as any).commissionStartDate)
+      const commissionPercentOverrideRaw = (payload as any).commissionPercent
+      const commissionPercentOverride = typeof commissionPercentOverrideRaw === 'number' ? commissionPercentOverrideRaw : Number(commissionPercentOverrideRaw)
+
+      // perform in a transaction so schedules and line item are in sync
+      const lineItem = await prisma.$transaction(async (tx) => {
+        const created = await tx.opportunityProduct.create({
+          data: {
+            tenantId,
+            opportunityId: existingOpportunity.id,
+            productId: product.id,
+            quantity: decimalFromNumber(quantityNumber),
+            unitPrice: decimalFromNumber(unitPriceNumber),
+            expectedUsage: decimalFromNumber(expectedUsageNumber),
+            expectedRevenue: decimalFromNumber(expectedRevenueNumber),
+            expectedCommission: decimalFromNumber(expectedCommissionNumber),
+            revenueStartDate: parseDateInput(payload.revenueStartDate),
+            revenueEndDate: parseDateInput(payload.revenueEndDate),
+            ...(statusValue ? { status: statusValue } : {})
+          },
+          include: {
+            product: {
+              select: {
+                id: true,
+                productNameHouse: true,
+                productNameVendor: true,
+                productCode: true,
+                revenueType: true,
+                priceEach: true,
+                distributor: { select: { id: true, accountName: true } },
+                vendor: { select: { id: true, accountName: true } }
+              }
             }
           }
+        })
+
+        // Generate revenue schedules if instructed
+        const shouldCreateSchedules = Number.isFinite(schedulePeriods) && (schedulePeriods as number) > 0 && commissionStartDate !== null
+        if (shouldCreateSchedules) {
+          const nPeriods = Number(schedulePeriods)
+          // Determine base amounts
+          const totalExpectedRevenue = (expectedRevenueNumber ?? (quantityNumber && unitPriceNumber ? Number((quantityNumber * unitPriceNumber).toFixed(2)) : 0)) || 0
+          const perPeriodExpectedUsage = nPeriods > 0 ? Number((totalExpectedRevenue / nPeriods).toFixed(2)) : 0
+          const commissionPercent = Number.isFinite(commissionPercentOverride) && commissionPercentOverride! >= 0
+            ? Number(commissionPercentOverride)
+            : (product.commissionPercent !== null && product.commissionPercent !== undefined ? Number(product.commissionPercent) : 0)
+          const commissionDecimal = commissionPercent > 1 ? commissionPercent / 100 : commissionPercent
+
+          // Helper to add months preserving first-of-month
+          const addMonths = (date: Date, months: number) => {
+            const d = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + months, 1))
+            return d
+          }
+
+          const scheduleData: Prisma.RevenueScheduleCreateManyInput[] = []
+          for (let i = 0; i < nPeriods; i++) {
+            const date = addMonths(commissionStartDate!, i)
+            const expectedCommissionForPeriod = Number((perPeriodExpectedUsage * commissionDecimal).toFixed(2))
+            scheduleData.push({
+              tenantId,
+              opportunityId: existingOpportunity.id,
+              opportunityProductId: created.id,
+              accountId: existingOpportunity.accountId!,
+              productId: product.id,
+              distributorAccountId: product.distributorAccountId ?? null,
+              vendorAccountId: product.vendorAccountId ?? null,
+              scheduleDate: date,
+              expectedUsage: decimalFromNumber(perPeriodExpectedUsage),
+              expectedCommission: decimalFromNumber(expectedCommissionForPeriod),
+              // scheduleNumber left null; can be managed later
+            })
+          }
+
+          if (scheduleData.length > 0) {
+            await tx.revenueSchedule.createMany({ data: scheduleData })
+          }
         }
+
+        return created
       })
 
       await revalidateOpportunityPaths(existingOpportunity.accountId ?? null)

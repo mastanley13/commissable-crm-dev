@@ -13,7 +13,7 @@ import { isRowInactive } from '@/lib/row-state'
 import { useAuth } from '@/lib/auth-context'
 
 // Define columns outside component for useTablePreferences
-const roleColumns: Column[] = [
+export const roleColumns: Column[] = [
   {
     id: 'active',
     label: 'Active',

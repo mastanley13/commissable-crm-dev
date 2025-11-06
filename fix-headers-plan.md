@@ -1,0 +1,69 @@
+Fix Dynamic Table Column Chooser + Header Alignment
+What’s going wrong (evidence)
+DynamicTable keeps its own columns state and also receives columns from parents. That dual-source can drift after the modal applies changes, causing headers to render with a different column order than the body.
+const [columns, setColumnsState] = useState<Column[]>(() => initialColumns.map(column => ({ ...column })))
+React.useEffect(() => {
+  setColumnsState(initialColumns.map(column => ({ ...column })))
+}, [initialColumns])
+Headers/body both derive from visibleColumns, but any stale local state or late sync can make the header’s grid template mismatch the body after a column set change.
+const { gridTemplate, ... } = useMemo(() => {
+  if (visibleColumns.length === 0) return ...
+  ... // depends on visibleColumns
+}, [visibleColumns, ...])
+The modal returns a fully re-ordered array, which is correct, and the hook persists it (debounced), so persistence is fine; we just need to eliminate the transient or persistent desync.
+const handleApply = () => {
+  const updatedColumns = columns.map(column => ({ ...column, hidden: availableItem ? true : false }))
+  const reorderedColumns = [...selected..., ...available...]
+  onApply(reorderedColumns)
+  onClose()
+}
+const handleColumnsChange = useCallback((updatedColumns: Column[]) => {
+  const nextColumns = updatedColumns.map(column => ({ ...column }))
+  setColumns(nextColumns)
+  schedulePersist(nextColumns)
+}, [schedulePersist])
+Minimal, low-risk fixes
+1) Make sync immediate and eliminate stale state flashes
+
+Swap the useEffect that mirrors props into state for a useLayoutEffect, and clear transient local flags so header/body recompute in the same paint.
+// components/dynamic-table.tsx
+useLayoutEffect(() => {
+  setColumnsState(initialColumns.map(c => ({ ...c })))
+  setIsManuallyResized(false)
+  setResizing(null)
+  setDraggedColumn(null)
+}, [initialColumns])
+2) Force a clean remount when the visible column set changes (belt-and-suspenders)
+
+Add a stable key to each DynamicTable usage based on visible IDs + hidden flags.
+<DynamicTable
+  key={preferenceColumns.map(c => `${c.id}:${c.hidden ? 0 : 1}`).join('|')}
+  columns={tableColumns}
+  ...
+/>
+3) Keep required columns pinned (optional hardening)
+
+Ensure non-hideable or special columns (e.g., multi-action) remain at the front when applying from the modal.
+// components/column-chooser-modal.tsx (inside handleApply)
+const required = updatedColumns.filter(c => c.hideable === false && !c.hidden)
+const visible = selectedColumns.map(i => updatedColumns.find(c => c.id === i.id)!)
+const hidden  = availableColumns.map(i => updatedColumns.find(c => c.id === i.id)!)
+const reordered = [...required, ...visible.filter(c => c.hideable !== false), ...hidden]
+onApply(reordered)
+4) Persist explicitly on confirm (optional)
+
+If you still see preferences occasionally not saving, call saveChanges() immediately on apply, in addition to the existing saveChangesOnModalClose().
+// page files where ColumnChooserModal is used
+onApply={(cols) => { handleColumnsChange(cols); void saveChanges(); }}
+
+How we’ll validate
+Add 2+ hidden columns via the modal; confirm headers align with body and scroll correctly.
+Reload the page; confirm the same column set re-hydrates from /api/table-preferences/[pageKey].
+Drag to reorder in the header; confirm both header and body move together and the order persists.
+Resize a column; confirm widths still save.
+
+To-dos
+Switch DynamicTable to useLayoutEffect for prop→state sync and clear transient flags
+Add a key to DynamicTable usages derived from visible column ids + hidden flags.
+Pin non-hideable columns at front in ColumnChooserModal handleApply.
+Call saveChanges() on modal confirm in pages (optional hardening).
