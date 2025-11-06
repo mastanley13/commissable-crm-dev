@@ -9,7 +9,7 @@ import { TableChangeNotification } from '@/components/table-change-notification'
 import { reconciliationData } from '@/lib/mock-data'
 import { Check, X, Settings } from 'lucide-react'
 
-export const reconciliationColumns: Column[] = [
+const reconciliationColumns: Column[] = [
   {
     id: 'active',
     label: 'Active',

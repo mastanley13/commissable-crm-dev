@@ -84,6 +84,19 @@ Website URL          →  Bill To Street 2 + Checkbox
 Description          →  Bill To City/State/Zip
 ```
 
+### Contact Details Page Example
+**Target Alignment:**
+```
+Left Column          →  Right Column
+─────────────────────────────────────────────────
+Name (Suffix, First, Last)            →     Job Title
+Contact Type     →     Email Address
+Account Name | Active toggle              →     Shipping Address
+Work Phone | EXT                 →     Contact ID
+Mobile Phone    →     Decsription
+```
+
+
 ### Code Structure
 
 ```tsx
@@ -113,6 +126,35 @@ Description          →  Bill To City/State/Zip
     />
     <FieldRow label="" value={billingCityStateZip} />       {/* Row 7 */}
   </div>
+</div>
+```
+
+### Container Height Requirement
+
+**All detail page grey background containers must use a fixed height of 300px:**
+
+```tsx
+<div className="rounded-2xl bg-gray-100 p-3 shadow-sm h-[300px] overflow-y-auto">
+  {/* FieldRow content here */}
+</div>
+```
+
+**Key Points:**
+- The grey background container (`bg-gray-100`) must have an explicit height of `h-[300px]`
+- Always include `overflow-y-auto` to enable scrolling if content exceeds the height
+- This height aligns the container from the breadcrumb divider down to the Products tab in the left navigation sidebar
+- Apply this height to both read-only and editable versions of detail page headers
+
+**Example:**
+```tsx
+// AccountHeader (read-only)
+<div className="rounded-2xl bg-gray-100 p-3 shadow-sm h-[300px] overflow-y-auto">
+  {/* content */}
+</div>
+
+// EditableAccountHeader (editable)
+<div className="rounded-2xl bg-gray-100 p-3 shadow-sm h-[300px] overflow-y-auto">
+  {/* content */}
 </div>
 ```
 
@@ -253,6 +295,7 @@ function FieldRow({ label, value, labelExtra }: {
 - [ ] Conditional fields render placeholder instead of hiding
 - [ ] `labelExtra` content doesn't add vertical height
 - [ ] Grid uses `items-start` for alignment
+- [ ] Grey background container uses `h-[300px] overflow-y-auto`
 - [ ] Test with different data scenarios (missing fields, long text)
 
 ## Prompting Pattern for AI Coding Agents
@@ -268,6 +311,7 @@ Requirements:
 3. Multi-line fields (like addresses) should be split into separate FieldRow components
 4. Use empty spacer rows where one column has no content
 5. Ensure labelExtra doesn't add vertical height - put extra content on the next row if needed
+6. Grey background container must use `h-[300px] overflow-y-auto` for consistent height
 
 Alignment map:
 Left Column Row 1 → Right Column Row 1
@@ -305,5 +349,6 @@ Left Column Row 2 → Right Column Row 2
 ---
 
 **Last Updated**: 2025-01-30
+**Container Height**: All detail page grey backgrounds must use `h-[300px] overflow-y-auto`
 **Related Components**: `FieldRow`, `EditableField`, detail view components
 **Related Patterns**: Form layouts, read-only displays, two-column layouts

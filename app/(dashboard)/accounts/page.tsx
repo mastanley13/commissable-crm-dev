@@ -98,7 +98,7 @@ const ACCOUNT_DEFAULT_VISIBLE_COLUMN_IDS = new Set<string>([
   "shippingZip",
 ])
 
-export const accountColumns: Column[] = [
+const accountColumns: Column[] = [
   {
     id: "multi-action",
     label: "Select All",

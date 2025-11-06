@@ -56,7 +56,7 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
   const [form, setForm] = useState<LineItemFormState>(INITIAL_FORM_STATE)
   const [loading, setLoading] = useState(false)
   // Tab state to mirror Groups modal UX
-  const [activeTab, setActiveTab] = useState<"create" | "add">("add")
+  const [activeTab, setActiveTab] = useState<"create" | "add">("create")
 
   // Typeahead state
   const [distributorInput, setDistributorInput] = useState("")
@@ -156,8 +156,8 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
     setProductNameHouse(""); setProductNameVendor(""); setProductFamilyVendorInput(""); setProductCode(""); setRevenueType(""); setProductActive(true)
     const now = new Date(); const first = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1))
     setForm(prev => ({ ...prev, commissionStartDate: first.toISOString().slice(0,10) }))
-    // Default to Add to Existing when modal opens
-    setActiveTab("add")
+    // Default to Create New when modal opens
+    setActiveTab("create")
   }, [isOpen])
 
   // Load product options (revenue types) once when modal opens
@@ -241,22 +241,30 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
           </button>
         </div>
 
-        {/* Tab Switch (mirrors Groups modal) */}
+        {/* Tab Switch */}
         <div className="px-6 pt-3">
-          <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1 text-sm">
+          <div className="inline-flex gap-1 text-sm">
             <button
               type="button"
-              className={`rounded-md px-3 py-1.5 ${activeTab === "create" ? "bg-white text-primary-700 shadow-sm" : "text-gray-600 hover:text-gray-800"}`}
               onClick={() => setActiveTab("create")}
               disabled={loading}
+              className={`rounded-md border px-3 py-1.5 font-semibold shadow-sm transition ${
+                activeTab === "create"
+                  ? "border-primary-700 bg-primary-700 text-white hover:bg-primary-800"
+                  : "border-blue-300 bg-gradient-to-b from-blue-100 to-blue-200 text-primary-800 hover:from-blue-200 hover:to-blue-300 hover:border-blue-400"
+              }`}
             >
               Create New
             </button>
             <button
               type="button"
-              className={`rounded-md px-3 py-1.5 ${activeTab === "add" ? "bg-white text-primary-700 shadow-sm" : "text-gray-600 hover:text-gray-800"}`}
               onClick={() => setActiveTab("add")}
               disabled={loading}
+              className={`rounded-md border px-3 py-1.5 font-semibold shadow-sm transition ${
+                activeTab === "add"
+                  ? "border-primary-700 bg-primary-700 text-white hover:bg-primary-800"
+                  : "border-blue-300 bg-gradient-to-b from-blue-100 to-blue-200 text-primary-800 hover:from-blue-200 hover:to-blue-300 hover:border-blue-400"
+              }`}
             >
               Add to Existing
             </button>

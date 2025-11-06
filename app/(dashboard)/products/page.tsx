@@ -28,7 +28,7 @@ const PRODUCT_FILTER_OPTIONS = [
   { id: 'active', label: 'Active (Y/N)' },
 ]
 
-export const BASE_COLUMNS: Column[] = [
+const BASE_COLUMNS: Column[] = [
   {
     id: 'multi-action',
     label: 'Select All',

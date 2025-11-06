@@ -11,7 +11,7 @@ import { Edit, Trash2, Settings } from 'lucide-react'
 import { isRowInactive } from '@/lib/row-state'
 import { ActivityListItem } from '@/lib/activity-service'
 
-export const activityColumns: Column[] = [
+const activityColumns: Column[] = [
   {
     id: 'actions',
     label: 'Select All',

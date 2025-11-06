@@ -213,12 +213,29 @@ export async function listActivities(tenantId: string, filters: ActivityListFilt
   }
 
   if (filters.contextType && filters.contextId) {
-    where.links = {
-      some: {
-        entityType: filters.contextType,
-        entityId: filters.contextId
+    const orClauses: Prisma.ActivityWhereInput[] = [
+      {
+        links: {
+          some: {
+            entityType: filters.contextType,
+            entityId: filters.contextId
+          }
+        }
       }
+    ]
+
+    // Fallbacks for legacy rows that store direct foreign keys without links
+    if (filters.contextType === ActivityEntityType.Account) {
+      orClauses.push({ accountId: filters.contextId })
+    } else if (filters.contextType === ActivityEntityType.Contact) {
+      orClauses.push({ contactId: filters.contextId })
+    } else if (filters.contextType === ActivityEntityType.Opportunity) {
+      orClauses.push({ opportunityId: filters.contextId })
+    } else if (filters.contextType === ActivityEntityType.RevenueSchedule) {
+      orClauses.push({ revenueScheduleId: filters.contextId })
     }
+
+    where.AND = Array.isArray(where.AND) ? [...where.AND, { OR: orClauses }] : [{ OR: orClauses }]
   }
 
   const orderByField = filters.sortBy === 'createdAt' ? 'createdAt' : 'dueDate'

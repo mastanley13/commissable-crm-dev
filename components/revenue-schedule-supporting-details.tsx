@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   PiggyBank,
   BriefcaseBusiness,
@@ -8,13 +8,18 @@ import {
   Coins,
   CreditCard,
   NotebookPen,
-  Search,
-  Settings2,
-  Filter
+  Settings2
 } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 
 import type { RevenueScheduleDetailRecord } from "./revenue-schedule-details-view"
+import { ListHeader, type ColumnFilter } from "@/components/list-header"
+import { ColumnChooserModal } from "@/components/column-chooser-modal"
+import { DynamicTable, type Column, type PaginationInfo } from "@/components/dynamic-table"
+import { useTablePreferences } from "@/hooks/useTablePreferences"
+import { applySimpleFilters } from "@/lib/filter-utils"
+import { ACTIVITY_TABLE_BASE_COLUMNS } from "@/components/opportunity-details-view"
+import { ActivityNoteCreateModal } from "@/components/activity-note-create-modal"
 
 interface SectionNavigationItem {
   id: string
@@ -122,6 +127,182 @@ const SECTION_ITEMS: SectionNavigationItem[] = [
 
 export function RevenueScheduleSupportingDetails({ schedule }: { schedule: RevenueScheduleDetailRecord }) {
   const [activeSectionId, setActiveSectionId] = useState<string>(SECTION_ITEMS[0].id)
+  // Activities & Notes – dynamic table state
+  const [activitiesLoading, setActivitiesLoading] = useState<boolean>(false)
+  const [activitiesError, setActivitiesError] = useState<string | null>(null)
+  const [activities, setActivities] = useState<any[]>([])
+  const [activitiesPagination, setActivitiesPagination] = useState<PaginationInfo>({ page: 1, pageSize: 10, total: 0, totalPages: 1 })
+  const [activitiesPage, setActivitiesPage] = useState<number>(1)
+  const [activitiesPageSize, setActivitiesPageSize] = useState<number>(10)
+  const [activitiesSearch, setActivitiesSearch] = useState<string>("")
+  const [activitiesIncludeCompleted, setActivitiesIncludeCompleted] = useState<boolean>(false) // Active-only by default
+  const [activitiesColumnFilters, setActivitiesColumnFilters] = useState<ColumnFilter[]>([])
+  const [selectedActivityIds, setSelectedActivityIds] = useState<string[]>([])
+  const [columnChooserOpen, setColumnChooserOpen] = useState<boolean>(false)
+  const [createModalOpen, setCreateModalOpen] = useState<boolean>(false)
+  const searchDebounceRef = useRef<NodeJS.Timeout | null>(null)
+
+  const RS_ACTIVITY_FILTER_COLUMNS: Array<{ id: string; label: string }> = useMemo(() => [
+    { id: "activityDate", label: "Activity Date" },
+    { id: "activityType", label: "Activity Type" },
+    { id: "activityStatus", label: "Activity Status" },
+    { id: "description", label: "Description" },
+    { id: "activityOwner", label: "Activity Owner" },
+    { id: "createdBy", label: "Created By" }
+  ], [])
+
+  // Format date to YYYY/MM/DD to match other detail tables
+  const formatDate = useCallback((value?: string | Date | null): string => {
+    if (!value) return "--"
+    const date = value instanceof Date ? value : new Date(value)
+    if (Number.isNaN(date.getTime())) return "--"
+    const y = date.getFullYear()
+    const m = String(date.getMonth() + 1).padStart(2, "0")
+    const d = String(date.getDate()).padStart(2, "0")
+    return `${y}/${m}/${d}`
+  }, [])
+
+  // Persisted column preferences (reuse Opportunity activities columns for parity)
+  const RS_ACTIVITY_BASE_COLUMNS: Column[] = useMemo(() => {
+    const base = ACTIVITY_TABLE_BASE_COLUMNS.map(c => ({ ...c }))
+    // Nudge widths down to fit the smaller right-hand section
+    const widthOverrides: Record<string, number> = {
+      "multi-action": 140,
+      id: 160,
+      activityDate: 140,
+      activityType: 140,
+      activityOwner: 160,
+      description: 240,
+      activityStatus: 140,
+      attachment: 120,
+      fileName: 180,
+      createdBy: 160
+    }
+    return base.map(col => (widthOverrides[col.id] ? { ...col, width: widthOverrides[col.id] } : col))
+  }, [])
+  const { columns: activityPreferenceColumns, handleColumnsChange: handleActivityColumnsChange } = useTablePreferences(
+    "revenue-schedule:activities",
+    RS_ACTIVITY_BASE_COLUMNS
+  )
+
+  const activityColumnsWithRender = useMemo<Column[]>(() => {
+    return activityPreferenceColumns.map(col => {
+      if (col.id === "activityDate") {
+        return { ...col, render: (value?: string | Date | null) => formatDate(value) }
+      }
+      return col
+    })
+  }, [activityPreferenceColumns, formatDate])
+
+  const mapApiRowToActivity = useCallback((row: any) => {
+    const attachments = Array.isArray(row.attachments) ? row.attachments : []
+    const count = attachments.length
+    const attachmentLabel = count === 0 ? "None" : `${count} file${count === 1 ? "" : "s"}`
+    const primaryName = count > 0 ? attachments[0]?.fileName ?? null : null
+
+    return {
+      id: row.id,
+      active: Boolean(row.active),
+      activityDate: row.dueDate ?? row.createdAt ?? null,
+      activityType: row.type ?? null,
+      activityStatus: row.status ?? null,
+      description: row.description ?? row.subject ?? null,
+      activityOwner: row.assigneeName ?? null,
+      createdBy: row.creatorName ?? null,
+      attachment: attachmentLabel,
+      fileName: primaryName,
+      attachments
+    }
+  }, [])
+
+  const fetchActivities = useCallback(async () => {
+    if (!schedule?.id) {
+      setActivities([])
+      setActivitiesPagination({ page: 1, pageSize: activitiesPageSize, total: 0, totalPages: 1 })
+      return
+    }
+    setActivitiesLoading(true)
+    setActivitiesError(null)
+    try {
+      const params = new URLSearchParams({
+        page: String(activitiesPage),
+        pageSize: String(activitiesPageSize),
+        contextType: "RevenueSchedule",
+        contextId: String(schedule.id),
+        includeCompleted: activitiesIncludeCompleted ? "true" : "false",
+        sortBy: "dueDate",
+        sortDirection: "desc"
+      })
+      if (activitiesSearch.trim()) params.set("search", activitiesSearch.trim())
+
+      const response = await fetch(`/api/activities?${params.toString()}`, { cache: "no-store" })
+      const payload = await response.json().catch(() => null)
+      if (!response.ok) {
+        throw new Error(payload?.error ?? "Failed to load activities")
+      }
+
+      const data: any[] = Array.isArray(payload?.data) ? payload.data : []
+      const pagination: PaginationInfo = payload?.pagination ?? {
+        page: activitiesPage,
+        pageSize: activitiesPageSize,
+        total: data.length,
+        totalPages: 1
+      }
+      const mapped = data.map(mapApiRowToActivity)
+      setActivities(mapped)
+      setActivitiesPagination(pagination)
+      setSelectedActivityIds(prev => prev.filter(id => mapped.some(row => row.id === id)))
+    } catch (err) {
+      console.error("Failed to load schedule activities", err)
+      setActivities([])
+      setActivitiesPagination({ page: 1, pageSize: activitiesPageSize, total: 0, totalPages: 1 })
+      setActivitiesError(err instanceof Error ? err.message : "Unable to load activities")
+    } finally {
+      setActivitiesLoading(false)
+    }
+  }, [schedule?.id, activitiesPage, activitiesPageSize, activitiesSearch, activitiesIncludeCompleted, mapApiRowToActivity])
+
+  useEffect(() => {
+    void fetchActivities()
+  }, [fetchActivities])
+
+  const handleSearch = useCallback((query: string) => {
+    setActivitiesSearch(query)
+    setActivitiesPage(1)
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current)
+    searchDebounceRef.current = setTimeout(() => {
+      void fetchActivities()
+    }, 250)
+  }, [fetchActivities])
+
+  const handleStatusFilter = useCallback((filter: string) => {
+    const includeCompleted = filter !== "active"
+    setActivitiesIncludeCompleted(includeCompleted)
+    setActivitiesPage(1)
+  }, [])
+
+  const handleActivitiesPageChange = useCallback((page: number) => {
+    setActivitiesPage(page)
+  }, [])
+
+  const handleActivitiesPageSizeChange = useCallback((size: number) => {
+    setActivitiesPageSize(size)
+    setActivitiesPage(1)
+  }, [])
+
+  const handleActivityItemSelect = useCallback((itemId: string, selected: boolean) => {
+    setSelectedActivityIds(prev => (selected ? Array.from(new Set([...prev, itemId])) : prev.filter(id => id !== itemId)))
+  }, [])
+
+  const handleSelectAllActivities = useCallback((selected: boolean) => {
+    if (selected) {
+      setSelectedActivityIds(activities.map(row => row.id))
+    } else {
+      setSelectedActivityIds([])
+    }
+  }, [activities])
+
+  const filteredActivities = useMemo(() => applySimpleFilters(activities, activitiesColumnFilters), [activities, activitiesColumnFilters])
 
   const financialSplits = useMemo<FinancialSplitDefinition[]>(() => {
     const commissionActual = schedule.actualCommission ?? "$0.00"
@@ -300,7 +481,7 @@ export function RevenueScheduleSupportingDetails({ schedule }: { schedule: Reven
 
     return (
       <div className="space-y-3">
-        <div className="flex flex-wrap justify-center gap-2">
+        <div className="flex flex-wrap justify-start gap-2">
           {financialSplits.map(split => {
             const isActive = split.id === activeSplitId
             return (
@@ -308,8 +489,10 @@ export function RevenueScheduleSupportingDetails({ schedule }: { schedule: Reven
                 key={split.id}
                 type="button"
                 onClick={() => setActiveSplitId(split.id)}
-                className={`rounded-full px-3 py-1.5 text-[11px] font-semibold transition ${
-                  isActive ? "bg-primary-600 text-white shadow" : "bg-slate-200 text-slate-600 hover:bg-slate-300"
+                className={`rounded-md border px-3 py-1.5 text-[11px] font-semibold shadow-sm transition ${
+                  isActive
+                    ? "border-primary-700 bg-primary-700 text-white hover:bg-primary-800"
+                    : "border-blue-300 bg-gradient-to-b from-blue-100 to-blue-200 text-primary-800 hover:from-blue-200 hover:to-blue-300 hover:border-blue-400"
                 }`}
               >
                 {split.tabLabel}
@@ -439,100 +622,61 @@ export function RevenueScheduleSupportingDetails({ schedule }: { schedule: Reven
   )
 
   const renderActivitiesNotes = () => (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
-          <input
-            className="h-8 rounded-full border border-slate-300 bg-white px-8 text-[11px] text-slate-700 placeholder:text-slate-400 focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-100"
-            placeholder="Search Here"
-            type="search"
-          />
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <select className="h-8 rounded-full border border-slate-300 bg-white px-3 text-[11px] text-slate-700 focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-100">
-            <option>Filter By Column</option>
-            <option>Activity Date</option>
-            <option>Activity Type</option>
-          </select>
-          <button
-            type="button"
-            className="inline-flex h-8 items-center rounded-full bg-primary-600 px-3 text-[11px] font-semibold text-white shadow-sm transition hover:bg-primary-700"
-          >
-            <Filter className="mr-2 h-3.5 w-3.5" />
-            Apply Filter
-          </button>
-          <button
-            aria-label="More filter options"
-            type="button"
-            className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-500 shadow-sm transition hover:border-primary-200 hover:text-primary-600"
-          >
-            <Settings2 className="h-3.5 w-3.5" />
-          </button>
-        </div>
-        <div className="ml-auto flex items-center gap-2 rounded-full border border-slate-200 bg-slate-100 p-1">
-          <button
-            type="button"
-            className="rounded-full bg-primary-600 px-3 py-0.5 text-[11px] font-semibold text-white shadow-sm transition hover:bg-primary-700"
-          >
-            Active
-          </button>
-          <button
-            type="button"
-            className="rounded-full px-3 py-0.5 text-[11px] font-semibold text-slate-600 transition hover:bg-white"
-          >
-            Show All
-          </button>
-        </div>
+    <div className="space-y-2">
+      <ListHeader
+        compact
+        searchPlaceholder="Search activities"
+        onSearch={handleSearch}
+        onFilterChange={handleStatusFilter}
+        filterColumns={RS_ACTIVITY_FILTER_COLUMNS}
+        columnFilters={activitiesColumnFilters}
+        onColumnFiltersChange={setActivitiesColumnFilters}
+        onSettingsClick={() => setColumnChooserOpen(true)}
+        showCreateButton={true}
+        onCreateClick={() => setCreateModalOpen(true)}
+      />
+
+      <div className="rounded-3xl border border-slate-200 bg-white p-2 shadow-inner">
+        <DynamicTable
+          columns={activityColumnsWithRender}
+          data={filteredActivities}
+          loading={activitiesLoading}
+          emptyMessage={activitiesError ?? "No data available in table"}
+          onColumnsChange={handleActivityColumnsChange}
+          pagination={activitiesPagination}
+          onPageChange={handleActivitiesPageChange}
+          onPageSizeChange={handleActivitiesPageSizeChange}
+          selectedItems={selectedActivityIds}
+          onItemSelect={(id, selected) => handleActivityItemSelect(id, selected)}
+          onSelectAll={handleSelectAllActivities}
+          alwaysShowPagination={true}
+          fillContainerWidth={true}
+          autoSizeColumns={true}
+          maxBodyHeight={240}
+          hideSelectAllLabel={false}
+          selectHeaderLabel="Select All"
+        />
       </div>
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[720px] overflow-hidden rounded-2xl border border-slate-200 text-[11px]">
-          <thead className="bg-indigo-100 text-indigo-700">
-            <tr>
-              {["Actions", "Active", "Activity Date", "Activity ID", "Activity Type", "Description", "Attachment"].map(header => (
-                <th key={header} className="px-2 py-1.5 text-left text-[11px] font-semibold uppercase tracking-wide">
-                  {header}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="bg-white text-slate-600">
-            <tr>
-              <td className="px-2 py-4 text-center text-[11px]" colSpan={7}>
-                No data available in table
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-500">
-        <div className="flex items-center gap-3">
-          <button className="text-primary-600 transition hover:text-primary-700" type="button">
-            Previous
-          </button>
-          <button className="text-primary-600 transition hover:text-primary-700" type="button">
-            Next
-          </button>
-        </div>
-        <div className="flex items-center gap-2">
-          <span>Showing 0 to 0 of 0 entries</span>
-          <label className="flex items-center gap-2">
-            <span>Show</span>
-            <select className="rounded border border-slate-300 bg-white px-2 py-1 text-[11px]">
-              <option>10</option>
-              <option>25</option>
-              <option>50</option>
-            </select>
-            <span>entries</span>
-          </label>
-        </div>
-        <button
-          type="button"
-          className="inline-flex items-center rounded-full bg-primary-600 px-3 py-1.5 text-[11px] font-semibold text-white shadow-sm transition hover:bg-primary-700"
-        >
-          Create New
-        </button>
-      </div>
+
+      <ColumnChooserModal
+        isOpen={columnChooserOpen}
+        columns={activityColumnsWithRender}
+        onApply={handleActivityColumnsChange}
+        onClose={() => setColumnChooserOpen(false)}
+      />
+
+      <ActivityNoteCreateModal
+        isOpen={createModalOpen}
+        context="revenue-schedule"
+        entityName={schedule?.revenueScheduleName ?? schedule?.revenueSchedule ?? undefined}
+        revenueScheduleId={schedule?.id}
+        onClose={() => setCreateModalOpen(false)}
+        onSuccess={() => {
+          setCreateModalOpen(false)
+          // After creating, refetch the current page
+          void fetchActivities()
+        }}
+      />
     </div>
   )
 
@@ -562,9 +706,9 @@ export function RevenueScheduleSupportingDetails({ schedule }: { schedule: Reven
   }
 
   return (
-    <section className="rounded-3xl border border-slate-200 bg-white p-2 shadow-sm">
-      <div className="grid gap-2 xl:grid-cols-[260px,1fr]">
-        <nav className="flex flex-col gap-1.5 rounded-3xl bg-slate-100 p-2">
+    <section>
+      <div className="grid gap-2 xl:grid-cols-[260px,1fr] items-start">
+        <nav className="flex flex-col gap-0 rounded-3xl border border-slate-300 bg-white p-0 overflow-hidden divide-y divide-blue-200 self-start h-fit">
           {SECTION_ITEMS.map(item => {
             const Icon = item.icon
             const isActive = item.id === activeSectionId
@@ -573,27 +717,29 @@ export function RevenueScheduleSupportingDetails({ schedule }: { schedule: Reven
                 key={item.id}
                 type="button"
                 onClick={() => setActiveSectionId(item.id)}
-                className={`flex w-full items-start gap-2 rounded-2xl border px-3 py-2 text-left transition ${
-                  isActive ? "border-primary-200 bg-white shadow-sm" : "border-transparent hover:border-slate-200 hover:bg-white/70"
+                className={`flex w-full items-start gap-2 px-3 py-2 text-left transition shadow-sm ${
+                  isActive
+                    ? "rounded-none bg-primary-700 text-white hover:bg-primary-800"
+                    : "rounded-none bg-gradient-to-b from-blue-100 to-blue-200 text-primary-800 hover:from-blue-200 hover:to-blue-300"
                 }`}
               >
                 <span
                   className={`flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full border ${
-                    isActive ? "border-primary-500 bg-primary-600 text-white" : "border-primary-100 bg-primary-50 text-primary-600"
+                    isActive ? "border-white bg-white text-primary-700" : "border-blue-200 bg-white text-primary-700"
                   }`}
                 >
                   <Icon className="h-4 w-4" />
                 </span>
                 <span className="space-y-0.5">
-                  <span className={`block text-[11px] font-semibold ${isActive ? "text-primary-700" : "text-slate-700"}`}>{item.label}</span>
-                  <span className="block text-[11px] leading-tight text-slate-500">{item.description}</span>
+                  <span className={`block text-[11px] font-semibold ${isActive ? "text-white" : "text-primary-800"}`}>{item.label}</span>
+                  <span className={`block text-[11px] leading-tight ${isActive ? "text-blue-100" : "text-primary-700/70"}`}>{item.description}</span>
                 </span>
               </button>
             )
           })}
         </nav>
 
-        <div className="rounded-3xl border border-slate-200 bg-white p-3 shadow-inner">
+        <div className="p-3">
           {sectionContent ?? <p className="text-[11px] text-slate-500">Select a section to view its details.</p>}
         </div>
       </div>

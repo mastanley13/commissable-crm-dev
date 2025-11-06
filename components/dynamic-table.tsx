@@ -313,7 +313,7 @@ export function DynamicTable({
   const visibleColumns = useMemo(() => columns.filter(column => !column.hidden), [columns])
   const columnCount = Math.max(visibleColumns.length, 1)
 
-  // Calculate optimal widths and distribute space intelligently
+  // Calculate optimal widths and distribute/shrink to fit container width
   const { gridTemplate, totalTableWidth, shouldUseFullWidth } = useMemo(() => {
     if (visibleColumns.length === 0) {
       return { gridTemplate: "1fr", totalTableWidth: 0, shouldUseFullWidth: true }
@@ -354,6 +354,49 @@ export function DynamicTable({
       return column.maxWidth ?? fallback
     }
     
+    // If total width is greater than container and we want to fill container,
+    // shrink resizable columns proportionally while respecting min widths
+    if (fillContainerWidth && totalFixedWidth > containerWidth) {
+      const minWidthFor = (c: Column) => (c.minWidth ?? 80)
+
+      // Initial proportional shrink
+      const shrinkFactor = containerWidth / totalFixedWidth
+      let widths = visibleColumns.map(c => Math.max(minWidthFor(c), Math.round(c.width * shrinkFactor)))
+
+      // If still overflowing due to min-width clamps, iteratively reduce columns above min
+      let sum = widths.reduce((a, b) => a + b, 0)
+      if (sum > containerWidth) {
+        let overflow = sum - containerWidth
+        const adjustable = widths.map((w, i) => ({ i, w, min: minWidthFor(visibleColumns[i]) }))
+        let safeGuard = 0
+        while (overflow > 0 && safeGuard < 20) {
+          const candidates = adjustable.filter(x => x.w > x.min)
+          if (candidates.length === 0) break
+          const decrement = Math.max(1, Math.floor(overflow / candidates.length))
+          for (const c of candidates) {
+            const next = Math.max(c.min, c.w - decrement)
+            overflow -= (c.w - next)
+            c.w = next
+            widths[c.i] = next
+            if (overflow <= 0) break
+          }
+          sum = widths.reduce((a, b) => a + b, 0)
+          overflow = Math.max(0, sum - containerWidth)
+          safeGuard++
+        }
+      }
+
+      const gridTemplate = widths
+        .map((w, index) => formatTrack(w, index, widths.length))
+        .join(" ")
+
+      return {
+        gridTemplate,
+        totalTableWidth: containerWidth,
+        shouldUseFullWidth: true
+      }
+    }
+
     // If total width is less than container, distribute extra space proportionally
     // Only if user hasn't manually resized columns to preserve their preferences
     if (totalFixedWidth < containerWidth && !isManuallyResized) {

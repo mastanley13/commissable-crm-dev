@@ -11,7 +11,7 @@ import { Edit, Trash2, Users, Settings, Check } from 'lucide-react'
 import { isRowInactive } from '@/lib/row-state'
 import { GroupCreateModal } from '@/components/group-create-modal'
 
-export const groupColumns: Column[] = [
+const groupColumns: Column[] = [
   {
     id: 'multi-action',
     label: 'Select All',

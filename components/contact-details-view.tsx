@@ -351,7 +351,7 @@ const TABS: { id: "activities" | "opportunities" | "groups"; label: string }[] =
   { id: "activities", label: "Activities & Notes" }
 ]
 
-const fieldLabelClass = "text-[11px] font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap"
+const fieldLabelClass = "text-[11px] font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap flex items-center"
 const fieldSubLabelClass = "text-[11px] font-medium text-gray-600"
 const fieldBoxClass = "flex min-h-[28px] w-full max-w-md items-center justify-between border-b-2 border-gray-300 bg-transparent px-0 py-1 text-[11px] text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis"
 
@@ -605,10 +605,13 @@ function ReadOnlySwitch({ value }: { value: boolean }) {
   )
 }
 
-function FieldRow({ label, value }: { label: string; value: ReactNode }) {
+function FieldRow({ label, value, labelExtra }: { label: string; value: ReactNode; labelExtra?: ReactNode }) {
   return (
-    <div className="grid items-center gap-4 sm:grid-cols-[140px,1fr]">
-      <span className={fieldLabelClass}>{label}</span>
+    <div className="grid items-start gap-3 sm:grid-cols-[140px,1fr]">
+      <div className="flex flex-col gap-1">
+        <span className={fieldLabelClass}>{label}</span>
+        {labelExtra}
+      </div>
       <div>{value}</div>
     </div>
   )
@@ -624,7 +627,7 @@ function ContactHeader({
   isDeleted: boolean
 }) {
   return (
-    <div className="rounded-2xl bg-gray-100 p-3 shadow-sm">
+    <div className="rounded-2xl bg-gray-100 p-3 shadow-sm h-[300px] overflow-y-auto">
       <div className="mb-2 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <p className="text-[13px] font-semibold uppercase tracking-wide text-primary-600">Contact Detail</p>
@@ -642,73 +645,69 @@ function ContactHeader({
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <div className="space-y-1.5">
-          <FieldRow
-            label="Name"
-            value={
-                <div className="w-full max-w-md">
-                <div className="flex gap-2">
-                  <div className="w-[10.5rem] min-w-[10.5rem]">
-                    <div className={fieldSubLabelClass}>First</div>
-                    <div className={fieldBoxClass}>{contact.firstName}</div>
-                  </div>
-                  <div className="w-[10.5rem] min-w-[10.5rem]">
-                    <div className={fieldSubLabelClass}>Last</div>
-                    <div className={fieldBoxClass}>{contact.lastName}</div>
-                  </div>
-                  <div className="w-[6rem] min-w-[6rem]">
-                    <div className={fieldSubLabelClass}>Suffix</div>
-                    <div className={fieldBoxClass}>{contact.suffix || "--"}</div>
-                  </div>
-                </div>
+      <div className="grid gap-x-6 gap-y-1.5 grid-cols-2">
+        {/* Row 1: Name & Job Title */}
+        <FieldRow
+          label="Name"
+          value={
+            <div className="flex items-end gap-1 max-w-md">
+              <div className={cn(fieldBoxClass, "flex-1 max-w-none")}>
+                {contact.firstName || <span className="text-gray-400">First</span>}
               </div>
-            }
-          />
-          <FieldRow label="Contact Type" value={<div className={fieldBoxClass}>{contact.contactType || "--"}</div>} />
-          <FieldRow
-            label="Account Name"
-            value={
-              <div className="flex items-end gap-2 w-full max-w-md">
-                <div className="flex-1 min-w-[12rem]">
-                  <div className={fieldBoxClass}>{contact.accountName || "--"}</div>
-                </div>
-                <div className="flex shrink-0 items-center gap-2 bg-transparent px-0 py-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap">
-                  <span>Active (Y/N)</span>
-                  <ReadOnlySwitch value={contact.active} />
-                </div>
+              <div className={cn(fieldBoxClass, "flex-1 max-w-none")}>
+                {contact.lastName || <span className="text-gray-400">Last</span>}
               </div>
-            }
-          />
-          <FieldRow
-            label="Work Phone"
-            value={
-              <div className="flex items-center gap-2 w-full max-w-md">
-                <div className="flex-1 min-w-[12rem]">
-                  <div className={fieldBoxClass}>{contact.workPhone || "--"}</div>
-                </div>
-                <div className="flex shrink-0 items-center gap-2 bg-transparent px-0 py-0 text-[11px] font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap">
-                  <span>Ext</span>
-                  <div className="min-w-[3rem] text-center border-b-2 border-gray-300 py-1">{contact.workPhoneExt || "--"}</div>
-                </div>
+              <div className={cn(fieldBoxClass, "w-24 flex-none")}>
+                {contact.suffix || <span className="text-gray-400">Suffix</span>}
               </div>
-            }
-          />
-          <FieldRow label="Mobile" value={<div className={fieldBoxClass}>{contact.mobilePhone || "--"}</div>} />
-        </div>
-        <div className="space-y-1.5 lg:pt-1">
-          <FieldRow label="Job Title" value={<div className={fieldBoxClass}>{contact.jobTitle || "--"}</div>} />
-          <FieldRow label="Email Address" value={<div className={fieldBoxClass}>{contact.emailAddress || "--"}</div>} />
-          <FieldRow
-            label="Shipping Address"
-            value={<div className={fieldBoxClass}>{contact.accountShippingAddress || "--"}</div>}
-          />
-          <FieldRow label="Contact ID" value={<div className={fieldBoxClass}>{contact.id}</div>} />
-          <FieldRow
-            label="Description"
-            value={<div className={fieldBoxClass}>{contact.description || "No description provided."}</div>}
-          />
-        </div>
+            </div>
+          }
+        />
+        <FieldRow label="Job Title" value={<div className={fieldBoxClass}>{contact.jobTitle || "--"}</div>} />
+
+        {/* Row 2: Contact Type & Email Address */}
+        <FieldRow label="Contact Type" value={<div className={fieldBoxClass}>{contact.contactType || "--"}</div>} />
+        <FieldRow label="Email Address" value={<div className={fieldBoxClass}>{contact.emailAddress || "--"}</div>} />
+
+        {/* Row 3: Account Name & Shipping Address */}
+        <FieldRow
+          label="Account Name"
+          value={
+            <div className="flex items-end gap-2 max-w-md">
+              <div className={cn(fieldBoxClass, "flex-1 max-w-none")}>{contact.accountName || "--"}</div>
+              <div className="flex items-center gap-2 shrink-0 bg-transparent px-0 py-1 text-[11px] font-medium text-gray-600">
+                <span>Active (Y/N)</span>
+                <ReadOnlySwitch value={contact.active} />
+              </div>
+            </div>
+          }
+        />
+        <FieldRow
+          label="Shipping Address"
+          value={<div className={fieldBoxClass}>{contact.accountShippingAddress || "--"}</div>}
+        />
+
+        {/* Row 4: Work Phone & Contact ID */}
+        <FieldRow
+          label="Work Phone"
+          value={
+            <div className="flex items-end gap-2 max-w-md">
+              <div className={cn(fieldBoxClass, "flex-1 max-w-none")}>{contact.workPhone || "--"}</div>
+              <div className="flex items-center gap-2 shrink-0 bg-transparent px-0 py-1 text-[11px] font-medium text-gray-600">
+                <span>EXT</span>
+                <div className="min-w-[3rem] text-center border-b-2 border-gray-300 py-1">{contact.workPhoneExt || "--"}</div>
+              </div>
+            </div>
+          }
+        />
+        <FieldRow label="Contact ID" value={<div className={fieldBoxClass}>{contact.id}</div>} />
+
+        {/* Row 5: Mobile Phone & Description */}
+        <FieldRow label="Mobile" value={<div className={fieldBoxClass}>{contact.mobilePhone || "--"}</div>} />
+        <FieldRow
+          label="Description"
+          value={<div className={fieldBoxClass}>{contact.description || "No description provided."}</div>}
+        />
       </div>
     </div>
   )
@@ -737,7 +736,7 @@ function EditableContactHeader({
   void _contactMethodOptions
   if (!editor.draft) {
     return (
-      <div className="rounded-2xl bg-gray-100 p-3 shadow-sm">
+      <div className="rounded-2xl bg-gray-100 p-3 shadow-sm h-[300px] overflow-y-auto">
         <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-6 text-sm text-gray-500">
           <Loader2 className="h-4 w-4 animate-spin text-primary-600" />
           Preparing inline editor...
@@ -779,7 +778,7 @@ function EditableContactHeader({
   )
 
   return (
-    <div className="rounded-2xl bg-gray-100 p-3 shadow-sm">
+    <div className="rounded-2xl bg-gray-100 p-3 shadow-sm h-[300px] overflow-y-auto">
       <div className="mb-2 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <p className="text-[13px] font-semibold uppercase tracking-wide text-primary-600">Contact Detail</p>
@@ -964,7 +963,7 @@ function EditableContactHeader({
           {renderStandardRow(
             "Description",
             <EditableField.Textarea
-              rows={3}
+              rows={1}
               value={(descriptionField.value as string) ?? ""}
               onChange={descriptionField.onChange}
               onBlur={descriptionField.onBlur}

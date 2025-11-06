@@ -933,7 +933,7 @@ function AccountHeader({
   }
 
   return (
-    <div className="rounded-2xl bg-gray-100 p-3 shadow-sm">
+    <div className="rounded-2xl bg-gray-100 p-3 shadow-sm h-[300px] overflow-y-auto">
       <div className="mb-2 flex items-center justify-between">
         <p className="text-[13px] font-semibold uppercase tracking-wide text-primary-600">Account Detail</p>
         <div className="flex items-center gap-2">
@@ -1121,7 +1121,7 @@ function EditableAccountHeader({
 }: EditableAccountHeaderProps) {
   if (!editor.draft) {
     return (
-      <div className="rounded-2xl bg-gray-100 p-3 shadow-sm">
+      <div className="rounded-2xl bg-gray-100 p-3 shadow-sm h-[300px] overflow-y-auto">
         <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-6 text-sm text-gray-500">
           <Loader2 className="h-4 w-4 animate-spin text-primary-600" />
           Preparing inline editor...
@@ -1207,7 +1207,7 @@ function EditableAccountHeader({
   )
 
   return (
-    <div className="rounded-2xl bg-gray-100 p-3 shadow-sm">
+    <div className="rounded-2xl bg-gray-100 p-3 shadow-sm h-[300px] overflow-y-auto">
       <div className="mb-2 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <p className="text-[13px] font-semibold uppercase tracking-wide text-primary-600">Account Detail</p>

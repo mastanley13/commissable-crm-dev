@@ -56,6 +56,7 @@ interface ListHeaderProps {
   isSavingTableChanges?: boolean;
   lastTableSaved?: Date;
   onSaveTableChanges?: () => Promise<void>;
+  compact?: boolean;
 }
 
 const DEFAULT_FILTER_COLUMNS: FilterColumnOption[] = [
@@ -98,6 +99,7 @@ export function ListHeader({
   isSavingTableChanges = false,
   lastTableSaved,
   onSaveTableChanges,
+  compact = false,
 }: ListHeaderProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState<"active" | "inactive">("active");
@@ -237,21 +239,28 @@ export function ListHeader({
 
   const hasFiltersApplied = groupedColumnFilters.length > 0;
 
+  const padY = compact ? "py-1" : "py-2"
+  const gap = compact ? "gap-1.5" : "gap-2"
+  const stackGap = compact ? "gap-0.5" : "gap-1"
+  const inputYPadding = compact ? "py-1" : "py-1.5"
+  const btnPad = compact ? "px-2.5 py-1" : "px-3 py-1.5"
+  const iconBtnPad = compact ? "p-1" : "p-1.5"
+
   return (
-    <div className="bg-white px-0 py-2">
+    <div className={`bg-white px-0 ${padY}`}>
       {title && (
         <div className="mb-2 flex items-center justify-between">
           <h2 className="text-base font-semibold text-gray-900">{title}</h2>
         </div>
       )}
 
-      <div className="flex flex-wrap items-end gap-2">
-        <div className="flex min-w-0 flex-col gap-1">
+      <div className={`flex flex-wrap items-end ${gap}`}>
+        <div className={`flex min-w-0 flex-col ${stackGap}`}>
           {pageTitle && (
             <p className="text-xs font-semibold uppercase tracking-wide text-primary-600">{pageTitle}</p>
           )}
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className={`flex flex-wrap items-center ${gap}`}>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
               <input
@@ -259,7 +268,7 @@ export function ListHeader({
                 placeholder={searchPlaceholder}
                 value={searchQuery}
                 onChange={handleSearch}
-                className="w-64 rounded border border-gray-300 py-1.5 pl-10 pr-4 text-sm outline-none transition-all focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
+                className={`w-64 rounded border border-gray-300 ${inputYPadding} pl-10 pr-4 text-sm outline-none transition-all focus:border-primary-500 focus:ring-1 focus:ring-primary-500`}
               />
             </div>
             {leftAccessory}
@@ -267,7 +276,7 @@ export function ListHeader({
               <div className="inline-flex rounded-lg border border-gray-300 bg-gray-50 p-0.5">
                 <button
                   onClick={() => handleStatusFilterChange("active")}
-                  className={`px-3 py-1.5 text-sm font-medium transition-all duration-200 rounded-md ${
+                  className={`${btnPad} text-sm font-medium transition-all duration-200 rounded-md ${
                     activeFilter === "active"
                       ? "bg-primary-600 text-white shadow-sm"
                       : "text-gray-600 hover:text-gray-900"
@@ -277,7 +286,7 @@ export function ListHeader({
                 </button>
                 <button
                   onClick={() => handleStatusFilterChange("inactive")}
-                  className={`px-3 py-1.5 text-sm font-medium transition-all duration-200 rounded-md ${
+                  className={`${btnPad} text-sm font-medium transition-all duration-200 rounded-md ${
                     activeFilter === "inactive"
                       ? "bg-primary-600 text-white shadow-sm"
                       : "text-gray-600 hover:text-gray-900"
@@ -291,7 +300,7 @@ export function ListHeader({
             {showCreateButton && (
               <button
                 onClick={onCreateClick}
-                className="rounded bg-primary-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-primary-700"
+                className={`rounded bg-primary-600 ${btnPad} text-sm font-medium text-white transition-colors hover:bg-primary-700`}
               >
                 {createButtonLabel}
               </button>
@@ -300,20 +309,20 @@ export function ListHeader({
             <button
               type="button"
               onClick={onSettingsClick}
-              className="rounded p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-600"
+              className={`rounded ${iconBtnPad} text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-600`}
               title="Column Settings"
             >
               <Settings className="h-4 w-4" />
             </button>
 
             {(canImport || canExport) && (
-              <div className="flex items-center gap-1">
+              <div className={`flex items-center ${gap}`}>
                 {canImport && (
                   <button
                     type="button"
                     onClick={onImport}
                     disabled={!onImport}
-                    className="flex items-center gap-1 rounded border border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
+                    className={`flex items-center gap-1 rounded border border-gray-300 ${compact ? 'px-2 py-0.5' : 'px-2 py-1'} text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50`}
                   >
                     <Upload className="h-3.5 w-3.5 text-gray-500" />
                     <span>Import</span>
@@ -324,7 +333,7 @@ export function ListHeader({
                     type="button"
                     onClick={onExport}
                     disabled={!onExport}
-                    className="flex items-center gap-1 rounded border border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
+                    className={`flex items-center gap-1 rounded border border-gray-300 ${compact ? 'px-2 py-0.5' : 'px-2 py-1'} text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50`}
                   >
                     <Download className="h-3.5 w-3.5 text-gray-500" />
                     <span>Export</span>
@@ -339,7 +348,7 @@ export function ListHeader({
                   <select
                     value={selectedColumn}
                     onChange={(event) => setSelectedColumn(event.target.value)}
-                    className="appearance-none rounded border border-gray-300 bg-white px-3 py-1.5 pr-8 text-sm outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
+                    className={`appearance-none rounded border border-gray-300 bg-white px-3 ${inputYPadding} pr-8 text-sm outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500`}
                   >
                     <option value="">Filter By Column</option>
                     {columnOptions.map(option => (
@@ -356,14 +365,14 @@ export function ListHeader({
                   value={filterValue}
                   onChange={(event) => setFilterValue(event.target.value)}
                   placeholder="Enter filter value"
-                  className="w-40 rounded border border-gray-300 px-3 py-1.5 text-sm outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
+                  className={`w-40 rounded border border-gray-300 px-3 ${inputYPadding} text-sm outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500`}
                 />
 
                 <button
                   type="button"
                   onClick={handleApplyFilter}
                   disabled={!selectedColumn || !filterValue.trim()}
-                  className="rounded bg-primary-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  className={`rounded bg-primary-600 ${btnPad} text-sm font-medium text-white transition-colors hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50`}
                 >
                   Apply Filter
                 </button>

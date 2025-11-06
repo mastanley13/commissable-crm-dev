@@ -11,7 +11,7 @@ import { PermissionGate } from '@/components/auth/permission-gate'
 import { Edit, Trash2, User, Shield } from 'lucide-react'
 import { isRowInactive } from '@/lib/row-state'
 
-export const userColumns: Column[] = [
+const userColumns: Column[] = [
   {
     id: 'active',
     label: 'Active',

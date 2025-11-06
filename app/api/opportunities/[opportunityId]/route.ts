@@ -214,6 +214,39 @@ export async function GET(request: NextRequest, { params }: { params: { opportun
 
       const baseRow = mapOpportunityToRow(opportunity)
       const detail = mapOpportunityToDetail(opportunity)
+
+      // Load roles linked to this opportunity
+      let roles: Array<{
+        id: string
+        role: string
+        fullName: string
+        jobTitle: string | null
+        email: string | null
+        workPhone: string | null
+        phoneExtension: string | null
+        mobile: string | null
+        active: boolean
+      }> = []
+
+      try {
+        const roleRows = await prisma.opportunityRole.findMany({
+          where: { tenantId, opportunityId },
+          orderBy: { createdAt: "asc" }
+        })
+        roles = roleRows.map((r) => ({
+          id: r.id,
+          role: r.role ?? "",
+          fullName: r.fullName ?? "",
+          jobTitle: r.jobTitle ?? null,
+          email: r.email ?? null,
+          workPhone: r.workPhone ?? null,
+          phoneExtension: r.phoneExtension ?? null,
+          mobile: r.mobile ?? null,
+          active: r.active !== false
+        }))
+      } catch {
+        roles = []
+      }
       const subAgent = extractSubAgent(opportunity.description)
 
       return NextResponse.json({
@@ -226,7 +259,7 @@ export async function GET(request: NextRequest, { params }: { params: { opportun
           ownerId: opportunity.ownerId ?? null,
           estimatedCloseDate: opportunity.estimatedCloseDate,
           subAgent,
-          detail
+          detail: { ...detail, roles }
         }
       })
     } catch (error) {

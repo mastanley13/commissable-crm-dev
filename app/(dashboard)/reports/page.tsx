@@ -10,7 +10,7 @@ import { TableChangeNotification } from '@/components/table-change-notification'
 import { reportsData } from '@/lib/mock-data'
 import { FileText, Download, Play, Settings } from 'lucide-react'
 
-export const reportColumns: Column[] = [
+const reportColumns: Column[] = [
   {
     id: 'actions',
     label: 'Select All',

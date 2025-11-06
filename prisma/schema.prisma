@@ -36,6 +36,7 @@ model Tenant {
   industries          Industry[]
   opportunities       Opportunity[]
   opportunityProducts OpportunityProduct[]
+  opportunityRoles    OpportunityRole[]
   products            Product[]
   reconciliations     Reconciliation[]
   reconciliationItems ReconciliationItem[]
@@ -144,6 +145,8 @@ model User {
   revenueSchedulesCreated     RevenueSchedule[]    @relation("RevenueScheduleCreatedBy")
   revenueSchedulesUpdated     RevenueSchedule[]    @relation("RevenueScheduleUpdatedBy")
   roleGrants                  RolePermission[]     @relation("RolePermissionGrantedBy")
+  opportunityRolesCreated     OpportunityRole[]    @relation("OpportunityRoleCreatedBy")
+  opportunityRolesUpdated     OpportunityRole[]    @relation("OpportunityRoleUpdatedBy")
   tablePreferences            TablePreference[]
   ticketsAssigned             Ticket[]             @relation("TicketAssignee")
   ticketsCreated              Ticket[]             @relation("TicketCreatedBy")
@@ -380,6 +383,7 @@ model Contact {
   preferences            ContactPreference[]
   groupMembers           GroupMember[]
   tickets                Ticket[]
+  opportunityRoles       OpportunityRole[]
 
   @@index([tenantId, accountId])
   @@index([tenantId, ownerId])
@@ -458,6 +462,7 @@ model Opportunity {
   products              OpportunityProduct[]
   revenueSchedules      RevenueSchedule[]
   tickets               Ticket[]
+  roles                 OpportunityRole[]
 
   @@index([tenantId, accountId])
   @@index([tenantId, ownerId])
@@ -485,6 +490,34 @@ model OpportunityProduct {
   product            Product                  @relation(fields: [productId], references: [id])
   tenant             Tenant                   @relation(fields: [tenantId], references: [id])
   revenueSchedules   RevenueSchedule[]
+
+  @@index([tenantId, opportunityId])
+}
+
+model OpportunityRole {
+  id             String    @id @default(uuid()) @db.Uuid
+  tenantId       String    @db.Uuid
+  opportunityId  String    @db.Uuid
+  contactId      String?   @db.Uuid
+  role           String
+  fullName       String
+  jobTitle       String?
+  email          String?
+  workPhone      String?
+  phoneExtension String?
+  mobile         String?
+  active         Boolean   @default(true)
+  createdById    String?   @db.Uuid
+  updatedById    String?   @db.Uuid
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  // Relations
+  opportunity Opportunity @relation(fields: [opportunityId], references: [id])
+  contact     Contact?    @relation(fields: [contactId], references: [id])
+  tenant      Tenant      @relation(fields: [tenantId], references: [id])
+  createdBy   User?       @relation("OpportunityRoleCreatedBy", fields: [createdById], references: [id])
+  updatedBy   User?       @relation("OpportunityRoleUpdatedBy", fields: [updatedById], references: [id])
 
   @@index([tenantId, opportunityId])
 }

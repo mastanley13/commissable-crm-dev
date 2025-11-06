@@ -30,9 +30,11 @@ import { ActivityBulkActionBar } from "./activity-bulk-action-bar"
 import { ActivityBulkOwnerModal } from "./activity-bulk-owner-modal"
 import { ActivityBulkStatusModal } from "./activity-bulk-status-modal"
 import { ConfirmDialog } from "./confirm-dialog"
+import { RevenueScheduleCreateModal } from "./revenue-schedule-create-modal"
 import { useAuth } from "@/lib/auth-context"
 import { useToasts } from "@/components/toast"
 import { ProductBulkActionBar } from "./product-bulk-action-bar"
+import { OpportunityRoleCreateModal } from "./opportunity-role-create-modal"
 import { getOpportunityStageLabel, getOpportunityStageOptions, isOpportunityStageAutoManaged, isOpportunityStageValue, type OpportunityStageOption } from "@/lib/opportunity-stage"
 
 const fieldLabelClass = "text-[11px] font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap"
@@ -1631,6 +1633,7 @@ export function OpportunityDetailsView({
   const [rolePageSize, setRolePageSize] = useState(10)
   const [selectedRoles, setSelectedRoles] = useState<string[]>([])
   const [showRoleColumnSettings, setShowRoleColumnSettings] = useState(false)
+  const [showCreateRoleModal, setShowCreateRoleModal] = useState(false)
 
   const {
     columns: rolePreferenceColumns,
@@ -1680,6 +1683,7 @@ export function OpportunityDetailsView({
   const [revenuePageSize, setRevenuePageSize] = useState(10)
   const [selectedRevenueSchedules, setSelectedRevenueSchedules] = useState<string[]>([])
   const [showRevenueColumnSettings, setShowRevenueColumnSettings] = useState(false)
+  const [showRevenueCreateModal, setShowRevenueCreateModal] = useState(false)
 
   const {
     columns: revenuePreferenceColumns,
@@ -3790,42 +3794,53 @@ if (loading) {
                   </div>
                 ) : activeTab === "roles" ? (
                   <div className="grid flex-1 grid-rows-[auto_minmax(0,1fr)] gap-3 overflow-hidden">
-                    
-
-                    <ProductBulkActionBar
-                      count={selectedLineItems.length}
-                      disabled={lineItemBulkActionLoading || lineItemDeleteLoading}
-                      onDelete={handleBulkDeleteLineItems}
-                      onExportCsv={handleBulkExportLineItems}
-                      onActivate={handleBulkActivateLineItems}
-                      onDeactivate={handleBulkDeactivateLineItems}
+                    <ListHeader
+                      showCreateButton
+                      createButtonLabel="Add Role"
+                      onCreateClick={() => setShowCreateRoleModal(true)}
+                      onSearch={setRolesSearchQuery}
+                      searchPlaceholder="Search roles"
+                      filterColumns={ROLE_FILTER_COLUMNS}
+                      columnFilters={roleColumnFilters}
+                      onColumnFiltersChange={setRoleColumnFilters}
+                      onSettingsClick={() => setShowRoleColumnSettings(true)}
+                      statusFilter={roleStatusFilter}
+                      onFilterChange={value =>
+                        setRoleStatusFilter(value === "inactive" ? "inactive" : "active")
+                      }
+                      hasUnsavedTableChanges={roleHasUnsavedChanges}
+                      isSavingTableChanges={rolePreferencesSaving}
+                      lastTableSaved={roleLastSaved ?? undefined}
+                      onSaveTableChanges={saveRolePreferences}
                     />
 
-                  <div className="flex min-h-0 flex-col overflow-hidden" ref={tableAreaRefCallback}>
-                    <DynamicTable
-                      className="flex flex-col"
-                      columns={productTableColumns}
-                      data={paginatedProductRows}
-                        loading={productPreferencesLoading}
-                        onColumnsChange={handleProductTableColumnsChange}
-                        emptyMessage="No product line items"
+                    <div className="flex min-h-0 flex-col overflow-hidden" ref={tableAreaRefCallback}>
+                      <DynamicTable
+                        key={rolePreferenceColumns.map(c => `${c.id}:${c.hidden ? 0 : 1}`).join('|')}
+                        className="flex flex-col"
+                        columns={roleTableColumns}
+                        data={paginatedRoleRows}
+                        loading={rolePreferencesLoading}
+                        onColumnsChange={handleRoleColumnsChange}
+                        emptyMessage="No roles found for this opportunity"
                         maxBodyHeight={tableBodyMaxHeight}
-                        pagination={productPagination}
-                        onPageChange={handleProductPageChange}
-                        onPageSizeChange={handleProductPageSizeChange}
-                        selectedItems={selectedLineItems}
-                        onItemSelect={handleLineItemSelect}
-                        onSelectAll={handleSelectAllLineItems}
+                        pagination={rolePagination}
+                        onPageChange={handleRolePageChange}
+                        onPageSizeChange={handleRolePageSizeChange}
+                        selectedItems={selectedRoles}
+                        onItemSelect={(itemId: string, selected: boolean) => handleRoleSelect(itemId, selected)}
+                        onSelectAll={handleSelectAllRoles}
                         selectHeaderLabel="Select All"
+                        fillContainerWidth
                         alwaysShowPagination
-                      fillContainerWidth
-                    />
-                  </div>
+                      />
+                    </div>
                   </div>
                 ) : activeTab === "revenue-schedules" ? (
                   <div className="grid flex-1 grid-rows-[auto_minmax(0,1fr)] gap-3 overflow-hidden">
                     <ListHeader
-                      showCreateButton={false}
+                      onCreateClick={() => setShowRevenueCreateModal(true)}
+                      showCreateButton={Boolean(opportunity)}
                       onSearch={setRevenueSearchQuery}
                       searchPlaceholder="Search revenue schedules"
                       filterColumns={REVENUE_FILTER_COLUMNS}
@@ -3967,6 +3982,15 @@ if (loading) {
               }}
             />
 
+            <OpportunityRoleCreateModal
+              isOpen={showCreateRoleModal}
+              opportunityId={opportunity?.id ?? ""}
+              onClose={() => setShowCreateRoleModal(false)}
+              onSuccess={async () => {
+                await onRefresh?.()
+              }}
+            />
+
             <ColumnChooserModal
               isOpen={showProductColumnSettings}
               columns={productPreferenceColumns}
@@ -4053,6 +4077,25 @@ if (loading) {
         onSuccess={async () => {
           await onRefresh?.()
           await fetchHistory()
+        }}
+      />
+
+      {/* Revenue Schedule Create Modal */}
+      <RevenueScheduleCreateModal
+        isOpen={showRevenueCreateModal}
+        opportunityId={opportunity.id}
+        opportunityName={opportunity.name}
+        lineItems={opportunity.lineItems ?? []}
+        schedules={opportunity.revenueSchedules ?? []}
+        defaultCommissionSplits={{
+          house: opportunity.houseSplitPercent ?? null,
+          houseRep: opportunity.houseRepPercent ?? null,
+          subagent: opportunity.subagentPercent ?? null
+        }}
+        onClose={() => setShowRevenueCreateModal(false)}
+        onSuccess={async () => {
+          setShowRevenueCreateModal(false)
+          await onRefresh?.()
         }}
       />
 

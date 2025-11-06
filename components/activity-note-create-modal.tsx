@@ -40,12 +40,13 @@ function generateAttachmentId() {
 }
 export interface ActivityNoteCreateModalProps {
   isOpen: boolean
-  context: "account" | "contact" | "opportunity"
+  context: "account" | "contact" | "opportunity" | "revenue-schedule"
   entityName?: string
   accountId?: string
   contactId?: string
   opportunityId?: string
   opportunityName?: string
+  revenueScheduleId?: string
   onClose: () => void
   onSuccess?: () => void
 }
@@ -88,6 +89,7 @@ export function ActivityNoteCreateModal({
   contactId,
   opportunityId,
   opportunityName,
+  revenueScheduleId,
   onClose,
   onSuccess
 }: ActivityNoteCreateModalProps) {
@@ -231,7 +233,9 @@ export function ActivityNoteCreateModal({
         return `${baseTitle} for Contact`
       case "opportunity":
       default:
-        return `${baseTitle} for Opportunity`
+        return context === "revenue-schedule"
+          ? `${baseTitle} for Revenue Schedule`
+          : `${baseTitle} for Opportunity`
     }
   }, [context, activeTab])
 
@@ -245,8 +249,9 @@ export function ActivityNoteCreateModal({
     if (context === "account" && !accountId) return false
     if (context === "contact" && !contactId) return false
     if (context === "opportunity" && !opportunityId) return false
+    if (context === "revenue-schedule" && !revenueScheduleId) return false
     return true
-  }, [accountId, contactId, context, form.activitySubject, form.noteTitle, form.noteBody, activeTab, opportunityId])
+  }, [accountId, contactId, context, form.activitySubject, form.noteTitle, form.noteBody, activeTab, opportunityId, revenueScheduleId])
 
   const handleClose = () => {
     setForm(createInitialState())
@@ -301,6 +306,7 @@ export function ActivityNoteCreateModal({
       accountId: accountId ?? null,
       contactId: contactId ?? null,
       opportunityId: opportunityId ?? null,
+      revenueScheduleId: revenueScheduleId ?? null,
       creatorId: form.createdById || null
     }
 
@@ -409,18 +415,26 @@ export function ActivityNoteCreateModal({
 
         {/* Tab Switch */}
         <div className="px-6 pt-4 flex-shrink-0">
-          <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1 text-sm">
-            <button 
-              type="button" 
-              className={`rounded-md px-3 py-1.5 ${activeTab === "activity" ? "bg-white text-primary-700 shadow-sm" : "text-gray-600 hover:text-gray-800"}`} 
+          <div className="inline-flex gap-1 text-sm">
+            <button
+              type="button"
               onClick={() => setActiveTab("activity")}
+              className={`rounded-md border px-3 py-1.5 font-semibold shadow-sm transition ${
+                activeTab === "activity"
+                  ? "border-primary-700 bg-primary-700 text-white hover:bg-primary-800"
+                  : "border-blue-300 bg-gradient-to-b from-blue-100 to-blue-200 text-primary-800 hover:from-blue-200 hover:to-blue-300 hover:border-blue-400"
+              }`}
             >
               Activity
             </button>
-            <button 
-              type="button" 
-              className={`rounded-md px-3 py-1.5 ${activeTab === "note" ? "bg-white text-primary-700 shadow-sm" : "text-gray-600 hover:text-gray-800"}`} 
+            <button
+              type="button"
               onClick={() => setActiveTab("note")}
+              className={`rounded-md border px-3 py-1.5 font-semibold shadow-sm transition ${
+                activeTab === "note"
+                  ? "border-primary-700 bg-primary-700 text-white hover:bg-primary-800"
+                  : "border-blue-300 bg-gradient-to-b from-blue-100 to-blue-200 text-primary-800 hover:from-blue-200 hover:to-blue-300 hover:border-blue-400"
+              }`}
             >
               Note
             </button>
@@ -689,5 +703,3 @@ export function ActivityNoteCreateModal({
     </div>
   )
 }
-
-
