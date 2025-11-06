@@ -701,6 +701,21 @@ function EditableContactHeader({
               <div className="flex flex-col gap-1">
                 <div className="w-full max-w-md">
                   <div className="flex gap-2">
+                    <div className="w-[6rem] min-w-[6rem]">
+                      <div className={fieldSubLabelClass}>Suffix</div>
+                      <EditableField.Select
+                        className="w-full"
+                        value={(suffixField.value as string) ?? ""}
+                        onChange={suffixField.onChange}
+                        onBlur={suffixField.onBlur}
+                      >
+                        <option value="">--</option>
+                        <option value="Mr.">Mr.</option>
+                        <option value="Ms.">Ms.</option>
+                        <option value="Mrs.">Mrs.</option>
+                        <option value="Dr.">Dr.</option>
+                      </EditableField.Select>
+                    </div>
                     <div className="w-[10.5rem] min-w-[10.5rem]">
                       <div className={fieldSubLabelClass}>First</div>
                       <EditableField.Input
@@ -726,16 +741,6 @@ function EditableContactHeader({
                       {editor.errors.lastName ? (
                         <p className="text-[10px] text-red-600">{editor.errors.lastName}</p>
                       ) : null}
-                    </div>
-                    <div className="w-[6rem] min-w-[6rem]">
-                      <div className={fieldSubLabelClass}>Suffix</div>
-                      <EditableField.Input
-                        className="w-full"
-                        value={(suffixField.value as string) ?? ""}
-                        onChange={suffixField.onChange}
-                        onBlur={suffixField.onBlur}
-                        placeholder="--"
-                      />
                     </div>
                   </div>
                 </div>
@@ -3728,7 +3733,19 @@ function EditableContactHeaderV2({
         <DetailFieldRow
           label="Name"
           value={
-            <div className="grid grid-cols-[1fr,1fr,6rem] gap-2 max-w-md w-full">
+            <div className="grid grid-cols-[6rem,1fr,1fr] gap-2 max-w-md w-full">
+              <EditableField.Select
+                className="w-full h-[28px] py-0 text-[11px]"
+                value={(suffixField.value as string) ?? ""}
+                onChange={suffixField.onChange}
+                onBlur={suffixField.onBlur}
+              >
+                <option value="">--</option>
+                <option value="Mr.">Mr.</option>
+                <option value="Ms.">Ms.</option>
+                <option value="Mrs.">Mrs.</option>
+                <option value="Dr.">Dr.</option>
+              </EditableField.Select>
               <EditableField.Input
                 className="w-full h-[28px] py-0 text-[11px]"
                 value={(firstNameField.value as string) ?? ""}
@@ -3742,13 +3759,6 @@ function EditableContactHeaderV2({
                 onChange={lastNameField.onChange}
                 onBlur={lastNameField.onBlur}
                 placeholder="Last"
-              />
-              <EditableField.Input
-                className="w-full h-[28px] py-0 text-[11px]"
-                value={(suffixField.value as string) ?? ""}
-                onChange={suffixField.onChange}
-                onBlur={suffixField.onBlur}
-                placeholder="Suffix"
               />
               {editor.errors.firstName ? (
                 <p className="col-span-3 text-[10px] text-red-600">{editor.errors.firstName}</p>

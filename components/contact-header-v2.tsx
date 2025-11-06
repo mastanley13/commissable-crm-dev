@@ -1,0 +1,138 @@
+"use client"
+
+import { cn } from "@/lib/utils"
+import type { ContactDetail } from "./contact-details-view"
+import { fieldBoxClass } from "./detail/shared"
+import { FieldRow } from "./detail/FieldRow"
+
+function ReadOnlySwitch({ value }: { value: boolean }) {
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        "relative inline-flex h-5 w-9 items-center rounded-full",
+        value ? "bg-primary-500" : "bg-gray-300"
+      )}
+    >
+      <span
+        className={cn(
+          "inline-block h-3.5 w-3.5 transform rounded-full bg-white transition",
+          value ? "translate-x-5" : "translate-x-1"
+        )}
+      />
+    </span>
+  )
+}
+
+export function ContactHeaderV2({
+  contact,
+  onEdit,
+  isDeleted
+}: {
+  contact: ContactDetail
+  onEdit?: (contact: ContactDetail) => void
+  isDeleted?: boolean
+}) {
+  return (
+    <div className="rounded-2xl bg-gray-100 p-3 shadow-sm h-[300px] overflow-y-auto">
+      <div className="mb-2 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <p className="text-[13px] font-semibold uppercase tracking-wide text-primary-600">Contact Detail</p>
+        </div>
+        {onEdit && !isDeleted ? (
+          <button
+            type="button"
+            onClick={() => onEdit(contact)}
+            className="rounded-md bg-primary-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-primary-700"
+          >
+            Update
+          </button>
+        ) : null}
+      </div>
+
+      <div className="grid gap-3 lg:grid-cols-2">
+        {/* Row 1: Name & Job Title */}
+        <FieldRow
+          label="Name"
+          value={
+            <div className="grid grid-cols-[6rem,1fr,1fr] gap-2 max-w-md w-full">
+              <div className={cn(fieldBoxClass)}>
+                {contact.suffix || <span className="text-gray-400">Suffix</span>}
+              </div>
+              <div className={cn(fieldBoxClass)}>
+                {contact.firstName || <span className="text-gray-400">First</span>}
+              </div>
+              <div className={cn(fieldBoxClass)}>
+                {contact.lastName || <span className="text-gray-400">Last</span>}
+              </div>
+            </div>
+          }
+        />
+        <FieldRow
+          label="Job Title"
+          value={<div className={cn(fieldBoxClass)}>{contact.jobTitle || "--"}</div>}
+        />
+
+        {/* Row 2: Contact Type & Email */}
+        <FieldRow
+          label="Contact Type"
+          value={<div className={cn(fieldBoxClass)}>{contact.contactType || "--"}</div>}
+        />
+        <FieldRow
+          label="Email Address"
+          value={<div className={cn(fieldBoxClass)}>{contact.emailAddress || "--"}</div>}
+        />
+
+        {/* Row 3: Account Name & Shipping Address */}
+        <FieldRow
+          label="Account Name"
+          value={
+            <div className="flex items-center gap-2 w-full max-w-md">
+              <div className={cn(fieldBoxClass)}>{contact.accountName || "--"}</div>
+              <div className="flex items-center gap-2 shrink-0 bg-transparent px-0 py-1 text-[11px] font-medium text-gray-600">
+                <span>Active (Y/N)</span>
+                <ReadOnlySwitch value={!!contact.active} />
+              </div>
+            </div>
+          }
+        />
+        <FieldRow
+          label="Shipping Address"
+          value={<div className={cn(fieldBoxClass)}>{contact.accountShippingAddress || "--"}</div>}
+        />
+
+        {/* Row 4: Work Phone & Contact ID */}
+        <FieldRow
+          label="Work Phone"
+          value={
+            <div className="flex items-center gap-2 w-full max-w-md">
+              <div className={cn(fieldBoxClass)}>{contact.workPhone || "--"}</div>
+              <div className="flex items-center gap-2 shrink-0 bg-transparent px-0 py-1 text-[11px] font-medium text-gray-600">
+                <span>EXT</span>
+                <div className="min-w-[3rem] text-center border-b-2 border-gray-300 py-1">{contact.workPhoneExt || "--"}</div>
+              </div>
+            </div>
+          }
+        />
+        <FieldRow
+          label="Contact ID"
+          value={<div className={cn(fieldBoxClass)}>{contact.id || "--"}</div>}
+        />
+
+        {/* Row 5: Mobile & Description */}
+        <FieldRow
+          label="Mobile"
+          value={<div className={cn(fieldBoxClass)}>{contact.mobilePhone || "--"}</div>}
+        />
+        <FieldRow
+          label="Description"
+          value={<div className={cn(fieldBoxClass)}>{contact.description || "No description provided."}</div>}
+        />
+      </div>
+    </div>
+  )
+}
+
+export default ContactHeaderV2
+
+

@@ -17,7 +17,7 @@ type SearchSuggestion = {
 const SHOW_GLOBAL_SEARCH = false
 
 export function Topbar() {
-  const pathname = usePathname()
+  const pathname = usePathname() || ''
   const router = useRouter()
   const [searchQuery, setSearchQuery] = useState("")
   const [suggestions, setSuggestions] = useState<SearchSuggestion[]>([])

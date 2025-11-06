@@ -147,7 +147,7 @@ function capitalizeSegment(segment: string): string {
 }
 
 export function Breadcrumb({ items, className = '' }: BreadcrumbProps) {
-  const pathname = usePathname()
+  const pathname = usePathname() || '/'
   const { items: contextItems } = useBreadcrumbs()
 
   const baseItems = useMemo(() => {

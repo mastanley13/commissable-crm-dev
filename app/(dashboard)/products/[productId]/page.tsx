@@ -6,22 +6,24 @@ import { ProductDetailsView, ProductDetailRecord } from "@/components/product-de
 import { useToasts } from "@/components/toast"
 
 export default function ProductDetailPage() {
-  const params = useParams()
+  const params = useParams<{ productId: string }>() as { productId?: string | string[] } | null
   const { showError } = useToasts()
   const [product, setProduct] = useState<ProductDetailRecord | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const productId = params.productId as string
+  // productId comes from the dynamic route segment; ensure string
+  const productId = params?.productId
+  const pid = Array.isArray(productId) ? (productId[0] ?? "") : (productId ?? "")
 
   const loadProduct = useCallback(async () => {
-    if (!productId) return
+    if (!pid) return
 
     setLoading(true)
     setError(null)
 
     try {
-      const response = await fetch(`/api/products/${productId}`, {
+      const response = await fetch(`/api/products/${pid}`, {
         cache: "no-store"
       })
 
@@ -40,7 +42,7 @@ export default function ProductDetailPage() {
     } finally {
       setLoading(false)
     }
-  }, [productId, showError])
+  }, [pid, showError])
 
   useEffect(() => {
     void loadProduct()

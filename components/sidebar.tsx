@@ -10,7 +10,7 @@ import { ChevronLeft, ChevronRight, Settings, LogOut } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
 
 export function Sidebar() {
-  const pathname = usePathname()
+  const pathname = usePathname() || ''
   const searchParams = useSearchParams()
   const [collapsed, setCollapsed] = useState(false)
   const [showUserMenu, setShowUserMenu] = useState(false)
