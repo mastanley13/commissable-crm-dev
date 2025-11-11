@@ -1,41 +1,46 @@
 'use client'
 
-import { useState, useCallback, useMemo } from 'react'
-import { ListHeader } from '@/components/list-header'
+import { useState, useCallback, useMemo, useLayoutEffect, useRef, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import { ListHeader, FilterColumnOption, ColumnFilter } from '@/components/list-header'
 import { DynamicTable, Column, PaginationInfo } from '@/components/dynamic-table'
 import { ColumnChooserModal } from '@/components/column-chooser-modal'
 import { useTablePreferences } from '@/hooks/useTablePreferences'
-import { TableChangeNotification } from '@/components/table-change-notification'
 import { reconciliationData } from '@/lib/mock-data'
-import { Check, X, Settings } from 'lucide-react'
+import { Check, X, Trash2 } from 'lucide-react'
+import { calculateMinWidth } from '@/lib/column-width-utils'
+import { cn } from '@/lib/utils'
+
+const TABLE_BOTTOM_RESERVE = 110
+const TABLE_MIN_BODY_HEIGHT = 320
+
+const RECONCILIATION_DEFAULT_VISIBLE_COLUMN_IDS = new Set<string>([
+  'accountName',
+  'month',
+  'totalRevenue',
+  'totalCommissions',
+  'status'
+])
 
 const reconciliationColumns: Column[] = [
   {
-    id: 'active',
-    label: 'Active',
-    width: 80,
-    minWidth: 60,
-    maxWidth: 100,
-    type: 'toggle',
-    accessor: 'active'
-  },
-  {
-    id: 'reconciled',
-    label: 'Reconciled',
-    width: 100,
-    minWidth: 80,
-    maxWidth: 120,
-    type: 'toggle',
-    accessor: 'reconciled'
+    id: 'multi-action',
+    label: 'Select All',
+    width: 200,
+    minWidth: calculateMinWidth({ label: 'Select All', type: 'multi-action', sortable: false }),
+    maxWidth: 240,
+    type: 'multi-action',
+    accessor: 'select'
   },
   {
     id: 'accountName',
     label: 'Account Name',
     width: 200,
-    minWidth: 150,
+    minWidth: calculateMinWidth({ label: 'Account Name', type: 'text', sortable: true }),
     maxWidth: 300,
     sortable: true,
     type: 'text',
+    hideable: false,
     render: (value) => (
       <span className="text-blue-600 hover:text-blue-800 cursor-pointer font-medium">
         {value}
@@ -46,7 +51,7 @@ const reconciliationColumns: Column[] = [
     id: 'month',
     label: 'Period',
     width: 150,
-    minWidth: 120,
+    minWidth: calculateMinWidth({ label: 'Period', type: 'text', sortable: true }),
     maxWidth: 200,
     sortable: true,
     type: 'text'
@@ -55,7 +60,7 @@ const reconciliationColumns: Column[] = [
     id: 'totalRevenue',
     label: 'Total Revenue',
     width: 150,
-    minWidth: 120,
+    minWidth: calculateMinWidth({ label: 'Total Revenue', type: 'text', sortable: true }),
     maxWidth: 200,
     sortable: true,
     type: 'text'
@@ -63,9 +68,9 @@ const reconciliationColumns: Column[] = [
   {
     id: 'totalCommissions',
     label: 'Total Commissions',
-    width: 150,
-    minWidth: 120,
-    maxWidth: 200,
+    width: 180,
+    minWidth: calculateMinWidth({ label: 'Total Commissions', type: 'text', sortable: true }),
+    maxWidth: 220,
     sortable: true,
     type: 'text'
   },
@@ -73,7 +78,7 @@ const reconciliationColumns: Column[] = [
     id: 'status',
     label: 'Status',
     width: 120,
-    minWidth: 100,
+    minWidth: calculateMinWidth({ label: 'Status', type: 'text', sortable: true }),
     maxWidth: 150,
     sortable: true,
     type: 'text',
@@ -88,16 +93,57 @@ const reconciliationColumns: Column[] = [
         </div>
       )
     }
+  },
+  {
+    id: 'active',
+    label: 'Active (Y/N)',
+    width: 120,
+    minWidth: calculateMinWidth({ label: 'Active (Y/N)', type: 'text', sortable: true }),
+    maxWidth: 160,
+    sortable: true,
+    type: 'text',
+    hidden: true,
+    accessor: 'active',
+    render: (value: any) => (value ? 'Yes' : 'No')
+  },
+  {
+    id: 'reconciled',
+    label: 'Reconciled (Y/N)',
+    width: 140,
+    minWidth: calculateMinWidth({ label: 'Reconciled (Y/N)', type: 'text', sortable: true }),
+    maxWidth: 180,
+    sortable: true,
+    type: 'text',
+    hidden: true,
+    accessor: 'reconciled',
+    render: (value: any) => (value ? 'Yes' : 'No')
   }
 ]
 
+const filterOptions: FilterColumnOption[] = [
+  { id: 'accountName', label: 'Account Name' },
+  { id: 'month', label: 'Period' },
+  { id: 'totalRevenue', label: 'Total Revenue' },
+  { id: 'totalCommissions', label: 'Total Commissions' },
+  { id: 'status', label: 'Status' }
+]
+
 export default function ReconciliationPage() {
+  const router = useRouter()
   const [reconciliation, setReconciliation] = useState(reconciliationData)
-  const [filteredReconciliation, setFilteredReconciliation] = useState(reconciliationData)
   const [loading, setLoading] = useState(false)
   const [showColumnSettings, setShowColumnSettings] = useState(false)
   const [currentPage, setCurrentPage] = useState<number>(1)
   const [pageSize, setPageSize] = useState<number>(25)
+  const [columnFilters, setColumnFilters] = useState<ColumnFilter[]>([])
+  const [activeFilter, setActiveFilter] = useState<'active' | 'inactive' | 'all'>('all')
+  const [searchQuery, setSearchQuery] = useState<string>('')
+  const [sortConfig, setSortConfig] = useState<{ columnId: string; direction: 'asc' | 'desc' } | null>(null)
+  const [selectedReconciliations, setSelectedReconciliations] = useState<string[]>([])
+  const [reconciliationColumnsNormalized, setReconciliationColumnsNormalized] = useState(false)
+  const [tableBodyHeight, setTableBodyHeight] = useState<number | undefined>(undefined)
+  const [updatingReconciliationIds, setUpdatingReconciliationIds] = useState<Set<string>>(new Set())
+  const tableAreaNodeRef = useRef<HTMLDivElement | null>(null)
 
   const {
     columns: preferenceColumns,
@@ -112,47 +158,182 @@ export default function ReconciliationPage() {
     saveChangesOnModalClose,
   } = useTablePreferences("reconciliation:list", reconciliationColumns)
 
-  const handleSearch = (query: string) => {
-    if (!query.trim()) {
-      setFilteredReconciliation(reconciliation)
+  // Normalize column visibility on initial load
+  useEffect(() => {
+    if (reconciliationColumnsNormalized) {
+      return
+    }
+    if (preferenceLoading) {
+      return
+    }
+    if (!preferenceColumns || preferenceColumns.length === 0) {
       return
     }
 
-    const filtered = reconciliation.filter(record =>
-      Object.values(record).some(value =>
-        value.toString().toLowerCase().includes(query.toLowerCase())
-      )
-    )
-    setFilteredReconciliation(filtered)
-  }
+    const normalized = preferenceColumns.map(column => {
+      if (column.id === 'multi-action') {
+        return column
+      }
 
-  const handleSort = (columnId: string, direction: 'asc' | 'desc') => {
-    const sorted = [...filteredReconciliation].sort((a, b) => {
-      const aValue = a[columnId as keyof typeof a]
-      const bValue = b[columnId as keyof typeof b]
-      
-      if (aValue < bValue) return direction === 'asc' ? -1 : 1
-      if (aValue > bValue) return direction === 'asc' ? 1 : -1
-      return 0
+      if (RECONCILIATION_DEFAULT_VISIBLE_COLUMN_IDS.has(column.id)) {
+        return column.hidden ? { ...column, hidden: false } : column
+      }
+
+      return column.hidden === true ? column : { ...column, hidden: true }
     })
-    
-    setFilteredReconciliation(sorted)
-  }
+
+    const changed = normalized.some((column, index) => column.hidden !== preferenceColumns[index].hidden)
+
+    if (changed) {
+      handleColumnsChange(normalized)
+    }
+
+    setReconciliationColumnsNormalized(true)
+  }, [preferenceColumns, preferenceLoading, handleColumnsChange, reconciliationColumnsNormalized])
+
+  // Measure table area for height calculation
+  const measureTableArea = useCallback(() => {
+    const node = tableAreaNodeRef.current
+    if (!node || typeof window === 'undefined') {
+      return
+    }
+
+    const rect = node.getBoundingClientRect()
+    const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0
+    if (viewportHeight <= 0) {
+      return
+    }
+
+    const available = viewportHeight - rect.top - TABLE_BOTTOM_RESERVE
+    if (!Number.isFinite(available)) {
+      return
+    }
+
+    const nextHeight = Math.max(TABLE_MIN_BODY_HEIGHT, Math.floor(available))
+    if (nextHeight !== tableBodyHeight) {
+      setTableBodyHeight(nextHeight)
+    }
+  }, [tableBodyHeight])
+
+  const tableAreaRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      tableAreaNodeRef.current = node
+      if (node) {
+        window.requestAnimationFrame(() => {
+          measureTableArea()
+        })
+      }
+    },
+    [measureTableArea]
+  )
+
+  useLayoutEffect(() => {
+    measureTableArea()
+  }, [measureTableArea])
+
+  useEffect(() => {
+    const handleResize = () => measureTableArea()
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [measureTableArea])
+
+  useEffect(() => {
+    window.requestAnimationFrame(() => {
+      measureTableArea()
+    })
+  }, [
+    measureTableArea,
+    reconciliation.length,
+    selectedReconciliations.length,
+    loading,
+    preferenceLoading,
+    currentPage,
+    pageSize,
+  ])
+
+  const handleSearch = useCallback((query: string) => {
+    setSearchQuery(query)
+    setCurrentPage(1) // Reset to first page on search
+  }, [])
+
+  const handleSort = useCallback((columnId: string, direction: 'asc' | 'desc') => {
+    setSortConfig({ columnId, direction })
+  }, [])
 
   const handleRowClick = useCallback((record: any) => {
     console.log('Reconciliation record clicked:', record)
     // Navigate to reconciliation detail page or open modal
   }, [])
 
-  const handleFilterChange = (filter: string) => {
+  const handleStatusFilterChange = useCallback((filter: string) => {
     if (filter === 'active') {
-      setFilteredReconciliation(reconciliation.filter(record => record.active))
-    } else if (filter === 'reconciled') {
-      setFilteredReconciliation(reconciliation.filter(record => record.reconciled))
+      setActiveFilter('active')
+    } else if (filter === 'inactive') {
+      setActiveFilter('inactive')
     } else {
-      setFilteredReconciliation(reconciliation)
+      setActiveFilter('all')
     }
-  }
+    setCurrentPage(1) // Reset to first page on filter change
+  }, [])
+
+  const handleColumnFilters = useCallback((filters: ColumnFilter[]) => {
+    setColumnFilters(filters)
+    setCurrentPage(1) // Reset to first page on filter change
+  }, [])
+
+  const handleReconciliationSelect = useCallback((reconciliationId: string, selected: boolean) => {
+    setSelectedReconciliations((previous) => {
+      if (selected) {
+        if (previous.includes(reconciliationId)) {
+          return previous
+        }
+        return [...previous, reconciliationId]
+      }
+
+      if (!previous.includes(reconciliationId)) {
+        return previous
+      }
+
+      return previous.filter((id) => id !== reconciliationId)
+    })
+  }, [])
+
+  const handleSelectAll = useCallback((selected: boolean) => {
+    if (selected) {
+      setSelectedReconciliations(reconciliation.map((record) => String(record.id)))
+      return
+    }
+    setSelectedReconciliations([])
+  }, [reconciliation])
+
+  const handleToggle = useCallback((row: any, columnId: string, value: boolean) => {
+    const rowId = String(row.id)
+
+    // Mark as updating
+    setUpdatingReconciliationIds(prev => new Set(prev).add(rowId))
+
+    // Simulate async update (in real app, this would be an API call)
+    setTimeout(() => {
+      // Update the reconciliation data when toggle changes
+      setReconciliation(prev => prev.map(record => {
+        if (String(record.id) === rowId) {
+          if (columnId === 'active') {
+            return { ...record, active: value }
+          } else if (columnId === 'reconciled') {
+            return { ...record, reconciled: value }
+          }
+        }
+        return record
+      }))
+
+      // Remove updating state
+      setUpdatingReconciliationIds(prev => {
+        const next = new Set(prev)
+        next.delete(rowId)
+        return next
+      })
+    }, 300)
+  }, [])
 
   // Pagination handlers
   const handlePageChange = useCallback((page: number) => {
@@ -164,16 +345,77 @@ export default function ReconciliationPage() {
     setCurrentPage(1) // Reset to first page when page size changes
   }, [])
 
+  // Apply all filters (search, status, column filters) and sorting
+  const filteredData = useMemo(() => {
+    let filtered = [...reconciliation]
+
+    // Apply search filter
+    if (searchQuery.trim()) {
+      filtered = filtered.filter(record =>
+        Object.values(record).some(value =>
+          value.toString().toLowerCase().includes(searchQuery.toLowerCase())
+        )
+      )
+    }
+
+    // Apply status filter
+    if (activeFilter === 'active') {
+      filtered = filtered.filter(record => record.active)
+    } else if (activeFilter === 'inactive') {
+      filtered = filtered.filter(record => !record.active)
+    }
+
+    // Apply column filters
+    if (columnFilters.length > 0) {
+      filtered = filtered.filter(record => {
+        return columnFilters.every(filter => {
+          const value = record[filter.columnId as keyof typeof record]
+          if (!value) return false
+
+          const valueStr = value.toString().toLowerCase()
+          const filterValue = filter.value.toLowerCase()
+
+          switch (filter.operator || 'contains') {
+            case 'equals':
+              return valueStr === filterValue
+            case 'contains':
+              return valueStr.includes(filterValue)
+            case 'starts_with':
+              return valueStr.startsWith(filterValue)
+            case 'ends_with':
+              return valueStr.endsWith(filterValue)
+            default:
+              return valueStr.includes(filterValue)
+          }
+        })
+      })
+    }
+
+    // Apply sorting
+    if (sortConfig) {
+      filtered.sort((a, b) => {
+        const aValue = a[sortConfig.columnId as keyof typeof a]
+        const bValue = b[sortConfig.columnId as keyof typeof b]
+
+        if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1
+        if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1
+        return 0
+      })
+    }
+
+    return filtered
+  }, [reconciliation, searchQuery, activeFilter, columnFilters, sortConfig])
+
   // Calculate paginated data
   const paginatedReconciliation = useMemo(() => {
     const startIndex = (currentPage - 1) * pageSize
     const endIndex = startIndex + pageSize
-    return filteredReconciliation.slice(startIndex, endIndex)
-  }, [filteredReconciliation, currentPage, pageSize])
+    return filteredData.slice(startIndex, endIndex)
+  }, [filteredData, currentPage, pageSize])
 
   // Calculate pagination info
   const paginationInfo = useMemo((): PaginationInfo => {
-    const totalItems = filteredReconciliation.length
+    const totalItems = filteredData.length
     const totalPages = Math.ceil(totalItems / pageSize)
 
     return {
@@ -182,11 +424,76 @@ export default function ReconciliationPage() {
       pageSize,
       total: totalItems,
     }
-  }, [filteredReconciliation.length, currentPage, pageSize])
+  }, [filteredData.length, currentPage, pageSize])
 
   const tableLoading = loading || preferenceLoading
   const tableColumns = useMemo(() => {
     return preferenceColumns.map((column) => {
+      if (column.id === 'multi-action') {
+        return {
+          ...column,
+          render: (_value: unknown, row: any) => {
+            const rowId = String(row.id)
+            const checked = selectedReconciliations.includes(rowId)
+            const activeValue = row.active
+            const isUpdating = updatingReconciliationIds.has(rowId)
+
+            return (
+              <div className="flex items-center gap-2" data-disable-row-click="true">
+                {/* Checkbox */}
+                <label className="flex cursor-pointer items-center justify-center" onClick={e => e.stopPropagation()}>
+                  <input
+                    type="checkbox"
+                    className="sr-only"
+                    checked={checked}
+                    aria-label={`Select reconciliation ${row.accountName || rowId}`}
+                    onChange={() => handleReconciliationSelect(rowId, !checked)}
+                  />
+                  <span
+                    className={`flex h-4 w-4 items-center justify-center rounded border transition-colors ${
+                      checked
+                        ? 'border-primary-500 bg-primary-600 text-white'
+                        : 'border-gray-300 bg-white text-transparent'
+                    }`}
+                  >
+                    <Check className="h-3 w-3" aria-hidden="true" />
+                  </span>
+                </label>
+
+                {/* Active Toggle */}
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    if (!isUpdating) {
+                      handleToggle(row, 'active', !activeValue)
+                    }
+                  }}
+                  className="relative inline-flex items-center cursor-pointer"
+                  disabled={isUpdating}
+                  title={activeValue ? 'Active' : 'Inactive'}
+                >
+                  <span
+                    className={cn(
+                      'relative inline-flex h-6 w-11 items-center rounded-full transition-colors',
+                      activeValue ? 'bg-primary-600' : 'bg-gray-300',
+                      isUpdating ? 'opacity-50' : ''
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        'inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform',
+                        activeValue ? 'translate-x-5' : 'translate-x-1'
+                      )}
+                    />
+                  </span>
+                </button>
+              </div>
+            )
+          },
+        }
+      }
+
       if (column.id === 'status') {
         return {
           ...column,
@@ -205,7 +512,7 @@ export default function ReconciliationPage() {
       }
       return column;
     });
-  }, [preferenceColumns])
+  }, [preferenceColumns, selectedReconciliations, updatingReconciliationIds, handleReconciliationSelect, handleToggle])
   
   // Get hidden columns by comparing all columns with visible ones
   const hiddenColumns = useMemo(() => {
@@ -214,73 +521,40 @@ export default function ReconciliationPage() {
       .map(col => col.id)
   }, [tableColumns])
 
+  // Create New (Deposit Upload) button handler
+  const handleDepositUpload = useCallback(() => {
+    router.push('/reconciliation/deposit-upload-list')
+  }, [router])
+
   return (
     <div className="dashboard-page-container">
-      <div className="bg-white border-b border-gray-200 px-4 py-3">
-        <div className="flex items-center justify-between gap-4">
-          {/* Left side - Search */}
-          <div className="flex items-center flex-1 max-w-md">
-            <div className="relative w-full">
-              <input
-                type="text"
-                placeholder="Search reconciliation..."
-                onChange={(e) => handleSearch(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all"
-              />
-            </div>
-          </div>
-
-          {/* Table Change Notification - Always show */}
-          <div className="flex items-center">
-            <TableChangeNotification
-              hasUnsavedChanges={hasUnsavedChanges || false}
-              isSaving={preferenceSaving || false}
-              lastSaved={lastSaved || undefined}
-              onSave={saveChanges}
-            />
-          </div>
-
-          {/* Center - Controls */}
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setShowColumnSettings(true)}
-              className="p-2 text-gray-500 rounded-lg hover:bg-gray-100 hover:text-gray-600 transition-colors"
-              title="Column Settings"
-            >
-              <Settings className="h-4 w-4" />
-            </button>
-          </div>
-
-          {/* Right side - Filters */}
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => handleFilterChange("active")}
-              className="px-3 py-1.5 text-sm font-medium rounded-lg transition-colors bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"
-            >
-              Active
-            </button>
-            <button
-              onClick={() => handleFilterChange("reconciled")}
-              className="px-3 py-1.5 text-sm font-medium rounded-lg transition-colors bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"
-            >
-              Reconciled
-            </button>
-            <button
-              onClick={() => handleFilterChange("all")}
-              className="px-3 py-1.5 text-sm font-medium rounded-lg transition-colors bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"
-            >
-              Show All
-            </button>
-          </div>
-        </div>
-      </div>
+      <ListHeader
+        pageTitle="RECONCILIATION LIST"
+        searchPlaceholder="Search reconciliation..."
+        onSearch={handleSearch}
+        onFilterChange={handleStatusFilterChange}
+        onCreateClick={handleDepositUpload}
+        onSettingsClick={() => setShowColumnSettings(true)}
+        filterColumns={filterOptions}
+        columnFilters={columnFilters}
+        onColumnFiltersChange={handleColumnFilters}
+        statusFilter={activeFilter}
+        hasUnsavedTableChanges={hasUnsavedChanges || false}
+        isSavingTableChanges={preferenceSaving || false}
+        lastTableSaved={lastSaved || undefined}
+        onSaveTableChanges={saveChanges}
+        showCreateButton={true}
+        createButtonLabel="Deposit Upload"
+        showStatusFilter={true}
+        showColumnFilters={true}
+      />
 
       {preferenceError && (
         <div className="px-4 text-sm text-red-600">{preferenceError}</div>
       )}
 
       {/* Table */}
-      <div className="flex-1 p-4 min-h-0">
+      <div ref={tableAreaRef} className="flex-1 p-4 min-h-0">
         <DynamicTable
           columns={tableColumns}
           data={paginatedReconciliation}
@@ -289,7 +563,16 @@ export default function ReconciliationPage() {
           loading={tableLoading}
           emptyMessage="No reconciliation records found"
           onColumnsChange={handleColumnsChange}
+          selectedItems={selectedReconciliations}
+          onItemSelect={handleReconciliationSelect}
+          onSelectAll={handleSelectAll}
+          onToggle={(row, columnId, value) => {
+            handleToggle(row, columnId, value)
+          }}
+          fillContainerWidth={true}
           autoSizeColumns={false}
+          alwaysShowPagination={true}
+          maxBodyHeight={tableBodyHeight}
           pagination={paginationInfo}
           onPageChange={handlePageChange}
           onPageSizeChange={handlePageSizeChange}

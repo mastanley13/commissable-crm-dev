@@ -9,45 +9,46 @@ datasource db {
 }
 
 model Tenant {
-  id                  String               @id @default(uuid()) @db.Uuid
-  name                String
-  slug                String               @unique
-  status              TenantStatus         @default(Active)
-  planType            TenantPlan           @default(Pilot)
-  trialEndsAt         DateTime?
-  createdAt           DateTime             @default(now())
-  updatedAt           DateTime             @updatedAt
-  accounts            Account[]
-  accountAssignments  AccountAssignment[]
-  accountNotes        AccountNote[]
-  accountTypes        AccountType[]
-  activities          Activity[]
-  activityAttachments ActivityAttachment[]
-  activityLinks       ActivityLink[]
-  addresses           Address[]
-  auditLogs           AuditLog[]
-  contacts            Contact[]
-  contactPreferences  ContactPreference[]
-  exportJobs          ExportJob[]
-  fieldDefinitions    FieldDefinition[]
-  groups              Group[]
-  groupMembers        GroupMember[]
-  importJobs          ImportJob[]
-  industries          Industry[]
-  opportunities       Opportunity[]
-  opportunityProducts OpportunityProduct[]
-  opportunityRoles    OpportunityRole[]
-  products            Product[]
-  reconciliations     Reconciliation[]
-  reconciliationItems ReconciliationItem[]
-  revenueSchedules    RevenueSchedule[]
-  roles               Role[]
-  rolePermissions     RolePermission[]
-  systemSettings      SystemSetting[]
-  tablePreferences    TablePreference[]
-  tickets             Ticket[]
-  users               User[]
-  sessions            UserSession[]
+  id                      String                   @id @default(uuid()) @db.Uuid
+  name                    String
+  slug                    String                   @unique
+  status                  TenantStatus             @default(Active)
+  planType                TenantPlan               @default(Pilot)
+  trialEndsAt             DateTime?
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
+  accounts                Account[]
+  accountAssignments      AccountAssignment[]
+  accountNotes            AccountNote[]
+  accountTypes            AccountType[]
+  activities              Activity[]
+  activityAttachments     ActivityAttachment[]
+  activityLinks           ActivityLink[]
+  addresses               Address[]
+  auditLogs               AuditLog[]
+  contacts                Contact[]
+  contactPreferences      ContactPreference[]
+  exportJobs              ExportJob[]
+  fieldDefinitions        FieldDefinition[]
+  groups                  Group[]
+  groupMembers            GroupMember[]
+  importJobs              ImportJob[]
+  industries              Industry[]
+  opportunities           Opportunity[]
+  opportunityProducts     OpportunityProduct[]
+  opportunityRoles        OpportunityRole[]
+  products                Product[]
+  reconciliations         Reconciliation[]
+  reconciliationTemplates ReconciliationTemplate[]
+  reconciliationItems     ReconciliationItem[]
+  revenueSchedules        RevenueSchedule[]
+  roles                   Role[]
+  rolePermissions         RolePermission[]
+  systemSettings          SystemSetting[]
+  tablePreferences        TablePreference[]
+  tickets                 Ticket[]
+  users                   User[]
+  sessions                UserSession[]
 }
 
 model Role {
@@ -92,9 +93,9 @@ model RolePermission {
 }
 
 model User {
-  id                          String               @id @default(uuid()) @db.Uuid
-  tenantId                    String               @db.Uuid
-  roleId                      String?              @db.Uuid
+  id                          String                   @id @default(uuid()) @db.Uuid
+  tenantId                    String                   @db.Uuid
+  roleId                      String?                  @db.Uuid
   email                       String
   firstName                   String
   lastName                    String
@@ -104,58 +105,59 @@ model User {
   department                  String?
   mobilePhone                 String?
   workPhone                   String?
-  status                      UserStatus           @default(Invited)
+  status                      UserStatus               @default(Invited)
   lastLoginAt                 DateTime?
   passwordChangedAt           DateTime?
-  authProvider                AuthProvider         @default(Password)
+  authProvider                AuthProvider             @default(Password)
   avatarUrl                   String?
   timeZone                    String?
-  createdById                 String?              @db.Uuid
-  updatedById                 String?              @db.Uuid
-  createdAt                   DateTime             @default(now())
-  updatedAt                   DateTime             @updatedAt
+  createdById                 String?                  @db.Uuid
+  updatedById                 String?                  @db.Uuid
+  createdAt                   DateTime                 @default(now())
+  updatedAt                   DateTime                 @updatedAt
   passwordHash                String?
-  accountsCreated             Account[]            @relation("AccountCreatedBy")
-  accountsOwned               Account[]            @relation("AccountOwner")
-  accountsUpdated             Account[]            @relation("AccountUpdatedBy")
-  accountAssignmentsManaged   AccountAssignment[]  @relation("AccountAssignmentAssignedBy")
+  accountsCreated             Account[]                @relation("AccountCreatedBy")
+  accountsOwned               Account[]                @relation("AccountOwner")
+  accountsUpdated             Account[]                @relation("AccountUpdatedBy")
+  accountAssignmentsManaged   AccountAssignment[]      @relation("AccountAssignmentAssignedBy")
   accountAssignments          AccountAssignment[]
   accountNotes                AccountNote[]
-  activitiesAssigned          Activity[]           @relation("ActivityAssignee")
-  activitiesCreated           Activity[]           @relation("ActivityCreator")
-  activitiesUpdated           Activity[]           @relation("ActivityUpdater")
-  activityAttachmentsUploaded ActivityAttachment[] @relation("ActivityAttachmentUploader")
+  activitiesAssigned          Activity[]               @relation("ActivityAssignee")
+  activitiesCreated           Activity[]               @relation("ActivityCreator")
+  activitiesUpdated           Activity[]               @relation("ActivityUpdater")
+  activityAttachmentsUploaded ActivityAttachment[]     @relation("ActivityAttachmentUploader")
   auditLogs                   AuditLog[]
-  contactsCreated             Contact[]            @relation("ContactCreatedBy")
-  contactsDeleted             Contact[]            @relation("ContactDeletedBy")
-  contactsOwned               Contact[]            @relation("ContactOwner")
-  contactsUpdated             Contact[]            @relation("ContactUpdatedBy")
+  contactsCreated             Contact[]                @relation("ContactCreatedBy")
+  contactsDeleted             Contact[]                @relation("ContactDeletedBy")
+  contactsOwned               Contact[]                @relation("ContactOwner")
+  contactsUpdated             Contact[]                @relation("ContactUpdatedBy")
   contactPreferences          ContactPreference[]
   exportJobs                  ExportJob[]
-  groupsOwned                 Group[]              @relation("GroupOwner")
-  groupMembershipsManaged     GroupMember[]        @relation("GroupMemberAddedBy")
+  groupsOwned                 Group[]                  @relation("GroupOwner")
+  groupMembershipsManaged     GroupMember[]            @relation("GroupMemberAddedBy")
   groupMemberships            GroupMember[]
   importJobs                  ImportJob[]
-  opportunitiesCreated        Opportunity[]        @relation("OpportunityCreatedBy")
-  opportunitiesOwned          Opportunity[]        @relation("OpportunityOwner")
-  opportunitiesUpdated        Opportunity[]        @relation("OpportunityUpdatedBy")
-  productsCreated             Product[]            @relation("ProductCreatedBy")
-  productsUpdated             Product[]            @relation("ProductUpdatedBy")
-  reconciliationsHandled      Reconciliation[]     @relation("ReconciliationUser")
-  revenueSchedulesCreated     RevenueSchedule[]    @relation("RevenueScheduleCreatedBy")
-  revenueSchedulesUpdated     RevenueSchedule[]    @relation("RevenueScheduleUpdatedBy")
-  roleGrants                  RolePermission[]     @relation("RolePermissionGrantedBy")
-  opportunityRolesCreated     OpportunityRole[]    @relation("OpportunityRoleCreatedBy")
-  opportunityRolesUpdated     OpportunityRole[]    @relation("OpportunityRoleUpdatedBy")
+  opportunitiesCreated        Opportunity[]            @relation("OpportunityCreatedBy")
+  opportunitiesOwned          Opportunity[]            @relation("OpportunityOwner")
+  opportunitiesUpdated        Opportunity[]            @relation("OpportunityUpdatedBy")
+  productsCreated             Product[]                @relation("ProductCreatedBy")
+  productsUpdated             Product[]                @relation("ProductUpdatedBy")
+  reconciliationsHandled      Reconciliation[]         @relation("ReconciliationUser")
+  reconciliationTemplates     ReconciliationTemplate[]
+  revenueSchedulesCreated     RevenueSchedule[]        @relation("RevenueScheduleCreatedBy")
+  revenueSchedulesUpdated     RevenueSchedule[]        @relation("RevenueScheduleUpdatedBy")
+  roleGrants                  RolePermission[]         @relation("RolePermissionGrantedBy")
+  opportunityRolesCreated     OpportunityRole[]        @relation("OpportunityRoleCreatedBy")
+  opportunityRolesUpdated     OpportunityRole[]        @relation("OpportunityRoleUpdatedBy")
   tablePreferences            TablePreference[]
-  ticketsAssigned             Ticket[]             @relation("TicketAssignee")
-  ticketsCreated              Ticket[]             @relation("TicketCreatedBy")
-  createdBy                   User?                @relation("UserCreatedBy", fields: [createdById], references: [id])
-  createdUsers                User[]               @relation("UserCreatedBy")
-  role                        Role?                @relation(fields: [roleId], references: [id])
-  tenant                      Tenant               @relation(fields: [tenantId], references: [id])
-  updatedBy                   User?                @relation("UserUpdatedBy", fields: [updatedById], references: [id])
-  updatedUsers                User[]               @relation("UserUpdatedBy")
+  ticketsAssigned             Ticket[]                 @relation("TicketAssignee")
+  ticketsCreated              Ticket[]                 @relation("TicketCreatedBy")
+  createdBy                   User?                    @relation("UserCreatedBy", fields: [createdById], references: [id])
+  createdUsers                User[]                   @relation("UserCreatedBy")
+  role                        Role?                    @relation(fields: [roleId], references: [id])
+  tenant                      Tenant                   @relation(fields: [tenantId], references: [id])
+  updatedBy                   User?                    @relation("UserUpdatedBy", fields: [updatedById], references: [id])
+  updatedUsers                User[]                   @relation("UserUpdatedBy")
   sessions                    UserSession[]
 
   @@unique([tenantId, email])
@@ -232,61 +234,63 @@ model Address {
 }
 
 model Account {
-  id                            String              @id @default(uuid()) @db.Uuid
-  tenantId                      String              @db.Uuid
-  accountTypeId                 String              @db.Uuid
-  industryId                    String?             @db.Uuid
-  parentAccountId               String?             @db.Uuid
-  ownerId                       String?             @db.Uuid
-  shippingAddressId             String?             @db.Uuid
-  billingAddressId              String?             @db.Uuid
-  createdById                   String?             @db.Uuid
-  updatedById                   String?             @db.Uuid
-  accountNumber                 String?
-  accountName                   String
-  accountLegalName              String?
-  status                        AccountStatus       @default(Active)
-  websiteUrl                    String?
-  supportEmail                  String?
-  phone                         String?
-  fax                           String?
-  annualRevenue                 Decimal?            @db.Decimal(16, 2)
-  employeeCount                 Int?
-  sicCode                       String?
-  taxId                         String?
-  description                   String?
-  notes                         String?
-  shippingSyncBilling           Boolean             @default(false)
-  mapPlaceId                    String?
-  mapUrl                        String?
-  copyProtected                 Boolean             @default(false)
-  createdAt                     DateTime            @default(now())
-  updatedAt                     DateTime            @updatedAt
-  accountType                   AccountType         @relation(fields: [accountTypeId], references: [id])
-  billingAddress                Address?            @relation("AccountBillingAddress", fields: [billingAddressId], references: [id])
-  createdBy                     User?               @relation("AccountCreatedBy", fields: [createdById], references: [id])
-  industry                      Industry?           @relation(fields: [industryId], references: [id])
-  owner                         User?               @relation("AccountOwner", fields: [ownerId], references: [id])
-  parent                        Account?            @relation("AccountParent", fields: [parentAccountId], references: [id])
-  children                      Account[]           @relation("AccountParent")
-  shippingAddress               Address?            @relation("AccountShippingAddress", fields: [shippingAddressId], references: [id])
-  tenant                        Tenant              @relation(fields: [tenantId], references: [id])
-  updatedBy                     User?               @relation("AccountUpdatedBy", fields: [updatedById], references: [id])
-  assignments                   AccountAssignment[]
-  accountNotes                  AccountNote[]
-  activities                    Activity[]
-  contacts                      Contact[]
-  groupMembers                  GroupMember[]
-  opportunities                 Opportunity[]
-  distributorProducts           Product[]           @relation("ProductDistributor")
-  vendorProducts                Product[]           @relation("ProductVendor")
-  reconciliations               Reconciliation[]
-  revenueSchedules              RevenueSchedule[]
-  revenueSchedulesAsDistributor RevenueSchedule[]   @relation("RevenueScheduleDistributor")
-  revenueSchedulesAsVendor      RevenueSchedule[]   @relation("RevenueScheduleVendor")
-  tickets                       Ticket[]
-  ticketsAsDistributor          Ticket[]            @relation("TicketDistributor")
-  ticketsAsVendor               Ticket[]            @relation("TicketVendor")
+  id                                   String                   @id @default(uuid()) @db.Uuid
+  tenantId                             String                   @db.Uuid
+  accountTypeId                        String                   @db.Uuid
+  industryId                           String?                  @db.Uuid
+  parentAccountId                      String?                  @db.Uuid
+  ownerId                              String?                  @db.Uuid
+  shippingAddressId                    String?                  @db.Uuid
+  billingAddressId                     String?                  @db.Uuid
+  createdById                          String?                  @db.Uuid
+  updatedById                          String?                  @db.Uuid
+  accountNumber                        String?
+  accountName                          String
+  accountLegalName                     String?
+  status                               AccountStatus            @default(Active)
+  websiteUrl                           String?
+  supportEmail                         String?
+  phone                                String?
+  fax                                  String?
+  annualRevenue                        Decimal?                 @db.Decimal(16, 2)
+  employeeCount                        Int?
+  sicCode                              String?
+  taxId                                String?
+  description                          String?
+  notes                                String?
+  shippingSyncBilling                  Boolean                  @default(false)
+  mapPlaceId                           String?
+  mapUrl                               String?
+  copyProtected                        Boolean                  @default(false)
+  createdAt                            DateTime                 @default(now())
+  updatedAt                            DateTime                 @updatedAt
+  accountType                          AccountType              @relation(fields: [accountTypeId], references: [id])
+  billingAddress                       Address?                 @relation("AccountBillingAddress", fields: [billingAddressId], references: [id])
+  createdBy                            User?                    @relation("AccountCreatedBy", fields: [createdById], references: [id])
+  industry                             Industry?                @relation(fields: [industryId], references: [id])
+  owner                                User?                    @relation("AccountOwner", fields: [ownerId], references: [id])
+  parent                               Account?                 @relation("AccountParent", fields: [parentAccountId], references: [id])
+  children                             Account[]                @relation("AccountParent")
+  shippingAddress                      Address?                 @relation("AccountShippingAddress", fields: [shippingAddressId], references: [id])
+  tenant                               Tenant                   @relation(fields: [tenantId], references: [id])
+  updatedBy                            User?                    @relation("AccountUpdatedBy", fields: [updatedById], references: [id])
+  assignments                          AccountAssignment[]
+  accountNotes                         AccountNote[]
+  activities                           Activity[]
+  contacts                             Contact[]
+  groupMembers                         GroupMember[]
+  opportunities                        Opportunity[]
+  distributorProducts                  Product[]                @relation("ProductDistributor")
+  vendorProducts                       Product[]                @relation("ProductVendor")
+  reconciliations                      Reconciliation[]
+  revenueSchedules                     RevenueSchedule[]
+  revenueSchedulesAsDistributor        RevenueSchedule[]        @relation("RevenueScheduleDistributor")
+  revenueSchedulesAsVendor             RevenueSchedule[]        @relation("RevenueScheduleVendor")
+  tickets                              Ticket[]
+  ticketsAsDistributor                 Ticket[]                 @relation("TicketDistributor")
+  ticketsAsVendor                      Ticket[]                 @relation("TicketVendor")
+  reconciliationTemplatesAsDistributor ReconciliationTemplate[] @relation("ReconciliationTemplateDistributor")
+  reconciliationTemplatesAsVendor      ReconciliationTemplate[] @relation("ReconciliationTemplateVendor")
 
   @@unique([tenantId, accountName])
   @@index([tenantId, accountTypeId])
@@ -328,62 +332,63 @@ model AccountNote {
 }
 
 model Contact {
-  id                     String              @id @default(uuid()) @db.Uuid
-  tenantId               String              @db.Uuid
-  accountId              String              @db.Uuid
-  accountTypeId          String?             @db.Uuid
-  ownerId                String?             @db.Uuid
-  reportsToContactId     String?             @db.Uuid
-  mailingAddressId       String?             @db.Uuid
-  createdById            String?             @db.Uuid
-  updatedById            String?             @db.Uuid
-  suffix                 String?
-  prefix                 String?
-  firstName              String
-  middleName             String?
-  lastName               String
-  fullName               String
-  jobTitle               String?
-  department             String?
-  contactType            String?
-  workPhone              String?
-  workPhoneExt           String?
-  mobilePhone            String?
-  otherPhone             String?
-  fax                    String?
-  emailAddress           String?
-  alternateEmail         String?
-  preferredContactMethod ContactMethod       @default(Email)
-  isPrimary              Boolean             @default(false)
-  isDecisionMaker        Boolean             @default(false)
-  assistantName          String?
-  assistantPhone         String?
-  linkedinUrl            String?
-  websiteUrl             String?
-  birthdate              DateTime?
-  anniversary            DateTime?
-  description            String?
-  notes                  String?
-  syncAddressWithAccount Boolean             @default(true)
-  createdAt              DateTime            @default(now())
-  updatedAt              DateTime            @updatedAt
-  deletedAt              DateTime?
-  deletedById            String?             @db.Uuid
-  activities             Activity[]
-  account                Account             @relation(fields: [accountId], references: [id])
-  accountType            AccountType?        @relation(fields: [accountTypeId], references: [id])
-  createdBy              User?               @relation("ContactCreatedBy", fields: [createdById], references: [id])
-  deletedBy              User?               @relation("ContactDeletedBy", fields: [deletedById], references: [id])
-  mailingAddress         Address?            @relation("ContactMailingAddress", fields: [mailingAddressId], references: [id])
-  owner                  User?               @relation("ContactOwner", fields: [ownerId], references: [id])
-  reportsTo              Contact?            @relation("ContactReportsTo", fields: [reportsToContactId], references: [id])
-  directReports          Contact[]           @relation("ContactReportsTo")
-  tenant                 Tenant              @relation(fields: [tenantId], references: [id])
-  updatedBy              User?               @relation("ContactUpdatedBy", fields: [updatedById], references: [id])
-  preferences            ContactPreference[]
-  groupMembers           GroupMember[]
-  tickets                Ticket[]
-  opportunityRoles       OpportunityRole[]
+  id                             String                   @id @default(uuid()) @db.Uuid
+  tenantId                       String                   @db.Uuid
+  accountId                      String                   @db.Uuid
+  accountTypeId                  String?                  @db.Uuid
+  ownerId                        String?                  @db.Uuid
+  reportsToContactId             String?                  @db.Uuid
+  mailingAddressId               String?                  @db.Uuid
+  createdById                    String?                  @db.Uuid
+  updatedById                    String?                  @db.Uuid
+  suffix                         String?
+  prefix                         String?
+  firstName                      String
+  middleName                     String?
+  lastName                       String
+  fullName                       String
+  jobTitle                       String?
+  department                     String?
+  contactType                    String?
+  workPhone                      String?
+  workPhoneExt                   String?
+  mobilePhone                    String?
+  otherPhone                     String?
+  fax                            String?
+  emailAddress                   String?
+  alternateEmail                 String?
+  preferredContactMethod         ContactMethod            @default(Email)
+  isPrimary                      Boolean                  @default(false)
+  isDecisionMaker                Boolean                  @default(false)
+  assistantName                  String?
+  assistantPhone                 String?
+  linkedinUrl                    String?
+  websiteUrl                     String?
+  birthdate                      DateTime?
+  anniversary                    DateTime?
+  description                    String?
+  notes                          String?
+  syncAddressWithAccount         Boolean                  @default(true)
+  createdAt                      DateTime                 @default(now())
+  updatedAt                      DateTime                 @updatedAt
+  deletedAt                      DateTime?
+  deletedById                    String?                  @db.Uuid
+  activities                     Activity[]
+  account                        Account                  @relation(fields: [accountId], references: [id])
+  accountType                    AccountType?             @relation(fields: [accountTypeId], references: [id])
+  createdBy                      User?                    @relation("ContactCreatedBy", fields: [createdById], references: [id])
+  deletedBy                      User?                    @relation("ContactDeletedBy", fields: [deletedById], references: [id])
+  mailingAddress                 Address?                 @relation("ContactMailingAddress", fields: [mailingAddressId], references: [id])
+  owner                          User?                    @relation("ContactOwner", fields: [ownerId], references: [id])
+  reportsTo                      Contact?                 @relation("ContactReportsTo", fields: [reportsToContactId], references: [id])
+  directReports                  Contact[]                @relation("ContactReportsTo")
+  tenant                         Tenant                   @relation(fields: [tenantId], references: [id])
+  updatedBy                      User?                    @relation("ContactUpdatedBy", fields: [updatedById], references: [id])
+  preferences                    ContactPreference[]
+  groupMembers                   GroupMember[]
+  tickets                        Ticket[]
+  opportunityRoles               OpportunityRole[]
+  reconciliationTemplatesCreated ReconciliationTemplate[]
 
   @@index([tenantId, accountId])
   @@index([tenantId, ownerId])
@@ -495,10 +500,10 @@ model OpportunityProduct {
 }
 
 model OpportunityRole {
-  id             String    @id @default(uuid()) @db.Uuid
-  tenantId       String    @db.Uuid
-  opportunityId  String    @db.Uuid
-  contactId      String?   @db.Uuid
+  id             String   @id @default(uuid()) @db.Uuid
+  tenantId       String   @db.Uuid
+  opportunityId  String   @db.Uuid
+  contactId      String?  @db.Uuid
   role           String
   fullName       String
   jobTitle       String?
@@ -506,11 +511,11 @@ model OpportunityRole {
   workPhone      String?
   phoneExtension String?
   mobile         String?
-  active         Boolean   @default(true)
-  createdById    String?   @db.Uuid
-  updatedById    String?   @db.Uuid
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  active         Boolean  @default(true)
+  createdById    String?  @db.Uuid
+  updatedById    String?  @db.Uuid
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   // Relations
   opportunity Opportunity @relation(fields: [opportunityId], references: [id])
@@ -562,45 +567,45 @@ model Product {
 }
 
 model RevenueSchedule {
-  id                   String                @id @default(uuid()) @db.Uuid
-  tenantId             String                @db.Uuid
-  opportunityId        String?               @db.Uuid
-  opportunityProductId String?               @db.Uuid
-  accountId            String                @db.Uuid
-  productId            String?               @db.Uuid
-  distributorAccountId String?               @db.Uuid
-  vendorAccountId      String?               @db.Uuid
-  scheduleNumber       String?
-  scheduleDate         DateTime?
-  scheduleType         RevenueScheduleType   @default(Recurring)
-  expectedUsage        Decimal?              @db.Decimal(16, 2)
-  usageAdjustment      Decimal?              @db.Decimal(16, 2)
-  actualUsage          Decimal?              @db.Decimal(16, 2)
-  actualUsageAdjustment Decimal?             @db.Decimal(16, 2)
-  expectedCommission   Decimal?              @db.Decimal(16, 2)
-  actualCommission     Decimal?              @db.Decimal(16, 2)
-  actualCommissionAdjustment Decimal?        @db.Decimal(16, 2)
-  orderIdHouse         String?
-  distributorOrderId   String?
-  status               RevenueScheduleStatus @default(Projected)
-  isSelected           Boolean               @default(false)
-  notes                String?
-  createdById          String?               @db.Uuid
-  updatedById          String?               @db.Uuid
-  createdAt            DateTime              @default(now())
-  updatedAt            DateTime              @updatedAt
-  activities           Activity[]            @relation("ActivityRevenueSchedule")
-  reconciliationItems  ReconciliationItem[]
-  account              Account               @relation(fields: [accountId], references: [id])
-  createdBy            User?                 @relation("RevenueScheduleCreatedBy", fields: [createdById], references: [id])
-  distributor          Account?              @relation("RevenueScheduleDistributor", fields: [distributorAccountId], references: [id])
-  opportunity          Opportunity?          @relation(fields: [opportunityId], references: [id])
-  opportunityProduct   OpportunityProduct?   @relation(fields: [opportunityProductId], references: [id])
-  product              Product?              @relation(fields: [productId], references: [id])
-  tenant               Tenant                @relation(fields: [tenantId], references: [id])
-  updatedBy            User?                 @relation("RevenueScheduleUpdatedBy", fields: [updatedById], references: [id])
-  vendor               Account?              @relation("RevenueScheduleVendor", fields: [vendorAccountId], references: [id])
-  tickets              Ticket[]
+  id                         String                @id @default(uuid()) @db.Uuid
+  tenantId                   String                @db.Uuid
+  opportunityId              String?               @db.Uuid
+  opportunityProductId       String?               @db.Uuid
+  accountId                  String                @db.Uuid
+  productId                  String?               @db.Uuid
+  distributorAccountId       String?               @db.Uuid
+  vendorAccountId            String?               @db.Uuid
+  scheduleNumber             String?
+  scheduleDate               DateTime?
+  scheduleType               RevenueScheduleType   @default(Recurring)
+  expectedUsage              Decimal?              @db.Decimal(16, 2)
+  usageAdjustment            Decimal?              @db.Decimal(16, 2)
+  actualUsage                Decimal?              @db.Decimal(16, 2)
+  actualUsageAdjustment      Decimal?              @db.Decimal(16, 2)
+  expectedCommission         Decimal?              @db.Decimal(16, 2)
+  actualCommission           Decimal?              @db.Decimal(16, 2)
+  actualCommissionAdjustment Decimal?              @db.Decimal(16, 2)
+  orderIdHouse               String?
+  distributorOrderId         String?
+  status                     RevenueScheduleStatus @default(Projected)
+  isSelected                 Boolean               @default(false)
+  notes                      String?
+  createdById                String?               @db.Uuid
+  updatedById                String?               @db.Uuid
+  createdAt                  DateTime              @default(now())
+  updatedAt                  DateTime              @updatedAt
+  activities                 Activity[]            @relation("ActivityRevenueSchedule")
+  reconciliationItems        ReconciliationItem[]
+  account                    Account               @relation(fields: [accountId], references: [id])
+  createdBy                  User?                 @relation("RevenueScheduleCreatedBy", fields: [createdById], references: [id])
+  distributor                Account?              @relation("RevenueScheduleDistributor", fields: [distributorAccountId], references: [id])
+  opportunity                Opportunity?          @relation(fields: [opportunityId], references: [id])
+  opportunityProduct         OpportunityProduct?   @relation(fields: [opportunityProductId], references: [id])
+  product                    Product?              @relation(fields: [productId], references: [id])
+  tenant                     Tenant                @relation(fields: [tenantId], references: [id])
+  updatedBy                  User?                 @relation("RevenueScheduleUpdatedBy", fields: [updatedById], references: [id])
+  vendor                     Account?              @relation("RevenueScheduleVendor", fields: [vendorAccountId], references: [id])
+  tickets                    Ticket[]
 
   @@index([tenantId, accountId])
   @@index([tenantId, opportunityId])
@@ -641,6 +646,28 @@ model ReconciliationItem {
   tenant            Tenant          @relation(fields: [tenantId], references: [id])
 
   @@unique([reconciliationId, revenueScheduleId])
+}
+
+model ReconciliationTemplate {
+  id                   String   @id @default(uuid()) @db.Uuid
+  tenantId             String   @db.Uuid
+  name                 String
+  description          String?
+  distributorAccountId String   @db.Uuid
+  vendorAccountId      String   @db.Uuid
+  createdByUserId      String   @db.Uuid
+  createdByContactId   String?  @db.Uuid
+  config               Json?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  tenant               Tenant   @relation(fields: [tenantId], references: [id])
+  distributor          Account  @relation("ReconciliationTemplateDistributor", fields: [distributorAccountId], references: [id])
+  vendor               Account  @relation("ReconciliationTemplateVendor", fields: [vendorAccountId], references: [id])
+  createdByUser        User     @relation(fields: [createdByUserId], references: [id])
+  createdByContact     Contact? @relation(fields: [createdByContactId], references: [id])
+
+  @@unique([tenantId, distributorAccountId, vendorAccountId])
+  @@index([tenantId, distributorAccountId, vendorAccountId])
 }
 
 model Group {

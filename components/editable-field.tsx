@@ -84,7 +84,7 @@ export const EditableTextInput = forwardRef<HTMLInputElement, EditableInputProps
         ref={ref}
         type={type}
         className={cn(
-          "w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs text-gray-900 transition focus:border-primary-500 focus:outline-none",
+          "w-full border-b-2 border-gray-300 bg-transparent pl-[3px] pr-0 py-1 text-xs text-gray-900 transition focus:border-primary-500 focus:outline-none",
           invalid && "border-red-500 focus:border-red-500",
           props.disabled && "cursor-not-allowed opacity-70",
           className
@@ -106,7 +106,7 @@ export const EditableTextarea = forwardRef<HTMLTextAreaElement, EditableTextarea
       ref={ref}
       rows={rows}
       className={cn(
-        "w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs text-gray-900 transition focus:border-primary-500 focus:outline-none",
+        "w-full border-b-2 border-gray-300 bg-transparent pl-[3px] pr-0 py-1 text-xs text-gray-900 transition focus:border-primary-500 focus:outline-none",
         invalid && "border-red-500 focus:border-red-500",
         props.disabled && "cursor-not-allowed opacity-70",
         className

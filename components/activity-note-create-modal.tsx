@@ -495,16 +495,10 @@ export function ActivityNoteCreateModal({
                         type="date"
                         value={form.activityDate}
                         onChange={event => setForm(prev => ({ ...prev, activityDate: event.target.value }))}
-                        className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 pr-10 text-xs focus:outline-none focus:border-primary-500 [color-scheme:light] [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-2 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-datetime-edit]:opacity-0 [&::-webkit-datetime-edit]:focus:opacity-100"
+                        className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 pr-10 text-xs focus:outline-none focus:border-primary-500 [color-scheme:light] [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-2 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-datetime-edit]:opacity-0"
                         style={{ colorScheme: 'light' }}
-                        onFocus={(e) => {
-                          e.currentTarget.classList.add('date-input-focused')
-                        }}
-                        onBlur={(e) => {
-                          e.currentTarget.classList.remove('date-input-focused')
-                        }}
                       />
-                      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-900">
+                      <span className="pointer-events-none absolute left-[3px] top-1/2 -translate-y-1/2 text-xs text-gray-900">
                         {form.activityDate || <span className="text-gray-400">YYYY-MM-DD</span>}
                       </span>
                     </div>
