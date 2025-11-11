@@ -1,0 +1,220 @@
+        ? "bg-amber-100 text-amber-700 border-amber-200"
+        : "bg-blue-100 text-blue-700 border-blue-200"
+
+  const disputePillClass = schedule.inDispute ? "bg-rose-100 text-rose-700 border-rose-200" : "bg-emerald-100 text-emerald-700 border-emerald-200"
+
+  const columnOne: FieldDefinition[] = [
+    { fieldId: "04.01.000", label: "Revenue Schedule Name", value: scheduleName },
+    { fieldId: "04.01.001", label: "Revenue Schedule Date", value: scheduleDate },
+    { fieldId: "04.01.002", label: "Product Name - Vendor", value: schedule.productNameVendor },
+    { fieldId: "04.01.003", label: "Product Description - Vendor", value: schedule.productDescriptionVendor },
+    { fieldId: "04.01.004", label: "Product Revenue Type", value: schedule.productRevenueType },
+    {
+      fieldId: "04.01.005",
+      label: "Status",
+      value: schedule.scheduleStatus ?? "Unknown"
+    },
+    {
+      fieldId: "04.01.006",
+      label: "In Dispute",
+      value: schedule.inDispute ? "Yes" : "No"
+    }
+  ]
+
+  const columnTwo: FieldDefinition[] = [
+    {
+      fieldId: "04.01.007",
+      label: "Opportunity Name",
+      value:
+        schedule.opportunityId &&
+        schedule.opportunityName &&
+        typeof schedule.opportunityId === "string" &&
+        UUID_REGEX.test(schedule.opportunityId) ? (
+          <Link
+            href={`/opportunities/${schedule.opportunityId}`}
+            className="flex w-full items-center justify-between gap-2 text-primary-600 transition hover:text-primary-700"
+          >
+            <span className="truncate">{schedule.opportunityName}</span>
+          </Link>
+        ) : (
+          schedule.opportunityName
+        )
+    },
+    { fieldId: "04.01.008", label: "Distributor Name", value: schedule.distributorName },
+    { fieldId: "04.01.009", label: "Vendor Name", value: schedule.vendorName },
+    { fieldId: "04.01.010", label: "Account Name", value: schedule.accountName },
+    { fieldId: "04.01.011", label: "Legal Name", value: schedule.legalName ?? schedule.accountName },
+    {
+      fieldId: "04.01.012",
+      label: "Shipping Address",
+      value: schedule.shippingAddress ? (
+        <span className="block truncate" title={schedule.shippingAddress}>
+          {schedule.shippingAddress}
+        </span>
+      ) : undefined,
+      fullWidth: true
+    },
+    {
+      fieldId: "04.01.013",
+      label: "Billing Address",
+      value: schedule.billingAddress ? (
+        <span className="block truncate" title={schedule.billingAddress}>
+          {schedule.billingAddress}
+        </span>
+      ) : undefined,
+      fullWidth: true
+    }
+  ]
+
+  const columnThree: FieldDefinition[] = [
+    { fieldId: "04.01.014", label: "Commission Rate Expected", value: schedule.expectedCommissionRatePercent },
+    { fieldId: "04.01.015", label: "Commission Rate Actual", value: schedule.actualCommissionRatePercent },
+    { fieldId: "04.01.016", label: "Commission Rate Difference", value: schedule.commissionRateDifference },
+    { fieldId: "04.01.017", label: "House Split %", value: schedule.houseSplitPercent },
+    { fieldId: "04.01.018", label: "House Rep Split %", value: schedule.houseRepSplitPercent },
+    { fieldId: "04.01.019", label: "Subagent Split %", value: schedule.subagentSplitPercent },
+    { fieldId: "04.01.020", label: "Subagent", value: schedule.subagentName }
+  ]
+
+  const topColumns = [columnOne, columnTwo, columnThree]
+
+  const summaryMetrics: MetricDefinition[] = [
+    { fieldId: "04.01.022", label: "Quantity", value: schedule.quantity },
+    { fieldId: "04.01.023", label: "Price Each", value: schedule.priceEach },
+    { fieldId: "N/A", label: "Usage Gross (Est.)", value: schedule.expectedUsageGross ?? schedule.expectedUsage },
+    {
+      fieldId: "04.01.024",
+      label: "Usage Adjustment",
+      value: schedule.expectedUsageAdjustment ?? schedule.expectedUsage
+    },
+    { fieldId: "04.01.025", label: "Usage Net (Est.)", value: schedule.expectedUsageNet },
+    { fieldId: "04.01.026", label: "Usage (Actual)", value: schedule.actualUsage },
+    { fieldId: "04.01.027", label: "Usage Balance", value: schedule.usageBalance },
+    { fieldId: "04.01.028", label: "Commission Gross (Est.)", value: schedule.expectedCommissionGross },
+    { fieldId: "04.01.029", label: "Commission Adjustment", value: schedule.expectedCommissionAdjustment },
+    { fieldId: "04.01.030", label: "Commission Net (Est.)", value: schedule.expectedCommissionNet },
+    { fieldId: "N/A", label: "Commission (Actual)", value: schedule.actualCommission },
+    { fieldId: "N/A", label: "Commission Variance", value: schedule.commissionDifference }
+  ]
+
+  return (
+    <div className="space-y-3 p-2">
+      <div className="rounded-2xl bg-gray-100 p-3 shadow-sm">
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <p className="text-[13px] font-semibold uppercase tracking-wide text-primary-600">Revenue Schedule Detail</p>
+            {enableInlineEditing && editor.isDirty ? (
+              <span className="text-[11px] font-semibold text-amber-600">Unsaved changes</span>
+            ) : null}
+          </div>
+          {enableInlineEditing ? (
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={editor.saving || !editor.isDirty}
+              className="flex items-center gap-2 rounded-md bg-primary-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {editor.saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Update"}
+            </button>
+          ) : null}
+        </div>
+
+        <div className="grid gap-6 lg:grid-cols-3">
+          {topColumns.map((column, index) => (
+            <div key={`column-${index}`} className="space-y-1.5">
+              {column.map(field => {
+                if (enableInlineEditing && field.fieldId === "04.01.000" && nameField) {
+                  return (
+                    <EditRow
+                      key={`${field.fieldId}-${field.label}`}
+                      label="Revenue Schedule Name"
+                      control={
+                        <EditableField.Input
+                          value={(nameField.value as string) ?? ""}
+                          onChange={nameField.onChange}
+                          onBlur={nameField.onBlur}
+                          placeholder="RS-10001"
+                        />
+                      }
+                      error={editor.errors.revenueScheduleName}
+                    />
+                  )
+                }
+                if (enableInlineEditing && field.fieldId === "04.01.001" && dateField) {
+                  return (
+                    <EditRow
+                      key={`${field.fieldId}-${field.label}`}
+                      label="Revenue Schedule Date"
+                      control={
+                        <div className="relative">
+                          <EditableField.Input
+                            type="date"
+                            value={(dateField.value as string) ?? ""}
+                            onChange={dateField.onChange}
+                            onBlur={dateField.onBlur}
+                            className="pr-6 [color-scheme:light] [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-0 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-datetime-edit]:opacity-0 [&::-webkit-datetime-edit]:focus:opacity-100"
+                            style={{ colorScheme: 'light' } as React.CSSProperties}
+                            onFocus={(e) => {
+                              e.currentTarget.classList.add('date-input-focused')
+                            }}
+                          />
+                          <span className="pointer-events-none absolute left-0 top-1/2 -translate-y-1/2 text-xs text-gray-900">
+                            {(dateField.value as string) || <span className="text-gray-400">YYYY-MM-DD</span>}
+                          </span>
+                        </div>
+                      }
+                      error={editor.errors.revenueScheduleDate}
+                    />
+                  )
+                }
+                if (enableInlineEditing && field.fieldId === "04.01.002" && productNameField) {
+                  return (
+                    <EditRow
+                      key={`${field.fieldId}-${field.label}`}
+                      label="Product Name - Vendor"
+                      control={
+                        <EditableField.Input
+                          value={(productNameField.value as string) ?? ""}
+                          onChange={productNameField.onChange}
+                          onBlur={productNameField.onBlur}
+                          placeholder="Product name"
+                        />
+                      }
+                    />
+                  )
+                }
+                if (enableInlineEditing && field.fieldId === "04.01.003" && productDescField) {
+                  return (
+                    <EditRow
+                      key={`${field.fieldId}-${field.label}`}
+                      label="Product Description - Vendor"
+                      control={
+                        <EditableField.Input
+                          value={(productDescField.value as string) ?? ""}
+                          onChange={productDescField.onChange}
+                          onBlur={productDescField.onBlur}
+                          placeholder="Description"
+                        />
+                      }
+                    />
+                  )
+                }
+                if (enableInlineEditing && field.fieldId === "04.01.004" && productTypeField) {
+                  return (
+                    <EditRow
+                      key={`${field.fieldId}-${field.label}`}
+                      label="Product Revenue Type"
+                      control={
+                        <EditableField.Input
+                          value={(productTypeField.value as string) ?? ""}
+                          onChange={productTypeField.onChange}
+                          onBlur={productTypeField.onBlur}
+                          placeholder="Revenue type"
+                        />
+                      }
+                    />
+                  )
+                }
+                if (enableInlineEditing && field.fieldId === "04.01.014" && expectedRateField) {
+                  return (
+                    <EditRow

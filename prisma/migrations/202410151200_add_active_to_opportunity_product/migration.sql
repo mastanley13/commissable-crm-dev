@@ -1,0 +1,2 @@
+ALTER TABLE "OpportunityProduct" ADD COLUMN "active" BOOLEAN NOT NULL DEFAULT TRUE;
+
