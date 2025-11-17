@@ -48,6 +48,8 @@ import { ActivityNoteEditModal } from "./activity-note-edit-modal"
 import { EditableField } from "./editable-field"
 import { useEntityEditor, type EntityEditor } from "@/hooks/useEntityEditor"
 import { useUnsavedChangesPrompt } from "@/hooks/useUnsavedChangesPrompt"
+import { FieldRow } from "./detail/FieldRow"
+import { fieldBoxClass, fieldLabelClass } from "./detail/shared"
 import { useAuth } from "@/lib/auth-context"
 import { VALIDATION_PATTERNS } from "@/lib/validation-shared"
 
@@ -438,8 +440,6 @@ const TABS: { id: TabKey; label: string }[] = [
   { id: "activities", label: "Activities & Notes" }
 ]
 
-const fieldLabelClass = "text-[11px] font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap flex items-center"
-const fieldBoxClass = "flex min-h-[28px] w-full max-w-md items-center justify-between border-b-2 border-gray-300 bg-transparent px-0 py-1 text-[11px] text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis"
 export const CONTACT_TABLE_BASE_COLUMNS: Column[] = [
   {
     id: "multi-action",
@@ -884,18 +884,6 @@ function ReadOnlyCheckbox({ checked }: { checked: boolean }) {
     >
       {checked && <span className="h-2 w-2 rounded-sm bg-white" />}
     </span>
-  )
-}
-
-function FieldRow({ label, value, labelExtra }: { label: string; value: ReactNode; labelExtra?: ReactNode }) {
-  return (
-    <div className="grid items-start gap-4 sm:grid-cols-[140px,1fr]">
-      <div className="flex flex-col gap-1">
-        <span className={fieldLabelClass}>{label}</span>
-        {labelExtra}
-      </div>
-      <div>{value}</div>
-    </div>
   )
 }
 

@@ -4,13 +4,6 @@ import { RevenueType } from "@prisma/client"
 import { withAuth } from "@/lib/api-auth"
 import { hasAnyPermission } from "@/lib/auth"
 
-const PRODUCT_VIEW_PERMISSIONS = [
-  "products.read",
-  "products.update",
-  "products.delete",
-  "products.create"
-]
-
 const PRODUCT_MUTATION_PERMISSIONS = [
   "products.update",
   "products.delete",
@@ -24,14 +17,6 @@ export const dynamic = "force-dynamic"
 export async function GET(request: NextRequest, { params }: { params: { productId: string } }) {
   return withAuth(request, async (req) => {
     try {
-      const roleCode = req.user.role?.code?.toLowerCase() ?? ""
-      const isAdmin = roleCode === "admin" || roleCode.includes("admin")
-      const canView = isAdmin || hasAnyPermission(req.user, PRODUCT_VIEW_PERMISSIONS)
-
-      if (!canView) {
-        return NextResponse.json({ error: "Insufficient permissions to view products" }, { status: 403 })
-      }
-
       const { productId } = params
       if (!productId) {
         return NextResponse.json({ error: "Product id is required" }, { status: 400 })
@@ -205,7 +190,15 @@ export async function GET(request: NextRequest, { params }: { params: { productI
 export async function PATCH(request: NextRequest, { params }: { params: { productId: string } }) {
   return withAuth(request, async (req) => {
     try {
-      // Edit allowed for all authenticated roles per requirements
+      const roleCode = req.user.role?.code?.toLowerCase() ?? ""
+      const isAdmin = roleCode === "admin" || roleCode.includes("admin")
+
+      if (!isAdmin) {
+        return NextResponse.json(
+          { error: "Only Admins can edit product details" },
+          { status: 403 }
+        )
+      }
 
       const { productId } = params
       if (!productId) {

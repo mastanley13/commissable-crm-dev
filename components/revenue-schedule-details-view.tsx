@@ -616,7 +616,7 @@ export function RevenueScheduleDetailsView({
         </div>
       </div>
 
-      <div className="border-t-2 border-blue-900 bg-blue-100 px-3 py-1.5">
+      <div className="border-y-2 border-blue-900 bg-blue-100 px-3 py-1.5">
         <h2 className="text-[11px] font-semibold uppercase tracking-wide text-gray-600 mb-1.5">Schedule Summary</h2>
         <div className="flex flex-wrap gap-2">
           {summaryMetrics.map(metric => (

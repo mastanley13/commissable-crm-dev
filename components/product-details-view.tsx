@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils"
 import { EditableField } from "./editable-field"
 import { useToasts } from "./toast"
 import { useEntityEditor, type EntityEditor } from "@/hooks/useEntityEditor"
-// import { useAuth } from "@/lib/auth-context"
+import { useAuth } from "@/lib/auth-context"
 
 export interface ProductOpportunityUsage {
   id: string
@@ -422,45 +422,23 @@ function ProductHeader({ product, onEdit, activeTab, onTabSelect }: ProductHeade
                 {product.productCode || <span className="text-gray-500">--</span>}
               </div>
             </FieldRow>
-            <FieldRow label="Product Family - House">
-              <div className={fieldBoxClass}>
-                {product.productFamilyHouse || <span className="text-gray-500">--</span>}
-              </div>
-            </FieldRow>
-            <FieldRow label="House - Product Subtype">
-              <div className={fieldBoxClass}>
-                <span className="text-gray-500">--</span>
-              </div>
-            </FieldRow>
-            <FieldRow label="House - Description">
-              <div className={cn(fieldBoxClass, "min-h-[60px] items-start whitespace-pre-wrap py-2")}>
-                {productDescriptionHouse || <span className="text-gray-500">--</span>}
-              </div>
-            </FieldRow>
-          </div>
-
-          <div className="space-y-1.5">
-            <FieldRow label="Price Each">
-              <div className={fieldBoxClass}>
-                {priceEach || <span className="text-gray-500">--</span>}
-              </div>
-            </FieldRow>
-            <FieldRow label="Commission %">
-              <div className={fieldBoxClass}>
-                {product.commissionPercent !== null && product.commissionPercent !== undefined
-                  ? `${product.commissionPercent}%`
-                  : <span className="text-gray-500">--</span>}
-              </div>
-            </FieldRow>
-            <FieldRow label="Revenue Type">
-              <div className={fieldBoxClass}>
-                {revenueTypeLabel || <span className="text-gray-500">--</span>}
-              </div>
-            </FieldRow>
-            <FieldRow label="Status">
-              <div className={fieldBoxClass}>
-                {statusBadge}
-              </div>
+            <FieldRow label="Distributor Name">
+              {product.distributor ? (
+                <Link href={`/accounts/${product.distributor.id}`} className="w-full max-w-md">
+                  <div
+                    className={cn(
+                      fieldBoxClass,
+                      "cursor-pointer text-primary-700 hover:border-primary-500 hover:text-primary-800"
+                    )}
+                  >
+                    <span className="truncate">{product.distributor.accountName}</span>
+                  </div>
+                </Link>
+              ) : (
+                <div className={fieldBoxClass}>
+                  <span className="text-gray-500">--</span>
+                </div>
+              )}
             </FieldRow>
             <FieldRow label="Vendor Name">
               {product.vendor ? (
@@ -480,23 +458,43 @@ function ProductHeader({ product, onEdit, activeTab, onTabSelect }: ProductHeade
                 </div>
               )}
             </FieldRow>
-            <FieldRow label="Distributor Name">
-              {product.distributor ? (
-                <Link href={`/accounts/${product.distributor.id}`} className="w-full max-w-md">
-                  <div
-                    className={cn(
-                      fieldBoxClass,
-                      "cursor-pointer text-primary-700 hover:border-primary-500 hover:text-primary-800"
-                    )}
-                  >
-                    <span className="truncate">{product.distributor.accountName}</span>
-                  </div>
-                </Link>
-              ) : (
-                <div className={fieldBoxClass}>
-                  <span className="text-gray-500">--</span>
-                </div>
-              )}
+            <FieldRow label="Product Family - House">
+              <div className={fieldBoxClass}>
+                {product.productFamilyHouse || <span className="text-gray-500">--</span>}
+              </div>
+            </FieldRow>
+            <FieldRow label="House - Product Subtype">
+              <div className={fieldBoxClass}>
+                <span className="text-gray-500">--</span>
+              </div>
+            </FieldRow>
+          </div>
+
+          <div className="space-y-1.5">
+            <FieldRow label="Price Each">
+              <div className={fieldBoxClass}>
+                {priceEach || <span className="text-gray-500">--</span>}
+              </div>
+            </FieldRow>
+            <FieldRow label="Commission %">
+              <div className={fieldBoxClass}>
+                {commissionRate || <span className="text-gray-500">--</span>}
+              </div>
+            </FieldRow>
+            <FieldRow label="Revenue Type">
+              <div className={fieldBoxClass}>
+                {revenueTypeLabel || <span className="text-gray-500">--</span>}
+              </div>
+            </FieldRow>
+            <FieldRow label="Status">
+              <div className={fieldBoxClass}>
+                {statusBadge}
+              </div>
+            </FieldRow>
+            <FieldRow label="House - Description">
+              <div className={cn(fieldBoxClass, "min-h-[60px] items-start whitespace-pre-wrap py-2")}>
+                {productDescriptionHouse || <span className="text-gray-500">--</span>}
+              </div>
             </FieldRow>
           </div>
         </div>
@@ -523,7 +521,7 @@ function ProductHeader({ product, onEdit, activeTab, onTabSelect }: ProductHeade
       {/* Tab Content */}
       {activeTab === "distributor" && (
         <div className="rounded-b-2xl border-x border-b border-gray-200 bg-white pt-0 px-3 pb-4">
-          <div className="border-t-2 border-t-primary-600 -mr-3">
+          <div className="border-t-2 border-t-primary-600 -mr-3 pt-3">
             <div className="space-y-1.5">
             <FieldRow label="Distributor - Product Name">
               <div className={fieldBoxClass}>
@@ -558,7 +556,7 @@ function ProductHeader({ product, onEdit, activeTab, onTabSelect }: ProductHeade
 
       {activeTab === "vendor" && (
         <div className="rounded-b-2xl border-x border-b border-gray-200 bg-white pt-0 px-3 pb-4">
-          <div className="border-t-2 border-t-primary-600 -mr-3">
+          <div className="border-t-2 border-t-primary-600 -mr-3 pt-3">
             <div className="space-y-1.5">
             <FieldRow label="Vendor - Product Name">
               <div className={fieldBoxClass}>
@@ -725,6 +723,34 @@ function EditableProductHeader({ product, editor, onSave, activeTab, onTabSelect
             )}
 
             {renderRow(
+              "Distributor Name",
+              <EditableField.Select
+                value={(distributorAccountField.value as string) ?? ""}
+                onChange={distributorAccountField.onChange}
+                onBlur={distributorAccountField.onBlur}
+              >
+                <option value="">Select distributor</option>
+                {distributorOptions.map(opt => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </EditableField.Select>
+            )}
+
+            {renderRow(
+              "Vendor Name",
+              <EditableField.Select
+                value={(vendorAccountField.value as string) ?? ""}
+                onChange={vendorAccountField.onChange}
+                onBlur={vendorAccountField.onBlur}
+              >
+                <option value="">Select vendor</option>
+                {vendorOptions.map(opt => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </EditableField.Select>
+            )}
+
+            {renderRow(
               "Product Family - House",
               <EditableField.Input
                 value={(familyHouseField?.value as string) ?? ""}
@@ -742,17 +768,6 @@ function EditableProductHeader({ product, editor, onSave, activeTab, onTabSelect
                 onBlur={() => {}}
                 placeholder="Enter house subtype"
                 disabled
-              />
-            )}
-
-            {renderRow(
-              "House - Description",
-              <EditableField.Textarea
-                rows={3}
-                value={(descriptionField.value as string) ?? ""}
-                onChange={descriptionField.onChange}
-                onBlur={descriptionField.onBlur}
-                placeholder="Add description"
               />
             )}
           </div>
@@ -817,31 +832,14 @@ function EditableProductHeader({ product, editor, onSave, activeTab, onTabSelect
             )}
 
             {renderRow(
-              "Vendor Name",
-              <EditableField.Select
-                value={(vendorAccountField.value as string) ?? ""}
-                onChange={vendorAccountField.onChange}
-                onBlur={vendorAccountField.onBlur}
-              >
-                <option value="">Select vendor</option>
-                {vendorOptions.map(opt => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-              </EditableField.Select>
-            )}
-
-            {renderRow(
-              "Distributor Name",
-              <EditableField.Select
-                value={(distributorAccountField.value as string) ?? ""}
-                onChange={distributorAccountField.onChange}
-                onBlur={distributorAccountField.onBlur}
-              >
-                <option value="">Select distributor</option>
-                {distributorOptions.map(opt => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-              </EditableField.Select>
+              "House - Description",
+              <EditableField.Textarea
+                rows={3}
+                value={(descriptionField.value as string) ?? ""}
+                onChange={descriptionField.onChange}
+                onBlur={descriptionField.onBlur}
+                placeholder="Add description"
+              />
             )}
           </div>
         </div>
@@ -868,7 +866,7 @@ function EditableProductHeader({ product, editor, onSave, activeTab, onTabSelect
       {/* Tab Content */}
       {activeTab === "distributor" && (
         <div className="rounded-b-2xl border-x border-b border-gray-200 bg-white pt-0 px-3 pb-4">
-          <div className="border-t-2 border-t-primary-600 -mr-3">
+          <div className="border-t-2 border-t-primary-600 -mr-3 pt-3">
             <div className="space-y-1.5">
             {renderRow(
               "Distributor - Product Name",
@@ -928,7 +926,7 @@ function EditableProductHeader({ product, editor, onSave, activeTab, onTabSelect
 
       {activeTab === "vendor" && (
         <div className="rounded-b-2xl border-x border-b border-gray-200 bg-white pt-0 px-3 pb-4">
-          <div className="border-t-2 border-t-primary-600 -mr-3">
+          <div className="border-t-2 border-t-primary-600 -mr-3 pt-3">
             <div className="space-y-1.5">
             {renderRow(
               "Vendor - Product Name",
@@ -994,9 +992,11 @@ export function ProductDetailsView({
   onEdit,
   onRefresh
 }: ProductDetailsViewProps) {
-  // Inline editing is enabled for all authenticated users per requirements
   const { showError, showSuccess } = useToasts()
-  const shouldEnableInline = Boolean(product)
+  const { user } = useAuth()
+  const roleCode = user?.role?.code?.toLowerCase() ?? ""
+  const canEditProduct = roleCode === "admin" || roleCode.includes("admin")
+  const shouldEnableInline = Boolean(product) && canEditProduct
   const [activeTab, setActiveTab] = useState<TabKey>("distributor")
   
   // Lightweight options loader for vendor/distributor (uses contacts options endpoint)
@@ -1141,6 +1141,11 @@ export function ProductDetailsView({
     <div className="flex flex-col px-4 sm:px-6 lg:px-8">
       <div className="w-full">
         {headerNode}
+        {!canEditProduct ? (
+          <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-700">
+            Product details are read-only for your role. Contact an Admin to make changes.
+          </div>
+        ) : null}
 
         {/* Removed Audit Information and Identifiers per request */}
       </div>

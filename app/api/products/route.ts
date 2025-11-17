@@ -10,13 +10,6 @@ import { mapProductToRow } from "./helpers"
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
-const PRODUCT_VIEW_PERMISSIONS = [
-  "products.read",
-  "products.update",
-  "products.create",
-  "products.delete"
-]
-
 const PRODUCT_MUTATION_PERMISSIONS = [
   "products.create",
   "products.update",
@@ -58,14 +51,6 @@ function resolveSortOrder(sortColumn: string, direction: "asc" | "desc"): Prisma
 export async function GET(request: NextRequest) {
   return withAuth(request, async (req) => {
     try {
-      const roleCode = req.user.role?.code?.toLowerCase() ?? ""
-      const isAdmin = roleCode === "admin" || roleCode.includes("admin")
-      const canView = isAdmin || hasAnyPermission(req.user, PRODUCT_VIEW_PERMISSIONS)
-
-      if (!canView) {
-        return NextResponse.json({ error: "Insufficient permissions" }, { status: 403 })
-      }
-
       const searchParams = request.nextUrl.searchParams
       const tenantId = req.user.tenantId
 
@@ -296,6 +281,8 @@ export async function POST(request: NextRequest) {
           tenantId: req.user.tenantId,
           productCode,
           productNameHouse,
+          productNameDistributor: getOptionalString((payload as any).productNameDistributor),
+          productFamilyHouse: getOptionalString((payload as any).productFamilyHouse),
           productNameVendor: getOptionalString((payload as any).productNameVendor),
           productFamilyVendor: getOptionalString((payload as any).productFamilyVendor),
           productSubtypeVendor: getOptionalString((payload as any).productSubtypeVendor),

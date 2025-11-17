@@ -22,6 +22,7 @@ interface ProductFormState {
   isActive: boolean
   distributorAccountId: string
   vendorAccountId: string
+  productNameDistributor: string
   productFamilyVendor: string
   productSubtypeVendor: string
   productNameVendor: string
@@ -32,6 +33,7 @@ interface ProductFormState {
   commissionPercent: string
   productNameHouse: string
   partNumberHouse: string
+  productFamilyHouse: string
   description: string
   partNumberDistributor: string
   distributorProductFamily: string
@@ -42,6 +44,7 @@ const INITIAL_FORM: ProductFormState = {
   isActive: true,
   distributorAccountId: "",
   vendorAccountId: "",
+  productNameDistributor: "",
   productFamilyVendor: "",
   productSubtypeVendor: "",
   productNameVendor: "",
@@ -52,11 +55,20 @@ const INITIAL_FORM: ProductFormState = {
   commissionPercent: "",
   productNameHouse: "",
   partNumberHouse: "",
+  productFamilyHouse: "",
   description: "",
   partNumberDistributor: "",
   distributorProductFamily: "",
   productDescriptionDistributor: "",
 }
+
+const labelCls = "mb-0.5 block text-[11px] font-semibold uppercase tracking-wide text-gray-500"
+const inputCls =
+  "w-full border-b-2 border-gray-300 bg-transparent px-0 py-1.5 text-xs focus:border-primary-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+const selectCls =
+  "w-full border-b-2 border-gray-300 bg-transparent px-0 py-1.5 text-xs focus:border-primary-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+const textAreaCls =
+  "min-h-[60px] w-full resize-y border-b-2 border-gray-300 bg-transparent px-0 py-1.5 text-xs leading-5 focus:border-primary-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
 
 export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreateModalProps) {
   const [form, setForm] = useState<ProductFormState>(INITIAL_FORM)
@@ -128,23 +140,25 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
 
       const payload = {
         isActive: Boolean(form.isActive),
-        distributorAccountId: form.distributorAccountId || null,
-        vendorAccountId: form.vendorAccountId || null,
-        productFamilyVendor: form.productFamilyVendor.trim() || null,
-        productSubtypeVendor: form.productSubtypeVendor.trim() || null,
-        productNameVendor: form.productNameVendor.trim() || null,
-        productCode: form.productCode.trim(),
-        productDescriptionVendor: form.productDescriptionVendor.trim() || null,
-        revenueType: form.revenueType,
-        priceEach: form.priceEach.trim() ? Number(form.priceEach.trim()) : null,
-        commissionPercent: form.commissionPercent.trim() ? Number(form.commissionPercent.trim()) : null,
-        productNameHouse: form.productNameHouse.trim(),
-        partNumberHouse: form.partNumberHouse.trim() || null,
-        description: form.description.trim() || null,
-        partNumberDistributor: form.partNumberDistributor.trim() || null,
-        distributorProductFamily: form.distributorProductFamily.trim() || null,
-        productDescriptionDistributor: form.productDescriptionDistributor.trim() || null,
-      }
+      distributorAccountId: form.distributorAccountId || null,
+      vendorAccountId: form.vendorAccountId || null,
+      productNameDistributor: form.productNameDistributor.trim() || null,
+      productFamilyVendor: form.productFamilyVendor.trim() || null,
+      productSubtypeVendor: form.productSubtypeVendor.trim() || null,
+      productNameVendor: form.productNameVendor.trim() || null,
+      productCode: form.productCode.trim(),
+      productDescriptionVendor: form.productDescriptionVendor.trim() || null,
+      revenueType: form.revenueType,
+      priceEach: form.priceEach.trim() ? Number(form.priceEach.trim()) : null,
+      commissionPercent: form.commissionPercent.trim() ? Number(form.commissionPercent.trim()) : null,
+      productNameHouse: form.productNameHouse.trim(),
+      partNumberHouse: form.partNumberHouse.trim() || null,
+      productFamilyHouse: form.productFamilyHouse.trim() || null,
+      description: form.description.trim() || null,
+      partNumberDistributor: form.partNumberDistributor.trim() || null,
+      distributorProductFamily: form.distributorProductFamily.trim() || null,
+      productDescriptionDistributor: form.productDescriptionDistributor.trim() || null,
+    }
 
       try {
         const response = await fetch("/api/products", {
@@ -175,176 +189,190 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 backdrop-blur-sm">
-      <div className="w-full max-w-4xl rounded-xl bg-white shadow-xl max-h-[92vh] overflow-y-auto">
-        <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 px-4 backdrop-blur-sm">
+      <div className="w-full max-w-6xl max-h-[98vh] flex flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+        <div className="flex items-center justify-between border-b border-gray-200 px-6 py-2">
           <div>
-            <h2 className="text-base font-semibold text-gray-900">Create New Product</h2>
-            <p className="text-xs text-gray-500">Enter the product information below.</p>
+            <h2 className="text-lg font-semibold text-gray-900">Create New Product</h2>
           </div>
           <button
             type="button"
             onClick={handleClose}
-            className="rounded-md px-3 py-1 text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+            className="rounded-full p-1.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
             aria-label="Close modal"
+            disabled={loading}
           >
-            <X className="h-4 w-4" />
+            <X className="h-5 w-5" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="px-4 py-4">
-          <div className="grid gap-3 lg:grid-cols-2">
-            {/* Left column: Product Name - House through Active */}
-            <div className="space-y-3">
-              {/* Product Name - House */}
-              <div className="grid gap-1">
-                <label className="text-xs font-semibold text-gray-600">Product Name - House</label>
-                <input className="rounded border px-2 py-0.5 text-[13px]" value={form.productNameHouse} onChange={handleChange("productNameHouse")} placeholder="Enter product name" />
-                {errors.productNameHouse ? <p className="text-[10px] text-red-600">{errors.productNameHouse}</p> : null}
+        <form id="product-create-form" onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-6 py-3">
+          <div className="space-y-3">
+            <div className="grid gap-3 lg:grid-cols-2">
+              {/* Left Column (House + Account assignments) */}
+              <div className="space-y-1.5">
+                <div className="space-y-1">
+                  <label className={labelCls}>Product Name - House</label>
+                  <input className={inputCls} value={form.productNameHouse} onChange={handleChange("productNameHouse")} placeholder="Enter product name" />
+                  {errors.productNameHouse ? <p className="text-[11px] text-rose-600">{errors.productNameHouse}</p> : null}
+                </div>
+
+                <div className="space-y-1">
+                  <label className={labelCls}>Part Number - House</label>
+                  <input className={inputCls} value={form.partNumberHouse} onChange={handleChange("partNumberHouse")} placeholder="Enter house part #" />
+                </div>
+
+                <div className="space-y-1">
+                  <label className={labelCls}>Distributor Name</label>
+                  <select className={selectCls} value={form.distributorAccountId} onChange={handleChange("distributorAccountId")}>
+                    <option value="">-- Select Distributor --</option>
+                    {accounts.map((opt) => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className={labelCls}>Vendor Name</label>
+                  <select className={selectCls} value={form.vendorAccountId} onChange={handleChange("vendorAccountId")}>
+                    <option value="">-- Select Vendor --</option>
+                    {accounts.map((opt) => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className={labelCls}>Product Family - House</label>
+                  <input className={inputCls} value={form.productFamilyHouse} onChange={handleChange("productFamilyHouse")} placeholder="Enter house family" />
+                </div>
+
+                <div className="space-y-1">
+                  <label className={labelCls}>House - Product Subtype</label>
+                  <input className={`${inputCls} text-gray-500`} placeholder="--" disabled />
+                </div>
               </div>
 
-              {/* Part Number - House */}
-              <div className="grid gap-1">
-                <label className="text-xs font-semibold text-gray-600">Part Number - House</label>
-                <input className="rounded border px-2 py-0.5 text-[13px]" value={form.partNumberHouse} onChange={handleChange("partNumberHouse")} placeholder="Enter house part #" />
-              </div>
+              {/* Right Column (Financial + Status) */}
+              <div className="space-y-1.5">
+                <div className="space-y-1">
+                  <label className={labelCls}>Price Each</label>
+                  <input type="number" step="0.01" min="0" className={inputCls} value={form.priceEach} onChange={handleChange("priceEach")} placeholder="0.00" />
+                  {errors.priceEach ? <p className="text-[11px] text-rose-600">{errors.priceEach}</p> : null}
+                </div>
 
-              {/* Product Revenue Type */}
-              <div className="grid gap-1">
-                <label className="text-xs font-semibold text-gray-600">Product Revenue Type</label>
-                <select className="rounded border px-2 py-0.5 text-[13px]" value={form.revenueType} onChange={handleChange("revenueType")}>
-                  <option value="">Select revenue type</option>
-                  {revenueTypes.map((opt) => (
-                    <option key={opt.value} value={opt.value}>{opt.label}</option>
-                  ))}
-                </select>
-                {errors.revenueType ? <p className="text-[10px] text-red-600">{errors.revenueType}</p> : null}
-              </div>
+                <div className="space-y-1">
+                  <label className={labelCls}>Commission %</label>
+                  <input type="number" step="0.01" min="0" max="100" className={inputCls} value={form.commissionPercent} onChange={handleChange("commissionPercent")} placeholder="Enter %" />
+                  {errors.commissionPercent ? <p className="text-[11px] text-rose-600">{errors.commissionPercent}</p> : null}
+                </div>
 
-              {/* Vendor Name */}
-            <div className="grid gap-1">
-                <label className="text-xs font-semibold text-gray-600">Vendor Name</label>
-                <select className="rounded border px-2 py-0.5 text-[13px]" value={form.vendorAccountId} onChange={handleChange("vendorAccountId")}>
-                  <option value="">-- Select Vendor --</option>
-                  {accounts.map((opt) => (
-                    <option key={opt.value} value={opt.value}>{opt.label}</option>
-                  ))}
-                </select>
-              </div>
+                <div className="space-y-1">
+                  <label className={labelCls}>Revenue Type</label>
+                  <select className={selectCls} value={form.revenueType} onChange={handleChange("revenueType")}>
+                    <option value="">Select revenue type</option>
+                    {revenueTypes.map((opt) => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                  {errors.revenueType ? <p className="text-[11px] text-rose-600">{errors.revenueType}</p> : null}
+                </div>
 
-              {/* Distributor Name */}
-              <div className="grid gap-1">
-                <label className="text-xs font-semibold text-gray-600">Distributor Name</label>
-                <select className="rounded border px-2 py-0.5 text-[13px]" value={form.distributorAccountId} onChange={handleChange("distributorAccountId")}>
-                  <option value="">-- Select Distributor --</option>
-                  {accounts.map((opt) => (
-                    <option key={opt.value} value={opt.value}>{opt.label}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Price Each */}
-              <div className="grid gap-1">
-                <label className="text-xs font-semibold text-gray-600">Price Each</label>
-                <input type="number" step="0.01" min="0" className="rounded border px-2 py-0.5 text-[13px]" value={form.priceEach} onChange={handleChange("priceEach")} placeholder="0.00" />
-                {errors.priceEach ? <p className="text-[10px] text-red-600">{errors.priceEach}</p> : null}
-              </div>
-
-              {/* Expected Commission Rate % */}
-              <div className="grid gap-1">
-                <label className="text-xs font-semibold text-gray-600">Expected Commission Rate %</label>
-                <input type="number" step="0.01" min="0" max="100" className="rounded border px-2 py-0.5 text-[13px]" value={form.commissionPercent} onChange={handleChange("commissionPercent")} placeholder="Enter %" />
-                {errors.commissionPercent ? <p className="text-[10px] text-red-600">{errors.commissionPercent}</p> : null}
-              </div>
-
-              {/* Product Name - Vendor */}
-              <div className="grid gap-1">
-                <label className="text-xs font-semibold text-gray-600">Product Name - Vendor</label>
-                <input className="rounded border px-2 py-0.5 text-[13px]" value={form.productNameVendor} onChange={handleChange("productNameVendor")} placeholder="Enter vendor product name" />
-              </div>
-
-              {/* Part Number - Vendor */}
-              <div className="grid gap-1">
-                <label className="text-xs font-semibold text-gray-600">Part Number - Vendor</label>
-                <input className="rounded border px-2 py-0.5 text-[13px]" value={form.productCode} onChange={handleChange("productCode")} placeholder="Enter vendor part #" />
-                {errors.productCode ? <p className="text-[10px] text-red-600">{errors.productCode}</p> : null}
-              </div>
-
-              {/* Product Family - Vendor */}
-              <div className="grid gap-1">
-                <label className="text-xs font-semibold text-gray-600">Product Family - Vendor</label>
-                <input className="rounded border px-2 py-0.5 text-[13px]" value={form.productFamilyVendor} onChange={handleChange("productFamilyVendor")} placeholder="Enter family" />
-              </div>
-
-              {/* Product Subtype - Vendor */}
-              <div className="grid gap-1">
-                <label className="text-xs font-semibold text-gray-600">Product Subtype - Vendor</label>
-                <input className="rounded border px-2 py-0.5 text-[13px]" value={form.productSubtypeVendor} onChange={handleChange("productSubtypeVendor")} placeholder="Enter subtype" />
-              </div>
-
-              {/* Active (Y/N) */}
-              <div className="grid gap-1">
-                <label className="text-xs font-semibold text-gray-600">Active (Y/N)</label>
-                <div className="flex items-center gap-2">
-                  <EditableSwitch checked={form.isActive} onChange={handleChange("isActive") as any} />
-                  <span className="text-xs text-gray-700">{form.isActive ? "Active" : "Inactive"}</span>
+                <div className="space-y-1">
+                  <label className={labelCls}>Status</label>
+                  <div className="flex items-center gap-3">
+                    <EditableSwitch checked={form.isActive} onChange={handleChange("isActive") as any} />
+                    <span className="text-xs font-semibold text-gray-600">{form.isActive ? "Active" : "Inactive"}</span>
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* Right column: Part Number - Distributor through Product Description - Vendor */}
-            <div className="space-y-3">
-              {/* Part Number - Distributor */}
-              <div className="grid gap-1">
-                <label className="text-xs font-semibold text-gray-600">Part Number - Distributor</label>
-                <input className="rounded border px-2 py-0.5 text-[13px]" value={form.partNumberDistributor} onChange={handleChange("partNumberDistributor")} placeholder="Enter distributor part #" />
+            <div className="space-y-1">
+              <label className={labelCls}>House - Description</label>
+              <textarea rows={2} className={textAreaCls} value={form.description} onChange={handleChange("description")} placeholder="Add description" />
+            </div>
+
+            <div className="grid gap-3 lg:grid-cols-2">
+              {/* Distributor column */}
+              <div className="space-y-1.5">
+                <div className="space-y-1">
+                  <label className={labelCls}>Distributor - Product Name</label>
+                  <input className={inputCls} value={form.productNameDistributor} onChange={handleChange("productNameDistributor")} placeholder="Enter distributor product name" />
+                </div>
+
+                <div className="space-y-1">
+                  <label className={labelCls}>Distributor - Part Number</label>
+                  <input className={inputCls} value={form.partNumberDistributor} onChange={handleChange("partNumberDistributor")} placeholder="Enter distributor part #" />
+                </div>
+
+                <div className="space-y-1">
+                  <label className={labelCls}>Distributor - Product Family</label>
+                  <input className={inputCls} value={form.distributorProductFamily} onChange={handleChange("distributorProductFamily")} placeholder="Enter distributor family" />
+                </div>
+
+                <div className="space-y-1">
+                  <label className={labelCls}>Distributor - Product Subtype</label>
+                  <input className={inputCls} value="" placeholder="Enter distributor subtype" disabled readOnly />
+                </div>
+
+                <div className="space-y-1">
+                  <label className={labelCls}>Distributor - Description</label>
+                  <textarea rows={1} className={textAreaCls} value={form.productDescriptionDistributor} onChange={handleChange("productDescriptionDistributor")} placeholder="Add distributor description" />
+                </div>
               </div>
 
-              {/* Distributor Product Family */}
-              <div className="grid gap-1">
-                <label className="text-xs font-semibold text-gray-600">Distributor Product Family</label>
-                <input className="rounded border px-2 py-0.5 text-[13px]" value={form.distributorProductFamily} onChange={handleChange("distributorProductFamily")} placeholder="Enter family" />
-              </div>
+              {/* Vendor column */}
+              <div className="space-y-1.5">
+                <div className="space-y-1">
+                  <label className={labelCls}>Vendor - Product Name</label>
+                  <input className={inputCls} value={form.productNameVendor} onChange={handleChange("productNameVendor")} placeholder="Enter vendor product name" />
+                </div>
 
-              {/* Product Description - House */}
-              <div className="grid gap-1">
-                <label className="text-xs font-semibold text-gray-600">Product Description - House</label>
-                <textarea rows={2} className="rounded border px-2 py-0.5 text-[13px]" value={form.description} onChange={handleChange("description")} placeholder="Add description" />
-              </div>
+                <div className="space-y-1">
+                  <label className={labelCls}>Vendor - Part Number</label>
+                  <input className={inputCls} value={form.productCode} onChange={handleChange("productCode")} placeholder="Enter vendor part #" />
+                  {errors.productCode ? <p className="text-[11px] text-rose-600">{errors.productCode}</p> : null}
+                </div>
 
-              {/* Product Description - Distributor */}
-              <div className="grid gap-1">
-                <label className="text-xs font-semibold text-gray-600">Product Description - Distributor</label>
-                <textarea rows={2} className="rounded border px-2 py-0.5 text-[13px]" value={form.productDescriptionDistributor} onChange={handleChange("productDescriptionDistributor")} placeholder="Add distributor description" />
-              </div>
+                <div className="space-y-1">
+                  <label className={labelCls}>Vendor - Product Family</label>
+                  <input className={inputCls} value={form.productFamilyVendor} onChange={handleChange("productFamilyVendor")} placeholder="Enter vendor family" />
+                </div>
 
-              {/* Product Description - Vendor */}
-              <div className="grid gap-1">
-                <label className="text-xs font-semibold text-gray-600">Product Description - Vendor</label>
-                <textarea rows={2} className="rounded border px-2 py-0.5 text-[13px]" value={form.productDescriptionVendor} onChange={handleChange("productDescriptionVendor")} placeholder="Add vendor description" />
+                <div className="space-y-1">
+                  <label className={labelCls}>Vendor - Product Subtype</label>
+                  <input className={inputCls} value={form.productSubtypeVendor} onChange={handleChange("productSubtypeVendor")} placeholder="Enter vendor subtype" />
+                </div>
+
+                <div className="space-y-1">
+                  <label className={labelCls}>Vendor - Description</label>
+                  <textarea rows={1} className={textAreaCls} value={form.productDescriptionVendor} onChange={handleChange("productDescriptionVendor")} placeholder="Add vendor description" />
+                </div>
               </div>
             </div>
           </div>
-
-          <div className="mt-6 flex items-center justify-end gap-3 border-t border-gray-200 pt-4">
-            <button
-              type="button"
-              onClick={handleClose}
-              disabled={loading}
-              className="rounded-md px-3 py-1.5 text-sm font-semibold text-gray-700 hover:bg-gray-100 disabled:opacity-60"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={!canSubmit || loading || optionsLoading}
-              className="inline-flex items-center gap-2 rounded-md bg-primary-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              <span>Save</span>
-            </button>
-          </div>
         </form>
+
+        <div className="flex items-center justify-end gap-3 border-t border-gray-200 px-6 py-2">
+          <button
+            type="button"
+            onClick={handleClose}
+            disabled={loading}
+            className="rounded-md border border-gray-300 bg-white px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            form="product-create-form"
+            disabled={!canSubmit || loading || optionsLoading}
+            className="inline-flex items-center gap-2 rounded-md bg-primary-600 px-5 py-2 text-sm font-semibold text-white transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-primary-300"
+          >
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+            <span>Save</span>
+          </button>
+        </div>
       </div>
     </div>
   )

@@ -15,6 +15,7 @@ import { Check, Trash2 } from 'lucide-react'
 import { isRowInactive } from '@/lib/row-state'
 import { calculateMinWidth } from '@/lib/column-width-utils'
 import { cn } from '@/lib/utils'
+import { useAuth } from '@/lib/auth-context'
 
 const PRODUCT_FILTER_OPTIONS = [
   { id: 'productNameVendor', label: 'Product Name - Vendor' },
@@ -277,6 +278,12 @@ export default function ProductsPage() {
   const [showCreateModal, setShowCreateModal] = useState(false)
 
   const { showError, showSuccess, showWarning, ToastContainer } = useToasts()
+  const { user } = useAuth()
+  const roleCode = user?.role?.code?.toLowerCase() ?? ''
+  const canEditProducts = roleCode === 'admin' || roleCode.includes('admin')
+  const requireAdminForEdit = useCallback(() => {
+    showError('Admin access required', 'Only Admins can modify existing products.')
+  }, [showError])
 
   const {
     columns: preferenceColumns,
@@ -502,6 +509,11 @@ export default function ProductsPage() {
     showWarning('Edit coming soon', `${product.productNameHouse || product.productNameVendor} cannot be edited yet.`)
   }, [showWarning])
   const handleProductToggleActive = useCallback(async (row: ProductRow, nextValue: boolean) => {
+    if (!canEditProducts) {
+      requireAdminForEdit()
+      return
+    }
+
     try {
       const response = await fetch(`/api/products/${row.id}`, {
         method: 'PATCH',
@@ -525,9 +537,14 @@ export default function ProductsPage() {
       console.error('Failed to toggle product', err)
       showError('Unable to update product', err instanceof Error ? err.message : 'Please try again later.')
     }
-  }, [reloadProducts, showError, showSuccess])
+  }, [canEditProducts, reloadProducts, requireAdminForEdit, showError, showSuccess])
 
   const handleProductDelete = useCallback(async (productId: string) => {
+    if (!canEditProducts) {
+      requireAdminForEdit()
+      return
+    }
+
     try {
       const response = await fetch(`/api/products/${productId}`, { method: 'DELETE' })
       if (!response.ok) {
@@ -545,19 +562,29 @@ export default function ProductsPage() {
       console.error('Failed to delete product', err)
       showError('Unable to delete product', err instanceof Error ? err.message : 'Please try again later.')
     }
-  }, [reloadProducts, showError, showSuccess])
+  }, [canEditProducts, reloadProducts, requireAdminForEdit, showError, showSuccess])
 
   const openDeleteDialog = useCallback((targets: ProductRow[]) => {
+    if (!canEditProducts) {
+      requireAdminForEdit()
+      return
+    }
+
     setBulkDeleteTargets(targets)
     setProductToDelete(null)
     setShowDeleteDialog(true)
-  }, [])
+  }, [canEditProducts, requireAdminForEdit])
 
   const requestProductDelete = useCallback((product: ProductRow) => {
+    if (!canEditProducts) {
+      requireAdminForEdit()
+      return
+    }
+
     setBulkDeleteTargets([])
     setProductToDelete(product)
     setShowDeleteDialog(true)
-  }, [])
+  }, [canEditProducts, requireAdminForEdit])
 
   const closeDeleteDialog = useCallback(() => {
     setShowDeleteDialog(false)
@@ -565,6 +592,11 @@ export default function ProductsPage() {
     setProductToDelete(null)
   }, [])
   const executeBulkProductDelete = useCallback(async (targets: ProductRow[]) => {
+    if (!canEditProducts) {
+      requireAdminForEdit()
+      return { success: false, error: 'Admin access required' }
+    }
+
     if (!targets || targets.length === 0) {
       showError('No products selected', 'Select at least one product to delete.')
       return { success: false, error: 'No products selected' }
@@ -621,9 +653,14 @@ export default function ProductsPage() {
     } finally {
       setBulkActionLoading(false)
     }
-  }, [reloadProducts, showError, showSuccess])
+  }, [canEditProducts, reloadProducts, requireAdminForEdit, showError, showSuccess])
 
   const handleBulkActivateProducts = useCallback(async (ids: string[]) => {
+    if (!canEditProducts) {
+      requireAdminForEdit()
+      return
+    }
+
     if (ids.length === 0) {
       showError('No products selected', 'Select at least one product to update.')
       return
@@ -688,9 +725,14 @@ export default function ProductsPage() {
     } finally {
       setBulkActionLoading(false)
     }
-  }, [products, reloadProducts, showError, showSuccess])
+  }, [canEditProducts, products, reloadProducts, requireAdminForEdit, showError, showSuccess])
 
   const handleBulkDeactivateProducts = useCallback(async (ids: string[]) => {
+    if (!canEditProducts) {
+      requireAdminForEdit()
+      return
+    }
+
     if (ids.length === 0) {
       showError('No products selected', 'Select at least one product to update.')
       return
@@ -755,7 +797,7 @@ export default function ProductsPage() {
     } finally {
       setBulkActionLoading(false)
     }
-  }, [products, reloadProducts, showError, showSuccess])
+  }, [canEditProducts, products, reloadProducts, requireAdminForEdit, showError, showSuccess])
   const handleBulkExportCsv = useCallback(() => {
     const rows = selectedProducts.length > 0
       ? products.filter((row) => selectedProducts.includes(row.id))
@@ -833,29 +875,41 @@ export default function ProductsPage() {
           ...column,
           render: (_: unknown, row: ProductRow) => {
             const checked = selectedProducts.includes(row.id)
+            const selectionControl = (
+              <label
+                className="flex cursor-pointer items-center justify-center"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <input
+                  type="checkbox"
+                  className="sr-only"
+                  checked={checked}
+                  aria-label={`Select product ${row.productNameHouse || row.productNameVendor || row.id}`}
+                  onChange={() => handleSelectProduct(row.id, !checked)}
+                />
+                <span
+                  className={`flex h-4 w-4 items-center justify-center rounded border transition-colors ${
+                    checked
+                      ? 'border-primary-500 bg-primary-600 text-white'
+                      : 'border-gray-300 bg-white text-transparent'
+                  }`}
+                >
+                  <Check className="h-3 w-3" aria-hidden="true" />
+                </span>
+              </label>
+            )
+
+            if (!canEditProducts) {
+              return (
+                <div className="flex items-center" data-disable-row-click="true">
+                  {selectionControl}
+                </div>
+              )
+            }
+
             return (
               <div className="flex items-center gap-2" data-disable-row-click="true">
-                <label
-                  className="flex cursor-pointer items-center justify-center"
-                  onClick={(event) => event.stopPropagation()}
-                >
-                  <input
-                    type="checkbox"
-                    className="sr-only"
-                    checked={checked}
-                    aria-label={`Select product ${row.productNameHouse || row.productNameVendor || row.id}`}
-                    onChange={() => handleSelectProduct(row.id, !checked)}
-                  />
-                  <span
-                    className={`flex h-4 w-4 items-center justify-center rounded border transition-colors ${
-                      checked
-                        ? 'border-primary-500 bg-primary-600 text-white'
-                        : 'border-gray-300 bg-white text-transparent'
-                    }`}
-                  >
-                    <Check className="h-3 w-3" aria-hidden="true" />
-                  </span>
-                </label>
+                {selectionControl}
                 <button
                   type="button"
                   onClick={(event) => {
@@ -973,8 +1027,8 @@ export default function ProductsPage() {
     })
   }, [
     handleProductToggleActive,
-    handleRowClick,
     handleSelectProduct,
+    canEditProducts,
     normalizedPreferenceColumns,
     requestProductDelete,
     selectedProducts,
@@ -1004,15 +1058,16 @@ export default function ProductsPage() {
       )}
 
       <div className="flex-1 min-h-0 p-4 pt-0 flex flex-col gap-4">
-        <div className="flex-shrink-0">
-          <ProductBulkActionBar
-            count={selectedProducts.length}
-            disabled={bulkActionLoading}
-            onDelete={() => openDeleteDialog(products.filter((row) => selectedProducts.includes(row.id)))}
-            onExportCsv={handleBulkExportCsv}
-            onActivate={() => handleBulkActivateProducts(selectedProducts)}
-            onDeactivate={() => handleBulkDeactivateProducts(selectedProducts)}
-          />
+      <div className="flex-shrink-0">
+        <ProductBulkActionBar
+          count={selectedProducts.length}
+          disabled={bulkActionLoading}
+          disableMutations={!canEditProducts}
+          onDelete={() => openDeleteDialog(products.filter((row) => selectedProducts.includes(row.id)))}
+          onExportCsv={handleBulkExportCsv}
+          onActivate={() => handleBulkActivateProducts(selectedProducts)}
+          onDeactivate={() => handleBulkDeactivateProducts(selectedProducts)}
+        />
         </div>
 
         <div ref={tableAreaRef} className="flex-1 min-h-0">
@@ -1047,51 +1102,53 @@ export default function ProductsPage() {
         }}
       />
 
-      <TwoStageDeleteDialog
-        isOpen={showDeleteDialog}
-        onClose={closeDeleteDialog}
-        entity="Product"
-        entityName={
-          bulkDeleteTargets.length > 0
-            ? `${bulkDeleteTargets.length} product${bulkDeleteTargets.length === 1 ? '' : 's'}`
-            : productToDelete?.productNameHouse || productToDelete?.productNameVendor || 'Unknown Product'
-        }
-        entityId={
-          bulkDeleteTargets.length > 0
-            ? bulkDeleteTargets[0]?.id ?? ''
-            : productToDelete?.id ?? ''
-        }
-        multipleEntities={
-          bulkDeleteTargets.length > 0
-            ? bulkDeleteTargets.map((product) => ({
-                id: product.id,
-                name: product.productNameHouse || product.productNameVendor || 'Product',
-              }))
-            : undefined
-        }
-        entityLabelPlural="Products"
-        isDeleted={
-          bulkDeleteTargets.length > 0
-            ? bulkDeleteTargets.every((product) => !product.active)
-            : productToDelete ? !productToDelete.active : false
-        }
-        onSoftDelete={async (id) => {
-          await handleProductDelete(id)
-          return { success: true }
-        }}
-        onBulkSoftDelete={async (entities) => {
-          const targets = products.filter((product) =>
-            entities.some((entity) => entity.id === product.id),
-          )
-          const result = await executeBulkProductDelete(targets)
-          return result
-        }}
-        onPermanentDelete={async (id) => {
-          await handleProductDelete(id)
-          return { success: true }
-        }}
-        userCanPermanentDelete
-      />
+      {canEditProducts ? (
+        <TwoStageDeleteDialog
+          isOpen={showDeleteDialog}
+          onClose={closeDeleteDialog}
+          entity="Product"
+          entityName={
+            bulkDeleteTargets.length > 0
+              ? `${bulkDeleteTargets.length} product${bulkDeleteTargets.length === 1 ? '' : 's'}`
+              : productToDelete?.productNameHouse || productToDelete?.productNameVendor || 'Unknown Product'
+          }
+          entityId={
+            bulkDeleteTargets.length > 0
+              ? bulkDeleteTargets[0]?.id ?? ''
+              : productToDelete?.id ?? ''
+          }
+          multipleEntities={
+            bulkDeleteTargets.length > 0
+              ? bulkDeleteTargets.map((product) => ({
+                  id: product.id,
+                  name: product.productNameHouse || product.productNameVendor || 'Product',
+                }))
+              : undefined
+          }
+          entityLabelPlural="Products"
+          isDeleted={
+            bulkDeleteTargets.length > 0
+              ? bulkDeleteTargets.every((product) => !product.active)
+              : productToDelete ? !productToDelete.active : false
+          }
+          onSoftDelete={async (id) => {
+            await handleProductDelete(id)
+            return { success: true }
+          }}
+          onBulkSoftDelete={async (entities) => {
+            const targets = products.filter((product) =>
+              entities.some((entity) => entity.id === product.id),
+            )
+            const result = await executeBulkProductDelete(targets)
+            return result
+          }}
+          onPermanentDelete={async (id) => {
+            await handleProductDelete(id)
+            return { success: true }
+          }}
+          userCanPermanentDelete
+        />
+      ) : null}
 
       <ProductCreateModal
         isOpen={showCreateModal}
