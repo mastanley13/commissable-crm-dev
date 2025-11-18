@@ -1058,9 +1058,11 @@ enum LeadSource {
 
 enum RevenueType {
   NRC_PerItem
+  NRC_Percent
   NRC_FlatFee
-  MRC_PerItem
-  MRC_FlatFee
+  NRC_Resale
+  MRC_ThirdParty
+  MRC_House
 }
 
 enum RevenueScheduleType {

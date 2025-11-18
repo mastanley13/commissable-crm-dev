@@ -10,6 +10,7 @@ import { useUnsavedChangesPrompt } from "@/hooks/useUnsavedChangesPrompt"
 import { useAuth } from "@/lib/auth-context"
 import { EditableField } from "./editable-field"
 import { useToasts } from "./toast"
+import { getRevenueTypeLabel, REVENUE_TYPE_OPTIONS } from "@/lib/revenue-types"
 
 interface FieldDefinition {
   fieldId: string
@@ -32,6 +33,7 @@ export interface RevenueScheduleDetailRecord {
   productNameVendor?: string
   productDescriptionVendor?: string
   productRevenueType?: string
+  productRevenueTypeLabel?: string | null
   scheduleStatus?: string
   inDispute?: boolean
   opportunityId?: string | number | null
@@ -333,12 +335,17 @@ export function RevenueScheduleDetailsView({
 
   const disputePillClass = schedule.inDispute ? "bg-rose-100 text-rose-700 border-rose-200" : "bg-emerald-100 text-emerald-700 border-emerald-200"
 
+  const productRevenueTypeDisplay =
+    schedule.productRevenueTypeLabel ??
+    getRevenueTypeLabel(schedule.productRevenueType) ??
+    schedule.productRevenueType
+
   const columnOne: FieldDefinition[] = [
     { fieldId: "04.01.000", label: "Revenue Schedule Name", value: scheduleName },
     { fieldId: "04.01.001", label: "Revenue Schedule Date", value: scheduleDate },
     { fieldId: "04.01.002", label: "Product Name - Vendor", value: schedule.productNameVendor },
     { fieldId: "04.01.003", label: "Product Description - Vendor", value: schedule.productDescriptionVendor },
-    { fieldId: "04.01.004", label: "Product Revenue Type", value: schedule.productRevenueType },
+    { fieldId: "04.01.004", label: "Product Revenue Type", value: productRevenueTypeDisplay },
     {
       fieldId: "04.01.005",
       label: "Status",
@@ -529,22 +536,28 @@ export function RevenueScheduleDetailsView({
                     />
                   )
                 }
-                if (enableInlineEditing && field.fieldId === "04.01.004" && productTypeField) {
-                  return (
-                    <EditRow
-                      key={`${field.fieldId}-${field.label}`}
-                      label="Product Revenue Type"
-                      control={
-                        <EditableField.Input
-                          value={(productTypeField.value as string) ?? ""}
-                          onChange={productTypeField.onChange}
-                          onBlur={productTypeField.onBlur}
-                          placeholder="Revenue type"
-                        />
-                      }
-                    />
-                  )
-                }
+                  if (enableInlineEditing && field.fieldId === "04.01.004" && productTypeField) {
+                    return (
+                      <EditRow
+                        key={`${field.fieldId}-${field.label}`}
+                        label="Product Revenue Type"
+                        control={
+                          <EditableField.Select
+                            value={(productTypeField.value as string) ?? ""}
+                            onChange={productTypeField.onChange}
+                            onBlur={productTypeField.onBlur}
+                          >
+                            <option value="">Select revenue type</option>
+                            {REVENUE_TYPE_OPTIONS.map(option => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </EditableField.Select>
+                        }
+                      />
+                    )
+                  }
                 if (enableInlineEditing && field.fieldId === "04.01.014" && expectedRateField) {
                   return (
                     <EditRow

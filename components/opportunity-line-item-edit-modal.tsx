@@ -4,6 +4,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react"
 import { Loader2, Search, X } from "lucide-react"
 import { useToasts } from "@/components/toast"
 import { OpportunityLineItemRecord } from "./opportunity-types"
+import { getRevenueTypeLabel } from "@/lib/revenue-types"
 
 interface ProductOption {
   id: string
@@ -363,7 +364,11 @@ export function OpportunityLineItemEditModal({
                       {selectedProduct.distributorName ? (
                         <span>Distributor: {selectedProduct.distributorName}</span>
                       ) : null}
-                      {selectedProduct.revenueType ? <span>Type: {selectedProduct.revenueType}</span> : null}
+                      {selectedProduct.revenueType ? (
+                        <span>
+                          Type: {getRevenueTypeLabel(selectedProduct.revenueType) ?? selectedProduct.revenueType}
+                        </span>
+                      ) : null}
                       {Number.isFinite(selectedProduct.priceEach) ? (
                         <span>Price: ${selectedProduct.priceEach?.toFixed(2)}</span>
                       ) : null}

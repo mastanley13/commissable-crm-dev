@@ -11,6 +11,7 @@ DROP TYPE "public"."ActivityType";
 ALTER TYPE "public"."ActivityType_new" RENAME TO "ActivityType";
 
 CREATE TYPE "public"."ActivityStatus_new" AS ENUM ('Open', 'Completed');
+ALTER TABLE "public"."Activity" ALTER COLUMN "status" DROP DEFAULT;
 ALTER TABLE "public"."Activity"
   ALTER COLUMN "status" TYPE "public"."ActivityStatus_new"
   USING CASE

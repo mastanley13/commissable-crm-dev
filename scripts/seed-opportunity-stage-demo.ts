@@ -40,7 +40,7 @@ async function ensureProduct(prisma: Awaited<ReturnType<typeof getPrisma>>, tena
       tenantId,
       productCode: `DEMO-${Math.random().toString(36).slice(2, 7).toUpperCase()}`,
       productNameHouse: "Demo Service",
-      revenueType: RevenueType.MRC_PerItem,
+      revenueType: RevenueType.MRC_ThirdParty,
       priceEach: 100 as any,
       commissionPercent: 10 as any,
       isActive: true,

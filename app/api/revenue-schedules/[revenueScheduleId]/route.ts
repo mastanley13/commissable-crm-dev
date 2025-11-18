@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
 import { withAuth, withPermissions } from "@/lib/api-auth"
 import { mapRevenueScheduleToDetail, type RevenueScheduleWithRelations } from "../helpers"
+import { isRevenueTypeCode } from "@/lib/revenue-types"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -179,8 +180,15 @@ export async function PATCH(request: NextRequest, { params }: { params: { revenu
         if (typeof (payload as any)?.productDescriptionVendor === 'string') {
           productData.productDescriptionVendor = ((payload as any).productDescriptionVendor as string).trim() || null
         }
-        if (typeof (payload as any)?.productRevenueType === 'string') {
-          productData.revenueType = ((payload as any).productRevenueType as string).trim() || null
+        if (typeof (payload as any)?.productRevenueType === "string") {
+          const rawType = ((payload as any).productRevenueType as string).trim()
+          if (!rawType) {
+            productData.revenueType = null
+          } else if (!isRevenueTypeCode(rawType)) {
+            return NextResponse.json({ error: "Invalid revenue type" }, { status: 400 })
+          } else {
+            productData.revenueType = rawType
+          }
         }
         if (typeof (payload as any)?.expectedCommissionRatePercent === 'string') {
           const raw = ((payload as any).expectedCommissionRatePercent as string).trim()

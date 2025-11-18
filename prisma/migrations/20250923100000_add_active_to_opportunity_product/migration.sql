@@ -1,2 +1,7 @@
-ALTER TABLE "OpportunityProduct" ADD COLUMN "active" BOOLEAN NOT NULL DEFAULT TRUE;
+DO $$
+BEGIN
+  ALTER TABLE "OpportunityProduct" ADD COLUMN "active" BOOLEAN NOT NULL DEFAULT TRUE;
+EXCEPTION
+  WHEN duplicate_column THEN NULL;
+END $$;
 

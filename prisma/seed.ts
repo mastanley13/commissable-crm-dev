@@ -564,7 +564,7 @@ async function seed() {
       productNameHouse: "VoIP Service Bundle",
       productNameVendor: "Algave Voice Enterprise",
       description: "Unified communications package",
-      revenueType: "MRC_PerItem",
+      revenueType: "MRC_ThirdParty",
       commissionPercent: 12.5,
       priceEach: 899,
       vendorAccountId: account.id,

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
 import { resolveTenantId } from "@/lib/server-utils"
-import { RevenueType } from "@prisma/client"
+import { REVENUE_TYPE_OPTIONS } from "@/lib/revenue-types"
 
 export const dynamic = "force-dynamic"
 
@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       accounts: accounts.map((a) => ({ value: a.id, label: a.accountName })),
-      revenueTypes: (Object.values(RevenueType) as string[]).map((rt) => ({ value: rt, label: rt })),
+      revenueTypes: REVENUE_TYPE_OPTIONS
     })
   } catch (error) {
     console.error("Failed to load product options", error)

@@ -18,6 +18,7 @@ import { ColumnChooserModal } from "@/components/column-chooser-modal"
 import { DynamicTable, type Column, type PaginationInfo } from "@/components/dynamic-table"
 import { useTablePreferences } from "@/hooks/useTablePreferences"
 import { applySimpleFilters } from "@/lib/filter-utils"
+import { getRevenueTypeLabel } from "@/lib/revenue-types"
 import { ACTIVITY_TABLE_BASE_COLUMNS } from "@/components/opportunity-details-view"
 import { ActivityNoteCreateModal } from "@/components/activity-note-create-modal"
 
@@ -416,7 +417,10 @@ export function RevenueScheduleSupportingDetails({ schedule }: { schedule: Reven
 
     const fields: DetailLineProps[] = [
       { label: "Service ID", value: schedule.revenueSchedule ?? "12355234" },
-      { label: "USOC", value: schedule.productRevenueType ?? "AA3251" },
+      {
+        label: "USOC",
+        value: getRevenueTypeLabel(schedule.productRevenueType) ?? schedule.productRevenueType ?? "AA3251"
+      },
       { label: "Service Address", value: shippingAddress },
       { label: "Service City", value: city },
       { label: "Service State", value: stateMatch },

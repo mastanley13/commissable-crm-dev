@@ -1,4 +1,5 @@
 import type { Product, Account } from "@prisma/client"
+import { getRevenueTypeLabel } from "@/lib/revenue-types"
 
 interface ProductWithRelations extends Product {
   distributor?: Pick<Account, "accountName"> | null
@@ -24,6 +25,7 @@ export interface ProductListRow {
   revenueSchedulePeriods: number | null
   revenueScheduleEstimatedStartDate: string | null
   revenueType: string
+  revenueTypeLabel: string
 }
 
 const PRODUCT_SPEC_TODO_FIELDS = new Set([
@@ -81,5 +83,6 @@ export function mapProductToRow(product: ProductWithRelations): ProductListRow {
     revenueSchedulePeriods: null,
     revenueScheduleEstimatedStartDate: null,
     revenueType: product.revenueType ?? "",
+    revenueTypeLabel: getRevenueTypeLabel(product.revenueType) ?? product.revenueType ?? ""
   }
 }

@@ -36,6 +36,7 @@ import { useToasts } from "@/components/toast"
 import { ProductBulkActionBar } from "./product-bulk-action-bar"
 import { OpportunityRoleCreateModal } from "./opportunity-role-create-modal"
 import { getOpportunityStageLabel, getOpportunityStageOptions, isOpportunityStageAutoManaged, isOpportunityStageValue, type OpportunityStageOption } from "@/lib/opportunity-stage"
+import { getRevenueTypeLabel } from "@/lib/revenue-types"
 
 const fieldLabelClass = "text-[11px] font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap"
 const fieldBoxClass = "flex min-h-[28px] w-full max-w-md items-center justify-between border-b-2 border-gray-300 bg-transparent pl-[3px] pr-0 py-1 text-[11px] text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis tabular-nums"
@@ -176,7 +177,15 @@ export const PRODUCT_TABLE_BASE_COLUMNS: Column[] = [
   },
   { id: "productName", label: "Product", width: 240, minWidth: calculateMinWidth({ label: "Product", type: "text", sortable: true }), accessor: "productName", sortable: true },
   { id: "productCode", label: "Product Code", width: 160, minWidth: calculateMinWidth({ label: "Product Code", type: "text", sortable: true }), accessor: "productCode", sortable: true },
-  { id: "revenueType", label: "Revenue Type", width: 160, minWidth: calculateMinWidth({ label: "Revenue Type", type: "text", sortable: true }), accessor: "revenueType", sortable: true },
+  {
+    id: "revenueType",
+    label: "Revenue Type",
+    width: 160,
+    minWidth: calculateMinWidth({ label: "Revenue Type", type: "text", sortable: true }),
+    accessor: "revenueType",
+    sortable: true,
+    render: (value: string) => getRevenueTypeLabel(value) ?? value ?? "--"
+  },
   { id: "quantity", label: "Quantity", width: 120, minWidth: calculateMinWidth({ label: "Quantity", type: "text", sortable: true }), accessor: "quantity", sortable: true },
   { id: "unitPrice", label: "Unit Price", width: 140, minWidth: calculateMinWidth({ label: "Unit Price", type: "text", sortable: true }), accessor: "unitPrice", sortable: true },
   { id: "expectedRevenue", label: "Expected Revenue", width: 180, minWidth: calculateMinWidth({ label: "Expected Revenue", type: "text", sortable: true }), accessor: "expectedRevenue", sortable: true },
@@ -2056,7 +2065,13 @@ export function OpportunityDetailsView({
     if (productSearchQuery.trim().length > 0) {
       const search = productSearchQuery.trim().toLowerCase()
       rows = rows.filter(row =>
-        [row.productName, row.productCode, row.revenueType, row.distributorName, row.vendorName]
+        [
+          row.productName,
+          row.productCode,
+          getRevenueTypeLabel(row.revenueType) ?? row.revenueType ?? "",
+          row.distributorName,
+          row.vendorName
+        ]
           .filter(Boolean)
           .some(value => String(value).toLowerCase().includes(search))
       )
@@ -3233,7 +3248,7 @@ export function OpportunityDetailsView({
       [
         row.productName,
         row.productCode,
-        row.revenueType,
+        getRevenueTypeLabel(row.revenueType) ?? row.revenueType ?? "",
         row.quantity,
         row.unitPrice,
         row.expectedUsage,

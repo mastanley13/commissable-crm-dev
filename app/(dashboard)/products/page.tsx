@@ -16,6 +16,7 @@ import { isRowInactive } from '@/lib/row-state'
 import { calculateMinWidth } from '@/lib/column-width-utils'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/lib/auth-context'
+import { getRevenueTypeLabel } from '@/lib/revenue-types'
 
 const PRODUCT_FILTER_OPTIONS = [
   { id: 'productNameVendor', label: 'Product Name - Vendor' },
@@ -182,6 +183,7 @@ const BASE_COLUMNS: Column[] = [
     maxWidth: 260,
     sortable: true,
     accessor: 'revenueType',
+    render: (value: string) => getRevenueTypeLabel(value) ?? value ?? '--',
   },
 ]
 
@@ -204,6 +206,7 @@ interface ProductRow {
   revenueSchedulePeriods: number | null
   revenueScheduleEstimatedStartDate: string | null
   revenueType: string
+  revenueTypeLabel?: string
 }
 interface ProductListResponse {
   data?: ProductRow[]
@@ -841,7 +844,7 @@ export default function ProductsPage() {
         formatPercent(row.commissionPercent ?? 0),
         row.revenueSchedulePeriods === null || row.revenueSchedulePeriods === undefined ? '' : String(row.revenueSchedulePeriods),
         formatIsoDate(row.revenueScheduleEstimatedStartDate),
-        row.revenueType,
+        getRevenueTypeLabel(row.revenueType) ?? row.revenueType ?? '',
         row.active ? 'Yes' : 'No',
       ]
 

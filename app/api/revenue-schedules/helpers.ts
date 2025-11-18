@@ -1,4 +1,5 @@
 import type { Prisma, RevenueScheduleStatus } from "@prisma/client"
+import { getRevenueTypeLabel } from "@/lib/revenue-types"
 
 export type RevenueScheduleWithRelations = Prisma.RevenueScheduleGetPayload<{
   include: {
@@ -127,6 +128,7 @@ export interface RevenueScheduleListItem {
 export interface RevenueScheduleDetail extends RevenueScheduleListItem {
   productDescriptionVendor: string | null
   productRevenueType: string | null
+  productRevenueTypeLabel: string | null
   legalName: string | null
   shippingAddress: string | null
   billingAddress: string | null
@@ -314,6 +316,7 @@ export function mapRevenueScheduleToListItem(schedule: RevenueScheduleWithRelati
 export function mapRevenueScheduleToDetail(schedule: RevenueScheduleWithRelations): RevenueScheduleDetail {
   const listValues = mapRevenueScheduleToListItem(schedule)
   const expectedCommissionRate = schedule.product?.commissionPercent ?? null
+  const productRevenueType = schedule.product?.revenueType ?? null
 
   const actualCommissionNumber = toNumber(schedule.actualCommission)
   const actualUsageNumber = toNumber(schedule.actualUsage)
@@ -328,7 +331,8 @@ export function mapRevenueScheduleToDetail(schedule: RevenueScheduleWithRelation
   return {
     ...listValues,
     productDescriptionVendor: schedule.product?.productDescriptionVendor ?? null,
-    productRevenueType: schedule.product?.revenueType ?? null,
+    productRevenueType,
+    productRevenueTypeLabel: getRevenueTypeLabel(productRevenueType) ?? productRevenueType ?? null,
     legalName: schedule.account?.accountLegalName ?? null,
     shippingAddress: formatAddress(schedule.account?.shippingAddress),
     billingAddress: formatAddress(schedule.account?.billingAddress),

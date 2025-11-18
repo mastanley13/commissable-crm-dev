@@ -8,6 +8,7 @@ import { EditableField } from "./editable-field"
 import { useToasts } from "./toast"
 import { useEntityEditor, type EntityEditor } from "@/hooks/useEntityEditor"
 import { useAuth } from "@/lib/auth-context"
+import { getRevenueTypeLabel, REVENUE_TYPE_OPTIONS } from "@/lib/revenue-types"
 
 export interface ProductOpportunityUsage {
   id: string
@@ -125,13 +126,6 @@ interface ProductInlineForm {
   vendorAccountId: string
   distributorAccountId: string
 }
-
-const REVENUE_TYPE_OPTIONS = [
-  { value: "NRC_PerItem", label: "NRC - Per Item" },
-  { value: "NRC_FlatFee", label: "NRC - Flat Fee" },
-  { value: "MRC_PerItem", label: "MRC - Per Item" },
-  { value: "MRC_FlatFee", label: "MRC - Flat Fee" }
-]
 
 const TABS: { id: TabKey; label: string }[] = [
   { id: "distributor", label: "Distributor" },
@@ -348,18 +342,6 @@ function formatDate(value: string | null | undefined): string | null {
   return `${year}/${month}/${day}`
 }
 
-function humanizeLabel(value: string | null | undefined): string | null {
-  if (!value) {
-    return null
-  }
-  return value
-    .replace(/([A-Z])/g, " $1")
-    .replace(/[_-]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim()
-    .replace(/\b\w/g, character => character.toUpperCase())
-}
-
 interface ProductHeaderProps {
   product: ProductDetailRecord
   onEdit?: (() => void) | null | undefined
@@ -381,7 +363,7 @@ function ProductHeader({ product, onEdit, activeTab, onTabSelect }: ProductHeade
   )
   const priceEach = formatCurrency(product.priceEach)
   const commissionRate = formatPercent(product.commissionPercent)
-  const revenueTypeLabel = humanizeLabel(product.revenueType)
+  const revenueTypeLabel = getRevenueTypeLabel(product.revenueType) ?? product.revenueType
   const productDescriptionHouse = product.productDescriptionHouse ?? product.description ?? null
 
   return (
