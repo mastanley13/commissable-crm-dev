@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic"
 const CANONICAL_ACCOUNT_TYPES = [
   { code: "CUSTOMER", name: "Customer", displayOrder: 10 },
   { code: "DISTRIBUTOR", name: "Distributor", displayOrder: 20 },
-  { code: "HOUSE_REP", name: "House Rep", displayOrder: 30 },
+  { code: "HOUSE_REP", name: "House", displayOrder: 30 },
   { code: "OTHER", name: "Other", displayOrder: 40 },
   { code: "PROSPECT", name: "Prospect", displayOrder: 50 },
   { code: "SUBAGENT", name: "Subagent", displayOrder: 60 },

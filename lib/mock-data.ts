@@ -609,21 +609,71 @@ export const reconciliationData = [
     id: 1,
     active: true,
     reconciled: false,
+    // Core list fields
     accountName: 'Testing Account 1',
     month: 'August 2025',
     totalRevenue: '$2,543.76',
     totalCommissions: '$127.19',
-    status: 'Pending'
+    status: 'Pending',
+    // Deposit-level details
+    createdBy: 'Rob Hosef',
+    depositName: '2025-08 Telarus_Lingo_Deposit',
+    distributorName: 'Telarus',
+    paymentDate: '2025-08-23',
+    totalItems: 10,
+    totalReconciledItems: 5,
+    totalUsage: '$500.00',
+    vendorName: 'Lingo',
+    paymentType: 'ACH',
+    usageAllocated: '$500.00',
+    usageUnallocated: '$0.00',
+    commissionAllocated: '$127.19',
+    commissionUnallocated: '$0.00',
+    depositItemsReconciledUnreconciled: '5 / 5',
+    // Line-item level sample fields (per-deposit summary/example)
+    accountIdVendor: 'VEND-1001',
+    lineItem: 'Line 1',
+    productNameVendor: 'UCaaS Seats',
+    usage: '$250.00',
+    actualCommissionRatePercent: '5.00%',
+    actualCommission: '$12.50',
+    customerIdVendor: 'CUST-2001',
+    orderIdVendor: 'ORD-3001'
   },
   {
     id: 2,
     active: true,
     reconciled: true,
+    // Core list fields
     accountName: 'Customer Account 1',
     month: 'July 2025',
     totalRevenue: '$1,876.42',
     totalCommissions: '$93.82',
-    status: 'Completed'
+    status: 'Completed',
+    // Deposit-level details
+    createdBy: 'Avant Lingo',
+    depositName: '2025-07 Telarus_Lingo_Deposit',
+    distributorName: 'Telarus',
+    paymentDate: '2025-07-20',
+    totalItems: 8,
+    totalReconciledItems: 8,
+    totalUsage: '$420.00',
+    vendorName: 'Lingo',
+    paymentType: 'Wire',
+    usageAllocated: '$420.00',
+    usageUnallocated: '$0.00',
+    commissionAllocated: '$93.82',
+    commissionUnallocated: '$0.00',
+    depositItemsReconciledUnreconciled: '8 / 0',
+    // Line-item level sample fields (per-deposit summary/example)
+    accountIdVendor: 'VEND-1002',
+    lineItem: 'Line 1',
+    productNameVendor: 'Connectivity',
+    usage: '$210.00',
+    actualCommissionRatePercent: '4.50%',
+    actualCommission: '$9.45',
+    customerIdVendor: 'CUST-2002',
+    orderIdVendor: 'ORD-3002'
   }
 ]
 
@@ -631,6 +681,199 @@ export const depositSummaryMock = {
   totalUsageYtd: 2500000,
   totalCommissionsYtd: 25000,
   totalPastDueSchedules: 731
+}
+
+export type DepositLineItemRow = {
+  id: string
+  status: 'Matched' | 'Unreconciled' | 'Partially Matched'
+  paymentDate: string
+  accountName: string
+  lineItem: number
+  productName: string
+  usage: number
+  commission: number
+  commissionRate: number
+  accountId: string
+}
+
+export const depositLineItemsMock: DepositLineItemRow[] = [
+  {
+    id: 'dli-1001',
+    status: 'Unreconciled',
+    paymentDate: '2025-02-01',
+    accountName: 'Mike Inc',
+    lineItem: 1,
+    productName: 'Ucaas 1 Seat - 12 Month',
+    usage: 600,
+    commission: 60,
+    commissionRate: 0.1,
+    accountId: 'A123543'
+  },
+  {
+    id: 'dli-1002',
+    status: 'Unreconciled',
+    paymentDate: '2025-02-01',
+    accountName: 'Alvin Inc',
+    lineItem: 2,
+    productName: 'Ucaas 1 Seat - 12 Month',
+    usage: 1010,
+    commission: 101,
+    commissionRate: 0.1,
+    accountId: 'A123111'
+  },
+  {
+    id: 'dli-1003',
+    status: 'Matched',
+    paymentDate: '2025-02-02',
+    accountName: 'Mike Inc',
+    lineItem: 3,
+    productName: 'SD-WAN Advanced',
+    usage: 2200,
+    commission: 330,
+    commissionRate: 0.15,
+    accountId: 'A123543'
+  },
+  {
+    id: 'dli-1004',
+    status: 'Matched',
+    paymentDate: '2025-02-02',
+    accountName: 'Alvin Inc',
+    lineItem: 4,
+    productName: 'Fiber DIA 1GB',
+    usage: 4800,
+    commission: 480,
+    commissionRate: 0.1,
+    accountId: 'A123111'
+  },
+  {
+    id: 'dli-1005',
+    status: 'Partially Matched',
+    paymentDate: '2025-02-03',
+    accountName: 'Mike Inc',
+    lineItem: 5,
+    productName: 'CCaaS Enterprise',
+    usage: 1200,
+    commission: 180,
+    commissionRate: 0.15,
+    accountId: 'A123543'
+  },
+  {
+    id: 'dli-1006',
+    status: 'Unreconciled',
+    paymentDate: '2025-02-04',
+    accountName: 'Loxo Partners',
+    lineItem: 6,
+    productName: 'Ucaas 1 Seat - 12 Month',
+    usage: 1900,
+    commission: 190,
+    commissionRate: 0.1,
+    accountId: 'A998877'
+  }
+]
+
+export type SuggestedMatchScheduleRow = {
+  id: string
+  sequence: number
+  name: string
+  number: string
+  date: string
+  accountLegalName: string
+  product: string
+  vendorName: string
+  quantity: number
+  priceEach: number
+  expectedUsageGross: number
+  expectedUsageAdjust: number
+  status: 'Suggested' | 'Reconciled' | 'Un-Reconciled'
+}
+
+export const suggestedScheduleMatchesMock: SuggestedMatchScheduleRow[] = [
+  {
+    id: 'rs-2001',
+    sequence: 1,
+    name: 'RS-1234',
+    number: 'RS-1234',
+    date: '2025-02-01',
+    accountLegalName: 'Mike Inc',
+    product: 'Ucaas 1 Seat - 12 Month',
+    vendorName: 'Lingo',
+    quantity: 1,
+    priceEach: 500,
+    expectedUsageGross: 500,
+    expectedUsageAdjust: 0,
+    status: 'Suggested'
+  },
+  {
+    id: 'rs-2002',
+    sequence: 2,
+    name: 'RS-1212',
+    number: 'RS-1212',
+    date: '2025-02-19',
+    accountLegalName: 'Mike Inc',
+    product: 'Ucaas 1 Seat - 12 Month',
+    vendorName: 'Lingo',
+    quantity: 1,
+    priceEach: 500,
+    expectedUsageGross: 10100,
+    expectedUsageAdjust: 0,
+    status: 'Suggested'
+  },
+  {
+    id: 'rs-2003',
+    sequence: 3,
+    name: 'RS-1213',
+    number: 'RS-1213',
+    date: '2025-02-19',
+    accountLegalName: 'Mike Inc',
+    product: 'SD-WAN Advanced',
+    vendorName: 'Lingo',
+    quantity: 1,
+    priceEach: 500,
+    expectedUsageGross: 100,
+    expectedUsageAdjust: 0,
+    status: 'Reconciled'
+  },
+  {
+    id: 'rs-2004',
+    sequence: 4,
+    name: 'RS-1214',
+    number: 'RS-1214',
+    date: '2025-02-19',
+    accountLegalName: 'Alvin Inc',
+    product: 'Fiber DIA 1GB',
+    vendorName: 'Lingo',
+    quantity: 1,
+    priceEach: 500,
+    expectedUsageGross: 10100,
+    expectedUsageAdjust: 0,
+    status: 'Reconciled'
+  },
+  {
+    id: 'rs-2005',
+    sequence: 5,
+    name: 'RS-1215',
+    number: 'RS-1215',
+    date: '2025-02-19',
+    accountLegalName: 'Mike Inc',
+    product: 'CCaaS Enterprise',
+    vendorName: 'Lingo',
+    quantity: 1,
+    priceEach: 500,
+    expectedUsageGross: 100,
+    expectedUsageAdjust: 0,
+    status: 'Un-Reconciled'
+  }
+]
+
+export const depositDetailMetadataMock = {
+  id: 'dep-90427',
+  depositName: 'Tender_Software_ASC_2025_04.24_1743a474703_d',
+  depositDate: '2025-03-01',
+  createdBy: 'Rob Hosaf',
+  paymentType: 'ACH Transfer',
+  usageTotal: 10700,
+  unallocated: 0,
+  allocated: 10700
 }
 
 // Groups Data

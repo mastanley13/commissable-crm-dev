@@ -796,7 +796,7 @@ export function DynamicTable({
           </a>
         )
       default:
-        return <span className="truncate">{value}</span>
+        return <span className="block truncate min-w-0 flex-1">{value}</span>
     }
   }, [handleCheckboxClick, selectedItems, onToggle])
 
@@ -849,7 +849,7 @@ export function DynamicTable({
                     onDrop={event => handleDrop(event, column.id)}
                     onClick={() => column.id !== "select" && handleSort(column)}
                   >
-                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                    <div className="table-header-content gap-2 min-w-0">
                       {column.id === "select" && onSelectAll ? (
                         <>
                           <input
@@ -864,7 +864,7 @@ export function DynamicTable({
                             }}
                           />
                           {!hideSelectAllLabel && (
-                            <span className="break-words leading-tight whitespace-nowrap flex-1 min-w-0">
+                            <span className="break-words leading-tight flex-1 min-w-0">
                               {selectHeaderLabel ?? 'Select All'}
                             </span>
                           )}
@@ -885,7 +885,7 @@ export function DynamicTable({
                             }}
                           />
                           {!hideSelectAllLabel && (
-                            <span className="break-words leading-tight whitespace-nowrap flex-1 min-w-0">{column.label}</span>
+                            <span className="break-words leading-tight flex-1 min-w-0">{column.label}</span>
                           )}
                           {/* Invisible placeholder to match SortTriangles height */}
                           <div className="flex-shrink-0 w-2.5 h-2.5 opacity-0" aria-hidden="true" />

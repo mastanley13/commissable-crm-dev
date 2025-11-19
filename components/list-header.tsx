@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, type ChangeEvent, type ReactNode } from "react";
 import { Search, Settings, ChevronDown, X, Upload, Download } from "lucide-react";
+import { BulkActionsGrid, type BulkActionsGridProps } from "./bulk-actions-grid";
 
 interface FilterColumnOption {
   id: string;
@@ -64,6 +65,7 @@ interface ListHeaderProps {
   onSaveTableChanges?: () => Promise<void>;
   compact?: boolean;
   inTab?: boolean; // When true, uses px-3 instead of px-4 to align with tabs
+  bulkActions?: BulkActionsGridProps;
 }
 
 const DEFAULT_FILTER_COLUMNS: FilterColumnOption[] = [
@@ -109,6 +111,7 @@ export function ListHeader({
   onSaveTableChanges,
   compact = false,
   inTab = false,
+  bulkActions,
 }: ListHeaderProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState<"active" | "inactive" | "all">("active");
@@ -305,6 +308,14 @@ export function ListHeader({
     }
   }
 
+  const mergedBulkActions =
+    bulkActions && bulkActions.actions.length > 0
+      ? {
+          ...bulkActions,
+          density: bulkActions.density ?? (compact || inTab ? "compact" : "default"),
+        }
+      : null;
+
   return (
     <div className={`bg-white ${horizontalPadding} ${padY}`}>
       {title && (
@@ -356,6 +367,10 @@ export function ListHeader({
               >
                 {createButtonLabel}
               </button>
+            )}
+
+            {mergedBulkActions && (
+              <BulkActionsGrid {...mergedBulkActions} />
             )}
 
             <button

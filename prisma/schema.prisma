@@ -44,6 +44,7 @@ model Tenant {
   revenueSchedules        RevenueSchedule[]
   roles                   Role[]
   rolePermissions         RolePermission[]
+  deposits                Deposit[]
   systemSettings          SystemSetting[]
   tablePreferences        TablePreference[]
   tickets                 Ticket[]
@@ -155,6 +156,7 @@ model User {
   createdBy                   User?                    @relation("UserCreatedBy", fields: [createdById], references: [id])
   createdUsers                User[]                   @relation("UserCreatedBy")
   role                        Role?                    @relation(fields: [roleId], references: [id])
+  depositsCreated             Deposit[]                @relation("DepositCreatedByUser")
   tenant                      Tenant                   @relation(fields: [tenantId], references: [id])
   updatedBy                   User?                    @relation("UserUpdatedBy", fields: [updatedById], references: [id])
   updatedUsers                User[]                   @relation("UserUpdatedBy")
@@ -291,6 +293,9 @@ model Account {
   ticketsAsVendor                      Ticket[]                 @relation("TicketVendor")
   reconciliationTemplatesAsDistributor ReconciliationTemplate[] @relation("ReconciliationTemplateDistributor")
   reconciliationTemplatesAsVendor      ReconciliationTemplate[] @relation("ReconciliationTemplateVendor")
+  deposits                             Deposit[]
+  depositsAsDistributor                Deposit[]                @relation("DepositDistributor")
+  depositsAsVendor                     Deposit[]                @relation("DepositVendor")
 
   @@unique([tenantId, accountName])
   @@index([tenantId, accountTypeId])
@@ -389,6 +394,7 @@ model Contact {
   tickets                        Ticket[]
   opportunityRoles               OpportunityRole[]
   reconciliationTemplatesCreated ReconciliationTemplate[]
+  depositsCreated                Deposit[]                @relation("DepositCreatedByContact")
 
   @@index([tenantId, accountId])
   @@index([tenantId, ownerId])
@@ -631,6 +637,48 @@ model Reconciliation {
   items            ReconciliationItem[]
 
   @@unique([tenantId, accountId, month])
+}
+
+model Deposit {
+  id                        String               @id @default(uuid()) @db.Uuid
+  tenantId                  String               @db.Uuid
+  accountId                 String               @db.Uuid
+  month                     DateTime
+  totalRevenue              Decimal?             @db.Decimal(16, 2)
+  totalCommissions          Decimal?             @db.Decimal(16, 2)
+  status                    ReconciliationStatus @default(Pending)
+  reconciled                Boolean              @default(false)
+  reconciledAt              DateTime?
+  depositName               String?
+  paymentDate               DateTime?
+  paymentType               DepositPaymentType?
+  totalItems                Int?                 @default(0)
+  totalReconciledItems      Int?                 @default(0)
+  totalUsage                Decimal?             @db.Decimal(16, 2)
+  usageAllocated            Decimal?             @db.Decimal(16, 2)
+  usageUnallocated          Decimal?             @db.Decimal(16, 2)
+  commissionAllocated       Decimal?             @db.Decimal(16, 2)
+  commissionUnallocated     Decimal?             @db.Decimal(16, 2)
+  itemsReconciled           Int?                 @default(0)
+  itemsUnreconciled         Int?                 @default(0)
+  distributorAccountId      String?              @db.Uuid
+  vendorAccountId           String?              @db.Uuid
+  createdByUserId           String?              @db.Uuid
+  createdByContactId        String?              @db.Uuid
+  notes                     String?
+  createdAt                 DateTime             @default(now())
+  updatedAt                 DateTime             @updatedAt
+
+  account                   Account              @relation(fields: [accountId], references: [id])
+  distributor               Account?             @relation("DepositDistributor", fields: [distributorAccountId], references: [id])
+  vendor                    Account?             @relation("DepositVendor", fields: [vendorAccountId], references: [id])
+  createdByUser             User?                @relation("DepositCreatedByUser", fields: [createdByUserId], references: [id])
+  createdByContact          Contact?             @relation("DepositCreatedByContact", fields: [createdByContactId], references: [id])
+  tenant                    Tenant               @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, accountId, month])
+  @@index([tenantId, paymentDate])
+  @@index([tenantId, distributorAccountId, vendorAccountId])
 }
 
 model ReconciliationItem {
@@ -1083,6 +1131,14 @@ enum ReconciliationStatus {
   InReview
   Completed
   Disputed
+}
+
+enum DepositPaymentType {
+  ACH
+  Wire
+  Check
+  CreditCard
+  Other
 }
 
 enum GroupType {

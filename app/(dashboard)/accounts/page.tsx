@@ -15,7 +15,6 @@ import type { DeletionConstraint } from "@/lib/deletion";
 import { CopyProtectionWrapper } from "@/components/copy-protection";
 import { useToasts } from "@/components/toast";
 import { AccountEditModal } from "@/components/account-edit-modal";
-import { AccountBulkActionBar } from "@/components/account-bulk-action-bar";
 import { AccountBulkOwnerModal } from "@/components/account-bulk-owner-modal";
 import { AccountReassignmentModal } from "@/components/account-reassignment-modal";
 import { AccountBulkStatusModal } from "@/components/account-bulk-status-modal";
@@ -23,6 +22,8 @@ import { Trash2, Check } from "lucide-react";
 import { isRowInactive } from "@/lib/row-state";
 import { calculateMinWidth } from "@/lib/column-width-utils";
 import { cn } from "@/lib/utils";
+import { buildStandardBulkActions } from "@/components/standard-bulk-actions";
+import { PermissionGate, RoleGate } from "@/components/auth/permission-gate";
 
 
 interface AccountRow {
@@ -1620,6 +1621,41 @@ export default function AccountsPage() {
     requestAccountDeletion,
   ]);
 
+  const accountBulkActions = buildStandardBulkActions({
+    selectedCount: selectedAccounts.length,
+    isBusy: bulkActionLoading,
+    entityLabelPlural: "accounts",
+    labels: {
+      delete: "Delete",
+      reassign: "Reassign",
+      status: "Status",
+      export: "Export",
+    },
+    tooltips: {
+      delete: (count) => `Soft delete ${count} account${count === 1 ? "" : "s"}`,
+      status: (count) => `Update status for ${count} account${count === 1 ? "" : "s"}`,
+      export: (count) => `Export ${count} account${count === 1 ? "" : "s"} to CSV`,
+    },
+    wrappers: {
+      reassign: (button) => (
+        <RoleGate
+          roles={["ADMIN", "SALES_MGMT"]}
+          fallback={
+            <PermissionGate permissions={["accounts.reassign", "accounts.bulk"]}>
+              {button}
+            </PermissionGate>
+          }
+        >
+          {button}
+        </RoleGate>
+      ),
+    },
+    onDelete: openBulkDeleteDialog,
+    onReassign: () => setShowReassignModal(true),
+    onStatus: () => setShowBulkStatusModal(true),
+    onExport: handleBulkExportCsv,
+  });
+
   return (
     <CopyProtectionWrapper className="dashboard-page-container">
       <ListHeader
@@ -1637,6 +1673,7 @@ export default function AccountsPage() {
         isSavingTableChanges={preferenceSaving}
         lastTableSaved={lastSaved || undefined}
         onSaveTableChanges={saveChanges}
+        bulkActions={accountBulkActions}
       />
 
       {(error || preferenceError) && (
@@ -1646,16 +1683,6 @@ export default function AccountsPage() {
       )}
 
       <div className="flex-1 min-h-0 p-4 pt-0 flex flex-col gap-4">
-        <div className="flex-shrink-0">
-          <AccountBulkActionBar
-            count={selectedAccounts.length}
-            disabled={bulkActionLoading}
-            onSoftDelete={openBulkDeleteDialog}
-            onExportCsv={handleBulkExportCsv}
-            onChangeOwner={() => setShowReassignModal(true)}
-            onUpdateStatus={() => setShowBulkStatusModal(true)}
-          />
-        </div>
       <AccountReassignmentModal
         isOpen={showReassignModal}
         selectedAccountIds={selectedAccounts}

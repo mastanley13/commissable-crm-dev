@@ -8,7 +8,6 @@ import { DynamicTable, type Column, type PaginationInfo } from '@/components/dyn
 import { ColumnChooserModal } from '@/components/column-chooser-modal'
 import { useTablePreferences } from '@/hooks/useTablePreferences'
 import { CopyProtectionWrapper } from '@/components/copy-protection'
-import { OpportunityBulkActionBar } from '@/components/opportunity-bulk-action-bar'
 import { OpportunityBulkOwnerModal } from '@/components/opportunity-bulk-owner-modal'
 import { OpportunityBulkStatusModal } from '@/components/opportunity-bulk-status-modal'
 import { OpportunityEditModal } from '@/components/opportunity-edit-modal'
@@ -26,6 +25,7 @@ import {
   isOpportunityStageValue,
   type OpportunityStageValue,
 } from '@/lib/opportunity-stage'
+import { buildStandardBulkActions } from '@/components/standard-bulk-actions'
 
 const currencyFormatter = new Intl.NumberFormat('en-US', {
   style: 'currency',
@@ -1411,6 +1411,29 @@ export default function OpportunitiesPage() {
     selectedOpportunities,
     updatingOpportunityIds,
   ])
+
+  const formatOpportunityLabel = (count: number) => (count === 1 ? "opportunity" : "opportunities")
+
+  const opportunityBulkActions = buildStandardBulkActions({
+    selectedCount: selectedOpportunities.length,
+    isBusy: bulkActionLoading,
+    entityLabelPlural: "opportunities",
+    labels: {
+      delete: "Delete",
+      reassign: "Reassign",
+      status: "Status",
+      export: "Export",
+    },
+    tooltips: {
+      delete: (count) => `Soft delete ${count} ${formatOpportunityLabel(count)}`,
+      status: (count) => `Update status for ${count} ${formatOpportunityLabel(count)}`,
+      export: (count) => `Export ${count} ${formatOpportunityLabel(count)} to CSV`,
+    },
+    onDelete: openBulkDeleteDialog,
+    onReassign: () => setShowBulkOwnerModal(true),
+    onStatus: () => setShowBulkStatusModal(true),
+    onExport: handleBulkExportCsv,
+  })
   return (
     <CopyProtectionWrapper className="dashboard-page-container">
       <ListHeader
@@ -1428,6 +1451,7 @@ export default function OpportunitiesPage() {
         isSavingTableChanges={preferenceSaving}
         lastTableSaved={lastSaved || undefined}
         onSaveTableChanges={saveChanges}
+        bulkActions={opportunityBulkActions}
       />
 
       {(error || preferenceError) && (
@@ -1435,16 +1459,6 @@ export default function OpportunitiesPage() {
       )}
 
       <div className="flex-1 min-h-0 p-4 pt-0 flex flex-col gap-4">
-        <div className="flex-shrink-0">
-          <OpportunityBulkActionBar
-            count={selectedOpportunities.length}
-            disabled={bulkActionLoading}
-            onSoftDelete={openBulkDeleteDialog}
-            onExportCsv={handleBulkExportCsv}
-            onChangeOwner={() => setShowBulkOwnerModal(true)}
-            onUpdateStatus={() => setShowBulkStatusModal(true)}
-          />
-        </div>
 
         <div ref={tableAreaRef} className="flex-1 min-h-0">
           <DynamicTable

@@ -8,8 +8,8 @@ using the current Reconciliation table as the starting point.
 
 Phase 1 – Clarify screen + data flow
 
-Decide whether this 2‑table layout replaces the current Reconciliation list page or is a new “details” screen you navigate to when a reconciliation row is clicked.
-Confirm data sources: API endpoints (or mocks) for deposit line items vs suggested revenue schedules, and how they’re keyed (deposit ID, account ID, period, etc.).
+This 2‑table layout  is a new “details” screen you navigate to when a reconciliation row or "Deposit Name"  is clicked.
+Confirm data sources: API endpoints (or mocks) for deposit line items vs suggested revenue schedules, and how they’re keyed (deposit ID, account ID, period, etc.). 
 List required columns and actions for each table (from the mock: Match button, status, filters, date range, etc.).
 Phase 2 – Scaffold two-table layout (UI only)
 

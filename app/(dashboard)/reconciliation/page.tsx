@@ -6,7 +6,7 @@ import { ListHeader, FilterColumnOption, ColumnFilter } from '@/components/list-
 import { DynamicTable, Column, PaginationInfo } from '@/components/dynamic-table'
 import { ColumnChooserModal } from '@/components/column-chooser-modal'
 import { useTablePreferences } from '@/hooks/useTablePreferences'
-import { reconciliationData, depositSummaryMock } from '@/lib/mock-data'
+import { depositSummaryMock } from '@/lib/mock-data'
 import { Check, X, CalendarRange, TrendingUp, Wallet, BellRing } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { calculateMinWidth } from '@/lib/column-width-utils'
@@ -17,6 +17,9 @@ const TABLE_MIN_BODY_HEIGHT = 320
 
 const RECONCILIATION_DEFAULT_VISIBLE_COLUMN_IDS = new Set<string>([
   'accountName',
+  'depositName',
+  'distributorName',
+  'vendorName',
   'month',
   'totalRevenue',
   'totalCommissions',
@@ -43,7 +46,7 @@ const reconciliationColumns: Column[] = [
     type: 'text',
     hideable: false,
     render: (value) => (
-      <span className="text-blue-600 hover:text-blue-800 cursor-pointer font-medium">
+      <span className="block truncate min-w-0 text-blue-600 hover:text-blue-800 cursor-pointer font-medium" title={value}>
         {value}
       </span>
     )
@@ -68,18 +71,18 @@ const reconciliationColumns: Column[] = [
   },
   {
     id: 'totalCommissions',
-    label: 'Total Commissions',
+    label: 'Total Commission',
     width: 180,
-    minWidth: calculateMinWidth({ label: 'Total Commissions', type: 'text', sortable: true }),
+    minWidth: calculateMinWidth({ label: 'Total Commission', type: 'text', sortable: true }),
     maxWidth: 220,
     sortable: true,
     type: 'text'
   },
   {
     id: 'status',
-    label: 'Status',
+    label: 'Deposit Status',
     width: 120,
-    minWidth: calculateMinWidth({ label: 'Status', type: 'text', sortable: true }),
+    minWidth: calculateMinWidth({ label: 'Deposit Status', type: 'text', sortable: true }),
     maxWidth: 150,
     sortable: true,
     type: 'text',
@@ -118,21 +121,301 @@ const reconciliationColumns: Column[] = [
     hidden: true,
     accessor: 'reconciled',
     render: (value: any) => (value ? 'Yes' : 'No')
+  },
+  // Deposit-level fields
+  {
+    id: 'createdBy',
+    label: 'Created By',
+    width: 180,
+    minWidth: calculateMinWidth({ label: 'Created By', type: 'text', sortable: true }),
+    maxWidth: 260,
+    sortable: true,
+    type: 'text',
+    hidden: true
+  },
+  {
+    id: 'depositName',
+    label: 'Deposit Name',
+    width: 220,
+    minWidth: calculateMinWidth({ label: 'Deposit Name', type: 'text', sortable: true }),
+    maxWidth: 320,
+    sortable: true,
+    type: 'text',
+    render: (value: any) => (
+      <span className="block truncate min-w-0 text-gray-900" title={value}>
+        {value}
+      </span>
+    )
+  },
+  {
+    id: 'distributorName',
+    label: 'Distributor Name',
+    width: 200,
+    minWidth: calculateMinWidth({ label: 'Distributor Name', type: 'text', sortable: true }),
+    maxWidth: 300,
+    sortable: true,
+    type: 'text'
+  },
+  {
+    id: 'vendorName',
+    label: 'Vendor Name',
+    width: 200,
+    minWidth: calculateMinWidth({ label: 'Vendor Name', type: 'text', sortable: true }),
+    maxWidth: 300,
+    sortable: true,
+    type: 'text'
+  },
+  {
+    id: 'paymentDate',
+    label: 'Payment Date',
+    width: 150,
+    minWidth: calculateMinWidth({ label: 'Payment Date', type: 'text', sortable: true }),
+    maxWidth: 220,
+    sortable: true,
+    type: 'text',
+    hidden: true
+  },
+  {
+    id: 'totalItems',
+    label: 'Total Items',
+    width: 140,
+    minWidth: calculateMinWidth({ label: 'Total Items', type: 'text', sortable: true }),
+    maxWidth: 200,
+    sortable: true,
+    type: 'text',
+    hidden: true
+  },
+  {
+    id: 'totalReconciledItems',
+    label: 'Total Reconciled Items',
+    width: 190,
+    minWidth: calculateMinWidth({ label: 'Total Reconciled Items', type: 'text', sortable: true }),
+    maxWidth: 260,
+    sortable: true,
+    type: 'text',
+    hidden: true
+  },
+  {
+    id: 'totalUsage',
+    label: 'Total Usage',
+    width: 150,
+    minWidth: calculateMinWidth({ label: 'Total Usage', type: 'text', sortable: true }),
+    maxWidth: 220,
+    sortable: true,
+    type: 'text',
+    hidden: true
+  },
+  {
+    id: 'paymentType',
+    label: 'Payment Type',
+    width: 150,
+    minWidth: calculateMinWidth({ label: 'Payment Type', type: 'text', sortable: true }),
+    maxWidth: 220,
+    sortable: true,
+    type: 'text',
+    hidden: true
+  },
+  {
+    id: 'usageAllocated',
+    label: 'Usage Allocated',
+    width: 170,
+    minWidth: calculateMinWidth({ label: 'Usage Allocated', type: 'text', sortable: true }),
+    maxWidth: 240,
+    sortable: true,
+    type: 'text',
+    hidden: true
+  },
+  {
+    id: 'usageUnallocated',
+    label: 'Usage Unallocated',
+    width: 180,
+    minWidth: calculateMinWidth({ label: 'Usage Unallocated', type: 'text', sortable: true }),
+    maxWidth: 250,
+    sortable: true,
+    type: 'text',
+    hidden: true
+  },
+  {
+    id: 'commissionAllocated',
+    label: 'Commission Allocated',
+    width: 190,
+    minWidth: calculateMinWidth({ label: 'Commission Allocated', type: 'text', sortable: true }),
+    maxWidth: 260,
+    sortable: true,
+    type: 'text',
+    hidden: true
+  },
+  {
+    id: 'commissionUnallocated',
+    label: 'Commission Unallocated',
+    width: 200,
+    minWidth: calculateMinWidth({ label: 'Commission Unallocated', type: 'text', sortable: true }),
+    maxWidth: 270,
+    sortable: true,
+    type: 'text',
+    hidden: true
+  },
+  {
+    id: 'depositItemsReconciledUnreconciled',
+    label: 'Deposit Items Reconciled/Unreconciled',
+    width: 260,
+    minWidth: calculateMinWidth({ label: 'Deposit Items Reconciled/Unreconciled', type: 'text', sortable: true }),
+    maxWidth: 340,
+    sortable: true,
+    type: 'text',
+    hidden: true
+  },
+  // Line-item level fields surfaced for column chooser
+  {
+    id: 'accountIdVendor',
+    label: 'Account ID Vendor',
+    width: 180,
+    minWidth: calculateMinWidth({ label: 'Account ID Vendor', type: 'text', sortable: true }),
+    maxWidth: 260,
+    sortable: true,
+    type: 'text',
+    hidden: true
+  },
+  {
+    id: 'lineItem',
+    label: 'Line Item',
+    width: 160,
+    minWidth: calculateMinWidth({ label: 'Line Item', type: 'text', sortable: true }),
+    maxWidth: 240,
+    sortable: true,
+    type: 'text',
+    hidden: true
+  },
+  {
+    id: 'productNameVendor',
+    label: 'Product Name - Vendor',
+    width: 220,
+    minWidth: calculateMinWidth({ label: 'Product Name - Vendor', type: 'text', sortable: true }),
+    maxWidth: 320,
+    sortable: true,
+    type: 'text',
+    hidden: true
+  },
+  {
+    id: 'usage',
+    label: 'Usage',
+    width: 130,
+    minWidth: calculateMinWidth({ label: 'Usage', type: 'text', sortable: true }),
+    maxWidth: 200,
+    sortable: true,
+    type: 'text',
+    hidden: true
+  },
+  {
+    id: 'actualCommissionRatePercent',
+    label: 'Actual Commission Rate %',
+    width: 210,
+    minWidth: calculateMinWidth({ label: 'Actual Commission Rate %', type: 'text', sortable: true }),
+    maxWidth: 280,
+    sortable: true,
+    type: 'text',
+    hidden: true
+  },
+  {
+    id: 'actualCommission',
+    label: 'Actual Commission',
+    width: 180,
+    minWidth: calculateMinWidth({ label: 'Actual Commission', type: 'text', sortable: true }),
+    maxWidth: 250,
+    sortable: true,
+    type: 'text',
+    hidden: true
+  },
+  {
+    id: 'customerIdVendor',
+    label: 'Customer ID - Vendor',
+    width: 210,
+    minWidth: calculateMinWidth({ label: 'Customer ID - Vendor', type: 'text', sortable: true }),
+    maxWidth: 280,
+    sortable: true,
+    type: 'text',
+    hidden: true
+  },
+  {
+    id: 'orderIdVendor',
+    label: 'Order ID - Vendor',
+    width: 190,
+    minWidth: calculateMinWidth({ label: 'Order ID - Vendor', type: 'text', sortable: true }),
+    maxWidth: 260,
+    sortable: true,
+    type: 'text',
+    hidden: true
   }
 ]
 
 const filterOptions: FilterColumnOption[] = [
   { id: 'accountName', label: 'Account Name' },
+  { id: 'depositName', label: 'Deposit Name' },
+  { id: 'distributorName', label: 'Distributor Name' },
+  { id: 'vendorName', label: 'Vendor Name' },
+  { id: 'paymentDate', label: 'Payment Date' },
   { id: 'month', label: 'Period' },
   { id: 'totalRevenue', label: 'Total Revenue' },
-  { id: 'totalCommissions', label: 'Total Commissions' },
-  { id: 'status', label: 'Status' }
+  { id: 'totalCommissions', label: 'Total Commission' },
+  { id: 'totalItems', label: 'Total Items' },
+  { id: 'totalReconciledItems', label: 'Total Reconciled Items' },
+  { id: 'totalUsage', label: 'Total Usage' },
+  { id: 'usageAllocated', label: 'Usage Allocated' },
+  { id: 'usageUnallocated', label: 'Usage Unallocated' },
+  { id: 'commissionAllocated', label: 'Commission Allocated' },
+  { id: 'commissionUnallocated', label: 'Commission Unallocated' },
+  { id: 'status', label: 'Deposit Status' },
+  { id: 'paymentType', label: 'Payment Type' },
+  { id: 'accountIdVendor', label: 'Account ID Vendor' },
+  { id: 'lineItem', label: 'Line Item' },
+  { id: 'productNameVendor', label: 'Product Name - Vendor' },
+  { id: 'usage', label: 'Usage' },
+  { id: 'actualCommissionRatePercent', label: 'Actual Commission Rate %' },
+  { id: 'actualCommission', label: 'Actual Commission' },
+  { id: 'customerIdVendor', label: 'Customer ID - Vendor' },
+  { id: 'orderIdVendor', label: 'Order ID - Vendor' }
 ]
 
 type DepositSummary = {
   totalUsageYtd: number
   totalCommissionsYtd: number
   totalPastDueSchedules: number
+}
+
+type DepositRow = {
+  id: string
+  accountId: string
+  accountName: string
+  month: string
+  totalRevenue: string | number | null
+  totalCommissions: string | number | null
+  status: string
+  reconciled: boolean
+  reconciledAt?: string | null
+  depositName?: string | null
+  paymentDate?: string | null
+  paymentType?: string | null
+  totalItems?: number | null
+  totalReconciledItems?: number | null
+  totalUsage?: string | number | null
+  usageAllocated?: string | number | null
+  usageUnallocated?: string | number | null
+  commissionAllocated?: string | number | null
+  commissionUnallocated?: string | number | null
+  itemsReconciled?: number | null
+  itemsUnreconciled?: number | null
+  distributorAccountId?: string | null
+  distributorName?: string | null
+  vendorAccountId?: string | null
+  vendorName?: string | null
+  createdByUserId?: string | null
+  createdByUserName?: string | null
+  createdByContactId?: string | null
+  createdByContactName?: string | null
+  createdAt?: string
+  updatedAt?: string
+  // local-only fields
+  active?: boolean
 }
 
 type DateRangePreset = 'ytd' | 'last6Months' | 'custom'
@@ -165,7 +448,7 @@ const MetricCard = ({ icon: Icon, label, value, loading }: MetricCardProps) => (
 
 export default function ReconciliationPage() {
   const router = useRouter()
-  const [reconciliation, setReconciliation] = useState(reconciliationData)
+  const [reconciliation, setReconciliation] = useState<DepositRow[]>([])
   const [loading, setLoading] = useState(false)
   const [showColumnSettings, setShowColumnSettings] = useState(false)
   const [currentPage, setCurrentPage] = useState<number>(1)
@@ -226,6 +509,57 @@ export default function ReconciliationPage() {
       }
     }
   }, [simulateSummaryFetch])
+
+  // Load deposits from API
+  useEffect(() => {
+    let cancelled = false
+    const controller = new AbortController()
+
+    const loadDeposits = async () => {
+      setLoading(true)
+      try {
+        const response = await fetch('/api/reconciliation/deposits', {
+          method: 'GET',
+          cache: 'no-store',
+          signal: controller.signal
+        })
+
+        const payload = await response.json().catch(() => null)
+        if (!response.ok) {
+          console.error('Failed to load deposits', payload)
+          return
+        }
+
+        if (cancelled) {
+          return
+        }
+
+        const rows: DepositRow[] = (payload?.data ?? []).map((row: any) => ({
+          ...row,
+          // Ensure we always have an active flag for toggles; real persistence can come later
+          active: typeof row.active === 'boolean' ? row.active : true,
+        }))
+
+        setReconciliation(rows)
+      } catch (error) {
+        if (cancelled) {
+          return
+        }
+        console.error('Error loading deposits', error)
+      } finally {
+        if (!cancelled) {
+          setLoading(false)
+        }
+      }
+    }
+
+    void loadDeposits()
+
+    return () => {
+      cancelled = true
+      controller.abort()
+    }
+  }, [])
 
   const handlePresetChange = useCallback(
     (event: ChangeEvent<HTMLSelectElement>) => {
@@ -383,9 +717,13 @@ export default function ReconciliationPage() {
   }, [])
 
   const handleRowClick = useCallback((record: any) => {
-    console.log('Reconciliation record clicked:', record)
-    // Navigate to reconciliation detail page or open modal
-  }, [])
+    const depositId = record?.id
+    if (!depositId) {
+      return
+    }
+
+    router.push(`/reconciliation/${encodeURIComponent(String(depositId))}`)
+  }, [router])
 
   const handleStatusFilterChange = useCallback((filter: string) => {
     if (filter === 'active') {
@@ -632,9 +970,45 @@ export default function ReconciliationPage() {
           },
         };
       }
-      return column;
-    });
-  }, [preferenceColumns, selectedReconciliations, updatingReconciliationIds, handleReconciliationSelect, handleToggle])
+
+      if (column.id === 'depositName') {
+        return {
+          ...column,
+          render: (value: any, row: any) => {
+            const rowId = String(row.id || '')
+            const label = value ?? row.depositName ?? ''
+            if (!rowId || !label) {
+              return label
+            }
+            return (
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  if (rowId) {
+                    router.push(`/reconciliation/${rowId}`)
+                  }
+                }}
+                className="block truncate min-w-0 text-left text-blue-600 hover:text-blue-800 cursor-pointer font-medium"
+                title={label}
+              >
+                {label}
+              </button>
+            )
+          },
+        }
+      }
+
+      return column
+    })
+  }, [
+    preferenceColumns,
+    selectedReconciliations,
+    updatingReconciliationIds,
+    handleReconciliationSelect,
+    handleToggle,
+    router,
+  ])
   
   // Get hidden columns by comparing all columns with visible ones
   const hiddenColumns = useMemo(() => {

@@ -13,13 +13,13 @@ import { useTablePreferences } from "@/hooks/useTablePreferences"
 import { formatPhoneNumber } from "@/lib/utils"
 import { cn } from "@/lib/utils"
 import { CopyProtectionWrapper } from "@/components/copy-protection"
-import { ContactBulkActionBar } from "@/components/contact-bulk-action-bar"
 import { ContactBulkOwnerModal } from "@/components/contact-bulk-owner-modal"
 import { ContactBulkStatusModal } from "@/components/contact-bulk-status-modal"
 import { ContactEditModal } from "@/components/contact-edit-modal"
 import { Trash2, Check } from "lucide-react"
 import { isRowInactive } from "@/lib/row-state"
 import { calculateMinWidth } from "@/lib/column-width-utils"
+import { buildStandardBulkActions } from "@/components/standard-bulk-actions"
 
 interface ContactRow {
   id: string
@@ -1305,6 +1305,28 @@ export default function ContactsPage() {
       .map(col => col.id)
   }, [tableColumns])
 
+  const contactBulkActions = buildStandardBulkActions({
+    selectedCount: selectedContacts.length,
+    isBusy: bulkActionLoading,
+    entityLabelPlural: "contacts",
+    labels: {
+      delete: "Delete",
+      reassign: "Reassign",
+      status: "Status",
+      export: "Export",
+    },
+    tooltips: {
+      delete: (count) => `Soft delete ${count} contact${count === 1 ? "" : "s"}`,
+      reassign: (count) => `Change owner for ${count} contact${count === 1 ? "" : "s"}`,
+      status: (count) => `Update status for ${count} contact${count === 1 ? "" : "s"}`,
+      export: (count) => `Export ${count} contact${count === 1 ? "" : "s"} to CSV`,
+    },
+    onDelete: openBulkDeleteDialog,
+    onReassign: () => setShowBulkOwnerModal(true),
+    onStatus: () => setShowBulkStatusModal(true),
+    onExport: handleBulkExportCsv,
+  })
+
   return (
     <CopyProtectionWrapper className="dashboard-page-container">
       <ListHeader
@@ -1319,6 +1341,7 @@ export default function ContactsPage() {
         onColumnFiltersChange={handleColumnFiltersChange}
         statusFilter={filters.isPrimary ? "active" : "all"}
         showCreateButton={false}
+        bulkActions={contactBulkActions}
       />
 
       {(error || preferenceError) && (
@@ -1326,16 +1349,6 @@ export default function ContactsPage() {
       )}
 
       <div className="flex-1 min-h-0 p-4 pt-0 flex flex-col gap-4">
-        <div className="flex-shrink-0">
-          <ContactBulkActionBar
-            count={selectedContacts.length}
-            disabled={bulkActionLoading}
-            onSoftDelete={openBulkDeleteDialog}
-            onExportCsv={handleBulkExportCsv}
-            onChangeOwner={() => setShowBulkOwnerModal(true)}
-            onUpdateStatus={() => setShowBulkStatusModal(true)}
-          />
-        </div>
         <div ref={tableAreaRef} className="flex-1 min-h-0">
           <DynamicTable
             columns={tableColumns}

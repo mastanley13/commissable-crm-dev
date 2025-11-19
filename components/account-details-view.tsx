@@ -939,8 +939,8 @@ function AccountHeader({
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <div className="space-y-1.5">
+      <div className="grid gap-3 lg:grid-cols-2">
+        <div className="space-y-1">
           <FieldRow
             label="Account Name"
             value={
@@ -998,7 +998,7 @@ function AccountHeader({
           />
         </div>
 
-        <div className="space-y-1.5">
+        <div className="space-y-1">
           <FieldRow
             label="Ship To Address"
             value={
@@ -1035,11 +1035,6 @@ function AccountHeader({
                 <div className="min-h-[28px]"></div>
               )
             }
-          />
-          {/* Empty row to align with Account Type */}
-          <FieldRow
-            label=""
-            value={<div className="min-h-[28px]"></div>}
           />
           <FieldRow
             label="Bill To Address"
@@ -1218,8 +1213,8 @@ function EditableAccountHeader({
         </button>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <div className="space-y-1.5">
+      <div className="grid gap-3 lg:grid-cols-2">
+        <div className="space-y-1">
           <FieldRow
             label="Account Name"
             value={
@@ -1333,7 +1328,7 @@ function EditableAccountHeader({
           )}
         </div>
 
-        <div className="space-y-1.5">
+        <div className="space-y-1">
           <FieldRow
             label="Ship To Address"
             value={
@@ -1408,12 +1403,6 @@ function EditableAccountHeader({
                 ) : null}
               </div>
             }
-          />
-
-          {/* Empty row to align with Account Type */}
-          <FieldRow
-            label=""
-            value={<div className="min-h-[28px]"></div>}
           />
 
           <FieldRow

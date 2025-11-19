@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { Shield, Users, Settings, Key, Database, UserCheck } from 'lucide-react'
+import { Shield, Users, Settings, Key, Database, UserCheck, Beaker } from 'lucide-react'
 
 const adminSections = [
   {
@@ -45,6 +45,13 @@ const adminSections = [
     href: '#',
     icon: UserCheck,
     color: 'bg-purple-500'
+  },
+  {
+    title: 'Prototype Playground',
+    description: 'Explore in-progress prototype pages',
+    href: '/admin/prototypes',
+    icon: Beaker,
+    color: 'bg-amber-500'
   }
 ]
 

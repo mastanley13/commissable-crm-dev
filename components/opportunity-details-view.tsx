@@ -3577,7 +3577,7 @@ export function OpportunityDetailsView({
                       inTab
                       showCreateButton
                       onCreateClick={() => setShowCreateLineItemModal(true)}
-                      createButtonLabel="Add New"
+                      createButtonLabel="Create/Add Product"
                       onSearch={setProductSearchQuery}
                       searchPlaceholder="Search line items"
                       showColumnFilters={false}
@@ -3591,8 +3591,6 @@ export function OpportunityDetailsView({
                       lastTableSaved={productLastSaved ?? undefined}
                       onSaveTableChanges={saveProductTablePreferences}
                     />
-                    </div>
-
                     <ProductBulkActionBar
                       count={selectedLineItems.length}
                       disabled={lineItemBulkActionLoading || lineItemDeleteLoading}
@@ -3601,7 +3599,6 @@ export function OpportunityDetailsView({
                       onActivate={handleBulkActivateLineItems}
                       onDeactivate={handleBulkDeactivateLineItems}
                     />
-
                     <div
                       className="flex flex-1 min-h-0 flex-col overflow-hidden"
                       ref={tableAreaRefCallback}
@@ -3625,9 +3622,10 @@ export function OpportunityDetailsView({
                         fillContainerWidth
                       />
                     </div>
+                    </div>
                   </div>
                 ) : activeTab === "roles" ? (
-                  <div className="grid flex-1 grid-rows-[auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0 px-3 pb-0">
+                  <div className="grid flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0 px-3 pb-0">
                     <div className="border-t-2 border-t-primary-600 -mr-3">
                       <ListHeader
                         inTab
@@ -3649,35 +3647,34 @@ export function OpportunityDetailsView({
                         lastTableSaved={roleLastSaved ?? undefined}
                         onSaveTableChanges={saveRolePreferences}
                       />
-                    </div>
-
-                    <div
-                      className="flex flex-1 min-h-0 flex-col overflow-hidden"
-                      ref={tableAreaRefCallback}
-                    >
-                      <DynamicTable
-                        key={rolePreferenceColumns.map(c => `${c.id}:${c.hidden ? 0 : 1}`).join("|")}
-                        className="flex flex-1 flex-col"
-                        columns={roleTableColumns}
-                        data={paginatedRoleRows}
-                        loading={rolePreferencesLoading}
-                        onColumnsChange={handleRoleColumnsChange}
-                        emptyMessage="No roles found for this opportunity"
-                        maxBodyHeight={tableBodyMaxHeight}
-                        pagination={rolePagination}
-                        onPageChange={handleRolePageChange}
-                        onPageSizeChange={handleRolePageSizeChange}
-                        selectedItems={selectedRoles}
-                        onItemSelect={(itemId: string, selected: boolean) => handleRoleSelect(itemId, selected)}
-                        onSelectAll={handleSelectAllRoles}
-                        selectHeaderLabel="Select All"
-                        fillContainerWidth
-                        alwaysShowPagination
-                      />
+                      <div
+                        className="flex flex-1 min-h-0 flex-col overflow-hidden"
+                        ref={tableAreaRefCallback}
+                      >
+                        <DynamicTable
+                          key={rolePreferenceColumns.map(c => `${c.id}:${c.hidden ? 0 : 1}`).join("|")}
+                          className="flex flex-1 flex-col"
+                          columns={roleTableColumns}
+                          data={paginatedRoleRows}
+                          loading={rolePreferencesLoading}
+                          onColumnsChange={handleRoleColumnsChange}
+                          emptyMessage="No roles found for this opportunity"
+                          maxBodyHeight={tableBodyMaxHeight}
+                          pagination={rolePagination}
+                          onPageChange={handleRolePageChange}
+                          onPageSizeChange={handleRolePageSizeChange}
+                          selectedItems={selectedRoles}
+                          onItemSelect={(itemId: string, selected: boolean) => handleRoleSelect(itemId, selected)}
+                          onSelectAll={handleSelectAllRoles}
+                          selectHeaderLabel="Select All"
+                          fillContainerWidth
+                          alwaysShowPagination
+                        />
+                      </div>
                     </div>
                   </div>
                 ) : activeTab === "revenue-schedules" ? (
-                  <div className="grid flex-1 grid-rows-[auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0 px-3 pb-0">
+                  <div className="grid flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0 px-3 pb-0">
                     <div className="border-t-2 border-t-primary-600 -mr-3">
                       <ListHeader
                         inTab
@@ -3706,30 +3703,29 @@ export function OpportunityDetailsView({
                         canExport={selectedRevenueSchedules.length > 0}
                         onExport={handleRevenueExportCsv}
                       />
-                    </div>
-
-                    <div
-                      className="flex flex-1 min-h-0 flex-col overflow-hidden"
-                      ref={tableAreaRefCallback}
-                    >
-                      <DynamicTable
-                        className="flex flex-1 flex-col"
-                        columns={revenueTableColumns}
-                        data={paginatedRevenueRows}
-                        loading={revenuePreferencesLoading}
-                        onColumnsChange={handleRevenueColumnsChange}
-                        emptyMessage="No revenue schedules available for this opportunity"
-                        maxBodyHeight={tableBodyMaxHeight}
-                        pagination={revenuePagination}
-                        onPageChange={handleRevenuePageChange}
-                        onPageSizeChange={handleRevenuePageSizeChange}
-                        selectedItems={selectedRevenueSchedules}
-                        onItemSelect={handleRevenueSelect}
-                        onSelectAll={handleSelectAllRevenue}
-                        selectHeaderLabel="Select All"
-                        fillContainerWidth
-                        alwaysShowPagination
-                      />
+                      <div
+                        className="flex flex-1 min-h-0 flex-col overflow-hidden"
+                        ref={tableAreaRefCallback}
+                      >
+                        <DynamicTable
+                          className="flex flex-1 flex-col"
+                          columns={revenueTableColumns}
+                          data={paginatedRevenueRows}
+                          loading={revenuePreferencesLoading}
+                          onColumnsChange={handleRevenueColumnsChange}
+                          emptyMessage="No revenue schedules available for this opportunity"
+                          maxBodyHeight={tableBodyMaxHeight}
+                          pagination={revenuePagination}
+                          onPageChange={handleRevenuePageChange}
+                          onPageSizeChange={handleRevenuePageSizeChange}
+                          selectedItems={selectedRevenueSchedules}
+                          onItemSelect={handleRevenueSelect}
+                          onSelectAll={handleSelectAllRevenue}
+                          selectHeaderLabel="Select All"
+                          fillContainerWidth
+                          alwaysShowPagination
+                        />
+                      </div>
                     </div>
                   </div>
                 ) : activeTab === "activities" ? (
@@ -3754,40 +3750,38 @@ export function OpportunityDetailsView({
                         lastTableSaved={activityLastSaved ?? undefined}
                         onSaveTableChanges={saveActivityPreferences}
                       />
-                    </div>
-
-                    <ActivityBulkActionBar
-                      count={selectedActivities.length}
-                      disabled={activityBulkActionLoading}
-                      onSoftDelete={handleBulkActivityDelete}
-                      onExportCsv={handleActivityExportCsv}
-                      onChangeOwner={() => setShowActivityBulkOwnerModal(true)}
-                      onUpdateStatus={() => setShowActivityBulkStatusModal(true)}
-                    />
-
-                    <div
-                      className="flex flex-1 min-h-0 flex-col overflow-hidden"
-                      ref={tableAreaRefCallback}
-                    >
-                      <DynamicTable
-                        className="flex flex-1 flex-col"
-                        columns={activityTableColumns}
-                        data={paginatedActivities}
-                        loading={activityPreferencesLoading}
-                        onColumnsChange={handleActivityTableColumnsChange}
-                        emptyMessage="No activities found for this opportunity"
-                        maxBodyHeight={tableBodyMaxHeight}
-                        pagination={activitiesPagination}
-                        onPageChange={handleActivitiesPageChange}
-                        onPageSizeChange={handleActivitiesPageSizeChange}
-                        selectedItems={selectedActivities}
-                        onItemSelect={handleActivitySelect}
-                        onSelectAll={handleSelectAllActivities}
-                        selectHeaderLabel="Select All"
-                        onRowClick={(row: OpportunityActivityRow) => handleEditActivity(row)}
-                        fillContainerWidth
-                        alwaysShowPagination
+                      <ActivityBulkActionBar
+                        count={selectedActivities.length}
+                        disabled={activityBulkActionLoading}
+                        onSoftDelete={handleBulkActivityDelete}
+                        onExportCsv={handleActivityExportCsv}
+                        onChangeOwner={() => setShowActivityBulkOwnerModal(true)}
+                        onUpdateStatus={() => setShowActivityBulkStatusModal(true)}
                       />
+                      <div
+                        className="flex flex-1 min-h-0 flex-col overflow-hidden"
+                        ref={tableAreaRefCallback}
+                      >
+                        <DynamicTable
+                          className="flex flex-1 flex-col"
+                          columns={activityTableColumns}
+                          data={paginatedActivities}
+                          loading={activityPreferencesLoading}
+                          onColumnsChange={handleActivityTableColumnsChange}
+                          emptyMessage="No activities found for this opportunity"
+                          maxBodyHeight={tableBodyMaxHeight}
+                          pagination={activitiesPagination}
+                          onPageChange={handleActivitiesPageChange}
+                          onPageSizeChange={handleActivitiesPageSizeChange}
+                          selectedItems={selectedActivities}
+                          onItemSelect={handleActivitySelect}
+                          onSelectAll={handleSelectAllActivities}
+                          selectHeaderLabel="Select All"
+                          onRowClick={(row: OpportunityActivityRow) => handleEditActivity(row)}
+                          fillContainerWidth
+                          alwaysShowPagination
+                        />
+                      </div>
                     </div>
                   </div>
                 ) : activeTab === "details" ? (
