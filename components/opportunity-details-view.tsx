@@ -934,12 +934,20 @@ function validateOpportunityForm(form: OpportunityInlineForm): Record<string, st
   return errors
 }
 
-function FieldRow({ label, children, lastEdited }: { label: string; children: React.ReactNode; lastEdited?: { date: string; user: string } }) {
+function FieldRow({
+  label,
+  children,
+  lastEdited
+}: {
+  label: string
+  children: React.ReactNode
+  lastEdited?: { date: string; user: string }
+}) {
   return (
     <div className="grid items-start gap-3 sm:grid-cols-[180px,minmax(0,1fr)]">
       <span className={cn(fieldLabelClass, "flex items-center min-h-[28px]")}>{label}</span>
       <div className="flex items-center gap-2 w-full">
-        <div className={cn("flex-1", lastEdited && "max-w-[140px]")}>{children}</div>
+        <div className="w-full sm:basis-[65%] sm:max-w-[65%] sm:shrink-0">{children}</div>
         {lastEdited && (
           <span className="text-[10px] text-gray-400 whitespace-nowrap">
             Last edited {lastEdited.date} by {lastEdited.user}
