@@ -12,6 +12,7 @@ import { CopyProtectionWrapper } from '@/components/copy-protection'
 import { useToasts } from '@/components/toast'
 import { RevenueSchedulesBulkActionBar } from '@/components/revenue-schedules-bulk-action-bar'
 import { calculateMinWidth } from '@/lib/column-width-utils'
+import { StatusFilterDropdown } from '@/components/status-filter-dropdown'
 
 // Local UUID v1-v5 matcher used to detect schedule IDs vs. human codes
 const UUID_REGEX = /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i
@@ -271,7 +272,6 @@ export default function RevenueSchedulesPage() {
   const [currentPage, setCurrentPage] = useState<number>(1)
   const [pageSize, setPageSize] = useState<number>(25)
   const [statusQuickFilter, setStatusQuickFilter] = useState<'all' | 'open' | 'reconciled' | 'in_dispute'>('all')
-  const [inDisputeOnly, setInDisputeOnly] = useState(false)
   const [startDate, setStartDate] = useState<string>('')
   const [endDate, setEndDate] = useState<string>('')
   const [activeFilter, setActiveFilter] = useState<'all' | 'active'>('active')
@@ -559,13 +559,6 @@ export default function RevenueSchedulesPage() {
       })
     }
 
-    if (inDisputeOnly) {
-      next = next.filter(row => {
-        const rawStatus = String((row as any).scheduleStatus ?? '').toLowerCase()
-        return rawStatus.includes('dispute') || Boolean((row as any).inDispute)
-      })
-    }
-
     if (startDate || endDate) {
       const start = startDate ? new Date(startDate) : null
       const end = endDate ? new Date(endDate) : null
@@ -594,7 +587,7 @@ export default function RevenueSchedulesPage() {
       })
     }
     return next
-  }, [revenueSchedules, activeFilter, columnFilters, statusQuickFilter, inDisputeOnly, startDate, endDate])
+  }, [revenueSchedules, activeFilter, columnFilters, statusQuickFilter, startDate, endDate])
 
   // Add computed columns (Expected Usage Net, Usage Balance, Commission Difference)
   const withComputed = useMemo(() => {
@@ -768,32 +761,13 @@ export default function RevenueSchedulesPage() {
         showStatusFilter={false}
         leftAccessory={(
           <div className="flex items-center gap-2">
-            <div className="inline-flex rounded-lg border border-gray-300 bg-gray-50 p-0.5">
-              {(
-                [
-                  { id: 'all', label: 'All' },
-                  { id: 'open', label: 'Open' },
-                  { id: 'reconciled', label: 'Reconciled' },
-                  { id: 'in_dispute', label: 'In Dispute' },
-                ] as const
-              ).map(opt => (
-                <button
-                  key={opt.id}
-                  onClick={() => { setStatusQuickFilter(opt.id); setCurrentPage(1) }}
-                  className={`px-3 py-1.5 text-sm font-medium transition-all duration-200 rounded-md ${
-                    statusQuickFilter === opt.id
-                      ? 'bg-primary-600 text-white shadow-sm'
-                      : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-            <label className="flex items-center gap-1 text-sm text-gray-700">
-              <input type="checkbox" checked={inDisputeOnly} onChange={(e) => { setInDisputeOnly(e.target.checked); setCurrentPage(1) }} />
-              In Dispute Only
-            </label>
+            <StatusFilterDropdown
+              value={statusQuickFilter}
+              onChange={(value) => {
+                setStatusQuickFilter(value)
+                setCurrentPage(1)
+              }}
+            />
             <div className="flex items-center gap-1 text-sm">
               <span className="text-gray-600">Start</span>
               <input type="date" value={startDate} onChange={e => { setStartDate(e.target.value); setCurrentPage(1) }} className="rounded border border-gray-300 px-2 py-1" />

@@ -627,6 +627,12 @@ export const reconciliationData = [
   }
 ]
 
+export const depositSummaryMock = {
+  totalUsageYtd: 2500000,
+  totalCommissionsYtd: 25000,
+  totalPastDueSchedules: 731
+}
+
 // Groups Data
 export const groupsData = [
   {

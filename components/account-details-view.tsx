@@ -52,6 +52,7 @@ import { FieldRow } from "./detail/FieldRow"
 import { fieldBoxClass, fieldLabelClass } from "./detail/shared"
 import { useAuth } from "@/lib/auth-context"
 import { VALIDATION_PATTERNS } from "@/lib/validation-shared"
+import { AuditHistoryTab } from "./audit-history-tab"
 
 export interface AccountAddress {
   line1: string
@@ -158,7 +159,7 @@ export interface AccountDetail {
   activities: AccountActivityRow[]
 }
 
-type TabKey = "contacts" | "opportunities" | "groups" | "activities"
+type TabKey = "contacts" | "opportunities" | "groups" | "activities" | "history"
 
 interface ContactModalAccountOption {
   value: string
@@ -437,7 +438,8 @@ const TABS: { id: TabKey; label: string }[] = [
   { id: "contacts", label: "Contacts" },
   { id: "opportunities", label: "Opportunities" },
   { id: "groups", label: "Groups" },
-  { id: "activities", label: "Activities & Notes" }
+  { id: "activities", label: "Activities & Notes" },
+  { id: "history", label: "History" }
 ]
 
 export const CONTACT_TABLE_BASE_COLUMNS: Column[] = [
@@ -4880,6 +4882,14 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                       </div>
                     </div>
                   )}
+                  {activeTab === "history" && account && (
+                    <AuditHistoryTab
+                      entityName="Account"
+                      entityId={account.id}
+                      tableAreaRefCallback={tableAreaRefCallback}
+                      tableBodyMaxHeight={tableBodyMaxHeight}
+                    />
+                  )}
                 </div>
               </div>
             ) : (
@@ -5270,4 +5280,3 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
     </div>
   )
 }
-

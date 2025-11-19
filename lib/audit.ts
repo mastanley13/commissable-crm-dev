@@ -134,6 +134,36 @@ export async function logAccountAudit(
 }
 
 /**
+ * Audit logging for product operations
+ */
+export async function logProductAudit(
+  action: AuditAction,
+  productId: string,
+  userId: string,
+  tenantId: string,
+  request: Request,
+  previousValues?: Record<string, any>,
+  newValues?: Record<string, any>
+): Promise<void> {
+  const changedFields = previousValues && newValues
+    ? getChangedFields(previousValues, newValues)
+    : undefined
+
+  await logAudit({
+    userId,
+    tenantId,
+    action,
+    entityName: 'Product',
+    entityId: productId,
+    changedFields,
+    previousValues,
+    newValues,
+    ipAddress: getClientIP(request),
+    userAgent: getUserAgent(request)
+  })
+}
+
+/**
  * Audit logging for contact operations
  */
 export async function logContactAudit(

@@ -39,6 +39,7 @@ import { VALIDATION_PATTERNS, formatPhoneNumber } from "@/lib/validation-shared"
 import { FieldRow as DetailFieldRow } from "./detail/FieldRow"
 import { fieldBoxClass as sharedFieldBoxClass } from "./detail/shared"
 import { ContactHeaderV2 } from "./contact-header-v2"
+import { AuditHistoryTab } from "./audit-history-tab"
 
 export interface ActivityAttachmentRow {
   id: string
@@ -348,10 +349,13 @@ function validateContactForm(form: ContactInlineForm): Record<string, string> {
 }
 
 
-const TABS: { id: "activities" | "opportunities" | "groups"; label: string }[] = [
+type TabKey = "activities" | "opportunities" | "groups" | "history"
+
+const TABS: { id: TabKey; label: string }[] = [
   { id: "opportunities", label: "Opportunities" },
   { id: "groups", label: "Groups" },
-  { id: "activities", label: "Activities & Notes" }
+  { id: "activities", label: "Activities & Notes" },
+  { id: "history", label: "History" }
 ]
 
 // Legacy field classes removed in favor of shared versions in components/detail/shared.ts
@@ -958,7 +962,7 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
   const router = useRouter()
   const searchParams = useSearchParams()
   const { hasPermission } = useAuth()
-  const [activeTab, setActiveTab] = useState<"activities" | "opportunities" | "groups">("opportunities")
+  const [activeTab, setActiveTab] = useState<TabKey>("opportunities")
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [isDeleted, setIsDeleted] = useState(false)
   const { showError, showSuccess, showInfo } = useToasts()
@@ -1356,7 +1360,7 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
   const createButtonDisabled = !contact || refreshing || loading || isDeleted
 
   const handleTabSelect = useCallback(
-    (tab: "activities" | "opportunities" | "groups") => {
+    (tab: TabKey) => {
       if (tab === activeTab) return
       if (shouldEnableInline && editor.isDirty) {
         const proceed = confirmNavigation()
@@ -3387,6 +3391,14 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
                       </div>
                       </div>
                     </div>
+                  )}
+                  {activeTab === "history" && contact && (
+                    <AuditHistoryTab
+                      entityName="Contact"
+                      entityId={contact.id}
+                      tableAreaRefCallback={tableAreaRefCallback}
+                      tableBodyMaxHeight={tableBodyMaxHeight}
+                    />
                   )}
                 </div>
               </>

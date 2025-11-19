@@ -43,6 +43,12 @@ interface ListHeaderProps {
   columnFilters?: ColumnFilter[];
   onColumnFiltersChange?: (filters: ColumnFilter[]) => void;
   statusFilter?: "active" | "inactive" | "all";
+  /**
+   * Optional override for which status options to render.
+   * Defaults to ["active", "inactive"] to preserve existing 2-state behavior.
+   * Use ["active", "all", "inactive"] for 3-state Active / All / Inactive controls.
+   */
+  statusFilterOptions?: Array<"active" | "inactive" | "all">;
   savedFilterSets?: SavedFilterSet[];
   onSaveFilterSet?: (name: string) => void;
   onLoadFilterSet?: (filterSet: SavedFilterSet) => void;
@@ -87,6 +93,7 @@ export function ListHeader({
   columnFilters,
   onColumnFiltersChange,
   statusFilter,
+  statusFilterOptions,
   savedFilterSets,
   onSaveFilterSet,
   onLoadFilterSet,
@@ -104,12 +111,28 @@ export function ListHeader({
   inTab = false,
 }: ListHeaderProps) {
   const [searchQuery, setSearchQuery] = useState("");
-  const [activeFilter, setActiveFilter] = useState<"active" | "inactive">("active");
+  const [activeFilter, setActiveFilter] = useState<"active" | "inactive" | "all">("active");
   const [selectedColumn, setSelectedColumn] = useState("");
   const [filterValue, setFilterValue] = useState("");
   const [activeColumnFilters, setActiveColumnFilters] = useState<ColumnFilter[]>(columnFilters ?? []);
   const [showSavedFilters, setShowSavedFilters] = useState(false);
   const [saveFilterName, setSaveFilterName] = useState("");
+
+  const effectiveStatusOptions: Array<"active" | "inactive" | "all"> = useMemo(() => {
+    if (Array.isArray(statusFilterOptions) && statusFilterOptions.length > 0) {
+      const seen = new Set<"active" | "inactive" | "all">();
+      const cleaned: Array<"active" | "inactive" | "all"> = [];
+      for (const value of statusFilterOptions) {
+        if (!seen.has(value)) {
+          seen.add(value);
+          cleaned.push(value);
+        }
+      }
+      return cleaned;
+    }
+    // Backwards-compatible default: 2-state Active / Show Inactive
+    return ["active", "inactive"];
+  }, [statusFilterOptions]);
 
   const columnOptions = useMemo(() => {
     if (!showColumnFilters) return [] as FilterColumnOption[];
@@ -124,10 +147,30 @@ export function ListHeader({
   }, [columnOptions]);
 
   useEffect(() => {
-    if (statusFilter && statusFilter !== activeFilter) {
-      setActiveFilter(statusFilter === "active" ? "active" : "inactive");
+    if (!statusFilter) return;
+
+    if (effectiveStatusOptions.includes(statusFilter)) {
+      // When the provided status is one of the configured options, track it directly.
+      if (statusFilter !== activeFilter) {
+        setActiveFilter(statusFilter);
+      }
+      return;
     }
-  }, [statusFilter, activeFilter]);
+
+    // Backwards compatibility: when using 2-state controls and statusFilter === "all",
+    // treat it as selecting the "inactive" pill (historically used as "Show All" in some views).
+    if (statusFilter === "all" && !effectiveStatusOptions.includes("all")) {
+      if (activeFilter !== "inactive") {
+        setActiveFilter("inactive");
+      }
+      return;
+    }
+
+    // Fallback: default to "active"
+    if (activeFilter !== "active") {
+      setActiveFilter("active");
+    }
+  }, [statusFilter, activeFilter, effectiveStatusOptions]);
 
   useEffect(() => {
     setActiveColumnFilters(columnFilters ?? []);
@@ -139,7 +182,7 @@ export function ListHeader({
     onSearch?.(query);
   };
 
-  const handleStatusFilterChange = (filter: "active" | "inactive") => {
+  const handleStatusFilterChange = (filter: "active" | "inactive" | "all") => {
     setActiveFilter(filter);
     onFilterChange?.(filter);
   };
@@ -249,6 +292,19 @@ export function ListHeader({
   const iconBtnPad = compact ? "p-1" : "p-1.5"
   const horizontalPadding = inTab ? "px-0" : "px-4"
 
+  const renderStatusLabel = (value: "active" | "inactive" | "all") => {
+    switch (value) {
+      case "active":
+        return "Active"
+      case "inactive":
+        return "Show Inactive"
+      case "all":
+        return "Show All"
+      default:
+        return value
+    }
+  }
+
   return (
     <div className={`bg-white ${horizontalPadding} ${padY}`}>
       {title && (
@@ -277,26 +333,19 @@ export function ListHeader({
             {leftAccessory}
             {showStatusFilter && (
               <div className="inline-flex rounded-lg border border-gray-300 bg-gray-50 p-0.5">
-                <button
-                  onClick={() => handleStatusFilterChange("active")}
-                  className={`${btnPad} text-sm font-medium transition-all duration-200 rounded-md ${
-                    activeFilter === "active"
-                      ? "bg-primary-600 text-white shadow-sm"
-                      : "text-gray-600 hover:text-gray-900"
-                  }`}
-                >
-                  Active
-                </button>
-                <button
-                  onClick={() => handleStatusFilterChange("inactive")}
-                  className={`${btnPad} text-sm font-medium transition-all duration-200 rounded-md ${
-                    activeFilter === "inactive"
-                      ? "bg-primary-600 text-white shadow-sm"
-                      : "text-gray-600 hover:text-gray-900"
-                  }`}
-                >
-                  Show Inactive
-                </button>
+                {effectiveStatusOptions.map(option => (
+                  <button
+                    key={option}
+                    onClick={() => handleStatusFilterChange(option)}
+                    className={`${btnPad} text-sm font-medium transition-all duration-200 rounded-md ${
+                      activeFilter === option
+                        ? "bg-primary-600 text-white shadow-sm"
+                        : "text-gray-600 hover:text-gray-900"
+                    }`}
+                  >
+                    {renderStatusLabel(option)}
+                  </button>
+                ))}
               </div>
             )}
 

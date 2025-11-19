@@ -9,6 +9,7 @@ import { useToasts } from "./toast"
 import { useEntityEditor, type EntityEditor } from "@/hooks/useEntityEditor"
 import { useAuth } from "@/lib/auth-context"
 import { getRevenueTypeLabel, REVENUE_TYPE_OPTIONS } from "@/lib/revenue-types"
+import { AuditHistoryTab } from "./audit-history-tab"
 
 export interface ProductOpportunityUsage {
   id: string
@@ -91,7 +92,7 @@ export interface ProductDetailRecord {
   auditLog?: ProductAuditLogEntry[]
 }
 
-type TabKey = "distributor" | "vendor"
+type TabKey = "distributor" | "vendor" | "history"
 
 interface ProductDetailsViewProps {
   product: ProductDetailRecord | null
@@ -129,7 +130,8 @@ interface ProductInlineForm {
 
 const TABS: { id: TabKey; label: string }[] = [
   { id: "distributor", label: "Distributor" },
-  { id: "vendor", label: "Vendor" }
+  { id: "vendor", label: "Vendor" },
+  { id: "history", label: "History" }
 ]
 
 function numberToInputString(value: number | null | undefined): string {
@@ -570,6 +572,13 @@ function ProductHeader({ product, onEdit, activeTab, onTabSelect }: ProductHeade
           </div>
         </div>
       )}
+      {activeTab === "history" && (
+        <div className="rounded-b-2xl border-x border-b border-gray-200 bg-white pt-0 px-3 pb-4">
+          <div className="border-t-2 border-t-primary-600 -mr-3 pt-3">
+            <AuditHistoryTab entityName="Product" entityId={product.id} />
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -961,6 +970,13 @@ function EditableProductHeader({ product, editor, onSave, activeTab, onTabSelect
               />
             )}
           </div>
+          </div>
+        </div>
+      )}
+      {activeTab === "history" && product && (
+        <div className="rounded-b-2xl border-x border-b border-gray-200 bg-white pt-0 px-3 pb-4">
+          <div className="border-t-2 border-t-primary-600 -mr-3 pt-3">
+            <AuditHistoryTab entityName="Product" entityId={product.id} />
           </div>
         </div>
       )}

@@ -1,0 +1,22 @@
+Product(s) Inactivation/Deletion
+Mass Inactivation: Allow users to filter and then select a group of products from the main list page to make them Inactive. Once inactive, they do not appear on the main page unless the user selects to view ALL or Inactive products only from the drop-down menu.
+Deletion Logic: Any product that has a related revenue schedule (past or future) cannot be deleted, only made Inactive. Products without any associated schedules can be deleted. This change is logged into History.
+
+Implementation Status (2025-11-18)
+- Mass Inactivation: Implemented on the Products List via the bulk action bar. Users can select multiple products and choose "Mark Inactive" or "Mark Active". The list defaults to Active-only and now exposes an Active | Show All | Show Inactive control that feeds the API `status` filter.
+- Deletion Guard: The Product DELETE API now blocks deletion when any revenue schedules exist for that product and returns an error indicating it can only be made inactive. Products with no revenue schedules are eligible for deletion.
+- UI Hint for Non-deletable Products: The Products List row actions now show a disabled delete icon with a tooltip for inactive products that have revenue schedules, indicating they cannot be deleted and should be marked inactive instead. Bulk delete also skips such products and warns the user.
+- History / Audit Logging: Product create, update (including active/inactive changes), and delete operations now write audit entries using the central audit log, so inactivation and deletion activity appears in History for Products.
+
+Current Product Inactivation / Deletion Flow
+- Default View and Filters: The Products List defaults to showing only Active products. A status control in the header allows users to switch between "Active", "Show All", and "Show Inactive". Inactive products only appear when "Show All" or "Show Inactive" is selected.
+- Mass Inactivation: Users can select one or more products from the Products List and use the bulk action bar to "Mark Inactive" or "Mark Active". These actions update the product `isActive` flag via the API and immediately refresh the list and selection state.
+- Single-Product Inactivation: Each row includes an active/inactive toggle. Toggling it sends a PATCH request for that product to set `active: true` or `active: false` and shows a confirmation toast. This provides a quick way to inactivate or reactivate a single product.
+- Single-Product Deletion: For a product to be deletable, it must be inactive and have no associated revenue schedules. In that case, an enabled delete icon appears in the row. Clicking it opens the confirmation dialog; confirming triggers the Product DELETE API, and on success the product is removed from the list.
+- Non-deletable Products (with Revenue Schedules): Inactive products that have any related revenue schedules show a greyed-out delete icon with a tooltip explaining they "cannot be deleted and should be marked inactive instead". Clicking this icon does nothing, and the API will also enforce the restriction if called directly.
+- Bulk Deletion: When the bulk delete action is used, any selected products that are active or have revenue schedules are skipped. The user receives a warning listing which products could not be deleted and why; only inactive products with no revenue schedules are passed into the confirmation dialog and delete flow.
+- History Tracking: All product creations, updates (including active/inactive status changes), and deletions record audit log entries with `entityName = 'Product'`. These entries provide before/after values for key fields (such as name, code, and active status), ensuring that product inactivation and deletion actions are traceable in History.
+
+Acceptance Criteria Alignment
+- Mass Inactivation: The Products List allows users to filter, select, and inactivate groups of products via the bulk action bar. Once inactive, products are removed from the default Active view and only appear when the user chooses "Show All" or "Show Inactive" from the status control, matching the described behavior.
+- Deletion Logic and History: The Product DELETE API prevents deletion of any product that has associated revenue schedules, so those products can only be made inactive. Products without schedules can be deleted through the UI (single or bulk), and all inactivation/deletion operations are logged in the audit history, satisfying the specified deletion and logging requirements.

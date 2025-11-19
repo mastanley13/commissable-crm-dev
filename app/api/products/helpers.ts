@@ -4,6 +4,9 @@ import { getRevenueTypeLabel } from "@/lib/revenue-types"
 interface ProductWithRelations extends Product {
   distributor?: Pick<Account, "accountName"> | null
   vendor?: Pick<Account, "accountName"> | null
+  _count?: {
+    revenueSchedules?: number
+  }
 }
 
 export interface ProductListRow {
@@ -26,6 +29,7 @@ export interface ProductListRow {
   revenueScheduleEstimatedStartDate: string | null
   revenueType: string
   revenueTypeLabel: string
+  hasRevenueSchedules: boolean
 }
 
 const PRODUCT_SPEC_TODO_FIELDS = new Set([
@@ -63,6 +67,7 @@ export function describeProductFieldTodo(field: keyof ProductListRow) {
 export function mapProductToRow(product: ProductWithRelations): ProductListRow {
   const commissionPercent = product.commissionPercent ? Number(product.commissionPercent) : null
   const priceEach = product.priceEach ? Number(product.priceEach) : null
+  const revenueScheduleCount = product._count?.revenueSchedules ?? 0
 
   return {
     id: product.id,
@@ -83,6 +88,7 @@ export function mapProductToRow(product: ProductWithRelations): ProductListRow {
     revenueSchedulePeriods: null,
     revenueScheduleEstimatedStartDate: null,
     revenueType: product.revenueType ?? "",
-    revenueTypeLabel: getRevenueTypeLabel(product.revenueType) ?? product.revenueType ?? ""
+    revenueTypeLabel: getRevenueTypeLabel(product.revenueType) ?? product.revenueType ?? "",
+    hasRevenueSchedules: revenueScheduleCount > 0,
   }
 }

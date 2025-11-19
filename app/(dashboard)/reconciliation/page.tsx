@@ -1,13 +1,14 @@
 'use client'
 
-import { useState, useCallback, useMemo, useLayoutEffect, useRef, useEffect } from 'react'
+import { useState, useCallback, useMemo, useLayoutEffect, useRef, useEffect, ChangeEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import { ListHeader, FilterColumnOption, ColumnFilter } from '@/components/list-header'
 import { DynamicTable, Column, PaginationInfo } from '@/components/dynamic-table'
 import { ColumnChooserModal } from '@/components/column-chooser-modal'
 import { useTablePreferences } from '@/hooks/useTablePreferences'
-import { reconciliationData } from '@/lib/mock-data'
-import { Check, X, Trash2 } from 'lucide-react'
+import { reconciliationData, depositSummaryMock } from '@/lib/mock-data'
+import { Check, X, CalendarRange, TrendingUp, Wallet, BellRing } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import { calculateMinWidth } from '@/lib/column-width-utils'
 import { cn } from '@/lib/utils'
 
@@ -128,6 +129,40 @@ const filterOptions: FilterColumnOption[] = [
   { id: 'status', label: 'Status' }
 ]
 
+type DepositSummary = {
+  totalUsageYtd: number
+  totalCommissionsYtd: number
+  totalPastDueSchedules: number
+}
+
+type DateRangePreset = 'ytd' | 'last6Months' | 'custom'
+
+type CustomDateRange = {
+  from: string | null
+  to: string | null
+}
+
+type MetricCardProps = {
+  icon: LucideIcon
+  label: string
+  value: string
+  loading: boolean
+}
+
+const MetricCard = ({ icon: Icon, label, value, loading }: MetricCardProps) => (
+  <div className="bg-transparent p-1.5">
+    <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+      <span className="flex h-6 w-6 items-center justify-center text-primary-600">
+        <Icon className="h-4 w-4" aria-hidden="true" />
+      </span>
+      {label}
+    </div>
+    <div className="mt-1 text-lg font-semibold text-slate-900">
+      {loading ? <span className="block h-7 w-24 animate-pulse rounded bg-slate-200" /> : value}
+    </div>
+  </div>
+)
+
 export default function ReconciliationPage() {
   const router = useRouter()
   const [reconciliation, setReconciliation] = useState(reconciliationData)
@@ -144,6 +179,93 @@ export default function ReconciliationPage() {
   const [tableBodyHeight, setTableBodyHeight] = useState<number | undefined>(undefined)
   const [updatingReconciliationIds, setUpdatingReconciliationIds] = useState<Set<string>>(new Set())
   const tableAreaNodeRef = useRef<HTMLDivElement | null>(null)
+  const [summaryMetrics, setSummaryMetrics] = useState<DepositSummary>(depositSummaryMock)
+  const [summaryLoading, setSummaryLoading] = useState<boolean>(false)
+  const [summaryError, setSummaryError] = useState<string | null>(null)
+  const [dateRangePreset, setDateRangePreset] = useState<DateRangePreset>('ytd')
+  const [customDateRange, setCustomDateRange] = useState<CustomDateRange>({ from: null, to: null })
+  const currencyFormatter = useMemo(
+    () => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }),
+    []
+  )
+  const numberFormatter = useMemo(() => new Intl.NumberFormat('en-US'), [])
+  const metricsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const simulateSummaryFetch = useCallback((preset: DateRangePreset) => {
+    setSummaryLoading(true)
+    setSummaryError(null)
+
+    if (metricsTimeoutRef.current) {
+      clearTimeout(metricsTimeoutRef.current)
+    }
+
+    const multiplierMap: Record<DateRangePreset, number> = {
+      ytd: 1,
+      last6Months: 0.62,
+      custom: 0.78
+    }
+
+    const usageMultiplier = multiplierMap[preset] ?? 1
+    const pastDueMultiplier = preset === 'last6Months' ? 0.85 : preset === 'custom' ? 0.9 : 1
+
+    metricsTimeoutRef.current = setTimeout(() => {
+      setSummaryMetrics({
+        totalUsageYtd: Math.round(depositSummaryMock.totalUsageYtd * usageMultiplier),
+        totalCommissionsYtd: Math.round(depositSummaryMock.totalCommissionsYtd * usageMultiplier * 100) / 100,
+        totalPastDueSchedules: Math.max(0, Math.round(depositSummaryMock.totalPastDueSchedules * pastDueMultiplier))
+      })
+      setSummaryLoading(false)
+      metricsTimeoutRef.current = null
+    }, 350)
+  }, [])
+
+  useEffect(() => {
+    simulateSummaryFetch('ytd')
+    return () => {
+      if (metricsTimeoutRef.current) {
+        clearTimeout(metricsTimeoutRef.current)
+      }
+    }
+  }, [simulateSummaryFetch])
+
+  const handlePresetChange = useCallback(
+    (event: ChangeEvent<HTMLSelectElement>) => {
+      const nextPreset = event.target.value as DateRangePreset
+      setSummaryError(null)
+      setDateRangePreset(nextPreset)
+
+      if (nextPreset !== 'custom') {
+        setCustomDateRange({ from: null, to: null })
+        simulateSummaryFetch(nextPreset)
+      }
+    },
+    [simulateSummaryFetch]
+  )
+
+  const handleCustomDateChange = useCallback((field: keyof CustomDateRange) => {
+    return (event: ChangeEvent<HTMLInputElement>) => {
+      setCustomDateRange(prev => ({
+        ...prev,
+        [field]: event.target.value ? event.target.value : null
+      }))
+    }
+  }, [])
+
+  const handleApplyCustomDateRange = useCallback(() => {
+    if (!customDateRange.from || !customDateRange.to) {
+      setSummaryError('Please select both a start date and end date.')
+      return
+    }
+
+    setSummaryError(null)
+    setDateRangePreset('custom')
+    simulateSummaryFetch('custom')
+  }, [customDateRange.from, customDateRange.to, simulateSummaryFetch])
+
+  const isApplyDisabled =
+    dateRangePreset !== 'custom' ||
+    !customDateRange.from ||
+    !customDateRange.to ||
+    summaryLoading
 
   const {
     columns: preferenceColumns,
@@ -528,8 +650,78 @@ export default function ReconciliationPage() {
 
   return (
     <div className="dashboard-page-container">
-      <ListHeader
-        pageTitle="RECONCILIATION LIST"
+      <section className="px-4 pb-0">
+        <div className="bg-slate-50/80 px-3 pt-2 shadow-sm">
+          <div className="grid gap-2 md:grid-cols-3">
+            <MetricCard
+              icon={TrendingUp}
+              label="Total Usage YTD"
+              value={currencyFormatter.format(summaryMetrics.totalUsageYtd)}
+              loading={summaryLoading}
+            />
+            <MetricCard
+              icon={Wallet}
+              label="Total Commissions YTD"
+              value={currencyFormatter.format(summaryMetrics.totalCommissionsYtd)}
+              loading={summaryLoading}
+            />
+            <MetricCard
+              icon={BellRing}
+              label="Total Past Due Schedules"
+              value={numberFormatter.format(summaryMetrics.totalPastDueSchedules)}
+              loading={summaryLoading}
+            />
+          </div>
+
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-slate-600">
+            <span className="flex items-center gap-1 font-semibold uppercase tracking-wide text-[11px] text-slate-500">
+              <CalendarRange className="h-4 w-4 text-primary-600" />
+              Date Range
+            </span>
+            <select
+              value={dateRangePreset}
+              onChange={handlePresetChange}
+              className="border border-slate-300 bg-white px-3 py-1 text-sm font-medium text-slate-700 focus:border-primary-500 focus:outline-none"
+            >
+              <option value="ytd">Year to Date</option>
+              <option value="last6Months">Last 6 Months</option>
+              <option value="custom">Custom</option>
+            </select>
+            <input
+              type="date"
+              value={customDateRange.from ?? ''}
+              onChange={handleCustomDateChange('from')}
+              disabled={dateRangePreset !== 'custom'}
+              className="border border-slate-300 bg-white px-3 py-1 text-sm focus:border-primary-500 focus:outline-none disabled:bg-slate-100"
+            />
+            <span className="text-xs font-medium text-slate-500">to</span>
+            <input
+              type="date"
+              value={customDateRange.to ?? ''}
+              onChange={handleCustomDateChange('to')}
+              disabled={dateRangePreset !== 'custom'}
+              className="border border-slate-300 bg-white px-3 py-1 text-sm focus:border-primary-500 focus:outline-none disabled:bg-slate-100"
+            />
+            <button
+              type="button"
+              onClick={handleApplyCustomDateRange}
+              disabled={isApplyDisabled}
+              className="bg-primary-600 px-4 py-1 text-sm font-semibold text-white transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-primary-300"
+            >
+              Apply Range
+            </button>
+          </div>
+
+          {summaryError && (
+            <div className="mt-3 text-sm text-red-600">{summaryError}</div>
+          )}
+        </div>
+        <div className="h-[2px] w-full bg-primary-700" />
+      </section>
+
+      <div className="px-4 pt-0">
+        <ListHeader
+        pageTitle="DEPOSITS LIST"
         searchPlaceholder="Search reconciliation..."
         onSearch={handleSearch}
         onFilterChange={handleStatusFilterChange}
@@ -547,7 +739,8 @@ export default function ReconciliationPage() {
         createButtonLabel="Deposit Upload"
         showStatusFilter={true}
         showColumnFilters={true}
-      />
+        />
+      </div>
 
       {preferenceError && (
         <div className="px-4 text-sm text-red-600">{preferenceError}</div>

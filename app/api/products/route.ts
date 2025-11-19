@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server"
 
-import { Prisma, RevenueType } from "@prisma/client"
+import { Prisma, RevenueType, AuditAction } from "@prisma/client"
 import { prisma } from "@/lib/db"
 import { withAuth } from "@/lib/api-auth"
 import { hasAnyPermission } from "@/lib/auth"
 import { dedupeColumnFilters } from "@/lib/filter-utils"
 import { mapProductToRow } from "./helpers"
+import { logProductAudit } from "@/lib/audit"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -183,6 +184,7 @@ export async function GET(request: NextRequest) {
           include: {
             distributor: { select: { accountName: true } },
             vendor: { select: { accountName: true } },
+            _count: { select: { revenueSchedules: true } },
           },
           orderBy,
           skip: (page - 1) * pageSize,
@@ -303,6 +305,22 @@ export async function POST(request: NextRequest) {
           vendor: { select: { accountName: true } },
         }
       })
+
+      // Log product creation to audit history
+      await logProductAudit(
+        AuditAction.Create,
+        created.id,
+        req.user.id,
+        req.user.tenantId,
+        request,
+        undefined,
+        {
+          productCode: created.productCode,
+          productNameHouse: created.productNameHouse,
+          productNameVendor: created.productNameVendor,
+          isActive: created.isActive,
+        }
+      )
 
       return NextResponse.json({ data: mapProductToRow(created) }, { status: 201 })
     } catch (error: any) {

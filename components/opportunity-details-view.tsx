@@ -37,6 +37,19 @@ import { ProductBulkActionBar } from "./product-bulk-action-bar"
 import { OpportunityRoleCreateModal } from "./opportunity-role-create-modal"
 import { getOpportunityStageLabel, getOpportunityStageOptions, isOpportunityStageAutoManaged, isOpportunityStageValue, type OpportunityStageOption } from "@/lib/opportunity-stage"
 import { getRevenueTypeLabel } from "@/lib/revenue-types"
+import { StatusFilterDropdown } from "@/components/status-filter-dropdown"
+import { AuditHistoryTab } from "./audit-history-tab"
+
+// Helper function to parse currency values
+const parseCurrency = (val: any): number => {
+  if (typeof val === "number") return val
+  if (typeof val === "string") {
+    const cleaned = val.replace(/[$,]/g, "")
+    const num = parseFloat(cleaned)
+    return Number.isNaN(num) ? 0 : num
+  }
+  return 0
+}
 
 const fieldLabelClass = "text-[11px] font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap"
 const fieldBoxClass = "flex min-h-[28px] w-full max-w-md items-center justify-between border-b-2 border-gray-300 bg-transparent pl-[3px] pr-0 py-1 text-[11px] text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis tabular-nums"
@@ -291,33 +304,6 @@ export const ROLE_TABLE_BASE_COLUMNS: Column[] = [
   { id: "phoneExtension", label: "Phone Extension", width: 150, minWidth: 120, accessor: "phoneExtension" },
   { id: "mobile", label: "Mobile", width: 160, minWidth: 140, accessor: "mobile" }
 ]
-
-const HISTORY_FILTER_COLUMNS: Array<{ id: string; label: string }> = [
-  { id: "actorName", label: "Actor" },
-  { id: "action", label: "Action" },
-  { id: "entityLabel", label: "Entity" },
-  { id: "summary", label: "Summary" }
-]
-
-export const HISTORY_TABLE_BASE_COLUMNS: Column[] = [
-  { id: "createdAt", label: "When", width: 200, minWidth: 180, accessor: "createdAt" },
-  { id: "action", label: "Action", width: 140, minWidth: 120, accessor: "action" },
-  { id: "actorName", label: "Actor", width: 200, minWidth: 160, accessor: "actorName" },
-  { id: "entityLabel", label: "Entity", width: 160, minWidth: 140, accessor: "entityLabel" },
-  { id: "summary", label: "Details", width: 360, minWidth: 240, accessor: "summary" }
-]
-
-interface OpportunityHistoryRow {
-  id: string
-  entityName: string
-  entityLabel: string
-  entityId: string
-  action: string
-  actorName: string | null
-  createdAt: string
-  summary: string
-  details: string[]
-}
 
 interface OpportunityRoleRow {
   id: string
@@ -1421,23 +1407,6 @@ function EditableOpportunityHeader({
 }
 
 
-function formatChangeValue(value: unknown): string {
-  if (value === null || value === undefined) {
-    return "?"
-  }
-  if (typeof value === "string") {
-    return value.length > 60 ? `${value.slice(0, 57)}?` : value
-  }
-  if (typeof value === "number" || typeof value === "boolean") {
-    return String(value)
-  }
-  try {
-    return JSON.stringify(value)
-  } catch {
-    return String(value)
-  }
-}
-
 export interface OpportunityDetailsViewProps {
   opportunity: OpportunityDetailRecord | null
   loading?: boolean
@@ -1447,6 +1416,16 @@ export interface OpportunityDetailsViewProps {
 }
 
 type TabKey = "summary" | "roles" | "details" | "products" | "revenue-schedules" | "activities" | "history"
+
+const DETAIL_TABS: { id: TabKey; label: string }[] = [
+  { id: "summary", label: "Summary" },
+  { id: "roles", label: "Roles" },
+  { id: "details", label: "Details" },
+  { id: "products", label: "Products" },
+  { id: "revenue-schedules", label: "Revenue Schedules" },
+  { id: "activities", label: "Activities & Notes" },
+  { id: "history", label: "History" }
+]
 export function OpportunityDetailsView({
   opportunity,
   loading,
@@ -1460,7 +1439,7 @@ export function OpportunityDetailsView({
 
   const getInitialTab = (): TabKey => {
     const tabParam = searchParams?.get("tab")
-    const validTabs: TabKey[] = ["summary", "products", "revenue-schedules", "activities", "roles", "details"]
+    const validTabs: TabKey[] = ["summary", "products", "revenue-schedules", "activities", "roles", "details", "history"]
     if (tabParam && validTabs.includes(tabParam as TabKey)) {
       return tabParam as TabKey
     }
@@ -1687,7 +1666,7 @@ export function OpportunityDetailsView({
   // Revenue schedules state
   const [revenueSearchQuery, setRevenueSearchQuery] = useState("")
   const [revenueColumnFilters, setRevenueColumnFilters] = useState<ColumnFilter[]>([])
-  const [revenueStatusFilter, setRevenueStatusFilter] = useState<"active" | "inactive">("active")
+  const [revenueStatusFilter, setRevenueStatusFilter] = useState<'all' | 'open' | 'reconciled' | 'in_dispute'>('all')
   const [revenueCurrentPage, setRevenueCurrentPage] = useState(1)
   const [revenuePageSize, setRevenuePageSize] = useState(10)
   const [selectedRevenueSchedules, setSelectedRevenueSchedules] = useState<string[]>([])
@@ -1731,30 +1710,12 @@ export function OpportunityDetailsView({
     saveChangesOnModalClose: saveActivityPrefsOnModalClose
   } = useTablePreferences("opportunities:detail:activities", ACTIVITY_TABLE_BASE_COLUMNS)
 
-  // History tab state
-  const [historyRows, setHistoryRows] = useState<OpportunityHistoryRow[]>([])
-  const [historyLoading, setHistoryLoading] = useState(false)
-  const [historyError, setHistoryError] = useState<string | null>(null)
-  const [historySearchQuery, setHistorySearchQuery] = useState("")
-  const [historyColumnFilters, setHistoryColumnFilters] = useState<ColumnFilter[]>([])
-  const [showHistoryColumnSettings, setShowHistoryColumnSettings] = useState(false)
-
-  const {
-    columns: historyPreferenceColumns,
-    loading: historyPreferencesLoading,
-    saving: historyPreferencesSaving,
-    hasUnsavedChanges: historyHasUnsavedChanges,
-    lastSaved: historyLastSaved,
-    handleColumnsChange: handleHistoryColumnsChange,
-    saveChanges: saveHistoryPreferences,
-    saveChangesOnModalClose: saveHistoryPrefsOnModalClose
-  } = useTablePreferences("opportunities:detail:history", HISTORY_TABLE_BASE_COLUMNS)
-
   const tableAreaRef = useRef<HTMLDivElement | null>(null)
   const [tableAreaMaxHeight, setTableAreaMaxHeight] = useState<number>()
   const TABLE_CONTAINER_PADDING = 16
   const TABLE_BODY_FOOTER_RESERVE = 96
   const TABLE_BODY_MIN_HEIGHT = 160
+  const TABLE_BODY_MAX_HEIGHT = 520
 
   const measureTableAreaHeight = useCallback(() => {
     const container = tableAreaRef.current
@@ -1790,8 +1751,7 @@ export function OpportunityDetailsView({
     rolePreferencesLoading,
     productPreferencesLoading,
     revenuePreferencesLoading,
-    activityPreferencesLoading,
-    historyPreferencesLoading
+    activityPreferencesLoading
   ])
 
   useEffect(() => {
@@ -1811,11 +1771,12 @@ export function OpportunityDetailsView({
       0
     )
     const boundedPreferredHeight = Math.min(preferredBodyHeight, maxBodyWithinContainer)
-    if (boundedPreferredHeight >= TABLE_BODY_MIN_HEIGHT) {
-      return boundedPreferredHeight
+    const limitedPreferredHeight = Math.min(boundedPreferredHeight, TABLE_BODY_MAX_HEIGHT)
+    if (limitedPreferredHeight >= TABLE_BODY_MIN_HEIGHT) {
+      return limitedPreferredHeight
     }
     const minTarget = Math.min(TABLE_BODY_MIN_HEIGHT, maxBodyWithinContainer)
-    return Math.max(boundedPreferredHeight, minTarget)
+    return Math.max(limitedPreferredHeight, minTarget)
   }, [tableAreaMaxHeight])
 
   const roleRows = useMemo<OpportunityRoleRow[]>(() => {
@@ -2131,15 +2092,19 @@ export function OpportunityDetailsView({
   const filteredRevenueRows = useMemo(() => {
     let rows = [...revenueRows]
 
-    if (revenueStatusFilter === "active") {
+    if (revenueStatusFilter !== 'all') {
       rows = rows.filter(row => {
-        const status = row.status ? String(row.status).toLowerCase() : ""
-        return status.length === 0 || !REVENUE_INACTIVE_STATUSES.has(status)
-      })
-    } else if (revenueStatusFilter === "inactive") {
-      rows = rows.filter(row => {
-        const status = row.status ? String(row.status).toLowerCase() : ""
-        return status.length > 0 && REVENUE_INACTIVE_STATUSES.has(status)
+        const rawStatus = String(row.scheduleStatus ?? '').toLowerCase()
+        const gross = parseCurrency(row.expectedUsageGross)
+        const adj = parseCurrency(row.expectedUsageAdjustment)
+        const net = gross + adj
+        const isDispute = rawStatus.includes('dispute') || Boolean(row.inDispute)
+        const isOpen = rawStatus === 'open' ? true : rawStatus === 'reconciled' ? false : Math.abs(net) > 0.0001
+        const isReconciled = rawStatus === 'reconciled' ? true : rawStatus === 'open' ? false : !isOpen
+        if (revenueStatusFilter === 'open') return isOpen
+        if (revenueStatusFilter === 'reconciled') return isReconciled
+        if (revenueStatusFilter === 'in_dispute') return isDispute
+        return true
       })
     }
 
@@ -3038,106 +3003,6 @@ export function OpportunityDetailsView({
     })
   }, [activityPreferenceColumns, selectedActivities, handleActivitySelect, handleToggleActivityStatus, handleDeleteActivity])
 
-  const summarizeChangedFields = useCallback((changed: any): { summary: string; details: string[] } => {
-    const details: string[] = []
-    if (changed && typeof changed === "object" && !Array.isArray(changed)) {
-      for (const [key, value] of Object.entries(changed)) {
-        if (value && typeof value === "object" && "from" in (value as any) && "to" in (value as any)) {
-          details.push(`${key}: ${formatChangeValue((value as any).from)} -> ${formatChangeValue((value as any).to)}`)
-        } else {
-          details.push(`${key}: updated`)
-        }
-      }
-    }
-    if (details.length === 0) {
-      return { summary: "Updated", details: [] }
-    }
-    return { summary: details[0], details }
-  }, [])
-
-  const fetchHistory = useCallback(async () => {
-    if (!opportunity) {
-      setHistoryRows([])
-      return
-    }
-
-    setHistoryLoading(true)
-    setHistoryError(null)
-
-    try {
-      const opportunityParams = new URLSearchParams({
-        entityName: "Opportunity",
-        entityId: opportunity.id,
-        pageSize: "200"
-      })
-
-      const requests: Promise<Response>[] = [
-        fetch(`/api/audit-logs?${opportunityParams.toString()}`, { cache: "no-store" })
-      ]
-
-      if (lineItemIds.length > 0) {
-        const lineItemParams = new URLSearchParams({
-          entityName: "OpportunityProduct",
-          entityIds: lineItemIds.join(","),
-          pageSize: "200"
-        })
-        requests.push(fetch(`/api/audit-logs?${lineItemParams.toString()}`, { cache: "no-store" }))
-      }
-
-      const responses = await Promise.all(requests)
-
-      const allLogs: any[] = []
-      for (const response of responses) {
-        if (!response.ok) {
-          const payload = await response.json().catch(() => null)
-          const message = payload?.error ?? "Failed to load audit history"
-          throw new Error(message)
-        }
-        const payload = await response.json().catch(() => null)
-        const items = Array.isArray(payload?.data) ? payload.data : []
-        allLogs.push(...items)
-      }
-
-      const rows: OpportunityHistoryRow[] = allLogs.map(item => {
-        const createdAt = item.createdAt ? new Date(item.createdAt) : null
-        const entityLabel =
-          item.entityName === "Opportunity"
-            ? "Opportunity"
-            : item.entityName === "OpportunityProduct"
-              ? "Line Item"
-              : item.entityName
-
-        const { summary, details } = summarizeChangedFields(item.changedFields)
-
-        return {
-          id: item.id,
-          entityName: item.entityName ?? "Unknown",
-          entityLabel,
-          entityId: item.entityId ?? "",
-          action: item.action ?? "Update",
-          actorName: item.userName ?? null,
-          createdAt: createdAt && !Number.isNaN(createdAt.getTime()) ? createdAt.toISOString() : new Date().toISOString(),
-          summary,
-          details
-        }
-      })
-
-      rows.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-      setHistoryRows(rows)
-    } catch (err) {
-      console.error(err)
-      const message = err instanceof Error ? err.message : "Unable to load audit history"
-      setHistoryRows([])
-      setHistoryError(message)
-    } finally {
-      setHistoryLoading(false)
-    }
-  }, [lineItemIds, opportunity, summarizeChangedFields])
-
-  useEffect(() => {
-    fetchHistory()
-  }, [fetchHistory])
-
   const handleToggleLineItemActive = useCallback(
     async (lineItemId: string, nextActive: boolean, lineItemLabel?: string) => {
       const previousActive =
@@ -3171,7 +3036,6 @@ export function OpportunityDetailsView({
         )
 
         await onRefresh?.()
-        await fetchHistory()
       } catch (error) {
         console.error(error)
         setLineItemStatusOverrides(current => {
@@ -3192,7 +3056,7 @@ export function OpportunityDetailsView({
         })
       }
     },
-    [fetchHistory, lineItemStatusOverrides, onRefresh, productRows, showError, showSuccess]
+    [lineItemStatusOverrides, onRefresh, productRows, showError, showSuccess]
   )
 
   const handleBulkDeleteLineItems = useCallback(() => {
@@ -3325,7 +3189,6 @@ export function OpportunityDetailsView({
           )
 
           await onRefresh?.()
-          await fetchHistory()
         }
 
         if (failedCount > 0) {
@@ -3342,7 +3205,7 @@ export function OpportunityDetailsView({
         setLineItemBulkActionLoading(false)
       }
     },
-    [fetchHistory, onRefresh, showError, showSuccess]
+    [onRefresh, showError, showSuccess]
   )
 
   const handleBulkActivateLineItems = useCallback(() => {
@@ -3386,7 +3249,6 @@ export function OpportunityDetailsView({
         )
         setSelectedLineItems(previous => previous.filter(id => !successfulIds.includes(id)))
         await onRefresh?.()
-        await fetchHistory()
       }
 
       if (failedCount > 0) {
@@ -3403,7 +3265,7 @@ export function OpportunityDetailsView({
       setLineItemBulkActionLoading(false)
       setLineItemBulkDeleteTargets([])
     }
-  }, [fetchHistory, lineItemBulkDeleteTargets, onRefresh, showError, showSuccess])
+  }, [lineItemBulkDeleteTargets, onRefresh, showError, showSuccess])
 
   const handleCancelBulkDeleteLineItems = useCallback(() => {
     if (lineItemBulkActionLoading) {
@@ -3597,43 +3459,6 @@ export function OpportunityDetailsView({
     handleToggleLineItemActive
   ])
 
-  const historyTableColumns = useMemo(() => {
-    return historyPreferenceColumns.map(column => {
-      if (column.id === "createdAt") {
-        return {
-          ...column,
-          render: (value: unknown) => formatDateTime(typeof value === "string" ? value : String(value ?? ""))
-        }
-      }
-      return {
-        ...column,
-        render: (value: unknown) => (value === null || value === undefined || String(value).trim().length === 0 ? "--" : String(value))
-      }
-    })
-  }, [historyPreferenceColumns])
-
-  const filteredHistoryRows = useMemo(() => {
-    let rows = historyRows
-
-    if (historySearchQuery.trim()) {
-      const search = historySearchQuery.trim().toLowerCase()
-      rows = rows.filter(row =>
-        [row.actorName, row.action, row.entityLabel, row.summary]
-          .filter(Boolean)
-          .some(value => String(value).toLowerCase().includes(search))
-      )
-    }
-
-    if (historyColumnFilters.length > 0) {
-      rows = applySimpleFilters(
-        rows as unknown as Record<string, unknown>[],
-        historyColumnFilters
-      ) as unknown as OpportunityHistoryRow[]
-    }
-
-    return rows
-  }, [historyRows, historySearchQuery, historyColumnFilters])
-
   const handleConfirmDeleteLineItem = useCallback(async () => {
     if (!lineItemToDelete) {
       return
@@ -3655,7 +3480,6 @@ export function OpportunityDetailsView({
 
       showSuccess("Line item deleted", "The product has been removed from this opportunity.")
       await onRefresh?.()
-      await fetchHistory()
       setLineItemToDelete(null)
     } catch (err) {
       console.error(err)
@@ -3665,8 +3489,9 @@ export function OpportunityDetailsView({
     } finally {
       setLineItemDeleteLoading(false)
     }
-  }, [fetchHistory, lineItemToDelete, onRefresh, showError, showSuccess])
-if (loading) {
+  }, [lineItemToDelete, onRefresh, showError, showSuccess]);
+
+  if (loading) {
     return (
       <div className="flex min-h-[420px] flex-col items-center justify-center gap-3 text-sm text-gray-500">
         <Loader2 className="h-6 w-6 animate-spin text-primary-600" />
@@ -3721,44 +3546,33 @@ if (loading) {
           <div className="flex flex-col gap-4">
             {headerNode}
 
-            <div className="flex flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-              <div className="flex flex-wrap gap-1 border-b border-gray-200 bg-gray-100 pt-2 px-3 pb-0">
-                {(["products", "revenue-schedules", "activities", "summary", "roles", "details"] as TabKey[]).map(tabId => (
+            <div className="flex flex-col min-h-0 overflow-hidden">
+              <div className="flex flex-wrap gap-1 border-x border-t border-gray-200 bg-gray-100 pt-2 px-3 pb-0">
+                {DETAIL_TABS.map(tab => (
                   <button
-                    key={tabId}
+                    key={tab.id}
                     type="button"
-                    onClick={() => handleTabSelect(tabId)}
+                    onClick={() => handleTabSelect(tab.id)}
                     className={cn(
                       "rounded-t-md border px-3 py-1.5 text-sm font-semibold shadow-sm transition",
-                      activeTab === tabId
+                      activeTab === tab.id
                         ? "-mb-[1px] border-primary-700 bg-primary-700 text-white hover:bg-primary-800"
                         : "border-blue-300 bg-gradient-to-b from-blue-100 to-blue-200 text-primary-800 hover:from-blue-200 hover:to-blue-300 hover:border-blue-400"
                     )}
                   >
-                    {tabId === "summary"
-                      ? "Summary"
-                      : tabId === "roles"
-                        ? "Roles"
-                        : tabId === "details"
-                          ? "Details"
-                      : tabId === "products"
-                        ? "Products"
-                        : tabId === "revenue-schedules"
-                          ? "Revenue Schedules"
-                          : tabId === "activities"
-                            ? "Activities & Notes"
-                            : "History"}
+                    {tab.label}
                   </button>
                 ))}
               </div>
 
-              <div className="min-h-[320px] border-gray-200 bg-white pt-0 px-3 pb-4 flex flex-col overflow-hidden">
-                <div className="border-t-2 border-t-primary-600 -mr-3">
+              <div className="flex flex-1 flex-col min-h-0 overflow-hidden">
                 {activeTab === "summary" ? (
-                  <SummaryTab opportunity={opportunity} />
+                  <div className="border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-3 px-3 pb-3">
+                    <SummaryTab opportunity={opportunity} />
+                  </div>
                 ) : activeTab === "products" ? (
-                 
-                  <div className="grid flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-3 overflow-hidden">
+                  <div className="grid flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0 px-3 pb-0">
+                    <div className="border-t-2 border-t-primary-600 -mr-3">
                     <ListHeader
                       inTab
                       showCreateButton
@@ -3777,6 +3591,7 @@ if (loading) {
                       lastTableSaved={productLastSaved ?? undefined}
                       onSaveTableChanges={saveProductTablePreferences}
                     />
+                    </div>
 
                     <ProductBulkActionBar
                       count={selectedLineItems.length}
@@ -3787,9 +3602,12 @@ if (loading) {
                       onDeactivate={handleBulkDeactivateLineItems}
                     />
 
-                    <div className="flex min-h-0 flex-col overflow-hidden" ref={tableAreaRefCallback}>
+                    <div
+                      className="flex flex-1 min-h-0 flex-col overflow-hidden"
+                      ref={tableAreaRefCallback}
+                    >
                       <DynamicTable
-                        className="flex flex-col"
+                        className="flex flex-1 flex-col"
                         columns={productTableColumns}
                         data={paginatedProductRows}
                         loading={productPreferencesLoading}
@@ -3809,32 +3627,37 @@ if (loading) {
                     </div>
                   </div>
                 ) : activeTab === "roles" ? (
-                  <div className="grid flex-1 grid-rows-[auto_minmax(0,1fr)] gap-3 overflow-hidden">
-                    <ListHeader
-                      inTab
-                      showCreateButton
-                      createButtonLabel="Add Role"
-                      onCreateClick={() => setShowCreateRoleModal(true)}
-                      onSearch={setRolesSearchQuery}
-                      searchPlaceholder="Search roles"
-                      filterColumns={ROLE_FILTER_COLUMNS}
-                      columnFilters={roleColumnFilters}
-                      onColumnFiltersChange={setRoleColumnFilters}
-                      onSettingsClick={() => setShowRoleColumnSettings(true)}
-                      statusFilter={roleStatusFilter}
-                      onFilterChange={value =>
-                        setRoleStatusFilter(value === "inactive" ? "inactive" : "active")
-                      }
-                      hasUnsavedTableChanges={roleHasUnsavedChanges}
-                      isSavingTableChanges={rolePreferencesSaving}
-                      lastTableSaved={roleLastSaved ?? undefined}
-                      onSaveTableChanges={saveRolePreferences}
-                    />
+                  <div className="grid flex-1 grid-rows-[auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0 px-3 pb-0">
+                    <div className="border-t-2 border-t-primary-600 -mr-3">
+                      <ListHeader
+                        inTab
+                        showCreateButton
+                        createButtonLabel="Add Role"
+                        onCreateClick={() => setShowCreateRoleModal(true)}
+                        onSearch={setRolesSearchQuery}
+                        searchPlaceholder="Search roles"
+                        filterColumns={ROLE_FILTER_COLUMNS}
+                        columnFilters={roleColumnFilters}
+                        onColumnFiltersChange={setRoleColumnFilters}
+                        onSettingsClick={() => setShowRoleColumnSettings(true)}
+                        statusFilter={roleStatusFilter}
+                        onFilterChange={value =>
+                          setRoleStatusFilter(value === "inactive" ? "inactive" : "active")
+                        }
+                        hasUnsavedTableChanges={roleHasUnsavedChanges}
+                        isSavingTableChanges={rolePreferencesSaving}
+                        lastTableSaved={roleLastSaved ?? undefined}
+                        onSaveTableChanges={saveRolePreferences}
+                      />
+                    </div>
 
-                    <div className="flex min-h-0 flex-col overflow-hidden" ref={tableAreaRefCallback}>
+                    <div
+                      className="flex flex-1 min-h-0 flex-col overflow-hidden"
+                      ref={tableAreaRefCallback}
+                    >
                       <DynamicTable
-                        key={rolePreferenceColumns.map(c => `${c.id}:${c.hidden ? 0 : 1}`).join('|')}
-                        className="flex flex-col"
+                        key={rolePreferenceColumns.map(c => `${c.id}:${c.hidden ? 0 : 1}`).join("|")}
+                        className="flex flex-1 flex-col"
                         columns={roleTableColumns}
                         data={paginatedRoleRows}
                         loading={rolePreferencesLoading}
@@ -3854,30 +3677,43 @@ if (loading) {
                     </div>
                   </div>
                 ) : activeTab === "revenue-schedules" ? (
-                  <div className="grid flex-1 grid-rows-[auto_minmax(0,1fr)] gap-3 overflow-hidden">
-                    <ListHeader
-                      inTab
-                      onCreateClick={() => setShowRevenueCreateModal(true)}
-                      showCreateButton={Boolean(opportunity)}
-                      onSearch={setRevenueSearchQuery}
-                      searchPlaceholder="Search revenue schedules"
-                      filterColumns={REVENUE_FILTER_COLUMNS}
-                      columnFilters={revenueColumnFilters}
-                      onColumnFiltersChange={setRevenueColumnFilters}
-                      onSettingsClick={() => setShowRevenueColumnSettings(true)}
-                      statusFilter={revenueStatusFilter}
-                      onFilterChange={value => setRevenueStatusFilter(value === "inactive" ? "inactive" : "active")}
-                      hasUnsavedTableChanges={revenueHasUnsavedChanges}
-                      isSavingTableChanges={revenuePreferencesSaving}
-                      lastTableSaved={revenueLastSaved ?? undefined}
-                      onSaveTableChanges={saveRevenuePreferences}
-                      canExport={selectedRevenueSchedules.length > 0}
-                      onExport={handleRevenueExportCsv}
-                    />
+                  <div className="grid flex-1 grid-rows-[auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0 px-3 pb-0">
+                    <div className="border-t-2 border-t-primary-600 -mr-3">
+                      <ListHeader
+                        inTab
+                        onCreateClick={() => setShowRevenueCreateModal(true)}
+                        showCreateButton={Boolean(opportunity)}
+                        onSearch={setRevenueSearchQuery}
+                        searchPlaceholder="Search revenue schedules"
+                        filterColumns={REVENUE_FILTER_COLUMNS}
+                        columnFilters={revenueColumnFilters}
+                        onColumnFiltersChange={setRevenueColumnFilters}
+                        onSettingsClick={() => setShowRevenueColumnSettings(true)}
+                        showStatusFilter={false}
+                        leftAccessory={
+                          <StatusFilterDropdown
+                            value={revenueStatusFilter}
+                            onChange={value => {
+                              setRevenueStatusFilter(value)
+                              setRevenueCurrentPage(1)
+                            }}
+                          />
+                        }
+                        hasUnsavedTableChanges={revenueHasUnsavedChanges}
+                        isSavingTableChanges={revenuePreferencesSaving}
+                        lastTableSaved={revenueLastSaved ?? undefined}
+                        onSaveTableChanges={saveRevenuePreferences}
+                        canExport={selectedRevenueSchedules.length > 0}
+                        onExport={handleRevenueExportCsv}
+                      />
+                    </div>
 
-                    <div className="flex min-h-0 flex-col overflow-hidden" ref={tableAreaRefCallback}>
+                    <div
+                      className="flex flex-1 min-h-0 flex-col overflow-hidden"
+                      ref={tableAreaRefCallback}
+                    >
                       <DynamicTable
-                        className="flex flex-col"
+                        className="flex flex-1 flex-col"
                         columns={revenueTableColumns}
                         data={paginatedRevenueRows}
                         loading={revenuePreferencesLoading}
@@ -3897,26 +3733,28 @@ if (loading) {
                     </div>
                   </div>
                 ) : activeTab === "activities" ? (
-                  <div className="grid flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-3 overflow-hidden">
-                    <ListHeader
-                      inTab
-                      onCreateClick={handleCreateActivity}
-                      showCreateButton={Boolean(opportunity)}
-                      onSearch={setActivitySearchQuery}
-                      searchPlaceholder="Search activities"
-                      filterColumns={ACTIVITY_FILTER_COLUMNS}
-                      columnFilters={activitiesColumnFilters}
-                      onColumnFiltersChange={setActivitiesColumnFilters}
-                      onSettingsClick={() => setShowActivityColumnSettings(true)}
-                      statusFilter={activityStatusFilter}
-                      onFilterChange={value =>
-                        setActivityStatusFilter(value === "inactive" ? "inactive" : "active")
-                      }
-                      hasUnsavedTableChanges={activityHasUnsavedChanges}
-                      isSavingTableChanges={activityPreferencesSaving}
-                      lastTableSaved={activityLastSaved ?? undefined}
-                      onSaveTableChanges={saveActivityPreferences}
-                    />
+                  <div className="grid flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0 px-3 pb-0">
+                    <div className="border-t-2 border-t-primary-600 -mr-3">
+                      <ListHeader
+                        inTab
+                        onCreateClick={handleCreateActivity}
+                        showCreateButton={Boolean(opportunity)}
+                        onSearch={setActivitySearchQuery}
+                        searchPlaceholder="Search activities"
+                        filterColumns={ACTIVITY_FILTER_COLUMNS}
+                        columnFilters={activitiesColumnFilters}
+                        onColumnFiltersChange={setActivitiesColumnFilters}
+                        onSettingsClick={() => setShowActivityColumnSettings(true)}
+                        statusFilter={activityStatusFilter}
+                        onFilterChange={value =>
+                          setActivityStatusFilter(value === "inactive" ? "inactive" : "active")
+                        }
+                        hasUnsavedTableChanges={activityHasUnsavedChanges}
+                        isSavingTableChanges={activityPreferencesSaving}
+                        lastTableSaved={activityLastSaved ?? undefined}
+                        onSaveTableChanges={saveActivityPreferences}
+                      />
+                    </div>
 
                     <ActivityBulkActionBar
                       count={selectedActivities.length}
@@ -3927,9 +3765,12 @@ if (loading) {
                       onUpdateStatus={() => setShowActivityBulkStatusModal(true)}
                     />
 
-                    <div className="flex min-h-0 flex-col overflow-hidden" ref={tableAreaRefCallback}>
+                    <div
+                      className="flex flex-1 min-h-0 flex-col overflow-hidden"
+                      ref={tableAreaRefCallback}
+                    >
                       <DynamicTable
-                        className="flex flex-col"
+                        className="flex flex-1 flex-col"
                         columns={activityTableColumns}
                         data={paginatedActivities}
                         loading={activityPreferencesLoading}
@@ -3950,47 +3791,19 @@ if (loading) {
                     </div>
                   </div>
                 ) : activeTab === "details" ? (
-                  <DetailsIdentifiersTab opportunity={opportunity} />
-                ) : activeTab === "history" ? (
-
-                  <div className="grid flex-1 grid-rows-[auto_minmax(0,1fr)] gap-3 overflow-hidden">
-                    <ListHeader
-                      inTab
-                      showCreateButton={false}
-                      onSearch={setHistorySearchQuery}
-                      searchPlaceholder="Search history"
-                      filterColumns={HISTORY_FILTER_COLUMNS}
-                      columnFilters={historyColumnFilters}
-                      onColumnFiltersChange={setHistoryColumnFilters}
-                      onSettingsClick={() => setShowHistoryColumnSettings(true)}
-                      hasUnsavedTableChanges={historyHasUnsavedChanges}
-                      isSavingTableChanges={historyPreferencesSaving}
-                      lastTableSaved={historyLastSaved ?? undefined}
-                      onSaveTableChanges={saveHistoryPreferences}
-                    />
-
-                    <div className="flex min-h-0 flex-col overflow-hidden" ref={tableAreaRefCallback}>
-                      {historyError ? (
-                        <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-6 text-sm text-rose-700">
-                          {historyError}
-                        </div>
-                      ) : (
-                        <DynamicTable
-                          className="flex flex-col"
-                          columns={historyTableColumns}
-                          data={filteredHistoryRows}
-                          loading={historyLoading || historyPreferencesLoading}
-                          onColumnsChange={handleHistoryColumnsChange}
-                          emptyMessage="No audit history available yet"
-                          maxBodyHeight={tableBodyMaxHeight}
-                        />
-                      )}
-                    </div>
+                  <div className="border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-3 px-3 pb-3">
+                    <DetailsIdentifiersTab opportunity={opportunity} />
                   </div>
+                ) : activeTab === "history" ? (
+                  <AuditHistoryTab
+                    entityName="Opportunity"
+                    entityId={opportunity.id}
+                    tableAreaRefCallback={tableAreaRefCallback}
+                    tableBodyMaxHeight={tableBodyMaxHeight}
+                  />
                 ) : null}
                 </div>
               </div>
-            </div>
 
             <ColumnChooserModal
               isOpen={showRoleColumnSettings}
@@ -4040,15 +3853,6 @@ if (loading) {
                 await saveRevenuePrefsOnModalClose()
               }}
             />
-            <ColumnChooserModal
-              isOpen={showHistoryColumnSettings}
-              columns={historyPreferenceColumns}
-              onApply={handleHistoryColumnsChange}
-              onClose={async () => {
-                setShowHistoryColumnSettings(false)
-                await saveHistoryPrefsOnModalClose()
-              }}
-            />
           </div>
         </div>
       </div>
@@ -4096,7 +3900,6 @@ if (loading) {
         onClose={() => setShowCreateLineItemModal(false)}
         onSuccess={async () => {
           await onRefresh?.()
-          await fetchHistory()
         }}
       />
 
@@ -4126,9 +3929,10 @@ if (loading) {
         onClose={() => setEditingLineItem(null)}
         onSuccess={async () => {
           await onRefresh?.()
-          await fetchHistory()
         }}
-      /><ConfirmDialog
+      />
+
+      <ConfirmDialog
         isOpen={Boolean(lineItemToDelete)}
         title="Delete Line Item"
         description={
@@ -4162,7 +3966,8 @@ if (loading) {
         onCancel={handleCancelBulkDeleteLineItems}
         loading={lineItemBulkActionLoading}
         error={lineItemDeleteError}
-      /></>
+      />
+    </>
   )
 }
 

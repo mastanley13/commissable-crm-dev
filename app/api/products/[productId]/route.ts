@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
-import { RevenueType } from "@prisma/client"
+import { RevenueType, AuditAction } from "@prisma/client"
 import { withAuth } from "@/lib/api-auth"
 import { hasAnyPermission } from "@/lib/auth"
+import { logProductAudit } from "@/lib/audit"
 
 const PRODUCT_MUTATION_PERMISSIONS = [
   "products.update",
@@ -214,7 +215,13 @@ export async function PATCH(request: NextRequest, { params }: { params: { produc
 
       const existing = await prisma.product.findFirst({
         where: { id: productId, tenantId },
-        select: { id: true }
+        select: {
+          id: true,
+          productCode: true,
+          productNameHouse: true,
+          productNameVendor: true,
+          isActive: true,
+        }
       })
 
       if (!existing) {
@@ -383,6 +390,31 @@ export async function PATCH(request: NextRequest, { params }: { params: { produc
         }
       })
 
+      // Log updates (including activation / inactivation) to audit history
+      const previousValues = {
+        productCode: existing.productCode,
+        productNameHouse: existing.productNameHouse,
+        productNameVendor: existing.productNameVendor,
+        isActive: existing.isActive,
+      }
+
+      const newValues = {
+        productCode: updated.productCode,
+        productNameHouse: updated.productNameHouse,
+        productNameVendor: updated.productNameVendor,
+        isActive: updated.isActive,
+      }
+
+      await logProductAudit(
+        AuditAction.Update,
+        productId,
+        req.user.id,
+        tenantId,
+        request,
+        previousValues,
+        newValues
+      )
+
       return NextResponse.json({ data: updated })
     } catch (error) {
       console.error("Failed to update product", error)
@@ -410,14 +442,54 @@ export async function DELETE(request: NextRequest, { params }: { params: { produ
       const tenantId = req.user.tenantId
       const existing = await prisma.product.findFirst({
         where: { id: productId, tenantId },
-        select: { id: true }
+        select: {
+          id: true,
+          productCode: true,
+          productNameHouse: true,
+          productNameVendor: true,
+          isActive: true,
+        }
       })
 
       if (!existing) {
         return NextResponse.json({ error: "Product not found" }, { status: 404 })
       }
 
+      // Enforce revenue schedule constraint: products with any schedules cannot be deleted
+      const scheduleCount = await prisma.revenueSchedule.count({
+        where: {
+          tenantId,
+          productId,
+        },
+      })
+
+      if (scheduleCount > 0) {
+        return NextResponse.json(
+          {
+            error: "This product has related revenue schedules and can only be made inactive.",
+          },
+          { status: 409 }
+        )
+      }
+
       await prisma.product.delete({ where: { id: productId } })
+
+      // Log deletion into audit history
+      await logProductAudit(
+        AuditAction.Delete,
+        productId,
+        req.user.id,
+        tenantId,
+        request,
+        {
+          productCode: existing.productCode,
+          productNameHouse: existing.productNameHouse,
+          productNameVendor: existing.productNameVendor,
+          isActive: existing.isActive,
+        },
+        undefined
+      )
+
       return NextResponse.json({ data: { id: productId } })
     } catch (error) {
       console.error("Failed to delete product", error)

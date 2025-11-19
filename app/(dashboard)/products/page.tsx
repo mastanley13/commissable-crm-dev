@@ -207,6 +207,7 @@ interface ProductRow {
   revenueScheduleEstimatedStartDate: string | null
   revenueType: string
   revenueTypeLabel?: string
+  hasRevenueSchedules: boolean
 }
 interface ProductListResponse {
   data?: ProductRow[]
@@ -265,7 +266,7 @@ export default function ProductsPage() {
   const [pageSize, setPageSize] = useState(DEFAULT_PAGINATION.pageSize)
   const [pagination, setPagination] = useState<PaginationInfo>(DEFAULT_PAGINATION)
   const [searchQuery, setSearchQuery] = useState('')
-  const [statusFilter, setStatusFilter] = useState<'active' | 'inactive' | 'all'>('active')
+  const [statusFilter, setStatusFilter] = useState<'active' | 'inactive'>('active')
   const [columnFilters, setColumnFilters] = useState<ColumnFilter[]>([])
   const [sortState, setSortState] = useState<{ columnId: string; direction: 'asc' | 'desc' }>({
     columnId: 'productNameHouse',
@@ -456,7 +457,14 @@ export default function ProductsPage() {
   }, [])
 
   const handleStatusFilterChange = useCallback((value: string) => {
-    const next: 'active' | 'inactive' = value === 'inactive' ? 'inactive' : 'active'
+    let next: 'active' | 'inactive' | 'all'
+    if (value === 'inactive') {
+      next = 'inactive'
+    } else if (value === 'all') {
+      next = 'all'
+    } else {
+      next = 'active'
+    }
     setStatusFilter(next)
     setCurrentPage(1)
   }, [])
@@ -573,10 +581,46 @@ export default function ProductsPage() {
       return
     }
 
-    setBulkDeleteTargets(targets)
+    if (!targets || targets.length === 0) {
+      showError('No products selected', 'Select at least one product to delete.')
+      return
+    }
+
+    const deletableTargets = targets.filter(
+      (product) => isRowInactive(product) && !product.hasRevenueSchedules,
+    )
+    const nonDeletableTargets = targets.filter(
+      (product) => !isRowInactive(product) || product.hasRevenueSchedules,
+    )
+
+    if (nonDeletableTargets.length > 0) {
+      const details = nonDeletableTargets
+        .map((product) => {
+          const name = product.productNameHouse || product.productNameVendor || 'Product'
+          if (!isRowInactive(product)) {
+            return `${name} (must be inactive before it can be deleted)`
+          }
+          if (product.hasRevenueSchedules) {
+            return `${name} (has revenue schedules and can only be made inactive)`
+          }
+          return name
+        })
+        .join('; ')
+
+      showWarning(
+        'Some products cannot be deleted',
+        `The following products cannot be deleted and will be skipped: ${details}`,
+      )
+    }
+
+    if (deletableTargets.length === 0) {
+      return
+    }
+
+    setBulkDeleteTargets(deletableTargets)
     setProductToDelete(null)
     setShowDeleteDialog(true)
-  }, [canEditProducts, requireAdminForEdit])
+  }, [canEditProducts, requireAdminForEdit, showError, showWarning])
 
   const requestProductDelete = useCallback((product: ProductRow) => {
     if (!canEditProducts) {
@@ -584,10 +628,26 @@ export default function ProductsPage() {
       return
     }
 
+    if (!isRowInactive(product)) {
+      showWarning(
+        'Cannot delete active product',
+        'Deactivate the product before attempting to delete it.',
+      )
+      return
+    }
+
+    if (product.hasRevenueSchedules) {
+      showWarning(
+        'Cannot delete product',
+        'This product has related revenue schedules and can only be made inactive.',
+      )
+      return
+    }
+
     setBulkDeleteTargets([])
     setProductToDelete(product)
     setShowDeleteDialog(true)
-  }, [canEditProducts, requireAdminForEdit])
+  }, [canEditProducts, requireAdminForEdit, showWarning])
 
   const closeDeleteDialog = useCallback(() => {
     setShowDeleteDialog(false)
@@ -937,7 +997,7 @@ export default function ProductsPage() {
                   </span>
                 </button>
                 <div className="flex gap-0.5">
-                  {isRowInactive(row) && (
+                  {isRowInactive(row) && !row.hasRevenueSchedules && (
                     <button
                       type="button"
                       className="rounded p-1 transition-colors text-red-500 hover:text-red-700"
@@ -947,6 +1007,20 @@ export default function ProductsPage() {
                         requestProductDelete(row)
                       }}
                       aria-label={'Delete product'}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                  {isRowInactive(row) && row.hasRevenueSchedules && (
+                    <button
+                      type="button"
+                      className="rounded p-1 text-gray-300 cursor-not-allowed"
+                      onClick={(event) => {
+                        event.preventDefault()
+                        event.stopPropagation()
+                      }}
+                      aria-label={'Cannot delete product with revenue schedules'}
+                      title="Cannot delete a product that has revenue schedules. Mark it inactive instead."
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
@@ -1044,6 +1118,7 @@ export default function ProductsPage() {
         searchPlaceholder="Search products..."
         onSearch={handleSearch}
         onFilterChange={handleStatusFilterChange}
+        statusFilterOptions={['active', 'inactive']}
         onCreateClick={() => setShowCreateModal(true)}
         onSettingsClick={() => setShowColumnSettings(true)}
         filterColumns={PRODUCT_FILTER_OPTIONS}

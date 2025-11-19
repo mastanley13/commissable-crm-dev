@@ -1,0 +1,251 @@
+"use client"
+
+import { useEffect, useMemo, useState } from "react"
+import { DynamicTable, type Column } from "./dynamic-table"
+import { ColumnChooserModal } from "./column-chooser-modal"
+import { ListHeader, type ColumnFilter } from "./list-header"
+import { calculateMinWidth } from "@/lib/column-width-utils"
+
+type SupportedEntities = "Account" | "Contact" | "Opportunity" | "Product" | "RevenueSchedule"
+
+interface AuditHistoryTabProps {
+  entityName: SupportedEntities
+  entityId: string
+  tableBodyMaxHeight?: number
+  tableAreaRefCallback?: (node: HTMLDivElement | null) => void
+}
+
+interface HistoryRow {
+  id: string
+  occurredAt: string
+  userName: string
+  action: string
+  field: string
+  fromValue: string
+  toValue: string
+}
+
+const HISTORY_TABLE_BASE_COLUMNS: Column[] = [
+  {
+    id: "occurredAt",
+    label: "Date / Time",
+    accessor: "occurredAt",
+    width: 200,
+    minWidth: calculateMinWidth({ label: "Date / Time", type: "text", sortable: true }),
+    maxWidth: 260,
+    sortable: true
+  },
+  {
+    id: "userName",
+    label: "User",
+    accessor: "userName",
+    width: 200,
+    minWidth: calculateMinWidth({ label: "User", type: "text", sortable: true }),
+    maxWidth: 260,
+    sortable: true
+  },
+  {
+    id: "action",
+    label: "Action",
+    accessor: "action",
+    width: 180,
+    minWidth: calculateMinWidth({ label: "Action", type: "text", sortable: true }),
+    maxWidth: 220,
+    sortable: true
+  },
+  {
+    id: "field",
+    label: "Field",
+    accessor: "field",
+    width: 220,
+    minWidth: calculateMinWidth({ label: "Field", type: "text", sortable: true }),
+    maxWidth: 320,
+    sortable: true
+  },
+  {
+    id: "fromValue",
+    label: "From",
+    accessor: "fromValue",
+    width: 260,
+    minWidth: calculateMinWidth({ label: "From", type: "text", sortable: false }),
+    maxWidth: 360
+  },
+  {
+    id: "toValue",
+    label: "To",
+    accessor: "toValue",
+    width: 260,
+    minWidth: calculateMinWidth({ label: "To", type: "text", sortable: false }),
+    maxWidth: 360
+  }
+]
+
+const HISTORY_FILTER_ACCESSOR: Record<string, keyof HistoryRow> = {
+  occurredAt: "occurredAt",
+  userName: "userName",
+  action: "action",
+  field: "field",
+  fromValue: "fromValue",
+  toValue: "toValue"
+}
+
+const HISTORY_FILTER_COLUMNS = [
+  { id: "occurredAt", label: "Date / Time" },
+  { id: "userName", label: "User" },
+  { id: "action", label: "Action" },
+  { id: "field", label: "Field" },
+  { id: "fromValue", label: "From" },
+  { id: "toValue", label: "To" }
+]
+
+const MOCK_HISTORY_ROWS: HistoryRow[] = [
+  {
+    id: "1",
+    occurredAt: "2025/11/15 14:32",
+    userName: "Jordan Lee",
+    action: "Update",
+    field: "Account Owner",
+    fromValue: "A. Romero",
+    toValue: "Jordan Lee"
+  },
+  {
+    id: "2",
+    occurredAt: "2025/11/12 09:04",
+    userName: "Priya Patel",
+    action: "Update",
+    field: "Status",
+    fromValue: "Prospect",
+    toValue: "Active"
+  },
+  {
+    id: "3",
+    occurredAt: "2025/11/05 17:20",
+    userName: "Alex Morgan",
+    action: "Update",
+    field: "Primary Contact",
+    fromValue: "Jamie Chan",
+    toValue: "Taylor Reed"
+  },
+  {
+    id: "4",
+    occurredAt: "2025/10/30 11:11",
+    userName: "System",
+    action: "Create",
+    field: "Account Name",
+    fromValue: "-",
+    toValue: "Edgewater Holdings"
+  }
+]
+
+export function AuditHistoryTab({
+  entityName,
+  entityId,
+  tableBodyMaxHeight,
+  tableAreaRefCallback
+}: AuditHistoryTabProps) {
+  const [historyRows] = useState<HistoryRow[]>(MOCK_HISTORY_ROWS)
+  const [historyTableColumns, setHistoryTableColumns] = useState<Column[]>(
+    () => HISTORY_TABLE_BASE_COLUMNS.map(column => ({ ...column }))
+  )
+  const [showHistoryColumnSettings, setShowHistoryColumnSettings] = useState(false)
+  const [historyColumnFilters, setHistoryColumnFilters] = useState<ColumnFilter[]>([])
+  const [searchQuery, setSearchQuery] = useState("")
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(25)
+
+  const filteredRows = useMemo(() => {
+    const trimmedQuery = searchQuery.trim().toLowerCase()
+
+    return historyRows.filter(row => {
+      const matchesFilters = historyColumnFilters.every(filter => {
+        const fieldKey = HISTORY_FILTER_ACCESSOR[filter.columnId]
+        if (!fieldKey) return true
+        const rowValue = String(row[fieldKey] ?? "").toLowerCase()
+        return rowValue.includes(filter.value.trim().toLowerCase())
+      })
+
+      if (!matchesFilters) return false
+
+      if (!trimmedQuery) return true
+
+      return [row.userName, row.action, row.field, row.fromValue, row.toValue].some(value =>
+        value.toLowerCase().includes(trimmedQuery)
+      )
+    })
+  }, [historyColumnFilters, historyRows, searchQuery])
+
+  const totalPages = useMemo(() => Math.max(1, Math.ceil(filteredRows.length / pageSize)), [filteredRows.length, pageSize])
+
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(totalPages)
+    }
+  }, [page, totalPages])
+
+  const paginatedRows = useMemo(() => {
+    const startIndex = (page - 1) * pageSize
+    return filteredRows.slice(startIndex, startIndex + pageSize)
+  }, [filteredRows, page, pageSize])
+
+  const pagination = useMemo(
+    () => ({
+      page,
+      pageSize,
+      total: filteredRows.length,
+      totalPages
+    }),
+    [filteredRows.length, page, pageSize, totalPages]
+  )
+
+  return (
+    <>
+      <div className="grid flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0 px-3 pb-0">
+        <div className="border-t-2 border-t-primary-600 -mr-3">
+          <ListHeader
+            inTab
+            searchPlaceholder="Search history"
+            onSearch={setSearchQuery}
+            showCreateButton={false}
+            showStatusFilter={false}
+            filterColumns={HISTORY_FILTER_COLUMNS}
+            columnFilters={historyColumnFilters}
+            onColumnFiltersChange={setHistoryColumnFilters}
+            onSettingsClick={() => setShowHistoryColumnSettings(true)}
+          />
+          <div
+            className="flex flex-1 min-h-0 flex-col overflow-hidden"
+            ref={tableAreaRefCallback}
+          >
+            <DynamicTable
+              className="flex flex-col"
+              columns={historyTableColumns}
+              data={paginatedRows}
+              emptyMessage="No history entries yet"
+              pagination={pagination}
+              onPageChange={setPage}
+              onPageSizeChange={size => {
+                setPageSize(size)
+                setPage(1)
+              }}
+              onColumnsChange={setHistoryTableColumns}
+              autoSizeColumns
+              fillContainerWidth
+              alwaysShowPagination
+              maxBodyHeight={tableBodyMaxHeight}
+            />
+          </div>
+        </div>
+      </div>
+
+      <ColumnChooserModal
+        isOpen={showHistoryColumnSettings}
+        columns={historyTableColumns}
+        onApply={columns => {
+          setHistoryTableColumns(columns)
+          setShowHistoryColumnSettings(false)
+        }}
+        onClose={() => setShowHistoryColumnSettings(false)}
+      />
+    </>
+  )
+}

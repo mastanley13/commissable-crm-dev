@@ -298,6 +298,8 @@ export type OpportunityRevenueScheduleDetail = {
   scheduleNumber: string | null
   scheduleDate: string | null
   status: string | null
+  scheduleStatus: string
+  inDispute: boolean
   productNameVendor: string | null
   quantity: number
   unitPrice: number
@@ -506,6 +508,22 @@ export function mapOpportunityProductToDetail(item: OpportunityProductWithRelati
   }
 }
 
+function mapRevenueStatus(status: string | null | undefined, usageBalance: number, commissionDifference: number): {
+  status: string
+  inDispute: boolean
+} {
+  const hasVariance = Math.abs(usageBalance) > 0.005 || Math.abs(commissionDifference) > 0.005
+  if (status === "Paid") {
+    return { status: "Reconciled", inDispute: false }
+  }
+
+  if (status === "Cancelled") {
+    return { status: "In Dispute", inDispute: true }
+  }
+
+  return { status: "Open", inDispute: hasVariance }
+}
+
 function mapRevenueScheduleToDetail(schedule: RevenueScheduleWithRelations): OpportunityRevenueScheduleDetail {
   const distributorName = schedule.distributor?.accountName ?? null
   const vendorName = schedule.vendor?.accountName ?? null
@@ -553,6 +571,8 @@ function mapRevenueScheduleToDetail(schedule: RevenueScheduleWithRelations): Opp
     actualUsage !== 0 ? actualCommission / actualUsage : 0
   const commissionRateDifferenceDecimal = expectedCommissionRateDecimal - actualCommissionRateDecimal
 
+  const statusInfo = mapRevenueStatus(status, usageBalance, commissionDifference)
+
   return {
     id: schedule.id,
     distributorName,
@@ -560,6 +580,8 @@ function mapRevenueScheduleToDetail(schedule: RevenueScheduleWithRelations): Opp
     scheduleNumber,
     scheduleDate,
     status,
+    scheduleStatus: statusInfo.status,
+    inDispute: statusInfo.inDispute,
     productNameVendor,
     quantity,
     unitPrice,
