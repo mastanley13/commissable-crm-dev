@@ -373,14 +373,16 @@ export function ListHeader({
               <BulkActionsGrid {...mergedBulkActions} />
             )}
 
-            <button
-              type="button"
-              onClick={onSettingsClick}
-              className={`rounded ${iconBtnPad} text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-600`}
-              title="Column Settings"
-            >
-              <Settings className="h-4 w-4" />
-            </button>
+            {onSettingsClick && (
+              <button
+                type="button"
+                onClick={onSettingsClick}
+                className={`rounded ${iconBtnPad} text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-600`}
+                title="Column Settings"
+              >
+                <Settings className="h-4 w-4" />
+              </button>
+            )}
 
             {(canImport || canExport) && (
               <div className={`flex items-center ${gap}`}>

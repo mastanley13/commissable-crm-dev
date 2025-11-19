@@ -5,25 +5,18 @@ import { DynamicTable, type Column } from "./dynamic-table"
 import { ColumnChooserModal } from "./column-chooser-modal"
 import { ListHeader, type ColumnFilter } from "./list-header"
 import { calculateMinWidth } from "@/lib/column-width-utils"
+import { HistoryRow } from "./opportunity-types"
 
 type SupportedEntities = "Account" | "Contact" | "Opportunity" | "Product" | "RevenueSchedule"
 
 interface AuditHistoryTabProps {
   entityName: SupportedEntities
   entityId: string
+  historyRows?: HistoryRow[]
   tableBodyMaxHeight?: number
   tableAreaRefCallback?: (node: HTMLDivElement | null) => void
 }
 
-interface HistoryRow {
-  id: string
-  occurredAt: string
-  userName: string
-  action: string
-  field: string
-  fromValue: string
-  toValue: string
-}
 
 const HISTORY_TABLE_BASE_COLUMNS: Column[] = [
   {
@@ -98,52 +91,13 @@ const HISTORY_FILTER_COLUMNS = [
   { id: "toValue", label: "To" }
 ]
 
-const MOCK_HISTORY_ROWS: HistoryRow[] = [
-  {
-    id: "1",
-    occurredAt: "2025/11/15 14:32",
-    userName: "Jordan Lee",
-    action: "Update",
-    field: "Account Owner",
-    fromValue: "A. Romero",
-    toValue: "Jordan Lee"
-  },
-  {
-    id: "2",
-    occurredAt: "2025/11/12 09:04",
-    userName: "Priya Patel",
-    action: "Update",
-    field: "Status",
-    fromValue: "Prospect",
-    toValue: "Active"
-  },
-  {
-    id: "3",
-    occurredAt: "2025/11/05 17:20",
-    userName: "Alex Morgan",
-    action: "Update",
-    field: "Primary Contact",
-    fromValue: "Jamie Chan",
-    toValue: "Taylor Reed"
-  },
-  {
-    id: "4",
-    occurredAt: "2025/10/30 11:11",
-    userName: "System",
-    action: "Create",
-    field: "Account Name",
-    fromValue: "-",
-    toValue: "Edgewater Holdings"
-  }
-]
-
 export function AuditHistoryTab({
   entityName,
   entityId,
+  historyRows = [],
   tableBodyMaxHeight,
   tableAreaRefCallback
 }: AuditHistoryTabProps) {
-  const [historyRows] = useState<HistoryRow[]>(MOCK_HISTORY_ROWS)
   const [historyTableColumns, setHistoryTableColumns] = useState<Column[]>(
     () => HISTORY_TABLE_BASE_COLUMNS.map(column => ({ ...column }))
   )

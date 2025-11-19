@@ -20,7 +20,9 @@ import {
   OpportunityDetailRecord,
   OpportunityActivityRecord,
   OpportunityLineItemRecord,
-  OpportunityRevenueScheduleRecord
+  OpportunityRevenueScheduleRecord,
+  HistoryRow,
+  MOCK_HISTORY_ROWS
 } from "./opportunity-types"
 import { OpportunityLineItemCreateModal } from "./opportunity-line-item-create-modal"
 import { OpportunityLineItemEditModal } from "./opportunity-line-item-edit-modal"
@@ -932,20 +934,38 @@ function validateOpportunityForm(form: OpportunityInlineForm): Record<string, st
   return errors
 }
 
-function FieldRow({ label, children }: { label: string; children: React.ReactNode }) {
+function FieldRow({ label, children, lastEdited }: { label: string; children: React.ReactNode; lastEdited?: { date: string; user: string } }) {
   return (
     <div className="grid items-start gap-3 sm:grid-cols-[180px,minmax(0,1fr)]">
       <span className={cn(fieldLabelClass, "flex items-center min-h-[28px]")}>{label}</span>
-      <div>{children}</div>
+      <div className="flex items-center gap-2 w-full">
+        <div className={cn("flex-1", lastEdited && "max-w-[140px]")}>{children}</div>
+        {lastEdited && (
+          <span className="text-[10px] text-gray-400 whitespace-nowrap">
+            Last edited {lastEdited.date} by {lastEdited.user}
+          </span>
+        )}
+      </div>
     </div>
   )
 }
 
+function getLastEdit(history: HistoryRow[], fieldLabel: string): { date: string; user: string } | undefined {
+  const entry = history.find(row => row.field === fieldLabel)
+  if (!entry) return undefined
+  return {
+    date: entry.occurredAt,
+    user: entry.userName
+  }
+}
+
 function OpportunityHeader({
   opportunity,
+  history = [],
   onEdit
 }: {
   opportunity: OpportunityDetailRecord
+  history?: HistoryRow[]
   onEdit?: () => void
 }) {
   return (
@@ -1031,13 +1051,13 @@ function OpportunityHeader({
               {opportunity.billingAddress || "--"}
             </div>
           </FieldRow>
-          <FieldRow label="Subagent %">
+          <FieldRow label="Subagent %" lastEdited={getLastEdit(history, "Subagent %")}>
             <div className={fieldBoxClass}>{formatPercent(opportunity.subagentPercent)}</div>
           </FieldRow>
-          <FieldRow label="House Rep %">
+          <FieldRow label="House Rep %" lastEdited={getLastEdit(history, "House Rep %")}>
             <div className={fieldBoxClass}>{formatPercent(opportunity.houseRepPercent)}</div>
           </FieldRow>
-          <FieldRow label="House Split %">
+          <FieldRow label="House Split %" lastEdited={getLastEdit(history, "House Split %")}>
             <div className={fieldBoxClass}>
               {formatPercent(
                 calculateHouseSplitPercent({
@@ -1061,6 +1081,7 @@ function OpportunityHeader({
 
 interface EditableOpportunityHeaderProps {
   opportunity: OpportunityDetailRecord
+  history?: HistoryRow[]
   editor: EntityEditor<OpportunityInlineForm>
   ownerOptions: OwnerOption[]
   ownersLoading: boolean
@@ -1069,6 +1090,7 @@ interface EditableOpportunityHeaderProps {
 
 function EditableOpportunityHeader({
   opportunity,
+  history = [],
   editor,
   ownerOptions,
   ownersLoading,
@@ -1338,56 +1360,62 @@ function EditableOpportunityHeader({
             editor.errors.billingAddress
           )}
 
-          {renderRow(
-            "Subagent %",
-            <EditableField.Input
-              className="w-full pr-6"
-              type="text"
-              inputMode="decimal"
-              placeholder="0.00%"
-              value={(subagentPercentField.value as string) ?? ""}
-              onChange={subagentPercentField.onChange}
-              onBlur={(e: any) => {
-                const formatted = percentToInputString(inputStringToPercent(String(e.target.value)))
-                editor.setField("subagentPercent", formatted)
-                subagentPercentField.onBlur()
-              }}
-            />,
-            editor.errors.subagentPercent
-          )}
+          {/* Manually render Subagent % to include lastEdited */}
+          <FieldRow label="Subagent %" lastEdited={getLastEdit(history, "Subagent %")}>
+            <div className="flex flex-col gap-1 w-full max-w-md">
+              <EditableField.Input
+                className="w-full pr-6"
+                type="text"
+                inputMode="decimal"
+                placeholder="0.00%"
+                value={(subagentPercentField.value as string) ?? ""}
+                onChange={subagentPercentField.onChange}
+                onBlur={(e: any) => {
+                  const formatted = percentToInputString(inputStringToPercent(String(e.target.value)))
+                  editor.setField("subagentPercent", formatted)
+                  subagentPercentField.onBlur()
+                }}
+              />
+              {editor.errors.subagentPercent ? <p className="text-[10px] text-red-600">{editor.errors.subagentPercent}</p> : null}
+            </div>
+          </FieldRow>
 
-          {renderRow(
-            "House Rep %",
-            <EditableField.Input
-              className="w-full pr-6"
-              type="text"
-              inputMode="decimal"
-              placeholder="0.00%"
-              value={(houseRepPercentField.value as string) ?? ""}
-              onChange={houseRepPercentField.onChange}
-              onBlur={(e: any) => {
-                const formatted = percentToInputString(inputStringToPercent(String(e.target.value)))
-                editor.setField("houseRepPercent", formatted)
-                houseRepPercentField.onBlur()
-              }}
-            />,
-            editor.errors.houseRepPercent
-          )}
+          {/* Manually render House Rep % to include lastEdited */}
+          <FieldRow label="House Rep %" lastEdited={getLastEdit(history, "House Rep %")}>
+            <div className="flex flex-col gap-1 w-full max-w-md">
+              <EditableField.Input
+                className="w-full pr-6"
+                type="text"
+                inputMode="decimal"
+                placeholder="0.00%"
+                value={(houseRepPercentField.value as string) ?? ""}
+                onChange={houseRepPercentField.onChange}
+                onBlur={(e: any) => {
+                  const formatted = percentToInputString(inputStringToPercent(String(e.target.value)))
+                  editor.setField("houseRepPercent", formatted)
+                  houseRepPercentField.onBlur()
+                }}
+              />
+              {editor.errors.houseRepPercent ? <p className="text-[10px] text-red-600">{editor.errors.houseRepPercent}</p> : null}
+            </div>
+          </FieldRow>
 
-          {renderRow(
-            "House Split %",
-            <EditableField.Input
-              className="w-full pr-6"
-              type="text"
-              inputMode="decimal"
-              placeholder="0.00%"
-              value={(houseSplitPercentField.value as string) ?? ""}
-              readOnly
-              title="House Split % is auto-calculated."
-              onBlur={houseSplitPercentField.onBlur}
-            />,
-            editor.errors.houseSplitPercent
-          )}
+          {/* Manually render House Split % to include lastEdited */}
+          <FieldRow label="House Split %" lastEdited={getLastEdit(history, "House Split %")}>
+            <div className="flex flex-col gap-1 w-full max-w-md">
+              <EditableField.Input
+                className="w-full pr-6"
+                type="text"
+                inputMode="decimal"
+                placeholder="0.00%"
+                value={(houseSplitPercentField.value as string) ?? ""}
+                readOnly
+                title="House Split % is auto-calculated."
+                onBlur={houseSplitPercentField.onBlur}
+              />
+              {editor.errors.houseSplitPercent ? <p className="text-[10px] text-red-600">{editor.errors.houseSplitPercent}</p> : null}
+            </div>
+          </FieldRow>
 
           {renderRow(
             "Description",
@@ -1436,6 +1464,9 @@ export function OpportunityDetailsView({
   const { user: authUser, hasPermission, hasAnyPermission } = useAuth()
   const { showError, showSuccess } = useToasts()
   const searchParams = useSearchParams()
+
+  // Lifted history state
+  const [history] = useState<HistoryRow[]>(MOCK_HISTORY_ROWS)
 
   const getInitialTab = (): TabKey => {
     const tabParam = searchParams?.get("tab")
@@ -2287,7 +2318,7 @@ export function OpportunityDetailsView({
 
   useEffect(() => {
     setSelectedRevenueSchedules([])
-    setRevenueStatusFilter("active")
+    setRevenueStatusFilter("all")
     setRevenueCurrentPage(1)
   }, [opportunity?.id])
 
@@ -3530,13 +3561,14 @@ export function OpportunityDetailsView({
   const headerNode = shouldEnableInline ? (
     <EditableOpportunityHeader
       opportunity={opportunity}
+      history={history}
       editor={editor}
       ownerOptions={ownerSelectOptions}
       ownersLoading={ownersLoading}
       onSave={handleSaveEdits}
     />
   ) : (
-    <OpportunityHeader opportunity={opportunity} onEdit={onEdit} />
+    <OpportunityHeader opportunity={opportunity} history={history} onEdit={onEdit} />
   )
 
   return (
@@ -3792,6 +3824,7 @@ export function OpportunityDetailsView({
                   <AuditHistoryTab
                     entityName="Opportunity"
                     entityId={opportunity.id}
+                    historyRows={history}
                     tableAreaRefCallback={tableAreaRefCallback}
                     tableBodyMaxHeight={tableBodyMaxHeight}
                   />

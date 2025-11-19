@@ -266,7 +266,7 @@ export default function ProductsPage() {
   const [pageSize, setPageSize] = useState(DEFAULT_PAGINATION.pageSize)
   const [pagination, setPagination] = useState<PaginationInfo>(DEFAULT_PAGINATION)
   const [searchQuery, setSearchQuery] = useState('')
-  const [statusFilter, setStatusFilter] = useState<'active' | 'inactive'>('active')
+  const [statusFilter, setStatusFilter] = useState<'active' | 'inactive' | 'all'>('active')
   const [columnFilters, setColumnFilters] = useState<ColumnFilter[]>([])
   const [sortState, setSortState] = useState<{ columnId: string; direction: 'asc' | 'desc' }>({
     columnId: 'productNameHouse',

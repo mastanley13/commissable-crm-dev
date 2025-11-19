@@ -2,18 +2,14 @@
 
 import { useMemo, useState } from "react"
 import {
-  CalendarRange,
-  ChevronDown,
   ClipboardCheck,
   Eye,
   FileDown,
-  Filter as FilterIcon,
   Link2,
-  Search,
-  Settings2,
   Trash2
 } from "lucide-react"
 import { DynamicTable, type Column } from "./dynamic-table"
+import { ListHeader } from "./list-header"
 import { calculateMinWidth } from "@/lib/column-width-utils"
 import { cn } from "@/lib/utils"
 import type { DepositLineItemRow, SuggestedMatchScheduleRow } from "@/lib/mock-data"
@@ -93,106 +89,6 @@ function SegmentedTabs<T extends string>({ value, onChange, options }: Segmented
   )
 }
 
-interface DateInputProps {
-  label: string
-  value: string
-  onChange: (value: string) => void
-}
-
-function DateInput({ label, value, onChange }: DateInputProps) {
-  return (
-    <label className="flex flex-col text-xs font-semibold uppercase tracking-wide text-slate-500">
-      {label}
-      <span className="relative mt-1">
-        <CalendarRange className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-        <input
-          type="date"
-          value={value}
-          onChange={event => onChange(event.target.value)}
-          className="w-32 rounded-full border border-slate-200 bg-white px-10 py-1.5 text-sm font-medium text-slate-700 outline-none transition focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
-        />
-      </span>
-    </label>
-  )
-}
-
-interface FilterToolbarProps {
-  startDate: string
-  endDate: string
-  onStartDateChange: (value: string) => void
-  onEndDateChange: (value: string) => void
-  searchValue: string
-  onSearchChange: (value: string) => void
-  searchPlaceholder?: string
-  onColumnButtonClick?: () => void
-  onApplyFilter?: () => void
-  onSettingsClick?: () => void
-  className?: string
-}
-
-function FilterToolbar({
-  startDate,
-  endDate,
-  onStartDateChange,
-  onEndDateChange,
-  searchValue,
-  onSearchChange,
-  searchPlaceholder = "Search Here",
-  onColumnButtonClick,
-  onApplyFilter,
-  onSettingsClick,
-  className
-}: FilterToolbarProps) {
-  return (
-    <div className={cn("flex flex-wrap items-center gap-3", className)}>
-      <div className="flex flex-wrap items-center gap-2">
-        <DateInput label="Start Date" value={startDate} onChange={onStartDateChange} />
-        <DateInput label="End Date" value={endDate} onChange={onEndDateChange} />
-
-        <button
-          type="button"
-          onClick={() => onColumnButtonClick?.()}
-          className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-slate-300"
-        >
-          Filter By Column
-          <ChevronDown className="h-4 w-4" />
-        </button>
-
-        <button
-          type="button"
-          onClick={() => onApplyFilter?.()}
-          className="inline-flex items-center gap-1.5 rounded-full bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-primary-700"
-        >
-          <FilterIcon className="h-4 w-4" />
-          Apply Filter
-        </button>
-
-        <button
-          type="button"
-          onClick={() => onSettingsClick?.()}
-          className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 text-slate-500 transition hover:text-primary-600"
-          aria-label="Table settings"
-        >
-          <Settings2 className="h-5 w-5" />
-        </button>
-      </div>
-
-      <div className="ml-auto flex w-full sm:w-auto">
-        <div className="relative w-full sm:min-w-[240px]">
-          <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          <input
-            type="search"
-            value={searchValue}
-            onChange={event => onSearchChange(event.target.value)}
-            placeholder={searchPlaceholder}
-            className="w-full rounded-full border border-slate-200 bg-white px-4 py-1.5 pl-10 text-sm text-slate-700 outline-none transition focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
-          />
-        </div>
-      </div>
-    </div>
-  )
-}
-
 interface MetaStatProps {
   label: string
   value: string
@@ -227,10 +123,6 @@ export function DepositReconciliationDetailView({
   const [scheduleTab, setScheduleTab] = useState<ScheduleTabKey>("suggested")
   const [lineSearch, setLineSearch] = useState("")
   const [scheduleSearch, setScheduleSearch] = useState("")
-  const [lineStartDate, setLineStartDate] = useState("")
-  const [lineEndDate, setLineEndDate] = useState("")
-  const [scheduleStartDate, setScheduleStartDate] = useState("")
-  const [scheduleEndDate, setScheduleEndDate] = useState("")
 
   const currencyFormatter = useMemo(
     () =>
@@ -524,64 +416,62 @@ export function DepositReconciliationDetailView({
       </div>
 
       <section className="flex min-h-0 flex-1 flex-col rounded-2xl border border-slate-100 bg-white px-5 py-4 shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="text-base font-semibold text-slate-900">Deposit Line Items</p>
-          </div>
-          <SegmentedTabs value={lineTab} onChange={setLineTab} options={lineTabOptions} />
-        </div>
-        <div className="mt-3 flex min-h-0 flex-1 flex-col gap-3">
-          <FilterToolbar
-            startDate={lineStartDate}
-            endDate={lineEndDate}
-            onStartDateChange={setLineStartDate}
-            onEndDateChange={setLineEndDate}
-            searchValue={lineSearch}
-            onSearchChange={setLineSearch}
+        <div className="-mx-5 -mt-4 border-b border-slate-100 px-5 pt-4">
+          <ListHeader
+            pageTitle="DEPOSIT LINE ITEMS"
             searchPlaceholder="Search deposit line items"
-            className="flex-shrink-0"
+            onSearch={setLineSearch}
+            showStatusFilter={false}
+            showCreateButton={false}
+            showColumnFilters={false}
+            compact
+            inTab
+            leftAccessory={
+              <div className="ml-auto flex items-center gap-2">
+                <SegmentedTabs value={lineTab} onChange={setLineTab} options={lineTabOptions} />
+              </div>
+            }
           />
-          <div className="flex min-h-0 flex-1">
-            <DynamicTable
-              columns={lineColumns}
-              data={filteredLineItems}
-              loading={loading}
-              emptyMessage="No deposit line items found"
-              fillContainerWidth
-              className="flex-1"
-            />
-          </div>
+        </div>
+        <div className="flex min-h-0 flex-1 pt-4">
+          <DynamicTable
+            columns={lineColumns}
+            data={filteredLineItems}
+            loading={loading}
+            emptyMessage="No deposit line items found"
+            fillContainerWidth
+            className="flex-1"
+          />
         </div>
       </section>
 
       <section className="flex min-h-0 flex-1 flex-col rounded-2xl border border-slate-100 bg-white px-5 py-4 shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="text-base font-semibold text-slate-900">Suggested Matches &mdash; Revenue Schedules</p>
-          </div>
-          <SegmentedTabs value={scheduleTab} onChange={setScheduleTab} options={scheduleTabOptions} />
-        </div>
-        <div className="mt-3 flex min-h-0 flex-1 flex-col gap-3">
-          <FilterToolbar
-            startDate={scheduleStartDate}
-            endDate={scheduleEndDate}
-            onStartDateChange={setScheduleStartDate}
-            onEndDateChange={setScheduleEndDate}
-            searchValue={scheduleSearch}
-            onSearchChange={setScheduleSearch}
+        <div className="-mx-5 -mt-4 border-b border-slate-100 px-5 pt-4">
+          <ListHeader
+            pageTitle="SUGGESTED MATCHES - REVENUE SCHEDULES"
             searchPlaceholder="Search revenue schedules"
-            className="flex-shrink-0"
+            onSearch={setScheduleSearch}
+            showStatusFilter={false}
+            showCreateButton={false}
+            showColumnFilters={false}
+            compact
+            inTab
+            leftAccessory={
+              <div className="ml-auto flex items-center gap-2">
+                <SegmentedTabs value={scheduleTab} onChange={setScheduleTab} options={scheduleTabOptions} />
+              </div>
+            }
           />
-          <div className="flex min-h-0 flex-1">
-            <DynamicTable
-              columns={scheduleColumns}
-              data={filteredSchedules}
-              loading={loading}
-              emptyMessage="No suggested schedules found"
-              fillContainerWidth
-              className="flex-1"
-            />
-          </div>
+        </div>
+        <div className="flex min-h-0 flex-1 pt-4">
+          <DynamicTable
+            columns={scheduleColumns}
+            data={filteredSchedules}
+            loading={loading}
+            emptyMessage="No suggested schedules found"
+            fillContainerWidth
+            className="flex-1"
+          />
         </div>
       </section>
     </div>

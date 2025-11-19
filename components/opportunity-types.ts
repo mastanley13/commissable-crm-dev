@@ -99,6 +99,8 @@ export interface OpportunityRevenueScheduleRecord {
   scheduleNumber?: string | null
   scheduleDate?: string | null
   status: string | null
+   scheduleStatus?: string | null
+   inDispute?: boolean
   productNameVendor?: string | null
   quantity: number
   unitPrice: number
@@ -177,3 +179,79 @@ export interface OpportunityDetailRecord {
   revenueSchedules?: OpportunityRevenueScheduleRecord[]
   activities?: OpportunityActivityRecord[]
 }
+
+export interface HistoryRow {
+  id: string
+  occurredAt: string
+  userName: string
+  action: string
+  field: string
+  fromValue: string
+  toValue: string
+}
+
+export const MOCK_HISTORY_ROWS: HistoryRow[] = [
+  {
+    id: "1",
+    occurredAt: "2025/11/15 14:32",
+    userName: "Jordan Lee",
+    action: "Update",
+    field: "Account Owner",
+    fromValue: "A. Romero",
+    toValue: "Jordan Lee"
+  },
+  {
+    id: "2",
+    occurredAt: "2025/11/12 09:04",
+    userName: "Priya Patel",
+    action: "Update",
+    field: "Status",
+    fromValue: "Prospect",
+    toValue: "Active"
+  },
+  {
+    id: "3",
+    occurredAt: "2025/11/05 17:20",
+    userName: "Alex Morgan",
+    action: "Update",
+    field: "Primary Contact",
+    fromValue: "Jamie Chan",
+    toValue: "Taylor Reed"
+  },
+  {
+    id: "4",
+    occurredAt: "2025/10/30 11:11",
+    userName: "System",
+    action: "Create",
+    field: "Account Name",
+    fromValue: "-",
+    toValue: "Edgewater Holdings"
+  },
+  {
+    id: "5",
+    occurredAt: "2025/11/18 10:15",
+    userName: "Sarah Chen",
+    action: "Update",
+    field: "Subagent %",
+    fromValue: "0%",
+    toValue: "15%"
+  },
+  {
+    id: "6",
+    occurredAt: "2025/11/18 10:15",
+    userName: "Sarah Chen",
+    action: "Update",
+    field: "House Rep %",
+    fromValue: "0%",
+    toValue: "25%"
+  },
+  {
+    id: "7",
+    occurredAt: "2025/11/18 10:15",
+    userName: "System",
+    action: "Auto-Update",
+    field: "House Split %",
+    fromValue: "100%",
+    toValue: "60%"
+  }
+]

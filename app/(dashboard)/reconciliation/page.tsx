@@ -811,10 +811,12 @@ export default function ReconciliationPage() {
 
     // Apply search filter
     if (searchQuery.trim()) {
+      const queryLower = searchQuery.toLowerCase()
       filtered = filtered.filter(record =>
-        Object.values(record).some(value =>
-          value.toString().toLowerCase().includes(searchQuery.toLowerCase())
-        )
+        Object.values(record).some(value => {
+          if (value === null || value === undefined) return false
+          return value.toString().toLowerCase().includes(queryLower)
+        }),
       )
     }
 
@@ -854,8 +856,10 @@ export default function ReconciliationPage() {
     // Apply sorting
     if (sortConfig) {
       filtered.sort((a, b) => {
-        const aValue = a[sortConfig.columnId as keyof typeof a]
-        const bValue = b[sortConfig.columnId as keyof typeof b]
+        const aRaw = a[sortConfig.columnId as keyof typeof a]
+        const bRaw = b[sortConfig.columnId as keyof typeof b]
+        const aValue = (aRaw ?? '').toString()
+        const bValue = (bRaw ?? '').toString()
 
         if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1
         if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1
