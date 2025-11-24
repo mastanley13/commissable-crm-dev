@@ -106,6 +106,8 @@ async function seed() {
     prisma.permission.create({ data: { code: "accounts.update", name: "Update Accounts", category: "Accounts" } }),
     prisma.permission.create({ data: { code: "accounts.delete", name: "Delete Accounts", category: "Accounts" } }),
     prisma.permission.create({ data: { code: "accounts.export", name: "Export Accounts", category: "Accounts" } }),
+    prisma.permission.create({ data: { code: "accounts.bulk", name: "Bulk Account Actions", category: "Accounts" } }),
+    prisma.permission.create({ data: { code: "accounts.reassign", name: "Reassign Accounts", category: "Accounts" } }),
     // Legacy/compat for existing guards
     prisma.permission.create({ data: { code: "accounts.manage", name: "Manage Accounts (legacy)", category: "Accounts" } }),
 
@@ -156,7 +158,7 @@ async function seed() {
       roleId: adminRole.id,
       codes: [
         // Accounts
-        "accounts.read", "accounts.create", "accounts.update", "accounts.delete", "accounts.export", "accounts.manage",
+        "accounts.read", "accounts.create", "accounts.update", "accounts.delete", "accounts.export", "accounts.bulk", "accounts.reassign", "accounts.manage",
         // Contacts
         "contacts.read", "contacts.create", "contacts.update", "contacts.delete", "contacts.export", "contacts.manage",
         // Finance/System
@@ -173,7 +175,7 @@ async function seed() {
       roleId: salesMgmtRole.id,
       codes: [
         // Full control on accounts/contacts incl. export per spec
-        "accounts.read", "accounts.create", "accounts.update", "accounts.delete", "accounts.export", "accounts.manage",
+        "accounts.read", "accounts.create", "accounts.update", "accounts.delete", "accounts.export", "accounts.bulk", "accounts.reassign", "accounts.manage",
         "contacts.read", "contacts.create", "contacts.update", "contacts.delete", "contacts.export", "contacts.manage",
         // Activities
         "activities.read", "activities.create", "activities.update", "activities.delete", "activities.export", "activities.manage",
