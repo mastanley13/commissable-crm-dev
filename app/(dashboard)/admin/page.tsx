@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { Shield, Users, Settings, Key, Database, UserCheck, Beaker } from 'lucide-react'
+import { Shield, Users, Settings, Key, Database, UserCheck, Beaker, Shuffle } from 'lucide-react'
 
 const adminSections = [
   {
@@ -10,6 +10,13 @@ const adminSections = [
     href: '/admin/users',
     icon: Users,
     color: 'bg-blue-500'
+  },
+  {
+    title: 'User Reassignment',
+    description: 'Reassign accounts from a departing user to a new owner',
+    href: '/admin/user-reassignment',
+    icon: Shuffle,
+    color: 'bg-emerald-500'
   },
   {
     title: 'Role Management',

@@ -12,7 +12,7 @@ Scope: All list views that show a bulk‑actions bar today (Accounts, Contacts, 
 ## Idea 1: Bulk Actions UI Overhaul
 
 Recommended approach: Right‑Side "Bulk Actions Panel" that is visible, optionally draggable/resizable, and reusable across modules.
-
+![alt text](download.png)
 What exists now
 - Bottom overlay components: `components/*-bulk-action-bar.tsx` (fixed at bottom, easy to miss).
 - Shared guidance doc: `bulk-action-bar-overlay-guide.md`.

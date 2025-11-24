@@ -89,6 +89,7 @@ export async function GET(request: NextRequest) {
         const query = searchParams.get("q")?.trim() ?? ""
         const accountTypeName = searchParams.get("accountType")?.trim() ?? ""
         const status = searchParams.get("status")?.trim() ?? ""
+        const ownerId = searchParams.get("ownerId")?.trim() ?? ""
 
         const whereClause: Record<string, unknown> = { tenantId }
 
@@ -112,6 +113,10 @@ export async function GET(request: NextRequest) {
           } else if (status.toLowerCase() === "inactive") {
             whereClause.status = "Inactive"
           }
+        }
+
+        if (ownerId) {
+          whereClause.ownerId = ownerId
         }
 
         const [accounts, total] = await Promise.all([

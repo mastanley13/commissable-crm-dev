@@ -6,13 +6,13 @@ import { ListHeader } from '@/components/list-header'
 import { DynamicTable, Column, PaginationInfo } from '@/components/dynamic-table'
 import { ColumnChooserModal } from '@/components/column-chooser-modal'
 import { useTablePreferences } from '@/hooks/useTablePreferences'
-import { Check, Trash2 } from 'lucide-react'
+import { Check, Download, Trash2 } from 'lucide-react'
 import { isRowInactive } from '@/lib/row-state'
 import { CopyProtectionWrapper } from '@/components/copy-protection'
 import { useToasts } from '@/components/toast'
-import { RevenueSchedulesBulkActionBar } from '@/components/revenue-schedules-bulk-action-bar'
 import { calculateMinWidth } from '@/lib/column-width-utils'
 import { StatusFilterDropdown } from '@/components/status-filter-dropdown'
+import type { BulkActionsGridProps } from '@/components/bulk-actions-grid'
 
 // Local UUID v1-v5 matcher used to detect schedule IDs vs. human codes
 const UUID_REGEX = /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i
@@ -278,6 +278,12 @@ export default function RevenueSchedulesPage() {
   const [columnFilters, setColumnFilters] = useState<{ columnId: FilterableColumnKey; value: string }[]>([])
   const [tableBodyHeight, setTableBodyHeight] = useState<number>()
   const tableAreaNodeRef = useRef<HTMLDivElement | null>(null)
+  const selectedScheduleRows = useMemo(() => {
+    if (selectedSchedules.length === 0) {
+      return []
+    }
+    return revenueSchedules.filter(row => selectedSchedules.includes(row.id))
+  }, [revenueSchedules, selectedSchedules])
 
   const fetchRevenueSchedules = useCallback(async () => {
     setLoading(true)
@@ -494,6 +500,120 @@ export default function RevenueSchedulesPage() {
       setSelectedSchedules([])
     }
   }
+
+  const handleBulkDeleteSchedules = useCallback(() => {
+    if (selectedSchedules.length === 0) {
+      showError('No items selected', 'Select at least one item to delete.')
+      return
+    }
+    const remainingIds = new Set(selectedSchedules)
+    setRevenueSchedules(prev => prev.filter(row => !remainingIds.has(row.id)))
+    setSelectedSchedules([])
+    showSuccess('Deleted', 'Selected schedules have been removed from the list.')
+  }, [selectedSchedules, showError, showSuccess])
+
+  const handleBulkExportSchedules = useCallback(() => {
+    if (selectedSchedules.length === 0) {
+      showError('No items selected', 'Select at least one item to export.')
+      return
+    }
+    const rows = selectedScheduleRows
+    if (rows.length === 0) {
+      showError('Items not available', 'Unable to locate the selected items. Refresh and try again.')
+      return
+    }
+    const headers = [
+      'Distributor Name',
+      'Vendor Name',
+      'Product Name - Vendor',
+      'Schedule Date',
+      'Revenue Schedule',
+      'Quantity',
+      'Price Each',
+      'Expected Usage Gross',
+      'Expected Usage Adjustment',
+      'Expected Usage Net',
+      'Actual Usage',
+      'Usage Balance',
+      'Expected Commission Gross',
+      'Expected Commission Adjustment',
+      'Expected Commission Net',
+      'Actual Commission',
+      'Commission Difference',
+      'Expected Commission Rate %',
+      'Actual Commission Rate %',
+      'Commission Rate Difference',
+      'Status',
+    ]
+    const escapeCsv = (value: string | null | undefined) => {
+      if (value === null || value === undefined) return ''
+      const sv = String(value)
+      return (sv.includes('"') || sv.includes(',') || sv.includes('\n') || sv.includes('\r')) ? `"${sv.replace(/"/g, '""')}"` : sv
+    }
+    const isBlank = (value: unknown) => {
+      if (typeof value !== 'string') return true
+      const trimmed = value.trim()
+      return trimmed === '' || trimmed === '-'
+    }
+    const lines = [
+      headers.join(','),
+      ...rows.map(row => {
+        const rawGross = row.expectedUsageGross ?? row.expectedUsage
+        const rawAdj = row.expectedUsageAdjustment ?? row.usageAdjustment
+        const gross = parseCurrency(rawGross)
+        const adj = parseCurrency(rawAdj)
+        const net = gross + adj
+        const rawActualUsage = row.actualUsage
+        const actualUsageValue = parseCurrency(rawActualUsage)
+        const usageBalance = net - actualUsageValue
+        const commissionDiff = parseCurrency(row.expectedCommissionNet) - parseCurrency(row.actualCommission)
+        const hasNetInputs = !isBlank(rawGross) || !isBlank(rawAdj)
+        const hasActualUsage = !isBlank(rawActualUsage)
+        const hasCommissionInputs = !isBlank(row.expectedCommissionNet) || !isBlank(row.actualCommission)
+        const expectedRateFraction = hasNetInputs && net > 0 ? (parseCurrency(row.expectedCommissionNet) / net) : null
+        const actualRateFraction = hasActualUsage && actualUsageValue > 0 ? (parseCurrency(row.actualCommission) / actualUsageValue) : null
+        const rateDiffFraction = (expectedRateFraction !== null && actualRateFraction !== null)
+          ? (expectedRateFraction - actualRateFraction)
+          : null
+        const fmtPct = (f: number | null) => f === null ? '-' : `${(f * 100).toFixed(2)}%`
+
+        return [
+          row.distributorName,
+          row.vendorName,
+          row.productNameVendor,
+          row.revenueScheduleDate,
+          row.revenueScheduleName ?? row.revenueSchedule,
+          row.quantity,
+          row.priceEach,
+          rawGross,
+          rawAdj,
+          hasNetInputs ? formatCurrency(net) : '-',
+          rawActualUsage,
+          (hasActualUsage || hasNetInputs) ? formatCurrency(usageBalance) : '-',
+          row.expectedCommissionGross,
+          row.expectedCommissionAdjustment,
+          row.expectedCommissionNet,
+          row.actualCommission,
+          hasCommissionInputs ? formatCurrency(commissionDiff) : '-',
+          fmtPct(expectedRateFraction),
+          fmtPct(actualRateFraction),
+          fmtPct(rateDiffFraction),
+          row.scheduleStatus,
+        ].map(escapeCsv).join(',')
+      })
+    ]
+    const blob = new Blob([lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' })
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    const timestamp = new Date().toISOString().replace(/[:T]/g, '-').split('.')[0]
+    link.href = url
+    link.download = `revenue-schedules-export-${timestamp}.csv`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+    showSuccess(`Exported ${rows.length} item${rows.length === 1 ? '' : 's'}`, 'Check your downloads for the CSV file.')
+  }, [selectedSchedules.length, selectedScheduleRows, showError, showSuccess])
 
   const handleDeleteRow = useCallback((scheduleId: string) => {
     // Client-side delete placeholder; wire to API when available
@@ -750,6 +870,29 @@ export default function RevenueSchedulesPage() {
     checkbox: selectedSchedules.includes(String(schedule.id))
   }))
 
+  const revenueBulkActions = useMemo<BulkActionsGridProps>(() => ({
+    selectedCount: selectedSchedules.length,
+    entityName: 'revenue schedules',
+    actions: [
+      {
+        key: 'delete',
+        label: 'Delete',
+        icon: Trash2,
+        tone: 'danger',
+        tooltip: (count) => `Delete ${count} schedule${count === 1 ? '' : 's'}`,
+        onClick: handleBulkDeleteSchedules,
+      },
+      {
+        key: 'export',
+        label: 'Export CSV',
+        icon: Download,
+        tone: 'info',
+        tooltip: (count) => `Export ${count} schedule${count === 1 ? '' : 's'} to CSV`,
+        onClick: handleBulkExportSchedules,
+      },
+    ],
+  }), [handleBulkDeleteSchedules, handleBulkExportSchedules, selectedSchedules.length])
+
   return (
     <CopyProtectionWrapper className="dashboard-page-container">
       <ListHeader
@@ -785,6 +928,7 @@ export default function RevenueSchedulesPage() {
         isSavingTableChanges={preferenceSaving}
         lastTableSaved={lastSaved || undefined}
         onSaveTableChanges={saveChanges}
+        bulkActions={revenueBulkActions}
       />
 
       {(preferenceError) && (
@@ -792,126 +936,6 @@ export default function RevenueSchedulesPage() {
       )}
 
       <div className="flex-1 min-h-0 p-4 pt-0 flex flex-col gap-4">
-        <div className="flex-shrink-0">
-          <RevenueSchedulesBulkActionBar
-            count={selectedSchedules.length}
-            onDelete={() => {
-              if (selectedSchedules.length === 0) {
-                showError('No items selected', 'Select at least one item to delete.')
-                return
-              }
-              // For schedules, we only support soft-delete as a UX placeholder. Replace with real API when available
-              const remainingIds = new Set(selectedSchedules)
-              setRevenueSchedules(prev => prev.filter(row => !remainingIds.has(row.id)))
-              setSelectedSchedules([])
-              showSuccess('Deleted', 'Selected schedules have been removed from the list.')
-            }}
-            onExportCsv={() => {
-            if (selectedSchedules.length === 0) {
-              showError('No items selected', 'Select at least one item to export.')
-              return
-            }
-            const rows = revenueSchedules.filter(r => selectedSchedules.includes(r.id))
-            if (rows.length === 0) {
-              showError('Items not available', 'Unable to locate the selected items. Refresh and try again.')
-              return
-            }
-            const headers = [
-              'Distributor Name',
-              'Vendor Name',
-              'Product Name - Vendor',
-              'Schedule Date',
-              'Revenue Schedule',
-              'Quantity',
-              'Price Each',
-              'Expected Usage Gross',
-              'Expected Usage Adjustment',
-              'Expected Usage Net',
-              'Actual Usage',
-              'Usage Balance',
-              'Expected Commission Gross',
-              'Expected Commission Adjustment',
-              'Expected Commission Net',
-              'Actual Commission',
-              'Commission Difference',
-              'Expected Commission Rate %',
-              'Actual Commission Rate %',
-              'Commission Rate Difference',
-              'Status',
-            ]
-            const escapeCsv = (value: string | null | undefined) => {
-              if (value === null || value === undefined) return ''
-              const sv = String(value)
-              return (sv.includes('"') || sv.includes(',') || sv.includes('\n') || sv.includes('\r')) ? `"${sv.replace(/"/g, '""')}"` : sv
-            }
-            const isBlank = (value: unknown) => {
-              if (typeof value !== 'string') return true
-              const trimmed = value.trim()
-              return trimmed === '' || trimmed === '-'
-            }
-            const lines = [
-              headers.join(','),
-              ...rows.map(row => {
-                const rawGross = row.expectedUsageGross ?? row.expectedUsage
-                const rawAdj = row.expectedUsageAdjustment ?? row.usageAdjustment
-                const gross = parseCurrency(rawGross)
-                const adj = parseCurrency(rawAdj)
-                const net = gross + adj
-                const rawActualUsage = row.actualUsage
-                const actualUsageValue = parseCurrency(rawActualUsage)
-                const usageBalance = net - actualUsageValue
-                const commissionDiff = parseCurrency(row.expectedCommissionNet) - parseCurrency(row.actualCommission)
-                const hasNetInputs = !isBlank(rawGross) || !isBlank(rawAdj)
-                const hasActualUsage = !isBlank(rawActualUsage)
-                const hasCommissionInputs = !isBlank(row.expectedCommissionNet) || !isBlank(row.actualCommission)
-                // Rate percentages derived consistently with table
-                const expectedRateFraction = hasNetInputs && net > 0 ? (parseCurrency(row.expectedCommissionNet) / net) : null
-                const actualRateFraction = hasActualUsage && actualUsageValue > 0 ? (parseCurrency(row.actualCommission) / actualUsageValue) : null
-                const rateDiffFraction = (expectedRateFraction !== null && actualRateFraction !== null)
-                  ? (expectedRateFraction - actualRateFraction)
-                  : null
-                const fmtPct = (f: number | null) => f === null ? '-' : `${(f * 100).toFixed(2)}%`
-
-                return [
-                  row.distributorName,
-                  row.vendorName,
-                  row.productNameVendor,
-                  row.revenueScheduleDate,
-                  row.revenueScheduleName ?? row.revenueSchedule,
-                  row.quantity,
-                  row.priceEach,
-                  rawGross,
-                  rawAdj,
-                  hasNetInputs ? formatCurrency(net) : '-',
-                  rawActualUsage,
-                  (hasActualUsage || hasNetInputs) ? formatCurrency(usageBalance) : '-',
-                  row.expectedCommissionGross,
-                  row.expectedCommissionAdjustment,
-                  row.expectedCommissionNet,
-                  row.actualCommission,
-                  hasCommissionInputs ? formatCurrency(commissionDiff) : '-',
-                  fmtPct(expectedRateFraction),
-                  fmtPct(actualRateFraction),
-                  fmtPct(rateDiffFraction),
-                  row.scheduleStatus,
-                ].map(escapeCsv).join(',')
-              })
-            ]
-            const blob = new Blob([lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' })
-            const url = window.URL.createObjectURL(blob)
-            const link = document.createElement('a')
-            const timestamp = new Date().toISOString().replace(/[:T]/g, '-').split('.')[0]
-            link.href = url
-            link.download = `revenue-schedules-export-${timestamp}.csv`
-            document.body.appendChild(link)
-            link.click()
-            document.body.removeChild(link)
-            window.URL.revokeObjectURL(url)
-            showSuccess(`Exported ${rows.length} item${rows.length === 1 ? '' : 's'}`, 'Check your downloads for the CSV file.')
-          }}
-        />
-        </div>
-
         <div ref={tableAreaRef} className="flex-1 min-h-0">
           <DynamicTable
             columns={tableColumns}

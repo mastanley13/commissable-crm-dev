@@ -110,6 +110,8 @@ interface AccountSummary {
   accountName: string;
   currentOwnerId: string;
   currentOwnerName: string;
+  accountType: string;
+  status: string;
   totalRevenue: number;
   totalCommission: number;
   opportunityCount: number;
@@ -134,6 +136,7 @@ async function calculateReassignmentImpact(
     },
     include: {
       owner: true,
+      accountType: { select: { name: true } },
       opportunities: {
         where: {
           status: { in: [OpportunityStatus.Open, OpportunityStatus.Won] },
@@ -169,6 +172,8 @@ async function calculateReassignmentImpact(
       accountName: account.accountName,
       currentOwnerId: ownerId,
       currentOwnerName: ownerName,
+      accountType: account.accountType?.name ?? "",
+      status: account.status,
       totalRevenue: 0,
       totalCommission: account.opportunities.reduce((sum, opp) => sum + Number(opp.expectedCommission || 0), 0),
       opportunityCount: account.opportunities.length,

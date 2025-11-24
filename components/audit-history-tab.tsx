@@ -17,6 +17,17 @@ interface AuditHistoryTabProps {
   tableAreaRefCallback?: (node: HTMLDivElement | null) => void
 }
 
+interface AuditLogAPIResponse {
+  id: string
+  entityName: string
+  entityId: string
+  action: string
+  createdAt: string
+  userId: string | null
+  userName: string | null
+  changedFields: Record<string, { from: any; to: any }> | null
+}
+
 
 const HISTORY_TABLE_BASE_COLUMNS: Column[] = [
   {
@@ -91,10 +102,58 @@ const HISTORY_FILTER_COLUMNS = [
   { id: "toValue", label: "To" }
 ]
 
+// Helper function to convert API response to HistoryRow format
+function convertAuditLogsToHistoryRows(logs: AuditLogAPIResponse[]): HistoryRow[] {
+  const rows: HistoryRow[] = []
+
+  logs.forEach(log => {
+    if (!log.changedFields || typeof log.changedFields !== 'object' || Object.keys(log.changedFields).length === 0) {
+      // If no changed fields, create a single row for the action
+      rows.push({
+        id: log.id,
+        occurredAt: new Date(log.createdAt).toLocaleString('en-US', {
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit'
+        }),
+        userName: log.userName || 'System',
+        action: log.action,
+        field: '-',
+        fromValue: '-',
+        toValue: '-'
+      })
+    } else {
+      // Create a row for each changed field
+      Object.entries(log.changedFields).forEach(([fieldName, change]) => {
+        const changeObj = change as any
+        rows.push({
+          id: `${log.id}-${fieldName}`,
+          occurredAt: new Date(log.createdAt).toLocaleString('en-US', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit'
+          }),
+          userName: log.userName || 'System',
+          action: log.action,
+          field: fieldName,
+          fromValue: String(changeObj?.from ?? '-'),
+          toValue: String(changeObj?.to ?? '-')
+        })
+      })
+    }
+  })
+
+  return rows
+}
+
 export function AuditHistoryTab({
   entityName,
   entityId,
-  historyRows = [],
+  historyRows,
   tableBodyMaxHeight,
   tableAreaRefCallback
 }: AuditHistoryTabProps) {
@@ -106,11 +165,55 @@ export function AuditHistoryTab({
   const [searchQuery, setSearchQuery] = useState("")
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(25)
+  const [fetchedHistoryRows, setFetchedHistoryRows] = useState<HistoryRow[]>([])
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  // Fetch audit logs from API if historyRows prop is not provided
+  useEffect(() => {
+    if (historyRows !== undefined) {
+      // Use provided historyRows prop
+      return
+    }
+
+    const fetchAuditLogs = async () => {
+      setIsLoading(true)
+      setError(null)
+      try {
+        const url = `/api/audit-logs?entityName=${entityName}&entityId=${entityId}&pageSize=200`
+        console.log('[AuditHistoryTab] Fetching from:', url)
+        const response = await fetch(url)
+        console.log('[AuditHistoryTab] Response status:', response.status)
+
+        if (!response.ok) {
+          const errorText = await response.text()
+          console.error('[AuditHistoryTab] Error response:', errorText)
+          throw new Error(`Failed to fetch audit logs: ${response.status}`)
+        }
+        const data = await response.json()
+        console.log('[AuditHistoryTab] Received data:', data)
+        const converted = convertAuditLogsToHistoryRows(data.data || [])
+        console.log('[AuditHistoryTab] Converted rows:', converted)
+        setFetchedHistoryRows(converted)
+      } catch (err) {
+        console.error('[AuditHistoryTab] Error:', err)
+        setError(err instanceof Error ? err.message : 'An error occurred')
+        setFetchedHistoryRows([])
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchAuditLogs()
+  }, [entityName, entityId, historyRows])
+
+  // Use either provided historyRows or fetched data
+  const actualHistoryRows = historyRows !== undefined ? historyRows : fetchedHistoryRows
 
   const filteredRows = useMemo(() => {
     const trimmedQuery = searchQuery.trim().toLowerCase()
 
-    return historyRows.filter(row => {
+    return actualHistoryRows.filter(row => {
       const matchesFilters = historyColumnFilters.every(filter => {
         const fieldKey = HISTORY_FILTER_ACCESSOR[filter.columnId]
         if (!fieldKey) return true
@@ -126,7 +229,7 @@ export function AuditHistoryTab({
         value.toLowerCase().includes(trimmedQuery)
       )
     })
-  }, [historyColumnFilters, historyRows, searchQuery])
+  }, [historyColumnFilters, actualHistoryRows, searchQuery])
 
   const totalPages = useMemo(() => Math.max(1, Math.ceil(filteredRows.length / pageSize)), [filteredRows.length, pageSize])
 
@@ -170,23 +273,33 @@ export function AuditHistoryTab({
             className="flex flex-1 min-h-0 flex-col overflow-hidden"
             ref={tableAreaRefCallback}
           >
-            <DynamicTable
-              className="flex flex-col"
-              columns={historyTableColumns}
-              data={paginatedRows}
-              emptyMessage="No history entries yet"
-              pagination={pagination}
-              onPageChange={setPage}
-              onPageSizeChange={size => {
-                setPageSize(size)
-                setPage(1)
-              }}
-              onColumnsChange={setHistoryTableColumns}
-              autoSizeColumns
-              fillContainerWidth
-              alwaysShowPagination
-              maxBodyHeight={tableBodyMaxHeight}
-            />
+            {isLoading ? (
+              <div className="flex items-center justify-center p-8">
+                <p className="text-gray-500">Loading history...</p>
+              </div>
+            ) : error ? (
+              <div className="flex items-center justify-center p-8">
+                <p className="text-red-600">Error: {error}</p>
+              </div>
+            ) : (
+              <DynamicTable
+                className="flex flex-col"
+                columns={historyTableColumns}
+                data={paginatedRows}
+                emptyMessage="No history entries yet"
+                pagination={pagination}
+                onPageChange={setPage}
+                onPageSizeChange={size => {
+                  setPageSize(size)
+                  setPage(1)
+                }}
+                onColumnsChange={setHistoryTableColumns}
+                autoSizeColumns
+                fillContainerWidth
+                alwaysShowPagination
+                maxBodyHeight={tableBodyMaxHeight}
+              />
+            )}
           </div>
         </div>
       </div>

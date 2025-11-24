@@ -13,6 +13,8 @@ const PERMISSIONS = [
   { code: 'accounts.export', name: 'Export account lists', description: 'Can export account data', category: 'Accounts' },
   { code: 'accounts.bulk', name: 'Bulk operations', description: 'Can perform bulk operations on accounts', category: 'Accounts' },
   { code: 'accounts.reassign', name: 'User reassignment', description: 'Can reassign accounts to other users', category: 'Accounts' },
+  { code: 'accounts.manage', name: 'Manage accounts', description: 'Full management access to accounts', category: 'Accounts' },
+  { code: 'accounts.read', name: 'Read accounts', description: 'Can read account data', category: 'Accounts' },
 
   // Contacts permissions
   { code: 'contacts.view.assigned', name: 'View contacts at assigned accounts', description: 'Can view contacts only at assigned accounts', category: 'Contacts' },
@@ -32,6 +34,8 @@ const PERMISSIONS = [
   { code: 'opportunities.edit.all', name: 'Edit all opportunities', description: 'Can edit any opportunity in the system', category: 'Opportunities' },
   { code: 'opportunities.delete', name: 'Delete opportunities', description: 'Can delete opportunity records', category: 'Opportunities' },
   { code: 'opportunities.export', name: 'Export opportunities', description: 'Can export opportunity data', category: 'Opportunities' },
+  { code: 'opportunities.manage', name: 'Manage opportunities', description: 'Full management access to opportunities', category: 'Opportunities' },
+  { code: 'opportunities.read', name: 'Read opportunities', description: 'Can read opportunity data', category: 'Opportunities' },
 
   // Products permissions
   { code: 'products.read', name: 'Read products', description: 'Can view products', category: 'Products' },
@@ -54,6 +58,7 @@ const PERMISSIONS = [
   { code: 'activities.edit.assigned', name: 'Edit assigned activities', description: 'Can edit activities assigned to them', category: 'Activities' },
   { code: 'activities.edit.all', name: 'Edit all activities', description: 'Can edit any activity in the system', category: 'Activities' },
   { code: 'activities.delete', name: 'Delete activities', description: 'Can delete activity records', category: 'Activities' },
+  { code: 'activities.manage', name: 'Manage activities', description: 'Full management access to activities', category: 'Activities' },
 
   // Tickets permissions
   { code: 'tickets.view.assigned', name: 'View assigned tickets', description: 'Can view tickets assigned to them', category: 'Tickets' },
@@ -69,6 +74,10 @@ const PERMISSIONS = [
   { code: 'admin.system.config', name: 'System configuration', description: 'Can configure system settings', category: 'Admin' },
   { code: 'admin.audit.access', name: 'Audit log access', description: 'Can access audit logs', category: 'Admin' },
   { code: 'admin.import_export', name: 'Full import/export rights', description: 'Can import and export all data', category: 'Admin' },
+
+  // Audit Logs permissions
+  { code: 'auditLogs.read', name: 'Read audit logs', description: 'Can view audit logs', category: 'Admin' },
+  { code: 'auditLogs.manage', name: 'Manage audit logs', description: 'Full management access to audit logs', category: 'Admin' },
 
   // System permissions
   { code: 'system.all_modules', name: 'All modules and features', description: 'Access to all system modules', category: 'System' },

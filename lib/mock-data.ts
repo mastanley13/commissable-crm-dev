@@ -688,12 +688,20 @@ export type DepositLineItemRow = {
   status: 'Matched' | 'Unreconciled' | 'Partially Matched'
   paymentDate: string
   accountName: string
+  vendorName: string
   lineItem: number
   productName: string
   usage: number
+  usageAllocated: number
+  usageUnallocated: number
   commission: number
+  commissionAllocated: number
+  commissionUnallocated: number
   commissionRate: number
   accountId: string
+  customerIdVendor: string
+  orderIdVendor: string
+  distributorName: string
 }
 
 export const depositLineItemsMock: DepositLineItemRow[] = [
@@ -702,72 +710,120 @@ export const depositLineItemsMock: DepositLineItemRow[] = [
     status: 'Unreconciled',
     paymentDate: '2025-02-01',
     accountName: 'Mike Inc',
+    vendorName: 'Lingo',
     lineItem: 1,
     productName: 'Ucaas 1 Seat - 12 Month',
     usage: 600,
+    usageAllocated: 300,
+    usageUnallocated: 300,
     commission: 60,
+    commissionAllocated: 30,
+    commissionUnallocated: 30,
     commissionRate: 0.1,
-    accountId: 'A123543'
+    accountId: 'A123543',
+    customerIdVendor: 'CUST-1101',
+    orderIdVendor: 'ORD-2201',
+    distributorName: 'Telarus'
   },
   {
     id: 'dli-1002',
     status: 'Unreconciled',
     paymentDate: '2025-02-01',
     accountName: 'Alvin Inc',
+    vendorName: 'Lingo',
     lineItem: 2,
     productName: 'Ucaas 1 Seat - 12 Month',
     usage: 1010,
+    usageAllocated: 800,
+    usageUnallocated: 210,
     commission: 101,
+    commissionAllocated: 81,
+    commissionUnallocated: 20,
     commissionRate: 0.1,
-    accountId: 'A123111'
+    accountId: 'A123111',
+    customerIdVendor: 'CUST-1102',
+    orderIdVendor: 'ORD-2202',
+    distributorName: 'Telarus'
   },
   {
     id: 'dli-1003',
     status: 'Matched',
     paymentDate: '2025-02-02',
     accountName: 'Mike Inc',
+    vendorName: 'Lingo',
     lineItem: 3,
     productName: 'SD-WAN Advanced',
     usage: 2200,
+    usageAllocated: 2200,
+    usageUnallocated: 0,
     commission: 330,
+    commissionAllocated: 330,
+    commissionUnallocated: 0,
     commissionRate: 0.15,
-    accountId: 'A123543'
+    accountId: 'A123543',
+    customerIdVendor: 'CUST-1103',
+    orderIdVendor: 'ORD-2203',
+    distributorName: 'Telarus'
   },
   {
     id: 'dli-1004',
     status: 'Matched',
     paymentDate: '2025-02-02',
     accountName: 'Alvin Inc',
+    vendorName: 'Lingo',
     lineItem: 4,
     productName: 'Fiber DIA 1GB',
     usage: 4800,
+    usageAllocated: 4500,
+    usageUnallocated: 300,
     commission: 480,
+    commissionAllocated: 450,
+    commissionUnallocated: 30,
     commissionRate: 0.1,
-    accountId: 'A123111'
+    accountId: 'A123111',
+    customerIdVendor: 'CUST-1104',
+    orderIdVendor: 'ORD-2204',
+    distributorName: 'Telarus'
   },
   {
     id: 'dli-1005',
     status: 'Partially Matched',
     paymentDate: '2025-02-03',
     accountName: 'Mike Inc',
+    vendorName: 'Lingo',
     lineItem: 5,
     productName: 'CCaaS Enterprise',
     usage: 1200,
+    usageAllocated: 700,
+    usageUnallocated: 500,
     commission: 180,
+    commissionAllocated: 105,
+    commissionUnallocated: 75,
     commissionRate: 0.15,
-    accountId: 'A123543'
+    accountId: 'A123543',
+    customerIdVendor: 'CUST-1105',
+    orderIdVendor: 'ORD-2205',
+    distributorName: 'Telarus'
   },
   {
     id: 'dli-1006',
     status: 'Unreconciled',
     paymentDate: '2025-02-04',
     accountName: 'Loxo Partners',
+    vendorName: 'Lingo',
     lineItem: 6,
     productName: 'Ucaas 1 Seat - 12 Month',
     usage: 1900,
+    usageAllocated: 0,
+    usageUnallocated: 1900,
     commission: 190,
+    commissionAllocated: 0,
+    commissionUnallocated: 190,
     commissionRate: 0.1,
-    accountId: 'A998877'
+    accountId: 'A998877',
+    customerIdVendor: 'CUST-1106',
+    orderIdVendor: 'ORD-2206',
+    distributorName: 'Telarus'
   }
 ]
 

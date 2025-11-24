@@ -7,7 +7,7 @@ const quickStats = [
   { name: 'Total Accounts', value: '11', icon: Building2, href: '/accounts', color: 'bg-blue-500' },
   { name: 'Total Contacts', value: '17', icon: Users, href: '/contacts', color: 'bg-green-500' },
   { name: 'Opportunities', value: '23', icon: Target, href: '/opportunities', color: 'bg-purple-500' },
-  { name: 'Products', value: '45', icon: Package, href: '/products', color: 'bg-orange-500' }
+  { name: 'Catalog', value: '45', icon: Package, href: '/products', color: 'bg-orange-500' }
 ]
 
 const recentActivity = [

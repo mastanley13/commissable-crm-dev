@@ -4,9 +4,18 @@ import { useState, useEffect } from "react";
 import { X, ChevronLeft, ChevronRight, Users, Calculator, CheckCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+interface AccountRowSummary {
+  id: string;
+  accountName: string;
+  accountType?: string;
+  accountOwner?: string;
+  status?: string;
+}
+
 interface AccountReassignmentModalProps {
   isOpen: boolean;
   selectedAccountIds: string[];
+  selectedAccountRows?: AccountRowSummary[];
   onClose: () => void;
   onConfirm: (reassignmentData: ReassignmentData) => Promise<void>;
 }
@@ -36,6 +45,8 @@ interface AccountSummaryPreview {
   accountName: string;
   currentOwnerId: string;
   currentOwnerName: string;
+  accountType?: string;
+  status?: string;
   totalRevenue: number;
   totalCommission: number;
   opportunityCount: number;
@@ -83,9 +94,28 @@ interface SpecialUser {
   description: string;
 }
 
+interface AccountPreviewRow {
+  id: string;
+  accountName: string;
+  accountType?: string;
+  accountOwner?: string;
+  status?: string;
+  opportunityCount?: number;
+  revenueScheduleCount?: number;
+}
+
+function getDefaultEffectiveDate(): Date {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  // Default to the 1st of next month; user can manually adjust if needed.
+  return new Date(year, month + 1, 1);
+}
+
 export function AccountReassignmentModal({
   isOpen,
   selectedAccountIds,
+  selectedAccountRows,
   onClose,
   onConfirm
 }: AccountReassignmentModalProps) {
@@ -93,7 +123,7 @@ export function AccountReassignmentModal({
   const [reassignmentData, setReassignmentData] = useState<ReassignmentData>({
     newOwnerId: '',
     assignmentRole: 'PrimaryOwner',
-    effectiveDate: new Date(),
+    effectiveDate: getDefaultEffectiveDate(),
     transferCommissions: true,
     notifyUsers: true,
     reason: '',
@@ -105,6 +135,7 @@ export function AccountReassignmentModal({
   const [specialUsers, setSpecialUsers] = useState<SpecialUser[]>([]);
   const [loading, setLoading] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [accountPreviewRows, setAccountPreviewRows] = useState<AccountPreviewRow[]>([]);
 
   useEffect(() => {
     if (isOpen) {
@@ -112,15 +143,24 @@ export function AccountReassignmentModal({
       setReassignmentData({
         newOwnerId: '',
         assignmentRole: 'PrimaryOwner',
-        effectiveDate: new Date(),
+        effectiveDate: getDefaultEffectiveDate(),
         transferCommissions: true,
         notifyUsers: true,
         reason: ''
       });
       setImpactPreview(null);
+      setAccountPreviewRows([]);
       loadUsers();
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    if (selectedAccountRows && selectedAccountRows.length > 0) {
+      setAccountPreviewRows(selectedAccountRows);
+    } else if (!impactPreview) {
+      setAccountPreviewRows([]);
+    }
+  }, [selectedAccountRows, impactPreview]);
 
   const loadUsers = async () => {
     try {
@@ -164,6 +204,37 @@ export function AccountReassignmentModal({
     }
   };
 
+  const loadAccountSummaryFallback = async () => {
+    if (!selectedAccountIds.length) {
+      setAccountPreviewRows([]);
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/accounts/summary', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accountIds: selectedAccountIds })
+      });
+
+      if (response.ok) {
+        const payload = await response.json().catch(() => null);
+        const summaries: any[] = Array.isArray(payload?.accounts) ? payload.accounts : [];
+        setAccountPreviewRows(
+          summaries.map(summary => ({
+            id: summary.id,
+            accountName: summary.accountName,
+            accountType: summary.accountType ?? '',
+            accountOwner: summary.accountOwner ?? '',
+            status: summary.status ?? ''
+          }))
+        );
+      }
+    } catch (error) {
+      console.error('Failed to load account summaries:', error);
+    }
+  };
+
   const loadImpactPreview = async () => {
     if (!reassignmentData.newOwnerId) return;
 
@@ -191,6 +262,23 @@ export function AccountReassignmentModal({
         const impactData = await response.json();
         console.log('Impact data received:', impactData);
         setImpactPreview(impactData);
+        const accounts =
+          impactData?.accountsByOwner && typeof impactData.accountsByOwner === 'object'
+            ? Object.values(impactData.accountsByOwner).flat()
+            : [];
+        const normalizedRows: AccountPreviewRow[] = accounts.map((account: any) => ({
+          id: account.id,
+          accountName: account.accountName,
+          accountType: account.accountType ?? '',
+          accountOwner: account.currentOwnerName,
+          status: account.status ?? '',
+          opportunityCount: account.opportunityCount,
+          revenueScheduleCount: account.revenueScheduleCount
+        }));
+        setAccountPreviewRows(normalizedRows);
+        if (!normalizedRows.length) {
+          await loadAccountSummaryFallback();
+        }
       } else {
         const errorData = await response.json();
         console.error('API error:', errorData);
@@ -209,6 +297,7 @@ export function AccountReassignmentModal({
           conflicts: [],
           itemCounts: { activeContacts: 0, openActivities: 0, activeGroups: 0, openTasks: 0 }
         });
+        await loadAccountSummaryFallback();
       }
     } catch (error) {
       console.error('Failed to load impact preview:', error);
@@ -227,6 +316,7 @@ export function AccountReassignmentModal({
         conflicts: [],
         itemCounts: { activeContacts: 0, openActivities: 0, activeGroups: 0, openTasks: 0 }
       });
+      await loadAccountSummaryFallback();
     } finally {
       setPreviewLoading(false);
     }
@@ -269,6 +359,8 @@ export function AccountReassignmentModal({
       currency: 'USD'
     }).format(amount);
   };
+
+  const confirmPreviewSample = accountPreviewRows.slice(0, 3);
 
   if (!isOpen) return null;
 
@@ -537,6 +629,57 @@ export function AccountReassignmentModal({
                         </div>
                       </div>
 
+                      {/* Selected Accounts Overview */}
+                      <div>
+                        <h4 className="text-md font-medium text-gray-900 mb-3">Selected Accounts</h4>
+                        {accountPreviewRows.length === 0 ? (
+                          <p className="text-sm text-gray-500">
+                            No account details available for preview. This may indicate a permissions or data issue.
+                          </p>
+                        ) : (
+                          <div className="border border-gray-200 rounded-lg overflow-hidden max-h-64 overflow-y-auto">
+                            <table className="min-w-full divide-y divide-gray-200 text-sm">
+                              <thead className="bg-gray-50">
+                                <tr>
+                                  <th className="px-3 py-2 text-left font-medium text-gray-700">Account Name</th>
+                                  <th className="px-3 py-2 text-left font-medium text-gray-700">Account Type</th>
+                                  <th className="px-3 py-2 text-left font-medium text-gray-700">Current Owner</th>
+                                  <th className="px-3 py-2 text-left font-medium text-gray-700">Status</th>
+                                  <th className="px-3 py-2 text-right font-medium text-gray-700">Open Opps</th>
+                                  <th className="px-3 py-2 text-right font-medium text-gray-700">Revenue Schedules</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-gray-100 bg-white">
+                                {accountPreviewRows.map((account: AccountPreviewRow) => (
+                                  <tr key={account.id}>
+                                    <td className="px-3 py-2">
+                                      <div className="flex flex-col">
+                                        <span className="font-medium text-gray-900">{account.accountName}</span>
+                                      </div>
+                                    </td>
+                                    <td className="px-3 py-2 text-gray-700">
+                                      {account.accountType || '—'}
+                                    </td>
+                                    <td className="px-3 py-2 text-gray-700">
+                                      {account.accountOwner || "Unassigned"}
+                                    </td>
+                                    <td className="px-3 py-2 text-gray-700">
+                                      {account.status || '—'}
+                                    </td>
+                                    <td className="px-3 py-2 text-right text-gray-700">
+                                      {account.opportunityCount ?? 0}
+                                    </td>
+                                    <td className="px-3 py-2 text-right text-gray-700">
+                                      {account.revenueScheduleCount ?? 0}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+
                       {/* Transfer Details */}
                       <div>
                         <h4 className="text-md font-medium text-gray-900 mb-3">Transfer Details</h4>
@@ -666,6 +809,26 @@ export function AccountReassignmentModal({
                             </span>
                           </div>
                         </div>
+                      </div>
+                    )}
+                    {confirmPreviewSample.length > 0 && (
+                      <div className="mt-4 pt-4 border-t border-gray-200">
+                        <h4 className="font-medium text-gray-900 mb-2">Sample accounts</h4>
+                        <ul className="space-y-1 text-sm text-gray-700">
+                          {confirmPreviewSample.map(account => (
+                            <li key={account.id} className="flex justify-between">
+                              <span>{account.accountName}</span>
+                              <span className="text-gray-500">
+                                {account.accountOwner || 'Unassigned'} · {account.status || '—'}
+                              </span>
+                            </li>
+                          ))}
+                          {accountPreviewRows.length > confirmPreviewSample.length && (
+                            <li className="text-xs text-gray-500">
+                              +{accountPreviewRows.length - confirmPreviewSample.length} more (see Preview step for details)
+                            </li>
+                          )}
+                        </ul>
                       </div>
                     )}
                   </div>

@@ -59,6 +59,7 @@ export async function GET(request: NextRequest) {
       const pageSize = Math.min(100, Math.max(1, Number(searchParams.get("pageSize") ?? "25")))
       const query = searchParams.get("q")?.trim() ?? ""
       const statusParam = (searchParams.get("status") ?? "active").toLowerCase()
+      const createdById = searchParams.get("createdById")?.trim() ?? ""
       const sortColumn = searchParams.get("sort") ?? "productNameHouse"
       const sortDirection: "asc" | "desc" = searchParams.get("direction") === "asc" ? "asc" : "desc"
 
@@ -81,6 +82,10 @@ export async function GET(request: NextRequest) {
 
       const where: Prisma.ProductWhereInput = {
         tenantId,
+      }
+
+      if (createdById) {
+        where.createdById = createdById
       }
 
       if (statusParam === "inactive") {

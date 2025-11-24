@@ -408,6 +408,10 @@ export default function AccountsPage() {
   const [accountColumnsNormalized, setAccountColumnsNormalized] = useState(false);
   const [tableBodyHeight, setTableBodyHeight] = useState<number>();
   const tableAreaNodeRef = useRef<HTMLDivElement | null>(null);
+  const selectedAccountRows = useMemo(
+    () => accounts.filter(account => selectedAccounts.includes(account.id)),
+    [accounts, selectedAccounts]
+  );
 
   const {
     columns: preferenceColumns,
@@ -1686,6 +1690,7 @@ export default function AccountsPage() {
       <AccountReassignmentModal
         isOpen={showReassignModal}
         selectedAccountIds={selectedAccounts}
+        selectedAccountRows={selectedAccountRows}
         onClose={() => setShowReassignModal(false)}
         onConfirm={async (data) => {
           setBulkActionLoading(true)
@@ -1851,3 +1856,7 @@ export default function AccountsPage() {
 
 
 
+  const selectedAccountRows = useMemo(
+    () => accounts.filter(account => selectedAccounts.includes(account.id)),
+    [accounts, selectedAccounts]
+  );

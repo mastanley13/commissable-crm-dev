@@ -28,7 +28,7 @@ export const navigation: NavItem[] = [
   { name: 'Contacts', href: '/contacts', icon: Building2 },
   { name: 'Opportunities', href: '/opportunities', icon: Target },
   { name: 'Revenue Schedules', href: '/revenue-schedules', icon: Calendar },
-  { name: 'Products', href: '/products', icon: Package },
+  { name: 'Catalog', href: '/products', icon: Package },
   { name: 'Reconciliation', href: '/reconciliation', icon: GitCompare },
   { name: 'Groups', href: '/groups', icon: Users2 },
   { name: 'Reports', href: '/reports', icon: BarChart3 },

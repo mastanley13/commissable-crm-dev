@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { LeadSource, OpportunityStage, OpportunityStatus, Prisma } from "@prisma/client"
+import { LeadSource, OpportunityStage, OpportunityStatus, Prisma, AuditAction } from "@prisma/client"
 import { prisma } from "@/lib/db"
 import { withPermissions } from "@/lib/api-auth"
 import { ensureActiveOwnerOrNull } from "@/lib/validation"
@@ -7,6 +7,7 @@ import { hasAnyPermission } from "@/lib/auth"
 import { mapOpportunityToRow } from "./helpers"
 import { dedupeColumnFilters } from "@/lib/filter-utils"
 import type { ColumnFilter } from "@/components/list-header"
+import { logOpportunityAudit } from "@/lib/audit"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -431,6 +432,27 @@ export async function POST(request: NextRequest) {
           updatedById: req.user.id
         }
       })
+
+      // Log audit trail for opportunity creation
+      await logOpportunityAudit(
+        AuditAction.Create,
+        opportunity.id,
+        req.user.id,
+        req.user.tenantId,
+        request,
+        undefined,
+        {
+          name: opportunity.name,
+          stage: opportunity.stage,
+          leadSource: opportunity.leadSource,
+          ownerId: opportunity.ownerId,
+          accountId: opportunity.accountId,
+          estimatedCloseDate: opportunity.estimatedCloseDate,
+          subagentPercent: opportunity.subagentPercent,
+          houseRepPercent: opportunity.houseRepPercent,
+          houseSplitPercent: opportunity.houseSplitPercent
+        }
+      )
 
       return NextResponse.json({ data: opportunity })
     } catch (error) {

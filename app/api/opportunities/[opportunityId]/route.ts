@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { LeadSource, OpportunityStage, OpportunityStatus } from "@prisma/client"
+import { LeadSource, OpportunityStage, OpportunityStatus, AuditAction } from "@prisma/client"
 import { prisma } from "@/lib/db"
 import { withPermissions } from "@/lib/api-auth"
 import { hasAnyPermission } from "@/lib/auth"
@@ -13,6 +13,7 @@ import {
   validateStageTransition
 } from "@/lib/opportunities/stage"
 import type { OpportunityStageValue } from "@/lib/opportunity-stage"
+import { logOpportunityAudit } from "@/lib/audit"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -285,7 +286,23 @@ export async function PATCH(request: NextRequest, { params }: { params: { opport
       const tenantId = req.user.tenantId
       const existing = await prisma.opportunity.findFirst({
         where: { id: opportunityId, tenantId },
-        select: { id: true, accountId: true, ownerId: true, stage: true, status: true }
+        select: {
+          id: true,
+          accountId: true,
+          ownerId: true,
+          stage: true,
+          status: true,
+          name: true,
+          leadSource: true,
+          estimatedCloseDate: true,
+          description: true,
+          referredBy: true,
+          shippingAddress: true,
+          billingAddress: true,
+          subagentPercent: true,
+          houseRepPercent: true,
+          houseSplitPercent: true
+        }
       })
 
       if (!existing) {
@@ -525,6 +542,43 @@ export async function PATCH(request: NextRequest, { params }: { params: { opport
         return NextResponse.json({ error: "Failed to update opportunity" }, { status: 500 })
       }
 
+      // Log audit trail for opportunity update
+      await logOpportunityAudit(
+        AuditAction.Update,
+        existing.id,
+        req.user.id,
+        req.user.tenantId,
+        request,
+        {
+          name: existing.name,
+          stage: existing.stage,
+          leadSource: existing.leadSource,
+          ownerId: existing.ownerId,
+          estimatedCloseDate: existing.estimatedCloseDate,
+          description: existing.description,
+          referredBy: existing.referredBy,
+          shippingAddress: existing.shippingAddress,
+          billingAddress: existing.billingAddress,
+          subagentPercent: existing.subagentPercent,
+          houseRepPercent: existing.houseRepPercent,
+          houseSplitPercent: existing.houseSplitPercent
+        },
+        {
+          name: updated.name,
+          stage: updated.stage,
+          leadSource: updated.leadSource,
+          ownerId: updated.ownerId,
+          estimatedCloseDate: updated.estimatedCloseDate,
+          description: updated.description,
+          referredBy: updated.referredBy,
+          shippingAddress: updated.shippingAddress,
+          billingAddress: updated.billingAddress,
+          subagentPercent: updated.subagentPercent,
+          houseRepPercent: updated.houseRepPercent,
+          houseSplitPercent: updated.houseSplitPercent
+        }
+      )
+
       await revalidateOpportunityPaths(existing.accountId)
       if (stageWasUpdated) {
         try {
@@ -553,7 +607,14 @@ export async function DELETE(request: NextRequest, { params }: { params: { oppor
       const tenantId = req.user.tenantId
       const existing = await prisma.opportunity.findFirst({
         where: { id: opportunityId, tenantId },
-        select: { id: true, accountId: true }
+        select: {
+          id: true,
+          accountId: true,
+          name: true,
+          stage: true,
+          leadSource: true,
+          ownerId: true
+        }
       })
 
       if (!existing) {
@@ -561,6 +622,23 @@ export async function DELETE(request: NextRequest, { params }: { params: { oppor
       }
 
       await prisma.opportunity.delete({ where: { id: existing.id } })
+
+      // Log audit trail for opportunity deletion
+      await logOpportunityAudit(
+        AuditAction.Delete,
+        existing.id,
+        req.user.id,
+        req.user.tenantId,
+        request,
+        {
+          name: existing.name,
+          stage: existing.stage,
+          leadSource: existing.leadSource,
+          ownerId: existing.ownerId,
+          accountId: existing.accountId
+        },
+        undefined
+      )
 
       await revalidateOpportunityPaths(existing.accountId)
 

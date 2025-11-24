@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, type ChangeEvent, type ReactNode } from "react";
 import { Search, Settings, ChevronDown, X, Upload, Download } from "lucide-react";
 import { BulkActionsGrid, type BulkActionsGridProps } from "./bulk-actions-grid";
+import { AccountStatusFilterDropdown } from "./account-status-filter-dropdown";
 
 interface FilterColumnOption {
   id: string;
@@ -295,24 +296,11 @@ export function ListHeader({
   const iconBtnPad = compact ? "p-1" : "p-1.5"
   const horizontalPadding = inTab ? "px-0" : "px-4"
 
-  const renderStatusLabel = (value: "active" | "inactive" | "all") => {
-    switch (value) {
-      case "active":
-        return "Active"
-      case "inactive":
-        return "Show Inactive"
-      case "all":
-        return "Show All"
-      default:
-        return value
-    }
-  }
-
   const mergedBulkActions =
     bulkActions && bulkActions.actions.length > 0
       ? {
           ...bulkActions,
-          density: bulkActions.density ?? (compact || inTab ? "compact" : "default"),
+          density: bulkActions.density ?? (compact ? "compact" : "default"),
         }
       : null;
 
@@ -343,21 +331,10 @@ export function ListHeader({
             </div>
             {leftAccessory}
             {showStatusFilter && (
-              <div className="inline-flex rounded-lg border border-gray-300 bg-gray-50 p-0.5">
-                {effectiveStatusOptions.map(option => (
-                  <button
-                    key={option}
-                    onClick={() => handleStatusFilterChange(option)}
-                    className={`${btnPad} text-sm font-medium transition-all duration-200 rounded-md ${
-                      activeFilter === option
-                        ? "bg-primary-600 text-white shadow-sm"
-                        : "text-gray-600 hover:text-gray-900"
-                    }`}
-                  >
-                    {renderStatusLabel(option)}
-                  </button>
-                ))}
-              </div>
+              <AccountStatusFilterDropdown
+                value={activeFilter === "inactive" ? "all" : activeFilter}
+                onChange={(value) => handleStatusFilterChange(value === "all" ? "inactive" : value)}
+              />
             )}
 
             {showCreateButton && (

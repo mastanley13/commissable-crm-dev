@@ -234,7 +234,7 @@ export async function logUserAudit(
   previousValues?: Record<string, any>,
   newValues?: Record<string, any>
 ): Promise<void> {
-  const changedFields = previousValues && newValues 
+  const changedFields = previousValues && newValues
     ? getChangedFields(previousValues, newValues)
     : undefined
 
@@ -244,6 +244,36 @@ export async function logUserAudit(
     action,
     entityName: 'User',
     entityId: targetUserId,
+    changedFields,
+    previousValues,
+    newValues,
+    ipAddress: getClientIP(request),
+    userAgent: getUserAgent(request)
+  })
+}
+
+/**
+ * Audit logging for opportunity operations
+ */
+export async function logOpportunityAudit(
+  action: AuditAction,
+  opportunityId: string,
+  userId: string,
+  tenantId: string,
+  request: Request,
+  previousValues?: Record<string, any>,
+  newValues?: Record<string, any>
+): Promise<void> {
+  const changedFields = previousValues && newValues
+    ? getChangedFields(previousValues, newValues)
+    : undefined
+
+  await logAudit({
+    userId,
+    tenantId,
+    action,
+    entityName: 'Opportunity',
+    entityId: opportunityId,
     changedFields,
     previousValues,
     newValues,

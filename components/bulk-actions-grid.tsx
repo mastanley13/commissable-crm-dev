@@ -47,17 +47,20 @@ export function BulkActionsGrid({
     return null
   }
 
-  const buttonSize = density === "compact" ? "h-3.5 w-3.5" : "h-4 w-4"
-  const iconSize = density === "compact" ? "h-2.5 w-2.5" : "h-3 w-3"
+  const buttonPadding =
+    density === "compact" ? "px-2 text-xs" : "px-3 text-sm"
+  const iconSize = density === "compact" ? "h-3 w-3" : "h-4 w-4"
+  const groupHeightClass = density === "compact" ? "h-9" : "h-10"
 
   return (
     <div
       className={cn(
-        "inline-grid grid-cols-2 overflow-hidden rounded-md border border-gray-300 bg-white",
+        "inline-flex overflow-hidden rounded-lg border border-gray-300 bg-white divide-x divide-gray-200",
+        groupHeightClass,
         className
       )}
     >
-      {visibleActions.map((action, index) => {
+      {visibleActions.map(action => {
         const Icon = action.icon
         const disabled = isBusy || selectedCount === 0 || action.disabled
         const tooltip =
@@ -78,8 +81,8 @@ export function BulkActionsGrid({
             aria-label={action.label}
             title={tooltip}
             className={cn(
-              "flex items-center justify-center bg-transparent transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500",
-              buttonSize,
+              "inline-flex h-full items-center justify-center bg-transparent transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500",
+              buttonPadding,
               !disabled && toneClasses[action.tone ?? "neutral"],
               disabled && "cursor-not-allowed text-gray-300"
             )}
@@ -88,22 +91,16 @@ export function BulkActionsGrid({
           </button>
         )
 
-        const cellBorders = cn(
-          "flex h-full w-full items-center justify-center border-gray-200",
-          index < 2 && "border-b",
-          index % 2 === 0 && "border-r"
-        )
-
         if (action.wrapper) {
           return (
-            <div key={action.key} className={cellBorders}>
+            <div key={action.key} className="flex items-center justify-center">
               {action.wrapper(button)}
             </div>
           )
         }
 
         return (
-          <div key={action.key} className={cellBorders}>
+          <div key={action.key} className="flex items-center justify-center">
             {button}
           </div>
         )

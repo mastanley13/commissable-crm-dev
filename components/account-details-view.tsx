@@ -29,18 +29,15 @@ import { GroupEditModal } from "./group-edit-modal"
 import { ActivityNoteCreateModal } from "./activity-note-create-modal"
 import { ColumnChooserModal } from "./column-chooser-modal"
 import { calculateMinWidth } from "@/lib/column-width-utils"
-import { OpportunityBulkActionBar } from "./opportunity-bulk-action-bar"
-import { GroupBulkActionBar } from "./group-bulk-action-bar"
+import { buildStandardBulkActions } from "@/components/standard-bulk-actions"
 import { OpportunityBulkOwnerModal } from "./opportunity-bulk-owner-modal"
 import { OpportunityBulkStatusModal } from "./opportunity-bulk-status-modal"
 import { OpportunityEditModal } from "./opportunity-edit-modal"
 import { TwoStageDeleteDialog } from "./two-stage-delete-dialog"
 import { GroupBulkOwnerModal } from "./group-bulk-owner-modal"
 import { GroupBulkStatusModal } from "./group-bulk-status-modal"
-import { ContactBulkActionBar } from "./contact-bulk-action-bar"
 import { ContactBulkOwnerModal } from "./contact-bulk-owner-modal"
 import { ContactBulkStatusModal } from "./contact-bulk-status-modal"
-import { ActivityBulkActionBar } from "./activity-bulk-action-bar"
 import { ActivityBulkOwnerModal } from "./activity-bulk-owner-modal"
 import { ActivityBulkStatusModal } from "./activity-bulk-status-modal"
 import { ContactEditModal } from "./contact-edit-modal"
@@ -2528,11 +2525,11 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
     }
   }, [showError, showSuccess, setContactRows, onRefresh])
 
-  const requestContactDelete = useCallback((contact: AccountContactRow) => {
-    setContactDeleteTargets([])
-    setContactToDelete(contact)
-    setShowContactDeleteDialog(true)
-  }, [])
+    const requestContactDelete = useCallback((contact: AccountContactRow) => {
+      setContactDeleteTargets([])
+      setContactToDelete(contact)
+      setShowContactDeleteDialog(true)
+    }, [])
 
   const openContactBulkDeleteDialog = useCallback(() => {
     if (selectedContacts.length === 0) {
@@ -2550,10 +2547,82 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
       return
     }
 
-    setContactDeleteTargets(targets)
-    setContactToDelete(null)
-    setShowContactDeleteDialog(true)
-  }, [paginatedContacts, selectedContacts, showError])
+      setContactDeleteTargets(targets)
+      setContactToDelete(null)
+      setShowContactDeleteDialog(true)
+    }, [paginatedContacts, selectedContacts, showError])
+
+    const handleContactBulkExportCsv = useCallback(() => {
+      if (selectedContacts.length === 0) {
+        showError("No contacts selected", "Select at least one contact to export.")
+        return
+      }
+
+      const rows = paginatedContacts.filter(row => selectedContacts.includes(row.id))
+      if (rows.length === 0) {
+        showError(
+          "Contacts unavailable",
+          "Unable to locate the selected contacts. Refresh the page and try again."
+        )
+        return
+      }
+
+      const headers = [
+        "Suffix",
+        "Full Name",
+        "Job Title",
+        "Contact Type",
+        "Email",
+        "Work Phone",
+        "Mobile",
+        "Extension",
+        "Active"
+      ]
+
+      const escapeCsv = (value: string | null | undefined) => {
+        if (value === null || value === undefined) return ""
+        const s = String(value)
+        if (s.includes("\"") || s.includes(",") || s.includes("\n")) {
+          return `"${s.replace(/\"/g, '""')}"`
+        }
+        return s
+      }
+
+      const lines = [
+        headers.join(","),
+        ...rows.map(r =>
+          [
+            r.suffix,
+            r.fullName,
+            r.jobTitle,
+            r.contactType,
+            r.emailAddress,
+            r.workPhone,
+            r.mobile,
+            r.extension,
+            r.active ? "Active" : "Inactive"
+          ]
+            .map(escapeCsv)
+            .join(",")
+        )
+      ]
+
+      const blob = new Blob([lines.join("\r\n")], { type: "text/csv;charset=utf-8;" })
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      const ts = new Date().toISOString().replace(/[:T]/g, "-").split(".")[0]
+      a.href = url
+      a.download = `contacts-export-${ts}.csv`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      window.URL.revokeObjectURL(url)
+
+      showSuccess(
+        `Exported ${rows.length} contact${rows.length === 1 ? "" : "s"}`,
+        "Check your downloads for the CSV file."
+      )
+    }, [paginatedContacts, selectedContacts, showError, showSuccess])
 
   const closeContactDeleteDialog = useCallback(() => {
     setShowContactDeleteDialog(false)
@@ -4501,6 +4570,134 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
     setSelectedActivities([])
   }, [paginatedActivities])
 
+  const openActivityBulkDeleteDialog = useCallback(async () => {
+    if (selectedActivities.length === 0) {
+      showError("No activities selected", "Select at least one activity to delete.")
+      return
+    }
+
+    const confirmed = window.confirm(
+      `Delete ${selectedActivities.length} selected activit${
+        selectedActivities.length === 1 ? "y" : "ies"
+      }? This action cannot be undone.`
+    )
+
+    if (!confirmed) {
+      return
+    }
+
+    try {
+      setActivityBulkActionLoading(true)
+      let successCount = 0
+      let failureCount = 0
+
+      for (const id of selectedActivities) {
+        try {
+          const response = await fetch(`/api/activities/${id}`, { method: "DELETE" })
+          if (response.ok) {
+            successCount++
+          } else {
+            failureCount++
+          }
+        } catch {
+          failureCount++
+        }
+      }
+
+      if (successCount > 0) {
+        showSuccess(
+          `Deleted ${successCount} activit${successCount === 1 ? "y" : "ies"}`,
+          failureCount > 0 ? `${failureCount} failed. Refresh and try again.` : ""
+        )
+        setSelectedActivities([])
+        onRefresh?.()
+      } else if (failureCount > 0) {
+        showError("Failed to delete activities", "Please refresh the page and try again.")
+      }
+    } finally {
+      setActivityBulkActionLoading(false)
+    }
+  }, [selectedActivities, onRefresh, showError, showSuccess])
+
+  const handleBulkActivityExportCsv = useCallback(() => {
+    if (selectedActivities.length === 0) {
+      showError("No activities selected", "Select at least one activity to export.")
+      return
+    }
+
+    const rows = paginatedActivities.filter(row => selectedActivities.includes(row.id))
+
+    if (rows.length === 0) {
+      showError(
+        "Activities unavailable",
+        "Unable to locate the selected activities. Refresh and try again."
+      )
+      return
+    }
+
+    const headers = [
+      "Activity Date",
+      "Activity Type",
+      "Description",
+      "Account Name",
+      "File Name",
+      "Created By",
+      "Active"
+    ]
+
+    const escapeCsv = (value: string | null | undefined) => {
+      if (value === null || value === undefined) return ""
+      const stringValue = String(value)
+      if (stringValue.includes("\"") || stringValue.includes(",") || stringValue.includes("\n")) {
+        return `"${stringValue.replace(/"/g, '""')}"`
+      }
+      return stringValue
+    }
+
+    const formatCsvDate = (value?: string | Date | null) => {
+      if (!value) return ""
+      const dateValue = value instanceof Date ? value : new Date(value)
+      if (Number.isNaN(dateValue.getTime())) return ""
+      const year = dateValue.getFullYear()
+      const month = String(dateValue.getMonth() + 1).padStart(2, "0")
+      const day = String(dateValue.getDate()).padStart(2, "0")
+      return `${year}/${month}/${day}`
+    }
+
+    const lines = [
+      headers.join(","),
+      ...rows.map(row =>
+        [
+          formatCsvDate(row.activityDate ?? null),
+          row.activityType,
+          row.description,
+          row.accountName,
+          row.fileName,
+          row.createdBy,
+          row.active ? "Active" : "Inactive"
+        ]
+          .map(escapeCsv)
+          .join(",")
+      )
+    ]
+
+    const blob = new Blob([lines.join("\r\n")], { type: "text/csv;charset=utf-8;" })
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    const timestamp = new Date().toISOString().replace(/[:T]/g, "-").split(".")[0]
+    link.href = url
+    link.download = `activities-export-${timestamp}.csv`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+
+    showSuccess(
+      `Exported ${rows.length} activity${rows.length === 1 ? "" : "ies"}`,
+      "Check your downloads for the CSV file."
+    )
+  }, [paginatedActivities, selectedActivities, showError, showSuccess])
+
   
 
   const hasAccount = Boolean(account)
@@ -4522,7 +4719,95 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
       )
 
 
-  const formatDate = (value?: string | Date | null) => {
+  const contactBulkActions = buildStandardBulkActions({
+    selectedCount: selectedContacts.length,
+    isBusy: contactBulkActionLoading,
+    entityLabelPlural: "contacts",
+    labels: {
+      delete: "Delete",
+      reassign: "Reassign",
+      status: "Status",
+      export: "Export"
+    },
+    tooltips: {
+      delete: count => `Soft delete ${count} contact${count === 1 ? "" : "s"}`,
+      reassign: count => `Change owner for ${count} contact${count === 1 ? "" : "s"}`,
+      status: count => `Update status for ${count} contact${count === 1 ? "" : "s"}`,
+      export: count => `Export ${count} contact${count === 1 ? "" : "s"} to CSV`
+    },
+    onDelete: openContactBulkDeleteDialog,
+    onReassign: () => setShowContactBulkOwnerModal(true),
+    onStatus: () => setShowContactBulkStatusModal(true),
+    onExport: handleContactBulkExportCsv
+  })
+
+  const opportunityBulkActions = buildStandardBulkActions({
+    selectedCount: selectedOpportunities.length,
+    isBusy: opportunityBulkActionLoading,
+    entityLabelPlural: "opportunities",
+    labels: {
+      delete: "Delete",
+      reassign: "Reassign",
+      status: "Status",
+      export: "Export"
+    },
+    tooltips: {
+      delete: count => `Soft delete ${count} opportunity${count === 1 ? "" : "ies"}`,
+      reassign: count => `Change owner for ${count} opportunity${count === 1 ? "" : "ies"}`,
+      status: count => `Update status for ${count} opportunity${count === 1 ? "" : "ies"}`,
+      export: count => `Export ${count} opportunity${count === 1 ? "" : "ies"} to CSV`
+    },
+    onDelete: openOpportunityBulkDeleteDialog,
+    onReassign: () => setShowOpportunityBulkOwnerModal(true),
+    onStatus: () => setShowOpportunityBulkStatusModal(true),
+    onExport: handleBulkOpportunityExportCsv
+  })
+
+  const groupBulkActions = buildStandardBulkActions({
+    selectedCount: selectedGroups.length,
+    isBusy: groupBulkActionLoading,
+    entityLabelPlural: "groups",
+    labels: {
+      delete: "Delete",
+      reassign: "Reassign",
+      status: "Status",
+      export: "Export"
+    },
+    tooltips: {
+      delete: count => `Soft delete ${count} group${count === 1 ? "" : "s"}`,
+      reassign: count => `Change owner for ${count} group${count === 1 ? "" : "s"}`,
+      status: count => `Update status for ${count} group${count === 1 ? "" : "s"}`,
+      export: count => `Export ${count} group${count === 1 ? "" : "s"} to CSV`
+    },
+    onDelete: openGroupBulkDeleteDialog,
+    onReassign: () => setShowGroupBulkOwnerModal(true),
+    onStatus: () => setShowGroupBulkStatusModal(true),
+    onExport: handleBulkGroupExportCsv
+  })
+
+  const activityBulkActions = buildStandardBulkActions({
+    selectedCount: selectedActivities.length,
+    isBusy: activityBulkActionLoading,
+    entityLabelPlural: "activities",
+    labels: {
+      delete: "Delete",
+      reassign: "Reassign",
+      status: "Status",
+      export: "Export"
+    },
+    tooltips: {
+      delete: count => `Delete ${count} activit${count === 1 ? "y" : "ies"}`,
+      reassign: count => `Change owner for ${count} activit${count === 1 ? "y" : "ies"}`,
+      status: count => `Update status for ${count} activit${count === 1 ? "y" : "ies"}`,
+      export: count => `Export ${count} activit${count === 1 ? "y" : "ies"} to CSV`
+    },
+    onDelete: openActivityBulkDeleteDialog,
+    onReassign: () => setShowActivityBulkOwnerModal(true),
+    onStatus: () => setShowActivityBulkStatusModal(true),
+    onExport: handleBulkActivityExportCsv
+  })
+
+    const formatDate = (value?: string | Date | null) => {
     if (!value) return ""
     const date = value instanceof Date ? value : new Date(value as any)
     if (Number.isNaN(date.getTime())) return ""
@@ -4571,12 +4856,14 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                   </div>
 
                   {activeTab === "contacts" && (
-                    <div className="grid flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0 px-3 pb-0">
+                    <div className="grid flex-1 grid-rows-[auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0 px-3 pb-0">
                       <div className="border-t-2 border-t-primary-600 -mr-3">
                         <ListHeader
                         inTab
                         onCreateClick={handleCreateContact}
-                        onFilterChange={(filter: string) => setActiveFilter(filter === "active" ? "active" : "inactive")}
+                        onFilterChange={(filter: string) =>
+                          setActiveFilter(filter === "active" ? "active" : "inactive")
+                        }
                         statusFilter={activeFilter}
                         onSearch={handleContactsSearch}
                         filterColumns={contactsFilterColumns}
@@ -4589,42 +4876,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                         onSettingsClick={() => setShowContactsColumnSettings(true)}
                         showCreateButton={Boolean(account)}
                         searchPlaceholder="Search contacts"
-                      />
-                      <ContactBulkActionBar
-                        count={selectedContacts.length}
-                        disabled={contactBulkActionLoading}
-                        onSoftDelete={openContactBulkDeleteDialog}
-                        onExportCsv={() => {
-                          if (selectedContacts.length === 0) {
-                            showError("No contacts selected", "Select at least one contact to export.")
-                            return
-                          }
-                          const rows = paginatedContacts.filter(row => selectedContacts.includes(row.id))
-                          const headers = ["Suffix","Full Name","Job Title","Contact Type","Email","Work Phone","Mobile","Extension","Active"]
-                          const escapeCsv = (value: string | null | undefined) => {
-                            if (value === null || value === undefined) return ""
-                            const s = String(value)
-                            if (s.includes("\"") || s.includes(",") || s.includes("\n")) return `"${s.replace(/\"/g,'""')}"`
-                            return s
-                          }
-                          const lines = [
-                            headers.join(","),
-                            ...rows.map(r => [r.suffix, r.fullName, r.jobTitle, r.contactType, r.emailAddress, r.workPhone, r.mobile, r.extension, r.active ? "Active" : "Inactive"].map(escapeCsv).join(","))
-                          ]
-                          const blob = new Blob([lines.join("\r\n")], { type: "text/csv;charset=utf-8;" })
-                          const url = window.URL.createObjectURL(blob)
-                          const a = document.createElement("a")
-                          const ts = new Date().toISOString().replace(/[:T]/g, "-").split(".")[0]
-                          a.href = url
-                          a.download = `contacts-export-${ts}.csv`
-                          document.body.appendChild(a)
-                          a.click()
-                          document.body.removeChild(a)
-                          window.URL.revokeObjectURL(url)
-                          showSuccess(`Exported ${rows.length} contact${rows.length === 1 ? "" : "s"}`, "Check your downloads for the CSV file.")
-                        }}
-                        onChangeOwner={() => setShowContactBulkOwnerModal(true)}
-                        onUpdateStatus={() => setShowContactBulkStatusModal(true)}
+                        bulkActions={contactBulkActions}
                       />
                       <div
                         className="flex flex-1 min-h-0 flex-col overflow-hidden"
@@ -4653,7 +4905,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                     </div>
                   )}
                   {activeTab === "opportunities" && (
-                    <div className="grid flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0 px-3 pb-0">
+                    <div className="grid flex-1 grid-rows-[auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0 px-3 pb-0">
                       <div className="border-t-2 border-t-primary-600 -mr-3">
                         <ListHeader
                         inTab
@@ -4671,14 +4923,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                         onSettingsClick={() => setShowOpportunitiesColumnSettings(true)}
                         showCreateButton={Boolean(account)}
                         searchPlaceholder="Search opportunities"
-                      />
-                      <OpportunityBulkActionBar
-                        count={selectedOpportunities.length}
-                        disabled={opportunityBulkActionLoading}
-                        onSoftDelete={openOpportunityBulkDeleteDialog}
-                        onExportCsv={handleBulkOpportunityExportCsv}
-                        onChangeOwner={() => setShowOpportunityBulkOwnerModal(true)}
-                        onUpdateStatus={() => setShowOpportunityBulkStatusModal(true)}
+                        bulkActions={opportunityBulkActions}
                       />
                       <div
                         className="flex flex-1 min-h-0 flex-col overflow-hidden"
@@ -4713,7 +4958,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                   )}
 
                   {activeTab === "groups" && (
-                    <div className="grid flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0 px-3 pb-0">
+                    <div className="grid flex-1 grid-rows-[auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0 px-3 pb-0">
                       <div className="border-t-2 border-t-primary-600 -mr-3">
                         <ListHeader
                         inTab
@@ -4731,14 +4976,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                         onSettingsClick={() => setShowGroupsColumnSettings(true)}
                         showCreateButton={Boolean(account)}
                         searchPlaceholder="Search groups"
-                      />
-                      <GroupBulkActionBar
-                        count={selectedGroups.length}
-                        disabled={groupBulkActionLoading}
-                        onSoftDelete={() => openGroupBulkDeleteDialog()}
-                        onExportCsv={() => handleBulkGroupExportCsv()}
-                        onChangeOwner={() => setShowGroupBulkOwnerModal(true)}
-                        onUpdateStatus={() => setShowGroupBulkStatusModal(true)}
+                        bulkActions={groupBulkActions}
                       />
                       <div
                         className="flex flex-1 min-h-0 flex-col overflow-hidden"
@@ -4768,7 +5006,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                   )}
 
                   {activeTab === "activities" && (
-                    <div className="grid flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0 px-3 pb-0">
+                    <div className="grid flex-1 grid-rows-[auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0 px-3 pb-0">
                       <div className="border-t-2 border-t-primary-600 -mr-3">
                         <ListHeader
                         inTab
@@ -4786,62 +5024,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                         onSettingsClick={() => setShowActivitiesColumnSettings(true)}
                         showCreateButton={Boolean(account)}
                         searchPlaceholder="Search activities"
-                      />
-                      <ActivityBulkActionBar
-                        count={selectedActivities.length}
-                        disabled={activityBulkActionLoading}
-                        onSoftDelete={openContactBulkDeleteDialog}
-                        onExportCsv={() => {
-                          if (selectedActivities.length === 0) {
-                            showError("No activities selected", "Select at least one activity to export.")
-                            return
-                          }
-                          const rows = paginatedActivities.filter(row => selectedActivities.includes(row.id))
-                          if (rows.length === 0) {
-                            showError("Activities unavailable", "Unable to locate the selected activities. Refresh and try again.")
-                            return
-                          }
-                          const headers = [
-                            "Activity Date",
-                            "Activity Type",
-                            "Description",
-                            "Account Name",
-                            "File Name",
-                            "Created By",
-                            "Active"
-                          ]
-                          const escapeCsv = (value: string | null | undefined) => {
-                            if (value === null || value === undefined) return ""
-                            const s = String(value)
-                            if (s.includes("\"") || s.includes(",") || s.includes("\n")) return `"${s.replace(/\"/g, '""')}"`
-                            return s
-                          }
-                          const lines = [
-                            headers.join(","),
-                            ...rows.map(row => [
-                              row.activityDate ? formatDate(row.activityDate as any) : "",
-                              row.activityType,
-                              row.description,
-                              row.accountName,
-                              row.fileName,
-                              row.createdBy,
-                              row.active ? "Active" : "Inactive"
-                            ].map(escapeCsv).join(","))
-                          ]
-                          const blob = new Blob([lines.join("\r\n")], { type: "text/csv;charset=utf-8;" })
-                          const url = window.URL.createObjectURL(blob)
-                          const link = document.createElement("a")
-                          const timestamp = new Date().toISOString().replace(/[:T]/g, "-").split(".")[0]
-                          link.href = url
-                          link.download = `activities-export-${timestamp}.csv`
-                          document.body.appendChild(link)
-                          link.click()
-                          document.body.removeChild(link)
-                          window.URL.revokeObjectURL(url)
-                          showSuccess(`Exported ${rows.length} activity${rows.length === 1 ? "" : "ies"}`, "Check your downloads for the CSV file.")
-                        }}
-                        onChangeOwner={() => setShowActivityBulkOwnerModal(true)}
-                        onUpdateStatus={() => setShowActivityBulkStatusModal(true)}
+                        bulkActions={activityBulkActions}
                       />
                       <div
                         className="flex flex-1 min-h-0 flex-col overflow-hidden"

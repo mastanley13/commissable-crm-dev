@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { Prisma } from "@prisma/client"
-import { prisma } from "@/lib/db"
+import { getPrisma } from "@/lib/db"
 import { withPermissions } from "@/lib/api-auth"
 
 export const runtime = "nodejs"
@@ -15,7 +15,12 @@ const AUDIT_LOG_VIEW_PERMISSIONS = [
 ]
 
 export async function GET(request: NextRequest) {
+  console.log('[AuditLogs API] === REQUEST RECEIVED ===')
+  console.log('[AuditLogs API] URL:', request.url)
+  console.log('[AuditLogs API] Search params:', Object.fromEntries(request.nextUrl.searchParams.entries()))
+
   return withPermissions(request, AUDIT_LOG_VIEW_PERMISSIONS, async req => {
+    console.log('[AuditLogs API] === INSIDE withPermissions HANDLER ===')
     const searchParams = request.nextUrl.searchParams
     const entityName = searchParams.get("entityName")
     const entityId = searchParams.get("entityId")
@@ -52,8 +57,19 @@ export async function GET(request: NextRequest) {
     }
 
     try {
-      const [logs, total] = await prisma.$transaction([
-        prisma.auditLog.findMany({
+      console.log('[AuditLogs API] Fetching logs with params:', {
+        entityName,
+        entityId,
+        entityIds,
+        page,
+        pageSize,
+        tenantId: req.user.tenantId
+      })
+
+      const client = await getPrisma()
+
+      const [logs, total] = await client.$transaction([
+        client.auditLog.findMany({
           where,
           include: {
             user: { select: { id: true, fullName: true, email: true } }
@@ -62,23 +78,40 @@ export async function GET(request: NextRequest) {
           skip: (page - 1) * pageSize,
           take: pageSize
         }),
-        prisma.auditLog.count({ where })
+        client.auditLog.count({ where })
       ])
 
+      console.log('[AuditLogs API] Found logs:', logs.length, 'total:', total)
+
       return NextResponse.json({
-        data: logs.map(log => ({
-          id: log.id,
-          entityName: log.entityName,
-          entityId: log.entityId,
-          action: log.action,
-          createdAt: log.createdAt.toISOString(),
-          userId: log.userId,
-          userName: log.user?.fullName ?? log.user?.email ?? null,
-          changedFields: log.changedFields ?? null,
-          previousValues: log.previousValues ?? null,
-          newValues: log.newValues ?? null,
-          metadata: log.metadata ?? null
-        })),
+        data: logs.map(log => {
+          // Parse JSON fields if they're strings (shouldn't happen with Prisma, but just in case)
+          const parseJsonField = (field: any) => {
+            if (field === null || field === undefined) return null
+            if (typeof field === 'string') {
+              try {
+                return JSON.parse(field)
+              } catch {
+                return field
+              }
+            }
+            return field
+          }
+
+          return {
+            id: log.id,
+            entityName: log.entityName,
+            entityId: log.entityId,
+            action: log.action,
+            createdAt: log.createdAt.toISOString(),
+            userId: log.userId,
+            userName: log.user?.fullName ?? log.user?.email ?? null,
+            changedFields: parseJsonField(log.changedFields),
+            previousValues: parseJsonField(log.previousValues),
+            newValues: parseJsonField(log.newValues),
+            metadata: parseJsonField(log.metadata)
+          }
+        }),
         pagination: {
           page,
           pageSize,
@@ -88,6 +121,8 @@ export async function GET(request: NextRequest) {
       })
     } catch (error) {
       console.error("Failed to load audit logs", error)
+      console.error("Error details:", error instanceof Error ? error.message : String(error))
+      console.error("Error stack:", error instanceof Error ? error.stack : '')
       return NextResponse.json({ error: "Failed to load audit logs" }, { status: 500 })
     }
   })

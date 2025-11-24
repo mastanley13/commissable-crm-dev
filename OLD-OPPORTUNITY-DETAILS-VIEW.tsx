@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { useSearchParams } from "next/navigation"
-import { Check, Loader2, Trash2, Calendar, Download, ToggleLeft, ToggleRight } from "lucide-react"
+import { Check, Loader2, Trash2, Calendar } from "lucide-react"
 import { LeadSource, OpportunityStage, OpportunityStatus } from "@prisma/client"
 import { cn } from "@/lib/utils"
 import { ListHeader, type ColumnFilter } from "@/components/list-header"
@@ -14,7 +14,6 @@ import { applySimpleFilters } from "@/lib/filter-utils"
 import { EditableField } from "@/components/editable-field"
 import { useEntityEditor, type EntityEditor } from "@/hooks/useEntityEditor"
 import { useUnsavedChangesPrompt } from "@/hooks/useUnsavedChangesPrompt"
-import { useFieldHistory } from "@/hooks/useFieldHistory"
 import { calculateMinWidth } from "@/lib/column-width-utils"
 import { DEFAULT_OPEN_ACTIVITY_STATUS } from "@/lib/activity-status"
 import {
@@ -29,19 +28,19 @@ import { OpportunityLineItemCreateModal } from "./opportunity-line-item-create-m
 import { OpportunityLineItemEditModal } from "./opportunity-line-item-edit-modal"
 import { ActivityNoteCreateModal } from "./activity-note-create-modal"
 import { ActivityNoteEditModal } from "./activity-note-edit-modal"
+import { ActivityBulkActionBar } from "./activity-bulk-action-bar"
 import { ActivityBulkOwnerModal } from "./activity-bulk-owner-modal"
 import { ActivityBulkStatusModal } from "./activity-bulk-status-modal"
 import { ConfirmDialog } from "./confirm-dialog"
 import { RevenueScheduleCreateModal } from "./revenue-schedule-create-modal"
 import { useAuth } from "@/lib/auth-context"
 import { useToasts } from "@/components/toast"
+import { ProductBulkActionBar } from "./product-bulk-action-bar"
 import { OpportunityRoleCreateModal } from "./opportunity-role-create-modal"
 import { getOpportunityStageLabel, getOpportunityStageOptions, isOpportunityStageAutoManaged, isOpportunityStageValue, type OpportunityStageOption } from "@/lib/opportunity-stage"
 import { getRevenueTypeLabel } from "@/lib/revenue-types"
 import { StatusFilterDropdown } from "@/components/status-filter-dropdown"
 import { AuditHistoryTab } from "./audit-history-tab"
-import { buildStandardBulkActions } from "@/components/standard-bulk-actions"
-import type { BulkActionsGridProps } from "@/components/bulk-actions-grid"
 
 // Helper function to parse currency values
 const parseCurrency = (val: any): number => {
@@ -55,8 +54,7 @@ const parseCurrency = (val: any): number => {
 }
 
 const fieldLabelClass = "text-[11px] font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap"
-const fieldBoxClass =
-  "flex min-h-[28px] w-full max-w-md items-center justify-between border-b-2 border-gray-300 bg-transparent pl-[3px] pr-0 py-1 text-[11px] text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis tabular-nums"
+const fieldBoxClass = "flex min-h-[28px] w-full max-w-md items-center justify-between border-b-2 border-gray-300 bg-transparent pl-[3px] pr-0 py-1 text-[11px] text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis tabular-nums"
 
 const PRODUCT_FILTER_COLUMNS: Array<{ id: string; label: string }> = [
   { id: "productName", label: "Product Name" },
@@ -1091,6 +1089,7 @@ function OpportunityHeader({
 
 interface EditableOpportunityHeaderProps {
   opportunity: OpportunityDetailRecord
+  history?: HistoryRow[]
   editor: EntityEditor<OpportunityInlineForm>
   ownerOptions: OwnerOption[]
   ownersLoading: boolean
@@ -1099,17 +1098,12 @@ interface EditableOpportunityHeaderProps {
 
 function EditableOpportunityHeader({
   opportunity,
+  history = [],
   editor,
   ownerOptions,
   ownersLoading,
   onSave
 }: EditableOpportunityHeaderProps) {
-  const { fieldHistory } = useFieldHistory('Opportunity', opportunity.id, [
-    'subagentPercent',
-    'houseRepPercent',
-    'houseSplitPercent'
-  ])
-
   const nameField = editor.register("name")
   const stageField = editor.register("stage")
   const ownerField = editor.register("ownerId")
@@ -1341,51 +1335,42 @@ function EditableOpportunityHeader({
         </div>
 
         <div className="space-y-1.5">
-          <FieldRow label="Referred By" compact>
-            <div className="flex flex-col gap-1 w-full max-w-[260px]">
-              <EditableField.Input
-                className="w-full"
-                value={(referredField.value as string) ?? ""}
-                onChange={referredField.onChange}
-                onBlur={referredField.onBlur}
-              />
-              {editor.errors.referredBy ? (
-                <p className="text-[10px] text-red-600">{editor.errors.referredBy}</p>
-              ) : null}
-            </div>
-          </FieldRow>
+          {renderRow(
+            "Referred By",
+            <EditableField.Input
+              className="w-full"
+              value={(referredField.value as string) ?? ""}
+              onChange={referredField.onChange}
+              onBlur={referredField.onBlur}
+            />,
+            editor.errors.referredBy
+          )}
 
-          <FieldRow label="Shipping Address" compact>
-            <div className="flex flex-col gap-1 w-full max-w-[260px]">
-              <EditableField.Input
-                className="w-full"
-                value={(shippingField.value as string) ?? ""}
-                onChange={shippingField.onChange}
-                onBlur={shippingField.onBlur}
-              />
-              {editor.errors.shippingAddress ? (
-                <p className="text-[10px] text-red-600">{editor.errors.shippingAddress}</p>
-              ) : null}
-            </div>
-          </FieldRow>
+          {renderRow(
+            "Shipping Address",
+            <EditableField.Input
+              className="w-full"
+              value={(shippingField.value as string) ?? ""}
+              onChange={shippingField.onChange}
+              onBlur={shippingField.onBlur}
+            />,
+            editor.errors.shippingAddress
+          )}
 
-          <FieldRow label="Billing Address" compact>
-            <div className="flex flex-col gap-1 w-full max-w-[260px]">
-              <EditableField.Input
-                className="w-full"
-                value={(billingField.value as string) ?? ""}
-                onChange={billingField.onChange}
-                onBlur={billingField.onBlur}
-              />
-              {editor.errors.billingAddress ? (
-                <p className="text-[10px] text-red-600">{editor.errors.billingAddress}</p>
-              ) : null}
-            </div>
-          </FieldRow>
+          {renderRow(
+            "Billing Address",
+            <EditableField.Input
+              className="w-full"
+              value={(billingField.value as string) ?? ""}
+              onChange={billingField.onChange}
+              onBlur={billingField.onBlur}
+            />,
+            editor.errors.billingAddress
+          )}
 
-          {/* Manually render Subagent % */}
-          <FieldRow label="Subagent %" lastEdited={fieldHistory['subagentPercent']} compact>
-            <div className="flex flex-col gap-1 w-full max-w-[260px]">
+          {/* Manually render Subagent % to include lastEdited */}
+          <FieldRow label="Subagent %" lastEdited={getLastEdit(history, "Subagent %")}>
+            <div className="flex flex-col gap-1 w-full max-w-md">
               <EditableField.Input
                 className="w-full pr-6"
                 type="text"
@@ -1403,9 +1388,9 @@ function EditableOpportunityHeader({
             </div>
           </FieldRow>
 
-          {/* Manually render House Rep % */}
-          <FieldRow label="House Rep %" lastEdited={fieldHistory['houseRepPercent']} compact>
-            <div className="flex flex-col gap-1 w-full max-w-[260px]">
+          {/* Manually render House Rep % to include lastEdited */}
+          <FieldRow label="House Rep %" lastEdited={getLastEdit(history, "House Rep %")}>
+            <div className="flex flex-col gap-1 w-full max-w-md">
               <EditableField.Input
                 className="w-full pr-6"
                 type="text"
@@ -1423,9 +1408,9 @@ function EditableOpportunityHeader({
             </div>
           </FieldRow>
 
-          {/* Manually render House Split % */}
-          <FieldRow label="House Split %" lastEdited={fieldHistory['houseSplitPercent']} compact>
-            <div className="flex flex-col gap-1 w-full max-w-[260px]">
+          {/* Manually render House Split % to include lastEdited */}
+          <FieldRow label="House Split %" lastEdited={getLastEdit(history, "House Split %")}>
+            <div className="flex flex-col gap-1 w-full max-w-md">
               <EditableField.Input
                 className="w-full pr-6"
                 type="text"
@@ -1440,20 +1425,17 @@ function EditableOpportunityHeader({
             </div>
           </FieldRow>
 
-          <FieldRow label="Description" compact>
-            <div className="flex flex-col gap-1 w-full max-w-[260px]">
-              <EditableField.Textarea
-                className="w-full"
-                rows={1}
-                value={(descriptionField.value as string) ?? ""}
-                onChange={descriptionField.onChange}
-                onBlur={descriptionField.onBlur}
-              />
-              {editor.errors.description ? (
-                <p className="text-[10px] text-red-600">{editor.errors.description}</p>
-              ) : null}
-            </div>
-          </FieldRow>
+          {renderRow(
+            "Description",
+            <EditableField.Textarea
+              className="w-full"
+              rows={1}
+              value={(descriptionField.value as string) ?? ""}
+              onChange={descriptionField.onChange}
+              onBlur={descriptionField.onBlur}
+            />,
+            editor.errors.description
+          )}
         </div>
       </div>
     </div>
@@ -1934,13 +1916,6 @@ export function OpportunityDetailsView({
     setRoleCurrentPage(1)
   }, [opportunity?.id])
 
-  const selectedRoleRows = useMemo(() => {
-    if (selectedRoles.length === 0) {
-      return []
-    }
-    return roleRows.filter(row => selectedRoles.includes(row.id))
-  }, [roleRows, selectedRoles])
-
   const handleRoleSelect = useCallback((roleId: string, selected: boolean) => {
     setSelectedRoles(previous => {
       if (selected) {
@@ -2036,57 +2011,6 @@ export function OpportunityDetailsView({
       }
     })
   }, [rolePreferenceColumns, selectedRoles, handleRoleSelect])
-
-  const handleBulkRoleExportCsv = useCallback(() => {
-    if (selectedRoles.length === 0) {
-      showError("No roles selected", "Select at least one role to export.")
-      return
-    }
-
-    if (selectedRoleRows.length === 0) {
-      showError("Roles unavailable", "Unable to locate the selected roles. Refresh and try again.")
-      return
-    }
-
-    const headers = ["Role", "Full Name", "Job Title", "Email", "Work Phone", "Extension", "Mobile", "Active"]
-    const escapeCsv = (value: string | null | undefined) => {
-      if (!value) {
-        return ""
-      }
-      return /[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value
-    }
-
-    const lines = selectedRoleRows.map(row =>
-      [
-        row.role,
-        row.fullName,
-        row.jobTitle,
-        row.email,
-        row.workPhone,
-        row.phoneExtension,
-        row.mobile,
-        row.isActive ? "Active" : "Inactive",
-      ]
-        .map(value => escapeCsv(value))
-        .join(",")
-    )
-
-    const blob = new Blob([[headers.join(","), ...lines].join("\r\n")], { type: "text/csv;charset=utf-8;" })
-    const url = window.URL.createObjectURL(blob)
-    const link = document.createElement("a")
-    const timestamp = new Date().toISOString().replace(/[:T]/g, "-").split(".")[0]
-    link.href = url
-    link.download = `opportunity-roles-${timestamp}.csv`
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    window.URL.revokeObjectURL(url)
-
-    showSuccess(
-      `Exported ${selectedRoleRows.length} role${selectedRoleRows.length === 1 ? "" : "s"}`,
-      "Check your downloads for the CSV file."
-    )
-  }, [selectedRoles.length, selectedRoleRows, showError, showSuccess])
 
   const canEditAnyLineItems = hasAnyPermission(["opportunities.manage"])
   const canEditAssignedLineItems = hasPermission("opportunities.edit.assigned")
@@ -2642,14 +2566,6 @@ export function OpportunityDetailsView({
 
   const handleCloseActivityModal = useCallback(() => {
     setActivityModalOpen(false)
-  }, [])
-
-  const openActivityBulkOwnerModal = useCallback(() => {
-    setShowActivityBulkOwnerModal(true)
-  }, [])
-
-  const openActivityBulkStatusModal = useCallback(() => {
-    setShowActivityBulkStatusModal(true)
   }, [])
 
   const handleActivityCreated = useCallback(async () => {
@@ -3614,126 +3530,6 @@ export function OpportunityDetailsView({
     }
   }, [lineItemToDelete, onRefresh, showError, showSuccess]);
 
-  const productBulkActions = useMemo<BulkActionsGridProps>(
-    () => ({
-      selectedCount: selectedLineItems.length,
-      isBusy: lineItemBulkActionLoading || lineItemDeleteLoading,
-      entityName: "product line items",
-      actions: [
-        {
-          key: "delete",
-          label: "Delete",
-          icon: Trash2,
-          tone: "danger",
-          onClick: handleBulkDeleteLineItems,
-          tooltip: count => `Delete ${count} product${count === 1 ? "" : "s"}`,
-        },
-        {
-          key: "export",
-          label: "Export CSV",
-          icon: Download,
-          tone: "info",
-          onClick: handleBulkExportLineItems,
-          tooltip: count => `Export ${count} product${count === 1 ? "" : "s"} to CSV`,
-        },
-        {
-          key: "activate",
-          label: "Mark Active",
-          icon: ToggleRight,
-          tone: "primary",
-          onClick: handleBulkActivateLineItems,
-          tooltip: count => `Mark ${count} product${count === 1 ? "" : "s"} active`,
-        },
-        {
-          key: "deactivate",
-          label: "Mark Inactive",
-          icon: ToggleLeft,
-          tone: "neutral",
-          onClick: handleBulkDeactivateLineItems,
-          tooltip: count => `Mark ${count} product${count === 1 ? "" : "s"} inactive`,
-        },
-      ],
-    }),
-    [
-      selectedLineItems.length,
-      lineItemBulkActionLoading,
-      lineItemDeleteLoading,
-      handleBulkDeleteLineItems,
-      handleBulkExportLineItems,
-      handleBulkActivateLineItems,
-      handleBulkDeactivateLineItems,
-    ]
-  )
-
-  const revenueBulkActions = useMemo<BulkActionsGridProps>(
-    () => ({
-      selectedCount: selectedRevenueSchedules.length,
-      entityName: "revenue schedules",
-      actions: [
-        {
-          key: "revenue-export",
-          label: "Export CSV",
-          icon: Download,
-          tone: "info",
-          onClick: handleRevenueExportCsv,
-          tooltip: count => `Export ${count} schedule${count === 1 ? "" : "s"} to CSV`,
-        },
-      ],
-    }),
-    [selectedRevenueSchedules.length, handleRevenueExportCsv]
-  )
-
-  const roleBulkActions = useMemo<BulkActionsGridProps>(
-    () => ({
-      selectedCount: selectedRoles.length,
-      entityName: "roles",
-      actions: [
-        {
-          key: "role-export",
-          label: "Export CSV",
-          icon: Download,
-          tone: "info",
-          onClick: handleBulkRoleExportCsv,
-          tooltip: count => `Export ${count} role${count === 1 ? "" : "s"} to CSV`,
-        },
-      ],
-    }),
-    [selectedRoles.length, handleBulkRoleExportCsv]
-  )
-
-  const activityBulkActions = useMemo(
-    () =>
-      buildStandardBulkActions({
-        selectedCount: selectedActivities.length,
-        isBusy: activityBulkActionLoading,
-        entityLabelPlural: "activities",
-        labels: {
-          delete: "Delete",
-          reassign: "Change Owner",
-          status: "Update Status",
-          export: "Export",
-        },
-        tooltips: {
-          delete: count => `Delete ${count} activit${count === 1 ? "y" : "ies"}`,
-          reassign: count => `Change owner for ${count} activit${count === 1 ? "y" : "ies"}`,
-          status: count => `Update status for ${count} activit${count === 1 ? "y" : "ies"}`,
-          export: count => `Export ${count} activit${count === 1 ? "y" : "ies"} to CSV`,
-        },
-        onDelete: handleBulkActivityDelete,
-        onReassign: openActivityBulkOwnerModal,
-        onStatus: openActivityBulkStatusModal,
-        onExport: handleActivityExportCsv,
-      }),
-    [
-      selectedActivities.length,
-      activityBulkActionLoading,
-      handleBulkActivityDelete,
-      openActivityBulkOwnerModal,
-      openActivityBulkStatusModal,
-      handleActivityExportCsv,
-    ]
-  )
-
   if (loading) {
     return (
       <div className="flex min-h-[420px] flex-col items-center justify-center gap-3 text-sm text-gray-500">
@@ -3773,6 +3569,7 @@ export function OpportunityDetailsView({
   const headerNode = shouldEnableInline ? (
     <EditableOpportunityHeader
       opportunity={opportunity}
+      history={history}
       editor={editor}
       ownerOptions={ownerSelectOptions}
       ownersLoading={ownersLoading}
@@ -3814,7 +3611,7 @@ export function OpportunityDetailsView({
                     <SummaryTab opportunity={opportunity} />
                   </div>
                 ) : activeTab === "products" ? (
-                  <div className="grid flex-1 grid-rows-[auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0 px-3 pb-0">
+                  <div className="grid flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0 px-3 pb-0">
                     <div className="border-t-2 border-t-primary-600 -mr-3">
                     <ListHeader
                       inTab
@@ -3833,7 +3630,14 @@ export function OpportunityDetailsView({
                       isSavingTableChanges={productPreferencesSaving}
                       lastTableSaved={productLastSaved ?? undefined}
                       onSaveTableChanges={saveProductTablePreferences}
-                      bulkActions={productBulkActions}
+                    />
+                    <ProductBulkActionBar
+                      count={selectedLineItems.length}
+                      disabled={lineItemBulkActionLoading || lineItemDeleteLoading}
+                      onDelete={handleBulkDeleteLineItems}
+                      onExportCsv={handleBulkExportLineItems}
+                      onActivate={handleBulkActivateLineItems}
+                      onDeactivate={handleBulkDeactivateLineItems}
                     />
                     <div
                       className="flex flex-1 min-h-0 flex-col overflow-hidden"
@@ -3861,7 +3665,7 @@ export function OpportunityDetailsView({
                     </div>
                   </div>
                 ) : activeTab === "roles" ? (
-                  <div className="grid flex-1 grid-rows-[auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0 px-3 pb-0">
+                  <div className="grid flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0 px-3 pb-0">
                     <div className="border-t-2 border-t-primary-600 -mr-3">
                       <ListHeader
                         inTab
@@ -3882,7 +3686,6 @@ export function OpportunityDetailsView({
                         isSavingTableChanges={rolePreferencesSaving}
                         lastTableSaved={roleLastSaved ?? undefined}
                         onSaveTableChanges={saveRolePreferences}
-                        bulkActions={roleBulkActions}
                       />
                       <div
                         className="flex flex-1 min-h-0 flex-col overflow-hidden"
@@ -3911,7 +3714,7 @@ export function OpportunityDetailsView({
                     </div>
                   </div>
                 ) : activeTab === "revenue-schedules" ? (
-                  <div className="grid flex-1 grid-rows-[auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0 px-3 pb-0">
+                  <div className="grid flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0 px-3 pb-0">
                     <div className="border-t-2 border-t-primary-600 -mr-3">
                       <ListHeader
                         inTab
@@ -3937,7 +3740,8 @@ export function OpportunityDetailsView({
                         isSavingTableChanges={revenuePreferencesSaving}
                         lastTableSaved={revenueLastSaved ?? undefined}
                         onSaveTableChanges={saveRevenuePreferences}
-                        bulkActions={revenueBulkActions}
+                        canExport={selectedRevenueSchedules.length > 0}
+                        onExport={handleRevenueExportCsv}
                       />
                       <div
                         className="flex flex-1 min-h-0 flex-col overflow-hidden"
@@ -3965,7 +3769,7 @@ export function OpportunityDetailsView({
                     </div>
                   </div>
                 ) : activeTab === "activities" ? (
-                  <div className="grid flex-1 grid-rows-[auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0 px-3 pb-0">
+                  <div className="grid flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0 px-3 pb-0">
                     <div className="border-t-2 border-t-primary-600 -mr-3">
                       <ListHeader
                         inTab
@@ -3985,7 +3789,14 @@ export function OpportunityDetailsView({
                         isSavingTableChanges={activityPreferencesSaving}
                         lastTableSaved={activityLastSaved ?? undefined}
                         onSaveTableChanges={saveActivityPreferences}
-                        bulkActions={activityBulkActions}
+                      />
+                      <ActivityBulkActionBar
+                        count={selectedActivities.length}
+                        disabled={activityBulkActionLoading}
+                        onSoftDelete={handleBulkActivityDelete}
+                        onExportCsv={handleActivityExportCsv}
+                        onChangeOwner={() => setShowActivityBulkOwnerModal(true)}
+                        onUpdateStatus={() => setShowActivityBulkStatusModal(true)}
                       />
                       <div
                         className="flex flex-1 min-h-0 flex-col overflow-hidden"
@@ -4021,6 +3832,7 @@ export function OpportunityDetailsView({
                   <AuditHistoryTab
                     entityName="Opportunity"
                     entityId={opportunity.id}
+                    historyRows={history}
                     tableAreaRefCallback={tableAreaRefCallback}
                     tableBodyMaxHeight={tableBodyMaxHeight}
                   />

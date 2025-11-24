@@ -1,10 +1,50 @@
 import { NextRequest, NextResponse } from "next/server"
 import { GroupMemberType, GroupType, GroupVisibility } from "@prisma/client"
 import { prisma } from "@/lib/db"
-import { withPermissions } from "@/lib/api-auth"
+import { withPermissions, withAuth } from "@/lib/api-auth"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
+
+export async function GET(request: NextRequest) {
+  return withAuth(request, async (req) => {
+    try {
+      const searchParams = request.nextUrl.searchParams
+      const tenantId = req.user.tenantId
+      const ownerId = searchParams.get("ownerId")?.trim() ?? ""
+      const includeInactive = searchParams.get("includeInactive") === "true"
+
+      const where: any = { tenantId }
+
+      if (ownerId) {
+        where.ownerId = ownerId
+      }
+
+      if (!includeInactive) {
+        where.isActive = true
+      }
+
+      const groups = await prisma.group.findMany({
+        where,
+        orderBy: { name: "asc" }
+      })
+
+      return NextResponse.json({
+        data: groups.map(group => ({
+          id: group.id,
+          name: group.name,
+          groupType: group.groupType,
+          visibility: group.visibility,
+          memberCount: group.memberCount,
+          isActive: group.isActive
+        }))
+      })
+    } catch (error) {
+      console.error("Failed to load groups", error)
+      return NextResponse.json({ error: "Failed to load groups" }, { status: 500 })
+    }
+  })
+}
 
 function isValidGroupType(value: string): value is GroupType {
   return Object.values(GroupType).includes(value as GroupType)

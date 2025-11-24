@@ -22,13 +22,10 @@ import { calculateMinWidth } from "@/lib/column-width-utils"
 import { ColumnChooserModal } from "./column-chooser-modal"
 import { OpportunityEditModal } from "./opportunity-edit-modal"
 import { GroupEditModal } from "./group-edit-modal"
-import { ActivityBulkActionBar } from "./activity-bulk-action-bar"
 import { ActivityBulkOwnerModal } from "./activity-bulk-owner-modal"
 import { ActivityBulkStatusModal } from "./activity-bulk-status-modal"
-import { OpportunityBulkActionBar } from "./opportunity-bulk-action-bar"
 import { OpportunityBulkOwnerModal } from "./opportunity-bulk-owner-modal"
 import { OpportunityBulkStatusModal } from "./opportunity-bulk-status-modal"
-import { GroupBulkActionBar } from "./group-bulk-action-bar"
 import { GroupBulkOwnerModal } from "./group-bulk-owner-modal"
 import { GroupBulkStatusModal } from "./group-bulk-status-modal"
 import { EditableField } from "./editable-field"
@@ -40,6 +37,7 @@ import { FieldRow as DetailFieldRow } from "./detail/FieldRow"
 import { fieldBoxClass as sharedFieldBoxClass } from "./detail/shared"
 import { ContactHeaderV2 } from "./contact-header-v2"
 import { AuditHistoryTab } from "./audit-history-tab"
+import { buildStandardBulkActions } from "@/components/standard-bulk-actions"
 
 export interface ActivityAttachmentRow {
   id: string
@@ -2343,6 +2341,72 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
     return `${year}/${month}/${day}`
   }
 
+  const opportunityBulkActions = buildStandardBulkActions({
+    selectedCount: selectedOpportunities.length,
+    isBusy: opportunityBulkActionLoading,
+    entityLabelPlural: "opportunities",
+    labels: {
+      delete: "Delete",
+      reassign: "Reassign",
+      status: "Status",
+      export: "Export"
+    },
+    tooltips: {
+      delete: count => `Soft delete ${count} opportunity${count === 1 ? "" : "ies"}`,
+      reassign: count => `Change owner for ${count} opportunity${count === 1 ? "" : "ies"}`,
+      status: count => `Update status for ${count} opportunity${count === 1 ? "" : "ies"}`,
+      export: count => `Export ${count} opportunity${count === 1 ? "" : "ies"} to CSV`
+    },
+    onDelete: openOpportunityBulkDeleteDialog,
+    onReassign: () => setShowOpportunityBulkOwnerModal(true),
+    onStatus: () => setShowOpportunityBulkStatusModal(true),
+    onExport: handleBulkOpportunityExportCsv
+  })
+
+  const groupBulkActions = buildStandardBulkActions({
+    selectedCount: selectedGroups.length,
+    isBusy: groupBulkActionLoading,
+    entityLabelPlural: "groups",
+    labels: {
+      delete: "Delete",
+      reassign: "Reassign",
+      status: "Status",
+      export: "Export"
+    },
+    tooltips: {
+      delete: count => `Soft delete ${count} group${count === 1 ? "" : "s"}`,
+      reassign: count => `Change owner for ${count} group${count === 1 ? "" : "s"}`,
+      status: count => `Update status for ${count} group${count === 1 ? "" : "s"}`,
+      export: count => `Export ${count} group${count === 1 ? "" : "s"} to CSV`
+    },
+    onDelete: openGroupBulkDeleteDialog,
+    onReassign: () => setShowGroupBulkOwnerModal(true),
+    onStatus: () => setShowGroupBulkStatusModal(true),
+    onExport: handleBulkGroupExportCsv
+  })
+
+  const activityBulkActions = buildStandardBulkActions({
+    selectedCount: selectedActivities.length,
+    isBusy: activityBulkActionLoading,
+    entityLabelPlural: "activities",
+    labels: {
+      delete: "Delete",
+      reassign: "Reassign",
+      status: "Status",
+      export: "Export"
+    },
+    tooltips: {
+      delete: count => `Delete ${count} activit${count === 1 ? "y" : "ies"}`,
+      reassign: count => `Change owner for ${count} activit${count === 1 ? "y" : "ies"}`,
+      status: count => `Update status for ${count} activit${count === 1 ? "y" : "ies"}`,
+      export: count => `Export ${count} activit${count === 1 ? "y" : "ies"} to CSV`
+    },
+    onDelete: openActivityBulkDeleteDialog,
+    onReassign: openActivityBulkOwnerModal,
+    onStatus: openActivityBulkStatusModal,
+    onExport: handleBulkActivityExportCsv
+  })
+
   const activitiesFilterColumns = useMemo(() => [
     { id: "id", label: "Activity ID" },
     { id: "activityDate", label: "Activity Date" },
@@ -3241,7 +3305,7 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
                   </div>
 
                   {activeTab === "activities" && (
-                    <div className="grid flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0 px-3 pb-0">
+                    <div className="grid flex-1 grid-rows-[auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0 px-3 pb-0">
                       <div className="border-t-2 border-t-primary-600 -mr-3">
                         <ListHeader
                         inTab
@@ -3255,14 +3319,7 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
                         onSettingsClick={() => setShowActivitiesColumnSettings(true)}
                         showCreateButton={Boolean(contact) && !isDeleted && !loading}
                         searchPlaceholder="Search activities"
-                      />
-                      <ActivityBulkActionBar
-                        count={selectedActivities.length}
-                        disabled={activityBulkActionLoading}
-                        onSoftDelete={openActivityBulkDeleteDialog}
-                        onExportCsv={handleBulkActivityExportCsv}
-                        onChangeOwner={openActivityBulkOwnerModal}
-                        onUpdateStatus={openActivityBulkStatusModal}
+                        bulkActions={activityBulkActions}
                       />
                       <div
                         className="flex flex-1 min-h-0 flex-col overflow-hidden"
@@ -3292,7 +3349,7 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
                   )}
 
                   {activeTab === "opportunities" && (
-                    <div className="grid flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0 px-3 pb-0">
+                    <div className="grid flex-1 grid-rows-[auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0 px-3 pb-0">
                       <div className="border-t-2 border-t-primary-600 -mr-3">
                         <ListHeader
                         inTab
@@ -3306,14 +3363,7 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
                         onSettingsClick={() => setShowOpportunitiesColumnSettings(true)}
                         showCreateButton={false}
                         searchPlaceholder="Search opportunities"
-                      />
-                      <OpportunityBulkActionBar
-                        count={selectedOpportunities.length}
-                        disabled={opportunityBulkActionLoading}
-                        onSoftDelete={openOpportunityBulkDeleteDialog}
-                        onExportCsv={handleBulkOpportunityExportCsv}
-                        onChangeOwner={() => setShowOpportunityBulkOwnerModal(true)}
-                        onUpdateStatus={() => setShowOpportunityBulkStatusModal(true)}
+                        bulkActions={opportunityBulkActions}
                       />
                       <div
                         className="flex flex-1 min-h-0 flex-col overflow-hidden"
@@ -3343,7 +3393,7 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
                   )}
 
                   {activeTab === "groups" && (
-                    <div className="grid flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0 px-3 pb-0">
+                    <div className="grid flex-1 grid-rows-[auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0 px-3 pb-0">
                       <div className="border-t-2 border-t-primary-600 -mr-3">
                         <ListHeader
                         inTab
@@ -3357,14 +3407,7 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
                         onSettingsClick={() => setShowGroupsColumnSettings(true)}
                         showCreateButton={Boolean(contact) && !isDeleted && !loading}
                         searchPlaceholder="Search groups"
-                      />
-                      <GroupBulkActionBar
-                        count={selectedGroups.length}
-                        disabled={groupBulkActionLoading}
-                        onSoftDelete={openGroupBulkDeleteDialog}
-                        onExportCsv={handleBulkGroupExportCsv}
-                        onChangeOwner={() => setShowGroupBulkOwnerModal(true)}
-                        onUpdateStatus={() => setShowGroupBulkStatusModal(true)}
+                        bulkActions={groupBulkActions}
                       />
                       <div
                         className="flex flex-1 min-h-0 flex-col overflow-hidden"

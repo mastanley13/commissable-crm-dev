@@ -7,16 +7,16 @@ import { DynamicTable, type Column, type PaginationInfo } from '@/components/dyn
 import { ColumnChooserModal } from '@/components/column-chooser-modal'
 import { useTablePreferences } from '@/hooks/useTablePreferences'
 import { CopyProtectionWrapper } from '@/components/copy-protection'
-import { ProductBulkActionBar } from '@/components/product-bulk-action-bar'
 import { TwoStageDeleteDialog } from '@/components/two-stage-delete-dialog'
 import { ProductCreateModal } from '@/components/product-create-modal'
 import { useToasts } from '@/components/toast'
-import { Check, Trash2 } from 'lucide-react'
+import { Check, Download, ToggleLeft, ToggleRight, Trash2 } from 'lucide-react'
 import { isRowInactive } from '@/lib/row-state'
 import { calculateMinWidth } from '@/lib/column-width-utils'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/lib/auth-context'
 import { getRevenueTypeLabel } from '@/lib/revenue-types'
+import type { BulkActionsGridProps } from '@/components/bulk-actions-grid'
 
 const PRODUCT_FILTER_OPTIONS = [
   { id: 'productNameVendor', label: 'Product Name - Vendor' },
@@ -279,6 +279,13 @@ export default function ProductsPage() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [tableBodyHeight, setTableBodyHeight] = useState<number>()
   const tableAreaNodeRef = useRef<HTMLDivElement | null>(null)
+
+  const selectedProductRows = useMemo(() => {
+    if (selectedProducts.length === 0) {
+      return []
+    }
+    return products.filter(row => selectedProducts.includes(row.id))
+  }, [products, selectedProducts])
   const [showCreateModal, setShowCreateModal] = useState(false)
 
   const { showError, showSuccess, showWarning, ToastContainer } = useToasts()
@@ -931,6 +938,77 @@ export default function ProductsPage() {
       'Check your downloads for the CSV file.',
     )
   }, [products, selectedProducts, showError, showSuccess])
+
+  const productBulkActions = useMemo<BulkActionsGridProps>(() => ({
+    selectedCount: selectedProducts.length,
+    isBusy: bulkActionLoading,
+    entityName: 'products',
+    actions: [
+      {
+        key: 'delete',
+        label: 'Delete',
+        icon: Trash2,
+        tone: 'danger',
+        disabled: !canEditProducts,
+        tooltip: (count) => `Delete ${count} product${count === 1 ? '' : 's'}`,
+        onClick: () => {
+          if (selectedProductRows.length === 0) {
+            showError('No products selected', 'Select at least one product to delete.')
+            return
+          }
+          openDeleteDialog(selectedProductRows)
+        },
+      },
+      {
+        key: 'export',
+        label: 'Export CSV',
+        icon: Download,
+        tone: 'info',
+        tooltip: (count) => `Export ${count} product${count === 1 ? '' : 's'} to CSV`,
+        onClick: handleBulkExportCsv,
+      },
+      {
+        key: 'activate',
+        label: 'Mark Active',
+        icon: ToggleRight,
+        tone: 'primary',
+        disabled: !canEditProducts,
+        tooltip: (count) => `Mark ${count} product${count === 1 ? '' : 's'} active`,
+        onClick: () => {
+          if (selectedProducts.length === 0) {
+            showError('No products selected', 'Select at least one product to update.')
+            return
+          }
+          handleBulkActivateProducts(selectedProducts)
+        },
+      },
+      {
+        key: 'deactivate',
+        label: 'Mark Inactive',
+        icon: ToggleLeft,
+        tone: 'neutral',
+        disabled: !canEditProducts,
+        tooltip: (count) => `Mark ${count} product${count === 1 ? '' : 's'} inactive`,
+        onClick: () => {
+          if (selectedProducts.length === 0) {
+            showError('No products selected', 'Select at least one product to update.')
+            return
+          }
+          handleBulkDeactivateProducts(selectedProducts)
+        },
+      },
+    ],
+  }), [
+    bulkActionLoading,
+    canEditProducts,
+    handleBulkActivateProducts,
+    handleBulkDeactivateProducts,
+    handleBulkExportCsv,
+    openDeleteDialog,
+    selectedProductRows,
+    selectedProducts.length,
+    showError,
+  ])
   const tableColumns = useMemo(() => {
     return normalizedPreferenceColumns.map((column) => {
       if (column.id === 'multi-action') {
@@ -1123,31 +1201,20 @@ export default function ProductsPage() {
         onSettingsClick={() => setShowColumnSettings(true)}
         filterColumns={PRODUCT_FILTER_OPTIONS}
         columnFilters={columnFilters}
-        onColumnFiltersChange={handleColumnFiltersChange}
-        statusFilter={statusFilter}
-        hasUnsavedTableChanges={hasUnsavedChanges}
-        isSavingTableChanges={preferenceSaving}
-        lastTableSaved={lastSaved || undefined}
-        onSaveTableChanges={saveChanges}
-      />
+      onColumnFiltersChange={handleColumnFiltersChange}
+      statusFilter={statusFilter}
+      hasUnsavedTableChanges={hasUnsavedChanges}
+      isSavingTableChanges={preferenceSaving}
+      lastTableSaved={lastSaved || undefined}
+      onSaveTableChanges={saveChanges}
+      bulkActions={productBulkActions}
+    />
 
       {(error || preferenceError) && (
-        <div className="px-4 text-sm text-red-600">{error || preferenceError}</div>
-      )}
+      <div className="px-4 text-sm text-red-600">{error || preferenceError}</div>
+    )}
 
-      <div className="flex-1 min-h-0 p-4 pt-0 flex flex-col gap-4">
-      <div className="flex-shrink-0">
-        <ProductBulkActionBar
-          count={selectedProducts.length}
-          disabled={bulkActionLoading}
-          disableMutations={!canEditProducts}
-          onDelete={() => openDeleteDialog(products.filter((row) => selectedProducts.includes(row.id)))}
-          onExportCsv={handleBulkExportCsv}
-          onActivate={() => handleBulkActivateProducts(selectedProducts)}
-          onDeactivate={() => handleBulkDeactivateProducts(selectedProducts)}
-        />
-        </div>
-
+    <div className="flex-1 min-h-0 p-4 pt-0 flex flex-col gap-4">
         <div ref={tableAreaRef} className="flex-1 min-h-0">
           <DynamicTable
             columns={tableColumns}

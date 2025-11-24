@@ -7,10 +7,12 @@ import { DynamicTable, Column, PaginationInfo } from '@/components/dynamic-table
 import { ColumnChooserModal } from '@/components/column-chooser-modal'
 import { useTablePreferences } from '@/hooks/useTablePreferences'
 import { depositSummaryMock } from '@/lib/mock-data'
-import { Check, X, CalendarRange, TrendingUp, Wallet, BellRing } from 'lucide-react'
+import { Check, X, CalendarRange, TrendingUp, Wallet, BellRing, Download, Trash2 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { calculateMinWidth } from '@/lib/column-width-utils'
 import { cn } from '@/lib/utils'
+import { useToasts } from '@/components/toast'
+import type { BulkActionsGridProps } from '@/components/bulk-actions-grid'
 
 const TABLE_BOTTOM_RESERVE = 110
 const TABLE_MIN_BODY_HEIGHT = 320
@@ -447,6 +449,7 @@ const MetricCard = ({ icon: Icon, label, value, loading }: MetricCardProps) => (
 )
 
 export default function ReconciliationPage() {
+  const { showSuccess, showError, ToastContainer } = useToasts()
   const router = useRouter()
   const [reconciliation, setReconciliation] = useState<DepositRow[]>([])
   const [loading, setLoading] = useState(false)
@@ -462,6 +465,12 @@ export default function ReconciliationPage() {
   const [tableBodyHeight, setTableBodyHeight] = useState<number | undefined>(undefined)
   const [updatingReconciliationIds, setUpdatingReconciliationIds] = useState<Set<string>>(new Set())
   const tableAreaNodeRef = useRef<HTMLDivElement | null>(null)
+  const selectedReconciliationRows = useMemo(() => {
+    if (selectedReconciliations.length === 0) {
+      return []
+    }
+    return reconciliation.filter(row => selectedReconciliations.includes(String(row.id)))
+  }, [reconciliation, selectedReconciliations])
   const [summaryMetrics, setSummaryMetrics] = useState<DepositSummary>(depositSummaryMock)
   const [summaryLoading, setSummaryLoading] = useState<boolean>(false)
   const [summaryError, setSummaryError] = useState<string | null>(null)
@@ -766,6 +775,75 @@ export default function ReconciliationPage() {
     setSelectedReconciliations([])
   }, [reconciliation])
 
+  const handleBulkDeleteReconciliations = useCallback(() => {
+    if (selectedReconciliations.length === 0) {
+      showError('No records selected', 'Select at least one reconciliation to delete.')
+      return
+    }
+    const ids = new Set(selectedReconciliations)
+    setReconciliation(prev => prev.filter(record => !ids.has(String(record.id))))
+    setSelectedReconciliations([])
+    showSuccess(
+      `Removed ${ids.size} record${ids.size === 1 ? '' : 's'}`,
+      'Selected reconciliation records have been removed from the list.'
+    )
+  }, [selectedReconciliations, showError, showSuccess])
+
+  const handleBulkExportReconciliations = useCallback(() => {
+    if (selectedReconciliationRows.length === 0) {
+      showError('No records selected', 'Select at least one reconciliation to export.')
+      return
+    }
+
+    const headers = [
+      'Deposit Name',
+      'Account Name',
+      'Distributor',
+      'Vendor',
+      'Period',
+      'Total Revenue',
+      'Total Commission',
+      'Status'
+    ]
+
+    const escapeCsv = (value: unknown) => {
+      if (value === null || value === undefined) {
+        return ''
+      }
+      const stringValue = String(value)
+      return /[",\n]/.test(stringValue) ? `"${stringValue.replace(/"/g, '""')}"` : stringValue
+    }
+
+    const lines = [
+      headers.join(','),
+      ...selectedReconciliationRows.map(row => [
+        row.depositName ?? row.id,
+        row.accountName ?? '-',
+        row.distributorName ?? '-',
+        row.vendorName ?? '-',
+        row.month ?? '',
+        currencyFormatter.format(Number(row.totalRevenue ?? 0)),
+        currencyFormatter.format(Number(row.totalCommissions ?? 0)),
+        row.status ?? (row.active ? 'Active' : 'Inactive')
+      ].map(escapeCsv).join(','))
+    ]
+
+    const blob = new Blob([lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' })
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    const timestamp = new Date().toISOString().replace(/[:T]/g, '-').split('.')[0]
+    link.href = url
+    link.download = `reconciliation-export-${timestamp}.csv`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+    showSuccess(
+      `Exported ${selectedReconciliationRows.length} record${selectedReconciliationRows.length === 1 ? '' : 's'}`,
+      'Check your downloads for the CSV file.'
+    )
+  }, [currencyFormatter, selectedReconciliationRows, showError, showSuccess])
+
   const handleToggle = useCallback((row: any, columnId: string, value: boolean) => {
     const rowId = String(row.id)
 
@@ -1026,6 +1104,29 @@ export default function ReconciliationPage() {
     router.push('/reconciliation/deposit-upload-list')
   }, [router])
 
+  const reconciliationBulkActions = useMemo<BulkActionsGridProps>(() => ({
+    selectedCount: selectedReconciliations.length,
+    entityName: 'reconciliation records',
+    actions: [
+      {
+        key: 'delete',
+        label: 'Delete',
+        icon: Trash2,
+        tone: 'danger',
+        tooltip: (count) => `Delete ${count} record${count === 1 ? '' : 's'}`,
+        onClick: handleBulkDeleteReconciliations,
+      },
+      {
+        key: 'export',
+        label: 'Export CSV',
+        icon: Download,
+        tone: 'info',
+        tooltip: (count) => `Export ${count} record${count === 1 ? '' : 's'} to CSV`,
+        onClick: handleBulkExportReconciliations,
+      },
+    ],
+  }), [handleBulkDeleteReconciliations, handleBulkExportReconciliations, selectedReconciliations.length])
+
   return (
     <div className="dashboard-page-container">
       <section className="px-4 pb-0">
@@ -1117,6 +1218,7 @@ export default function ReconciliationPage() {
         createButtonLabel="Deposit Upload"
         showStatusFilter={true}
         showColumnFilters={true}
+        bulkActions={reconciliationBulkActions}
         />
       </div>
 
@@ -1159,6 +1261,7 @@ export default function ReconciliationPage() {
           await saveChangesOnModalClose()
         }}
       />
+      <ToastContainer />
     </div>
   )
 }

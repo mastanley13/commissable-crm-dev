@@ -1,18 +1,23 @@
 "use client"
 
-import { useMemo, useState } from "react"
-import {
-  ClipboardCheck,
-  Eye,
-  FileDown,
-  Link2,
-  Trash2
-} from "lucide-react"
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { ClipboardCheck, Eye, FileDown, Link2, Trash2 } from "lucide-react"
 import { DynamicTable, type Column } from "./dynamic-table"
-import { ListHeader } from "./list-header"
+import { ListHeader, type ColumnFilter } from "./list-header"
+import type { BulkActionsGridProps } from "./bulk-actions-grid"
 import { calculateMinWidth } from "@/lib/column-width-utils"
 import { cn } from "@/lib/utils"
 import type { DepositLineItemRow, SuggestedMatchScheduleRow } from "@/lib/mock-data"
+import { useToasts } from "./toast"
+import { ColumnChooserModal } from "./column-chooser-modal"
+import {
+  DepositLineStatusFilterDropdown,
+  type DepositLineStatusFilterValue
+} from "./deposit-line-status-filter-dropdown"
+import {
+  ReconciliationScheduleStatusFilterDropdown,
+  type ReconciliationScheduleFilterValue
+} from "./reconciliation-schedule-status-filter-dropdown"
 
 export interface DepositReconciliationMetadata {
   id: string
@@ -25,22 +30,93 @@ export interface DepositReconciliationMetadata {
   allocated: number
 }
 
-type LineTabKey = "matched" | "unmatched" | "partial" | "all"
-type ScheduleTabKey = "suggested" | "all" | "reconciled" | "unreconciled"
+type LineTabKey = DepositLineStatusFilterValue
+type ScheduleTabKey = ReconciliationScheduleFilterValue
 
-const lineTabOptions: Array<{ id: LineTabKey; label: string }> = [
-  { id: "matched", label: "Matched" },
-  { id: "unmatched", label: "Unmatched" },
-  { id: "partial", label: "Partial" },
-  { id: "all", label: "All" }
+const depositFieldLabels = {
+  accountId: "06.04.000 Account ID - Vendor",
+  lineItem: "06.04.001 Line Item",
+  status: "06.04.002 Deposit Status",
+  paymentDate: "06.04.003 Payment Date",
+  accountName: "06.04.004 Account Name",
+  vendorName: "06.04.005 Vendor Name",
+  productName: "06.04.006 Product Name - Vendor",
+  usage: "06.04.007 Usage",
+  usageAllocated: "06.04.008 Usage Allocated",
+  usageUnallocated: "06.04.009 Usage Unallocated",
+  commissionRate: "06.04.010 Actual Commission Rate %",
+  commission: "06.04.011 Actual Commission",
+  commissionAllocated: "06.04.012 Commission Allocated",
+  commissionUnallocated: "06.04.013 Commission Unallocated",
+  customerIdVendor: "06.04.014 Customer ID - Vendor",
+  orderIdVendor: "06.04.015 Order ID - Vendor",
+  distributorName: "06.04.016 Distributor Name"
+} as const
+
+type LineFilterColumnId = keyof typeof depositFieldLabels
+
+const depositFieldOrder: LineFilterColumnId[] = [
+  "accountId",
+  "lineItem",
+  "status",
+  "paymentDate",
+  "accountName",
+  "vendorName",
+  "productName",
+  "usage",
+  "usageAllocated",
+  "usageUnallocated",
+  "commissionRate",
+  "commission",
+  "commissionAllocated",
+  "commissionUnallocated",
+  "customerIdVendor",
+  "orderIdVendor",
+  "distributorName"
 ]
 
-const scheduleTabOptions: Array<{ id: ScheduleTabKey; label: string }> = [
-  { id: "suggested", label: "Suggested" },
-  { id: "all", label: "All Schedules" },
-  { id: "reconciled", label: "Reconciled" },
-  { id: "unreconciled", label: "Un-Reconciled" }
+const lineFilterColumnOptions: Array<{ id: LineFilterColumnId; label: string }> = depositFieldOrder.map(id => ({
+  id,
+  label: depositFieldLabels[id]
+}))
+
+const LINE_FILTER_COLUMN_IDS = new Set<LineFilterColumnId>(lineFilterColumnOptions.map(option => option.id))
+
+type ScheduleFilterColumnId =
+  | "sequence"
+  | "name"
+  | "number"
+  | "date"
+  | "accountLegalName"
+  | "product"
+  | "vendorName"
+  | "quantity"
+  | "priceEach"
+  | "expectedUsageGross"
+  | "expectedUsageAdjust"
+  | "status"
+
+const scheduleFilterColumnOptions: Array<{ id: ScheduleFilterColumnId; label: string }> = [
+  { id: "sequence", label: "#" },
+  { id: "name", label: "Name" },
+  { id: "number", label: "Number" },
+  { id: "date", label: "Date" },
+  { id: "accountLegalName", label: "Account Legal Name" },
+  { id: "product", label: "Product" },
+  { id: "vendorName", label: "Vendor Name" },
+  { id: "quantity", label: "Quantity" },
+  { id: "priceEach", label: "Price Each" },
+  { id: "expectedUsageGross", label: "Expected Usage Gross" },
+  { id: "expectedUsageAdjust", label: "Expected Usage Adjust" },
+  { id: "status", label: "Status" }
 ]
+
+const SCHEDULE_FILTER_COLUMN_IDS = new Set<ScheduleFilterColumnId>(
+  scheduleFilterColumnOptions.map(option => option.id)
+)
+
+type LineColumnFilter = ColumnFilter & { columnId: LineFilterColumnId }
+type ScheduleColumnFilter = ColumnFilter & { columnId: ScheduleFilterColumnId }
 
 const lineStatusStyles: Record<DepositLineItemRow["status"], string> = {
   Matched: "bg-emerald-100 text-emerald-700 border border-emerald-200",
@@ -54,39 +130,71 @@ const scheduleStatusStyles: Record<SuggestedMatchScheduleRow["status"], string> 
   "Un-Reconciled": "bg-amber-50 text-amber-700 border border-amber-200"
 }
 
+const TABLE_CONTAINER_PADDING = 16
+const TABLE_BODY_MIN_HEIGHT = 200
+const TABLE_BODY_FOOTER_RESERVE = 96
+const DEFAULT_TABLE_BODY_HEIGHT = 360
+
+function useTableScrollMetrics() {
+  const containerRef = useRef<HTMLDivElement | null>(null)
+  const [containerHeight, setContainerHeight] = useState<number>()
+
+  const measure = useCallback(() => {
+    const container = containerRef.current
+    if (!container) return
+    const rect = container.getBoundingClientRect()
+    const available = window.innerHeight - rect.top - TABLE_CONTAINER_PADDING
+    if (!Number.isFinite(available)) return
+    setContainerHeight(Math.max(Math.floor(available), 0))
+  }, [])
+
+  const refCallback = useCallback((node: HTMLDivElement | null) => {
+    containerRef.current = node
+    if (node) {
+      window.requestAnimationFrame(() => {
+        measure()
+      })
+    }
+  }, [measure])
+
+  useLayoutEffect(() => {
+    measure()
+  }, [measure])
+
+  useEffect(() => {
+    const handleResize = () => measure()
+    window.addEventListener("resize", handleResize)
+    return () => window.removeEventListener("resize", handleResize)
+  }, [measure])
+
+  const maxBodyHeight = useMemo(() => {
+    if (containerHeight == null) return undefined
+    const maxBodyWithinContainer = Math.max(containerHeight - TABLE_CONTAINER_PADDING, 0)
+    const preferredBodyHeight = Math.max(
+      containerHeight - TABLE_BODY_FOOTER_RESERVE,
+      Math.floor(containerHeight * 0.65),
+      0
+    )
+    const boundedPreferredHeight = Math.min(preferredBodyHeight, maxBodyWithinContainer)
+    if (boundedPreferredHeight >= TABLE_BODY_MIN_HEIGHT) return boundedPreferredHeight
+    const minTarget = Math.min(TABLE_BODY_MIN_HEIGHT, maxBodyWithinContainer)
+    return Math.max(boundedPreferredHeight, minTarget)
+  }, [containerHeight])
+
+  const requestMeasure = useCallback(() => {
+    window.requestAnimationFrame(() => {
+      measure()
+    })
+  }, [measure])
+
+  return { refCallback, maxBodyHeight, requestMeasure }
+}
+
 interface DepositReconciliationDetailViewProps {
   metadata: DepositReconciliationMetadata
   lineItems: DepositLineItemRow[]
   schedules: SuggestedMatchScheduleRow[]
   loading?: boolean
-}
-
-interface SegmentedTabsProps<T extends string> {
-  value: T
-  onChange: (value: T) => void
-  options: Array<{ id: T; label: string }>
-}
-
-function SegmentedTabs<T extends string>({ value, onChange, options }: SegmentedTabsProps<T>) {
-  return (
-    <div className="inline-flex flex-wrap gap-1 rounded-full border border-slate-200 bg-slate-50 p-1 text-xs font-semibold">
-      {options.map(option => (
-        <button
-          type="button"
-          key={option.id}
-          onClick={() => onChange(option.id)}
-          className={cn(
-            "rounded-full px-3 py-1 transition-colors",
-            value === option.id
-              ? "bg-white text-primary-600 shadow-sm"
-              : "text-slate-500 hover:text-slate-900"
-          )}
-        >
-          {option.label}
-        </button>
-      ))}
-    </div>
-  )
 }
 
 interface MetaStatProps {
@@ -119,10 +227,60 @@ export function DepositReconciliationDetailView({
   schedules,
   loading = false
 }: DepositReconciliationDetailViewProps) {
+  const { showSuccess, showError, ToastContainer } = useToasts()
   const [lineTab, setLineTab] = useState<LineTabKey>("matched")
   const [scheduleTab, setScheduleTab] = useState<ScheduleTabKey>("suggested")
   const [lineSearch, setLineSearch] = useState("")
   const [scheduleSearch, setScheduleSearch] = useState("")
+  const [lineItemRows, setLineItemRows] = useState<DepositLineItemRow[]>(lineItems)
+  const [scheduleRows, setScheduleRows] = useState<SuggestedMatchScheduleRow[]>(schedules)
+  const [selectedLineItems, setSelectedLineItems] = useState<string[]>([])
+  const [selectedSchedules, setSelectedSchedules] = useState<string[]>([])
+  const [lineColumnFilters, setLineColumnFilters] = useState<LineColumnFilter[]>([])
+  const [scheduleColumnFilters, setScheduleColumnFilters] = useState<ScheduleColumnFilter[]>([])
+  const [showLineColumnSettings, setShowLineColumnSettings] = useState(false)
+  const [showScheduleColumnSettings, setShowScheduleColumnSettings] = useState(false)
+  const {
+    refCallback: lineTableAreaRefCallback,
+    maxBodyHeight: lineTableBodyHeight,
+    requestMeasure: requestLineTableMeasure
+  } = useTableScrollMetrics()
+  const {
+    refCallback: scheduleTableAreaRefCallback,
+    maxBodyHeight: scheduleTableBodyHeight,
+    requestMeasure: requestScheduleTableMeasure
+  } = useTableScrollMetrics()
+
+  useEffect(() => {
+    setLineItemRows(lineItems)
+    setSelectedLineItems(previous => previous.filter(id => lineItems.some(item => item.id === id)))
+  }, [lineItems])
+
+  useEffect(() => {
+    setScheduleRows(schedules)
+    setSelectedSchedules(previous => previous.filter(id => schedules.some(item => item.id === id)))
+  }, [schedules])
+
+  useEffect(() => {
+    requestLineTableMeasure()
+  }, [requestLineTableMeasure, lineItemRows.length])
+
+  useEffect(() => {
+    requestScheduleTableMeasure()
+  }, [requestScheduleTableMeasure, scheduleRows.length])
+
+  const sharedTableBodyHeight = useMemo(() => {
+    const heights: number[] = []
+    if (typeof lineTableBodyHeight === "number") heights.push(lineTableBodyHeight)
+    if (typeof scheduleTableBodyHeight === "number") heights.push(scheduleTableBodyHeight)
+    if (heights.length === 0) return undefined
+    return Math.min(Math.min(...heights), DEFAULT_TABLE_BODY_HEIGHT)
+  }, [lineTableBodyHeight, scheduleTableBodyHeight])
+
+  const normalizedLineTableHeight =
+    sharedTableBodyHeight ?? lineTableBodyHeight ?? DEFAULT_TABLE_BODY_HEIGHT
+  const normalizedScheduleTableHeight =
+    sharedTableBodyHeight ?? scheduleTableBodyHeight ?? DEFAULT_TABLE_BODY_HEIGHT
 
   const currencyFormatter = useMemo(
     () =>
@@ -155,8 +313,142 @@ export function DepositReconciliationDetailView({
   const lineSearchValue = lineSearch.trim().toLowerCase()
   const scheduleSearchValue = scheduleSearch.trim().toLowerCase()
 
+  const handleLineColumnFiltersChange = useCallback((filters: ColumnFilter[]) => {
+    if (!filters || filters.length === 0) {
+      setLineColumnFilters([])
+      return
+    }
+
+    const sanitized: LineColumnFilter[] = []
+    for (const filter of filters) {
+      const columnId = filter.columnId as LineFilterColumnId
+      if (!LINE_FILTER_COLUMN_IDS.has(columnId)) continue
+      const trimmed = (filter.value ?? "").trim()
+      if (!trimmed) continue
+      sanitized.push({ ...filter, columnId, value: trimmed })
+    }
+    setLineColumnFilters(sanitized)
+  }, [])
+
+  const handleScheduleColumnFiltersChange = useCallback((filters: ColumnFilter[]) => {
+    if (!filters || filters.length === 0) {
+      setScheduleColumnFilters([])
+      return
+    }
+
+    const sanitized: ScheduleColumnFilter[] = []
+    for (const filter of filters) {
+      const columnId = filter.columnId as ScheduleFilterColumnId
+      if (!SCHEDULE_FILTER_COLUMN_IDS.has(columnId)) continue
+      const trimmed = (filter.value ?? "").trim()
+      if (!trimmed) continue
+      sanitized.push({ ...filter, columnId, value: trimmed })
+    }
+    setScheduleColumnFilters(sanitized)
+  }, [])
+
+  const normalizedLineFilters = useMemo(
+    () =>
+      lineColumnFilters.map(filter => ({
+        columnId: filter.columnId,
+        value: filter.value.trim().toLowerCase()
+      })),
+    [lineColumnFilters]
+  )
+
+  const normalizedScheduleFilters = useMemo(
+    () =>
+      scheduleColumnFilters.map(filter => ({
+        columnId: filter.columnId,
+        value: filter.value.trim().toLowerCase()
+      })),
+    [scheduleColumnFilters]
+  )
+
+  const getLineFilterValue = useCallback(
+    (row: DepositLineItemRow, columnId: LineFilterColumnId) => {
+      switch (columnId) {
+        case "accountId":
+          return row.accountId
+        case "lineItem":
+          return String(row.lineItem)
+        case "status":
+          return row.status
+        case "paymentDate": {
+          const parsed = new Date(row.paymentDate)
+          return Number.isNaN(parsed.getTime()) ? row.paymentDate : dateFormatter.format(parsed)
+        }
+        case "accountName":
+          return row.accountName
+        case "vendorName":
+          return row.vendorName
+        case "productName":
+          return row.productName
+        case "usage":
+          return currencyFormatter.format(row.usage)
+        case "usageAllocated":
+          return currencyFormatter.format(row.usageAllocated)
+        case "usageUnallocated":
+          return currencyFormatter.format(row.usageUnallocated)
+        case "commissionRate":
+          return percentFormatter.format(row.commissionRate)
+        case "commission":
+          return currencyFormatter.format(row.commission)
+        case "commissionAllocated":
+          return currencyFormatter.format(row.commissionAllocated)
+        case "commissionUnallocated":
+          return currencyFormatter.format(row.commissionUnallocated)
+        case "customerIdVendor":
+          return row.customerIdVendor
+        case "orderIdVendor":
+          return row.orderIdVendor
+        case "distributorName":
+          return row.distributorName
+        default:
+          return ""
+      }
+    },
+    [currencyFormatter, percentFormatter, dateFormatter]
+  )
+
+  const getScheduleFilterValue = useCallback(
+    (row: SuggestedMatchScheduleRow, columnId: ScheduleFilterColumnId) => {
+      switch (columnId) {
+        case "sequence":
+          return String(row.sequence)
+        case "name":
+          return row.name
+        case "number":
+          return row.number
+        case "date": {
+          const parsed = new Date(row.date)
+          return Number.isNaN(parsed.getTime()) ? row.date : dateFormatter.format(parsed)
+        }
+        case "accountLegalName":
+          return row.accountLegalName
+        case "product":
+          return row.product
+        case "vendorName":
+          return row.vendorName
+        case "quantity":
+          return String(row.quantity)
+        case "priceEach":
+          return currencyFormatter.format(row.priceEach)
+        case "expectedUsageGross":
+          return currencyFormatter.format(row.expectedUsageGross)
+        case "expectedUsageAdjust":
+          return currencyFormatter.format(row.expectedUsageAdjust)
+        case "status":
+          return row.status
+        default:
+          return ""
+      }
+    },
+    [currencyFormatter, dateFormatter]
+  )
+
   const filteredLineItems = useMemo(() => {
-    return lineItems.filter(item => {
+    return lineItemRows.filter(item => {
       const matchesTab =
         lineTab === "all"
           ? true
@@ -167,17 +459,32 @@ export function DepositReconciliationDetailView({
               : item.status === "Partially Matched"
 
       const matchesSearch = lineSearchValue
-        ? [item.accountName, item.accountId, item.productName]
+        ? [
+            item.accountName,
+            item.accountId,
+            item.vendorName,
+            item.productName,
+            item.customerIdVendor,
+            item.orderIdVendor,
+            item.distributorName
+          ]
             .map(value => value.toLowerCase())
             .some(value => value.includes(lineSearchValue))
         : true
 
-      return matchesTab && matchesSearch
+      const matchesColumnFilters =
+        normalizedLineFilters.length === 0 ||
+        normalizedLineFilters.every(filter => {
+          const candidate = getLineFilterValue(item, filter.columnId).toLowerCase()
+          return candidate.includes(filter.value)
+        })
+
+      return matchesTab && matchesSearch && matchesColumnFilters
     })
-  }, [lineItems, lineTab, lineSearchValue])
+  }, [lineItemRows, lineTab, lineSearchValue, normalizedLineFilters, getLineFilterValue])
 
   const filteredSchedules = useMemo(() => {
-    return schedules.filter(schedule => {
+    return scheduleRows.filter(schedule => {
       const matchesTab =
         scheduleTab === "all"
           ? true
@@ -199,11 +506,19 @@ export function DepositReconciliationDetailView({
             .some(value => value.includes(scheduleSearchValue))
         : true
 
-      return matchesTab && matchesSearch
-    })
-  }, [schedules, scheduleTab, scheduleSearchValue])
+      const matchesColumnFilters =
+        normalizedScheduleFilters.length === 0 ||
+        normalizedScheduleFilters.every(filter => {
+          const candidate = getScheduleFilterValue(schedule, filter.columnId).toLowerCase()
+          return candidate.includes(filter.value)
+        })
 
-  const lineColumns = useMemo<Column[]>(() => {
+      return matchesTab && matchesSearch && matchesColumnFilters
+    })
+  }, [scheduleRows, scheduleTab, scheduleSearchValue, normalizedScheduleFilters, getScheduleFilterValue])
+
+  const baseLineColumns = useMemo<Column[]>(() => {
+    const minTextWidth = (label: string) => calculateMinWidth({ label, type: "text", sortable: false })
     return [
       {
         id: "match",
@@ -221,10 +536,22 @@ export function DepositReconciliationDetailView({
         )
       },
       {
+        id: "accountId",
+        label: depositFieldLabels.accountId,
+        width: 220,
+        minWidth: minTextWidth(depositFieldLabels.accountId)
+      },
+      {
+        id: "lineItem",
+        label: depositFieldLabels.lineItem,
+        width: 140,
+        minWidth: minTextWidth(depositFieldLabels.lineItem)
+      },
+      {
         id: "status",
-        label: "Status",
-        width: 160,
-        minWidth: calculateMinWidth({ label: "Status", type: "text", sortable: false }),
+        label: depositFieldLabels.status,
+        width: 200,
+        minWidth: minTextWidth(depositFieldLabels.status),
         render: (value: DepositLineItemRow["status"]) => (
           <span className={cn("inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold", lineStatusStyles[value])}>
             {value}
@@ -233,9 +560,9 @@ export function DepositReconciliationDetailView({
       },
       {
         id: "paymentDate",
-        label: "Payment Date",
-        width: 160,
-        minWidth: calculateMinWidth({ label: "Payment Date", type: "text", sortable: false }),
+        label: depositFieldLabels.paymentDate,
+        width: 180,
+        minWidth: minTextWidth(depositFieldLabels.paymentDate),
         render: (value: string) => {
           const parsed = new Date(value)
           return Number.isNaN(parsed.getTime()) ? value : dateFormatter.format(parsed)
@@ -243,53 +570,93 @@ export function DepositReconciliationDetailView({
       },
       {
         id: "accountName",
-        label: "Account",
-        width: 200,
-        minWidth: calculateMinWidth({ label: "Account", type: "text", sortable: false })
+        label: depositFieldLabels.accountName,
+        width: 220,
+        minWidth: minTextWidth(depositFieldLabels.accountName)
       },
       {
-        id: "lineItem",
-        label: "Line Item",
-        width: 120,
-        minWidth: 100
+        id: "vendorName",
+        label: depositFieldLabels.vendorName,
+        width: 200,
+        minWidth: minTextWidth(depositFieldLabels.vendorName)
       },
       {
         id: "productName",
-        label: "Product Name",
-        width: 220,
-        minWidth: 200
+        label: depositFieldLabels.productName,
+        width: 240,
+        minWidth: minTextWidth(depositFieldLabels.productName)
       },
       {
         id: "usage",
-        label: "Usage",
+        label: depositFieldLabels.usage,
         width: 140,
-        minWidth: 120,
+        minWidth: 140,
         render: (value: number) => currencyFormatter.format(value)
       },
       {
-        id: "commission",
-        label: "Commission",
-        width: 140,
-        minWidth: 120,
+        id: "usageAllocated",
+        label: depositFieldLabels.usageAllocated,
+        width: 180,
+        minWidth: 160,
+        render: (value: number) => currencyFormatter.format(value)
+      },
+      {
+        id: "usageUnallocated",
+        label: depositFieldLabels.usageUnallocated,
+        width: 200,
+        minWidth: 180,
         render: (value: number) => currencyFormatter.format(value)
       },
       {
         id: "commissionRate",
-        label: "Commission Rate",
-        width: 160,
-        minWidth: 140,
+        label: depositFieldLabels.commissionRate,
+        width: 200,
+        minWidth: 170,
         render: (value: number) => percentFormatter.format(value)
       },
       {
-        id: "accountId",
-        label: "Account ID",
+        id: "commission",
+        label: depositFieldLabels.commission,
         width: 160,
-        minWidth: 140
+        minWidth: 140,
+        render: (value: number) => currencyFormatter.format(value)
+      },
+      {
+        id: "commissionAllocated",
+        label: depositFieldLabels.commissionAllocated,
+        width: 200,
+        minWidth: 180,
+        render: (value: number) => currencyFormatter.format(value)
+      },
+      {
+        id: "commissionUnallocated",
+        label: depositFieldLabels.commissionUnallocated,
+        width: 210,
+        minWidth: 190,
+        render: (value: number) => currencyFormatter.format(value)
+      },
+      {
+        id: "customerIdVendor",
+        label: depositFieldLabels.customerIdVendor,
+        width: 200,
+        minWidth: minTextWidth(depositFieldLabels.customerIdVendor)
+      },
+      {
+        id: "orderIdVendor",
+        label: depositFieldLabels.orderIdVendor,
+        width: 200,
+        minWidth: minTextWidth(depositFieldLabels.orderIdVendor)
+      },
+      {
+        id: "distributorName",
+        label: depositFieldLabels.distributorName,
+        width: 220,
+        minWidth: minTextWidth(depositFieldLabels.distributorName)
       }
     ]
   }, [currencyFormatter, percentFormatter, dateFormatter])
 
-  const scheduleColumns = useMemo<Column[]>(() => {
+  const baseScheduleColumns = useMemo<Column[]>(() => {
     return [
       {
         id: "actions",
@@ -393,6 +760,354 @@ export function DepositReconciliationDetailView({
     ]
   }, [currencyFormatter, dateFormatter])
 
+  const [lineTableColumns, setLineTableColumns] = useState<Column[]>(baseLineColumns)
+  const [scheduleTableColumns, setScheduleTableColumns] = useState<Column[]>(baseScheduleColumns)
+
+  useEffect(() => {
+    setLineTableColumns(baseLineColumns)
+  }, [baseLineColumns])
+
+  useEffect(() => {
+    setScheduleTableColumns(baseScheduleColumns)
+  }, [baseScheduleColumns])
+
+  const handleLineColumnsChange = useCallback((columns: Column[]) => {
+    setLineTableColumns(columns)
+  }, [])
+
+  const handleScheduleColumnsChange = useCallback((columns: Column[]) => {
+    setScheduleTableColumns(columns)
+  }, [])
+
+  const handleLineColumnModalApply = useCallback((columns: Column[]) => {
+    setLineTableColumns(columns)
+    setShowLineColumnSettings(false)
+  }, [])
+
+  const handleScheduleColumnModalApply = useCallback((columns: Column[]) => {
+    setScheduleTableColumns(columns)
+    setShowScheduleColumnSettings(false)
+  }, [])
+
+  const handleLineColumnModalClose = useCallback(() => {
+    setShowLineColumnSettings(false)
+  }, [])
+
+  const handleScheduleColumnModalClose = useCallback(() => {
+    setShowScheduleColumnSettings(false)
+  }, [])
+
+  const handleLineItemSelect = useCallback((lineId: string, selected: boolean) => {
+    setSelectedLineItems(previous => {
+      if (selected) {
+        if (previous.includes(lineId)) return previous
+        return [...previous, lineId]
+      }
+      return previous.filter(id => id !== lineId)
+    })
+  }, [])
+
+  const handleLineItemSelectAll = useCallback(
+    (selected: boolean) => {
+      if (selected) {
+        setSelectedLineItems(filteredLineItems.map(item => item.id))
+        return
+      }
+      setSelectedLineItems([])
+    },
+    [filteredLineItems]
+  )
+
+  const handleScheduleSelect = useCallback((scheduleId: string, selected: boolean) => {
+    setSelectedSchedules(previous => {
+      if (selected) {
+        if (previous.includes(scheduleId)) return previous
+        return [...previous, scheduleId]
+      }
+      return previous.filter(id => id !== scheduleId)
+    })
+  }, [])
+
+  const handleScheduleSelectAll = useCallback(
+    (selected: boolean) => {
+      if (selected) {
+        setSelectedSchedules(filteredSchedules.map(schedule => schedule.id))
+        return
+      }
+      setSelectedSchedules([])
+    },
+    [filteredSchedules]
+  )
+
+  const handleBulkLineMatch = useCallback(() => {
+    if (selectedLineItems.length === 0) {
+      showError("No line items selected", "Select at least one deposit line item to match.")
+      return
+    }
+    setLineItemRows(previous =>
+      previous.map(item =>
+        selectedLineItems.includes(item.id) ? { ...item, status: "Matched" } : item
+      )
+    )
+    setSelectedLineItems([])
+    showSuccess(
+      `${selectedLineItems.length} line item${selectedLineItems.length === 1 ? "" : "s"} matched`,
+      "The selected line items were marked as Matched."
+    )
+  }, [selectedLineItems, showError, showSuccess])
+
+  const handleBulkLineUnmatch = useCallback(() => {
+    if (selectedLineItems.length === 0) {
+      showError("No line items selected", "Select at least one deposit line item to update.")
+      return
+    }
+    setLineItemRows(previous =>
+      previous.map(item =>
+        selectedLineItems.includes(item.id) ? { ...item, status: "Unreconciled" } : item
+      )
+    )
+    setSelectedLineItems([])
+    showSuccess(
+      `${selectedLineItems.length} line item${selectedLineItems.length === 1 ? "" : "s"} updated`,
+      "The selected line items were marked as Unreconciled."
+    )
+  }, [selectedLineItems, showError, showSuccess])
+
+  const handleBulkLineExport = useCallback(() => {
+    if (selectedLineItems.length === 0) {
+      showError("No line items selected", "Select at least one line item to export.")
+      return
+    }
+    const rows = lineItemRows.filter(item => selectedLineItems.includes(item.id))
+    if (rows.length === 0) {
+      showError("Line items unavailable", "Unable to locate the selected line items.")
+      return
+    }
+    const headers = depositFieldOrder.map(id => depositFieldLabels[id])
+    const getRawValue = (row: DepositLineItemRow, columnId: LineFilterColumnId) => {
+      switch (columnId) {
+        case "accountId":
+          return row.accountId
+        case "lineItem":
+          return row.lineItem
+        case "status":
+          return row.status
+        case "paymentDate":
+          return row.paymentDate
+        case "accountName":
+          return row.accountName
+        case "vendorName":
+          return row.vendorName
+        case "productName":
+          return row.productName
+        case "usage":
+          return row.usage
+        case "usageAllocated":
+          return row.usageAllocated
+        case "usageUnallocated":
+          return row.usageUnallocated
+        case "commissionRate":
+          return row.commissionRate
+        case "commission":
+          return row.commission
+        case "commissionAllocated":
+          return row.commissionAllocated
+        case "commissionUnallocated":
+          return row.commissionUnallocated
+        case "customerIdVendor":
+          return row.customerIdVendor
+        case "orderIdVendor":
+          return row.orderIdVendor
+        case "distributorName":
+          return row.distributorName
+        default:
+          return ""
+      }
+    }
+    const escapeCsv = (value: unknown) => {
+      if (value === null || value === undefined) return ""
+      const stringValue = String(value)
+      return /[",\n]/.test(stringValue) ? `"${stringValue.replace(/"/g, '""')}"` : stringValue
+    }
+    const lines = [
+      headers.join(","),
+      ...rows.map(row =>
+        depositFieldOrder.map(columnId => escapeCsv(getRawValue(row, columnId))).join(",")
+      )
+    ]
+    const blob = new Blob([lines.join("\r\n")], { type: "text/csv;charset=utf-8;" })
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    const timestamp = new Date().toISOString().replace(/[:T]/g, "-").split(".")[0]
+    link.href = url
+    link.download = `deposit-line-items-${timestamp}.csv`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+    showSuccess(
+      `Exported ${rows.length} line item${rows.length === 1 ? "" : "s"}`,
+      "Check your downloads for the CSV file."
+    )
+  }, [lineItemRows, selectedLineItems, showError, showSuccess])
+
+  const handleBulkScheduleLink = useCallback(() => {
+    if (selectedSchedules.length === 0) {
+      showError("No schedules selected", "Select at least one schedule to link.")
+      return
+    }
+    showSuccess(
+      `${selectedSchedules.length} schedule${selectedSchedules.length === 1 ? "" : "s"} linked`,
+      "The selected schedules have been linked to the deposit."
+    )
+  }, [selectedSchedules.length, showError, showSuccess])
+
+  const handleBulkScheduleReconcile = useCallback(() => {
+    if (selectedSchedules.length === 0) {
+      showError("No schedules selected", "Select at least one schedule to update.")
+      return
+    }
+    setScheduleRows(previous =>
+      previous.map(row =>
+        selectedSchedules.includes(row.id) ? { ...row, status: "Reconciled" } : row
+      )
+    )
+    setSelectedSchedules([])
+    showSuccess(
+      `${selectedSchedules.length} schedule${selectedSchedules.length === 1 ? "" : "s"} updated`,
+      "Marked the selected schedules as Reconciled."
+    )
+  }, [selectedSchedules, showError, showSuccess])
+
+  const handleBulkScheduleExport = useCallback(() => {
+    if (selectedSchedules.length === 0) {
+      showError("No schedules selected", "Select at least one schedule to export.")
+      return
+    }
+    const rows = scheduleRows.filter(row => selectedSchedules.includes(row.id))
+    if (rows.length === 0) {
+      showError("Schedules unavailable", "Unable to locate the selected schedules.")
+      return
+    }
+    const headers = [
+      "Name",
+      "Number",
+      "Date",
+      "Account Legal Name",
+      "Product",
+      "Vendor Name",
+      "Quantity",
+      "Price Each",
+      "Expected Usage Gross",
+      "Expected Usage Adjustment",
+      "Status"
+    ]
+    const escapeCsv = (value: unknown) => {
+      if (value === null || value === undefined) return ""
+      const stringValue = String(value)
+      return /[",\n]/.test(stringValue) ? `"${stringValue.replace(/"/g, '""')}"` : stringValue
+    }
+    const lines = [
+      headers.join(","),
+      ...rows.map(row =>
+        [
+          row.name,
+          row.number,
+          row.date,
+          row.accountLegalName,
+          row.product,
+          row.vendorName,
+          row.quantity,
+          row.priceEach,
+          row.expectedUsageGross,
+          row.expectedUsageAdjust,
+          row.status
+        ].map(escapeCsv).join(",")
+      )
+    ]
+    const blob = new Blob([lines.join("\r\n")], { type: "text/csv;charset=utf-8;" })
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    const timestamp = new Date().toISOString().replace(/[:T]/g, "-").split(".")[0]
+    link.href = url
+    link.download = `revenue-schedules-${timestamp}.csv`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+    showSuccess(
+      `Exported ${rows.length} schedule${rows.length === 1 ? "" : "s"}`,
+      "Check your downloads for the CSV file."
+    )
+  }, [scheduleRows, selectedSchedules, showError, showSuccess])
+
+  const lineBulkActions = useMemo<BulkActionsGridProps>(
+    () => ({
+      selectedCount: selectedLineItems.length,
+      entityName: "line items",
+      actions: [
+        {
+          key: "match",
+          label: "Match",
+          icon: ClipboardCheck,
+          tone: "primary",
+          onClick: handleBulkLineMatch
+        },
+        {
+          key: "unmatch",
+          label: "Mark Unmatched",
+          icon: Trash2,
+          tone: "danger",
+          onClick: handleBulkLineUnmatch
+        },
+        {
+          key: "export",
+          label: "Export CSV",
+          icon: FileDown,
+          tone: "info",
+          onClick: handleBulkLineExport
+        }
+      ]
+    }),
+    [handleBulkLineExport, handleBulkLineMatch, handleBulkLineUnmatch, selectedLineItems.length]
+  )
+
+  const scheduleBulkActions = useMemo<BulkActionsGridProps>(
+    () => ({
+      selectedCount: selectedSchedules.length,
+      entityName: "schedules",
+      actions: [
+        {
+          key: "link",
+          label: "Link",
+          icon: Link2,
+          tone: "primary",
+          onClick: handleBulkScheduleLink
+        },
+        {
+          key: "reconcile",
+          label: "Mark Reconciled",
+          icon: ClipboardCheck,
+          tone: "neutral",
+          onClick: handleBulkScheduleReconcile
+        },
+        {
+          key: "export",
+          label: "Export CSV",
+          icon: FileDown,
+          tone: "info",
+          onClick: handleBulkScheduleExport
+        }
+      ]
+    }),
+    [
+      handleBulkScheduleExport,
+      handleBulkScheduleLink,
+      handleBulkScheduleReconcile,
+      selectedSchedules.length
+    ]
+  )
+
   const formattedDate = useMemo(() => {
     const parsed = new Date(metadata.depositDate)
     return Number.isNaN(parsed.getTime()) ? metadata.depositDate : dateFormatter.format(parsed)
@@ -423,25 +1138,37 @@ export function DepositReconciliationDetailView({
             onSearch={setLineSearch}
             showStatusFilter={false}
             showCreateButton={false}
-            showColumnFilters={false}
             compact
             inTab
+            filterColumns={lineFilterColumnOptions}
+            columnFilters={lineColumnFilters}
+            onColumnFiltersChange={handleLineColumnFiltersChange}
+            onSettingsClick={() => setShowLineColumnSettings(true)}
+            bulkActions={lineBulkActions}
             leftAccessory={
-              <div className="ml-auto flex items-center gap-2">
-                <SegmentedTabs value={lineTab} onChange={setLineTab} options={lineTabOptions} />
+              <div className="flex items-center gap-2">
+                <DepositLineStatusFilterDropdown value={lineTab} onChange={setLineTab} size="compact" />
               </div>
             }
           />
         </div>
-        <div className="flex min-h-0 flex-1 pt-4">
-          <DynamicTable
-            columns={lineColumns}
-            data={filteredLineItems}
-            loading={loading}
-            emptyMessage="No deposit line items found"
-            fillContainerWidth
-            className="flex-1"
-          />
+        <div className="flex min-h-0 flex-1 flex-col pt-4">
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden" ref={lineTableAreaRefCallback}>
+            <DynamicTable
+              className="flex flex-col"
+              columns={lineTableColumns}
+              data={filteredLineItems}
+              loading={loading}
+              emptyMessage="No deposit line items found"
+              fillContainerWidth={false}
+              maxBodyHeight={normalizedLineTableHeight}
+              selectedItems={selectedLineItems}
+              onItemSelect={(itemId, selected) => handleLineItemSelect(String(itemId), selected)}
+              onSelectAll={handleLineItemSelectAll}
+              selectHeaderLabel="Select"
+              onColumnsChange={handleLineColumnsChange}
+            />
+          </div>
         </div>
       </section>
 
@@ -453,27 +1180,56 @@ export function DepositReconciliationDetailView({
             onSearch={setScheduleSearch}
             showStatusFilter={false}
             showCreateButton={false}
-            showColumnFilters={false}
             compact
             inTab
+            filterColumns={scheduleFilterColumnOptions}
+            columnFilters={scheduleColumnFilters}
+            onColumnFiltersChange={handleScheduleColumnFiltersChange}
+            onSettingsClick={() => setShowScheduleColumnSettings(true)}
+            bulkActions={scheduleBulkActions}
             leftAccessory={
-              <div className="ml-auto flex items-center gap-2">
-                <SegmentedTabs value={scheduleTab} onChange={setScheduleTab} options={scheduleTabOptions} />
+              <div className="flex items-center gap-2">
+                <ReconciliationScheduleStatusFilterDropdown
+                  value={scheduleTab}
+                  onChange={setScheduleTab}
+                  size="compact"
+                />
               </div>
             }
           />
         </div>
-        <div className="flex min-h-0 flex-1 pt-4">
-          <DynamicTable
-            columns={scheduleColumns}
-            data={filteredSchedules}
-            loading={loading}
-            emptyMessage="No suggested schedules found"
-            fillContainerWidth
-            className="flex-1"
-          />
+        <div className="flex min-h-0 flex-1 flex-col pt-4">
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden" ref={scheduleTableAreaRefCallback}>
+            <DynamicTable
+              className="flex flex-col"
+              columns={scheduleTableColumns}
+              data={filteredSchedules}
+              loading={loading}
+              emptyMessage="No suggested schedules found"
+              fillContainerWidth
+              maxBodyHeight={normalizedScheduleTableHeight}
+              selectedItems={selectedSchedules}
+              onItemSelect={(itemId, selected) => handleScheduleSelect(String(itemId), selected)}
+              onSelectAll={handleScheduleSelectAll}
+              selectHeaderLabel="Select"
+              onColumnsChange={handleScheduleColumnsChange}
+            />
+          </div>
         </div>
       </section>
+      <ColumnChooserModal
+        isOpen={showLineColumnSettings}
+        columns={lineTableColumns}
+        onApply={handleLineColumnModalApply}
+        onClose={handleLineColumnModalClose}
+      />
+      <ColumnChooserModal
+        isOpen={showScheduleColumnSettings}
+        columns={scheduleTableColumns}
+        onApply={handleScheduleColumnModalApply}
+        onClose={handleScheduleColumnModalClose}
+      />
+      <ToastContainer />
     </div>
   )
 }
