@@ -259,8 +259,9 @@ async function calculateReassignmentImpact(
             include: {
               product: {
                 select: {
-                  name: true,
-                  sku: true
+                  productNameHouse: true,
+                  productNameVendor: true,
+                  productCode: true
                 }
               }
             }
@@ -274,7 +275,9 @@ async function calculateReassignmentImpact(
         include: {
           product: {
             select: {
-              name: true
+              productNameHouse: true,
+              productNameVendor: true,
+              productCode: true
             }
           },
           opportunity: {
@@ -544,7 +547,10 @@ async function calculateReassignmentImpact(
       scheduleDate: schedule.scheduleDate ? schedule.scheduleDate.toISOString() : null,
       status: schedule.status,
       amount: schedule.expectedCommission ? Number(schedule.expectedCommission) : null,
-      productName: schedule.product?.name ?? null,
+      productName: schedule.product?.productNameHouse
+        ?? schedule.product?.productNameVendor
+        ?? schedule.product?.productCode
+        ?? null,
       opportunityName: schedule.opportunity?.name ?? null
     }))
   );
@@ -589,7 +595,10 @@ async function calculateReassignmentImpact(
         accountId: account.id,
         accountName: account.accountName,
         opportunityName: opportunity.name,
-        productName: product.product?.name ?? 'Unnamed product',
+        productName: product.product?.productNameHouse
+          ?? product.product?.productNameVendor
+          ?? product.product?.productCode
+          ?? 'Unnamed product',
         quantity: product.quantity ? Number(product.quantity) : null
       }))
     )

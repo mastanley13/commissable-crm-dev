@@ -171,7 +171,9 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
         const types = Array.isArray(payload?.revenueTypes) ? payload.revenueTypes : Array.isArray(payload?.data?.revenueTypes) ? payload.data.revenueTypes : []
         const normalized = types.map((t: any) => ({ value: t.value ?? t, label: t.label ?? t }))
         setRevenueTypeOptions(normalized)
-        if (normalized.length > 0 && !revenueType) setRevenueType(normalized[0].value)
+        if (normalized.length > 0) {
+          setRevenueType(prev => prev || normalized[0].value)
+        }
       })
       .catch(() => { /* ignore */ })
     return () => { cancelled = true }

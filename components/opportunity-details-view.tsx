@@ -57,7 +57,7 @@ const parseCurrency = (val: any): number => {
 
 const fieldLabelClass = "text-[11px] font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap"
 const fieldBoxClass =
-  "flex min-h-[28px] w-full items-center justify-between border-b-2 border-gray-300 bg-transparent pl-[3px] pr-0 py-1 text-[11px] text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis tabular-nums"
+  "flex min-h-[28px] w-full min-w-0 items-center justify-between border-b-2 border-gray-300 bg-transparent pl-[3px] pr-0 py-1 text-[11px] text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis tabular-nums"
 
 const PRODUCT_FILTER_COLUMNS: Array<{ id: string; label: string }> = [
   { id: "productName", label: "Product Name" },
@@ -941,28 +941,35 @@ function FieldRow({
   label,
   children,
   lastEdited,
-  layout = "fixed"
+  layout = "fixed",
+  compact = false
 }: {
   label: string
   children: React.ReactNode
   lastEdited?: { date: string; user: string }
   layout?: "fixed" | "auto"
+  compact?: boolean
 }) {
+  const gridClass = layout === "auto"
+    ? "sm:grid-cols-[180px,max-content,max-content]"
+    : "sm:grid-cols-[180px,minmax(0,1fr),max-content]"
+
   return (
-    <div className={cn(
-      "grid items-center",
-      layout === "auto" 
-        ? "sm:grid-cols-[180px,auto,auto] gap-2" 
-        : "sm:grid-cols-[180px,minmax(0,1fr),auto] gap-x-2 gap-y-2"
-    )}>
+    <div
+      className={cn(
+        "grid w-full items-center",
+        gridClass,
+        compact ? "gap-x-1.5 gap-y-1.5" : "gap-x-2 gap-y-2"
+      )}
+    >
       <span className={cn(fieldLabelClass, "flex items-center min-h-[28px]")}>{label}</span>
-      <div className="w-full">{children}</div>
+      <div className="w-full min-w-0">{children}</div>
       {lastEdited ? (
-        <span className="text-[10px] text-gray-400 whitespace-nowrap ml-2">
+        <span className="text-[10px] text-gray-400 whitespace-nowrap sm:justify-self-start leading-tight">
           Last edited {lastEdited.date} by {lastEdited.user}
         </span>
       ) : (
-        <span></span>
+        <span className="sm:justify-self-start"></span>
       )}
     </div>
   )
@@ -1014,7 +1021,7 @@ function OpportunityHeader({
           </FieldRow>
           <FieldRow label="Account Name">
             {opportunity.account ? (
-              <Link href={`/accounts/${opportunity.account.id}`} className="block w-full">
+              <Link href={`/accounts/${opportunity.account.id}`} className="block w-full min-w-0">
                 <div
                   className={cn(
                     fieldBoxClass,
@@ -1226,7 +1233,7 @@ function EditableOpportunityHeader({
 
           <FieldRow label="Account Name">
             {opportunity.account ? (
-              <Link href={`/accounts/${opportunity.account.id}`} className="block w-full">
+              <Link href={`/accounts/${opportunity.account.id}`} className="block w-full min-w-0">
                 <div
                   className={cn(
                     fieldBoxClass,
@@ -1392,7 +1399,7 @@ function EditableOpportunityHeader({
           </FieldRow>
 
           {/* Manually render Subagent % */}
-          <FieldRow label="Subagent %" lastEdited={fieldHistory['subagentPercent']} compact>
+          <FieldRow label="Subagent %" lastEdited={fieldHistory['subagentPercent']} layout="auto" compact>
             <div className="flex flex-col gap-1 w-full max-w-[260px]">
               <EditableField.Input
                 className="w-full pr-6"
@@ -1412,7 +1419,7 @@ function EditableOpportunityHeader({
           </FieldRow>
 
           {/* Manually render House Rep % */}
-          <FieldRow label="House Rep %" lastEdited={fieldHistory['houseRepPercent']} compact>
+          <FieldRow label="House Rep %" lastEdited={fieldHistory['houseRepPercent']} layout="auto" compact>
             <div className="flex flex-col gap-1 w-full max-w-[260px]">
               <EditableField.Input
                 className="w-full pr-6"
@@ -1432,7 +1439,7 @@ function EditableOpportunityHeader({
           </FieldRow>
 
           {/* Manually render House Split % */}
-          <FieldRow label="House Split %" lastEdited={fieldHistory['houseSplitPercent']} compact>
+          <FieldRow label="House Split %" lastEdited={fieldHistory['houseSplitPercent']} layout="auto" compact>
             <div className="flex flex-col gap-1 w-full max-w-[260px]">
               <EditableField.Input
                 className="w-full pr-6"

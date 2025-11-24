@@ -23,24 +23,24 @@ import {
   OpportunityRevenueScheduleRecord,
   HistoryRow,
   MOCK_HISTORY_ROWS
-} from "./opportunity-types"
-import { OpportunityLineItemCreateModal } from "./opportunity-line-item-create-modal"
-import { OpportunityLineItemEditModal } from "./opportunity-line-item-edit-modal"
-import { ActivityNoteCreateModal } from "./activity-note-create-modal"
-import { ActivityNoteEditModal } from "./activity-note-edit-modal"
-import { ActivityBulkActionBar } from "./activity-bulk-action-bar"
-import { ActivityBulkOwnerModal } from "./activity-bulk-owner-modal"
-import { ActivityBulkStatusModal } from "./activity-bulk-status-modal"
-import { ConfirmDialog } from "./confirm-dialog"
-import { RevenueScheduleCreateModal } from "./revenue-schedule-create-modal"
+} from "@/components/opportunity-types"
+import { OpportunityLineItemCreateModal } from "@/components/opportunity-line-item-create-modal"
+import { OpportunityLineItemEditModal } from "@/components/opportunity-line-item-edit-modal"
+import { ActivityNoteCreateModal } from "@/components/activity-note-create-modal"
+import { ActivityNoteEditModal } from "@/components/activity-note-edit-modal"
+import { ActivityBulkActionBar } from "@/components/activity-bulk-action-bar"
+import { ActivityBulkOwnerModal } from "@/components/activity-bulk-owner-modal"
+import { ActivityBulkStatusModal } from "@/components/activity-bulk-status-modal"
+import { ConfirmDialog } from "@/components/confirm-dialog"
+import { RevenueScheduleCreateModal } from "@/components/revenue-schedule-create-modal"
 import { useAuth } from "@/lib/auth-context"
 import { useToasts } from "@/components/toast"
-import { ProductBulkActionBar } from "./product-bulk-action-bar"
-import { OpportunityRoleCreateModal } from "./opportunity-role-create-modal"
+import { ProductBulkActionBar } from "@/components/product-bulk-action-bar"
+import { OpportunityRoleCreateModal } from "@/components/opportunity-role-create-modal"
 import { getOpportunityStageLabel, getOpportunityStageOptions, isOpportunityStageAutoManaged, isOpportunityStageValue, type OpportunityStageOption } from "@/lib/opportunity-stage"
 import { getRevenueTypeLabel } from "@/lib/revenue-types"
 import { StatusFilterDropdown } from "@/components/status-filter-dropdown"
-import { AuditHistoryTab } from "./audit-history-tab"
+import { AuditHistoryTab } from "@/components/audit-history-tab"
 
 // Helper function to parse currency values
 const parseCurrency = (val: any): number => {
@@ -4005,6 +4005,4 @@ export function OpportunityDetailsView({
     </>
   )
 }
-
-
 
