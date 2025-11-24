@@ -1846,17 +1846,3 @@ export default function AccountsPage() {
 
 
 
-
-
-
-
-
-
-
-
-
-
-  const selectedAccountRows = useMemo(
-    () => accounts.filter(account => selectedAccounts.includes(account.id)),
-    [accounts, selectedAccounts]
-  );

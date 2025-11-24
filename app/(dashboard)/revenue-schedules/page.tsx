@@ -6,13 +6,14 @@ import { ListHeader } from '@/components/list-header'
 import { DynamicTable, Column, PaginationInfo } from '@/components/dynamic-table'
 import { ColumnChooserModal } from '@/components/column-chooser-modal'
 import { useTablePreferences } from '@/hooks/useTablePreferences'
-import { Check, Download, Trash2 } from 'lucide-react'
+import { Check, Copy, Download, Trash2 } from 'lucide-react'
 import { isRowInactive } from '@/lib/row-state'
 import { CopyProtectionWrapper } from '@/components/copy-protection'
 import { useToasts } from '@/components/toast'
 import { calculateMinWidth } from '@/lib/column-width-utils'
 import { StatusFilterDropdown } from '@/components/status-filter-dropdown'
 import type { BulkActionsGridProps } from '@/components/bulk-actions-grid'
+import { RevenueScheduleCloneModal } from '@/components/revenue-schedule-clone-modal'
 
 // Local UUID v1-v5 matcher used to detect schedule IDs vs. human codes
 const UUID_REGEX = /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i
@@ -268,6 +269,10 @@ export default function RevenueSchedulesPage() {
   const [filteredRevenueSchedules, setFilteredRevenueSchedules] = useState<any[]>([])
   const [loading, setLoading] = useState<boolean>(true)
   const [selectedSchedules, setSelectedSchedules] = useState<string[]>([])
+  const [bulkActionBusy, setBulkActionBusy] = useState(false)
+  const [cloneModalOpen, setCloneModalOpen] = useState(false)
+  const [cloneTargetId, setCloneTargetId] = useState<string | null>(null)
+  const [cloneDefaultDate, setCloneDefaultDate] = useState<string>('')
   const [showColumnSettings, setShowColumnSettings] = useState(false)
   const [currentPage, setCurrentPage] = useState<number>(1)
   const [pageSize, setPageSize] = useState<number>(25)
@@ -615,6 +620,80 @@ export default function RevenueSchedulesPage() {
     showSuccess(`Exported ${rows.length} item${rows.length === 1 ? '' : 's'}`, 'Check your downloads for the CSV file.')
   }, [selectedSchedules.length, selectedScheduleRows, showError, showSuccess])
 
+  const computeCloneDefaultDate = useCallback((rawDate?: string | null) => {
+    const fallback = new Date()
+    const base = rawDate ? new Date(rawDate) : fallback
+    if (Number.isNaN(base.getTime())) {
+      return fallback.toISOString().slice(0, 10)
+    }
+    const draft = new Date(base)
+    if (draft.getDate() === 1) {
+      draft.setDate(1)
+    } else {
+      draft.setMonth(draft.getMonth() + 1, 1)
+    }
+    draft.setHours(0, 0, 0, 0)
+    return draft.toISOString().slice(0, 10)
+  }, [])
+
+  const handleCloneSchedule = useCallback(() => {
+    if (selectedSchedules.length !== 1) {
+      showError('Select a single schedule', 'Choose exactly one revenue schedule to clone.')
+      return
+    }
+    const targetId = selectedSchedules[0]
+    const targetRow = selectedScheduleRows.find(row => row.id === targetId)
+    if (!targetRow) {
+      showError('Schedule unavailable', 'Unable to identify the selected schedule. Refresh and try again.')
+      return
+    }
+    const defaultDate = computeCloneDefaultDate(targetRow.revenueScheduleDate)
+    setCloneTargetId(targetId)
+    setCloneDefaultDate(defaultDate)
+    setCloneModalOpen(true)
+  }, [computeCloneDefaultDate, selectedScheduleRows, selectedSchedules, showError])
+
+  const handleCloneModalClose = useCallback(() => {
+    setCloneModalOpen(false)
+    setCloneTargetId(null)
+  }, [])
+
+  const handleConfirmCloneSchedule = useCallback(async (effectiveDate: string) => {
+    if (!cloneTargetId) {
+      showError('Schedule unavailable', 'Unable to identify the selected schedule. Refresh and try again.')
+      return
+    }
+
+    setBulkActionBusy(true)
+    try {
+      const response = await fetch(`/api/revenue-schedules/${encodeURIComponent(cloneTargetId)}/clone`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ effectiveDate }),
+      })
+      const payload = await response.json().catch(() => null)
+      if (!response.ok) {
+        const message = payload?.error ?? 'Unable to clone the selected revenue schedule.'
+        throw new Error(message)
+      }
+
+      const newId: string | undefined = payload?.data?.id ?? payload?.id
+      if (!newId) {
+        throw new Error('Clone completed but no schedule id was returned.')
+      }
+
+      handleCloneModalClose()
+      showSuccess('Schedule cloned', 'Opening the cloned schedule so you can review it.')
+      router.push(`/revenue-schedules/${encodeURIComponent(newId)}`)
+    } catch (err) {
+      console.error('Failed to clone revenue schedule', err)
+      const message = err instanceof Error ? err.message : 'Unable to clone revenue schedule.'
+      showError('Clone failed', message)
+    } finally {
+      setBulkActionBusy(false)
+    }
+  }, [cloneTargetId, handleCloneModalClose, router, showError, showSuccess])
+
   const handleDeleteRow = useCallback((scheduleId: string) => {
     // Client-side delete placeholder; wire to API when available
     setRevenueSchedules(prev => prev.filter(row => row.id !== scheduleId))
@@ -873,7 +952,17 @@ export default function RevenueSchedulesPage() {
   const revenueBulkActions = useMemo<BulkActionsGridProps>(() => ({
     selectedCount: selectedSchedules.length,
     entityName: 'revenue schedules',
+    isBusy: bulkActionBusy,
     actions: [
+      {
+        key: 'clone',
+        label: 'Clone',
+        icon: Copy,
+        tone: 'primary',
+        onClick: handleCloneSchedule,
+        tooltip: (count) => (count === 1 ? 'Clone this revenue schedule' : 'Select exactly one schedule to clone'),
+        disabled: selectedSchedules.length !== 1,
+      },
       {
         key: 'delete',
         label: 'Delete',
@@ -891,7 +980,7 @@ export default function RevenueSchedulesPage() {
         onClick: handleBulkExportSchedules,
       },
     ],
-  }), [handleBulkDeleteSchedules, handleBulkExportSchedules, selectedSchedules.length])
+  }), [bulkActionBusy, handleCloneSchedule, handleBulkDeleteSchedules, handleBulkExportSchedules, selectedSchedules.length])
 
   return (
     <CopyProtectionWrapper className="dashboard-page-container">
@@ -966,8 +1055,15 @@ export default function RevenueSchedulesPage() {
           setShowColumnSettings(false)
           await saveChangesOnModalClose()
         }}
-      />
-      <ToastContainer />
-    </CopyProtectionWrapper>
-  )
-}
+        />
+        <ToastContainer />
+        <RevenueScheduleCloneModal
+          isOpen={cloneModalOpen}
+          defaultDate={cloneDefaultDate}
+          submitting={bulkActionBusy}
+          onCancel={handleCloneModalClose}
+          onConfirm={handleConfirmCloneSchedule}
+        />
+      </CopyProtectionWrapper>
+    )
+  }

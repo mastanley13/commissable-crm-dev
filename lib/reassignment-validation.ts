@@ -110,9 +110,9 @@ export async function validateNewOwner(newOwnerId: string, tenantId: string): Pr
 }
 
 export async function getUserRole(userId: string, tenantId: string) {
-  const userRole = await (prisma as any).userRole?.findFirst({
+  const user = await prisma.user.findFirst({
     where: {
-      userId,
+      id: userId,
       tenantId
     },
     include: {
@@ -120,7 +120,7 @@ export async function getUserRole(userId: string, tenantId: string) {
     }
   });
 
-  return userRole?.role || null;
+  return user?.role || null;
 }
 
 export async function getCurrentUser() {

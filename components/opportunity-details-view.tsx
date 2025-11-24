@@ -2,8 +2,8 @@
 
 import Link from "next/link"
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react"
-import { useSearchParams } from "next/navigation"
-import { Check, Loader2, Trash2, Calendar, Download, ToggleLeft, ToggleRight } from "lucide-react"
+import { useRouter, useSearchParams } from "next/navigation"
+import { Check, Copy, Loader2, Trash2, Calendar, Download, ToggleLeft, ToggleRight } from "lucide-react"
 import { LeadSource, OpportunityStage, OpportunityStatus } from "@prisma/client"
 import { cn } from "@/lib/utils"
 import { ListHeader, type ColumnFilter } from "@/components/list-header"
@@ -42,6 +42,7 @@ import { StatusFilterDropdown } from "@/components/status-filter-dropdown"
 import { AuditHistoryTab } from "./audit-history-tab"
 import { buildStandardBulkActions } from "@/components/standard-bulk-actions"
 import type { BulkActionsGridProps } from "@/components/bulk-actions-grid"
+import { RevenueScheduleCloneModal } from "@/components/revenue-schedule-clone-modal"
 
 // Helper function to parse currency values
 const parseCurrency = (val: any): number => {
@@ -56,7 +57,7 @@ const parseCurrency = (val: any): number => {
 
 const fieldLabelClass = "text-[11px] font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap"
 const fieldBoxClass =
-  "flex min-h-[28px] w-full max-w-md items-center justify-between border-b-2 border-gray-300 bg-transparent pl-[3px] pr-0 py-1 text-[11px] text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis tabular-nums"
+  "flex min-h-[28px] w-full items-center justify-between border-b-2 border-gray-300 bg-transparent pl-[3px] pr-0 py-1 text-[11px] text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis tabular-nums"
 
 const PRODUCT_FILTER_COLUMNS: Array<{ id: string; label: string }> = [
   { id: "productName", label: "Product Name" },
@@ -939,23 +940,30 @@ function validateOpportunityForm(form: OpportunityInlineForm): Record<string, st
 function FieldRow({
   label,
   children,
-  lastEdited
+  lastEdited,
+  layout = "fixed"
 }: {
   label: string
   children: React.ReactNode
   lastEdited?: { date: string; user: string }
+  layout?: "fixed" | "auto"
 }) {
   return (
-    <div className="grid items-start gap-3 sm:grid-cols-[180px,minmax(0,1fr)]">
+    <div className={cn(
+      "grid items-center",
+      layout === "auto" 
+        ? "sm:grid-cols-[180px,auto,auto] gap-2" 
+        : "sm:grid-cols-[180px,minmax(0,1fr),auto] gap-x-2 gap-y-2"
+    )}>
       <span className={cn(fieldLabelClass, "flex items-center min-h-[28px]")}>{label}</span>
-      <div className="flex items-center gap-2 w-full">
-        <div className="w-full sm:basis-[65%] sm:max-w-[65%] sm:shrink-0">{children}</div>
-        {lastEdited && (
-          <span className="text-[10px] text-gray-400 whitespace-nowrap">
-            Last edited {lastEdited.date} by {lastEdited.user}
-          </span>
-        )}
-      </div>
+      <div className="w-full">{children}</div>
+      {lastEdited ? (
+        <span className="text-[10px] text-gray-400 whitespace-nowrap ml-2">
+          Last edited {lastEdited.date} by {lastEdited.user}
+        </span>
+      ) : (
+        <span></span>
+      )}
     </div>
   )
 }
@@ -979,7 +987,7 @@ function OpportunityHeader({
   onEdit?: () => void
 }) {
   return (
-    <div className="rounded-2xl bg-gray-100 p-3 shadow-sm h-[300px] overflow-y-auto">
+    <div className="rounded-2xl bg-gray-100 p-3 shadow-sm">
       {/* Header with title and controls */}
       <div className="mb-2 flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -997,7 +1005,7 @@ function OpportunityHeader({
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-2">
         <div className="space-y-1.5">
           <FieldRow label="Opportunity Name">
             <div className={fieldBoxClass}>
@@ -1006,7 +1014,7 @@ function OpportunityHeader({
           </FieldRow>
           <FieldRow label="Account Name">
             {opportunity.account ? (
-              <Link href={`/accounts/${opportunity.account.id}`} className="w-full max-w-md">
+              <Link href={`/accounts/${opportunity.account.id}`} className="block w-full">
                 <div
                   className={cn(
                     fieldBoxClass,
@@ -1061,13 +1069,13 @@ function OpportunityHeader({
               {opportunity.billingAddress || "--"}
             </div>
           </FieldRow>
-          <FieldRow label="Subagent %" lastEdited={getLastEdit(history, "Subagent %")}>
+          <FieldRow label="Subagent %" lastEdited={getLastEdit(history, "Subagent %")} layout="auto">
             <div className={fieldBoxClass}>{formatPercent(opportunity.subagentPercent)}</div>
           </FieldRow>
-          <FieldRow label="House Rep %" lastEdited={getLastEdit(history, "House Rep %")}>
+          <FieldRow label="House Rep %" lastEdited={getLastEdit(history, "House Rep %")} layout="auto">
             <div className={fieldBoxClass}>{formatPercent(opportunity.houseRepPercent)}</div>
           </FieldRow>
-          <FieldRow label="House Split %" lastEdited={getLastEdit(history, "House Split %")}>
+          <FieldRow label="House Split %" lastEdited={getLastEdit(history, "House Split %")} layout="auto">
             <div className={fieldBoxClass}>
               {formatPercent(
                 calculateHouseSplitPercent({
@@ -1184,7 +1192,7 @@ function EditableOpportunityHeader({
   )
 
   return (
-    <div className="rounded-2xl bg-gray-100 p-3 shadow-sm h-[300px] overflow-y-auto">
+    <div className="rounded-2xl bg-gray-100 p-3 shadow-sm">
       <div className="mb-2 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <p className="text-[13px] font-semibold uppercase tracking-wide text-primary-600">Opportunity Detail</p>
@@ -1203,7 +1211,7 @@ function EditableOpportunityHeader({
         </button>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-2">
         <div className="space-y-1.5">
           {renderRow(
             "Opportunity Name",
@@ -1218,7 +1226,7 @@ function EditableOpportunityHeader({
 
           <FieldRow label="Account Name">
             {opportunity.account ? (
-              <Link href={`/accounts/${opportunity.account.id}`} className="w-full max-w-md">
+              <Link href={`/accounts/${opportunity.account.id}`} className="block w-full">
                 <div
                   className={cn(
                     fieldBoxClass,
@@ -1489,6 +1497,7 @@ export function OpportunityDetailsView({
 }: OpportunityDetailsViewProps) {
   const { user: authUser, hasPermission, hasAnyPermission } = useAuth()
   const { showError, showSuccess } = useToasts()
+  const router = useRouter()
   const searchParams = useSearchParams()
 
   // Lifted history state
@@ -1729,6 +1738,10 @@ export function OpportunityDetailsView({
   const [selectedRevenueSchedules, setSelectedRevenueSchedules] = useState<string[]>([])
   const [showRevenueColumnSettings, setShowRevenueColumnSettings] = useState(false)
   const [showRevenueCreateModal, setShowRevenueCreateModal] = useState(false)
+  const [revenueBulkBusy, setRevenueBulkBusy] = useState(false)
+  const [showRevenueCloneModal, setShowRevenueCloneModal] = useState(false)
+  const [revenueCloneTargetId, setRevenueCloneTargetId] = useState<string | null>(null)
+  const [revenueCloneDefaultDate, setRevenueCloneDefaultDate] = useState<string>("")
 
   const {
     columns: revenuePreferenceColumns,
@@ -2631,6 +2644,84 @@ export function OpportunityDetailsView({
       "Check your downloads for the CSV file."
     )
   }, [selectedRevenueSchedules.length, selectedRevenueRows, showError, showSuccess])
+
+  const computeRevenueCloneDefaultDate = useCallback((rawDate?: string | null) => {
+    const fallback = new Date()
+    const base = rawDate ? new Date(rawDate) : fallback
+    if (Number.isNaN(base.getTime())) {
+      return fallback.toISOString().slice(0, 10)
+    }
+    const next = new Date(base)
+    if (next.getDate() === 1) {
+      next.setDate(1)
+    } else {
+      next.setMonth(next.getMonth() + 1, 1)
+    }
+    next.setHours(0, 0, 0, 0)
+    return next.toISOString().slice(0, 10)
+  }, [])
+
+  const handleRevenueCloneSchedule = useCallback(() => {
+    if (selectedRevenueSchedules.length !== 1) {
+      showError("Select a single schedule", "Choose exactly one revenue schedule to clone.")
+      return
+    }
+    const sourceId = selectedRevenueSchedules[0]
+    const targetRow = selectedRevenueRows.find(row => row.id === sourceId)
+    if (!targetRow) {
+      showError("Schedules unavailable", "Unable to locate the selected revenue schedules. Refresh and try again.")
+      return
+    }
+    const defaultDate = computeRevenueCloneDefaultDate(targetRow.scheduleDate)
+    setRevenueCloneTargetId(sourceId)
+    setRevenueCloneDefaultDate(defaultDate)
+    setShowRevenueCloneModal(true)
+  }, [computeRevenueCloneDefaultDate, selectedRevenueRows, selectedRevenueSchedules, showError])
+
+  const handleRevenueCloneCancel = useCallback(() => {
+    setShowRevenueCloneModal(false)
+    setRevenueCloneTargetId(null)
+  }, [])
+
+  const handleRevenueConfirmClone = useCallback(
+    async (effectiveDate: string) => {
+      if (!revenueCloneTargetId) {
+        showError("Schedules unavailable", "Unable to locate the selected revenue schedules. Refresh and try again.")
+        return
+      }
+
+      setRevenueBulkBusy(true)
+      try {
+        const response = await fetch(`/api/revenue-schedules/${encodeURIComponent(revenueCloneTargetId)}/clone`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ effectiveDate }),
+        })
+        const payload = await response.json().catch(() => null)
+        if (!response.ok) {
+          const message = payload?.error ?? "Unable to clone the selected revenue schedule."
+          throw new Error(message)
+        }
+
+        const newId: string | undefined = payload?.data?.id ?? payload?.id
+        if (!newId) {
+          throw new Error("Clone completed but the new schedule id was not returned.")
+        }
+
+        setShowRevenueCloneModal(false)
+        setRevenueCloneTargetId(null)
+        showSuccess("Schedule cloned", "Opening the cloned schedule so you can review it.")
+        router.push(`/revenue-schedules/${encodeURIComponent(newId)}`)
+      } catch (err) {
+        console.error("Failed to clone revenue schedule", err)
+        const message = err instanceof Error ? err.message : "Unable to clone revenue schedule."
+        showError("Clone failed", message)
+      } finally {
+        setRevenueBulkBusy(false)
+      }
+    },
+    [revenueCloneTargetId, router, showError, showSuccess]
+  )
 
   const handleCreateActivity = useCallback(() => {
     if (!opportunity) {
@@ -3669,7 +3760,17 @@ export function OpportunityDetailsView({
     () => ({
       selectedCount: selectedRevenueSchedules.length,
       entityName: "revenue schedules",
+      isBusy: revenueBulkBusy,
       actions: [
+        {
+          key: "revenue-clone",
+          label: "Clone",
+          icon: Copy,
+          tone: "primary",
+          onClick: handleRevenueCloneSchedule,
+          tooltip: count => (count === 1 ? "Clone this revenue schedule" : "Select exactly one schedule to clone"),
+          disabled: selectedRevenueSchedules.length !== 1,
+        },
         {
           key: "revenue-export",
           label: "Export CSV",
@@ -3680,7 +3781,7 @@ export function OpportunityDetailsView({
         },
       ],
     }),
-    [selectedRevenueSchedules.length, handleRevenueExportCsv]
+    [selectedRevenueSchedules.length, revenueBulkBusy, handleRevenueCloneSchedule, handleRevenueExportCsv]
   )
 
   const roleBulkActions = useMemo<BulkActionsGridProps>(
@@ -4143,6 +4244,14 @@ export function OpportunityDetailsView({
           setShowRevenueCreateModal(false)
           await onRefresh?.()
         }}
+      />
+
+      <RevenueScheduleCloneModal
+        isOpen={showRevenueCloneModal}
+        defaultDate={revenueCloneDefaultDate}
+        submitting={revenueBulkBusy}
+        onCancel={handleRevenueCloneCancel}
+        onConfirm={handleRevenueConfirmClone}
       />
 
       <OpportunityLineItemEditModal

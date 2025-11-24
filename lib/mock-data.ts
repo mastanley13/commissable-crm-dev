@@ -829,95 +829,167 @@ export const depositLineItemsMock: DepositLineItemRow[] = [
 
 export type SuggestedMatchScheduleRow = {
   id: string
-  sequence: number
-  name: string
-  number: string
-  date: string
-  accountLegalName: string
-  product: string
+  status: 'Suggested' | 'Reconciled' | 'Un-Reconciled'
+  lineItem: number
+  matchConfidence: number
   vendorName: string
+  legalName: string
+  productNameVendor: string
+  revenueScheduleDate: string
+  revenueScheduleName: string
   quantity: number
   priceEach: number
   expectedUsageGross: number
-  expectedUsageAdjust: number
-  status: 'Suggested' | 'Reconciled' | 'Un-Reconciled'
+  expectedUsageAdjustment: number
+  expectedUsageNet: number
+  actualUsage: number
+  usageBalance: number
+  paymentDate: string
+  expectedCommissionGross: number
+  expectedCommissionAdjustment: number
+  expectedCommissionNet: number
+  actualCommission: number
+  commissionDifference: number
+  expectedCommissionRatePercent: number
+  actualCommissionRatePercent: number
+  commissionRateDifference: number
 }
 
 export const suggestedScheduleMatchesMock: SuggestedMatchScheduleRow[] = [
   {
     id: 'rs-2001',
-    sequence: 1,
-    name: 'RS-1234',
-    number: 'RS-1234',
-    date: '2025-02-01',
-    accountLegalName: 'Mike Inc',
-    product: 'Ucaas 1 Seat - 12 Month',
+    status: 'Suggested',
+    lineItem: 1,
+    matchConfidence: 0.87,
     vendorName: 'Lingo',
+    legalName: 'Mike Inc',
+    productNameVendor: 'Ucaas 1 Seat - 12 Month',
+    revenueScheduleDate: '2025-02-01',
+    revenueScheduleName: 'RS-1234',
     quantity: 1,
     priceEach: 500,
     expectedUsageGross: 500,
-    expectedUsageAdjust: 0,
-    status: 'Suggested'
+    expectedUsageAdjustment: 0,
+    expectedUsageNet: 500,
+    actualUsage: 450,
+    usageBalance: 50,
+    paymentDate: '2025-02-05',
+    expectedCommissionGross: 50,
+    expectedCommissionAdjustment: 0,
+    expectedCommissionNet: 50,
+    actualCommission: 45,
+    commissionDifference: 5,
+    expectedCommissionRatePercent: 0.1,
+    actualCommissionRatePercent: 0.1,
+    commissionRateDifference: 0
   },
   {
     id: 'rs-2002',
-    sequence: 2,
-    name: 'RS-1212',
-    number: 'RS-1212',
-    date: '2025-02-19',
-    accountLegalName: 'Mike Inc',
-    product: 'Ucaas 1 Seat - 12 Month',
+    status: 'Suggested',
+    lineItem: 2,
+    matchConfidence: 0.78,
     vendorName: 'Lingo',
+    legalName: 'Mike Inc',
+    productNameVendor: 'Ucaas 1 Seat - 12 Month',
+    revenueScheduleDate: '2025-02-19',
+    revenueScheduleName: 'RS-1212',
     quantity: 1,
     priceEach: 500,
     expectedUsageGross: 10100,
-    expectedUsageAdjust: 0,
-    status: 'Suggested'
+    expectedUsageAdjustment: -100,
+    expectedUsageNet: 10000,
+    actualUsage: 9000,
+    usageBalance: 1000,
+    paymentDate: '2025-02-22',
+    expectedCommissionGross: 1000,
+    expectedCommissionAdjustment: 0,
+    expectedCommissionNet: 1000,
+    actualCommission: 875,
+    commissionDifference: 125,
+    expectedCommissionRatePercent: 0.1,
+    actualCommissionRatePercent: 0.0972,
+    commissionRateDifference: 0.0028
   },
   {
     id: 'rs-2003',
-    sequence: 3,
-    name: 'RS-1213',
-    number: 'RS-1213',
-    date: '2025-02-19',
-    accountLegalName: 'Mike Inc',
-    product: 'SD-WAN Advanced',
+    status: 'Reconciled',
+    lineItem: 3,
+    matchConfidence: 0.92,
     vendorName: 'Lingo',
+    legalName: 'Mike Inc',
+    productNameVendor: 'SD-WAN Advanced',
+    revenueScheduleDate: '2025-02-19',
+    revenueScheduleName: 'RS-1213',
     quantity: 1,
     priceEach: 500,
     expectedUsageGross: 100,
-    expectedUsageAdjust: 0,
-    status: 'Reconciled'
+    expectedUsageAdjustment: 0,
+    expectedUsageNet: 100,
+    actualUsage: 100,
+    usageBalance: 0,
+    paymentDate: '2025-02-20',
+    expectedCommissionGross: 15,
+    expectedCommissionAdjustment: 0,
+    expectedCommissionNet: 15,
+    actualCommission: 15,
+    commissionDifference: 0,
+    expectedCommissionRatePercent: 0.15,
+    actualCommissionRatePercent: 0.15,
+    commissionRateDifference: 0
   },
   {
     id: 'rs-2004',
-    sequence: 4,
-    name: 'RS-1214',
-    number: 'RS-1214',
-    date: '2025-02-19',
-    accountLegalName: 'Alvin Inc',
-    product: 'Fiber DIA 1GB',
+    status: 'Reconciled',
+    lineItem: 4,
+    matchConfidence: 0.83,
     vendorName: 'Lingo',
+    legalName: 'Alvin Inc',
+    productNameVendor: 'Fiber DIA 1GB',
+    revenueScheduleDate: '2025-02-19',
+    revenueScheduleName: 'RS-1214',
     quantity: 1,
     priceEach: 500,
     expectedUsageGross: 10100,
-    expectedUsageAdjust: 0,
-    status: 'Reconciled'
+    expectedUsageAdjustment: 0,
+    expectedUsageNet: 10100,
+    actualUsage: 10100,
+    usageBalance: 0,
+    paymentDate: '2025-02-22',
+    expectedCommissionGross: 1010,
+    expectedCommissionAdjustment: 0,
+    expectedCommissionNet: 1010,
+    actualCommission: 1010,
+    commissionDifference: 0,
+    expectedCommissionRatePercent: 0.1,
+    actualCommissionRatePercent: 0.1,
+    commissionRateDifference: 0
   },
   {
     id: 'rs-2005',
-    sequence: 5,
-    name: 'RS-1215',
-    number: 'RS-1215',
-    date: '2025-02-19',
-    accountLegalName: 'Mike Inc',
-    product: 'CCaaS Enterprise',
+    status: 'Un-Reconciled',
+    lineItem: 5,
+    matchConfidence: 0.65,
     vendorName: 'Lingo',
+    legalName: 'Mike Inc',
+    productNameVendor: 'CCaaS Enterprise',
+    revenueScheduleDate: '2025-02-19',
+    revenueScheduleName: 'RS-1215',
     quantity: 1,
     priceEach: 500,
-    expectedUsageGross: 100,
-    expectedUsageAdjust: 0,
-    status: 'Un-Reconciled'
+    expectedUsageGross: 500,
+    expectedUsageAdjustment: 0,
+    expectedUsageNet: 500,
+    actualUsage: 0,
+    usageBalance: 500,
+    paymentDate: '2025-02-28',
+    expectedCommissionGross: 75,
+    expectedCommissionAdjustment: -5,
+    expectedCommissionNet: 70,
+    actualCommission: 0,
+    commissionDifference: 70,
+    expectedCommissionRatePercent: 0.15,
+    actualCommissionRatePercent: 0,
+    commissionRateDifference: 0.15
   }
 ]
 

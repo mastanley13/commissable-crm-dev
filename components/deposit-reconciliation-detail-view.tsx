@@ -34,23 +34,23 @@ type LineTabKey = DepositLineStatusFilterValue
 type ScheduleTabKey = ReconciliationScheduleFilterValue
 
 const depositFieldLabels = {
-  accountId: "06.04.000 Account ID - Vendor",
-  lineItem: "06.04.001 Line Item",
-  status: "06.04.002 Deposit Status",
-  paymentDate: "06.04.003 Payment Date",
-  accountName: "06.04.004 Account Name",
-  vendorName: "06.04.005 Vendor Name",
-  productName: "06.04.006 Product Name - Vendor",
-  usage: "06.04.007 Usage",
-  usageAllocated: "06.04.008 Usage Allocated",
-  usageUnallocated: "06.04.009 Usage Unallocated",
-  commissionRate: "06.04.010 Actual Commission Rate %",
-  commission: "06.04.011 Actual Commission",
-  commissionAllocated: "06.04.012 Commission Allocated",
-  commissionUnallocated: "06.04.013 Commission Unallocated",
-  customerIdVendor: "06.04.014 Customer ID - Vendor",
-  orderIdVendor: "06.04.015 Order ID - Vendor",
-  distributorName: "06.04.016 Distributor Name"
+  accountId: "Account ID - Vendor",
+  lineItem: "Line Item",
+  status: "Deposit Status",
+  paymentDate: "Payment Date",
+  accountName: "Account Name",
+  vendorName: "Vendor Name",
+  productName: "Product Name - Vendor",
+  usage: "Usage",
+  usageAllocated: "Usage Allocated",
+  usageUnallocated: "Usage Unallocated",
+  commissionRate: "Actual Commission Rate %",
+  commission: "Actual Commission",
+  commissionAllocated: "Commission Allocated",
+  commissionUnallocated: "Commission Unallocated",
+  customerIdVendor: "Customer ID - Vendor",
+  orderIdVendor: "Order ID - Vendor",
+  distributorName: "Distributor Name"
 } as const
 
 type LineFilterColumnId = keyof typeof depositFieldLabels
@@ -82,38 +82,67 @@ const lineFilterColumnOptions: Array<{ id: LineFilterColumnId; label: string }> 
 
 const LINE_FILTER_COLUMN_IDS = new Set<LineFilterColumnId>(lineFilterColumnOptions.map(option => option.id))
 
-type ScheduleFilterColumnId =
-  | "sequence"
-  | "name"
-  | "number"
-  | "date"
-  | "accountLegalName"
-  | "product"
-  | "vendorName"
-  | "quantity"
-  | "priceEach"
-  | "expectedUsageGross"
-  | "expectedUsageAdjust"
-  | "status"
+const scheduleFieldLabels = {
+  lineItem: "Line Item",
+  matchConfidence: "Match Confidence",
+  vendorName: "Vendor Name",
+  legalName: "Legal Name",
+  productNameVendor: "Product Name - Vendor",
+  revenueScheduleDate: "Revenue Schedule Date",
+  revenueScheduleName: "Revenue Schedule Name",
+  quantity: "Quantity",
+  priceEach: "Price Each",
+  expectedUsageGross: "Expected Usage Gross",
+  expectedUsageAdjustment: "Expected Usage Adjustment",
+  expectedUsageNet: "Expected Usage Net",
+  actualUsage: "Actual Usage",
+  usageBalance: "Usage Balance",
+  paymentDate: "Payment Date",
+  expectedCommissionGross: "Expected Commission Gross",
+  expectedCommissionAdjustment: "Expected Commission Adjustment",
+  expectedCommissionNet: "Expected Commission Net",
+  actualCommission: "Actual Commission",
+  commissionDifference: "Commission Difference",
+  expectedCommissionRatePercent: "Expected Commission Rate %",
+  actualCommissionRatePercent: "Actual Commission Rate %",
+  commissionRateDifference: "Commission Rate Difference"
+} as const
 
-const scheduleFilterColumnOptions: Array<{ id: ScheduleFilterColumnId; label: string }> = [
-  { id: "sequence", label: "#" },
-  { id: "name", label: "Name" },
-  { id: "number", label: "Number" },
-  { id: "date", label: "Date" },
-  { id: "accountLegalName", label: "Account Legal Name" },
-  { id: "product", label: "Product" },
-  { id: "vendorName", label: "Vendor Name" },
-  { id: "quantity", label: "Quantity" },
-  { id: "priceEach", label: "Price Each" },
-  { id: "expectedUsageGross", label: "Expected Usage Gross" },
-  { id: "expectedUsageAdjust", label: "Expected Usage Adjust" },
-  { id: "status", label: "Status" }
+const scheduleFieldOrder: Array<keyof typeof scheduleFieldLabels> = [
+  "lineItem",
+  "matchConfidence",
+  "vendorName",
+  "legalName",
+  "productNameVendor",
+  "revenueScheduleDate",
+  "revenueScheduleName",
+  "quantity",
+  "priceEach",
+  "expectedUsageGross",
+  "expectedUsageAdjustment",
+  "expectedUsageNet",
+  "actualUsage",
+  "usageBalance",
+  "paymentDate",
+  "expectedCommissionGross",
+  "expectedCommissionAdjustment",
+  "expectedCommissionNet",
+  "actualCommission",
+  "commissionDifference",
+  "expectedCommissionRatePercent",
+  "actualCommissionRatePercent",
+  "commissionRateDifference"
 ]
 
-const SCHEDULE_FILTER_COLUMN_IDS = new Set<ScheduleFilterColumnId>(
-  scheduleFilterColumnOptions.map(option => option.id)
-)
+type ScheduleFilterColumnId = keyof typeof scheduleFieldLabels
+
+const scheduleFilterColumnOptions: Array<{ id: ScheduleFilterColumnId; label: string }> =
+  scheduleFieldOrder.map(id => ({
+    id,
+    label: scheduleFieldLabels[id]
+  }))
+
+const SCHEDULE_FILTER_COLUMN_IDS = new Set<ScheduleFilterColumnId>(scheduleFilterColumnOptions.map(option => option.id))
 
 type LineColumnFilter = ColumnFilter & { columnId: LineFilterColumnId }
 type ScheduleColumnFilter = ColumnFilter & { columnId: ScheduleFilterColumnId }
@@ -414,37 +443,61 @@ export function DepositReconciliationDetailView({
   const getScheduleFilterValue = useCallback(
     (row: SuggestedMatchScheduleRow, columnId: ScheduleFilterColumnId) => {
       switch (columnId) {
-        case "sequence":
-          return String(row.sequence)
-        case "name":
-          return row.name
-        case "number":
-          return row.number
-        case "date": {
-          const parsed = new Date(row.date)
-          return Number.isNaN(parsed.getTime()) ? row.date : dateFormatter.format(parsed)
-        }
-        case "accountLegalName":
-          return row.accountLegalName
-        case "product":
-          return row.product
+        case "lineItem":
+          return String(row.lineItem)
+        case "matchConfidence":
+          return percentFormatter.format(row.matchConfidence)
         case "vendorName":
           return row.vendorName
+        case "legalName":
+          return row.legalName
+        case "productNameVendor":
+          return row.productNameVendor
+        case "revenueScheduleDate": {
+          const parsed = new Date(row.revenueScheduleDate)
+          return Number.isNaN(parsed.getTime()) ? row.revenueScheduleDate : dateFormatter.format(parsed)
+        }
+        case "revenueScheduleName":
+          return row.revenueScheduleName
         case "quantity":
           return String(row.quantity)
         case "priceEach":
           return currencyFormatter.format(row.priceEach)
         case "expectedUsageGross":
           return currencyFormatter.format(row.expectedUsageGross)
-        case "expectedUsageAdjust":
-          return currencyFormatter.format(row.expectedUsageAdjust)
-        case "status":
-          return row.status
+        case "expectedUsageAdjustment":
+          return currencyFormatter.format(row.expectedUsageAdjustment)
+        case "expectedUsageNet":
+          return currencyFormatter.format(row.expectedUsageNet)
+        case "actualUsage":
+          return currencyFormatter.format(row.actualUsage)
+        case "usageBalance":
+          return currencyFormatter.format(row.usageBalance)
+        case "paymentDate": {
+          const parsed = new Date(row.paymentDate)
+          return Number.isNaN(parsed.getTime()) ? row.paymentDate : dateFormatter.format(parsed)
+        }
+        case "expectedCommissionGross":
+          return currencyFormatter.format(row.expectedCommissionGross)
+        case "expectedCommissionAdjustment":
+          return currencyFormatter.format(row.expectedCommissionAdjustment)
+        case "expectedCommissionNet":
+          return currencyFormatter.format(row.expectedCommissionNet)
+        case "actualCommission":
+          return currencyFormatter.format(row.actualCommission)
+        case "commissionDifference":
+          return currencyFormatter.format(row.commissionDifference)
+        case "expectedCommissionRatePercent":
+          return percentFormatter.format(row.expectedCommissionRatePercent)
+        case "actualCommissionRatePercent":
+          return percentFormatter.format(row.actualCommissionRatePercent)
+        case "commissionRateDifference":
+          return percentFormatter.format(row.commissionRateDifference)
         default:
           return ""
       }
     },
-    [currencyFormatter, dateFormatter]
+    [currencyFormatter, percentFormatter, dateFormatter]
   )
 
   const filteredLineItems = useMemo(() => {
@@ -496,11 +549,10 @@ export function DepositReconciliationDetailView({
 
       const matchesSearch = scheduleSearchValue
         ? [
-            schedule.name,
-            schedule.number,
-            schedule.accountLegalName,
-            schedule.product,
-            schedule.vendorName
+            schedule.revenueScheduleName,
+            schedule.vendorName,
+            schedule.legalName,
+            schedule.productNameVendor
           ]
             .map(value => value.toLowerCase())
             .some(value => value.includes(scheduleSearchValue))
@@ -520,6 +572,15 @@ export function DepositReconciliationDetailView({
   const baseLineColumns = useMemo<Column[]>(() => {
     const minTextWidth = (label: string) => calculateMinWidth({ label, type: "text", sortable: false })
     return [
+      {
+        id: "select",
+        label: "Select All",
+        width: 140,
+        minWidth: 120,
+        type: "checkbox",
+        sortable: false,
+        resizable: false
+      },
       {
         id: "match",
         label: "Match",
@@ -657,100 +718,183 @@ export function DepositReconciliationDetailView({
   }, [currencyFormatter, percentFormatter, dateFormatter])
 
   const baseScheduleColumns = useMemo<Column[]>(() => {
+    const minTextWidth = (label: string) => calculateMinWidth({ label, type: "text", sortable: false })
     return [
       {
-        id: "actions",
-        label: "Actions",
-        width: 160,
-        minWidth: 100,
-        accessor: "id",
-        render: () => (
-          <div className="flex items-center gap-1 text-primary-500">
-            {[Eye, Link2, ClipboardCheck, FileDown, Trash2].map((Icon, index) => (
-              <button
-                type="button"
-                key={index}
-                className="rounded-full border border-transparent p-1.5 transition hover:border-primary-100 hover:bg-primary-50"
-                aria-label="Schedule action"
-              >
-                <Icon className="h-4 w-4" />
-              </button>
-            ))}
-          </div>
-        )
-      },
-      {
-        id: "sequence",
-        label: "#",
-        width: 60,
-        minWidth: calculateMinWidth({ label: "#", type: "text", sortable: false })
-      },
-      {
-        id: "name",
-        label: "Name",
+        id: "select",
+        label: "Select All",
         width: 140,
-        minWidth: calculateMinWidth({ label: "Name", type: "text", sortable: false })
+        minWidth: 120,
+        type: "checkbox",
+        sortable: false,
+        resizable: false
       },
       {
-        id: "date",
-        label: "Date",
-        width: 160,
-        minWidth: calculateMinWidth({ label: "Date", type: "text", sortable: false }),
+        id: "lineItem",
+        label: scheduleFieldLabels.lineItem,
+        width: 140,
+        minWidth: minTextWidth(scheduleFieldLabels.lineItem)
+      },
+      {
+        id: "matchConfidence",
+        label: scheduleFieldLabels.matchConfidence,
+        width: 180,
+        minWidth: minTextWidth(scheduleFieldLabels.matchConfidence),
+        render: (value: number) => percentFormatter.format(value)
+      },
+      {
+        id: "vendorName",
+        label: scheduleFieldLabels.vendorName,
+        width: 200,
+        minWidth: minTextWidth(scheduleFieldLabels.vendorName)
+      },
+      {
+        id: "legalName",
+        label: scheduleFieldLabels.legalName,
+        width: 220,
+        minWidth: minTextWidth(scheduleFieldLabels.legalName)
+      },
+      {
+        id: "productNameVendor",
+        label: scheduleFieldLabels.productNameVendor,
+        width: 240,
+        minWidth: minTextWidth(scheduleFieldLabels.productNameVendor)
+      },
+      {
+        id: "revenueScheduleDate",
+        label: scheduleFieldLabels.revenueScheduleDate,
+        width: 180,
+        minWidth: minTextWidth(scheduleFieldLabels.revenueScheduleDate),
         render: (value: string) => {
           const parsed = new Date(value)
           return Number.isNaN(parsed.getTime()) ? value : dateFormatter.format(parsed)
         }
       },
       {
-        id: "accountLegalName",
-        label: "Account Legal Name",
-        width: 220,
-        minWidth: calculateMinWidth({ label: "Account Legal Name", type: "text", sortable: false })
-      },
-      {
-        id: "product",
-        label: "Product",
-        width: 220,
-        minWidth: calculateMinWidth({ label: "Product", type: "text", sortable: false })
-      },
-      {
-        id: "vendorName",
-        label: "Vendor Name",
-        width: 180,
-        minWidth: calculateMinWidth({ label: "Vendor Name", type: "text", sortable: false })
+        id: "revenueScheduleName",
+        label: scheduleFieldLabels.revenueScheduleName,
+        width: 200,
+        minWidth: minTextWidth(scheduleFieldLabels.revenueScheduleName)
       },
       {
         id: "quantity",
-        label: "Quantity",
+        label: scheduleFieldLabels.quantity,
         width: 120,
-        minWidth: calculateMinWidth({ label: "Quantity", type: "text", sortable: false })
+        minWidth: minTextWidth(scheduleFieldLabels.quantity)
       },
       {
         id: "priceEach",
-        label: "Price Each",
+        label: scheduleFieldLabels.priceEach,
         width: 140,
-        minWidth: calculateMinWidth({ label: "Price Each", type: "text", sortable: false }),
+        minWidth: minTextWidth(scheduleFieldLabels.priceEach),
         render: (value: number) => currencyFormatter.format(value)
       },
       {
         id: "expectedUsageGross",
-        label: "Expected Usage Gross",
+        label: scheduleFieldLabels.expectedUsageGross,
         width: 200,
-        minWidth: calculateMinWidth({ label: "Expected Usage Gross", type: "text", sortable: false }),
+        minWidth: minTextWidth(scheduleFieldLabels.expectedUsageGross),
         render: (value: number) => currencyFormatter.format(value)
       },
       {
-        id: "expectedUsageAdjust",
-        label: "Expected Usage Adjust",
-        width: 200,
-        minWidth: calculateMinWidth({ label: "Expected Usage Adjust", type: "text", sortable: false }),
+        id: "expectedUsageAdjustment",
+        label: scheduleFieldLabels.expectedUsageAdjustment,
+        width: 220,
+        minWidth: minTextWidth(scheduleFieldLabels.expectedUsageAdjustment),
         render: (value: number) => currencyFormatter.format(value)
+      },
+      {
+        id: "expectedUsageNet",
+        label: scheduleFieldLabels.expectedUsageNet,
+        width: 200,
+        minWidth: minTextWidth(scheduleFieldLabels.expectedUsageNet),
+        render: (value: number) => currencyFormatter.format(value)
+      },
+      {
+        id: "actualUsage",
+        label: scheduleFieldLabels.actualUsage,
+        width: 200,
+        minWidth: minTextWidth(scheduleFieldLabels.actualUsage),
+        render: (value: number) => currencyFormatter.format(value)
+      },
+      {
+        id: "usageBalance",
+        label: scheduleFieldLabels.usageBalance,
+        width: 200,
+        minWidth: minTextWidth(scheduleFieldLabels.usageBalance),
+        render: (value: number) => currencyFormatter.format(value)
+      },
+      {
+        id: "paymentDate",
+        label: scheduleFieldLabels.paymentDate,
+        width: 180,
+        minWidth: minTextWidth(scheduleFieldLabels.paymentDate),
+        render: (value: string) => {
+          const parsed = new Date(value)
+          return Number.isNaN(parsed.getTime()) ? value : dateFormatter.format(parsed)
+        }
+      },
+      {
+        id: "expectedCommissionGross",
+        label: scheduleFieldLabels.expectedCommissionGross,
+        width: 220,
+        minWidth: minTextWidth(scheduleFieldLabels.expectedCommissionGross),
+        render: (value: number) => currencyFormatter.format(value)
+      },
+      {
+        id: "expectedCommissionAdjustment",
+        label: scheduleFieldLabels.expectedCommissionAdjustment,
+        width: 240,
+        minWidth: minTextWidth(scheduleFieldLabels.expectedCommissionAdjustment),
+        render: (value: number) => currencyFormatter.format(value)
+      },
+      {
+        id: "expectedCommissionNet",
+        label: scheduleFieldLabels.expectedCommissionNet,
+        width: 200,
+        minWidth: minTextWidth(scheduleFieldLabels.expectedCommissionNet),
+        render: (value: number) => currencyFormatter.format(value)
+      },
+      {
+        id: "actualCommission",
+        label: scheduleFieldLabels.actualCommission,
+        width: 200,
+        minWidth: minTextWidth(scheduleFieldLabels.actualCommission),
+        render: (value: number) => currencyFormatter.format(value)
+      },
+      {
+        id: "commissionDifference",
+        label: scheduleFieldLabels.commissionDifference,
+        width: 220,
+        minWidth: minTextWidth(scheduleFieldLabels.commissionDifference),
+        render: (value: number) => currencyFormatter.format(value)
+      },
+      {
+        id: "expectedCommissionRatePercent",
+        label: scheduleFieldLabels.expectedCommissionRatePercent,
+        width: 240,
+        minWidth: minTextWidth(scheduleFieldLabels.expectedCommissionRatePercent),
+        render: (value: number) => percentFormatter.format(value)
+      },
+      {
+        id: "actualCommissionRatePercent",
+        label: scheduleFieldLabels.actualCommissionRatePercent,
+        width: 240,
+        minWidth: minTextWidth(scheduleFieldLabels.actualCommissionRatePercent),
+        render: (value: number) => percentFormatter.format(value)
+      },
+      {
+        id: "commissionRateDifference",
+        label: scheduleFieldLabels.commissionRateDifference,
+        width: 240,
+        minWidth: minTextWidth(scheduleFieldLabels.commissionRateDifference),
+        render: (value: number) => percentFormatter.format(value)
       },
       {
         id: "status",
         label: "Status",
         width: 160,
-        minWidth: calculateMinWidth({ label: "Status", type: "text", sortable: false }),
+        minWidth: minTextWidth("Status"),
         render: (value: SuggestedMatchScheduleRow["status"]) => (
           <span className={cn("inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold", scheduleStatusStyles[value])}>
             {value}
@@ -758,7 +902,7 @@ export function DepositReconciliationDetailView({
         )
       }
     ]
-  }, [currencyFormatter, dateFormatter])
+  }, [currencyFormatter, percentFormatter, dateFormatter])
 
   const [lineTableColumns, setLineTableColumns] = useState<Column[]>(baseLineColumns)
   const [scheduleTableColumns, setScheduleTableColumns] = useState<Column[]>(baseScheduleColumns)
@@ -989,19 +1133,59 @@ export function DepositReconciliationDetailView({
       showError("Schedules unavailable", "Unable to locate the selected schedules.")
       return
     }
-    const headers = [
-      "Name",
-      "Number",
-      "Date",
-      "Account Legal Name",
-      "Product",
-      "Vendor Name",
-      "Quantity",
-      "Price Each",
-      "Expected Usage Gross",
-      "Expected Usage Adjustment",
-      "Status"
-    ]
+    const headers = scheduleFieldOrder.map(id => scheduleFieldLabels[id])
+    const getRawValue = (row: SuggestedMatchScheduleRow, columnId: ScheduleFilterColumnId) => {
+      switch (columnId) {
+        case "lineItem":
+          return row.lineItem
+        case "matchConfidence":
+          return row.matchConfidence
+        case "vendorName":
+          return row.vendorName
+        case "legalName":
+          return row.legalName
+        case "productNameVendor":
+          return row.productNameVendor
+        case "revenueScheduleDate":
+          return row.revenueScheduleDate
+        case "revenueScheduleName":
+          return row.revenueScheduleName
+        case "quantity":
+          return row.quantity
+        case "priceEach":
+          return row.priceEach
+        case "expectedUsageGross":
+          return row.expectedUsageGross
+        case "expectedUsageAdjustment":
+          return row.expectedUsageAdjustment
+        case "expectedUsageNet":
+          return row.expectedUsageNet
+        case "actualUsage":
+          return row.actualUsage
+        case "usageBalance":
+          return row.usageBalance
+        case "paymentDate":
+          return row.paymentDate
+        case "expectedCommissionGross":
+          return row.expectedCommissionGross
+        case "expectedCommissionAdjustment":
+          return row.expectedCommissionAdjustment
+        case "expectedCommissionNet":
+          return row.expectedCommissionNet
+        case "actualCommission":
+          return row.actualCommission
+        case "commissionDifference":
+          return row.commissionDifference
+        case "expectedCommissionRatePercent":
+          return row.expectedCommissionRatePercent
+        case "actualCommissionRatePercent":
+          return row.actualCommissionRatePercent
+        case "commissionRateDifference":
+          return row.commissionRateDifference
+        default:
+          return ""
+      }
+    }
     const escapeCsv = (value: unknown) => {
       if (value === null || value === undefined) return ""
       const stringValue = String(value)
@@ -1010,19 +1194,7 @@ export function DepositReconciliationDetailView({
     const lines = [
       headers.join(","),
       ...rows.map(row =>
-        [
-          row.name,
-          row.number,
-          row.date,
-          row.accountLegalName,
-          row.product,
-          row.vendorName,
-          row.quantity,
-          row.priceEach,
-          row.expectedUsageGross,
-          row.expectedUsageAdjust,
-          row.status
-        ].map(escapeCsv).join(",")
+        scheduleFieldOrder.map(columnId => escapeCsv(getRawValue(row, columnId))).join(",")
       )
     ]
     const blob = new Blob([lines.join("\r\n")], { type: "text/csv;charset=utf-8;" })

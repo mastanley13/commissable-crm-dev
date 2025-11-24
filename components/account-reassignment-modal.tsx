@@ -38,6 +38,8 @@ interface CommissionTransfer {
   toOwner: string;
   amount: number;
   effectiveDate: string;
+  fromOwnerName?: string;
+  toOwnerName?: string;
 }
 
 interface AccountSummaryPreview {
@@ -75,6 +77,115 @@ interface ReassignmentImpact {
     activeGroups: number;
     openTasks: number;
   };
+  portfolioSummary?: PortfolioSummary;
+  transferSummary?: TransferSummary;
+  transferAssociations?: TransferAssociations;
+}
+
+interface PortfolioSummary {
+  revenueAndContracts: {
+    totalAnnualRevenue: number;
+    monthlyRecurring: number;
+    activeContracts: number;
+    revenueScheduleCount: number;
+    nextRenewalDate: string | null;
+  };
+  pipeline: {
+    openOpportunities: number;
+    pipelineValue: number;
+    stageBreakdown: Record<string, number>;
+    nextCloseDate: string | null;
+  };
+  health: {
+    highRiskAccounts: number;
+    overdueTasks: number;
+    staleAccounts: number;
+    avgDaysSinceActivity: number | null;
+  };
+  ownerImpact: OwnerImpactSummary;
+}
+
+interface OwnerImpactSummary {
+  ownerId: string;
+  ownerName: string;
+  ownerType: 'user' | 'house' | 'unassigned';
+  currentBookSize: number | null;
+  incomingAccounts: number;
+  resultingBookSize: number | null;
+  additionalRevenue: number;
+  additionalPipeline: number;
+}
+
+interface TransferSummary {
+  willMove: {
+    accounts: number;
+    contacts: number;
+    openOpportunities: number;
+    revenueSchedules: number;
+    openTasks: number;
+  };
+  willRemain: {
+    closedOpportunities: number;
+    completedTasks: number;
+    historicalRevenueSchedules: number;
+  };
+  exceptions: string[];
+}
+
+interface TransferAssociations {
+  revenueSchedules: TransferRevenueSchedule[];
+  contacts: TransferContact[];
+  opportunities: TransferOpportunity[];
+  groups: TransferGroup[];
+  products: TransferProduct[];
+}
+
+interface TransferRevenueSchedule {
+  id: string;
+  accountId: string;
+  accountName: string;
+  scheduleNumber: string | null;
+  scheduleDate: string | null;
+  status: string;
+  amount: number | null;
+  productName: string | null;
+  opportunityName: string | null;
+}
+
+interface TransferContact {
+  id: string;
+  accountId: string;
+  accountName: string;
+  fullName: string;
+  jobTitle: string | null;
+  email: string | null;
+}
+
+interface TransferOpportunity {
+  id: string;
+  accountId: string;
+  accountName: string;
+  name: string;
+  stage: string;
+  estimatedCloseDate: string | null;
+  amount: number | null;
+}
+
+interface TransferGroup {
+  id: string;
+  accountId: string;
+  accountName: string;
+  groupName: string;
+  memberType: string;
+}
+
+interface TransferProduct {
+  id: string;
+  accountId: string;
+  accountName: string;
+  opportunityName: string;
+  productName: string;
+  quantity: number | null;
 }
 
 interface User {
@@ -283,39 +394,12 @@ export function AccountReassignmentModal({
         const errorData = await response.json();
         console.error('API error:', errorData);
         // Set a mock preview for testing purposes
-        setImpactPreview({
-          totalAccounts: selectedAccountIds.length,
-          accountsByOwner: {},
-          revenueImpact: {
-            totalAnnualRevenue: 0,
-            monthlyRecurring: 0,
-            projectedCommissions: 0,
-            affectedOpportunities: 0
-          },
-          commissionTransfers: [],
-          warnings: ['Preview calculation failed - using mock data for demonstration'],
-          conflicts: [],
-          itemCounts: { activeContacts: 0, openActivities: 0, activeGroups: 0, openTasks: 0 }
-        });
+        setImpactPreview(buildFallbackImpactPreview('Preview calculation failed - using mock data for demonstration'));
         await loadAccountSummaryFallback();
       }
     } catch (error) {
       console.error('Failed to load impact preview:', error);
-      // Set a mock preview for testing purposes
-      setImpactPreview({
-        totalAccounts: selectedAccountIds.length,
-        accountsByOwner: {},
-        revenueImpact: {
-          totalAnnualRevenue: 0,
-          monthlyRecurring: 0,
-          projectedCommissions: 0,
-          affectedOpportunities: 0
-        },
-        commissionTransfers: [],
-        warnings: ['Preview temporarily unavailable - using mock data'],
-        conflicts: [],
-        itemCounts: { activeContacts: 0, openActivities: 0, activeGroups: 0, openTasks: 0 }
-      });
+      setImpactPreview(buildFallbackImpactPreview('Preview temporarily unavailable - using mock data'));
       await loadAccountSummaryFallback();
     } finally {
       setPreviewLoading(false);
@@ -359,6 +443,105 @@ export function AccountReassignmentModal({
       currency: 'USD'
     }).format(amount);
   };
+
+  const formatNumber = (value?: number | null) => {
+    return new Intl.NumberFormat('en-US').format(value ?? 0);
+  };
+
+  const formatDateValue = (value?: string | null) => {
+    if (!value) return '—';
+    const parsed = new Date(value);
+    if (isNaN(parsed.getTime())) return '—';
+    return parsed.toLocaleDateString();
+  };
+
+  const buildFallbackImpactPreview = (warningMessage: string): ReassignmentImpact => {
+    const fallbackOwnerType: OwnerImpactSummary['ownerType'] =
+      reassignmentData.newOwnerId === 'house'
+        ? 'house'
+        : reassignmentData.newOwnerId === 'unassigned'
+          ? 'unassigned'
+          : 'user';
+    const fallbackOwnerName =
+      fallbackOwnerType === 'house'
+        ? 'House Account'
+        : fallbackOwnerType === 'unassigned'
+          ? 'Unassigned Queue'
+          : reassignmentData.newOwnerId
+            ? 'Selected owner'
+            : 'Pending owner';
+
+    return {
+      totalAccounts: selectedAccountIds.length,
+      accountsByOwner: {},
+      revenueImpact: {
+        totalAnnualRevenue: 0,
+        monthlyRecurring: 0,
+        projectedCommissions: 0,
+        affectedOpportunities: 0
+      },
+      commissionTransfers: [],
+      warnings: warningMessage ? [warningMessage] : [],
+      conflicts: [],
+      itemCounts: { activeContacts: 0, openActivities: 0, activeGroups: 0, openTasks: 0 },
+      portfolioSummary: {
+        revenueAndContracts: {
+          totalAnnualRevenue: 0,
+          monthlyRecurring: 0,
+          activeContracts: 0,
+          revenueScheduleCount: 0,
+          nextRenewalDate: null
+        },
+        pipeline: {
+          openOpportunities: 0,
+          pipelineValue: 0,
+          stageBreakdown: {},
+          nextCloseDate: null
+        },
+        health: {
+          highRiskAccounts: 0,
+          overdueTasks: 0,
+          staleAccounts: 0,
+          avgDaysSinceActivity: null
+        },
+        ownerImpact: {
+          ownerId: reassignmentData.newOwnerId || 'pending',
+          ownerName: fallbackOwnerName,
+          ownerType: fallbackOwnerType,
+          currentBookSize: null,
+          incomingAccounts: selectedAccountIds.length,
+          resultingBookSize: null,
+          additionalRevenue: 0,
+          additionalPipeline: 0
+        }
+      },
+      transferSummary: {
+        willMove: {
+          accounts: selectedAccountIds.length,
+          contacts: 0,
+          openOpportunities: 0,
+          revenueSchedules: 0,
+          openTasks: 0
+        },
+        willRemain: {
+          closedOpportunities: 0,
+          completedTasks: 0,
+          historicalRevenueSchedules: 0
+        },
+        exceptions: []
+      },
+      transferAssociations: {
+        revenueSchedules: [],
+        contacts: [],
+        opportunities: [],
+        groups: [],
+        products: []
+      }
+    };
+  };
+
+  const transferSummary = impactPreview?.transferSummary;
+  const transferAssociations = impactPreview?.transferAssociations;
 
   const confirmPreviewSample = accountPreviewRows.slice(0, 3);
 
@@ -596,10 +779,6 @@ export function AccountReassignmentModal({
             <div className="p-6">
               <div className="space-y-6">
                 <div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-4">
-                    Impact Preview
-                  </h3>
-
                   {previewLoading ? (
                     <div className="flex items-center justify-center py-8">
                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600"></div>
@@ -607,28 +786,6 @@ export function AccountReassignmentModal({
                     </div>
                   ) : impactPreview ? (
                     <div className="space-y-6">
-                      {/* Summary Cards */}
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                          <div className="text-sm text-blue-600 font-medium">Total Revenue Impact</div>
-                          <div className="text-2xl font-bold text-blue-900">
-                            {formatCurrency((impactPreview.revenueImpact && impactPreview.revenueImpact.totalAnnualRevenue) || 0)}
-                          </div>
-                        </div>
-                        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                          <div className="text-sm text-green-600 font-medium">Commission Impact</div>
-                          <div className="text-2xl font-bold text-green-900">
-                            {formatCurrency((impactPreview.revenueImpact && impactPreview.revenueImpact.projectedCommissions) || 0)}
-                          </div>
-                        </div>
-                        <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
-                          <div className="text-sm text-purple-600 font-medium">Affected Items</div>
-                          <div className="text-2xl font-bold text-purple-900">
-                            {(impactPreview.revenueImpact && impactPreview.revenueImpact.affectedOpportunities) || 0} opportunities
-                          </div>
-                        </div>
-                      </div>
-
                       {/* Selected Accounts Overview */}
                       <div>
                         <h4 className="text-md font-medium text-gray-900 mb-3">Selected Accounts</h4>
@@ -680,40 +837,186 @@ export function AccountReassignmentModal({
                         )}
                       </div>
 
-                      {/* Transfer Details */}
+                      {/* Associated Items */}
                       <div>
-                        <h4 className="text-md font-medium text-gray-900 mb-3">Transfer Details</h4>
-                        <div className="space-y-3">
-                          {(impactPreview.commissionTransfers || []).map((transfer: CommissionTransfer, index: number) => (
-                            <div key={index} className="border border-gray-200 rounded-lg p-4">
-                              <div className="flex justify-between items-start">
-                                <div>
-                                  <div className="font-medium text-gray-900">
-                                    From: {transfer.fromOwner === 'unassigned' ? 'Unassigned' : `User ${transfer.fromOwner}`}
-                                  </div>
-                                  <div className="text-sm text-gray-600">To: {transfer.toOwner === 'house' ? 'House Account' : transfer.toOwner === 'unassigned' ? 'Unassigned' : `User ${transfer.toOwner}`}</div>
+                        <h4 className="text-md font-medium text-gray-900 mb-3">Associated records moving with this reassignment</h4>
+                        {transferAssociations ? (
+                          <div className="space-y-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <section className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+                                <div className="flex items-center justify-between">
+                                  <p className="text-sm font-semibold text-gray-700">Future revenue schedules</p>
+                                  <span className="text-xs text-gray-500">{formatNumber(transferAssociations.revenueSchedules.length)}</span>
                                 </div>
-                                <div className="text-right">
-                                  <div className="text-sm text-gray-600">Commission: {formatCurrency(transfer.amount)}</div>
-                                  <div className="text-sm text-gray-600">Effective: {new Date(transfer.effectiveDate).toLocaleDateString()}</div>
+                                {transferAssociations.revenueSchedules.length === 0 ? (
+                                  <p className="mt-2 text-sm text-gray-500">No upcoming schedules will move.</p>
+                                ) : (
+                                  <ul className="mt-3 space-y-2 text-sm text-gray-700">
+                                    {transferAssociations.revenueSchedules.slice(0, 4).map(schedule => (
+                                      <li key={schedule.id} className="rounded border border-gray-100 p-2">
+                                        <p className="font-medium text-gray-900">
+                                          {schedule.opportunityName || schedule.accountName}
+                                        </p>
+                                        <p className="text-xs text-gray-500">
+                                          {formatDateValue(schedule.scheduleDate)} - {formatCurrency(schedule.amount ?? 0)} - {schedule.productName || 'General'}
+                                        </p>
+                                      </li>
+                                    ))}
+                                    {transferAssociations.revenueSchedules.length > 4 && (
+                                      <li className="text-xs text-gray-500">
+                                        +{transferAssociations.revenueSchedules.length - 4} more schedule(s)
+                                      </li>
+                                    )}
+                                  </ul>
+                                )}
+                              </section>
+
+                              <section className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+                                <div className="flex items-center justify-between">
+                                  <p className="text-sm font-semibold text-gray-700">Contacts</p>
+                                  <span className="text-xs text-gray-500">{formatNumber(transferAssociations.contacts.length)}</span>
+                                </div>
+                                {transferAssociations.contacts.length === 0 ? (
+                                  <p className="mt-2 text-sm text-gray-500">No contacts tied to these accounts.</p>
+                                ) : (
+                                  <ul className="mt-3 space-y-2 text-sm text-gray-700">
+                                    {transferAssociations.contacts.slice(0, 4).map(contact => (
+                                      <li key={contact.id} className="rounded border border-gray-100 p-2">
+                                        <p className="font-medium text-gray-900">{contact.fullName}</p>
+                                        <p className="text-xs text-gray-500">
+                                          {(contact.jobTitle || 'No title')} - {contact.email || 'No email'}
+                                        </p>
+                                      </li>
+                                    ))}
+                                    {transferAssociations.contacts.length > 4 && (
+                                      <li className="text-xs text-gray-500">
+                                        +{transferAssociations.contacts.length - 4} more contact(s)
+                                      </li>
+                                    )}
+                                  </ul>
+                                )}
+                              </section>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <section className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+                                <div className="flex items-center justify-between">
+                                  <p className="text-sm font-semibold text-gray-700">Opportunities</p>
+                                  <span className="text-xs text-gray-500">{formatNumber(transferAssociations.opportunities.length)}</span>
+                                </div>
+                                {transferAssociations.opportunities.length === 0 ? (
+                                  <p className="mt-2 text-sm text-gray-500">No open opportunities will be reassigned.</p>
+                                ) : (
+                                  <ul className="mt-3 space-y-2 text-sm text-gray-700">
+                                    {transferAssociations.opportunities.slice(0, 4).map(opportunity => (
+                                      <li key={opportunity.id} className="rounded border border-gray-100 p-2">
+                                        <p className="font-medium text-gray-900">{opportunity.name}</p>
+                                        <p className="text-xs text-gray-500">
+                                          {opportunity.stage} - {formatDateValue(opportunity.estimatedCloseDate)} - {formatCurrency(opportunity.amount ?? 0)}
+                                        </p>
+                                      </li>
+                                    ))}
+                                    {transferAssociations.opportunities.length > 4 && (
+                                      <li className="text-xs text-gray-500">
+                                        +{transferAssociations.opportunities.length - 4} more opportunity(ies)
+                                      </li>
+                                    )}
+                                  </ul>
+                                )}
+                              </section>
+
+                              <section className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+                                <div className="flex items-center justify-between">
+                                  <p className="text-sm font-semibold text-gray-700">Groups</p>
+                                  <span className="text-xs text-gray-500">{formatNumber(transferAssociations.groups.length)}</span>
+                                </div>
+                                {transferAssociations.groups.length === 0 ? (
+                                  <p className="mt-2 text-sm text-gray-500">No group memberships found.</p>
+                                ) : (
+                                  <ul className="mt-3 space-y-2 text-sm text-gray-700">
+                                    {transferAssociations.groups.slice(0, 4).map(group => (
+                                      <li key={group.id} className="rounded border border-gray-100 p-2">
+                                        <p className="font-medium text-gray-900">{group.groupName}</p>
+                                        <p className="text-xs text-gray-500">Member type: {group.memberType}</p>
+                                      </li>
+                                    ))}
+                                    {transferAssociations.groups.length > 4 && (
+                                      <li className="text-xs text-gray-500">
+                                        +{transferAssociations.groups.length - 4} more group link(s)
+                                      </li>
+                                    )}
+                                  </ul>
+                                )}
+                              </section>
+                            </div>
+
+                            <section className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+                              <div className="flex items-center justify-between">
+                                <p className="text-sm font-semibold text-gray-700">Associated products</p>
+                                <span className="text-xs text-gray-500">{formatNumber(transferAssociations.products.length)}</span>
+                              </div>
+                              {transferAssociations.products.length === 0 ? (
+                                <p className="mt-2 text-sm text-gray-500">No products are linked to the selected accounts.</p>
+                              ) : (
+                                <ul className="mt-3 space-y-2 text-sm text-gray-700">
+                                  {transferAssociations.products.slice(0, 4).map(product => (
+                                    <li key={product.id} className="rounded border border-gray-100 p-2">
+                                      <p className="font-medium text-gray-900">{product.productName}</p>
+                                      <p className="text-xs text-gray-500">
+                                        {product.opportunityName} - Qty {product.quantity ?? '—'}
+                                      </p>
+                                    </li>
+                                  ))}
+                                  {transferAssociations.products.length > 4 && (
+                                    <li className="text-xs text-gray-500">
+                                      +{transferAssociations.products.length - 4} more product(s)
+                                    </li>
+                                  )}
+                                </ul>
+                              )}
+                            </section>
+
+                            {(impactPreview.commissionTransfers || []).length > 0 && (
+                              <div className="rounded-lg border border-indigo-100 bg-indigo-50/70 p-4">
+                                <p className="text-sm font-semibold text-indigo-900 mb-3">Commission transfers</p>
+                                <div className="space-y-3">
+                                  {impactPreview.commissionTransfers.map((transfer: CommissionTransfer, index: number) => (
+                                    <div
+                                      key={`${transfer.fromOwner}-${index}`}
+                                      className="flex flex-col gap-1 border-b border-indigo-100 pb-2 last:border-0 last:pb-0 md:flex-row md:items-center md:justify-between"
+                                    >
+                                      <div>
+                                        <p className="text-sm font-semibold text-indigo-900">
+                                          {(transfer.fromOwnerName || `User ${transfer.fromOwner}`)} {'->'} {(transfer.toOwnerName || 'New Owner')}
+                                        </p>
+                                        <p className="text-xs text-indigo-700">
+                                          Effective {formatDateValue(transfer.effectiveDate)}
+                                        </p>
+                                      </div>
+                                      <div className="text-sm font-semibold text-indigo-900">
+                                        {formatCurrency(transfer.amount)}
+                                      </div>
+                                    </div>
+                                  ))}
                                 </div>
                               </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
+                            )}
 
-                      {/* Warnings */}
-                      {impactPreview.warnings?.length > 0 && (
-                        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                          <h4 className="text-md font-medium text-yellow-800 mb-2">Warnings</h4>
-                          <ul className="list-disc list-inside space-y-1">
-                            {impactPreview.warnings.map((warning, index) => (
-                              <li key={index} className="text-sm text-yellow-700">{warning}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
+                            {transferSummary?.exceptions?.length > 0 && (
+                              <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+                                <p className="text-sm font-semibold text-amber-800 mb-2">Exceptions to review</p>
+                                <ul className="list-disc list-inside space-y-1 text-sm text-amber-900">
+                                  {transferSummary.exceptions.map((exception, index) => (
+                                    <li key={index}>{exception}</li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <p className="text-sm text-gray-500">Associated item details are not available for this preview.</p>
+                        )}
+                      </div>
 
                       {/* Conflicts */}
                       {impactPreview.conflicts?.length > 0 && (
@@ -819,7 +1122,7 @@ export function AccountReassignmentModal({
                             <li key={account.id} className="flex justify-between">
                               <span>{account.accountName}</span>
                               <span className="text-gray-500">
-                                {account.accountOwner || 'Unassigned'} · {account.status || '—'}
+                                {account.accountOwner || 'Unassigned'} - {account.status || '—'}
                               </span>
                             </li>
                           ))}
