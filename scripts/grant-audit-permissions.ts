@@ -57,7 +57,7 @@ async function grantAuditPermissions() {
 
     let grantedCount = 0
 
-    for (const [roleId, roleInfo] of roleMap) {
+    for (const [roleId, roleInfo] of Array.from(roleMap.entries())) {
       // Check if this role already has auditLogs.read
       const existing = await prisma.rolePermission.findUnique({
         where: {

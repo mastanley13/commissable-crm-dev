@@ -542,6 +542,8 @@ export function AccountReassignmentModal({
 
   const transferSummary = impactPreview?.transferSummary;
   const transferAssociations = impactPreview?.transferAssociations;
+  const transferExceptions = transferSummary?.exceptions ?? [];
+  const hasTransferExceptions = transferExceptions.length > 0;
 
   const confirmPreviewSample = accountPreviewRows.slice(0, 3);
 
@@ -1002,11 +1004,11 @@ export function AccountReassignmentModal({
                               </div>
                             )}
 
-                            {transferSummary?.exceptions?.length > 0 && (
+                            {hasTransferExceptions && (
                               <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
                                 <p className="text-sm font-semibold text-amber-800 mb-2">Exceptions to review</p>
                                 <ul className="list-disc list-inside space-y-1 text-sm text-amber-900">
-                                  {transferSummary.exceptions.map((exception, index) => (
+                                  {transferExceptions.map((exception, index) => (
                                     <li key={index}>{exception}</li>
                                   ))}
                                 </ul>
