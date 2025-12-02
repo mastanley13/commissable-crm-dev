@@ -36,7 +36,9 @@ export async function GET(request: NextRequest) {
           groupType: group.groupType,
           visibility: group.visibility,
           memberCount: group.memberCount,
-          isActive: group.isActive
+          isActive: group.isActive,
+          description: group.description,
+          createdAt: group.createdAt
         }))
       })
     } catch (error) {

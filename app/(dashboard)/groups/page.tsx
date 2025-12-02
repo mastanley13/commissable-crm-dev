@@ -1,15 +1,24 @@
 'use client'
 
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useEffect } from 'react'
 import { ListHeader } from '@/components/list-header'
 import { DynamicTable, Column, PaginationInfo } from '@/components/dynamic-table'
 import { ColumnChooserModal } from '@/components/column-chooser-modal'
 import { useTablePreferences } from '@/hooks/useTablePreferences'
 import { TableChangeNotification } from '@/components/table-change-notification'
-import { groupsData } from '@/lib/mock-data'
 import { Edit, Trash2, Users, Settings, Check } from 'lucide-react'
 import { isRowInactive } from '@/lib/row-state'
 import { GroupCreateModal } from '@/components/group-create-modal'
+
+interface GroupRow {
+  id: string
+  groupName: string
+  groupType: string
+  memberCount: number
+  description: string
+  createdDate: string
+  active: boolean
+}
 
 const groupColumns: Column[] = [
   {
@@ -79,13 +88,14 @@ const groupColumns: Column[] = [
 ]
 
 export default function GroupsPage() {
-  const [groups, setGroups] = useState(groupsData)
-  const [filteredGroups, setFilteredGroups] = useState(groupsData)
+  const [groups, setGroups] = useState<GroupRow[]>([])
+  const [filteredGroups, setFilteredGroups] = useState<GroupRow[]>([])
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [showColumnSettings, setShowColumnSettings] = useState(false)
   const [currentPage, setCurrentPage] = useState<number>(1)
   const [pageSize, setPageSize] = useState<number>(25)
-  const [selectedGroupIds, setSelectedGroupIds] = useState<number[]>([])
+  const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>([])
   const [showCreateModal, setShowCreateModal] = useState(false)
 
   const {
@@ -96,10 +106,46 @@ export default function GroupsPage() {
     hasUnsavedChanges,
     lastSaved,
     handleColumnsChange,
-    handleHiddenColumnsChange,
     saveChanges,
     saveChangesOnModalClose,
   } = useTablePreferences("groups:list", groupColumns)
+
+  const reloadGroups = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const response = await fetch("/api/groups?includeInactive=true", { cache: "no-store" })
+      const payload = await response.json().catch(() => null)
+
+      if (!response.ok) {
+        throw new Error(payload?.error ?? "Failed to load groups")
+      }
+
+      const items: any[] = Array.isArray(payload?.data) ? payload.data : []
+
+      const mapped: GroupRow[] = items.map((item) => ({
+        id: String(item.id),
+        groupName: item.name ?? "",
+        groupType: item.groupType ?? "",
+        memberCount: typeof item.memberCount === "number" ? item.memberCount : 0,
+        description: item.description ?? "",
+        createdDate: item.createdAt ? new Date(item.createdAt).toLocaleDateString() : "",
+        active: item.isActive !== false,
+      }))
+
+      setGroups(mapped)
+      setFilteredGroups(mapped)
+    } catch (err) {
+      console.error("Failed to load groups", err)
+      setError(err instanceof Error ? err.message : "Unable to load groups")
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    reloadGroups().catch(() => undefined)
+  }, [reloadGroups])
 
   const handleSearch = (query: string) => {
     if (!query.trim()) {
@@ -145,7 +191,7 @@ export default function GroupsPage() {
     }
   }
 
-  const handleSelectGroup = (id: number, selected: boolean) => {
+  const handleSelectGroup = (id: string, selected: boolean) => {
     setSelectedGroupIds(prev => selected ? (prev.includes(id) ? prev : [...prev, id]) : prev.filter(x => x !== id))
   }
 
@@ -154,7 +200,7 @@ export default function GroupsPage() {
     else setSelectedGroupIds([])
   }
 
-  const handleToggleGroupActive = useCallback((id: number, next: boolean) => {
+  const handleToggleGroupActive = useCallback((id: string, next: boolean) => {
     setGroups(prev => prev.map(g => g.id === id ? { ...g, active: next } : g))
     setFilteredGroups(prev => prev.map(g => g.id === id ? { ...g, active: next } : g))
   }, [])
@@ -196,7 +242,7 @@ export default function GroupsPage() {
         return {
           ...column,
           render: (_: unknown, row: any) => {
-            const rowId = Number(row.id)
+            const rowId = String(row.id)
             const checked = selectedGroupIds.includes(rowId)
             const activeValue = !!row.active
             return (
@@ -318,6 +364,10 @@ export default function GroupsPage() {
         <div className="px-4 text-sm text-red-600">{preferenceError}</div>
       )}
 
+      {error && !preferenceError && (
+        <div className="px-4 text-sm text-red-600">{error}</div>
+      )}
+
       {/* Table */}
       <div className="flex-1 p-4 min-h-0">
         <DynamicTable
@@ -329,8 +379,8 @@ export default function GroupsPage() {
           emptyMessage="No groups found"
           onColumnsChange={handleColumnsChange}
           autoSizeColumns={false}
-          selectedItems={selectedGroupIds.map(String)}
-          onItemSelect={(id, selected) => handleSelectGroup(Number(id), selected)}
+          selectedItems={selectedGroupIds}
+          onItemSelect={(id, selected) => handleSelectGroup(id, selected)}
           onSelectAll={handleSelectAllGroups}
           pagination={paginationInfo}
           onPageChange={handlePageChange}
@@ -351,9 +401,9 @@ export default function GroupsPage() {
       <GroupCreateModal
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
-        onCreated={(groupId) => {
+        onCreated={async (groupId) => {
           console.log('Group created with ID:', groupId)
-          // TODO: Refresh groups list when API integration is complete
+          await reloadGroups().catch(() => undefined)
           setShowCreateModal(false)
         }}
       />

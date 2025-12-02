@@ -289,7 +289,7 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
                 {/* Combined field spanning two rows to align with Product Family + Product Subtype */}
                 <div className="space-y-1">
                   <label className={labelCls}>House - Description</label>
-                  <textarea className={`${textAreaCls} h-[88px]`} value={form.description} onChange={handleChange("description")} placeholder="Add description" />
+                  <textarea className={`${textAreaCls} h-[90px]`} value={form.description} onChange={handleChange("description")} placeholder="Add description" />
                 </div>
               </div>
             </div>
