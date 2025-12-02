@@ -2,13 +2,17 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { LeadSource, OpportunityStage } from "@prisma/client"
-import { Loader2, X } from "lucide-react"
+import { ChevronDown, Loader2, X } from "lucide-react"
 import { getOpportunityStageOptions, type OpportunityStageOption } from "@/lib/opportunity-stage"
 import { useToasts } from "@/components/toast"
 
 interface SelectOption {
   value: string
   label: string
+}
+
+interface ReferredByOption extends SelectOption {
+  type: "account" | "contact"
 }
 
 interface ContactOption extends SelectOption {
@@ -131,7 +135,7 @@ export function OpportunityCreateModal({
   const [subagentQuery, setSubagentQuery] = useState("")
   const [subagentsLoading, setSubagentsLoading] = useState(false)
   const [showSubagentDropdown, setShowSubagentDropdown] = useState(false)
-  const [referredByOptions, setReferredByOptions] = useState<SelectOption[]>([])
+  const [referredByOptions, setReferredByOptions] = useState<ReferredByOption[]>([])
   const [referredByQuery, setReferredByQuery] = useState("")
   const [showReferredByDropdown, setShowReferredByDropdown] = useState(false)
   const [referredByLoading, setReferredByLoading] = useState(false)
@@ -498,9 +502,17 @@ export function OpportunityCreateModal({
     return () => { controller.abort(); clearTimeout(debounce) }
   }, [isOpen, subagentQuery])
 
-  // Fetch referred by options when user types
+  // Fetch referred by options when dropdown opens or user types
   useEffect(() => {
-    if (!isOpen || referredByQuery.trim().length < 2) {
+    if (!isOpen || !showReferredByDropdown) {
+      return
+    }
+
+    // Only require 2+ characters if user is actively typing
+    // Allow empty query when just opening dropdown (shows all results)
+    const query = referredByQuery.trim()
+    if (query.length === 1) {
+      // User has typed 1 character - don't fetch yet
       setReferredByOptions([])
       return
     }
@@ -509,7 +521,7 @@ export function OpportunityCreateModal({
     const fetchReferredByOptions = async () => {
       setReferredByLoading(true)
       try {
-        const params = new URLSearchParams({ q: referredByQuery.trim() })
+        const params = new URLSearchParams({ q: query })
         const response = await fetch(`/api/opportunities/referred-by?${params.toString()}`, {
           cache: "no-store",
           signal: controller.signal
@@ -537,7 +549,7 @@ export function OpportunityCreateModal({
       clearTimeout(debounce)
       controller.abort()
     }
-  }, [isOpen, referredByQuery])
+  }, [isOpen, referredByQuery, showReferredByDropdown])
 
   // Reset subagent and referred by UI when opening/closing
   useEffect(() => {
@@ -611,39 +623,86 @@ export function OpportunityCreateModal({
                 <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">
                   Referred By
                 </label>
-                <input
-                  type="text"
-                  value={referredByQuery}
-                  onChange={e => {
-                    setReferredByQuery(e.target.value)
-                    setForm(previous => ({ ...previous, referredBy: e.target.value }))
-                    setShowReferredByDropdown(true)
-                  }}
-                  onFocus={() => setShowReferredByDropdown(true)}
-                  onBlur={() => setTimeout(() => setShowReferredByDropdown(false), 200)}
-                  placeholder="Type to search contacts or accounts..."
-                  className={inputClass}
-                />
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={referredByQuery}
+                    onChange={e => {
+                      setReferredByQuery(e.target.value)
+                      setForm(previous => ({ ...previous, referredBy: e.target.value }))
+                      setShowReferredByDropdown(true)
+                    }}
+                    onFocus={() => setShowReferredByDropdown(true)}
+                    onBlur={() => setTimeout(() => setShowReferredByDropdown(false), 200)}
+                    placeholder="Type to search contacts..."
+                    className={`${inputClass} pr-8`}
+                  />
+                  <ChevronDown 
+                    className={`absolute right-0 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none transition-transform ${showReferredByDropdown ? 'rotate-180' : ''}`}
+                  />
+                </div>
 
-                {showReferredByDropdown && referredByQuery.length >= 2 && referredByOptions.length > 0 && (
+                {showReferredByDropdown && referredByQuery.length !== 1 && (
                   <div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
                     {referredByLoading && (
-                      <div className="px-3 py-2 text-sm text-gray-500">Searching...</div>
+                      <div className="flex items-center gap-2 px-3 py-2 text-sm text-gray-500">
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        Searching...
+                      </div>
                     )}
-                    {!referredByLoading && referredByOptions.map(option => (
-                      <button
-                        key={option.value}
-                        type="button"
-                        onClick={() => {
-                          setForm(previous => ({ ...previous, referredBy: option.value }))
-                          setReferredByQuery(option.value)
-                          setShowReferredByDropdown(false)
-                        }}
-                        className="w-full px-3 py-2 text-left text-sm hover:bg-primary-50 focus:bg-primary-50 focus:outline-none"
-                      >
-                        <div className="font-medium text-gray-900">{option.label}</div>
-                      </button>
-                    ))}
+                    {!referredByLoading && referredByOptions.length === 0 && referredByQuery.length > 1 && (
+                      <div className="px-3 py-2 text-sm text-gray-500">No results found</div>
+                    )}
+                    {!referredByLoading && referredByOptions.length === 0 && referredByQuery.length === 0 && (
+                      <div className="px-3 py-2 text-sm text-gray-500">Type to search contacts or accounts...</div>
+                    )}
+                    {!referredByLoading && referredByOptions.length > 0 && (
+                      <>
+                        {/* Group by type - Contacts first, then Accounts */}
+                        {referredByOptions.filter(o => o.type === "contact").length > 0 && (
+                          <>
+                            <div className="sticky top-0 bg-gray-50 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-gray-500 border-b border-gray-100">
+                              Contacts
+                            </div>
+                            {referredByOptions.filter(o => o.type === "contact").map(option => (
+                              <button
+                                key={`contact-${option.value}`}
+                                type="button"
+                                onClick={() => {
+                                  setForm(previous => ({ ...previous, referredBy: option.value }))
+                                  setReferredByQuery(option.value)
+                                  setShowReferredByDropdown(false)
+                                }}
+                                className="w-full px-3 py-2 text-left text-sm hover:bg-primary-50 focus:bg-primary-50 focus:outline-none"
+                              >
+                                <div className="font-medium text-gray-900">{option.label}</div>
+                              </button>
+                            ))}
+                          </>
+                        )}
+                        {referredByOptions.filter(o => o.type === "account").length > 0 && (
+                          <>
+                            <div className="sticky top-0 bg-gray-50 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-gray-500 border-b border-gray-100">
+                              Accounts
+                            </div>
+                            {referredByOptions.filter(o => o.type === "account").map(option => (
+                              <button
+                                key={`account-${option.value}`}
+                                type="button"
+                                onClick={() => {
+                                  setForm(previous => ({ ...previous, referredBy: option.value }))
+                                  setReferredByQuery(option.value)
+                                  setShowReferredByDropdown(false)
+                                }}
+                                className="w-full px-3 py-2 text-left text-sm hover:bg-primary-50 focus:bg-primary-50 focus:outline-none"
+                              >
+                                <div className="font-medium text-gray-900">{option.label}</div>
+                              </button>
+                            ))}
+                          </>
+                        )}
+                      </>
+                    )}
                   </div>
                 )}
               </div>

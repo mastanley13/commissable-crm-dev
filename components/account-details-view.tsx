@@ -1545,6 +1545,8 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
   const searchParams = useSearchParams()
   const { showSuccess, showError } = useToasts()
   const { hasPermission } = useAuth()
+  const accountContextId = account?.id
+  const accountContextName = account?.accountName
   const canManageAccounts = hasPermission("accounts.manage")
   const shouldEnableInline = canManageAccounts && Boolean(account)
   const [activeTab, setActiveTab] = useState<TabKey>("contacts")
@@ -4102,7 +4104,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
           render: (value?: string, row?: AccountContactRow) => (
             row?.id ? (
               <Link
-                href={`/contacts/${row.id}?ctx=accounts${account?.id ? `&ctxId=${encodeURIComponent(account.id)}` : ''}${account?.accountName ? `&ctxName=${encodeURIComponent(account.accountName)}` : ''}`}
+                href={`/contacts/${row.id}?ctx=accounts${accountContextId ? `&ctxId=${encodeURIComponent(accountContextId)}` : ""}${accountContextName ? `&ctxName=${encodeURIComponent(accountContextName)}` : ""}`}
                 className="text-primary-600 transition hover:text-primary-700 hover:underline"
               >
                 {value || "View contact"}
@@ -4115,7 +4117,15 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
       }
       return column
     })
-  }, [contactPreferenceColumns, requestContactDelete, handleEditContact])
+  }, [
+    contactPreferenceColumns,
+    requestContactDelete,
+    selectedContacts,
+    handleContactSelect,
+    setContactRows,
+    accountContextId,
+    accountContextName,
+  ])
 
   const opportunityTableColumns = useMemo(() => {
     return opportunityPreferenceColumns.map(column => {
@@ -4129,7 +4139,13 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
             return (
               <div className="flex items-center gap-2" data-disable-row-click="true">
                 <label className="flex cursor-pointer items-center justify-center" onClick={e => e.stopPropagation()}>
-                  <input type="checkbox" className="sr-only" checked={checked} aria-label={`Select opportunity ${row.opportunityName || row.id}`} onChange={() => handleOpportunitySelect(row.id, !checked)} />
+                  <input
+                    type="checkbox"
+                    className="sr-only"
+                    checked={checked}
+                    aria-label={`Select opportunity ${row.opportunityName || row.id}`}
+                    onChange={() => handleOpportunitySelect(row.id, !checked)}
+                  />
                   <span className={`flex h-4 w-4 items-center justify-center rounded border transition-colors ${checked ? 'border-primary-500 bg-primary-600 text-white' : 'border-gray-300 bg-white text-transparent'}`}>
                     <Check className="h-3 w-3" aria-hidden="true" />
                   </span>
@@ -4193,7 +4209,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
 
             return (
               <Link
-                href={`/opportunities/${opportunityId}?ctx=accounts${account?.id ? `&ctxId=${encodeURIComponent(account.id)}` : ''}${account?.accountName ? `&ctxName=${encodeURIComponent(account.accountName)}` : ''}`}
+                href={`/opportunities/${opportunityId}?ctx=accounts${accountContextId ? `&ctxId=${encodeURIComponent(accountContextId)}` : ""}${accountContextName ? `&ctxName=${encodeURIComponent(accountContextName)}` : ""}`}
                 className="cursor-pointer font-medium text-primary-600 hover:text-primary-800 hover:underline"
                 onClick={(event) => event.stopPropagation()}
                 prefetch={false}
@@ -4209,10 +4225,24 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
     })
   }, [
     opportunityPreferenceColumns,
+    selectedOpportunities,
     updatingOpportunityIds,
     handleOpportunityToggleActive,
     requestOpportunityDelete,
+    handleOpportunitySelect,
+    accountContextId,
+    accountContextName,
   ])
+
+  const handleActivitySelect = useCallback((activityId: string, selected: boolean) => {
+    setSelectedActivities(previous => {
+      if (selected) {
+        if (previous.includes(activityId)) return previous
+        return [...previous, activityId]
+      }
+      return previous.filter(id => id !== activityId)
+    })
+  }, [])
 
   const activityTableColumns = useMemo(() => {
     return activityPreferenceColumns.map(column => {
@@ -4277,7 +4307,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
       }
       return column
     })
-  }, [activityPreferenceColumns, selectedActivities, handleDeleteActivity, handleToggleActivityStatus])
+  }, [activityPreferenceColumns, selectedActivities, handleActivitySelect, handleDeleteActivity, handleToggleActivityStatus])
 
   const filteredGroups = useMemo(() => {
     if (!account) return []
@@ -4489,7 +4519,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
       }
       return column
     })
-  }, [groupPreferenceColumns, selectedGroups, requestGroupDelete, handleToggleGroupStatus])
+  }, [groupPreferenceColumns, selectedGroups, handleGroupSelect, requestGroupDelete, handleToggleGroupStatus])
 
   const filteredActivities = useMemo(() => {
     if (!account) return []
@@ -4551,16 +4581,6 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
     setActivitiesPageSize(size)
     setActivitiesCurrentPage(1)
   }
-
-  const handleActivitySelect = useCallback((activityId: string, selected: boolean) => {
-    setSelectedActivities(previous => {
-      if (selected) {
-        if (previous.includes(activityId)) return previous
-        return [...previous, activityId]
-      }
-      return previous.filter(id => id !== activityId)
-    })
-  }, [])
 
   const handleSelectAllActivities = useCallback((selected: boolean) => {
     if (selected) {
@@ -4857,7 +4877,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
 
                   {activeTab === "contacts" && (
                     <div className="grid flex-1 grid-rows-[auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0 px-3 pb-0">
-                      <div className="border-t-2 border-t-primary-600 -mr-3">
+                      <div className="border-t-2 border-t-primary-600 -mr-3 min-w-0 overflow-hidden">
                         <ListHeader
                         inTab
                         onCreateClick={handleCreateContact}
@@ -4884,6 +4904,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                       >
                         <DynamicTable
                         className="flex flex-col"
+                        preferOverflowHorizontalScroll
                         columns={contactTableColumns}
                         data={paginatedContacts}
                         emptyMessage="No contacts found for this account"
@@ -4906,7 +4927,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                   )}
                   {activeTab === "opportunities" && (
                     <div className="grid flex-1 grid-rows-[auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0 px-3 pb-0">
-                      <div className="border-t-2 border-t-primary-600 -mr-3">
+                      <div className="border-t-2 border-t-primary-600 -mr-3 min-w-0 overflow-hidden">
                         <ListHeader
                         inTab
                         onCreateClick={handleCreateOpportunity}
@@ -4931,6 +4952,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                       >
                         <DynamicTable
                         className="flex flex-col"
+                        preferOverflowHorizontalScroll
                         columns={opportunityTableColumns}
                         data={paginatedOpportunities}
                         emptyMessage="No opportunities found for this account"
@@ -4959,7 +4981,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
 
                   {activeTab === "groups" && (
                     <div className="grid flex-1 grid-rows-[auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0 px-3 pb-0">
-                      <div className="border-t-2 border-t-primary-600 -mr-3">
+                      <div className="border-t-2 border-t-primary-600 -mr-3 min-w-0 overflow-hidden">
                         <ListHeader
                         inTab
                         onCreateClick={handleCreateGroup}
@@ -4984,6 +5006,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                       >
                         <DynamicTable
                         className="flex flex-col"
+                        preferOverflowHorizontalScroll
                         columns={groupTableColumns}
                         data={paginatedGroups}
                         emptyMessage="No groups found for this account"
@@ -5007,7 +5030,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
 
                   {activeTab === "activities" && (
                     <div className="grid flex-1 grid-rows-[auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0 px-3 pb-0">
-                      <div className="border-t-2 border-t-primary-600 -mr-3">
+                      <div className="border-t-2 border-t-primary-600 -mr-3 min-w-0 overflow-hidden">
                         <ListHeader
                         inTab
                         onCreateClick={handleCreateActivity}
@@ -5034,6 +5057,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                       >
                         <DynamicTable
                         className="flex flex-col"
+                        preferOverflowHorizontalScroll
                         columns={activityTableColumns}
                         data={paginatedActivities}
                         emptyMessage="No activities found for this account"

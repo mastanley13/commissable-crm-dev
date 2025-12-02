@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { matchDepositLine } from "@/lib/matching/deposit-matcher"
+import { candidatesToSuggestedRows, matchDepositLine } from "@/lib/matching/deposit-matcher"
 import { withPermissions, createErrorResponse } from "@/lib/api-auth"
 import { prisma } from "@/lib/db"
 
@@ -21,39 +21,12 @@ export async function GET(request: NextRequest, { params }: { params: { depositI
       return createErrorResponse("Deposit line item not found", 404)
     }
 
-    const { candidates } = await matchDepositLine(lineId, { limit: 10 })
-
-    const mapped = candidates.map(candidate => ({
-      id: candidate.revenueScheduleId,
-      status: "Suggested",
-      lineItem: lineItem.lineNumber ?? 0,
-      matchConfidence: candidate.matchConfidence,
-      vendorName: candidate.vendorName ?? "",
-      legalName: candidate.accountName ?? "",
-      productNameVendor: candidate.productNameVendor ?? "",
-      revenueScheduleDate: candidate.revenueScheduleDate,
-      revenueScheduleName: candidate.revenueScheduleName,
-      quantity: 1,
-      priceEach: candidate.expectedUsage,
-      expectedUsageGross: candidate.expectedUsage,
-      expectedUsageAdjustment: 0,
-      expectedUsageNet: candidate.expectedUsage,
-      actualUsage: candidate.actualUsage,
-      usageBalance: candidate.usageBalance,
-      paymentDate: candidate.revenueScheduleDate,
-      expectedCommissionGross: candidate.expectedCommission,
-      expectedCommissionAdjustment: 0,
-      expectedCommissionNet: candidate.expectedCommission,
-      actualCommission: candidate.actualCommission,
-      commissionDifference: candidate.commissionDifference,
-      expectedCommissionRatePercent: candidate.expectedUsage !== 0 ? candidate.expectedCommission / candidate.expectedUsage : 0,
-      actualCommissionRatePercent: candidate.actualUsage !== 0 ? candidate.actualCommission / candidate.actualUsage : 0,
-      commissionRateDifference:
-        candidate.expectedUsage !== 0 && candidate.actualUsage !== 0
-          ? candidate.expectedCommission / candidate.expectedUsage - candidate.actualCommission / candidate.actualUsage
-          : 0,
-      signals: candidate.signals,
-    }))
+    const matchResult = await matchDepositLine(lineId, { limit: 10 })
+    const mapped = candidatesToSuggestedRows(
+      matchResult.lineItem,
+      matchResult.candidates,
+      matchResult.appliedMatchScheduleId,
+    )
 
     return NextResponse.json({
       data: mapped,

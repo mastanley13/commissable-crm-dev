@@ -257,7 +257,7 @@ export function AuditHistoryTab({
   return (
     <>
       <div className="grid flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0 px-3 pb-0">
-        <div className="border-t-2 border-t-primary-600 -mr-3">
+        <div className="border-t-2 border-t-primary-600 -mr-3 min-w-0 overflow-hidden">
           <ListHeader
             inTab
             searchPlaceholder="Search history"
@@ -284,6 +284,7 @@ export function AuditHistoryTab({
             ) : (
               <DynamicTable
                 className="flex flex-col"
+                preferOverflowHorizontalScroll
                 columns={historyTableColumns}
                 data={paginatedRows}
                 emptyMessage="No history entries yet"

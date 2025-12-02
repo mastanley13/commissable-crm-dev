@@ -267,7 +267,7 @@ export function DepositReconciliationDetailView({
   onUnmatchApplied
 }: DepositReconciliationDetailViewProps) {
   const { showSuccess, showError, ToastContainer } = useToasts()
-  const [lineTab, setLineTab] = useState<LineTabKey>("matched")
+  const [lineTab, setLineTab] = useState<LineTabKey>("all")
   const [scheduleTab, setScheduleTab] = useState<ScheduleTabKey>("suggested")
   const [lineSearch, setLineSearch] = useState("")
   const [scheduleSearch, setScheduleSearch] = useState("")
@@ -362,6 +362,46 @@ export function DepositReconciliationDetailView({
 
   const lineSearchValue = lineSearch.trim().toLowerCase()
   const scheduleSearchValue = scheduleSearch.trim().toLowerCase()
+
+  const handleRowMatchClick = useCallback(
+    async (lineId: string) => {
+      if (!lineId) {
+        showError("No line selected", "Select a deposit line item to match.")
+        return
+      }
+      const scheduleId = selectedSchedules[0]
+      if (!scheduleId) {
+        showError("No schedule selected", "Select a suggested schedule to match.")
+        return
+      }
+      try {
+        const response = await fetch(
+          `/api/reconciliation/deposits/${encodeURIComponent(metadata.id)}/line-items/${encodeURIComponent(lineId)}/apply-match`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              revenueScheduleId: scheduleId
+            })
+          }
+        )
+        const payload = await response.json().catch(() => null)
+        if (!response.ok) {
+          throw new Error(payload?.error || "Failed to apply match")
+        }
+
+        setSelectedLineItems([lineId])
+        onLineSelectionChange?.(lineId)
+        setSelectedSchedules([])
+        onMatchApplied?.()
+        showSuccess("Match applied", "The selected line item has been matched to the schedule.")
+      } catch (err) {
+        console.error("Failed to apply match", err)
+        showError("Unable to match", err instanceof Error ? err.message : "Unknown error")
+      }
+    },
+    [metadata.id, onLineSelectionChange, onMatchApplied, selectedSchedules, showError, showSuccess]
+  )
 
   const handleLineColumnFiltersChange = useCallback((filters: ColumnFilter[]) => {
     if (!filters || filters.length === 0) {
@@ -608,9 +648,15 @@ export function DepositReconciliationDetailView({
         width: 140,
         minWidth: 120,
         accessor: "id",
-        render: () => (
+        render: (_value: string, row: DepositLineItemRow) => (
           <button
             type="button"
+            onClick={event => {
+              event.stopPropagation()
+              if (row.id) {
+                void handleRowMatchClick(row.id)
+              }
+            }}
             className="rounded-full border border-primary-200 bg-white px-4 py-1.5 text-sm font-semibold text-primary-600 transition hover:bg-primary-50"
           >
             Match
@@ -736,7 +782,7 @@ export function DepositReconciliationDetailView({
         minWidth: minTextWidth(depositFieldLabels.distributorName)
       }
     ]
-  }, [currencyFormatter, percentFormatter, dateFormatter])
+  }, [currencyFormatter, percentFormatter, dateFormatter, handleRowMatchClick])
 
   const baseScheduleColumns = useMemo<Column[]>(() => {
     const minTextWidth = (label: string) => calculateMinWidth({ label, type: "text", sortable: false })

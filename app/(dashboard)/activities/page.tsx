@@ -634,7 +634,7 @@ export default function ActivitiesPage() {
 
       return column
     })
-  }, [preferenceColumns, selectedActivities, handleSelectActivity, tableLoading, activities])
+  }, [preferenceColumns, selectedActivities, handleSelectActivity, tableLoading])
 
   return (
     <div className="dashboard-page-container">

@@ -19,6 +19,13 @@ interface TicketRow {
   issue: string
   revenueSchedule: string
   opportunityName: string
+  productNameVendor?: string
+  accountIdVendor?: string
+  customerIdVendor?: string
+  description?: string
+  opportunityId?: string
+  orderIdVendor?: string
+  ticketNumber?: string
   active: boolean
   ownerName: string
 }
@@ -47,7 +54,7 @@ const TICKET_FILTER_COLUMNS = [
   { id: 'distributorName', label: 'Distributor Name' },
   { id: 'vendorName', label: 'Vendor Name' },
   { id: 'issue', label: 'Issue' },
-  { id: 'revenueSchedule', label: 'Revenue Schedule' },
+  { id: 'revenueSchedule', label: 'Revenue Schedule Name' },
   { id: 'opportunityName', label: 'Opportunity Name' }
 ]
 
@@ -89,7 +96,7 @@ const TICKET_COLUMNS: Column[] = [
   },
   {
     id: 'revenueSchedule',
-    label: 'Revenue Schedule',
+    label: 'Revenue Schedule Name',
     width: 160,
     minWidth: 140,
     maxWidth: 240,
@@ -104,6 +111,76 @@ const TICKET_COLUMNS: Column[] = [
     maxWidth: 320,
     sortable: true,
     type: 'text'
+  },
+  {
+    id: 'productNameVendor',
+    label: 'Product Name - Vendor',
+    width: 220,
+    minWidth: 180,
+    maxWidth: 320,
+    sortable: true,
+    type: 'text',
+    hidden: true
+  },
+  {
+    id: 'accountIdVendor',
+    label: 'Account ID - Vendor',
+    width: 200,
+    minWidth: 160,
+    maxWidth: 280,
+    sortable: true,
+    type: 'text',
+    hidden: true
+  },
+  {
+    id: 'customerIdVendor',
+    label: 'Customer ID - Vendor',
+    width: 200,
+    minWidth: 160,
+    maxWidth: 280,
+    sortable: true,
+    type: 'text',
+    hidden: true
+  },
+  {
+    id: 'description',
+    label: 'Description',
+    width: 260,
+    minWidth: 200,
+    maxWidth: 360,
+    sortable: true,
+    type: 'text',
+    hidden: true
+  },
+  {
+    id: 'opportunityId',
+    label: 'Opportunity ID',
+    width: 200,
+    minWidth: 160,
+    maxWidth: 280,
+    sortable: true,
+    type: 'text',
+    hidden: true
+  },
+  {
+    id: 'orderIdVendor',
+    label: 'Order ID - Vendor',
+    width: 200,
+    minWidth: 160,
+    maxWidth: 280,
+    sortable: true,
+    type: 'text',
+    hidden: true
+  },
+  {
+    id: 'ticketNumber',
+    label: 'Ticket Number',
+    width: 180,
+    minWidth: 140,
+    maxWidth: 260,
+    sortable: true,
+    type: 'text',
+    hidden: true
   },
   {
     id: 'status',
@@ -191,6 +268,13 @@ export default function TicketsPage() {
         issue: item?.issue ?? "",
         revenueSchedule: item?.revenueSchedule ?? "",
         opportunityName: item?.opportunityName ?? "",
+        productNameVendor: item?.productNameVendor ?? "",
+        accountIdVendor: item?.accountIdVendor ?? "",
+        customerIdVendor: item?.customerIdVendor ?? "",
+        description: item?.description ?? "",
+        opportunityId: item?.opportunityId ?? "",
+        orderIdVendor: item?.orderIdVendor ?? "",
+        ticketNumber: item?.ticketNumber ?? "",
         active: item?.active !== false,
         ownerName: item?.ownerName ?? "Unassigned"
       }))
@@ -533,7 +617,7 @@ export default function TicketsPage() {
 
       return column
     })
-  }, [preferenceColumns, selectedTickets, handleSelectTicket, tableLoading, tickets])
+  }, [preferenceColumns, selectedTickets, handleSelectTicket, tableLoading])
 
   return (
     <div className="dashboard-page-container">

@@ -490,13 +490,13 @@ export default function RevenueSchedulesPage() {
     setColumnFilters(sanitized)
   }, [])
 
-  const handleSelectSchedule = (scheduleId: string, selected: boolean) => {
+  const handleSelectSchedule = useCallback((scheduleId: string, selected: boolean) => {
     if (selected) {
       setSelectedSchedules(prev => [...prev, scheduleId])
     } else {
       setSelectedSchedules(prev => prev.filter(id => id !== scheduleId))
     }
-  }
+  }, [])
 
   const handleSelectAll = (selected: boolean) => {
     if (selected) {
@@ -941,7 +941,7 @@ export default function RevenueSchedulesPage() {
       }
       return column;
     });
-  }, [preferenceColumns, selectedSchedules, handleSelectSchedule, router])
+  }, [preferenceColumns, selectedSchedules, handleSelectSchedule, handleDeleteRow, router])
   
   // Update schedules data to include selection state
   const schedulesWithSelection = paginatedRevenueSchedules.map(schedule => ({

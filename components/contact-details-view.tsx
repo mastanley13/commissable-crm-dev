@@ -2479,6 +2479,18 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
     setActivitiesColumnFilters(filters)
   }, [])
 
+  const handleActivitySelect = useCallback((activityId: string, selected: boolean) => {
+    setSelectedActivities(previous => {
+      if (selected) {
+        if (previous.includes(activityId)) {
+          return previous
+        }
+        return [...previous, activityId]
+      }
+      return previous.filter(id => id !== activityId)
+    })
+  }, [])
+
   const contactActivityTableColumns = useMemo(() => {
     return activityPreferenceColumns.map(column => {
       if (column.id === "multi-action") {
@@ -2577,7 +2589,7 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
       }
       return column
     })
-  }, [activityPreferenceColumns, selectedActivities, handleActivityDelete, handleToggleActivityStatus])
+  }, [activityPreferenceColumns, selectedActivities, handleActivitySelect, handleActivityDelete, handleToggleActivityStatus])
 
   const handleOpportunitiesSearch = useCallback((query: string) => {
     setOpportunitiesSearchQuery(query)
@@ -2585,6 +2597,18 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
 
   const handleOpportunitiesColumnFiltersChange = useCallback((filters: ColumnFilter[]) => {
     setOpportunitiesColumnFilters(filters)
+  }, [])
+
+  const handleOpportunitySelect = useCallback((opportunityId: string, selected: boolean) => {
+    setSelectedOpportunities(previous => {
+      if (selected) {
+        if (previous.includes(opportunityId)) {
+          return previous
+        }
+        return [...previous, opportunityId]
+      }
+      return previous.filter(id => id !== opportunityId)
+    })
   }, [])
 
   const contactOpportunityTableColumns = useMemo(() => {
@@ -2676,7 +2700,7 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
               return <span className="font-medium text-primary-600">{label}</span>
             }
 
-            const parentCtx = (searchParams?.get('ctx') || '').toLowerCase()
+            const parentCtx = (searchParams?.get('ctx') || "").toLowerCase()
             const parentCtxId = searchParams?.get('ctxId') || undefined
             const parentCtxName = searchParams?.get('ctxName') || undefined
 
@@ -2707,7 +2731,15 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
 
       return column
     })
-  }, [contactOpportunityPreferenceColumns, selectedOpportunities, requestOpportunityDelete, handleToggleOpportunityStatus])
+  }, [
+    contactOpportunityPreferenceColumns,
+    selectedOpportunities,
+    requestOpportunityDelete,
+    handleToggleOpportunityStatus,
+    handleOpportunitySelect,
+    contact,
+    searchParams,
+  ])
 
   const handleGroupsSearch = useCallback((query: string) => {
     setGroupsSearchQuery(query)
@@ -2805,7 +2837,7 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
       }
       return column
     })
-  }, [contactGroupPreferenceColumns, selectedGroups, requestGroupDelete, handleToggleGroupStatus])
+  }, [contactGroupPreferenceColumns, selectedGroups, handleGroupSelect, handleToggleGroupStatus])
 
   const filteredActivities = useMemo(() => {
     let rows: ContactActivityRow[] = [...(contact?.activities ?? [])]
@@ -3081,18 +3113,6 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
     setActivitiesCurrentPage(1)
   }
 
-  const handleActivitySelect = useCallback((activityId: string, selected: boolean) => {
-    setSelectedActivities(previous => {
-      if (selected) {
-        if (previous.includes(activityId)) {
-          return previous
-        }
-        return [...previous, activityId]
-      }
-      return previous.filter(id => id !== activityId)
-    })
-  }, [])
-
   const handleSelectAllActivities = useCallback((selected: boolean) => {
     if (selected) {
       setSelectedActivities(paginatedActivities.map(row => row.id))
@@ -3109,18 +3129,6 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
     setOpportunitiesPageSize(size)
     setOpportunitiesCurrentPage(1)
   }
-
-  const handleOpportunitySelect = useCallback((opportunityId: string, selected: boolean) => {
-    setSelectedOpportunities(previous => {
-      if (selected) {
-        if (previous.includes(opportunityId)) {
-          return previous
-        }
-        return [...previous, opportunityId]
-      }
-      return previous.filter(id => id !== opportunityId)
-    })
-  }, [])
 
   const handleSelectAllOpportunities = useCallback((selected: boolean) => {
     if (selected) {
@@ -3306,7 +3314,7 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
 
                   {activeTab === "activities" && (
                     <div className="grid flex-1 grid-rows-[auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0 px-3 pb-0">
-                      <div className="border-t-2 border-t-primary-600 -mr-3">
+                      <div className="border-t-2 border-t-primary-600 -mr-3 min-w-0 overflow-hidden">
                         <ListHeader
                         inTab
                         onCreateClick={handleCreateNewClick}
@@ -3327,6 +3335,7 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
                       >
                         <DynamicTable
                           className="flex flex-col"
+                          preferOverflowHorizontalScroll
                           columns={contactActivityTableColumns}
                           data={paginatedActivities}
                           emptyMessage="No activities found for this contact"
@@ -3350,7 +3359,7 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
 
                   {activeTab === "opportunities" && (
                     <div className="grid flex-1 grid-rows-[auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0 px-3 pb-0">
-                      <div className="border-t-2 border-t-primary-600 -mr-3">
+                      <div className="border-t-2 border-t-primary-600 -mr-3 min-w-0 overflow-hidden">
                         <ListHeader
                         inTab
                         onCreateClick={handleCreateNewClick}
@@ -3371,6 +3380,7 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
                       >
                         <DynamicTable
                           className="flex flex-col"
+                          preferOverflowHorizontalScroll
                           columns={contactOpportunityTableColumns}
                           data={paginatedOpportunities}
                           emptyMessage="No opportunities found for this contact"
@@ -3394,7 +3404,7 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
 
                   {activeTab === "groups" && (
                     <div className="grid flex-1 grid-rows-[auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0 px-3 pb-0">
-                      <div className="border-t-2 border-t-primary-600 -mr-3">
+                      <div className="border-t-2 border-t-primary-600 -mr-3 min-w-0 overflow-hidden">
                         <ListHeader
                         inTab
                         onCreateClick={handleCreateNewClick}
@@ -3415,6 +3425,7 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
                       >
                         <DynamicTable
                           className="flex flex-col"
+                          preferOverflowHorizontalScroll
                           columns={contactGroupTableColumns}
                           data={paginatedGroups}
                           emptyMessage="No groups found for this contact"

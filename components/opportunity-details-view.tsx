@@ -1517,6 +1517,8 @@ export function OpportunityDetailsView({
   const { showError, showSuccess } = useToasts()
   const router = useRouter()
   const searchParams = useSearchParams()
+  const opportunityOwnerId = opportunity?.owner?.id
+  const opportunityOwnerName = opportunity?.owner?.name
 
   // Lifted history state
   const [history] = useState<HistoryRow[]>(MOCK_HISTORY_ROWS)
@@ -1532,7 +1534,7 @@ export function OpportunityDetailsView({
 
   const [activeTab, setActiveTab] = useState<TabKey>(getInitialTab())
 
-  const isAssignedToUser = Boolean(opportunity?.owner?.id && opportunity.owner.id === authUser?.id)
+  const isAssignedToUser = Boolean(opportunityOwnerId && opportunityOwnerId === authUser?.id)
   const canEditOpportunity =
     hasPermission("accounts.manage") ||
     hasPermission("opportunities.manage") ||
@@ -1624,12 +1626,12 @@ export function OpportunityDetailsView({
           label: user.fullName || user.email || user.id
         }))
 
-        if (opportunity?.owner?.id) {
-          const exists = options.some(option => option.value === opportunity.owner!.id)
+        if (opportunityOwnerId) {
+          const exists = options.some(option => option.value === opportunityOwnerId)
           if (!exists) {
             options.unshift({
-              value: opportunity.owner.id,
-              label: opportunity.owner.name || "Current Owner"
+              value: opportunityOwnerId,
+              label: opportunityOwnerName || "Current Owner"
             })
           }
         }
@@ -1641,9 +1643,11 @@ export function OpportunityDetailsView({
       .catch(error => {
         console.error(error)
         if (!cancelled) {
-          setOwnerOptions(opportunity?.owner?.id
-            ? [{ value: opportunity.owner.id, label: opportunity.owner.name || "Current Owner" }]
-            : [])
+          setOwnerOptions(
+            opportunityOwnerId
+              ? [{ value: opportunityOwnerId, label: opportunityOwnerName || "Current Owner" }]
+              : []
+          )
           showError("Unable to load owners", error instanceof Error ? error.message : "Please try again later")
         }
       })
@@ -1656,24 +1660,24 @@ export function OpportunityDetailsView({
     return () => {
       cancelled = true
     }
-  }, [shouldEnableInline, opportunity?.owner?.id, opportunity?.owner?.name, showError])
+  }, [shouldEnableInline, opportunityOwnerId, opportunityOwnerName, showError])
 
   const ownerSelectOptions = useMemo(() => {
     if (!shouldEnableInline) {
       return ownerOptions
     }
-    if (!opportunity?.owner?.id) {
+    if (!opportunityOwnerId) {
       return ownerOptions
     }
-    const exists = ownerOptions.some(option => option.value === opportunity.owner!.id)
+    const exists = ownerOptions.some(option => option.value === opportunityOwnerId)
     if (exists) {
       return ownerOptions
     }
     return [
-      { value: opportunity.owner.id, label: opportunity.owner.name ?? "Current Owner" },
+      { value: opportunityOwnerId, label: opportunityOwnerName ?? "Current Owner" },
       ...ownerOptions
     ]
-  }, [shouldEnableInline, ownerOptions, opportunity?.owner?.id, opportunity?.owner?.name])
+  }, [shouldEnableInline, ownerOptions, opportunityOwnerId, opportunityOwnerName])
 
   const handleSaveEdits = useCallback(async () => {
     try {
@@ -2596,6 +2600,7 @@ export function OpportunityDetailsView({
 
   const revenueTableColumns = useMemo(() => {
     const renderEditableCell = (columnId: RevenueEditableColumnId, label: string) => {
+      // eslint-disable-next-line react/display-name
       return (_: unknown, row: OpportunityRevenueScheduleRecord) => {
         let spanRef: HTMLSpanElement | null = null
         const displayValue = getEditableDisplayValue(columnId, (row as any)[columnId])
@@ -4178,7 +4183,7 @@ export function OpportunityDetailsView({
                   </div>
                 ) : activeTab === "products" ? (
                   <div className="grid flex-1 grid-rows-[auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0 px-3 pb-0">
-                    <div className="border-t-2 border-t-primary-600 -mr-3">
+                    <div className="border-t-2 border-t-primary-600 -mr-3 min-w-0 overflow-hidden">
                     <ListHeader
                       inTab
                       showCreateButton
@@ -4204,6 +4209,7 @@ export function OpportunityDetailsView({
                     >
                       <DynamicTable
                         className="flex flex-col"
+                        preferOverflowHorizontalScroll
                         columns={productTableColumns}
                         data={paginatedProductRows}
                         loading={productPreferencesLoading}
@@ -4225,7 +4231,7 @@ export function OpportunityDetailsView({
                   </div>
                 ) : activeTab === "roles" ? (
                   <div className="grid flex-1 grid-rows-[auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0 px-3 pb-0">
-                    <div className="border-t-2 border-t-primary-600 -mr-3">
+                    <div className="border-t-2 border-t-primary-600 -mr-3 min-w-0 overflow-hidden">
                       <ListHeader
                         inTab
                         showCreateButton
@@ -4254,6 +4260,7 @@ export function OpportunityDetailsView({
                         <DynamicTable
                           key={rolePreferenceColumns.map(c => `${c.id}:${c.hidden ? 0 : 1}`).join("|")}
                           className="flex flex-col"
+                          preferOverflowHorizontalScroll
                           columns={roleTableColumns}
                           data={paginatedRoleRows}
                           loading={rolePreferencesLoading}
@@ -4275,7 +4282,7 @@ export function OpportunityDetailsView({
                   </div>
                 ) : activeTab === "revenue-schedules" ? (
                   <div className="grid flex-1 grid-rows-[auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0 px-3 pb-0">
-                    <div className="border-t-2 border-t-primary-600 -mr-3">
+                    <div className="border-t-2 border-t-primary-600 -mr-3 min-w-0 overflow-hidden">
                       <ListHeader
                         inTab
                         onCreateClick={() => setShowRevenueCreateModal(true)}
@@ -4308,6 +4315,7 @@ export function OpportunityDetailsView({
                       >
                         <DynamicTable
                           className="flex flex-col"
+                          preferOverflowHorizontalScroll
                           columns={revenueTableColumns}
                           data={paginatedRevenueRows}
                           loading={revenuePreferencesLoading}
@@ -4329,7 +4337,7 @@ export function OpportunityDetailsView({
                   </div>
                 ) : activeTab === "activities" ? (
                   <div className="grid flex-1 grid-rows-[auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0 px-3 pb-0">
-                    <div className="border-t-2 border-t-primary-600 -mr-3">
+                    <div className="border-t-2 border-t-primary-600 -mr-3 min-w-0 overflow-hidden">
                       <ListHeader
                         inTab
                         onCreateClick={handleCreateActivity}
@@ -4356,6 +4364,7 @@ export function OpportunityDetailsView({
                       >
                         <DynamicTable
                           className="flex flex-col"
+                          preferOverflowHorizontalScroll
                           columns={activityTableColumns}
                           data={paginatedActivities}
                           loading={activityPreferencesLoading}

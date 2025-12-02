@@ -142,6 +142,7 @@ export function AccountCreateModal({ isOpen, onClose, onSubmit }: AccountCreateM
   const [parentAccountQuery, setParentAccountQuery] = useState("")
   const [showParentAccountResults, setShowParentAccountResults] = useState(false)
   const { user } = useAuth()
+  const userId = user?.id
 
   useEffect(() => {
     if (!isOpen) {
@@ -158,14 +159,14 @@ export function AccountCreateModal({ isOpen, onClose, onSubmit }: AccountCreateM
     setForm(INITIAL_FORM)
     setParentAccountQuery("")
     // Pre-select current user as owner immediately if available
-    if (user?.id) {
-      setForm(prev => ({ ...prev, ownerId: user.id }))
+    if (userId) {
+      setForm(prev => ({ ...prev, ownerId: userId }))
     }
     setErrors({})
     setFormError(null)
     setOptionsLoaded(false)
     setOptionsError(null)
-  }, [isOpen])
+  }, [isOpen, userId])
 
   useEffect(() => {
     if (!isOpen || optionsLoaded) {
@@ -221,15 +222,15 @@ export function AccountCreateModal({ isOpen, onClose, onSubmit }: AccountCreateM
   useEffect(() => {
     if (!isOpen) return
     if (!optionsLoaded) return
-    if (!user?.id) return
+    if (!userId) return
     if (!owners || owners.length === 0) return
     if (form.ownerId && form.ownerId.length > 0) return
 
-    const hasCurrentUser = owners.some(o => o.id === user.id)
+    const hasCurrentUser = owners.some(o => o.id === userId)
     if (hasCurrentUser) {
-      setForm(prev => ({ ...prev, ownerId: user.id }))
+      setForm(prev => ({ ...prev, ownerId: userId }))
     }
-  }, [isOpen, optionsLoaded, owners, user?.id, form.ownerId])
+  }, [isOpen, optionsLoaded, owners, userId, form.ownerId])
 
   useEffect(() => {
     // If creating a new parent account, keep the query as the new name

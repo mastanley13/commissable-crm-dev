@@ -1056,7 +1056,14 @@ export const ticketsData = [
     vendorName: 'Vendor Account',
     issue: 'Issue 2',
     revenueSchedule: 'RS-100004',
-    opportunityName: 'whos opportunity'
+    opportunityName: 'whos opportunity',
+    productNameVendor: 'UCaaS 1 Seat',
+    accountIdVendor: 'AI40',
+    customerIdVendor: 'CUST-2001',
+    description: 'These guys are developers',
+    opportunityId: 'B1117',
+    orderIdVendor: 'H40',
+    ticketNumber: 'B1115'
   },
   {
     id: 2,
@@ -1066,7 +1073,14 @@ export const ticketsData = [
     vendorName: 'Vendor Account',
     issue: 'Test Ticket Issue',
     revenueSchedule: '-',
-    opportunityName: 'whos opportunity'
+    opportunityName: 'whos opportunity',
+    productNameVendor: 'Fiber DIA 1GB',
+    accountIdVendor: 'AI41',
+    customerIdVendor: 'CUST-2002',
+    description: 'Sample ticket for testing',
+    opportunityId: 'B1118',
+    orderIdVendor: 'H41',
+    ticketNumber: 'B1116'
   }
 ]
 

@@ -347,8 +347,10 @@ These clarifications are reflected in more detail in `reconciliation_matching_en
 - Triggered Prisma Client generation after the migration (developers may still need to run `npx prisma generate` locally if their environment blocked the DLL rename once).
 - Added `scripts/seed-deposit-line-items.ts` plus npm script `npm run seed:deposit-lines`, and executed it to populate sample deposit line items + a `DepositLineMatch` for the latest deposit so the Reconciliation detail view has real data to consume.
 - Implemented `GET /api/reconciliation/deposits/[depositId]/detail` backed by the new models to return deposit metadata and live `DepositLineItem` rows for the selected deposit.
-- Updated `app/(dashboard)/reconciliation/[depositId]/page.tsx` to call the new detail API and feed real line items into `DepositReconciliationDetailView` instead of the previous mocks (the suggested schedules section still uses mock data for now).
+- Updated `app/(dashboard)/reconciliation/[depositId]/page.tsx` to call the detail API and live candidates API so both tables in `DepositReconciliationDetailView` render real data instead of mocks.
+- Implemented a signal-and-weight matching engine in `lib/matching/deposit-matcher.ts` (IDs, names, amounts, dates with confidence levels) plus the `/api/reconciliation/deposits/[depositId]/line-items/[lineId]/candidates` endpoint that returns ranked live `RevenueSchedule` suggestions with reasons for each line item.
+- Added shared recomputation of deposit aggregates/status after apply/unmatch via `lib/matching/deposit-aggregates.ts`, keeping deposit headers in sync as matches change.
 
 **In progress / upcoming**
 
-- Implement a `/api/reconciliation/deposits/[depositId]/line-items/[lineId]/candidates` endpoint and simple matching engine to populate the “Suggested Matches – Revenue Schedules” table from real `RevenueSchedule` data.
+- Add feature flags around auto-apply and optional updates to `RevenueSchedule` actuals, plus lightweight logging for manual overrides (post-MVP hardening).

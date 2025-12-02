@@ -449,7 +449,7 @@ export default function ContactsPage() {
     if (changed) {
       handleColumnsChange(normalized)
     }
-  }, [preferenceLoading])
+  }, [preferenceLoading, preferenceColumns, handleColumnsChange])
 
   const debouncedSearch = useCallback((query: string) => {
     if (searchTimeout) {

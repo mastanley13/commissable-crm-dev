@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
-import { Prisma, DepositLineItemStatus } from "@prisma/client"
+import { DepositLineItemStatus } from "@prisma/client"
 import { withPermissions, createErrorResponse } from "@/lib/api-auth"
 import { prisma } from "@/lib/db"
+import { recomputeDepositAggregates } from "@/lib/matching/deposit-aggregates"
 
 export async function POST(
   request: NextRequest,
@@ -40,23 +41,11 @@ export async function POST(
         },
       })
 
-      const depositUpdate: Prisma.DepositUpdateInput = {
-        itemsReconciled:
-          lineItem.status === DepositLineItemStatus.Matched ? { decrement: 1 } : undefined,
-        itemsUnreconciled:
-          lineItem.status !== DepositLineItemStatus.Unmatched ? { increment: 1 } : undefined,
-      }
+      const deposit = await recomputeDepositAggregates(tx, depositId, tenantId)
 
-      if (depositUpdate.itemsReconciled || depositUpdate.itemsUnreconciled) {
-        await tx.deposit.update({
-          where: { id: depositId },
-          data: depositUpdate,
-        })
-      }
-
-      return updatedLine
+      return { lineItem: updatedLine, deposit }
     })
 
-    return NextResponse.json({ data: { lineItem: result } })
+    return NextResponse.json({ data: result })
   })
 }

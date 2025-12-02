@@ -1006,7 +1006,7 @@ export default function ProductsPage() {
     handleBulkExportCsv,
     openDeleteDialog,
     selectedProductRows,
-    selectedProducts.length,
+    selectedProducts,
     showError,
   ])
   const tableColumns = useMemo(() => {

@@ -51,6 +51,7 @@ export interface TableProps {
   hideSelectAllLabel?: boolean // Hide the 'Select All' label in the select column header
   selectHeaderLabel?: string // Text label to show next to the select-all checkbox
   maxBodyHeight?: number // Maximum height for the table body with scroll
+  preferOverflowHorizontalScroll?: boolean // Prefer horizontal scroll over shrink-to-fit when table is wider than container
 }
 
 export function DynamicTable({
@@ -74,7 +75,8 @@ export function DynamicTable({
   alwaysShowPagination = false,
   hideSelectAllLabel = false,
   selectHeaderLabel,
-  maxBodyHeight
+  maxBodyHeight,
+  preferOverflowHorizontalScroll = false
 }: TableProps) {
   const SortTriangles = useCallback(({ direction }: { direction: "asc" | "desc" | null }) => {
     const base = "w-2.5 h-2.5"
@@ -341,10 +343,89 @@ export function DynamicTable({
     const containerWidth = computedWidth
     const totalFixedWidth = visibleColumns.reduce((total, col) => total + col.width, 0)
 
-    // Use fill mode only until the user manually resizes columns.
-    // Once the user has resized, we stop rebalancing widths so manual
-    // sizes are respected and overflow can create a horizontal scrollbar.
-    const useFillMode = fillContainerWidth && !isManuallyResized
+    // Decide when we want to allow horizontal overflow with scrollbars.
+    // - By default, we only allow overflow after the user manually resizes columns.
+    // - When preferOverflowHorizontalScroll is true (e.g., detail tabs),
+    //   we allow overflow as soon as the table is wider than the container.
+    const enableOverflowMode =
+      fillContainerWidth && (isManuallyResized || preferOverflowHorizontalScroll)
+
+    // Use fill mode only when overflow mode is not enabled.
+    const useFillMode = fillContainerWidth && !enableOverflowMode
+
+    // Hybrid mode for preferOverflowHorizontalScroll:
+    // - When content exceeds container: use explicit pixel widths and allow horizontal scrolling
+    // - When content fits in container: use fill mode to expand columns (even after manual resize)
+    if (preferOverflowHorizontalScroll) {
+      if (totalFixedWidth > containerWidth) {
+        // Content exceeds container - use scroll mode
+        const gridTemplate = visibleColumns
+          .map(col => `${Math.max(1, Math.round(col.width))}px`)
+          .join(" ")
+
+        return {
+          gridTemplate,
+          totalTableWidth: totalFixedWidth,
+          shouldUseFullWidth: false,
+        }
+      } else {
+        // Content fits in container - use fill mode to expand columns
+        // This applies even after manual resize to prevent blank space
+        const extraSpace = containerWidth - totalFixedWidth
+        const flexibleColumns = visibleColumns.filter(col => col.resizable !== false)
+        
+        if (flexibleColumns.length > 0) {
+          const totalFlexibleWidth = flexibleColumns.reduce((sum, col) => sum + col.width, 0)
+          const adjustedWidths = visibleColumns.map(col => {
+            if (col.resizable === false) return col.width
+            
+            const proportion = col.width / totalFlexibleWidth
+            const additionalWidth = extraSpace * proportion
+            const newWidth = col.width + additionalWidth
+            
+            // Respect constraints
+            const minWidth = col.minWidth ?? 80
+            const maxWidth = col.maxWidth ?? containerWidth
+            
+            return Math.max(minWidth, Math.min(newWidth, maxWidth))
+          })
+          
+          // Use minmax for the last column to absorb any remaining space
+          const gridTemplate = adjustedWidths
+            .map((width, index) => {
+              const rounded = Math.max(1, Math.round(width))
+              if (index === adjustedWidths.length - 1) {
+                return `minmax(${rounded}px, 1fr)`
+              }
+              return `${rounded}px`
+            })
+            .join(" ")
+
+          return {
+            gridTemplate,
+            totalTableWidth: containerWidth,
+            shouldUseFullWidth: true,
+          }
+        }
+        
+        // Fallback: no flexible columns, just use explicit widths with last column flex
+        const gridTemplate = visibleColumns
+          .map((col, index) => {
+            const rounded = Math.max(1, Math.round(col.width))
+            if (index === visibleColumns.length - 1) {
+              return `minmax(${rounded}px, 1fr)`
+            }
+            return `${rounded}px`
+          })
+          .join(" ")
+
+        return {
+          gridTemplate,
+          totalTableWidth: containerWidth,
+          shouldUseFullWidth: true,
+        }
+      }
+    }
 
     const formatTrack = (width: number, index: number, total: number, column?: Column) => {
       const rounded = Math.max(1, Math.round(width))
@@ -363,9 +444,9 @@ export function DynamicTable({
     }
     
     // If total width is greater than container and we want to fill container,
-    // shrink resizable columns proportionally while respecting min widths
-    // BUT if the user manually resized, allow overflow and horizontal scroll.
-    if (fillContainerWidth && totalFixedWidth > containerWidth && !isManuallyResized) {
+    // shrink resizable columns proportionally while respecting min widths.
+    // When overflow mode is enabled, we skip this and allow horizontal scroll instead.
+    if (fillContainerWidth && totalFixedWidth > containerWidth && !enableOverflowMode) {
       const minWidthFor = (c: Column) => (c.minWidth ?? 80)
 
       // Initial proportional shrink
@@ -406,8 +487,8 @@ export function DynamicTable({
       }
     }
 
-    // Overflow scenario with manual resize: keep user widths and allow horizontal scroll
-    if (fillContainerWidth && totalFixedWidth > containerWidth && isManuallyResized) {
+    // Overflow scenario: keep current widths and allow horizontal scroll
+    if (fillContainerWidth && totalFixedWidth > containerWidth && enableOverflowMode) {
       const gridTemplate = visibleColumns
         .map((col, index) => `${Math.max(1, Math.round(col.width))}px`)
         .join(" ")
@@ -504,7 +585,7 @@ export function DynamicTable({
       totalTableWidth: containerWidth,
       shouldUseFullWidth: true
     }
-  }, [visibleColumns, isManuallyResized, fillContainerWidth, measuredContainerWidth])
+  }, [visibleColumns, isManuallyResized, fillContainerWidth, measuredContainerWidth, preferOverflowHorizontalScroll])
 
   const gridStyles = useMemo(() => ({
     gridTemplateColumns: gridTemplate,
@@ -826,11 +907,11 @@ export function DynamicTable({
   }
 
   return (
-    <div className={cn("bg-white border-2 border-gray-400", maxBodyHeight ? "flex flex-col" : "flex flex-col flex-1", className)}>
+    <div className={cn("bg-white border-2 border-gray-400 min-w-0 w-full max-w-full", maxBodyHeight ? "flex flex-col" : "flex flex-col flex-1", className)}>
       {/* Table container */}
-      <div className="relative" style={maxBodyHeight ? { flex: '0 1 auto', minHeight: 0 } : { flex: '1 1 0%', minHeight: 0 }}>
+      <div className="relative overflow-hidden min-w-0 w-full max-w-full" style={maxBodyHeight ? { flex: '0 1 auto', minHeight: 0 } : { flex: '1 1 0%', minHeight: 0 }}>
         <div
-          className="table-scroll-container overflow-x-auto overflow-y-auto"
+          className="table-scroll-container overflow-x-auto overflow-y-auto min-w-0"
           style={maxBodyHeight ? { minHeight: `${maxBodyHeight}px`, maxHeight: `${maxBodyHeight}px`, height: `${maxBodyHeight}px` } : undefined}
           role="table"
           aria-label="Data table"

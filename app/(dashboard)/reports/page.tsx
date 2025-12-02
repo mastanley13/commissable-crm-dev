@@ -564,7 +564,7 @@ export default function ReportsPage() {
 
       return column
     })
-  }, [preferenceColumns, selectedReportIds, handleSelectReport, tableLoading, reports])
+  }, [preferenceColumns, selectedReportIds, handleSelectReport, tableLoading])
 
   const hasInactiveSelectedReports = selectedReportIds.some(id => {
     const row = reports.find(report => report.id === id)
