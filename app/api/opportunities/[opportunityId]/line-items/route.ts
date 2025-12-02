@@ -135,7 +135,19 @@ export async function POST(
 
       const product = await prisma.product.findFirst({
         where: { id: productId, tenantId },
-        select: { id: true, vendorAccountId: true, distributorAccountId: true, commissionPercent: true }
+        select: {
+          id: true,
+          productCode: true,
+          productNameHouse: true,
+          productNameVendor: true,
+          revenueType: true,
+          priceEach: true,
+          commissionPercent: true,
+          distributorAccountId: true,
+          vendorAccountId: true,
+          distributor: { select: { id: true, accountName: true } },
+          vendor: { select: { id: true, accountName: true } }
+        }
       })
 
       if (!product) {
@@ -164,6 +176,14 @@ export async function POST(
             tenantId,
             opportunityId: existingOpportunity.id,
             productId: product.id,
+            productCodeSnapshot: product.productCode,
+            productNameHouseSnapshot: product.productNameHouse,
+            productNameVendorSnapshot: product.productNameVendor,
+            revenueTypeSnapshot: product.revenueType,
+            priceEachSnapshot: product.priceEach,
+            commissionPercentSnapshot: product.commissionPercent,
+            distributorNameSnapshot: product.distributor?.accountName ?? null,
+            vendorNameSnapshot: product.vendor?.accountName ?? null,
             quantity: decimalFromNumber(quantityNumber),
             unitPrice: decimalFromNumber(unitPriceNumber),
             expectedUsage: decimalFromNumber(expectedUsageNumber),

@@ -280,17 +280,18 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
 
                 <div className="space-y-1">
                   <label className={labelCls}>Status</label>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 py-1.5">
                     <EditableSwitch checked={form.isActive} onChange={handleChange("isActive") as any} />
                     <span className="text-xs font-semibold text-gray-600">{form.isActive ? "Active" : "Inactive"}</span>
                   </div>
                 </div>
-              </div>
-            </div>
 
-            <div className="space-y-1">
-              <label className={labelCls}>House - Description</label>
-              <textarea rows={2} className={textAreaCls} value={form.description} onChange={handleChange("description")} placeholder="Add description" />
+                {/* Combined field spanning two rows to align with Product Family + Product Subtype */}
+                <div className="space-y-1">
+                  <label className={labelCls}>House - Description</label>
+                  <textarea className={`${textAreaCls} h-[88px]`} value={form.description} onChange={handleChange("description")} placeholder="Add description" />
+                </div>
+              </div>
             </div>
 
             <div className="grid gap-3 lg:grid-cols-2">

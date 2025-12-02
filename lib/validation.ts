@@ -107,7 +107,7 @@ export function validateUrl(url: string | null | undefined, fieldName: string = 
   } else if (!VALIDATION_PATTERNS.url.test(url)) {
     errors.push({
       field: fieldName,
-      message: 'URL must be in format: https://website.com',
+      message: 'URL must be a valid website address (e.g., https://website.com or website.com)',
       value: url
     })
   }

@@ -133,6 +133,14 @@ type OpportunityWithRelations = {
 type OpportunityProductWithRelations = {
   id: string
   productId: string
+  productCodeSnapshot?: string | null
+  productNameHouseSnapshot?: string | null
+  productNameVendorSnapshot?: string | null
+  revenueTypeSnapshot?: string | null
+  priceEachSnapshot?: unknown
+  commissionPercentSnapshot?: unknown
+  distributorNameSnapshot?: string | null
+  vendorNameSnapshot?: string | null
   quantity?: unknown
   unitPrice?: unknown
   expectedUsage?: unknown
@@ -484,14 +492,26 @@ export function mapOpportunityProductToDetail(item: OpportunityProductWithRelati
   const expectedCommission = toNumber(item.expectedCommission)
   const revenueStartDate = formatDateValue(item.revenueStartDate)
   const revenueEndDate = formatDateValue(item.revenueEndDate)
-  const priceEach = item.product ? toNumber(item.product.priceEach) : null
+  const priceEach = toNumber(item.priceEachSnapshot ?? (item.product ? item.product.priceEach : null))
+
+  const productNameHouseSnapshot = item.productNameHouseSnapshot
+  const productNameVendorSnapshot = item.productNameVendorSnapshot
+  const productCodeSnapshot = item.productCodeSnapshot
+  const revenueTypeSnapshot = item.revenueTypeSnapshot
+  const distributorNameSnapshot = item.distributorNameSnapshot
+  const vendorNameSnapshot = item.vendorNameSnapshot
 
   return {
     id: item.id,
     productId: item.productId,
-    productName: item.product?.productNameHouse ?? item.product?.productNameVendor ?? "Product",
-    productCode: item.product?.productCode ?? null,
-    revenueType: item.product?.revenueType ?? null,
+    productName:
+      productNameHouseSnapshot ??
+      productNameVendorSnapshot ??
+      item.product?.productNameHouse ??
+      item.product?.productNameVendor ??
+      "Product",
+    productCode: productCodeSnapshot ?? item.product?.productCode ?? null,
+    revenueType: revenueTypeSnapshot ?? item.product?.revenueType ?? null,
     quantity,
     unitPrice,
     expectedUsage,
@@ -499,8 +519,8 @@ export function mapOpportunityProductToDetail(item: OpportunityProductWithRelati
     expectedCommission,
     revenueStartDate,
     revenueEndDate,
-    distributorName: item.product?.distributor?.accountName ?? null,
-    vendorName: item.product?.vendor?.accountName ?? null,
+    distributorName: distributorNameSnapshot ?? item.product?.distributor?.accountName ?? null,
+    vendorName: vendorNameSnapshot ?? item.product?.vendor?.accountName ?? null,
     priceEach,
     createdAt: formatDateValue(item.createdAt ?? null),
     updatedAt: formatDateValue(item.updatedAt ?? null),

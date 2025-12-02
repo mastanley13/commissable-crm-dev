@@ -486,6 +486,15 @@ model OpportunityProduct {
   tenantId           String                   @db.Uuid
   opportunityId      String                   @db.Uuid
   productId          String                   @db.Uuid
+  // Snapshot of key Product fields at the time this line item was created or last re-linked
+  productCodeSnapshot        String?
+  productNameHouseSnapshot   String?
+  productNameVendorSnapshot  String?
+  revenueTypeSnapshot        RevenueType?
+  priceEachSnapshot          Decimal?                 @db.Decimal(16, 2)
+  commissionPercentSnapshot  Decimal?                 @db.Decimal(5, 2)
+  distributorNameSnapshot    String?
+  vendorNameSnapshot         String?
   quantity           Decimal?                 @db.Decimal(16, 2)
   unitPrice          Decimal?                 @db.Decimal(16, 2)
   expectedUsage      Decimal?                 @db.Decimal(16, 2)

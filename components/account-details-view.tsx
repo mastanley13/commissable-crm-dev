@@ -405,7 +405,7 @@ function validateAccountForm(form: AccountInlineForm, currentAccountId?: string)
 
   const website = form.websiteUrl.trim()
   if (website && !VALIDATION_PATTERNS.url.test(website)) {
-    errors.websiteUrl = "Enter a valid URL (https://example.com)."
+    errors.websiteUrl = "Enter a valid website address (e.g., https://example.com or example.com)."
   }
 
   const shipping = form.shippingAddress

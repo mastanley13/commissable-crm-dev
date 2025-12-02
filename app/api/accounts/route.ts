@@ -177,7 +177,44 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const parentAccountId = coerceOptionalId(payload.parentAccountId)
+    let parentAccountId = coerceOptionalId(payload.parentAccountId)
+    
+    // If newParentAccountName is provided and no parentAccountId, create a new parent account
+    const newParentAccountName = typeof payload.newParentAccountName === "string" 
+      ? payload.newParentAccountName.trim() 
+      : ""
+    
+    if (!parentAccountId && newParentAccountName.length > 0 && accountTypeId) {
+      // Create a minimal parent account with the same account type
+      const parentAccount = await prisma.account.create({
+        data: {
+          tenantId,
+          accountName: newParentAccountName,
+          accountTypeId: accountTypeId,
+          status: AccountStatus.Active,
+          createdById: userId,
+          updatedById: userId
+        }
+      })
+      parentAccountId = parentAccount.id
+      
+      // Log audit event for parent account creation
+      await logAccountAudit(
+        AuditAction.Create,
+        parentAccount.id,
+        userId,
+        tenantId,
+        request,
+        undefined,
+        {
+          accountName: parentAccount.accountName,
+          accountTypeId: parentAccount.accountTypeId,
+          status: parentAccount.status,
+          note: "Created as parent account during account creation"
+        }
+      )
+    }
+    
     // Validate owner must be Active if provided
     const ownerId = await ensureActiveOwnerOrNull(payload.ownerId, tenantId)
     const industryId = coerceOptionalId(payload.industryId)

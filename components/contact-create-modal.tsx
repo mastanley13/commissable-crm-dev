@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { Loader2, X } from "lucide-react"
 
+import { formatPhoneNumber } from "@/lib/validation-shared"
 import { useToasts } from "./toast"
 
 interface ContactOptions {
@@ -199,6 +200,25 @@ export function ContactCreateModal({ isOpen, onClose, onSuccess, options, defaul
     }))
   }
 
+  const handlePhoneBlur = (field: "workPhone" | "mobilePhone") => {
+    setFormData(prev => {
+      const current = prev[field]
+      if (!current || typeof current !== "string") {
+        return prev
+      }
+
+      const formatted = formatPhoneNumber(current)
+      if (formatted === current) {
+        return prev
+      }
+
+      return {
+        ...prev,
+        [field]: formatted
+      }
+    })
+  }
+
   const handleClose = () => {
     resetState()
     onClose()
@@ -232,15 +252,22 @@ export function ContactCreateModal({ isOpen, onClose, onSuccess, options, defaul
     setError(null)
 
     try {
+      const normalizedWorkPhone = formData.workPhone.trim()
+        ? formatPhoneNumber(formData.workPhone.trim())
+        : ""
+      const normalizedMobilePhone = formData.mobilePhone.trim()
+        ? formatPhoneNumber(formData.mobilePhone.trim())
+        : ""
+
       const contactData = {
         accountId: formData.accountId,
         firstName: formData.firstName.trim(),
         lastName: formData.lastName.trim(),
         suffix: formData.suffix.trim() || undefined,
         jobTitle: formData.jobTitle.trim() || undefined,
-        workPhone: formData.workPhone.trim() || undefined,
+        workPhone: normalizedWorkPhone || undefined,
         workPhoneExt: formData.extension.trim() || undefined,
-        mobilePhone: formData.mobilePhone.trim() || undefined,
+        mobilePhone: normalizedMobilePhone || undefined,
         emailAddress: formData.emailAddress.trim() || undefined,
         description: formData.description.trim() || undefined,
         isPrimary: true // Always default to Active
@@ -450,7 +477,8 @@ export function ContactCreateModal({ isOpen, onClose, onSuccess, options, defaul
                     type="tel"
                     value={formData.workPhone}
                     onChange={event => handleInputChange("workPhone", event.target.value)}
-                    placeholder="+1-555-123-4567"
+                    onBlur={() => handlePhoneBlur("workPhone")}
+                    placeholder="555-123-4567"
                     className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
                   />
                 </div>
@@ -478,7 +506,8 @@ export function ContactCreateModal({ isOpen, onClose, onSuccess, options, defaul
                   type="tel"
                   value={formData.mobilePhone}
                   onChange={event => handleInputChange("mobilePhone", event.target.value)}
-                  placeholder="+1-555-987-6543"
+                  onBlur={() => handlePhoneBlur("mobilePhone")}
+                  placeholder="555-987-6543"
                   className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
                 />
               </div>

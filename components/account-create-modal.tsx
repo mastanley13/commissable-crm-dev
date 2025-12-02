@@ -16,6 +16,7 @@ export interface AccountFormValues {
   accountName: string
   accountLegalName: string
   parentAccountId: string
+  newParentAccountName: string
   accountTypeId: string
   ownerId: string
   industryId: string
@@ -98,6 +99,7 @@ const INITIAL_FORM: AccountFormValues = {
   accountName: "",
   accountLegalName: "",
   parentAccountId: "",
+  newParentAccountName: "",
   accountTypeId: "",
   ownerId: "",
   industryId: "",
@@ -230,10 +232,17 @@ export function AccountCreateModal({ isOpen, onClose, onSubmit }: AccountCreateM
   }, [isOpen, optionsLoaded, owners, user?.id, form.ownerId])
 
   useEffect(() => {
-    if (!form.parentAccountId) {
-      if (parentAccountQuery !== "") {
-        setParentAccountQuery("")
+    // If creating a new parent account, keep the query as the new name
+    if (form.newParentAccountName) {
+      if (parentAccountQuery !== form.newParentAccountName) {
+        setParentAccountQuery(form.newParentAccountName)
       }
+      return
+    }
+
+    // When a specific parent account is selected, sync the visible text with the option name.
+    // Otherwise, leave whatever the user is typing alone so it doesn't get cleared on each keystroke.
+    if (!form.parentAccountId) {
       return
     }
 
@@ -241,7 +250,7 @@ export function AccountCreateModal({ isOpen, onClose, onSubmit }: AccountCreateM
     if (match && parentAccountQuery !== match.name) {
       setParentAccountQuery(match.name)
     }
-  }, [form.parentAccountId, parentAccounts, parentAccountQuery])
+  }, [form.parentAccountId, form.newParentAccountName, parentAccounts, parentAccountQuery])
 
   const parentAccountResults = useMemo(() => {
     const query = parentAccountQuery.trim().toLowerCase()
@@ -340,6 +349,7 @@ export function AccountCreateModal({ isOpen, onClose, onSubmit }: AccountCreateM
       accountName: trimValue(form.accountName),
       accountLegalName: trimValue(form.accountLegalName),
       parentAccountId: trimValue(form.parentAccountId),
+      newParentAccountName: trimValue(form.newParentAccountName),
       accountTypeId: trimValue(form.accountTypeId),
       ownerId: trimValue(form.ownerId),
       industryId: trimValue(form.industryId),
@@ -456,7 +466,7 @@ export function AccountCreateModal({ isOpen, onClose, onSubmit }: AccountCreateM
                   onChange={event => {
                     const value = event.target.value
                     setParentAccountQuery(value)
-                    setForm(previous => ({ ...previous, parentAccountId: "" }))
+                    setForm(previous => ({ ...previous, parentAccountId: "", newParentAccountName: "" }))
                     if (!showParentAccountResults) {
                       setShowParentAccountResults(true)
                     }
@@ -469,6 +479,21 @@ export function AccountCreateModal({ isOpen, onClose, onSubmit }: AccountCreateM
                   className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
                   autoComplete="off"
                 />
+                {form.newParentAccountName && (
+                  <div className="mt-1 flex items-center gap-2 text-xs text-green-600">
+                    <span>New parent account will be created: &quot;{form.newParentAccountName}&quot;</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setForm(previous => ({ ...previous, newParentAccountName: "" }))
+                        setParentAccountQuery("")
+                      }}
+                      className="text-gray-400 hover:text-gray-600"
+                    >
+                      &times;
+                    </button>
+                  </div>
+                )}
                 {showParentAccountResults && parentAccountResults.length > 0 ? (
                   <div className="absolute z-20 mt-1 max-h-52 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg">
                     {parentAccountResults.map(option => (
@@ -477,7 +502,7 @@ export function AccountCreateModal({ isOpen, onClose, onSubmit }: AccountCreateM
                         type="button"
                         onMouseDown={event => event.preventDefault()}
                         onClick={() => {
-                          setForm(previous => ({ ...previous, parentAccountId: option.id }))
+                          setForm(previous => ({ ...previous, parentAccountId: option.id, newParentAccountName: "" }))
                           setParentAccountQuery(option.name)
                           setShowParentAccountResults(false)
                         }}
@@ -489,8 +514,25 @@ export function AccountCreateModal({ isOpen, onClose, onSubmit }: AccountCreateM
                   </div>
                 ) : null}
                 {showParentAccountResults && parentAccountResults.length === 0 && parentAccountQuery.trim().length > 0 ? (
-                  <div className="absolute z-20 mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-500 shadow-lg">
-                    No parent accounts match your search.
+                  <div className="absolute z-20 mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-lg">
+                    <div className="px-3 py-2 text-sm text-gray-500">
+                      No parent accounts match your search.
+                    </div>
+                    <button
+                      type="button"
+                      onMouseDown={event => event.preventDefault()}
+                      onClick={() => {
+                        setForm(previous => ({ 
+                          ...previous, 
+                          parentAccountId: "", 
+                          newParentAccountName: parentAccountQuery.trim() 
+                        }))
+                        setShowParentAccountResults(false)
+                      }}
+                      className="w-full border-t border-gray-100 px-3 py-2 text-left text-sm font-medium text-primary-600 hover:bg-primary-50"
+                    >
+                      + Create &quot;{parentAccountQuery.trim()}&quot; as new parent account
+                    </button>
                   </div>
                 ) : null}
               </div>
@@ -549,11 +591,11 @@ export function AccountCreateModal({ isOpen, onClose, onSubmit }: AccountCreateM
               <div>
                 <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Website URL</label>
                 <input
-                  type="url"
+                  type="text"
                   value={form.websiteUrl}
                   onChange={handleFieldChange("websiteUrl")}
                   className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
-                  placeholder="www.commissable.com"
+                  placeholder="https://www.commissable.com or www.commissable.com"
                 />
               </div>
 

@@ -3296,6 +3296,49 @@ export function OpportunityDetailsView({
     setLineItemBulkDeleteTargets(targets)
   }, [opportunity, selectedLineItems, showError])
 
+  const handleBulkCloneLineItems = useCallback(async () => {
+    if (!opportunity) {
+      showError("Unable to clone products", "Opportunity data is unavailable.")
+      return
+    }
+
+    if (selectedLineItems.length === 0) {
+      showError("Nothing selected", "Select at least one product line item to clone.")
+      return
+    }
+
+    try {
+      const response = await fetch(
+        `/api/opportunities/${encodeURIComponent(opportunity.id)}/line-items/clone`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ lineItemIds: selectedLineItems })
+        }
+      )
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null)
+        const message = payload?.error ?? "Failed to clone product line items"
+        throw new Error(message)
+      }
+
+      const payload = await response.json().catch(() => null)
+      const clonedCount: number =
+        typeof payload?.clonedCount === "number" ? payload.clonedCount : selectedLineItems.length
+
+      showSuccess(
+        "Products cloned",
+        `${clonedCount} product line item${clonedCount === 1 ? "" : "s"} cloned.`
+      )
+      await onRefresh?.()
+    } catch (error) {
+      console.error(error)
+      const message = error instanceof Error ? error.message : "Unable to clone product line items"
+      showError("Clone failed", message)
+    }
+  }, [opportunity, selectedLineItems, onRefresh, showError, showSuccess])
+
   const handleBulkExportLineItems = useCallback(() => {
     if (selectedProductRows.length === 0) {
       showError("Nothing selected", "Select at least one product line item to export.")
@@ -3719,6 +3762,17 @@ export function OpportunityDetailsView({
       entityName: "product line items",
       actions: [
         {
+          key: "clone",
+          label: "Clone",
+          icon: Copy,
+          tone: "primary",
+          onClick: handleBulkCloneLineItems,
+          tooltip: count =>
+            count === 1
+              ? "Clone this product line item"
+              : `Clone ${count} product line items`
+        },
+        {
           key: "delete",
           label: "Delete",
           icon: Trash2,
@@ -3756,6 +3810,7 @@ export function OpportunityDetailsView({
       selectedLineItems.length,
       lineItemBulkActionLoading,
       lineItemDeleteLoading,
+      handleBulkCloneLineItems,
       handleBulkDeleteLineItems,
       handleBulkExportLineItems,
       handleBulkActivateLineItems,

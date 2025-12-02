@@ -138,7 +138,17 @@ export async function PATCH(
 
         const product = await prisma.product.findFirst({
           where: { id: productId, tenantId },
-          select: { id: true }
+          select: {
+            id: true,
+            productCode: true,
+            productNameHouse: true,
+            productNameVendor: true,
+            revenueType: true,
+            priceEach: true,
+            commissionPercent: true,
+            distributor: { select: { id: true, accountName: true } },
+            vendor: { select: { id: true, accountName: true } }
+          }
         })
 
         if (!product) {
@@ -146,6 +156,14 @@ export async function PATCH(
         }
 
         updateData.product = { connect: { id: product.id } }
+        updateData.productCodeSnapshot = product.productCode
+        updateData.productNameHouseSnapshot = product.productNameHouse
+        updateData.productNameVendorSnapshot = product.productNameVendor
+        updateData.revenueTypeSnapshot = product.revenueType
+        updateData.priceEachSnapshot = product.priceEach
+        updateData.commissionPercentSnapshot = product.commissionPercent
+        updateData.distributorNameSnapshot = product.distributor?.accountName ?? null
+        updateData.vendorNameSnapshot = product.vendor?.accountName ?? null
       }
 
       if ("quantity" in payload) {
