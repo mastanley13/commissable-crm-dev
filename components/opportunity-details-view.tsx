@@ -2894,20 +2894,20 @@ export function OpportunityDetailsView({
     setRevenueCloneTargetId(null)
   }, [])
 
-  const handleRevenueConfirmClone = useCallback(
-    async (effectiveDate: string) => {
-      if (!revenueCloneTargetId) {
-        showError("Schedules unavailable", "Unable to locate the selected revenue schedules. Refresh and try again.")
-        return
-      }
+    const handleRevenueConfirmClone = useCallback(
+      async (effectiveDate: string, months: number) => {
+        if (!revenueCloneTargetId) {
+          showError("Schedules unavailable", "Unable to locate the selected revenue schedules. Refresh and try again.")
+          return
+        }
 
-      setRevenueBulkBusy(true)
-      try {
-        const response = await fetch(`/api/revenue-schedules/${encodeURIComponent(revenueCloneTargetId)}/clone`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ effectiveDate }),
-        })
+        setRevenueBulkBusy(true)
+        try {
+          const response = await fetch(`/api/revenue-schedules/${encodeURIComponent(revenueCloneTargetId)}/clone`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ effectiveDate, months }),
+          })
         const payload = await response.json().catch(() => null)
         if (!response.ok) {
           const message = payload?.error ?? "Unable to clone the selected revenue schedule."

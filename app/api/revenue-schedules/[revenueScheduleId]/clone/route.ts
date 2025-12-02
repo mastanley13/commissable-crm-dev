@@ -123,6 +123,7 @@ export async function POST(request: NextRequest, { params }: { params: { revenue
 
       const scheduleNumber = buildCloneScheduleNumber(source.scheduleNumber)
       let effectiveDate: Date | null = source.scheduleDate ?? null
+      let months = 1
 
       const rawBody = await request.text()
       if (rawBody) {
@@ -135,43 +136,94 @@ export async function POST(request: NextRequest, { params }: { params: { revenue
               effectiveDate = candidate
             }
           }
+          const rawMonths = (parsed as any)?.months
+          const parsedMonths =
+            typeof rawMonths === "string"
+              ? Number.parseInt(rawMonths, 10)
+              : typeof rawMonths === "number"
+                ? rawMonths
+                : NaN
+          if (Number.isFinite(parsedMonths)) {
+            months = parsedMonths
+          }
         } catch {
           // Ignore malformed JSON and fall back to defaults
         }
       }
 
-      const cloned = await prisma.revenueSchedule.create({
-        data: {
-          tenantId,
-          accountId: source.accountId,
-          opportunityId: source.opportunityId,
-          opportunityProductId: source.opportunityProductId,
-          productId: source.productId,
-          distributorAccountId: source.distributorAccountId,
-          vendorAccountId: source.vendorAccountId,
-          scheduleNumber,
-          scheduleDate: effectiveDate,
-          scheduleType: source.scheduleType,
-          expectedUsage: source.expectedUsage,
-          usageAdjustment: source.usageAdjustment,
-          expectedCommission: source.expectedCommission,
-          orderIdHouse: source.orderIdHouse,
-          distributorOrderId: source.distributorOrderId,
-          notes: source.notes,
-          status: RevenueScheduleStatus.Projected,
-          isSelected: false,
-          createdById: req.user.id,
-          updatedById: req.user.id,
-          actualUsage: null,
-          actualUsageAdjustment: null,
-          actualCommission: null,
-          actualCommissionAdjustment: null,
-        },
-        include: revenueScheduleDetailInclude,
+      if (!effectiveDate) {
+        effectiveDate = source.scheduleDate ?? new Date()
+      }
+
+      if (!Number.isFinite(months) || months < 1) {
+        months = 1
+      }
+
+      // Cap months defensively to avoid runaway clones
+      if (months > 60) {
+        months = 60
+      }
+
+      const clones = await prisma.$transaction(async tx => {
+        const results: RevenueScheduleWithRelations[] = []
+
+        for (let i = 0; i < months; i++) {
+          const scheduleDate =
+            i === 0
+              ? effectiveDate
+              : new Date(
+                  Date.UTC(
+                    effectiveDate.getUTCFullYear(),
+                    effectiveDate.getUTCMonth() + i,
+                    effectiveDate.getUTCDate(),
+                  ),
+                )
+
+          const created = await tx.revenueSchedule.create({
+            data: {
+              tenantId,
+              accountId: source.accountId,
+              opportunityId: source.opportunityId,
+              opportunityProductId: source.opportunityProductId,
+              productId: source.productId,
+              distributorAccountId: source.distributorAccountId,
+              vendorAccountId: source.vendorAccountId,
+              scheduleNumber: scheduleNumber,
+              scheduleDate,
+              scheduleType: source.scheduleType,
+              expectedUsage: source.expectedUsage,
+              usageAdjustment: source.usageAdjustment,
+              expectedCommission: source.expectedCommission,
+              orderIdHouse: source.orderIdHouse,
+              distributorOrderId: source.distributorOrderId,
+              notes: source.notes,
+              status: RevenueScheduleStatus.Projected,
+              isSelected: false,
+              createdById: req.user.id,
+              updatedById: req.user.id,
+              actualUsage: null,
+              actualUsageAdjustment: null,
+              actualCommission: null,
+              actualCommissionAdjustment: null,
+            },
+            include: revenueScheduleDetailInclude,
+          })
+
+          results.push(created as RevenueScheduleWithRelations)
+        }
+
+        return results
       })
 
-      const detail = mapRevenueScheduleToDetail(cloned as RevenueScheduleWithRelations)
-      return NextResponse.json({ data: detail }, { status: 201 })
+      const primary = clones[0]
+      const detail = mapRevenueScheduleToDetail(primary)
+      return NextResponse.json(
+        {
+          data: detail,
+          meta: { createdCount: clones.length },
+        },
+        { status: 201 },
+      )
     } catch (error) {
       console.error("Failed to clone revenue schedule", error)
       const message =

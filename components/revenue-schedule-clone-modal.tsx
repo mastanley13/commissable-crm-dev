@@ -8,7 +8,7 @@ interface RevenueScheduleCloneModalProps {
   isOpen: boolean
   defaultDate?: string
   submitting?: boolean
-  onConfirm: (effectiveDate: string) => void
+  onConfirm: (effectiveDate: string, months: number) => void
   onCancel: () => void
 }
 
@@ -20,10 +20,12 @@ export function RevenueScheduleCloneModal({
   onCancel,
 }: RevenueScheduleCloneModalProps) {
   const [effectiveDate, setEffectiveDate] = useState(defaultDate)
+  const [months, setMonths] = useState<string>("1")
 
   useEffect(() => {
     if (isOpen) {
       setEffectiveDate(defaultDate)
+      setMonths("1")
     }
   }, [defaultDate, isOpen])
 
@@ -31,7 +33,9 @@ export function RevenueScheduleCloneModal({
     return null
   }
 
-  const disabled = !effectiveDate || submitting
+  const parsedMonths = Number.parseInt(months, 10)
+  const monthsValid = Number.isFinite(parsedMonths) && parsedMonths >= 1 && parsedMonths <= 60
+  const disabled = !effectiveDate || !monthsValid || submitting
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
@@ -40,7 +44,7 @@ export function RevenueScheduleCloneModal({
           <div>
             <h2 className="text-lg font-semibold text-gray-900">Clone Revenue Schedule</h2>
             <p className="text-sm text-gray-600">
-              Confirm the clone action and update the effective date if needed.
+              Confirm the clone action, choose how many months to create, and update the effective date if needed.
             </p>
           </div>
           <button
@@ -54,18 +58,41 @@ export function RevenueScheduleCloneModal({
           </button>
         </div>
 
-        <label className="mb-2 block text-xs font-semibold uppercase tracking-wide text-gray-600" htmlFor="clone-effective-date">
+        <label
+          className="mb-2 block text-xs font-semibold uppercase tracking-wide text-gray-600"
+          htmlFor="clone-effective-date"
+        >
           Effective Date
         </label>
         <input
           id="clone-effective-date"
           type="date"
           className={cn(
-            "mb-6 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500",
-            !effectiveDate && "text-gray-400"
+            "mb-4 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500",
+            !effectiveDate && "text-gray-400",
           )}
           value={effectiveDate}
-          onChange={(event) => setEffectiveDate(event.target.value)}
+          onChange={event => setEffectiveDate(event.target.value)}
+          disabled={submitting}
+        />
+
+        <label
+          className="mb-2 block text-xs font-semibold uppercase tracking-wide text-gray-600"
+          htmlFor="clone-months"
+        >
+          Number of Months
+        </label>
+        <input
+          id="clone-months"
+          type="number"
+          min={1}
+          max={60}
+          className={cn(
+            "mb-6 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500",
+            !monthsValid && "border-red-500 text-red-700",
+          )}
+          value={months}
+          onChange={event => setMonths(event.target.value)}
           disabled={submitting}
         />
 
@@ -81,7 +108,7 @@ export function RevenueScheduleCloneModal({
           <button
             type="button"
             className="rounded-md bg-primary-600 px-4 py-2 text-sm font-semibold text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-70"
-            onClick={() => onConfirm(effectiveDate)}
+            onClick={() => onConfirm(effectiveDate, parsedMonths)}
             disabled={disabled}
           >
             {submitting ? "Cloning…" : "Clone Schedule"}
@@ -91,3 +118,4 @@ export function RevenueScheduleCloneModal({
     </div>
   )
 }
+
