@@ -319,7 +319,7 @@ async function seed() {
     }),
   ])
 
-  const [customerType] = accountTypes
+  const [customerType, houseType] = accountTypes
   const [techIndustry] = industries
 
   const shippingAddress = await prisma.address.create({
@@ -341,6 +341,25 @@ async function seed() {
       state: "GA",
       postalCode: "30308",
       country: "USA",
+    },
+  })
+
+  // Parent agency account for system-level contacts (e.g., "No House Rep")
+  const agencyAccount = await prisma.account.create({
+    data: {
+      tenantId: tenant.id,
+      accountTypeId: houseType.id,
+      industryId: techIndustry.id,
+      ownerId: managerUser.id,
+      createdById: adminUser.id,
+      updatedById: adminUser.id,
+      shippingAddressId: shippingAddress.id,
+      billingAddressId: billingAddress.id,
+      accountNumber: "AGENCY-0001",
+      accountName: "Agency Parent Account",
+      accountLegalName: "Agency Parent Account",
+      status: "Active",
+      description: "Parent agency account used for system-level contacts such as the \"No House Rep\" dummy contact.",
     },
   })
 
@@ -516,6 +535,25 @@ async function seed() {
       isPrimary: true,
       isDecisionMaker: true,
       description: "Primary stakeholder for rollout",
+    },
+  })
+
+  // "No House Rep" dummy contact associated with the agency parent account
+  const noHouseRepContact = await prisma.contact.create({
+    data: {
+      tenantId: tenant.id,
+      accountId: agencyAccount.id,
+      accountTypeId: houseType.id,
+      ownerId: managerUser.id,
+      createdById: adminUser.id,
+      updatedById: adminUser.id,
+      firstName: "No House",
+      lastName: "Rep",
+      fullName: "No House Rep",
+      preferredContactMethod: "Email",
+      isPrimary: false,
+      isDecisionMaker: false,
+      description: "System dummy contact with 0% commission share when the House receives commissions and no individual rep is assigned.",
     },
   })
 
