@@ -1,538 +1,700 @@
 'use client'
 
 import Link from 'next/link'
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useEffect, useRef, useLayoutEffect } from 'react'
 import { ListHeader } from '@/components/list-header'
 import { DynamicTable, Column, PaginationInfo } from '@/components/dynamic-table'
 import { ColumnChooserModal } from '@/components/column-chooser-modal'
 import { useTablePreferences } from '@/hooks/useTablePreferences'
-import { TableChangeNotification } from '@/components/table-change-notification'
-import { Edit, Trash2, Settings } from 'lucide-react'
-import { isRowInactive } from '@/lib/row-state'
+import { AccountStatusFilterDropdown } from '@/components/account-status-filter-dropdown'
+import { buildStandardBulkActions } from '@/components/standard-bulk-actions'
+import { useToasts } from '@/components/toast'
+import { Check } from 'lucide-react'
 import { ActivityListItem } from '@/lib/activity-service'
+import { BulkOwnerModal, type BulkOwnerOption } from '@/components/bulk-owner-modal'
+import { BulkStatusModal } from '@/components/bulk-status-modal'
 
-const activityColumns: Column[] = [
+interface ActivityRow {
+  id: string
+  active: boolean
+  activityDate: string
+  activityType: string
+  description: string
+  accountName: string
+  attachment: boolean
+  fileName: string | string[]
+  status: string
+  linkHref: string
+  assigneeName: string | null
+}
+
+interface ColumnFilterState {
+  columnId: string
+  value: string
+}
+
+type SortDirection = 'asc' | 'desc'
+type SortConfig = {
+  columnId: string
+  direction: SortDirection
+}
+
+const ACTIVITY_FILTER_COLUMNS = [
+  { id: 'activityType', label: 'Activity Type' },
+  { id: 'description', label: 'Activity Description' },
+  { id: 'accountName', label: 'Account Name' },
+  { id: 'status', label: 'Status' }
+]
+
+const ACTIVITY_COLUMNS: Column[] = [
   {
-    id: 'actions',
+    id: 'multi-action',
     label: 'Select All',
-    width: 100,
-    minWidth: 100,
-    maxWidth: 120,
-    type: 'action',
-    render: () => (
-      <div className="flex gap-1">
-        <button className="text-blue-500 hover:text-blue-700 p-1 rounded transition-colors">
-          <Edit className="h-4 w-4" />
-        </button>
-        <button className="text-red-500 hover:text-red-700 p-1 rounded transition-colors">
-          <Trash2 className="h-4 w-4" />
-        </button>
-      </div>
-    )
+    width: 200,
+    minWidth: 120,
+    maxWidth: 240,
+    type: 'multi-action'
   },
   {
     id: 'active',
     label: 'Active',
-    width: 80,
-    minWidth: 60,
-    maxWidth: 100,
-    type: 'text',
-    render: (value) => (
-      <div className="flex justify-center">
-        <div className={`w-6 h-6 rounded-full ${value ? 'bg-blue-500' : 'bg-gray-300'}`}></div>
-      </div>
-    )
+    width: 100,
+    minWidth: 80,
+    maxWidth: 140,
+    type: 'text'
   },
   {
     id: 'activityDate',
     label: 'Activity Date',
-    width: 130,
-    minWidth: 100,
-    maxWidth: 160,
+    width: 150,
+    minWidth: 120,
+    maxWidth: 200,
     sortable: true,
     type: 'text'
   },
   {
     id: 'activityType',
     label: 'Activity Type',
-    width: 120,
-    minWidth: 100,
-    maxWidth: 150,
-    sortable: true,
+    width: 150,
+    minWidth: 120,
+    maxWidth: 220,
     type: 'text'
   },
   {
     id: 'description',
     label: 'Activity Description',
-    width: 200,
-    minWidth: 150,
-    maxWidth: 300,
-    sortable: true,
-    type: 'text',
-    render: (value, row: any) => (
-      row?.id ? (
-        <Link
-          href={`/activities/${row.id}`}
-          className="block max-w-[260px] truncate text-primary-600 transition hover:text-primary-700 hover:underline"
-        >
-          {value || 'View activity'}
-        </Link>
-      ) : (
-        <span className="text-gray-500">{value || '-'}</span>
-      )
-    )
+    width: 260,
+    minWidth: 200,
+    maxWidth: 360,
+    type: 'text'
   },
   {
     id: 'accountName',
     label: 'Account Name',
-    width: 180,
+    width: 200,
     minWidth: 150,
-    maxWidth: 250,
-    sortable: true,
+    maxWidth: 280,
     type: 'text'
   },
   {
     id: 'attachment',
     label: 'Attachment',
-    width: 120,
+    width: 130,
     minWidth: 100,
-    maxWidth: 140,
-    type: 'text',
-    render: (value) => (
-      <div className="flex justify-center">
-        {value ? (
-          <svg className="h-4 w-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-          </svg>
-        ) : (
-          <span className="text-gray-300">-</span>
-        )}
-      </div>
-    )
+    maxWidth: 160,
+    type: 'text'
   },
   {
     id: 'fileName',
     label: 'File Name',
-    width: 200,
-    minWidth: 150,
-    maxWidth: 300,
-    sortable: true,
-    type: 'text',
-    render: (value) => {
-      if (value === '-' || !value) {
-        return <span className="text-gray-300">-</span>
-      }
-
-      // Handle array of files
-      if (Array.isArray(value)) {
-        return (
-          <div className="flex flex-wrap gap-1">
-            {value.map((file, index) => (
-              <span key={index} className="text-blue-600 hover:text-blue-800 cursor-pointer text-sm">
-                {file}
-                {index < value.length - 1 && ', '}
-              </span>
-            ))}
-          </div>
-        )
-      }
-
-      // Handle single file
-      return (
-        <span className="text-blue-600 hover:text-blue-800 cursor-pointer">
-          {value}
-        </span>
-      )
-    }
-  },
-  // Hidden/Available columns - based on ActivityListItem interface
-  {
-    id: 'activityId',
-    label: 'Activity ID',
-    width: 120,
-    minWidth: 100,
-    maxWidth: 150,
-    sortable: true,
-    type: 'text',
-    hidden: true,
-    render: (value) => (
-      <span className="font-mono text-xs text-gray-600">{value}</span>
-    )
+    width: 240,
+    minWidth: 180,
+    maxWidth: 360,
+    type: 'text'
   },
   {
-    id: 'activityOwner',
-    label: 'Activity Owner',
-    width: 160,
-    minWidth: 120,
-    maxWidth: 220,
-    sortable: true,
-    type: 'text',
-    hidden: true,
-    accessor: 'assigneeName'
-  },
-  {
-    id: 'activityStatus',
-    label: 'Activity Status',
-    width: 130,
-    minWidth: 100,
-    maxWidth: 160,
-    sortable: true,
-    type: 'text',
-    hidden: true,
-    accessor: 'status',
-    render: (value) => (
-      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-        value === 'Open' ? 'bg-green-100 text-green-800' : 
-        value === 'Completed' ? 'bg-blue-100 text-blue-800' : 
-        'bg-gray-100 text-gray-800'
-      }`}>
-        {value}
-      </span>
-    )
-  },
-  {
-    id: 'createdBy',
-    label: 'Created By',
-    width: 160,
-    minWidth: 120,
-    maxWidth: 220,
-    sortable: true,
-    type: 'text',
-    hidden: true,
-    accessor: 'creatorName'
-  },
-  {
-    id: 'createdDate',
-    label: 'Created Date',
+    id: 'status',
+    label: 'Status',
     width: 140,
-    minWidth: 120,
-    maxWidth: 180,
-    sortable: true,
-    type: 'text',
-    hidden: true,
-    accessor: 'createdAt',
-    render: (value) => (
-      <span className="text-sm text-gray-600">
-        {(() => {
-          if (!value) return '-'
-          const d = new Date(value)
-          if (Number.isNaN(d.getTime())) return '-'
-          const y = d.getFullYear()
-          const m = String(d.getMonth() + 1).padStart(2, '0')
-          const day = String(d.getDate()).padStart(2, '0')
-          return `${y}/${m}/${day}`
-        })()}
-      </span>
-    )
-  },
-  {
-    id: 'modifiedBy',
-    label: 'Modified By',
-    width: 160,
-    minWidth: 120,
-    maxWidth: 220,
-    sortable: true,
-    type: 'text',
-    hidden: true,
-    accessor: 'updatedByName',
-    render: (value) => (
-      <span className="text-sm text-gray-600">
-        {value || 'System'}
-      </span>
-    )
-  },
-  {
-    id: 'modifiedDate',
-    label: 'Modified Date',
-    width: 140,
-    minWidth: 120,
-    maxWidth: 180,
-    sortable: true,
-    type: 'text',
-    hidden: true,
-    accessor: 'updatedAt',
-    render: (value) => (
-      <span className="text-sm text-gray-600">
-        {(() => {
-          if (!value) return '-'
-          const d = new Date(value)
-          if (Number.isNaN(d.getTime())) return '-'
-          const y = d.getFullYear()
-          const m = String(d.getMonth() + 1).padStart(2, '0')
-          const day = String(d.getDate()).padStart(2, '0')
-          return `${y}/${m}/${day}`
-        })()}
-      </span>
-    )
+    minWidth: 110,
+    maxWidth: 200,
+    type: 'text'
   }
 ]
 
-const activityFilterColumns = [
-  { id: 'activityDate', label: 'Activity Date' },
-  { id: 'activityType', label: 'Activity Type' },
-  { id: 'description', label: 'Description' },
-  { id: 'accountName', label: 'Account Name' },
-  { id: 'fileName', label: 'File Name' }
-]
+const REQUEST_ANIMATION_FRAME =
+  typeof window !== "undefined" && typeof window.requestAnimationFrame === "function"
+    ? window.requestAnimationFrame.bind(window)
+    : (cb: FrameRequestCallback) => setTimeout(() => cb(Date.now()), 16)
 
-// Transform API data to match table structure
-function transformActivityForTable(activity: ActivityListItem, index: number) {
+const TABLE_BOTTOM_RESERVE = 110
+const TABLE_MIN_BODY_HEIGHT = 320
+const DEFAULT_SORT: SortConfig = { columnId: 'activityDate', direction: 'desc' }
+
+function transformActivityForTable(activity: ActivityListItem): ActivityRow {
+  const sourceDate = activity.dueDate ?? activity.createdAt
+  const dateInstance = sourceDate instanceof Date ? sourceDate : new Date(sourceDate)
+  const formattedDate = Number.isNaN(dateInstance.getTime())
+    ? '-'
+    : `${dateInstance.getFullYear()}/${String(dateInstance.getMonth() + 1).padStart(2, '0')}/${String(dateInstance.getDate()).padStart(2, '0')}`
+
+  const attachments = activity.attachments ?? []
+  const hasAttachment = attachments.length > 0
+
+  let fileValue: string | string[] = '-'
+  if (hasAttachment) {
+    if (attachments.length === 1) {
+      fileValue = attachments[0].fileName
+    } else {
+      fileValue = attachments.map(att => att.fileName)
+    }
+  }
+
   return {
     id: activity.id,
-    activityId: activity.id,
-    active: activity.active,
-    activityDate: (() => {
-      const src = activity.dueDate ? new Date(activity.dueDate) : activity.createdAt
-      const d = src instanceof Date ? src : new Date(src)
-      const y = d.getFullYear()
-      const m = String(d.getMonth() + 1).padStart(2, '0')
-      const day = String(d.getDate()).padStart(2, '0')
-      return `${y}/${m}/${day}`
-    })(),
+    active: activity.active ?? false,
+    activityDate: formattedDate,
     activityType: activity.type,
-    description: activity.subject,
-    accountName: activity.accountName || '-',
-    attachment: activity.attachments.length > 0,
-    fileName: activity.attachments.length > 0
-      ? (activity.attachments.length === 1
-          ? activity.attachments[0].fileName
-          : `[${activity.attachments.map(att => `"${att.fileName}"`).join(',')}]`)
-      : '-',
-    // Hidden/Available fields from ActivityListItem
-    assigneeName: activity.assigneeName || 'Unassigned',
+    description: activity.subject ?? activity.description ?? 'View activity',
+    accountName: activity.accountName ?? '-',
+    attachment: hasAttachment,
+    fileName: fileValue,
     status: activity.status,
-    creatorName: activity.creatorName,
-    createdAt: activity.createdAt,
-    updatedAt: activity.updatedAt,
-    updatedByName: activity.updatedByName
+    linkHref: `/activities/${activity.id}`,
+    assigneeName: activity.assigneeName ?? null
   }
 }
 
 export default function ActivitiesPage() {
-  const [activities, setActivities] = useState<any[]>([])
-  const [filteredActivities, setFilteredActivities] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
+  const [activities, setActivities] = useState<ActivityRow[]>([])
+  const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showColumnSettings, setShowColumnSettings] = useState(false)
-  const [currentPage, setCurrentPage] = useState<number>(1)
+  const [searchQuery, setSearchQuery] = useState("")
+  const [statusFilter, setStatusFilter] = useState<'active' | 'all'>('active')
+  const [columnFilters, setColumnFilters] = useState<ColumnFilterState[]>([])
+  const [selectedActivities, setSelectedActivities] = useState<string[]>([])
+  const [showOwnerModal, setShowOwnerModal] = useState(false)
+  const [ownerOptions, setOwnerOptions] = useState<BulkOwnerOption[]>([])
+  const [ownersLoading, setOwnersLoading] = useState(false)
+  const [ownerSubmitting, setOwnerSubmitting] = useState(false)
+  const [showStatusModal, setShowStatusModal] = useState(false)
+  const [statusSubmitting, setStatusSubmitting] = useState(false)
+  const [sortConfig, setSortConfig] = useState<SortConfig>(DEFAULT_SORT)
+  const [page, setPage] = useState<number>(1)
   const [pageSize, setPageSize] = useState<number>(25)
+  const [pagination, setPagination] = useState<PaginationInfo>({ page: 1, pageSize: 25, total: 0, totalPages: 1 })
+  const [tableBodyHeight, setTableBodyHeight] = useState<number>()
+  const tableAreaNodeRef = useRef<HTMLDivElement | null>(null)
+  const { showError, showSuccess } = useToasts()
 
   const {
     columns: preferenceColumns,
     loading: preferenceLoading,
     error: preferenceError,
-    saving: preferenceSaving,
-    hasUnsavedChanges,
-    lastSaved,
     handleColumnsChange,
-    handleHiddenColumnsChange,
-    saveChanges,
-    saveChangesOnModalClose,
-  } = useTablePreferences("activities:list", activityColumns)
+    saveChangesOnModalClose
+  } = useTablePreferences("activities:list", ACTIVITY_COLUMNS)
 
-  // Fetch activities from API
-  const fetchActivities = useCallback(async (signal?: AbortSignal) => {
+  const tableLoading = loading || preferenceLoading
+
+  const sanitizeColumnFilters = useCallback(() => {
+    return columnFilters
+      .map(filter => ({
+        columnId: filter?.columnId ?? "",
+        value: filter?.value?.trim() ?? ""
+      }))
+      .filter(filter => filter.columnId && filter.value.length > 0)
+  }, [columnFilters])
+
+  const reloadActivities = useCallback(async () => {
     setLoading(true)
     setError(null)
-
     try {
-      const response = await fetch('/api/activities', {
-        cache: 'no-store',
-        signal
-      })
+      const params = new URLSearchParams()
+      params.set("page", String(page))
+      params.set("pageSize", String(pageSize))
+      params.set("sortBy", sortConfig.columnId === 'activityDate' ? 'dueDate' : 'createdAt')
+      params.set("sortDirection", sortConfig.direction)
+      params.set("includeCompleted", statusFilter === "all" ? "true" : "false")
+      if (searchQuery.trim().length > 0) {
+        params.set("q", searchQuery.trim())
+      }
+      const normalizedFilters = sanitizeColumnFilters()
+      if (normalizedFilters.length > 0) {
+        params.set("columnFilters", JSON.stringify(normalizedFilters))
+      }
+
+      const response = await fetch(`/api/activities?${params.toString()}`, { cache: "no-store" })
+      const payload = await response.json().catch(() => null)
 
       if (!response.ok) {
-        const payload = await response.json().catch(() => null)
-        const message = payload?.error ?? 'Unable to load activities'
-        throw new Error(message)
+        throw new Error(payload?.error ?? "Failed to load activities")
       }
 
-      const payload = await response.json().catch(() => null)
-      const apiActivities: ActivityListItem[] = payload?.data ?? []
+      const rows: ActivityListItem[] = Array.isArray(payload?.data) ? payload.data : []
+      setActivities(rows.map(transformActivityForTable))
 
-      const transformedActivities = apiActivities.map(transformActivityForTable)
-      setActivities(transformedActivities)
-      setFilteredActivities(transformedActivities)
+      const paginationPayload = payload?.pagination
+      if (paginationPayload) {
+        setPagination({
+          page: paginationPayload.page ?? page,
+          pageSize: paginationPayload.pageSize ?? pageSize,
+          total: paginationPayload.total ?? rows.length,
+          totalPages: paginationPayload.totalPages ?? Math.max(1, Math.ceil(rows.length / pageSize))
+        })
+      } else {
+        setPagination({
+          page,
+          pageSize,
+          total: rows.length,
+          totalPages: Math.max(1, Math.ceil(rows.length / pageSize))
+        })
+      }
+
+      const visibleIds = new Set(rows.map(item => item.id))
+      setSelectedActivities(prev => prev.filter(id => visibleIds.has(id)))
     } catch (err) {
-      if (signal?.aborted) {
-        return
-      }
-      console.error(err)
-      const message = err instanceof Error ? err.message : 'Unable to load activities'
+      console.error("Failed to load activities", err)
+      const message = err instanceof Error ? err.message : "Unable to load activities"
       setError(message)
+      setActivities([])
+      setPagination(prev => ({ ...prev, total: 0, totalPages: 1 }))
     } finally {
-      if (!signal?.aborted) {
-        setLoading(false)
-      }
+      setLoading(false)
     }
-  }, [])
+  }, [page, pageSize, searchQuery, statusFilter, sortConfig, sanitizeColumnFilters])
 
-  // Initial load
   useEffect(() => {
-    const controller = new AbortController()
-    fetchActivities(controller.signal)
-    return () => controller.abort()
-  }, [fetchActivities])
+    reloadActivities().catch(() => undefined)
+  }, [reloadActivities])
 
-  const handleSearch = (query: string) => {
-    if (!query.trim()) {
-      setFilteredActivities(activities)
+  useEffect(() => {
+    if (!showOwnerModal) {
+      return
+    }
+    setOwnerOptions([])
+    setOwnersLoading(true)
+    fetch("/api/admin/users?status=Active&limit=200", { cache: "no-store" })
+      .then(async response => {
+        const payload = await response.json().catch(() => null)
+        if (!response.ok) {
+          throw new Error(payload?.error ?? "Failed to load owners")
+        }
+        const rawUsers = payload?.data?.users ?? payload?.users ?? []
+        const users: any[] = Array.isArray(rawUsers) ? rawUsers : []
+        const options: BulkOwnerOption[] = users.map(user => ({
+          value: user.id,
+          label: user.fullName || `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() || user.email
+        }))
+        setOwnerOptions(options)
+      })
+      .catch(err => {
+        console.error("Failed to load owners", err)
+        setOwnerOptions([])
+        showError("Unable to load owners", err instanceof Error ? err.message : "Please try again later.")
+      })
+      .finally(() => setOwnersLoading(false))
+  }, [showOwnerModal, showError])
+
+  const measureTableArea = useCallback(() => {
+    const node = tableAreaNodeRef.current
+    if (!node || typeof window === "undefined") {
       return
     }
 
-    const filtered = activities.filter(activity =>
-      Object.values(activity).some((value: any) =>
-        value?.toString().toLowerCase().includes(query.toLowerCase())
-      )
-    )
-    setFilteredActivities(filtered)
-  }
+    const rect = node.getBoundingClientRect()
+    const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0
+    if (viewportHeight <= 0) return
 
-  const handleSort = (columnId: string, direction: 'asc' | 'desc') => {
-    const sorted = [...filteredActivities].sort((a, b) => {
-      const aValue = a[columnId as keyof typeof a]
-      const bValue = b[columnId as keyof typeof b]
-      
-      if (aValue < bValue) return direction === 'asc' ? -1 : 1
-      if (aValue > bValue) return direction === 'asc' ? 1 : -1
-      return 0
-    })
-    
-    setFilteredActivities(sorted)
-  }
+    const available = viewportHeight - rect.top - TABLE_BOTTOM_RESERVE
+    if (!Number.isFinite(available)) return
 
-  // Update columns with render functions
-  const tableColumns = preferenceColumns.map(column => {
-    if (column.id === 'actions') {
-      return {
-        ...column,
-        render: () => (
-          <div className="flex gap-1">
-            <button className="text-blue-500 hover:text-blue-700 p-1 rounded transition-colors">
-              <Edit className="h-4 w-4" />
-            </button>
-            <button className="text-red-500 hover:text-red-700 p-1 rounded transition-colors">
-              <Trash2 className="h-4 w-4" />
-            </button>
-          </div>
-        )
-      }
+    const nextHeight = Math.max(TABLE_MIN_BODY_HEIGHT, Math.floor(available))
+    if (nextHeight !== tableBodyHeight) {
+      setTableBodyHeight(nextHeight)
     }
-    return column
+  }, [tableBodyHeight])
+
+  const tableAreaRef = useCallback((node: HTMLDivElement | null) => {
+    tableAreaNodeRef.current = node
+    if (node) {
+      REQUEST_ANIMATION_FRAME(() => measureTableArea())
+    }
+  }, [measureTableArea])
+
+  useLayoutEffect(() => {
+    measureTableArea()
+  }, [measureTableArea])
+
+  useEffect(() => {
+    const handleResize = () => measureTableArea()
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [measureTableArea])
+
+  useEffect(() => {
+    REQUEST_ANIMATION_FRAME(() => measureTableArea())
+  }, [measureTableArea, activities.length, page, pageSize])
+
+  const hasInactiveSelectedActivities = selectedActivities.some(id => {
+    const row = activities.find(activity => activity.id === id)
+    return row && !row.active
   })
 
-  const handleRowClick = (activity: any) => {
-    console.log('Activity clicked:', activity)
-    // Navigate to activity detail page or open modal
-  }
+  const handleSearch = useCallback((query: string) => {
+    setSearchQuery(query)
+    setPage(1)
+  }, [])
 
-  const handleFilterChange = (filter: string) => {
-    if (filter === 'active') {
-      setFilteredActivities(activities.filter(activity => activity.active === true))
+  const handleStatusClick = useCallback((filter: 'active' | 'all') => {
+    setStatusFilter(filter)
+    setPage(1)
+  }, [])
+
+  const handleColumnFiltersChange = useCallback((filters: ColumnFilterState[]) => {
+    setColumnFilters(filters ?? [])
+    setPage(1)
+  }, [])
+
+  const handleSort = useCallback((columnId: string, direction: SortDirection) => {
+    setSortConfig({ columnId, direction })
+    setPage(1)
+  }, [])
+
+  const handlePageChange = useCallback((nextPage: number) => {
+    setPage(nextPage)
+  }, [])
+
+  const handlePageSizeChange = useCallback((nextPageSize: number) => {
+    setPageSize(nextPageSize)
+    setPage(1)
+  }, [])
+
+  const handleSelectActivity = useCallback((id: string, selected: boolean) => {
+    setSelectedActivities(prev => selected ? (prev.includes(id) ? prev : [...prev, id]) : prev.filter(x => x !== id))
+  }, [])
+
+  const handleSelectAllActivities = useCallback((selected: boolean) => {
+    if (selected) {
+      setSelectedActivities(activities.map(activity => activity.id))
     } else {
-      setFilteredActivities(activities)
+      setSelectedActivities([])
     }
-  }
+  }, [activities])
 
-  const handleExport = () => {
-    console.log('Export activities')
-    // Implement export functionality
-  }
-
-  // Pagination handlers
-  const handlePageChange = useCallback((page: number) => {
-    setCurrentPage(page)
-  }, [])
-
-  const handlePageSizeChange = useCallback((newPageSize: number) => {
-    setPageSize(newPageSize)
-    setCurrentPage(1) // Reset to first page when page size changes
-  }, [])
-
-  // Calculate paginated data
-  const paginatedActivities = useMemo(() => {
-    const startIndex = (currentPage - 1) * pageSize
-    const endIndex = startIndex + pageSize
-    return filteredActivities.slice(startIndex, endIndex)
-  }, [filteredActivities, currentPage, pageSize])
-
-  // Calculate pagination info
-  const paginationInfo = useMemo((): PaginationInfo => {
-    const totalItems = filteredActivities.length
-    const totalPages = Math.ceil(totalItems / pageSize)
-
-    return {
-      page: currentPage,
-      totalPages,
-      pageSize,
-      total: totalItems,
+  const handleBulkDelete = useCallback(() => {
+    if (selectedActivities.length === 0) {
+      showError("No activities selected", "Select at least one activity to delete.")
+      return
     }
-  }, [filteredActivities.length, currentPage, pageSize])
+    const activityMap = new Map(activities.map(activity => [activity.id, activity]))
+    const inactiveIds = selectedActivities.filter(id => {
+      const row = activityMap.get(id)
+      return row && !row.active
+    })
+    if (inactiveIds.length === 0) {
+      showError("Only inactive items can be deleted", "Mark the selected activities inactive before deleting.")
+      return
+    }
+    const confirmed = typeof window === "undefined"
+      ? true
+      : window.confirm(`Delete ${inactiveIds.length} inactive activit${inactiveIds.length === 1 ? "y" : "ies"}? This can't be undone.`)
+    if (!confirmed) {
+      return
+    }
+    const inactiveSet = new Set(inactiveIds)
+    setActivities(prev => prev.filter(activity => !inactiveSet.has(activity.id)))
+    setSelectedActivities(prev => prev.filter(id => !inactiveSet.has(id)))
+    setPagination(prev => {
+      const nextTotal = Math.max(0, prev.total - inactiveIds.length)
+      const nextTotalPages = Math.max(1, Math.ceil(nextTotal / prev.pageSize))
+      const nextPage = Math.min(prev.page, nextTotalPages)
+      if (nextPage !== prev.page) {
+        setPage(nextPage)
+      }
+      return {
+        ...prev,
+        total: nextTotal,
+        totalPages: nextTotalPages,
+        page: nextPage
+      }
+    })
+    showSuccess("Activities deleted", `${inactiveIds.length} activit${inactiveIds.length === 1 ? "y" : "ies"} removed.`)
+  }, [activities, selectedActivities, showError, showSuccess])
+
+  const handleBulkReassign = useCallback(() => {
+    if (selectedActivities.length === 0) {
+      showError("No activities selected", "Select at least one activity to reassign.")
+      return
+    }
+    setShowOwnerModal(true)
+  }, [selectedActivities, showError])
+
+  const handleBulkStatus = useCallback(() => {
+    if (selectedActivities.length === 0) {
+      showError("No activities selected", "Select at least one activity to update status.")
+      return
+    }
+    setShowStatusModal(true)
+  }, [selectedActivities, showError])
+
+  const handleOwnerSubmit = useCallback(
+    async (ownerId: string | null) => {
+      if (ownerSubmitting) {
+        return
+      }
+      if (selectedActivities.length === 0) {
+        setShowOwnerModal(false)
+        return
+      }
+      setOwnerSubmitting(true)
+      const selectedSet = new Set(selectedActivities)
+      const selectedCount = selectedSet.size
+      const ownerLabel = ownerId
+        ? ownerOptions.find(option => option.value === ownerId)?.label || "Selected owner"
+        : "Unassigned"
+      setActivities(prev =>
+        prev.map(activity =>
+          selectedSet.has(activity.id)
+            ? { ...activity, assigneeName: ownerId ? ownerLabel : null }
+            : activity
+        )
+      )
+      setOwnerSubmitting(false)
+      setShowOwnerModal(false)
+      setSelectedActivities([])
+      showSuccess(
+        "Activities reassigned",
+        `${selectedCount} activit${selectedCount === 1 ? "y" : "ies"} assigned to ${ownerLabel}.`
+      )
+    },
+    [ownerOptions, ownerSubmitting, selectedActivities, showSuccess]
+  )
+
+  const handleStatusSubmit = useCallback(
+    async (isActive: boolean) => {
+      if (statusSubmitting) {
+        return
+      }
+      if (selectedActivities.length === 0) {
+        setShowStatusModal(false)
+        return
+      }
+      setStatusSubmitting(true)
+      const selectedSet = new Set(selectedActivities)
+      const selectedCount = selectedSet.size
+      setActivities(prev =>
+        prev.map(activity => {
+          if (!selectedSet.has(activity.id)) {
+            return activity
+          }
+          const nextStatus = isActive
+            ? (activity.status && activity.status.toLowerCase() !== "completed" ? activity.status : "Open")
+            : "Completed"
+          return {
+            ...activity,
+            active: isActive,
+            status: nextStatus
+          }
+        })
+      )
+      setStatusSubmitting(false)
+      setShowStatusModal(false)
+      setSelectedActivities([])
+      showSuccess(
+        "Status updated",
+        `Marked ${selectedCount} activit${selectedCount === 1 ? "y" : "ies"} as ${isActive ? "Active" : "Inactive"}.`
+      )
+    },
+    [selectedActivities, showSuccess, statusSubmitting]
+  )
+
+  const handleBulkExport = useCallback(() => {
+    if (selectedActivities.length === 0) {
+      showError("No activities selected", "Select at least one activity to export.")
+      return
+    }
+    console.log("Bulk export activities", selectedActivities)
+    showSuccess("Export queued", "Bulk export for activities is not yet implemented.")
+  }, [selectedActivities, showError, showSuccess])
+
+  const tableColumns = useMemo(() => {
+    return preferenceColumns.map(column => {
+      if (column.id === 'multi-action') {
+        return {
+          ...column,
+          render: (_: unknown, row: ActivityRow) => {
+            const rowId = row.id
+            const checked = selectedActivities.includes(rowId)
+            return (
+              <div className="flex items-center" data-disable-row-click="true">
+                <label className="flex cursor-pointer items-center justify-center" onClick={e => e.stopPropagation()}>
+                  <input
+                    type="checkbox"
+                    className="sr-only"
+                    checked={checked}
+                    aria-label={`Select activity ${rowId}`}
+                    onChange={() => handleSelectActivity(rowId, !checked)}
+                    disabled={tableLoading}
+                  />
+                  <span className={`flex h-4 w-4 items-center justify-center rounded border transition-colors ${
+                    checked ? 'border-primary-500 bg-primary-600 text-white' : 'border-gray-300 bg-white text-transparent'
+                  }`}>
+                    <Check className="h-3 w-3" aria-hidden="true" />
+                  </span>
+                </label>
+              </div>
+            )
+          }
+        }
+      }
+
+      if (column.id === 'active') {
+        return {
+          ...column,
+          render: (_: unknown, row: ActivityRow) => (
+            <div className="flex justify-center">
+              <div className={`h-3 w-3 rounded-full ${row.active ? 'bg-blue-600' : 'bg-gray-300'}`} />
+            </div>
+          )
+        }
+      }
+
+      if (column.id === 'description') {
+        return {
+          ...column,
+          render: (value: any, row: ActivityRow) => (
+            <Link href={row.linkHref} className="block max-w-[260px] truncate text-primary-600 transition hover:text-primary-700 hover:underline">
+              {value}
+            </Link>
+          )
+        }
+      }
+
+      if (column.id === 'attachment') {
+        return {
+          ...column,
+          render: (_: unknown, row: ActivityRow) => (
+            <div className="flex justify-center">
+              {row.attachment ? (
+                <svg className="h-4 w-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                </svg>
+              ) : (
+                <span className="text-gray-300">-</span>
+              )}
+            </div>
+          )
+        }
+      }
+
+      if (column.id === 'fileName') {
+        return {
+          ...column,
+          render: (value: any) => {
+            if (!value || value === '-') {
+              return <span className="text-gray-300">-</span>
+            }
+            if (Array.isArray(value)) {
+              return (
+                <div className="flex flex-wrap gap-1">
+                  {value.map((file, index) => (
+                    <span key={index} className="text-blue-600 hover:text-blue-800 cursor-pointer text-sm">
+                      {file}
+                      {index < value.length - 1 && ', '}
+                    </span>
+                  ))}
+                </div>
+              )
+            }
+            return (
+              <span className="text-blue-600 hover:text-blue-800 cursor-pointer">
+                {value}
+              </span>
+            )
+          }
+        }
+      }
+
+        if (column.id === 'status') {
+          return {
+            ...column,
+            render: (value: any) => (
+              <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                value === 'Completed' ? 'bg-blue-100 text-blue-800' :
+                value === 'Open' ? 'bg-green-100 text-green-800' :
+                'bg-gray-100 text-gray-800'
+              }`}>
+                {value}
+              </span>
+            )
+          }
+        }
+
+      return column
+    })
+  }, [preferenceColumns, selectedActivities, handleSelectActivity, tableLoading, activities])
 
   return (
-    <div className="h-full flex flex-col">
-      {/* List Header */}
+    <div className="dashboard-page-container">
       <ListHeader
         pageTitle="ACTIVITIES LIST"
-        searchPlaceholder="Search Here"
+        searchPlaceholder="Search activities..."
         onSearch={handleSearch}
-        onFilterChange={handleFilterChange}
-        showCreateButton={false}
+        onFilterChange={() => {}}
         onSettingsClick={() => setShowColumnSettings(true)}
-        filterColumns={activityFilterColumns}
-        canExport={true}
-        onExport={handleExport}
+        filterColumns={ACTIVITY_FILTER_COLUMNS}
+        columnFilters={columnFilters}
+        onColumnFiltersChange={handleColumnFiltersChange}
+        showStatusFilter={false}
+        leftAccessory={
+          <AccountStatusFilterDropdown
+            value={statusFilter === 'active' ? 'active' : 'all'}
+            onChange={(next) => handleStatusClick(next)}
+            labels={{ active: 'Active', all: 'Show All' }}
+          />
+        }
+        bulkActions={buildStandardBulkActions({
+          selectedCount: selectedActivities.length,
+          isBusy: tableLoading,
+          entityLabelPlural: "activities",
+          onDelete: handleBulkDelete,
+          onReassign: handleBulkReassign,
+          onStatus: handleBulkStatus,
+          onExport: handleBulkExport,
+          disableDelete: !hasInactiveSelectedActivities,
+        })}
       />
 
-      {/* Table Change Notification */}
-      {hasUnsavedChanges && (
-        <TableChangeNotification
-          hasUnsavedChanges={hasUnsavedChanges}
-          isSaving={preferenceSaving}
-          lastSaved={lastSaved || undefined}
-          onSave={saveChanges}
-        />
-      )}
-
-      {/* Error Message */}
-      {error && (
-        <div className="mx-6 mt-4 p-4 bg-red-50 border border-red-200 rounded-md">
-          <div className="flex justify-between items-center">
-            <p className="text-red-700">{error}</p>
-            <button
-              onClick={() => fetchActivities()}
-              className="rounded-full border border-red-300 px-3 py-1 text-sm font-medium text-red-600 hover:border-red-400 hover:bg-red-50"
-            >
-              Retry
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Preference Error Message */}
       {preferenceError && (
-        <div className="mx-6 mt-4 p-4 bg-red-50 border border-red-200 rounded-md">
-          <p className="text-red-700">{preferenceError}</p>
-        </div>
+        <div className="px-4 text-sm text-red-600">{preferenceError}</div>
       )}
 
-      {/* Table */}
-      <div className="flex-1 p-6">
+      {error && (
+        <div className="px-4 text-sm text-red-600">{error}</div>
+      )}
+
+      <div ref={tableAreaRef} className="flex-1 min-h-0 px-4 pb-4">
         <DynamicTable
           columns={tableColumns}
-          data={paginatedActivities}
+          data={activities}
           onSort={handleSort}
-          onRowClick={handleRowClick}
+          loading={tableLoading}
+          emptyMessage={tableLoading ? "Loading activities..." : "No activities found"}
           onColumnsChange={handleColumnsChange}
-          loading={loading || preferenceLoading}
-          emptyMessage={error ? "Unable to load activities" : "No activities found"}
-          pagination={paginationInfo}
+          selectedItems={selectedActivities}
+          onItemSelect={(id, selected) => handleSelectActivity(id, selected)}
+          onSelectAll={handleSelectAllActivities}
+          pagination={pagination}
           onPageChange={handlePageChange}
           onPageSizeChange={handlePageSizeChange}
+          autoSizeColumns={false}
+          alwaysShowPagination
+          maxBodyHeight={tableBodyHeight}
         />
       </div>
 
-      {/* Column Chooser Modal */}
       <ColumnChooserModal
         isOpen={showColumnSettings}
         columns={preferenceColumns}
@@ -543,6 +705,33 @@ export default function ActivitiesPage() {
         }}
       />
 
+      <BulkOwnerModal
+        isOpen={showOwnerModal}
+        owners={ownerOptions}
+        entityLabel="activities"
+        isLoading={ownersLoading}
+        isSubmitting={ownerSubmitting}
+        onClose={() => {
+          if (ownerSubmitting) {
+            return
+          }
+          setShowOwnerModal(false)
+        }}
+        onSubmit={handleOwnerSubmit}
+      />
+
+      <BulkStatusModal
+        isOpen={showStatusModal}
+        entityLabel="activities"
+        isSubmitting={statusSubmitting}
+        onClose={() => {
+          if (statusSubmitting) {
+            return
+          }
+          setShowStatusModal(false)
+        }}
+        onSubmit={handleStatusSubmit}
+      />
     </div>
   )
 }

@@ -322,6 +322,7 @@ export function DynamicTable({
     const fallbackWidth = 1200
     const computedWidth = fillContainerWidth
       ? (() => {
+          // Prefer the actual measured width of the scroll container
           if (measuredContainerWidth && measuredContainerWidth > 0) {
             return measuredContainerWidth
           }
@@ -331,15 +332,19 @@ export function DynamicTable({
             return parentWidth
           }
 
+          // Fallback only when we truly can't measure (SSR / first paint)
           return fallbackWidth
         })()
       : fallbackWidth
 
-    const containerWidth = Math.max(computedWidth, fallbackWidth)
+    // For layout decisions, use the real container width when available
+    const containerWidth = computedWidth
     const totalFixedWidth = visibleColumns.reduce((total, col) => total + col.width, 0)
 
-    // Use fill mode only when not in a manual-resize overflow scenario
-    const useFillMode = fillContainerWidth && !(isManuallyResized && totalFixedWidth > containerWidth)
+    // Use fill mode only until the user manually resizes columns.
+    // Once the user has resized, we stop rebalancing widths so manual
+    // sizes are respected and overflow can create a horizontal scrollbar.
+    const useFillMode = fillContainerWidth && !isManuallyResized
 
     const formatTrack = (width: number, index: number, total: number, column?: Column) => {
       const rounded = Math.max(1, Math.round(width))

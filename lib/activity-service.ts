@@ -1,9 +1,14 @@
 import { ActivityStatus, ActivityType, ActivityEntityType, Prisma, AuditAction } from '@prisma/client'
 import { OPEN_ACTIVITY_STATUSES, DEFAULT_OPEN_ACTIVITY_STATUS, isActivityOpen } from '@/lib/activity-status'
-import { prisma } from '@/lib/db'
+import { prisma, getPrisma } from '@/lib/db'
 import { logActivityAudit } from '@/lib/audit'
 import { triggerActivityCreated, triggerActivityStatusChanged } from '@/lib/workflows'
 import { deleteStoredFile, saveActivityAttachment } from '@/lib/storage'
+
+type ActivityColumnFilter = {
+  columnId: string
+  value: string
+}
 
 export interface ActivityListFilters {
   page?: number
@@ -16,6 +21,7 @@ export interface ActivityListFilters {
   contextId?: string
   sortBy?: 'dueDate' | 'createdAt'
   sortDirection?: 'asc' | 'desc'
+  columnFilters?: ActivityColumnFilter[]
 }
 
 export interface ActivityAttachmentSummary {
@@ -212,6 +218,60 @@ export async function listActivities(tenantId: string, filters: ActivityListFilt
     }
   }
 
+  const normalizedColumnFilters = (filters.columnFilters ?? [])
+    .map(filter => ({
+      columnId: filter?.columnId ?? '',
+      value: filter?.value?.trim() ?? ''
+    }))
+    .filter(filter => filter.columnId && filter.value.length > 0)
+
+  if (normalizedColumnFilters.length > 0) {
+    const filterClauses: Prisma.ActivityWhereInput[] = []
+
+    for (const filter of normalizedColumnFilters) {
+      const valueLower = filter.value.toLowerCase()
+      switch (filter.columnId) {
+        case 'activityType': {
+          const matched = Object.values(ActivityType).find(type =>
+            type.toLowerCase() === valueLower
+          )
+          if (matched) {
+            filterClauses.push({ activityType: matched })
+          }
+          break
+        }
+        case 'description':
+          filterClauses.push({
+            OR: [
+              { subject: { contains: filter.value, mode: 'insensitive' } },
+              { description: { contains: filter.value, mode: 'insensitive' } }
+            ]
+          })
+          break
+        case 'accountName':
+          filterClauses.push({
+            account: { accountName: { contains: filter.value, mode: 'insensitive' } }
+          })
+          break
+        case 'status': {
+          const matchedStatus = Object.values(ActivityStatus).find(status =>
+            status.toLowerCase() === valueLower
+          )
+          if (matchedStatus) {
+            filterClauses.push({ status: matchedStatus })
+          }
+          break
+        }
+        default:
+          break
+      }
+    }
+
+    if (filterClauses.length > 0) {
+      where.AND = Array.isArray(where.AND) ? [...where.AND, ...filterClauses] : filterClauses
+    }
+  }
+
   if (filters.contextType && filters.contextId) {
     const orClauses: Prisma.ActivityWhereInput[] = [
       {
@@ -241,9 +301,11 @@ export async function listActivities(tenantId: string, filters: ActivityListFilt
   const orderByField = filters.sortBy === 'createdAt' ? 'createdAt' : 'dueDate'
   const orderDirection = filters.sortDirection ?? 'desc'
 
-  const [total, activities] = await prisma.$transaction([
-    prisma.activity.count({ where }),
-    prisma.activity.findMany({
+  const client = await getPrisma()
+
+  const [total, activities] = await client.$transaction([
+    client.activity.count({ where }),
+    client.activity.findMany({
       where,
       include: ACTIVITY_INCLUDE,
       orderBy: { [orderByField]: orderDirection },

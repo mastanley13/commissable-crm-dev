@@ -39,6 +39,7 @@ export interface StandardBulkActionOptions {
   labels?: StandardBulkActionLabels
   tooltips?: StandardBulkActionTooltips
   wrappers?: StandardBulkActionWrappers
+  disableDelete?: boolean
 }
 
 const defaultLabels: Required<StandardBulkActionLabels> = {
@@ -106,6 +107,7 @@ export function buildStandardBulkActions({
   labels,
   tooltips,
   wrappers,
+  disableDelete,
 }: StandardBulkActionOptions): BulkActionsGridProps {
   const mergedLabels: Required<StandardBulkActionLabels> = {
     delete: labels?.delete ?? defaultLabels.delete,
@@ -140,6 +142,7 @@ export function buildStandardBulkActions({
       onClick: handler,
       tooltip: tooltipFn,
       wrapper: wrappers?.[key],
+      disabled: key === "delete" ? disableDelete : undefined,
     }
   })
 

@@ -444,5 +444,100 @@ To avoid hiccups, explicitly track the points where this implementation depends 
 4. **Migration plan**:
    - Ensure new tables and enums are added via Prisma migrations that are already validated (`prisma/schema.prisma` + migrations).
 
-Once these dependencies are satisfied, you can follow sections **1–9** sequentially to implement the matching logic with minimal surprises.
+---
 
+## 11. Alignment with SIMPLE_MATCHING_ENGINE_SPEC
+
+The **SIMPLE_MATCHING_ENGINE_SPEC.md** describes a small, self-contained matching engine that closely mirrors what we need here. This section records the concrete ways this implementation plan will incorporate that spec so a future implementer doesn�?Tt need to re-derive it.
+
+### 11.1 Normalized DTO Layer
+
+1. Add explicit **normalized models** in `lib/matching/types.ts`:
+   - `DepositLineItemNormalized` with the core fields from the spec:
+     - `id`, `distributor`, `vendorName`, `vendorAccount`, `customerId`, `customerName`, `orderIdDistributor`, `orderIdVendor`, `productName`, `commissionRate`, `amount` (commission/payout).
+   - `RevenueScheduleNormalized`:
+     - `id`, `distributorName`, `vendorName`, `customerId`, `customerName`, `orderIdDistributor`, `orderIdVendor`, `productName`, `expectedCommission`, `expectedCommissionRate`.
+2. Implement adapter functions:
+   - `normalizeDepositLineItem(raw: PrismaDepositLineItemWithRelations): DepositLineItemNormalized`.
+   - `normalizeRevenueSchedule(raw: PrismaRevenueScheduleWithRelations): RevenueScheduleNormalized`.
+3. Ensure these adapters:
+   - Are the **only** place that knows about Prisma/entity shapes.
+   - Apply the shared normalization rules (IDs, names, money, rates) from the spec.
+
+### 11.2 Normalization Rules (Shared Utilities)
+
+1. In `lib/matching/normalization.ts`, adopt the spec�?Ts rules:
+   - IDs:
+     - `cleanId(value)`:
+       - Trim whitespace.
+       - Collapse multiple spaces.
+       - Return `null` for `""`, `"N/A"`, `"null"` (case-insensitive).
+   - Names:
+     - `normalizeName(value)`:
+       - Normalize case (decide on upper or lower).
+       - Strip punctuation where appropriate.
+       - Collapse whitespace.
+       - Optionally strip common legal suffixes (`INC`, `LLC`, `CORP`, `CO`, etc.).
+   - Money:
+     - `parseMoney(value)`:
+       - Strip `$`, `,`, spaces.
+       - Parse to `Decimal`; return `null` or `0` on invalid input per a documented rule.
+   - Rates:
+     - `parseRate(value)`:
+       - If string ends with `%`, strip and parse.
+       - Otherwise parse as float:
+         - `< 1.0` → treat as fraction (0.155 ⇒ 15.5%).
+         - `>= 1.0` → treat as percentage units (15.5 ⇒ 15.5%).
+2. Make sure both deposit and schedule adapters call **the same** helpers so comparisons are consistent.
+
+### 11.3 Engine Output: MatchSuggestion & Alternates
+
+1. Define an engine-level output type (or reuse names from the spec):
+   - `MatchSuggestion`:
+     - `depositId`, `scheduleId | null`, `score`, `confidenceLevel`, `reasons: string[]`, `alternates: AlternateMatch[]`.
+   - `AlternateMatch`:
+     - `scheduleId`, `score`, `confidenceLevel`, `reasons: string[]`.
+2. Implement a helper `buildSuggestion(deposit: DepositLineItemNormalized, scoredCandidates: ScoredCandidate[]): MatchSuggestion`:
+   - Sort candidates by score descending.
+   - Use the top candidate as the primary match (or `scheduleId = null` if no candidates).
+   - Include the next few (e.g. top 3–4) as `alternates`.
+   - Populate `reasons` using signal or (future) level information.
+3. In the API layer:
+   - Map `MatchSuggestion` → `SuggestedMatchScheduleRow[]` for the UI:
+     - Primary match becomes the first row.
+     - Alternates fill the remaining rows.
+
+### 11.4 Confidence Classification
+
+1. Implement `classifyConfidence(score: number): "high" | "medium" | "low"` in the engine (or config module), based on agreed thresholds:
+   - For example (tuneable):
+     - `score >= 0.85` → `high`.
+     - `0.45 <= score < 0.85` → `medium`.
+     - `< 0.45` → `low`.
+2. Use this classifier **everywhere** confidence level is needed:
+   - When building `MatchSuggestion` objects.
+   - When deciding whether a match is eligible for auto-apply (combined with feature flags and possibly stricter thresholds).
+   - When rendering confidence badges in the UI (without duplicating threshold logic there).
+
+### 11.5 Scoring Model: Signals Today, Levels Tomorrow
+
+1. Keep the core plan from sections 4–5 (signal-based scoring) for MVP:
+   - Signals for IDs, names, amounts, dates.
+   - Weighted sum to compute `confidence`.
+2. Design the data structures to be compatible with a **hierarchical level** model from the SIMPLE spec:
+   - Allow grouping signals into logical levels (e.g., `Distributor`, `Vendor`, `IDs`, `Names`, `Rate`).
+   - Keep enough metadata (e.g., `signal.group`) so future code can compute per-level averages and bonuses without changing function signatures.
+3. Defer the actual level/bonus implementation until needed:
+   - The engine API remains `scoreCandidate(line, schedule, config) → { confidence, signals }`.
+   - Internally we can later add a `scoreHierarchy(signals)` step that mirrors the SIMPLE spec without breaking callers.
+
+### 11.6 Where This Fits in the Plan
+
+1. Sections **0–3** of this document cover contracts, architecture, normalization, and candidate retrieval; this alignment section:
+   - Clarifies that the **normalized DTOs**, **normalization rules**, and **MatchSuggestion** structure should follow the SIMPLE spec.
+   - Ensures the **confidence classifier** and potential **hierarchical scoring** are first-class concepts in the engine.
+2. When you start implementing:
+   - Follow sections **0–10** as your main checklist.
+   - Treat section **11** as the constraints that keep your implementation compatible with the standalone SIMPLE engine spec, so logic can be ported or reused across workspaces without major rework.
+
+Once these dependencies are satisfied, you can follow sections **1–9** sequentially to implement the matching logic with minimal surprises.

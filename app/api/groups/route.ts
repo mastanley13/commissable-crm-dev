@@ -12,7 +12,36 @@ export async function GET(request: NextRequest) {
       const searchParams = request.nextUrl.searchParams
       const tenantId = req.user.tenantId
       const ownerId = searchParams.get("ownerId")?.trim() ?? ""
-      const includeInactive = searchParams.get("includeInactive") === "true"
+      const includeInactiveParam = searchParams.get("includeInactive")
+      const pageParam = Number(searchParams.get("page") ?? "1")
+      const pageSizeParam = Number(searchParams.get("pageSize") ?? "25")
+      const query = searchParams.get("q")?.trim() ?? ""
+      const statusInput = searchParams.get("status")?.toLowerCase() ?? ""
+      const sortByParam = searchParams.get("sortBy") ?? "groupName"
+      const sortDirParam = searchParams.get("sortDir") === "desc" ? "desc" : "asc"
+
+      const page = Number.isFinite(pageParam) && pageParam > 0 ? pageParam : 1
+      const pageSize = Number.isFinite(pageSizeParam)
+        ? Math.min(100, Math.max(1, pageSizeParam))
+        : 25
+      const columnFiltersParam = searchParams.get("columnFilters")
+      let columnFilters: Array<{ columnId: string; value: string }> = []
+
+      if (columnFiltersParam) {
+        try {
+          const parsed = JSON.parse(columnFiltersParam)
+          if (Array.isArray(parsed)) {
+            columnFilters = parsed
+              .map(filter => ({
+                columnId: typeof filter?.columnId === "string" ? filter.columnId : "",
+                value: typeof filter?.value === "string" ? filter.value : ""
+              }))
+              .filter(filter => filter.columnId && filter.value.trim().length > 0)
+          }
+        } catch (err) {
+          console.warn("Invalid columnFilters payload", err)
+        }
+      }
 
       const where: any = { tenantId }
 
@@ -20,14 +49,96 @@ export async function GET(request: NextRequest) {
         where.ownerId = ownerId
       }
 
-      if (!includeInactive) {
-        where.isActive = true
+      let effectiveStatus = statusInput
+      if (!effectiveStatus) {
+        if (includeInactiveParam === "true") {
+          effectiveStatus = "all"
+        } else {
+          effectiveStatus = "active"
+        }
       }
 
-      const groups = await prisma.group.findMany({
-        where,
-        orderBy: { name: "asc" }
-      })
+      if (effectiveStatus === "active") {
+        where.isActive = true
+      } else if (effectiveStatus === "inactive") {
+        where.isActive = false
+      }
+
+      if (query.length > 0) {
+        where.OR = [
+          { name: { contains: query, mode: "insensitive" } },
+          { description: { contains: query, mode: "insensitive" } },
+          {
+            owner: {
+              is: {
+                fullName: { contains: query, mode: "insensitive" }
+              }
+            }
+          }
+        ]
+      }
+
+      if (columnFilters.length > 0) {
+        where.AND = where.AND || []
+
+        for (const filter of columnFilters) {
+          const trimmedValue = filter.value.trim()
+          if (!trimmedValue) continue
+          switch (filter.columnId) {
+            case "groupName":
+            case "name":
+              where.AND.push({ name: { contains: trimmedValue, mode: "insensitive" } })
+              break
+            case "groupType":
+              where.AND.push({ groupType: { equals: trimmedValue, mode: "insensitive" } })
+              break
+            case "description":
+              where.AND.push({ description: { contains: trimmedValue, mode: "insensitive" } })
+              break
+            case "ownerName":
+              where.AND.push({
+                owner: {
+                  is: {
+                    fullName: { contains: trimmedValue, mode: "insensitive" }
+                  }
+                }
+              })
+              break
+            default:
+              break
+          }
+        }
+      }
+
+      const sortableFields: Record<string, string> = {
+        groupName: "name",
+        name: "name",
+        groupType: "groupType",
+        memberCount: "memberCount",
+        createdDate: "createdAt",
+        createdAt: "createdAt"
+      }
+      const sortField = sortableFields[sortByParam] ?? "name"
+
+      const [groups, total] = await Promise.all([
+        prisma.group.findMany({
+          where,
+          orderBy: { [sortField]: sortDirParam },
+          skip: (page - 1) * pageSize,
+          take: pageSize,
+          include: {
+            owner: {
+              select: {
+                id: true,
+                fullName: true,
+                firstName: true,
+                lastName: true
+              }
+            }
+          }
+        }),
+        prisma.group.count({ where })
+      ])
 
       return NextResponse.json({
         data: groups.map(group => ({
@@ -38,8 +149,17 @@ export async function GET(request: NextRequest) {
           memberCount: group.memberCount,
           isActive: group.isActive,
           description: group.description,
-          createdAt: group.createdAt
-        }))
+          createdAt: group.createdAt,
+          ownerId: group.ownerId,
+          ownerName:
+            group.owner?.fullName ||
+            `${group.owner?.firstName ?? ""} ${group.owner?.lastName ?? ""}`.trim()
+        })),
+        pagination: {
+          page,
+          pageSize,
+          total
+        }
       })
     } catch (error) {
       console.error("Failed to load groups", error)

@@ -1,355 +1,597 @@
 'use client'
 
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useEffect, useRef, useLayoutEffect } from 'react'
 import { ListHeader } from '@/components/list-header'
 import { DynamicTable, Column, PaginationInfo } from '@/components/dynamic-table'
 import { ColumnChooserModal } from '@/components/column-chooser-modal'
 import { useTablePreferences } from '@/hooks/useTablePreferences'
-import { TableChangeNotification } from '@/components/table-change-notification'
-import { ticketsData } from '@/lib/mock-data'
-import { Edit, Trash2, Settings, Check } from 'lucide-react'
-import { isRowInactive } from '@/lib/row-state'
+import { useToasts } from '@/components/toast'
+import { AccountStatusFilterDropdown } from '@/components/account-status-filter-dropdown'
+import { buildStandardBulkActions } from '@/components/standard-bulk-actions'
+import { Check } from 'lucide-react'
+import { BulkOwnerModal, type BulkOwnerOption } from '@/components/bulk-owner-modal'
+import { BulkStatusModal } from '@/components/bulk-status-modal'
 
-const ticketColumns: Column[] = [
+interface TicketRow {
+  id: string
+  distributorName: string
+  vendorName: string
+  issue: string
+  revenueSchedule: string
+  opportunityName: string
+  active: boolean
+  ownerName: string
+}
+
+interface ColumnFilterState {
+  columnId: string
+  value: string
+}
+
+type SortDirection = 'asc' | 'desc'
+type SortConfig = {
+  columnId: string
+  direction: SortDirection
+}
+
+const REQUEST_ANIMATION_FRAME =
+  typeof window !== "undefined" && typeof window.requestAnimationFrame === "function"
+    ? window.requestAnimationFrame.bind(window)
+    : (cb: FrameRequestCallback) => setTimeout(() => cb(Date.now()), 16)
+
+const TABLE_BOTTOM_RESERVE = 110
+const TABLE_MIN_BODY_HEIGHT = 320
+const DEFAULT_SORT: SortConfig = { columnId: 'distributorName', direction: 'asc' }
+
+const TICKET_FILTER_COLUMNS = [
+  { id: 'distributorName', label: 'Distributor Name' },
+  { id: 'vendorName', label: 'Vendor Name' },
+  { id: 'issue', label: 'Issue' },
+  { id: 'revenueSchedule', label: 'Revenue Schedule' },
+  { id: 'opportunityName', label: 'Opportunity Name' }
+]
+
+const TICKET_COLUMNS: Column[] = [
   {
     id: 'multi-action',
     label: 'Select All',
     width: 200,
-    minWidth: 100,
+    minWidth: 120,
     maxWidth: 240,
-    type: 'multi-action',
-    accessor: 'select'
+    type: 'multi-action'
   },
   {
     id: 'distributorName',
     label: 'Distributor Name',
-    width: 180,
-    minWidth: 150,
+    width: 200,
+    minWidth: 160,
     maxWidth: 300,
     sortable: true,
-    type: 'text',
-    render: (value) => (
-      <span className="text-blue-600 hover:text-blue-800 cursor-pointer">
-        {value}
-      </span>
-    )
+    type: 'text'
   },
   {
     id: 'vendorName',
     label: 'Vendor Name',
-    width: 150,
-    minWidth: 120,
-    maxWidth: 250,
+    width: 180,
+    minWidth: 150,
+    maxWidth: 280,
     sortable: true,
     type: 'text'
   },
   {
     id: 'issue',
     label: 'Issue',
-    width: 200,
-    minWidth: 150,
-    maxWidth: 350,
+    width: 240,
+    minWidth: 180,
+    maxWidth: 360,
     sortable: true,
     type: 'text'
   },
   {
     id: 'revenueSchedule',
     label: 'Revenue Schedule',
-    width: 150,
-    minWidth: 120,
-    maxWidth: 200,
+    width: 160,
+    minWidth: 140,
+    maxWidth: 240,
     sortable: true,
     type: 'text'
   },
   {
     id: 'opportunityName',
     label: 'Opportunity Name',
-    width: 200,
-    minWidth: 150,
-    maxWidth: 300,
+    width: 220,
+    minWidth: 180,
+    maxWidth: 320,
+    sortable: true,
+    type: 'text'
+  },
+  {
+    id: 'status',
+    label: 'Status',
+    width: 130,
+    minWidth: 110,
+    maxWidth: 180,
     sortable: true,
     type: 'text'
   }
 ]
 
 export default function TicketsPage() {
-  const [tickets, setTickets] = useState(ticketsData)
-  const [filteredTickets, setFilteredTickets] = useState(ticketsData)
+  const [tickets, setTickets] = useState<TicketRow[]>([])
   const [loading, setLoading] = useState(false)
-  const [selectedTickets, setSelectedTickets] = useState<number[]>([])
+  const [error, setError] = useState<string | null>(null)
   const [showColumnSettings, setShowColumnSettings] = useState(false)
-  const [currentPage, setCurrentPage] = useState<number>(1)
+  const [searchQuery, setSearchQuery] = useState("")
+  const [statusFilter, setStatusFilter] = useState<'active' | 'all'>('active')
+  const [columnFilters, setColumnFilters] = useState<ColumnFilterState[]>([])
+  const [selectedTickets, setSelectedTickets] = useState<string[]>([])
+  const [showOwnerModal, setShowOwnerModal] = useState(false)
+  const [ownerOptions, setOwnerOptions] = useState<BulkOwnerOption[]>([])
+  const [ownersLoading, setOwnersLoading] = useState(false)
+  const [ownerSubmitting, setOwnerSubmitting] = useState(false)
+  const [showStatusModal, setShowStatusModal] = useState(false)
+  const [statusSubmitting, setStatusSubmitting] = useState(false)
+  const [sortConfig, setSortConfig] = useState<SortConfig>(DEFAULT_SORT)
+  const [page, setPage] = useState<number>(1)
   const [pageSize, setPageSize] = useState<number>(25)
-  
-  const handleToggleTicketStatus = useCallback((ticketId: number, newStatus: boolean) => {
-    setTickets(prev => prev.map(t => t.id === ticketId ? { ...t, active: newStatus } : t))
-    setFilteredTickets(prev => prev.map(t => t.id === ticketId ? { ...t, active: newStatus } : t))
-  }, [])
+  const [pagination, setPagination] = useState<PaginationInfo>({ page: 1, pageSize: 25, total: 0, totalPages: 1 })
+  const [tableBodyHeight, setTableBodyHeight] = useState<number>()
+  const tableAreaNodeRef = useRef<HTMLDivElement | null>(null)
+  const { showError, showSuccess } = useToasts()
 
   const {
     columns: preferenceColumns,
     loading: preferenceLoading,
     error: preferenceError,
-    saving: preferenceSaving,
-    hasUnsavedChanges,
-    lastSaved,
     handleColumnsChange,
-    handleHiddenColumnsChange,
-    saveChanges,
-    saveChangesOnModalClose,
-  } = useTablePreferences("tickets:list", ticketColumns)
+    saveChangesOnModalClose
+  } = useTablePreferences("tickets:list", TICKET_COLUMNS)
 
-  const handleSearch = (query: string) => {
-    if (!query.trim()) {
-      setFilteredTickets(tickets)
+  const tableLoading = loading || preferenceLoading
+
+  const sanitizeColumnFilters = useCallback(() => {
+    return columnFilters
+      .map(filter => ({
+        columnId: filter?.columnId ?? "",
+        value: filter?.value?.trim() ?? ""
+      }))
+      .filter(filter => filter.columnId && filter.value.length > 0)
+  }, [columnFilters])
+
+  const reloadTickets = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const params = new URLSearchParams()
+      params.set("page", String(page))
+      params.set("pageSize", String(pageSize))
+      params.set("sortBy", sortConfig.columnId)
+      params.set("sortDir", sortConfig.direction)
+      params.set("status", statusFilter === "active" ? "active" : "all")
+      if (searchQuery.trim().length > 0) {
+        params.set("q", searchQuery.trim())
+      }
+      const normalizedFilters = sanitizeColumnFilters()
+      if (normalizedFilters.length > 0) {
+        params.set("columnFilters", JSON.stringify(normalizedFilters))
+      }
+
+      const response = await fetch(`/api/tickets?${params.toString()}`, { cache: "no-store" })
+      const payload = await response.json().catch(() => null)
+
+      if (!response.ok) {
+        throw new Error(payload?.error ?? "Failed to load tickets")
+      }
+
+      const items: any[] = Array.isArray(payload?.data) ? payload.data : []
+      const rows: TicketRow[] = items.map(item => ({
+        id: String(item?.id ?? ""),
+        distributorName: item?.distributorName ?? "",
+        vendorName: item?.vendorName ?? "",
+        issue: item?.issue ?? "",
+        revenueSchedule: item?.revenueSchedule ?? "",
+        opportunityName: item?.opportunityName ?? "",
+        active: item?.active !== false,
+        ownerName: item?.ownerName ?? "Unassigned"
+      }))
+      setTickets(rows)
+
+      const paginationPayload = payload?.pagination
+      if (paginationPayload) {
+        setPagination({
+          page: paginationPayload.page ?? page,
+          pageSize: paginationPayload.pageSize ?? pageSize,
+          total: paginationPayload.total ?? rows.length,
+          totalPages: paginationPayload.totalPages ?? Math.max(1, Math.ceil(rows.length / pageSize))
+        })
+      } else {
+        setPagination({
+          page,
+          pageSize,
+          total: rows.length,
+          totalPages: Math.max(1, Math.ceil(rows.length / pageSize))
+        })
+      }
+
+      const visibleIds = new Set(rows.map(row => row.id))
+      setSelectedTickets(prev => prev.filter(id => visibleIds.has(id)))
+    } catch (err) {
+      console.error("Failed to load tickets", err)
+      const message = err instanceof Error ? err.message : "Unable to load tickets"
+      setError(message)
+      setTickets([])
+      setPagination(prev => ({ ...prev, total: 0, totalPages: 1 }))
+    } finally {
+      setLoading(false)
+    }
+  }, [page, pageSize, searchQuery, statusFilter, sortConfig, sanitizeColumnFilters])
+
+  useEffect(() => {
+    reloadTickets().catch(() => undefined)
+  }, [reloadTickets])
+
+  useEffect(() => {
+    if (!showOwnerModal) {
+      return
+    }
+    setOwnerOptions([])
+    setOwnersLoading(true)
+    fetch("/api/admin/users?status=Active&limit=200", { cache: "no-store" })
+      .then(async response => {
+        const payload = await response.json().catch(() => null)
+        if (!response.ok) {
+          throw new Error(payload?.error ?? "Failed to load owners")
+        }
+        const rawUsers = payload?.data?.users ?? payload?.users ?? []
+        const users: any[] = Array.isArray(rawUsers) ? rawUsers : []
+        const options: BulkOwnerOption[] = users.map(user => ({
+          value: user.id,
+          label: user.fullName || `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() || user.email
+        }))
+        setOwnerOptions(options)
+      })
+      .catch(err => {
+        console.error("Failed to load owners", err)
+        setOwnerOptions([])
+        showError("Unable to load owners", err instanceof Error ? err.message : "Please try again later.")
+      })
+      .finally(() => setOwnersLoading(false))
+  }, [showOwnerModal, showError])
+
+  const measureTableArea = useCallback(() => {
+    const node = tableAreaNodeRef.current
+    if (!node || typeof window === "undefined") {
       return
     }
 
-    const filtered = tickets.filter(ticket =>
-      Object.values(ticket).some(value =>
-        value.toString().toLowerCase().includes(query.toLowerCase())
-      )
-    )
-    setFilteredTickets(filtered)
-  }
+    const rect = node.getBoundingClientRect()
+    const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0
+    if (viewportHeight <= 0) return
 
-  const handleSort = (columnId: string, direction: 'asc' | 'desc') => {
-    const sorted = [...filteredTickets].sort((a, b) => {
-      const aValue = a[columnId as keyof typeof a]
-      const bValue = b[columnId as keyof typeof b]
-      
-      if (aValue < bValue) return direction === 'asc' ? -1 : 1
-      if (aValue > bValue) return direction === 'asc' ? 1 : -1
-      return 0
-    })
-    
-    setFilteredTickets(sorted)
-  }
+    const available = viewportHeight - rect.top - TABLE_BOTTOM_RESERVE
+    if (!Number.isFinite(available)) return
 
-  const handleRowClick = useCallback((ticket: any) => {
-    console.log('Ticket clicked:', ticket)
-    // Navigate to ticket detail page or open modal
+    const nextHeight = Math.max(TABLE_MIN_BODY_HEIGHT, Math.floor(available))
+    if (nextHeight !== tableBodyHeight) {
+      setTableBodyHeight(nextHeight)
+    }
+  }, [tableBodyHeight])
+
+  const tableAreaRef = useCallback((node: HTMLDivElement | null) => {
+    tableAreaNodeRef.current = node
+    if (node) {
+      REQUEST_ANIMATION_FRAME(() => measureTableArea())
+    }
+  }, [measureTableArea])
+
+  useLayoutEffect(() => {
+    measureTableArea()
+  }, [measureTableArea])
+
+  useEffect(() => {
+    const handleResize = () => measureTableArea()
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [measureTableArea])
+
+  useEffect(() => {
+    REQUEST_ANIMATION_FRAME(() => measureTableArea())
+  }, [measureTableArea, tickets.length, page, pageSize])
+
+  const hasInactiveSelectedTickets = selectedTickets.some(id => {
+    const row = tickets.find(ticket => ticket.id === id)
+    return row && !row.active
+  })
+
+  const handleSearch = useCallback((query: string) => {
+    setSearchQuery(query)
+    setPage(1)
   }, [])
 
-  const handleCreateTicket = () => {
-    console.log('Create new ticket')
-    // Open create ticket modal or navigate to create page
-  }
+  const handleStatusClick = useCallback((filter: 'active' | 'all') => {
+    setStatusFilter(filter)
+    setPage(1)
+  }, [])
 
-  const handleFilterChange = (filter: string) => {
-    if (filter === 'active') {
-      setFilteredTickets(tickets.filter(ticket => ticket.active))
-    } else {
-      setFilteredTickets(tickets)
-    }
-  }
+  const handleColumnFiltersChange = useCallback((filters: ColumnFilterState[]) => {
+    setColumnFilters(filters ?? [])
+    setPage(1)
+  }, [])
 
-  const handleSelectTicket = (ticketId: number, selected: boolean) => {
+  const handleSort = useCallback((columnId: string, direction: SortDirection) => {
+    setSortConfig({ columnId, direction })
+    setPage(1)
+  }, [])
+
+  const handlePageChange = useCallback((nextPage: number) => {
+    setPage(nextPage)
+  }, [])
+
+  const handlePageSizeChange = useCallback((nextPageSize: number) => {
+    setPageSize(nextPageSize)
+    setPage(1)
+  }, [])
+
+  const handleSelectTicket = useCallback((id: string, selected: boolean) => {
+    setSelectedTickets(prev => selected ? (prev.includes(id) ? prev : [...prev, id]) : prev.filter(x => x !== id))
+  }, [])
+
+  const handleSelectAllTickets = useCallback((selected: boolean) => {
     if (selected) {
-      setSelectedTickets(prev => [...prev, ticketId])
-    } else {
-      setSelectedTickets(prev => prev.filter(id => id !== ticketId))
-    }
-  }
-
-  const handleSelectAll = (selected: boolean) => {
-    if (selected) {
-      setSelectedTickets(filteredTickets.map(ticket => ticket.id))
+      setSelectedTickets(tickets.map(ticket => ticket.id))
     } else {
       setSelectedTickets([])
     }
+  }, [tickets])
+
+  const handleCreateTicket = () => {
+    showError("Not implemented", "Ticket creation is not available yet.")
   }
 
-  // Pagination handlers
-  const handlePageChange = useCallback((page: number) => {
-    setCurrentPage(page)
-  }, [])
-
-  const handlePageSizeChange = useCallback((newPageSize: number) => {
-    setPageSize(newPageSize)
-    setCurrentPage(1) // Reset to first page when page size changes
-  }, [])
-
-  // Calculate paginated data
-  const paginatedTickets = useMemo(() => {
-    const startIndex = (currentPage - 1) * pageSize
-    const endIndex = startIndex + pageSize
-    return filteredTickets.slice(startIndex, endIndex)
-  }, [filteredTickets, currentPage, pageSize])
-
-  // Calculate pagination info
-  const paginationInfo = useMemo((): PaginationInfo => {
-    const totalItems = filteredTickets.length
-    const totalPages = Math.ceil(totalItems / pageSize)
-
-    return {
-      page: currentPage,
-      totalPages,
-      pageSize,
-      total: totalItems,
+  const handleBulkDelete = useCallback(() => {
+    if (selectedTickets.length === 0) {
+      showError("No tickets selected", "Select at least one ticket to delete.")
+      return
     }
-  }, [filteredTickets.length, currentPage, pageSize])
+    const ticketMap = new Map(tickets.map(ticket => [ticket.id, ticket]))
+    const inactiveIds = selectedTickets.filter(id => {
+      const row = ticketMap.get(id)
+      return row && !row.active
+    })
+    if (inactiveIds.length === 0) {
+      showError("Only inactive items can be deleted", "Mark the selected tickets inactive before deleting.")
+      return
+    }
+    const confirmed = typeof window === "undefined"
+      ? true
+      : window.confirm(`Delete ${inactiveIds.length} inactive ticket${inactiveIds.length === 1 ? "" : "s"}? This can't be undone.`)
+    if (!confirmed) {
+      return
+    }
+    const inactiveSet = new Set(inactiveIds)
+    setTickets(prev => prev.filter(ticket => !inactiveSet.has(ticket.id)))
+    setSelectedTickets(prev => prev.filter(id => !inactiveSet.has(id)))
+    setPagination(prev => {
+      const nextTotal = Math.max(0, prev.total - inactiveIds.length)
+      const nextTotalPages = Math.max(1, Math.ceil(nextTotal / prev.pageSize))
+      const nextPage = Math.min(prev.page, nextTotalPages)
+      if (nextPage !== prev.page) {
+        setPage(nextPage)
+      }
+      return {
+        ...prev,
+        total: nextTotal,
+        totalPages: nextTotalPages,
+        page: nextPage
+      }
+    })
+    showSuccess("Tickets deleted", `${inactiveIds.length} ticket${inactiveIds.length === 1 ? "" : "s"} removed.`)
+  }, [selectedTickets, showError, showSuccess, tickets])
 
-  const tableLoading = loading || preferenceLoading
+  const handleBulkReassign = useCallback(() => {
+    if (selectedTickets.length === 0) {
+      showError("No tickets selected", "Select at least one ticket to reassign.")
+      return
+    }
+    setShowOwnerModal(true)
+  }, [selectedTickets, showError])
+
+  const handleBulkStatus = useCallback(() => {
+    if (selectedTickets.length === 0) {
+      showError("No tickets selected", "Select at least one ticket to update status.")
+      return
+    }
+    setShowStatusModal(true)
+  }, [selectedTickets, showError])
+
+  const handleOwnerSubmit = useCallback(
+    async (ownerId: string | null) => {
+      if (ownerSubmitting) {
+        return
+      }
+      if (selectedTickets.length === 0) {
+        setShowOwnerModal(false)
+        return
+      }
+      setOwnerSubmitting(true)
+      const selectedSet = new Set(selectedTickets)
+      const selectedCount = selectedSet.size
+      const ownerLabel = ownerId
+        ? ownerOptions.find(option => option.value === ownerId)?.label || "Selected owner"
+        : "Unassigned"
+      setTickets(prev =>
+        prev.map(ticket =>
+          selectedSet.has(ticket.id)
+            ? { ...ticket, ownerName: ownerId ? ownerLabel : "Unassigned" }
+            : ticket
+        )
+      )
+      setOwnerSubmitting(false)
+      setShowOwnerModal(false)
+      setSelectedTickets([])
+      showSuccess(
+        "Owner updated",
+        `${selectedCount} ticket${selectedCount === 1 ? "" : "s"} assigned to ${ownerLabel}.`
+      )
+    },
+    [ownerOptions, ownerSubmitting, selectedTickets, showSuccess]
+  )
+
+  const handleStatusSubmit = useCallback(
+    async (isActive: boolean) => {
+      if (statusSubmitting) {
+        return
+      }
+      if (selectedTickets.length === 0) {
+        setShowStatusModal(false)
+        return
+      }
+      setStatusSubmitting(true)
+      const selectedSet = new Set(selectedTickets)
+      const selectedCount = selectedSet.size
+      setTickets(prev =>
+        prev.map(ticket =>
+          selectedSet.has(ticket.id)
+            ? { ...ticket, active: isActive }
+            : ticket
+        )
+      )
+      setStatusSubmitting(false)
+      setShowStatusModal(false)
+      setSelectedTickets([])
+      showSuccess(
+        "Status updated",
+        `Marked ${selectedCount} ticket${selectedCount === 1 ? "" : "s"} as ${isActive ? "Active" : "Inactive"}.`
+      )
+    },
+    [selectedTickets, showSuccess, statusSubmitting]
+  )
+
+  const handleBulkExport = useCallback(() => {
+    if (selectedTickets.length === 0) {
+      showError("No tickets selected", "Select at least one ticket to export.")
+      return
+    }
+    console.log("Bulk export tickets", selectedTickets)
+    showSuccess("Export queued", "Bulk export for tickets is not yet implemented.")
+  }, [selectedTickets, showError, showSuccess])
+
   const tableColumns = useMemo(() => {
-    return preferenceColumns.map((column) => {
+    return preferenceColumns.map(column => {
       if (column.id === 'multi-action') {
         return {
           ...column,
-          render: (_: unknown, row: any) => {
-            const rowId = Number(row.id ?? row.ticketId ?? row.orderId ?? 0)
+          render: (_: unknown, row: TicketRow) => {
+            const rowId = row.id
             const checked = selectedTickets.includes(rowId)
-            const activeValue = !!row.active
             return (
-              <div className="flex items-center gap-2" data-disable-row-click="true">
-                {/* Checkbox */}
+              <div className="flex items-center" data-disable-row-click="true">
                 <label className="flex cursor-pointer items-center justify-center" onClick={e => e.stopPropagation()}>
                   <input
                     type="checkbox"
                     className="sr-only"
                     checked={checked}
-                    aria-label={`Select row ${rowId}`}
+                    aria-label={`Select ticket ${rowId}`}
                     onChange={() => handleSelectTicket(rowId, !checked)}
+                    disabled={tableLoading}
                   />
-                  <span className={`flex h-4 w-4 items-center justify-center rounded border transition-colors ${checked ? 'border-primary-500 bg-primary-600 text-white' : 'border-gray-300 bg-white text-transparent'}`}>
+                  <span className={`flex h-4 w-4 items-center justify-center rounded border transition-colors ${
+                    checked ? 'border-primary-500 bg-primary-600 text-white' : 'border-gray-300 bg-white text-transparent'
+                  }`}>
                     <Check className="h-3 w-3" aria-hidden="true" />
                   </span>
                 </label>
-
-                {/* Active Toggle */}
-                <button
-                  type="button"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    handleToggleTicketStatus(rowId, !activeValue)
-                  }}
-                  className="relative inline-flex items-center cursor-pointer"
-                  title={activeValue ? 'Active' : 'Inactive'}
-                >
-                  <span className={`w-9 h-5 rounded-full transition-colors duration-300 ease-in-out ${activeValue ? 'bg-blue-600' : 'bg-gray-300'}`}>
-                    <span className={`inline-block w-4 h-4 bg-white rounded-full shadow transition-transform duration-300 ease-in-out transform ${activeValue ? 'translate-x-4' : 'translate-x-1'} mt-0.5 ${activeValue ? 'ring-1 ring-blue-300' : ''}`} />
-                  </span>
-                </button>
-
-                {/* Actions */}
-                <div className="flex gap-0.5">
-                  <button type="button" className="p-1 text-blue-500 hover:text-blue-700 transition-colors rounded" onClick={(e) => { e.preventDefault(); e.stopPropagation(); }} aria-label="Edit ticket">
-                    <Edit className="h-3.5 w-3.5" />
-                  </button>
-                  {isRowInactive(row) && (
-                    <button type="button" className="p-1 rounded transition-colors text-red-500 hover:text-red-700" onClick={(e) => { e.preventDefault(); e.stopPropagation(); }} aria-label={'Delete ticket'}>
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  )}
-                </div>
               </div>
             )
           }
         }
       }
-      return column;
-    });
-  }, [preferenceColumns, selectedTickets, handleSelectTicket, handleToggleTicketStatus])
-  
-  // Get hidden columns by comparing all columns with visible ones
-  const hiddenColumns = useMemo(() => {
-    return ticketColumns
-      .filter(col => !tableColumns.some(visibleCol => visibleCol.id === col.id))
-      .map(col => col.id)
-  }, [tableColumns])
 
-  // Update tickets data to include selection state
-  const ticketsWithSelection = paginatedTickets.map(ticket => ({
-    ...ticket,
-    select: selectedTickets.includes(ticket.id)
-  }))
+      if (column.id === 'distributorName' || column.id === 'vendorName' || column.id === 'opportunityName') {
+        return {
+          ...column,
+          render: (value: any) => (
+            <span className="text-blue-600 hover:text-blue-800 cursor-pointer font-medium">
+              {value}
+            </span>
+          )
+        }
+      }
+
+      if (column.id === 'status') {
+        return {
+          ...column,
+          render: (_: unknown, row: TicketRow) => (
+            <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+              row.active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+            }`}>
+              {row.active ? 'Active' : 'Inactive'}
+            </span>
+          )
+        }
+      }
+
+      return column
+    })
+  }, [preferenceColumns, selectedTickets, handleSelectTicket, tableLoading, tickets])
 
   return (
     <div className="dashboard-page-container">
-      <div className="bg-white border-b border-gray-200 px-4 py-3">
-        <div className="flex items-center justify-between gap-4">
-          {/* Page Title */}
-          <p className="text-xs font-semibold uppercase tracking-wide text-primary-600">TICKETS LIST</p>
-
-          {/* Left side - Search */}
-          <div className="flex items-center flex-1 max-w-md">
-            <div className="relative w-full">
-              <input
-                type="text"
-                placeholder="Search tickets..."
-                onChange={(e) => handleSearch(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all"
-              />
-            </div>
-          </div>
-
-          {/* Table Change Notification - Always show */}
-          <div className="flex items-center">
-            <TableChangeNotification
-              hasUnsavedChanges={hasUnsavedChanges || false}
-              isSaving={preferenceSaving || false}
-              lastSaved={lastSaved || undefined}
-              onSave={saveChanges}
-            />
-          </div>
-
-          {/* Center - Controls */}
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleCreateTicket}
-              className="inline-flex items-center px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 transition-colors"
-            >
-              Create New
-            </button>
-            
-            <button
-              onClick={() => setShowColumnSettings(true)}
-              className="p-2 text-gray-500 rounded-lg hover:bg-gray-100 hover:text-gray-600 transition-colors"
-              title="Column Settings"
-            >
-              <Settings className="h-4 w-4" />
-            </button>
-          </div>
-
-          {/* Right side - Filters */}
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => handleFilterChange("active")}
-              className="px-3 py-1.5 text-sm font-medium rounded-lg transition-colors bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"
-            >
-              Active
-            </button>
-            <button
-              onClick={() => handleFilterChange("all")}
-              className="px-3 py-1.5 text-sm font-medium rounded-lg transition-colors bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"
-            >
-              Show All
-            </button>
-          </div>
-        </div>
-      </div>
+      <ListHeader
+        pageTitle="TICKETS LIST"
+        searchPlaceholder="Search tickets..."
+        onSearch={handleSearch}
+        onFilterChange={() => {}}
+        onCreateClick={handleCreateTicket}
+        onSettingsClick={() => setShowColumnSettings(true)}
+        filterColumns={TICKET_FILTER_COLUMNS}
+        columnFilters={columnFilters}
+        onColumnFiltersChange={handleColumnFiltersChange}
+        showStatusFilter={false}
+        leftAccessory={
+          <AccountStatusFilterDropdown
+            value={statusFilter === 'active' ? 'active' : 'all'}
+            onChange={(next) => handleStatusClick(next)}
+            labels={{ active: 'Active', all: 'Show All' }}
+          />
+        }
+        bulkActions={buildStandardBulkActions({
+          selectedCount: selectedTickets.length,
+          isBusy: tableLoading,
+          entityLabelPlural: "tickets",
+          onDelete: handleBulkDelete,
+          onReassign: handleBulkReassign,
+          onStatus: handleBulkStatus,
+          onExport: handleBulkExport,
+          disableDelete: !hasInactiveSelectedTickets,
+        })}
+      />
 
       {preferenceError && (
         <div className="px-4 text-sm text-red-600">{preferenceError}</div>
       )}
 
-      {/* Table */}
-      <div className="flex-1 p-4 min-h-0">
+      {error && (
+        <div className="px-4 text-sm text-red-600">{error}</div>
+      )}
+
+      <div ref={tableAreaRef} className="flex-1 min-h-0 px-4 pb-4">
         <DynamicTable
           columns={tableColumns}
-          data={ticketsWithSelection}
+          data={tickets}
           onSort={handleSort}
-          onRowClick={handleRowClick}
           loading={tableLoading}
-          emptyMessage="No tickets found"
+          emptyMessage={tableLoading ? "Loading tickets..." : "No tickets found"}
           onColumnsChange={handleColumnsChange}
-          selectedItems={selectedTickets.map(String)}
-          onItemSelect={(id, selected) => handleSelectTicket(Number(id), selected)}
-          onSelectAll={handleSelectAll}
-          autoSizeColumns={false}
-          pagination={paginationInfo}
+          selectedItems={selectedTickets}
+          onItemSelect={(id, selected) => handleSelectTicket(id, selected)}
+          onSelectAll={handleSelectAllTickets}
+          pagination={pagination}
           onPageChange={handlePageChange}
           onPageSizeChange={handlePageSizeChange}
+          autoSizeColumns={false}
+          alwaysShowPagination
+          maxBodyHeight={tableBodyHeight}
         />
       </div>
 
@@ -361,6 +603,34 @@ export default function TicketsPage() {
           setShowColumnSettings(false)
           await saveChangesOnModalClose()
         }}
+      />
+
+      <BulkOwnerModal
+        isOpen={showOwnerModal}
+        owners={ownerOptions}
+        entityLabel="tickets"
+        isLoading={ownersLoading}
+        isSubmitting={ownerSubmitting}
+        onClose={() => {
+          if (ownerSubmitting) {
+            return
+          }
+          setShowOwnerModal(false)
+        }}
+        onSubmit={handleOwnerSubmit}
+      />
+
+      <BulkStatusModal
+        isOpen={showStatusModal}
+        entityLabel="tickets"
+        isSubmitting={statusSubmitting}
+        onClose={() => {
+          if (statusSubmitting) {
+            return
+          }
+          setShowStatusModal(false)
+        }}
+        onSubmit={handleStatusSubmit}
       />
     </div>
   )

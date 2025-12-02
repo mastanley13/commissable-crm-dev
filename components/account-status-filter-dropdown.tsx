@@ -1,14 +1,19 @@
 "use client"
 
+import { useMemo } from "react"
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu"
 import { Check, ChevronDown } from "lucide-react"
 
 interface AccountStatusFilterDropdownProps {
   value: "active" | "all"
   onChange: (value: "active" | "all") => void
+  labels?: {
+    active?: string
+    all?: string
+  }
 }
 
-const statusOptions = [
+const defaultStatusOptions = [
   { id: "active" as const, label: "Active" },
   { id: "all" as const, label: "Show Inactive" },
 ] as const
@@ -16,7 +21,17 @@ const statusOptions = [
 export function AccountStatusFilterDropdown({
   value,
   onChange,
+  labels,
 }: AccountStatusFilterDropdownProps) {
+  const statusOptions = useMemo(() => {
+    return defaultStatusOptions.map(option => ({
+      ...option,
+      label: option.id === "active"
+        ? (labels?.active ?? option.label)
+        : (labels?.all ?? option.label)
+    }))
+  }, [labels])
+
   const selectedOption = statusOptions.find((opt) => opt.id === value)
 
   return (

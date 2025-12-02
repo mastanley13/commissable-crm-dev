@@ -281,7 +281,74 @@ To reduce risk while testing:
 
 If you like this plan, the very next step would be to:
 
-1. Add the new Prisma models and migrations.
-2. Seed a small real dataset into `DepositLineItem`.
-3. Implement the minimal matching function + `/detail` API so your current UI can immediately start showing real matches.
+1. Seed a small real dataset into `DepositLineItem`.
+2. Implement the minimal matching function + `/detail` API so your current UI can immediately start showing real matches.
 
+---
+
+## 7. Alignment with SIMPLE_MATCHING_ENGINE_SPEC
+
+The **SIMPLE_MATCHING_ENGINE_SPEC.md** describes a lightweight, framework-agnostic matching core. That spec is compatible with this MVP and adds useful detail about the *inside* of the engine. This section captures how we will align this plan with that spec so implementation is straightforward.
+
+### 7.1 Normalized Matching DTOs
+
+- Introduce a small **normalized layer** inside the engine:
+  - `DepositLineItemNormalized` with canonical fields (distributor, vendor name, vendor account / customer IDs, distributor/vendor order IDs, customer/account name, product name, commission rate, commission/amount).
+  - `RevenueScheduleNormalized` with distributor/vendor names, customer IDs/names, distributor/vendor order IDs, product name, expected commission and expected commission rate.
+- These DTOs are built from `DepositLineItem`, `Deposit`, `RevenueSchedule`, and related `Account` / `Product` / `Opportunity` fields *before* scoring.
+- Keep this layer pure (no Prisma types, no HTTP) so it can be reused in batch jobs or external tools.
+
+### 7.2 Consistent Normalization Rules
+
+- Apply the spec’s concrete normalization rules for both deposits and schedules:
+  - IDs: trim, collapse spaces, treat `""`, `"N/A"`, `"null"` (case-insensitive) as `null`.
+  - Names: normalize case, strip punctuation where appropriate, collapse whitespace, strip common legal suffixes (INC, LLC, CORP, CO, etc.).
+  - Money: remove `$`, `,`, spaces; parse as decimal; document how invalid/empty values are handled (0 vs `null`).
+  - Rates: if input ends with `%`, strip and parse; otherwise parse as float and interpret `< 1.0` as a fraction (0.155 → 15.5%) and `>= 1.0` as percent units (15.5 → 15.5%).
+- Use shared helpers so the same rules are applied everywhere (engine, tests, any batch jobs).
+
+### 7.3 Engine Output: Primary Match, Alternates, and Reasons
+
+- Adopt a canonical engine output similar to the spec’s `MatchSuggestion`:
+  - For each deposit line: the best `RevenueSchedule` match (or `null`), a numeric `score`/`matchConfidence`, a discrete `confidenceLevel` (`high` / `medium` / `low`), a `reasons: string[]` list, and a small list of alternates (each with its own score and reasons).
+- Map this into the existing UI:
+  - Primary match → top candidate row for that line.
+  - Alternates → remaining candidate rows ordered by `matchConfidence`.
+  - `reasons` and `confidenceLevel` are optional for the first visual cut but should be available for future tooltips/explanations and audit.
+
+### 7.4 Scoring Model and Confidence Thresholds
+
+- The SIMPLE spec uses a **hierarchical level** scoring model (Distributor, Vendor, IDs, Names, Rate) with level averages and bonuses; this MVP plan currently uses a **signal + weight** model (IDs, names, amounts, dates).
+- For MVP:
+  - Implement the simpler signal+weight model first, but structure configuration so signals can later be grouped into levels and extended with bonuses without changing external APIs.
+  - Implement a single `classifyConfidence(score)` function in the engine that maps scores to `high` / `medium` / `low` using agreed thresholds, instead of duplicating threshold logic in UI or endpoints.
+- Keep auto-match behavior and thresholds in configuration (per template/tenant where needed), and gate auto-apply behind feature flags as described earlier.
+
+### 7.5 What This Changes
+
+- Does **not** change:
+  - The tables (`DepositLineItem`, `DepositLineMatch`, `RevenueSchedule`), endpoints, or UI layout described in this MVP.
+- Does make explicit that:
+  - We will use a normalized DTO layer and consistent normalization rules.
+  - The engine’s primary output is a `MatchSuggestion` object (primary + alternates + reasons + confidenceLevel), from which the candidates table is derived.
+  - Confidence thresholds and auto-match rules live in the engine/config layer, not scattered across the UI.
+
+These clarifications are reflected in more detail in `reconciliation_matching_engine_implementation_steps.md` and should keep the eventual implementation aligned with the standalone SIMPLE matching spec.
+
+---
+
+## 8. Implementation Progress (Live)
+
+**Completed**
+
+- Added `DepositLineItem` and `DepositLineMatch` models to `prisma/schema.prisma` with relations from `Tenant`, `Account`, `Product`, `Deposit`, and `RevenueSchedule`.
+- Added enums `DepositLineItemStatus`, `DepositLineMatchStatus`, and `DepositLineMatchSource` to capture line/match state and provenance.
+- Ran `npx prisma migrate dev --name add_deposit_line_models`, creating and applying migration `20251202110335_add_deposit_line_models` and updating the PostgreSQL schema.
+- Triggered Prisma Client generation after the migration (developers may still need to run `npx prisma generate` locally if their environment blocked the DLL rename once).
+- Added `scripts/seed-deposit-line-items.ts` plus npm script `npm run seed:deposit-lines`, and executed it to populate sample deposit line items + a `DepositLineMatch` for the latest deposit so the Reconciliation detail view has real data to consume.
+- Implemented `GET /api/reconciliation/deposits/[depositId]/detail` backed by the new models to return deposit metadata and live `DepositLineItem` rows for the selected deposit.
+- Updated `app/(dashboard)/reconciliation/[depositId]/page.tsx` to call the new detail API and feed real line items into `DepositReconciliationDetailView` instead of the previous mocks (the suggested schedules section still uses mock data for now).
+
+**In progress / upcoming**
+
+- Implement a `/api/reconciliation/deposits/[depositId]/line-items/[lineId]/candidates` endpoint and simple matching engine to populate the “Suggested Matches – Revenue Schedules” table from real `RevenueSchedule` data.

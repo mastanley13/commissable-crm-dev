@@ -123,7 +123,9 @@ export async function PATCH(
           updateData.isActive = body.isActive
         }
 
-        if (typeof body.ownerId === "string" && body.ownerId.trim().length > 0) {
+        if (body.ownerId === null) {
+          updateData.ownerId = null
+        } else if (typeof body.ownerId === "string" && body.ownerId.trim().length > 0) {
           // Verify the owner exists
           const ownerExists = await prisma.user.findFirst({
             where: { id: body.ownerId, tenantId }

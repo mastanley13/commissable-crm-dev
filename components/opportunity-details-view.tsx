@@ -59,6 +59,17 @@ const fieldLabelClass = "text-[11px] font-semibold uppercase tracking-wide text-
 const fieldBoxClass =
   "flex min-h-[28px] w-full min-w-0 max-w-md items-center justify-between border-b-2 border-gray-300 bg-transparent pl-[3px] pr-0 py-1 text-[11px] text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis tabular-nums"
 
+type RevenueEditableColumnId = "quantity" | "unitPrice" | "expectedUsageAdjustment" | "expectedCommissionRatePercent"
+
+type RevenueFillDownPrompt = {
+  columnId: RevenueEditableColumnId
+  label: string
+  value: number
+  rowId: string
+  selectedCount: number
+  anchor: { top: number; left: number }
+}
+
 const PRODUCT_FILTER_COLUMNS: Array<{ id: string; label: string }> = [
   { id: "productName", label: "Product Name" },
   { id: "productCode", label: "Product Code" },
@@ -1749,6 +1760,8 @@ export function OpportunityDetailsView({
   const [showRevenueCloneModal, setShowRevenueCloneModal] = useState(false)
   const [revenueCloneTargetId, setRevenueCloneTargetId] = useState<string | null>(null)
   const [revenueCloneDefaultDate, setRevenueCloneDefaultDate] = useState<string>("")
+  const [revenueBulkPrompt, setRevenueBulkPrompt] = useState<RevenueFillDownPrompt | null>(null)
+  const [revenueBulkApplying, setRevenueBulkApplying] = useState(false)
 
   const {
     columns: revenuePreferenceColumns,
@@ -2273,6 +2286,21 @@ export function OpportunityDetailsView({
     return filteredRevenueRows.slice(start, start + revenuePageSize)
   }, [filteredRevenueRows, revenueCurrentPage, revenuePageSize])
 
+  const revenueEditableColumnsMeta: Record<RevenueEditableColumnId, { label: string; decimals: number; type: "number" | "currency" | "percent" }> = useMemo(
+    () => ({
+      quantity: { label: "Quantity", decimals: 0, type: "number" },
+      unitPrice: { label: "Price Each", decimals: 2, type: "currency" },
+      expectedUsageAdjustment: { label: "Expected Usage Adjustment", decimals: 2, type: "currency" },
+      expectedCommissionRatePercent: { label: "Expected Commission Rate %", decimals: 2, type: "percent" }
+    }),
+    []
+  )
+
+  const isRevenueEditableColumn = useCallback(
+    (columnId: string): columnId is RevenueEditableColumnId => Boolean(revenueEditableColumnsMeta[columnId as RevenueEditableColumnId]),
+    [revenueEditableColumnsMeta]
+  )
+
   const activityRows = useMemo<OpportunityActivityRow[]>(() => {
     if (!opportunity?.activities || opportunity.activities.length === 0) {
       return []
@@ -2458,6 +2486,107 @@ export function OpportunityDetailsView({
     setRevenueCurrentPage(1)
   }, [])
 
+  const normalizeRevenueEditValue = useCallback(
+    (columnId: RevenueEditableColumnId, value: number) => {
+      if (!Number.isFinite(value)) return null
+      switch (columnId) {
+        case "quantity":
+          return Math.max(0, Math.round(value))
+        case "unitPrice":
+        case "expectedUsageAdjustment":
+          return Number(Math.max(0, value).toFixed(revenueEditableColumnsMeta[columnId].decimals))
+        case "expectedCommissionRatePercent":
+          return Number(Math.max(0, value).toFixed(revenueEditableColumnsMeta[columnId].decimals))
+        default:
+          return null
+      }
+    },
+    [revenueEditableColumnsMeta]
+  )
+
+  const getEditableDisplayValue = useCallback(
+    (columnId: RevenueEditableColumnId, rowValue: unknown): number => {
+      if (columnId === "expectedCommissionRatePercent") {
+        const fraction = typeof rowValue === "number" ? rowValue : Number(rowValue) || 0
+        return fraction * 100 // display percent points
+      }
+      return typeof rowValue === "number" ? rowValue : Number(rowValue) || 0
+    },
+    []
+  )
+
+  const handleRevenueInlineChange = useCallback(
+    (rowId: string, columnId: RevenueEditableColumnId, nextValue: number, rect: DOMRect | null) => {
+      const normalised = normalizeRevenueEditValue(columnId, nextValue)
+      if (normalised === null) {
+        return
+      }
+
+      if (selectedRevenueSchedules.length > 1 && selectedRevenueSchedules.includes(rowId) && rect) {
+        setRevenueBulkPrompt({
+          columnId,
+          label: revenueEditableColumnsMeta[columnId].label,
+          value: normalised,
+          rowId,
+          selectedCount: selectedRevenueSchedules.length,
+          anchor: {
+            top: rect.bottom + 8,
+            left: rect.right + 12
+          }
+        })
+      } else {
+        setRevenueBulkPrompt(null)
+      }
+    },
+    [normalizeRevenueEditValue, revenueEditableColumnsMeta, selectedRevenueSchedules]
+  )
+
+  const handleRevenueApplyFillDown = useCallback(async () => {
+    if (!revenueBulkPrompt || selectedRevenueSchedules.length <= 1) {
+      return
+    }
+    const columnId = revenueBulkPrompt.columnId
+    const payload: Record<string, number> = {}
+    if (columnId === "quantity") payload.quantity = revenueBulkPrompt.value
+    if (columnId === "unitPrice") payload.priceEach = revenueBulkPrompt.value
+    if (columnId === "expectedUsageAdjustment") payload.expectedUsageAdjustment = revenueBulkPrompt.value
+    if (columnId === "expectedCommissionRatePercent") payload.expectedCommissionRatePercent = revenueBulkPrompt.value
+
+    if (Object.keys(payload).length === 0) {
+      return
+    }
+
+    setRevenueBulkApplying(true)
+    try {
+      const response = await fetch("/api/revenue-schedules/bulk-update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ids: selectedRevenueSchedules,
+          patch: payload
+        })
+      })
+      const body = await response.json().catch(() => null)
+      if (!response.ok) {
+        const message = body?.error ?? "Unable to apply bulk update"
+        throw new Error(message)
+      }
+      const updatedCount: number = body?.updated ?? selectedRevenueSchedules.length
+      showSuccess(
+        `Applied to ${updatedCount} schedule${updatedCount === 1 ? "" : "s"}`,
+        `${revenueBulkPrompt.label} updated across the selected schedules.`
+      )
+      setRevenueBulkPrompt(null)
+      await onRefresh?.()
+    } catch (error) {
+      console.error("Failed to apply bulk update for revenue schedules", error)
+      const message = error instanceof Error ? error.message : "Unable to apply bulk update"
+      showError("Bulk update failed", message)
+    } finally {
+      setRevenueBulkApplying(false)
+    }
+  }, [onRefresh, revenueBulkPrompt, selectedRevenueSchedules, showError, showSuccess])
+
   const selectedRevenueRows = useMemo(() => {
     if (selectedRevenueSchedules.length === 0) {
       return []
@@ -2466,6 +2595,61 @@ export function OpportunityDetailsView({
   }, [filteredRevenueRows, selectedRevenueSchedules])
 
   const revenueTableColumns = useMemo(() => {
+    const renderEditableCell = (columnId: RevenueEditableColumnId, label: string) => {
+      return (_: unknown, row: OpportunityRevenueScheduleRecord) => {
+        let spanRef: HTMLSpanElement | null = null
+        const displayValue = getEditableDisplayValue(columnId, (row as any)[columnId])
+
+        const commit = () => {
+          if (!spanRef) return
+          const rawText = spanRef.innerText.trim()
+          if (!rawText) return
+          const sanitised = rawText.replace(/[^0-9.\-]/g, "")
+          const parsed = sanitised === "" ? NaN : Number(sanitised)
+          if (Number.isNaN(parsed)) return
+          const nextValue = columnId === "expectedCommissionRatePercent" ? parsed : parsed
+          handleRevenueInlineChange(row.id, columnId, nextValue, spanRef.getBoundingClientRect())
+        }
+
+        const formattedForDisplay = () => {
+          if (!Number.isFinite(displayValue)) return ""
+          if (columnId === "expectedCommissionRatePercent") {
+            return displayValue.toLocaleString(undefined, {
+              minimumFractionDigits: revenueEditableColumnsMeta[columnId].decimals,
+              maximumFractionDigits: revenueEditableColumnsMeta[columnId].decimals
+            })
+          }
+          const decimals = revenueEditableColumnsMeta[columnId].decimals
+          return displayValue.toLocaleString(undefined, {
+            minimumFractionDigits: decimals,
+            maximumFractionDigits: decimals
+          })
+        }
+
+        return (
+          <span
+            ref={node => {
+              spanRef = node
+            }}
+            contentEditable
+            suppressContentEditableWarning
+            data-disable-row-click="true"
+            className="block min-w-0 truncate text-sm text-gray-900 focus:outline-none"
+            onBlur={commit}
+            onKeyDown={event => {
+              if (event.key === "Enter") {
+                event.preventDefault()
+                commit()
+              }
+            }}
+            aria-label={`Edit ${label}`}
+          >
+            {formattedForDisplay()}
+          </span>
+        )
+      }
+    }
+
     return revenuePreferenceColumns.map(column => {
       if (column.id === "multi-action") {
         return {
@@ -2524,6 +2708,13 @@ export function OpportunityDetailsView({
         }
       }
 
+      if (isRevenueEditableColumn(column.id)) {
+        return {
+          ...column,
+          render: renderEditableCell(column.id, column.label)
+        }
+      }
+
       if (REVENUE_CURRENCY_COLUMN_IDS.has(column.id)) {
         return {
           ...column,
@@ -2550,7 +2741,15 @@ export function OpportunityDetailsView({
         render: (value: unknown) => (value === null || value === undefined || String(value).trim().length === 0 ? "--" : String(value))
       }
     })
-  }, [revenuePreferenceColumns, selectedRevenueSchedules, handleRevenueSelect])
+  }, [
+    revenuePreferenceColumns,
+    selectedRevenueSchedules,
+    handleRevenueSelect,
+    getEditableDisplayValue,
+    handleRevenueInlineChange,
+    revenueEditableColumnsMeta,
+    isRevenueEditableColumn
+  ])
 
   const handleRevenueExportCsv = useCallback(() => {
     if (selectedRevenueSchedules.length === 0) {
@@ -3947,12 +4146,13 @@ export function OpportunityDetailsView({
 
   return (
     <>
-      <div className="flex h-full flex-col overflow-hidden px-4 sm:px-6 lg:px-8">
-        <div className="w-full xl:max-w-[1800px]">
-          <div className="flex flex-col gap-4">
-            {headerNode}
+      <div className="flex h-full flex-col overflow-hidden">
+        <div className="flex flex-1 min-h-0 flex-col overflow-hidden px-4 sm:px-6 lg:px-8">
+          <div className="w-full xl:max-w-[1800px]">
+            <div className="flex flex-col gap-4">
+              {headerNode}
 
-            <div className="flex flex-col min-h-0 overflow-hidden">
+            <div className="flex flex-1 flex-col min-h-0 overflow-hidden">
               <div className="flex flex-wrap gap-1 border-x border-t border-gray-200 bg-gray-100 pt-2 px-3 pb-0">
                 {DETAIL_TABS.map(tab => (
                   <button
@@ -4003,7 +4203,7 @@ export function OpportunityDetailsView({
                       ref={tableAreaRefCallback}
                     >
                       <DynamicTable
-                        className="flex flex-1 flex-col"
+                        className="flex flex-col"
                         columns={productTableColumns}
                         data={paginatedProductRows}
                         loading={productPreferencesLoading}
@@ -4053,7 +4253,7 @@ export function OpportunityDetailsView({
                       >
                         <DynamicTable
                           key={rolePreferenceColumns.map(c => `${c.id}:${c.hidden ? 0 : 1}`).join("|")}
-                          className="flex flex-1 flex-col"
+                          className="flex flex-col"
                           columns={roleTableColumns}
                           data={paginatedRoleRows}
                           loading={rolePreferencesLoading}
@@ -4107,7 +4307,7 @@ export function OpportunityDetailsView({
                         ref={tableAreaRefCallback}
                       >
                         <DynamicTable
-                          className="flex flex-1 flex-col"
+                          className="flex flex-col"
                           columns={revenueTableColumns}
                           data={paginatedRevenueRows}
                           loading={revenuePreferencesLoading}
@@ -4155,7 +4355,7 @@ export function OpportunityDetailsView({
                         ref={tableAreaRefCallback}
                       >
                         <DynamicTable
-                          className="flex flex-1 flex-col"
+                          className="flex flex-col"
                           columns={activityTableColumns}
                           data={paginatedActivities}
                           loading={activityPreferencesLoading}
@@ -4242,6 +4442,21 @@ export function OpportunityDetailsView({
           </div>
         </div>
       </div>
+      </div>
+
+      {revenueBulkPrompt ? (
+        <button
+          type="button"
+          className="fixed z-40 rounded-full border border-primary-200 bg-white px-4 py-2 text-sm font-semibold text-primary-700 shadow-lg transition hover:bg-primary-50 disabled:opacity-60"
+          style={{ top: revenueBulkPrompt.anchor.top, left: revenueBulkPrompt.anchor.left }}
+          onClick={handleRevenueApplyFillDown}
+          disabled={revenueBulkApplying}
+        >
+          {revenueBulkApplying
+            ? "Applying..."
+            : `Apply to ${selectedRevenueSchedules.length} selected`}
+        </button>
+      ) : null}
 
       {opportunity && (
         <ActivityNoteCreateModal

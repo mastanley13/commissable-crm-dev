@@ -45,6 +45,8 @@ model Tenant {
   roles                   Role[]
   rolePermissions         RolePermission[]
   deposits                Deposit[]
+  depositLineItems        DepositLineItem[]
+  depositLineMatches      DepositLineMatch[]
   systemSettings          SystemSetting[]
   tablePreferences        TablePreference[]
   tickets                 Ticket[]
@@ -296,6 +298,8 @@ model Account {
   deposits                             Deposit[]
   depositsAsDistributor                Deposit[]                @relation("DepositDistributor")
   depositsAsVendor                     Deposit[]                @relation("DepositVendor")
+  depositLineItems                     DepositLineItem[]
+  depositLineItemsAsVendor             DepositLineItem[]        @relation("VendorAccountForDepositLine")
 
   @@unique([tenantId, accountName])
   @@index([tenantId, accountTypeId])
@@ -576,6 +580,7 @@ model Product {
   updatedBy                     User?                @relation("ProductUpdatedBy", fields: [updatedById], references: [id])
   vendor                        Account?             @relation("ProductVendor", fields: [vendorAccountId], references: [id])
   revenueSchedules              RevenueSchedule[]
+  depositLineItems              DepositLineItem[]
 
   @@unique([tenantId, productCode])
   @@index([tenantId, isActive])
@@ -621,6 +626,8 @@ model RevenueSchedule {
   updatedBy                  User?                 @relation("RevenueScheduleUpdatedBy", fields: [updatedById], references: [id])
   vendor                     Account?              @relation("RevenueScheduleVendor", fields: [vendorAccountId], references: [id])
   tickets                    Ticket[]
+  depositLineMatches         DepositLineMatch[]
+  primaryDepositLineItems    DepositLineItem[]     @relation("PrimaryScheduleForDepositLine")
 
   @@index([tenantId, accountId])
   @@index([tenantId, opportunityId])
@@ -684,10 +691,75 @@ model Deposit {
   createdByUser             User?                @relation("DepositCreatedByUser", fields: [createdByUserId], references: [id])
   createdByContact          Contact?             @relation("DepositCreatedByContact", fields: [createdByContactId], references: [id])
   tenant                    Tenant               @relation(fields: [tenantId], references: [id])
+  lineItems                 DepositLineItem[]
 
   @@index([tenantId, accountId, month])
   @@index([tenantId, paymentDate])
   @@index([tenantId, distributorAccountId, vendorAccountId])
+}
+
+model DepositLineItem {
+  id                        String                 @id @default(uuid()) @db.Uuid
+  tenantId                  String                 @db.Uuid
+  depositId                 String                 @db.Uuid
+  primaryRevenueScheduleId  String?                @db.Uuid
+  lineNumber                Int?
+  status                    DepositLineItemStatus  @default(Unmatched)
+  paymentDate               DateTime?
+  accountId                 String?                @db.Uuid
+  vendorAccountId           String?                @db.Uuid
+  productId                 String?                @db.Uuid
+  accountIdVendor           String?
+  customerIdVendor          String?
+  orderIdVendor             String?
+  accountNameRaw            String?
+  vendorNameRaw             String?
+  productNameRaw            String?
+  distributorNameRaw        String?
+  usage                     Decimal?               @db.Decimal(16, 2)
+  usageAllocated            Decimal?               @db.Decimal(16, 2)
+  usageUnallocated          Decimal?               @db.Decimal(16, 2)
+  commission                Decimal?               @db.Decimal(16, 2)
+  commissionAllocated       Decimal?               @db.Decimal(16, 2)
+  commissionUnallocated     Decimal?               @db.Decimal(16, 2)
+  commissionRate            Decimal?               @db.Decimal(7, 4)
+  isChargeback              Boolean                @default(false)
+  createdAt                 DateTime               @default(now())
+  updatedAt                 DateTime               @updatedAt
+  tenant                    Tenant                 @relation(fields: [tenantId], references: [id])
+  deposit                   Deposit                @relation(fields: [depositId], references: [id])
+  account                   Account?               @relation(fields: [accountId], references: [id])
+  vendorAccount             Account?               @relation("VendorAccountForDepositLine", fields: [vendorAccountId], references: [id])
+  product                   Product?               @relation(fields: [productId], references: [id])
+  primaryRevenueSchedule    RevenueSchedule?       @relation("PrimaryScheduleForDepositLine", fields: [primaryRevenueScheduleId], references: [id])
+  matches                   DepositLineMatch[]
+
+  @@index([tenantId, depositId])
+  @@index([tenantId, accountIdVendor])
+  @@index([tenantId, customerIdVendor])
+  @@index([tenantId, orderIdVendor])
+}
+
+model DepositLineMatch {
+  id                String                 @id @default(uuid()) @db.Uuid
+  tenantId          String                 @db.Uuid
+  depositLineItemId String                 @db.Uuid
+  revenueScheduleId String                 @db.Uuid
+  usageAmount       Decimal?               @db.Decimal(16, 2)
+  commissionAmount  Decimal?               @db.Decimal(16, 2)
+  confidenceScore   Float?
+  status            DepositLineMatchStatus @default(Suggested)
+  source            DepositLineMatchSource @default(Auto)
+  explanation       Json?
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+  tenant            Tenant                 @relation(fields: [tenantId], references: [id])
+  depositLineItem   DepositLineItem        @relation(fields: [depositLineItemId], references: [id])
+  revenueSchedule   RevenueSchedule        @relation(fields: [revenueScheduleId], references: [id])
+
+  @@unique([depositLineItemId, revenueScheduleId])
+  @@index([tenantId, depositLineItemId])
+  @@index([tenantId, revenueScheduleId])
 }
 
 model ReconciliationItem {
@@ -1148,6 +1220,25 @@ enum DepositPaymentType {
   Check
   CreditCard
   Other
+}
+
+enum DepositLineItemStatus {
+  Unmatched
+  Suggested
+  Matched
+  PartiallyMatched
+  Ignored
+}
+
+enum DepositLineMatchStatus {
+  Suggested
+  Applied
+  Rejected
+}
+
+enum DepositLineMatchSource {
+  Auto
+  Manual
 }
 
 enum GroupType {

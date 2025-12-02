@@ -12,6 +12,27 @@ function parseEnumValue<T>(value: string | null, allowed: readonly T[]): T | und
   return allowed.find(item => String(item).toLowerCase() === value.toLowerCase())
 }
 
+type ColumnFilter = {
+  columnId: string
+  value: string
+}
+
+function parseColumnFilters(raw: string | null): ColumnFilter[] {
+  if (!raw) return []
+  try {
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return []
+    return parsed
+      .map(item => ({
+        columnId: typeof item?.columnId === "string" ? item.columnId : "",
+        value: typeof item?.value === "string" ? item.value : ""
+      }))
+      .filter(filter => filter.columnId && filter.value.trim().length > 0)
+  } catch {
+    return []
+  }
+}
+
 export async function GET(request: NextRequest) {
   return withPermissions(
     request,
@@ -22,7 +43,8 @@ export async function GET(request: NextRequest) {
 
       const page = Number(searchParams.get('page') ?? '1')
       const pageSize = Number(searchParams.get('pageSize') ?? '25')
-      const search = searchParams.get('search') ?? undefined
+      const rawSearch = searchParams.get('q') ?? searchParams.get('search') ?? undefined
+      const search = rawSearch && rawSearch.trim().length > 0 ? rawSearch.trim() : undefined
       const typeParam = searchParams.get('type')
       const statusParam = searchParams.get('status')
       const includeCompleted = searchParams.get('includeCompleted') === 'true'
@@ -30,6 +52,7 @@ export async function GET(request: NextRequest) {
       const contextId = searchParams.get('contextId') ?? undefined
       const sortBy = searchParams.get('sortBy') === 'createdAt' ? 'createdAt' : 'dueDate'
       const sortDirection = searchParams.get('sortDirection') === 'asc' ? 'asc' : 'desc'
+      const columnFilters = parseColumnFilters(searchParams.get('columnFilters'))
 
       const type = parseEnumValue<ActivityType>(typeParam, Object.values(ActivityType))
       const status = parseEnumValue<ActivityStatus>(statusParam, Object.values(ActivityStatus))
@@ -45,7 +68,8 @@ export async function GET(request: NextRequest) {
         contextType,
         contextId,
         sortBy,
-        sortDirection
+        sortDirection,
+        columnFilters
       })
 
       return NextResponse.json({ data: result.data, pagination: result.pagination })

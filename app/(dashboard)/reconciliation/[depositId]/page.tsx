@@ -1,15 +1,20 @@
 "use client"
 
-import { useEffect, useMemo } from "react"
+import { useEffect, useMemo, useState, useCallback } from "react"
 import { useParams } from "next/navigation"
 import { CopyProtectionWrapper } from "@/components/copy-protection"
-import { DepositReconciliationDetailView } from "@/components/deposit-reconciliation-detail-view"
+import { DepositReconciliationDetailView, type DepositReconciliationMetadata } from "@/components/deposit-reconciliation-detail-view"
 import {
   depositDetailMetadataMock,
-  depositLineItemsMock,
-  suggestedScheduleMatchesMock
+  type DepositLineItemRow,
+  type SuggestedMatchScheduleRow
 } from "@/lib/mock-data"
 import { useBreadcrumbs } from "@/lib/breadcrumb-context"
+
+interface DepositDetailResponse {
+  metadata: DepositReconciliationMetadata
+  lineItems: DepositLineItemRow[]
+}
 
 export default function DepositReconciliationDetailPage() {
   const params = useParams()
@@ -22,12 +27,66 @@ export default function DepositReconciliationDetailPage() {
     return ""
   }, [params])
 
-  const metadata = useMemo(() => {
-    return {
-      ...depositDetailMetadataMock,
-      id: depositParam || depositDetailMetadataMock.id
+  const [metadata, setMetadata] = useState<DepositReconciliationMetadata | null>(null)
+  const [lineItems, setLineItems] = useState<DepositLineItemRow[]>([])
+  const [selectedLineId, setSelectedLineId] = useState<string | null>(null)
+  const [scheduleCandidates, setScheduleCandidates] = useState<SuggestedMatchScheduleRow[]>([])
+  const [loading, setLoading] = useState<boolean>(false)
+  const [error, setError] = useState<string | null>(null)
+  const [candidatesLoading, setCandidatesLoading] = useState<boolean>(false)
+  const [candidatesError, setCandidatesError] = useState<string | null>(null)
+  const [detailRefresh, setDetailRefresh] = useState(0)
+  const [candidatesRefresh, setCandidatesRefresh] = useState(0)
+
+  useEffect(() => {
+    if (!depositParam) return
+    let cancelled = false
+    const controller = new AbortController()
+
+    const loadDetail = async () => {
+      setLoading(true)
+      setError(null)
+      try {
+        const response = await fetch(`/api/reconciliation/deposits/${encodeURIComponent(depositParam)}/detail`, {
+          cache: "no-store",
+          signal: controller.signal
+        })
+        const payload = await response.json().catch(() => null)
+        if (!response.ok) {
+          throw new Error(payload?.error || "Unable to load deposit detail")
+        }
+        if (cancelled) return
+        const data = (payload?.data ?? {}) as DepositDetailResponse
+        setMetadata(data.metadata ?? null)
+        const normalizedLineItems = Array.isArray(data.lineItems) ? data.lineItems : []
+        setLineItems(normalizedLineItems)
+        if (normalizedLineItems.length > 0) {
+          setSelectedLineId(normalizedLineItems[0]!.id)
+        } else {
+          setSelectedLineId(null)
+        }
+      } catch (err: unknown) {
+        if (cancelled) return
+        console.error("Failed to load deposit detail", err)
+        setError(err instanceof Error ? err.message : "Unable to load deposit detail")
+        setMetadata(null)
+        setLineItems([])
+      } finally {
+        if (!cancelled) {
+          setLoading(false)
+        }
+      }
     }
-  }, [depositParam])
+
+    void loadDetail()
+
+    return () => {
+      cancelled = true
+      controller.abort()
+    }
+  }, [depositParam, detailRefresh])
+
+  const breadcrumbName = metadata?.depositName ?? depositDetailMetadataMock.depositName
 
   useEffect(() => {
     setBreadcrumbs([
@@ -37,20 +96,92 @@ export default function DepositReconciliationDetailPage() {
         name: "Deposit Detail",
         href: depositParam ? `/reconciliation/${depositParam}` : "/reconciliation"
       },
-      { name: metadata.depositName, current: true }
+      { name: breadcrumbName, current: true }
     ])
 
     return () => {
       setBreadcrumbs(null)
     }
-  }, [depositParam, metadata.depositName, setBreadcrumbs])
+  }, [depositParam, breadcrumbName, setBreadcrumbs])
+
+  const resolvedMetadata: DepositReconciliationMetadata = metadata ?? {
+    ...depositDetailMetadataMock,
+    id: depositParam || depositDetailMetadataMock.id
+  }
+
+  useEffect(() => {
+    if (!depositParam || !selectedLineId) {
+      setScheduleCandidates([])
+      return
+    }
+    let cancelled = false
+    const controller = new AbortController()
+
+    const loadCandidates = async () => {
+      setCandidatesLoading(true)
+      setCandidatesError(null)
+      try {
+        const response = await fetch(
+          `/api/reconciliation/deposits/${encodeURIComponent(depositParam)}/line-items/${encodeURIComponent(selectedLineId)}/candidates`,
+          {
+            cache: "no-store",
+            signal: controller.signal,
+          }
+        )
+        const payload = await response.json().catch(() => null)
+        if (!response.ok) {
+          throw new Error(payload?.error || "Unable to load suggested matches")
+        }
+        if (cancelled) return
+        const data = Array.isArray(payload?.data) ? (payload.data as SuggestedMatchScheduleRow[]) : []
+        setScheduleCandidates(data)
+      } catch (err: unknown) {
+        if (cancelled) return
+        console.error("Failed to load schedule candidates", err)
+        setCandidatesError(err instanceof Error ? err.message : "Unable to load suggested matches")
+        setScheduleCandidates([])
+      } finally {
+        if (!cancelled) {
+          setCandidatesLoading(false)
+        }
+      }
+    }
+
+    void loadCandidates()
+
+    return () => {
+      cancelled = true
+      controller.abort()
+    }
+  }, [depositParam, selectedLineId, candidatesRefresh])
+
+  const handleLineSelect = useCallback((lineId: string | null) => {
+    setSelectedLineId(lineId)
+  }, [])
+
+  const handleMatchMutation = useCallback(() => {
+    setDetailRefresh(previous => previous + 1)
+    setCandidatesRefresh(previous => previous + 1)
+  }, [])
 
   return (
     <CopyProtectionWrapper className="min-h-screen bg-slate-50">
+      {error ? (
+        <div className="p-4 text-sm text-red-600">{error}</div>
+      ) : null}
+      {candidatesError ? (
+        <div className="px-4 text-xs text-amber-600">{candidatesError}</div>
+      ) : null}
       <DepositReconciliationDetailView
-        metadata={metadata}
-        lineItems={depositLineItemsMock}
-        schedules={suggestedScheduleMatchesMock}
+        metadata={resolvedMetadata}
+        lineItems={metadata ? lineItems : []}
+        schedules={scheduleCandidates}
+        loading={loading || (!metadata && !error)}
+        scheduleLoading={candidatesLoading}
+        selectedLineId={selectedLineId}
+        onLineSelectionChange={handleLineSelect}
+        onMatchApplied={handleMatchMutation}
+        onUnmatchApplied={handleMatchMutation}
       />
     </CopyProtectionWrapper>
   )

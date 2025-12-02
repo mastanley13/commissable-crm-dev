@@ -224,6 +224,11 @@ interface DepositReconciliationDetailViewProps {
   lineItems: DepositLineItemRow[]
   schedules: SuggestedMatchScheduleRow[]
   loading?: boolean
+  scheduleLoading?: boolean
+  selectedLineId?: string | null
+  onLineSelectionChange?: (lineId: string | null) => void
+  onMatchApplied?: () => void
+  onUnmatchApplied?: () => void
 }
 
 interface MetaStatProps {
@@ -254,7 +259,12 @@ export function DepositReconciliationDetailView({
   metadata,
   lineItems,
   schedules,
-  loading = false
+  loading = false,
+  scheduleLoading = false,
+  selectedLineId,
+  onLineSelectionChange,
+  onMatchApplied,
+  onUnmatchApplied
 }: DepositReconciliationDetailViewProps) {
   const { showSuccess, showError, ToastContainer } = useToasts()
   const [lineTab, setLineTab] = useState<LineTabKey>("matched")
@@ -282,8 +292,19 @@ export function DepositReconciliationDetailView({
 
   useEffect(() => {
     setLineItemRows(lineItems)
-    setSelectedLineItems(previous => previous.filter(id => lineItems.some(item => item.id === id)))
-  }, [lineItems])
+    setSelectedLineItems(prev => prev.filter(id => lineItems.some(item => item.id === id)))
+    if (selectedLineId && !lineItems.some(item => item.id === selectedLineId)) {
+      onLineSelectionChange?.(lineItems.length > 0 ? lineItems[0]!.id : null)
+    }
+  }, [lineItems, selectedLineId, onLineSelectionChange])
+
+  useEffect(() => {
+    if (selectedLineId) {
+      setSelectedLineItems([selectedLineId])
+    } else {
+      setSelectedLineItems([])
+    }
+  }, [selectedLineId])
 
   useEffect(() => {
     setScheduleRows(schedules)
@@ -941,25 +962,36 @@ export function DepositReconciliationDetailView({
     setShowScheduleColumnSettings(false)
   }, [])
 
-  const handleLineItemSelect = useCallback((lineId: string, selected: boolean) => {
-    setSelectedLineItems(previous => {
+  const handleLineItemSelect = useCallback(
+    (lineId: string, selected: boolean) => {
       if (selected) {
-        if (previous.includes(lineId)) return previous
-        return [...previous, lineId]
+        setSelectedLineItems([lineId])
+        onLineSelectionChange?.(lineId)
+      } else {
+        setSelectedLineItems([])
+        onLineSelectionChange?.(null)
       }
-      return previous.filter(id => id !== lineId)
-    })
-  }, [])
+    },
+    [onLineSelectionChange]
+  )
 
   const handleLineItemSelectAll = useCallback(
     (selected: boolean) => {
       if (selected) {
-        setSelectedLineItems(filteredLineItems.map(item => item.id))
+        if (filteredLineItems.length > 0) {
+          const firstId = filteredLineItems[0]!.id
+          setSelectedLineItems([firstId])
+          onLineSelectionChange?.(firstId)
+        } else {
+          setSelectedLineItems([])
+          onLineSelectionChange?.(null)
+        }
         return
       }
       setSelectedLineItems([])
+      onLineSelectionChange?.(null)
     },
-    [filteredLineItems]
+    [filteredLineItems, onLineSelectionChange]
   )
 
   const handleScheduleSelect = useCallback((scheduleId: string, selected: boolean) => {
@@ -983,39 +1015,67 @@ export function DepositReconciliationDetailView({
     [filteredSchedules]
   )
 
-  const handleBulkLineMatch = useCallback(() => {
-    if (selectedLineItems.length === 0) {
-      showError("No line items selected", "Select at least one deposit line item to match.")
+  const handleBulkLineMatch = useCallback(async () => {
+    const lineId = selectedLineId ?? selectedLineItems[0]
+    if (!lineId) {
+      showError("No line selected", "Select a deposit line item to match.")
       return
     }
-    setLineItemRows(previous =>
-      previous.map(item =>
-        selectedLineItems.includes(item.id) ? { ...item, status: "Matched" } : item
+    const scheduleId = selectedSchedules[0]
+    if (!scheduleId) {
+      showError("No schedule selected", "Select a suggested schedule to match.")
+      return
+    }
+    try {
+      const response = await fetch(
+        `/api/reconciliation/deposits/${encodeURIComponent(metadata.id)}/line-items/${encodeURIComponent(lineId)}/apply-match`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            revenueScheduleId: scheduleId,
+          }),
+        }
       )
-    )
-    setSelectedLineItems([])
-    showSuccess(
-      `${selectedLineItems.length} line item${selectedLineItems.length === 1 ? "" : "s"} matched`,
-      "The selected line items were marked as Matched."
-    )
-  }, [selectedLineItems, showError, showSuccess])
+      const payload = await response.json().catch(() => null)
+      if (!response.ok) {
+        throw new Error(payload?.error || "Failed to apply match")
+      }
+      setSelectedSchedules([])
+      onMatchApplied?.()
+      showSuccess("Match applied", "The selected line item has been matched to the schedule.")
+    } catch (err) {
+      console.error("Failed to apply match", err)
+      showError("Unable to match", err instanceof Error ? err.message : "Unknown error")
+    }
+  }, [metadata.id, onMatchApplied, selectedLineId, selectedLineItems, selectedSchedules, showError, showSuccess])
 
-  const handleBulkLineUnmatch = useCallback(() => {
-    if (selectedLineItems.length === 0) {
-      showError("No line items selected", "Select at least one deposit line item to update.")
+  const handleBulkLineUnmatch = useCallback(async () => {
+    const lineId = selectedLineId ?? selectedLineItems[0]
+    if (!lineId) {
+      showError("No line selected", "Select a deposit line item to update.")
       return
     }
-    setLineItemRows(previous =>
-      previous.map(item =>
-        selectedLineItems.includes(item.id) ? { ...item, status: "Unreconciled" } : item
+    try {
+      const response = await fetch(
+        `/api/reconciliation/deposits/${encodeURIComponent(metadata.id)}/line-items/${encodeURIComponent(lineId)}/unmatch`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+        }
       )
-    )
-    setSelectedLineItems([])
-    showSuccess(
-      `${selectedLineItems.length} line item${selectedLineItems.length === 1 ? "" : "s"} updated`,
-      "The selected line items were marked as Unreconciled."
-    )
-  }, [selectedLineItems, showError, showSuccess])
+      const payload = await response.json().catch(() => null)
+      if (!response.ok) {
+        throw new Error(payload?.error || "Failed to mark line unmatched")
+      }
+      setSelectedSchedules([])
+      onUnmatchApplied?.()
+      showSuccess("Line reset", "The selected line item was marked as Unreconciled.")
+    } catch (err) {
+      console.error("Failed to unmatch line", err)
+      showError("Unable to mark unmatched", err instanceof Error ? err.message : "Unknown error")
+    }
+  }, [metadata.id, onUnmatchApplied, selectedLineId, selectedLineItems, showError, showSuccess])
 
   const handleBulkLineExport = useCallback(() => {
     if (selectedLineItems.length === 0) {
@@ -1376,7 +1436,7 @@ export function DepositReconciliationDetailView({
               className="flex flex-col"
               columns={scheduleTableColumns}
               data={filteredSchedules}
-              loading={loading}
+              loading={scheduleLoading || loading}
               emptyMessage="No suggested schedules found"
               fillContainerWidth
               maxBodyHeight={normalizedScheduleTableHeight}

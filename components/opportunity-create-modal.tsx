@@ -38,6 +38,7 @@ interface OpportunityFormState {
   estimatedCloseDate: string
   ownerId: string
   leadSource: LeadSource
+  referredBy: string
   shippingAddress: string
   billingAddress: string
   subAgent: string
@@ -83,6 +84,7 @@ const buildInitialForm = (defaultAccountId?: string): OpportunityFormState => ({
   estimatedCloseDate: "",
   ownerId: "",
   leadSource: LeadSource.Referral,
+  referredBy: "",
   shippingAddress: "",
   billingAddress: "",
   subAgent: "",
@@ -129,6 +131,10 @@ export function OpportunityCreateModal({
   const [subagentQuery, setSubagentQuery] = useState("")
   const [subagentsLoading, setSubagentsLoading] = useState(false)
   const [showSubagentDropdown, setShowSubagentDropdown] = useState(false)
+  const [referredByOptions, setReferredByOptions] = useState<SelectOption[]>([])
+  const [referredByQuery, setReferredByQuery] = useState("")
+  const [showReferredByDropdown, setShowReferredByDropdown] = useState(false)
+  const [referredByLoading, setReferredByLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
 
   const { showError, showSuccess } = useToasts()
@@ -404,6 +410,7 @@ export function OpportunityCreateModal({
         estimatedCloseDate: form.estimatedCloseDate,
         ownerId: form.ownerId,
         leadSource: form.leadSource,
+        referredBy: normalizeString(form.referredBy),
         subAgent: form.subAgent.trim() || null,
         description: normalizeString(form.description),
         shippingAddress: normalizeString(form.shippingAddress),
@@ -491,12 +498,56 @@ export function OpportunityCreateModal({
     return () => { controller.abort(); clearTimeout(debounce) }
   }, [isOpen, subagentQuery])
 
-  // Reset subagent UI when opening/closing
+  // Fetch referred by options when user types
+  useEffect(() => {
+    if (!isOpen || referredByQuery.trim().length < 2) {
+      setReferredByOptions([])
+      return
+    }
+
+    const controller = new AbortController()
+    const fetchReferredByOptions = async () => {
+      setReferredByLoading(true)
+      try {
+        const params = new URLSearchParams({ q: referredByQuery.trim() })
+        const response = await fetch(`/api/opportunities/referred-by?${params.toString()}`, {
+          cache: "no-store",
+          signal: controller.signal
+        })
+
+        if (!response.ok) {
+          throw new Error("Failed to load referral options")
+        }
+
+        const payload = await response.json()
+        const results = Array.isArray(payload?.data) ? payload.data : []
+        setReferredByOptions(results)
+      } catch (error: any) {
+        if (error.name !== "AbortError") {
+          console.error("Error fetching referred by options:", error)
+          setReferredByOptions([])
+        }
+      } finally {
+        setReferredByLoading(false)
+      }
+    }
+
+    const debounce = setTimeout(fetchReferredByOptions, 300)
+    return () => {
+      clearTimeout(debounce)
+      controller.abort()
+    }
+  }, [isOpen, referredByQuery])
+
+  // Reset subagent and referred by UI when opening/closing
   useEffect(() => {
     if (!isOpen) return
     setSubagentQuery("")
     setSubagents([])
     setShowSubagentDropdown(false)
+    setReferredByQuery("")
+    setReferredByOptions([])
+    setShowReferredByDropdown(false)
   }, [isOpen])
 
   if (!isOpen) {
@@ -540,12 +591,13 @@ export function OpportunityCreateModal({
 
               <div>
                 <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">
-                  Referred By<span className="ml-1 text-red-500">*</span>
+                  Lead Source<span className="ml-1 text-red-500">*</span>
                 </label>
                 <select
                   value={form.leadSource}
                   onChange={event => setForm(previous => ({ ...previous, leadSource: event.target.value as LeadSource }))}
                   className={inputClass}
+                  required
                 >
                   {leadSourceOptions.map(option => (
                     <option key={option.value} value={option.value}>
@@ -553,6 +605,47 @@ export function OpportunityCreateModal({
                     </option>
                   ))}
                 </select>
+              </div>
+
+              <div className="relative">
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                  Referred By
+                </label>
+                <input
+                  type="text"
+                  value={referredByQuery}
+                  onChange={e => {
+                    setReferredByQuery(e.target.value)
+                    setForm(previous => ({ ...previous, referredBy: e.target.value }))
+                    setShowReferredByDropdown(true)
+                  }}
+                  onFocus={() => setShowReferredByDropdown(true)}
+                  onBlur={() => setTimeout(() => setShowReferredByDropdown(false), 200)}
+                  placeholder="Type to search contacts or accounts..."
+                  className={inputClass}
+                />
+
+                {showReferredByDropdown && referredByQuery.length >= 2 && referredByOptions.length > 0 && (
+                  <div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
+                    {referredByLoading && (
+                      <div className="px-3 py-2 text-sm text-gray-500">Searching...</div>
+                    )}
+                    {!referredByLoading && referredByOptions.map(option => (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => {
+                          setForm(previous => ({ ...previous, referredBy: option.value }))
+                          setReferredByQuery(option.value)
+                          setShowReferredByDropdown(false)
+                        }}
+                        className="w-full px-3 py-2 text-left text-sm hover:bg-primary-50 focus:bg-primary-50 focus:outline-none"
+                      >
+                        <div className="font-medium text-gray-900">{option.label}</div>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div>

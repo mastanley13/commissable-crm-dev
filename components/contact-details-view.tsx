@@ -3848,14 +3848,27 @@ function EditableContactHeaderV2({
           label="Email Address"
           value={
             <div className="max-w-md w-full">
-              <EditableField.Input
-                className="h-[28px] py-0 text-[11px]"
-                type="email"
-                value={(emailField.value as string) ?? ""}
-                onChange={emailField.onChange}
-                onBlur={emailField.onBlur}
-                placeholder="name@example.com"
-              />
+              <div className="flex items-center gap-2">
+                <div className="flex-1">
+                  <EditableField.Input
+                    className="h-[28px] py-0 text-[11px]"
+                    type="email"
+                    value={(emailField.value as string) ?? ""}
+                    onChange={emailField.onChange}
+                    onBlur={emailField.onBlur}
+                    placeholder="name@example.com"
+                  />
+                </div>
+                {contact.emailAddress && (
+                  <a
+                    href={`mailto:${contact.emailAddress}`}
+                    className="text-primary-600 hover:text-primary-700 transition-colors text-xs underline shrink-0"
+                    title="Send email"
+                  >
+                    Send Email
+                  </a>
+                )}
+              </div>
               {editor.errors.emailAddress ? (
                 <p className="text-[10px] text-red-600">{editor.errors.emailAddress}</p>
               ) : null}
@@ -3885,6 +3898,15 @@ function EditableContactHeaderV2({
                     ))}
                   </EditableField.Select>
                 </div>
+                {contact.accountId && (
+                  <Link
+                    href={`/accounts/${contact.accountId}`}
+                    className="text-primary-600 hover:text-primary-700 transition-colors text-xs underline"
+                    title="View account details"
+                  >
+                    View Account
+                  </Link>
+                )}
                 <div className="flex items-center gap-2 shrink-0 bg-transparent px-0 py-0 text-[11px] font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap">
                   <span>Active (Y/N)</span>
                   <ReadOnlySwitch value={contact.active} />
