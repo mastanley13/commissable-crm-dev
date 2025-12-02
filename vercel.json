@@ -1,7 +1,7 @@
 {
   "name": "commissable-crm",
   "framework": "nextjs",
-  "installCommand": "npm install --omit=dev",
+  "installCommand": "npm install",
   "buildCommand": "npx prisma generate && npm run build",
   "env": {
     "NODE_ENV": "production"
