@@ -1653,7 +1653,7 @@ export function DepositReconciliationDetailView({
               <button
                 type="button"
                 onClick={() => setShowUnreconcilePreview(true)}
-                disabled={unfinalizeLoading || !metadata.reconciled}
+                disabled={unfinalizeLoading}
                 className={cn(
                   "inline-flex items-center justify-center rounded border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50",
                   unfinalizeLoading ? "cursor-not-allowed opacity-60" : "",
