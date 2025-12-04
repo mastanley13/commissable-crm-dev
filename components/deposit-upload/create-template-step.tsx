@@ -101,12 +101,15 @@ export function CreateTemplateStep({
   const canCreateTemplate = accountsSelected && Boolean(formState.createdByContactId)
   const templateInputValue = templateQuery.length > 0 ? templateQuery : formState.templateLabel
 
-  const clearTemplateSelection = (resetQuery: boolean = true) => {
-    if (resetQuery) {
-      setTemplateQuery('')
-    }
-    onFormStateChange({ templateId: '', templateLabel: '' })
-  }
+  const clearTemplateSelection = useCallback(
+    (resetQuery: boolean = true) => {
+      if (resetQuery) {
+        setTemplateQuery('')
+      }
+      onFormStateChange({ templateId: '', templateLabel: '' })
+    },
+    [onFormStateChange],
+  )
 
   const handleTemplateCreated = (template: TemplateResponse) => {
     const option = formatTemplateOption(template)
@@ -125,6 +128,15 @@ export function CreateTemplateStep({
     onFormStateChange({ createdByContactId: option.value, createdByLabel: option.label })
     setShowCreatedByDropdown(false)
     setShouldAutoFillCreatedBy(false)
+  }
+
+  const handleCustomerSelect = (option: AccountOption) => {
+    setCustomerQuery(option.label)
+    onFormStateChange({
+      customerAccountId: option.value,
+      customerLabel: option.label,
+    })
+    setShowCustomerDropdown(false)
   }
 
   const handleDistributorSelect = (option: AccountOption) => {
@@ -368,7 +380,7 @@ export function CreateTemplateStep({
     return () => {
       clearTimeout(debounce)
     }
-  }, [templateQuery, fetchTemplates, formState.distributorAccountId, formState.vendorAccountId])
+  }, [templateQuery, fetchTemplates, formState.distributorAccountId, formState.vendorAccountId, clearTemplateSelection])
 
   return (
     <div className="space-y-4">

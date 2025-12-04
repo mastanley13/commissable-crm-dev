@@ -814,7 +814,7 @@ export const depositLineItemsMock: DepositLineItemRow[] = [
   },
   {
     id: 'dli-1006',
-    status: 'Unreconciled',
+    status: 'Unmatched',
     paymentDate: '2025-02-04',
     accountName: 'Loxo Partners',
     vendorName: 'Lingo',
