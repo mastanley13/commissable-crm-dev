@@ -831,4 +831,5 @@ function computePassBScore(
 |------|---------|---------|
 | 2025-12-04 | 1.0 | Initial plan created |
 | 2025-12-04 | 1.1 | Added: Executive Summary, Critical Decisions section, Field Availability Analysis, Quick Start Path, Code Snippets, Table of Contents. Reorganized phases with integrated testing. Added feature flag recommendation and estimated durations. |
+| 2025-12-04 | 1.2 | Updated Quick Start Path to reflect implemented behavior: hierarchical engine wired into `/candidates` behind feature flag + dev toggles, Pass A exact matches combined with Pass B fuzzy suggestions (cutoff 0.5), and candidate retrieval hardening (status/date/commission filters, future-date option). Added notes that Location ID/Customer PO and Product Description are planned but not yet fully populated. |
 | 2025-12-04 | 1.2 | Updated Quick Start Path to reflect implemented behavior: hierarchical engine wired into `/candidates` behind feature flag + dev toggles, Pass A exact matches combined with Pass B fuzzy suggestions (≥0.5 confidence), and candidate retrieval hardening (status/date/commission filters, future-date option). |

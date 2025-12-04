@@ -3,7 +3,7 @@
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu"
 import { Check, ChevronDown } from "lucide-react"
 
-type DepositLineStatusFilterValue = "matched" | "unmatched" | "partial" | "all"
+type DepositLineStatusFilterValue = "suggested" | "unmatched" | "matched" | "reconciled" | "all"
 type DropdownSize = "default" | "compact"
 
 interface DepositLineStatusFilterDropdownProps {
@@ -13,9 +13,10 @@ interface DepositLineStatusFilterDropdownProps {
 }
 
 const statusOptions: Array<{ id: DepositLineStatusFilterValue; label: string }> = [
-  { id: "matched", label: "Matched" },
+  { id: "suggested", label: "Suggested" },
   { id: "unmatched", label: "Unmatched" },
-  { id: "partial", label: "Partial" },
+  { id: "matched", label: "Matched" },
+  { id: "reconciled", label: "Reconciled" },
   { id: "all", label: "All" }
 ]
 

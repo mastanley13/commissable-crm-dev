@@ -1,4 +1,4 @@
-import { PrismaClient, DepositLineItemStatus } from "@prisma/client"
+import { PrismaClient, DepositLineItemStatus, RevenueScheduleStatus } from "@prisma/client"
 import { matchDepositLine } from "@/lib/matching/deposit-matcher"
 
 const prisma = new PrismaClient()
@@ -176,10 +176,10 @@ async function main() {
         vendorAccountId: deposit.vendorAccountId ?? deposit.accountId,
         scheduleNumber: cfg.scheduleNumber,
         scheduleDate: addDays(scheduleBaseDate, cfg.dateOffsetDays),
-        scheduleType: "Recurring",
-        expectedUsage: cfg.expectedUsage,
-        expectedCommission: cfg.expectedCommission,
-        status: "Projected",
+      scheduleType: "Recurring",
+      expectedUsage: cfg.expectedUsage,
+      expectedCommission: cfg.expectedCommission,
+      status: RevenueScheduleStatus.Unreconciled,
         notes: "Test schedule for Telarus/Lingo 2025-08 deposit matching scenarios",
       },
       update: {
@@ -194,7 +194,7 @@ async function main() {
         scheduleDate: addDays(scheduleBaseDate, cfg.dateOffsetDays),
         expectedUsage: cfg.expectedUsage,
         expectedCommission: cfg.expectedCommission,
-        status: "Projected",
+        status: RevenueScheduleStatus.Unreconciled,
         notes: "Test schedule for Telarus/Lingo 2025-08 deposit matching scenarios",
       },
     })

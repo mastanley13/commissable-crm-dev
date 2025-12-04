@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/db'
-import { AccountStatus, UserStatus, AuditAction } from '@prisma/client'
+import { AccountStatus, UserStatus, AuditAction, RevenueScheduleStatus } from '@prisma/client'
 
 // Types for deletion system
 export interface DeletionConstraint {
@@ -161,7 +161,7 @@ export const RelationshipChecks: Record<string, EntityRelationshipCheck> = {
         where: {
           tenantId,
           accountId,
-          status: { in: ['Projected', 'Invoiced'] }
+          status: { in: [RevenueScheduleStatus.Unreconciled, RevenueScheduleStatus.Underpaid, RevenueScheduleStatus.Overpaid] }
         }
       })
 
@@ -315,7 +315,7 @@ export const RelationshipChecks: Record<string, EntityRelationshipCheck> = {
         where: {
           tenantId,
           opportunityId,
-          status: { in: ['Projected', 'Invoiced'] }
+          status: { in: [RevenueScheduleStatus.Unreconciled, RevenueScheduleStatus.Underpaid, RevenueScheduleStatus.Overpaid] }
         }
       })
 

@@ -13,6 +13,9 @@ const candidateScheduleInclude = {
       partNumberVendor: true,
       partNumberHouse: true,
       partNumberDistributor: true,
+      productDescriptionVendor: true,
+      productDescriptionDistributor: true,
+      description: true,
     },
   },
   opportunity: {
@@ -25,6 +28,8 @@ const candidateScheduleInclude = {
       orderIdDistributor: true,
       distributorName: true,
       vendorName: true,
+      locationId: true,
+      customerPurchaseOrder: true,
     },
   },
 } satisfies Prisma.RevenueScheduleInclude
@@ -72,6 +77,7 @@ export interface ScoredCandidate {
 export interface MatchDepositLineResult {
   lineItem: NonNullable<DepositLineWithRelations>
   appliedMatchScheduleId?: string
+  appliedMatchReconciled?: boolean
   candidates: ScoredCandidate[]
 }
 
@@ -140,16 +146,53 @@ export async function matchDepositLine(
     allowCrossVendorFallback,
   })
 
-  const appliedMatchScheduleId = lineItem.matches.find(
-    (match) => match.status === DepositLineMatchStatus.Applied,
-  )?.revenueScheduleId
+  const appliedMatch = lineItem.matches.find(
+    match => match.status === DepositLineMatchStatus.Applied,
+  )
+  const appliedMatchScheduleId = appliedMatch?.revenueScheduleId
+  const appliedMatchReconciled = Boolean(appliedMatch?.reconciled)
 
-  const scored = useHierarchical
+  let scored = useHierarchical
     ? runHierarchicalScoring(lineItem, candidates, {
       limit: resultLimit,
       varianceTolerance,
     })
     : runLegacyScoring(lineItem, candidates, { limit: resultLimit })
+
+  if (appliedMatchScheduleId && scored.every(candidate => candidate.revenueScheduleId !== appliedMatchScheduleId)) {
+    const appliedSchedule = await prisma.revenueSchedule.findFirst({
+      where: { id: appliedMatchScheduleId, tenantId: lineItem.deposit?.tenantId ?? lineItem.tenantId },
+      include: candidateScheduleInclude,
+    })
+
+    if (appliedSchedule) {
+      const base = buildCandidateBase(lineItem, appliedSchedule)
+      const injected: ScoredCandidate = {
+        ...base,
+        matchConfidence: 1,
+        matchType: "legacy",
+        confidenceLevel: "high",
+        expectedUsageAdjustment: base.expectedUsageAdjustment,
+        actualUsageAdjustment: base.actualUsageAdjustment,
+        expectedCommissionAdjustment: base.expectedCommissionAdjustment,
+        actualCommissionAdjustment: base.actualCommissionAdjustment,
+        reasons: ["Previously matched schedule"],
+        signals: [
+          {
+            id: "existing_match",
+            score: 1,
+            weight: 1,
+            contribution: 1,
+            description: "Existing applied match",
+          },
+        ],
+      }
+      scored = [injected, ...scored]
+      if (scored.length > resultLimit) {
+        scored = scored.slice(0, resultLimit)
+      }
+    }
+  }
 
   if (options.debugLog ?? isMatchingDebugEnabled()) {
     logCandidatesDebug(lineItem.id, scored)
@@ -158,6 +201,7 @@ export async function matchDepositLine(
   return {
     lineItem,
     appliedMatchScheduleId,
+    appliedMatchReconciled,
     candidates: scored,
   }
 }
@@ -166,28 +210,42 @@ function computeProductIdentitySimilarity(
   lineItem: NonNullable<DepositLineWithRelations>,
   schedule: RevenueScheduleWithRelations,
 ) {
-  const lineProductName =
-    lineItem.productNameRaw ??
-    lineItem.product?.productNameVendor ??
-    lineItem.product?.productNameHouse ??
-    ""
-  const scheduleProductName =
-    schedule.product?.productNameVendor ?? schedule.product?.productNameHouse ?? ""
-  const productNameSim = computeNameSimilarity(lineProductName, scheduleProductName)
+  const lineNames = [
+    lineItem.productNameRaw,
+    lineItem.product?.productNameVendor,
+    lineItem.product?.productNameHouse,
+  ]
+  const scheduleNames = [
+    schedule.product?.productNameVendor,
+    schedule.product?.productNameHouse,
+  ]
+  const productNameSim = computeBestStringSimilarity(lineNames, scheduleNames)
 
-  const linePartNumber =
-    lineItem.product?.partNumberVendor ??
-    lineItem.product?.partNumberHouse ??
-    lineItem.product?.partNumberDistributor ??
-    ""
-  const schedulePartNumber =
-    schedule.product?.partNumberVendor ??
-    schedule.product?.partNumberHouse ??
-    schedule.product?.partNumberDistributor ??
-    ""
-  const partNumberSim = computeNameSimilarity(linePartNumber, schedulePartNumber)
+  const linePartNumbers = [
+    lineItem.product?.partNumberVendor,
+    lineItem.product?.partNumberHouse,
+    lineItem.product?.partNumberDistributor,
+  ]
+  const schedulePartNumbers = [
+    schedule.product?.partNumberVendor,
+    schedule.product?.partNumberHouse,
+    schedule.product?.partNumberDistributor,
+  ]
+  const partNumberSim = computeBestStringSimilarity(linePartNumbers, schedulePartNumbers)
 
-  return Math.max(productNameSim, partNumberSim)
+  const lineDescriptions = [
+    lineItem.product?.productDescriptionVendor,
+    lineItem.product?.productDescriptionDistributor,
+    lineItem.product?.description,
+  ]
+  const scheduleDescriptions = [
+    schedule.product?.productDescriptionVendor,
+    schedule.product?.productDescriptionDistributor,
+    schedule.product?.description,
+  ]
+  const descriptionSim = computeBestStringSimilarity(lineDescriptions, scheduleDescriptions)
+
+  return Math.max(productNameSim, partNumberSim, descriptionSim)
 }
 
 function checkAccountLegalExact(
@@ -228,6 +286,21 @@ function checkAccountIdExact(
   return Boolean(lineAccountId && scheduleAccountId && lineAccountId === scheduleAccountId)
 }
 
+function checkLocationOrPoExact(
+  lineItem: NonNullable<DepositLineWithRelations>,
+  schedule: RevenueScheduleWithRelations,
+) {
+  const lineLocation = cleanId(lineItem.locationId)
+  const scheduleLocation = cleanId(schedule.opportunity?.locationId)
+  const locationMatch = Boolean(lineLocation && scheduleLocation && lineLocation === scheduleLocation)
+
+  const linePo = cleanId(lineItem.customerPurchaseOrder)
+  const schedulePo = cleanId(schedule.opportunity?.customerPurchaseOrder)
+  const poMatch = Boolean(linePo && schedulePo && linePo === schedulePo)
+
+  return locationMatch || poMatch
+}
+
 function hasStrongIdConflict(
   lineItem: NonNullable<DepositLineWithRelations>,
   schedule: RevenueScheduleWithRelations,
@@ -242,22 +315,25 @@ function hasStrongIdConflict(
     return true
   }
 
-  const customerId = cleanId(lineItem.customerIdVendor)
-  const scheduleCustomerIds = [
-    schedule.opportunity?.customerIdVendor,
-    schedule.opportunity?.customerIdHouse,
-    schedule.opportunity?.customerIdDistributor,
-  ]
-    .map(cleanId)
-    .filter(Boolean)
-
-  if (customerId && scheduleCustomerIds.length && !scheduleCustomerIds.includes(customerId)) {
-    return true
-  }
+  // Customer IDs remain a positive signal (see checkCustomerIdExact) but
+  // do not create a hard conflict. Real-world deposits often carry alternate
+  // customer identifiers, and we still want fuzzy suggestions in those cases.
 
   const accountId = cleanId(lineItem.accountId)
   const scheduleAccountId = cleanId(schedule.accountId)
   if (accountId && scheduleAccountId && accountId !== scheduleAccountId) {
+    return true
+  }
+
+  const lineLocation = cleanId(lineItem.locationId)
+  const scheduleLocation = cleanId(schedule.opportunity?.locationId)
+  if (lineLocation && scheduleLocation && lineLocation !== scheduleLocation) {
+    return true
+  }
+
+  const linePo = cleanId(lineItem.customerPurchaseOrder)
+  const schedulePo = cleanId(schedule.opportunity?.customerPurchaseOrder)
+  if (linePo && schedulePo && linePo !== schedulePo) {
     return true
   }
 
@@ -409,8 +485,10 @@ type SuggestedRowWithSignals = SuggestedMatchScheduleRow & {
 export function candidatesToSuggestedRows(
   lineItem: NonNullable<DepositLineWithRelations>,
   candidates: ScoredCandidate[],
-  appliedScheduleId?: string | null,
+  appliedMatch?: { scheduleId?: string | null; reconciled?: boolean },
 ): SuggestedRowWithSignals[] {
+  const appliedScheduleId = appliedMatch?.scheduleId ?? null
+  const appliedScheduleReconciled = Boolean(appliedMatch?.reconciled)
   return candidates.map(candidate => {
     const expectedUsageNet = candidate.expectedUsage + candidate.expectedUsageAdjustment
     const actualUsageNet = candidate.actualUsage + candidate.actualUsageAdjustment
@@ -422,11 +500,26 @@ export function candidatesToSuggestedRows(
       expectedUsageNet !== 0 ? expectedCommissionNet / expectedUsageNet : 0
     const actualCommissionRate = actualUsageNet !== 0 ? actualCommissionNet / actualUsageNet : 0
 
+    const existingMatch = lineItem.matches?.find(
+      match => match.revenueScheduleId === candidate.revenueScheduleId,
+    )
+    const isAppliedCandidate =
+      Boolean(appliedScheduleId) && candidate.revenueScheduleId === appliedScheduleId
+    const status: SuggestedMatchScheduleRow["status"] = isAppliedCandidate
+      ? appliedScheduleReconciled
+        ? "Reconciled"
+        : "Matched"
+      : "Suggested"
+
     return {
       id: candidate.revenueScheduleId,
-      status: appliedScheduleId === candidate.revenueScheduleId ? "Reconciled" : "Suggested",
+      status,
       lineItem: lineItem.lineNumber ?? 0,
       matchConfidence: candidate.matchConfidence,
+      matchType: candidate.matchType,
+      matchSource: existingMatch?.source ?? null,
+      reasons: candidate.reasons,
+      confidenceLevel: candidate.confidenceLevel,
       vendorName: candidate.vendorName ?? "",
       legalName: candidate.accountLegalName ?? candidate.accountName ?? "",
       productNameVendor: candidate.productNameVendor ?? "",
@@ -449,8 +542,6 @@ export function candidatesToSuggestedRows(
       actualCommissionRatePercent: actualCommissionRate,
       commissionRateDifference: expectedCommissionRate - actualCommissionRate,
       signals: candidate.signals,
-      reasons: candidate.reasons,
-      confidenceLevel: candidate.confidenceLevel,
     }
   })
 }
@@ -478,9 +569,12 @@ async function fetchDepositLine(depositLineItemId: string) {
           partNumberVendor: true,
           partNumberHouse: true,
           partNumberDistributor: true,
+          productDescriptionVendor: true,
+          productDescriptionDistributor: true,
+          description: true,
         },
       },
-      matches: { select: { revenueScheduleId: true, status: true } },
+      matches: { select: { revenueScheduleId: true, status: true, source: true, confidenceScore: true, reconciled: true } },
     },
   })
 }
@@ -490,15 +584,22 @@ async function fetchCandidateSchedules(
   options: { dateWindowMonths: number; take: number; includeFutureSchedules?: boolean; allowCrossVendorFallback?: boolean },
 ) {
   const referenceDate = getReferenceDate(lineItem)
+  const tenantId = lineItem.deposit?.tenantId ?? lineItem.tenantId
   const fromDate = addMonths(referenceDate, -options.dateWindowMonths)
   const toDate = options.includeFutureSchedules
     ? addMonths(endOfMonth(referenceDate), options.dateWindowMonths)
     : endOfMonth(referenceDate)
 
   const strictWhere: Prisma.RevenueScheduleWhereInput = {
-    tenantId: lineItem.tenantId,
+    tenantId,
     scheduleDate: { gte: fromDate, lte: toDate },
-    status: { in: [RevenueScheduleStatus.Projected, RevenueScheduleStatus.Invoiced] },
+    status: {
+      in: [
+        RevenueScheduleStatus.Unreconciled,
+        RevenueScheduleStatus.Underpaid,
+        RevenueScheduleStatus.Overpaid,
+      ],
+    },
   }
 
   if (lineItem.deposit?.distributorAccountId) {
@@ -527,9 +628,15 @@ async function fetchCandidateSchedules(
 
   if (schedules.length === 0 && options.allowCrossVendorFallback) {
     const fallbackWhere: Prisma.RevenueScheduleWhereInput = {
-      tenantId: lineItem.tenantId,
+      tenantId,
       scheduleDate: { gte: fromDate, lte: toDate },
-      status: { in: [RevenueScheduleStatus.Projected, RevenueScheduleStatus.Invoiced] },
+      status: {
+        in: [
+          RevenueScheduleStatus.Unreconciled,
+          RevenueScheduleStatus.Underpaid,
+          RevenueScheduleStatus.Overpaid,
+        ],
+      },
     }
 
     const fallbackSchedules = await prisma.revenueSchedule.findMany({
@@ -662,13 +769,18 @@ function buildPassACandidate(
   const orderIdExact = hasOrderIdMatch(lineItem.orderIdVendor, schedule)
   const customerIdExact = checkCustomerIdExact(lineItem, schedule)
   const accountIdExact = checkAccountIdExact(lineItem, schedule)
+  const locationOrPoExact = checkLocationOrPoExact(lineItem, schedule)
 
-  signals.push(buildBooleanSignal("account_legal_exact", accountLegalExact, 0.25, "Account legal name matches"))
-  signals.push(buildBooleanSignal("order_id_exact", orderIdExact, 0.25, "Order ID matches"))
-  signals.push(buildBooleanSignal("customer_id_exact", customerIdExact, 0.25, "Customer ID matches"))
-  signals.push(buildBooleanSignal("account_id_exact", accountIdExact, 0.25, "Account ID matches"))
+  signals.push(buildBooleanSignal("account_legal_exact", accountLegalExact, 0.2, "Account legal name matches"))
+  signals.push(buildBooleanSignal("order_id_exact", orderIdExact, 0.2, "Order ID matches"))
+  signals.push(buildBooleanSignal("customer_id_exact", customerIdExact, 0.2, "Customer ID matches"))
+  signals.push(buildBooleanSignal("account_id_exact", accountIdExact, 0.2, "Account ID matches"))
+  signals.push(
+    buildBooleanSignal("location_or_po_exact", locationOrPoExact, 0.2, "Location ID or Customer PO matches"),
+  )
 
-  const hasStrongMatch = accountLegalExact || orderIdExact || customerIdExact || accountIdExact
+  const hasStrongMatch =
+    accountLegalExact || orderIdExact || customerIdExact || accountIdExact || locationOrPoExact
   if (!hasStrongMatch) return null
 
   const amountScore = Math.max(
@@ -809,6 +921,22 @@ function computeNameSimilarity(a: string, b: string) {
   })
   const denominator = Math.max(tokensA.size, tokensB.size)
   return intersection / denominator
+}
+
+function computeBestStringSimilarity(
+  lineValues: Array<string | null | undefined>,
+  scheduleValues: Array<string | null | undefined>,
+) {
+  let best = 0
+  for (const a of lineValues) {
+    if (!a) continue
+    for (const b of scheduleValues) {
+      if (!b) continue
+      best = Math.max(best, computeNameSimilarity(a, b))
+      if (best === 1) return 1
+    }
+  }
+  return best
 }
 
 function amountProximity(lineAmount: number, expectedAmount: number) {

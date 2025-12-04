@@ -1,4 +1,4 @@
-import type { Prisma, RevenueScheduleStatus } from "@prisma/client"
+import { Prisma, RevenueScheduleStatus } from "@prisma/client"
 import { getRevenueTypeLabel } from "@/lib/revenue-types"
 
 export type RevenueScheduleWithRelations = Prisma.RevenueScheduleGetPayload<{
@@ -102,9 +102,12 @@ export interface RevenueScheduleListItem {
   scheduleStatus: string
   inDispute: boolean
   quantity: string | null
+  quantityRaw?: number | null
   priceEach: string | null
+  unitPriceRaw?: number | null
   expectedUsageGross: string | null
   expectedUsageAdjustment: string | null
+  usageAdjustmentRaw?: number | null
   expectedUsage?: string | null
   usageAdjustment?: string | null
   expectedUsageNet: string | null
@@ -236,20 +239,29 @@ function formatAddress(address?: {
   return parts.join(", ")
 }
 
-function mapStatus(status: RevenueScheduleStatus | null | undefined, usageBalance: number, commissionDifference: number): {
+function mapStatus(
+  status: RevenueScheduleStatus | null | undefined,
+  usageBalance: number,
+  commissionDifference: number,
+): {
   status: string
   inDispute: boolean
 } {
   const hasVariance = Math.abs(usageBalance) > 0.005 || Math.abs(commissionDifference) > 0.005
-  if (status === "Paid") {
+
+  if (status === RevenueScheduleStatus.Reconciled) {
     return { status: "Reconciled", inDispute: false }
   }
 
-  if (status === "Cancelled") {
-    return { status: "In Dispute", inDispute: true }
+  if (status === RevenueScheduleStatus.Overpaid) {
+    return { status: "Overpaid", inDispute: true }
   }
 
-  return { status: "Open", inDispute: hasVariance }
+  if (status === RevenueScheduleStatus.Underpaid) {
+    return { status: "Underpaid", inDispute: hasVariance }
+  }
+
+  return { status: "Unreconciled", inDispute: hasVariance }
 }
 
 function extractSubagentName(description: string | null | undefined): string | null {
@@ -272,8 +284,10 @@ export function mapRevenueScheduleToListItem(schedule: RevenueScheduleWithRelati
   const statusInfo = mapStatus(schedule.status, usageBalance, commissionDifference)
 
   const quantity = schedule.opportunityProduct?.quantity ?? null
-  const quantityValue = quantity !== null ? formatNumber(quantity) : null
+  const quantityNumber = quantity !== null ? toNumber(quantity) : null
+  const quantityValue = quantityNumber !== null ? formatNumber(quantityNumber) : null
   const unitPrice = schedule.opportunityProduct?.unitPrice ?? schedule.product?.priceEach ?? null
+  const unitPriceNumber = unitPrice !== null ? toNumber(unitPrice) : null
 
   return {
     id: schedule.id,
@@ -288,10 +302,13 @@ export function mapRevenueScheduleToListItem(schedule: RevenueScheduleWithRelati
     opportunityName: schedule.opportunity?.name ?? null,
     scheduleStatus: statusInfo.status,
     inDispute: statusInfo.inDispute,
-    quantity: quantityValue,
-    priceEach: formatCurrency(unitPrice),
-    expectedUsageGross: formatCurrency(expectedUsage),
-    expectedUsageAdjustment: formatCurrency(usageAdjustment),
+      quantity: quantityValue,
+      quantityRaw: quantityNumber,
+      priceEach: formatCurrency(unitPriceNumber),
+      unitPriceRaw: unitPriceNumber,
+      expectedUsageGross: formatCurrency(expectedUsage),
+      expectedUsageAdjustment: formatCurrency(usageAdjustment),
+      usageAdjustmentRaw: usageAdjustment,
     expectedUsage: formatCurrency(expectedUsage),
     usageAdjustment: formatCurrency(usageAdjustment),
     expectedUsageNet: formatCurrency(expectedUsageNet),
@@ -309,7 +326,7 @@ export function mapRevenueScheduleToListItem(schedule: RevenueScheduleWithRelati
     orderIdVendor: schedule.opportunity?.orderIdVendor ?? null,
     orderIdHouse: schedule.orderIdHouse ?? schedule.opportunity?.orderIdHouse ?? null,
     locationId: schedule.opportunity?.locationId ?? schedule.account?.accountNumber ?? null,
-    active: schedule.status !== "Cancelled"
+    active: schedule.status !== RevenueScheduleStatus.Reconciled
   }
 }
 

@@ -13,7 +13,11 @@ import { useToasts } from '@/components/toast'
 import { calculateMinWidth } from '@/lib/column-width-utils'
 import { StatusFilterDropdown } from '@/components/status-filter-dropdown'
 import type { BulkActionsGridProps } from '@/components/bulk-actions-grid'
-import { RevenueScheduleCloneModal } from '@/components/revenue-schedule-clone-modal'
+import {
+  RevenueScheduleCloneModal,
+  type CloneParameters,
+  type SourceScheduleData,
+} from '@/components/revenue-schedule-clone-modal'
 
 // Local UUID v1-v5 matcher used to detect schedule IDs vs. human codes
 const UUID_REGEX = /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i
@@ -273,6 +277,7 @@ export default function RevenueSchedulesPage() {
   const [cloneModalOpen, setCloneModalOpen] = useState(false)
   const [cloneTargetId, setCloneTargetId] = useState<string | null>(null)
   const [cloneDefaultDate, setCloneDefaultDate] = useState<string>('')
+  const [cloneSourceSchedule, setCloneSourceSchedule] = useState<SourceScheduleData | undefined>(undefined)
   const [showColumnSettings, setShowColumnSettings] = useState(false)
   const [currentPage, setCurrentPage] = useState<number>(1)
   const [pageSize, setPageSize] = useState<number>(25)
@@ -289,6 +294,24 @@ export default function RevenueSchedulesPage() {
     }
     return revenueSchedules.filter(row => selectedSchedules.includes(row.id))
   }, [revenueSchedules, selectedSchedules])
+
+  const parseDisplayNumber = useCallback((value: unknown): number | null => {
+    if (value === null || value === undefined) return null
+    if (typeof value === 'number') {
+      return Number.isFinite(value) ? value : null
+    }
+    const text = String(value).trim()
+    if (!text) return null
+    const negative = text.startsWith('(') && text.endsWith(')')
+    const normalized = text.replace(/[^0-9.\-]/g, '')
+    if (!normalized) return null
+    const parsed = Number(normalized)
+    if (!Number.isFinite(parsed)) return null
+    if (negative) {
+      return parsed > 0 ? -parsed : parsed
+    }
+    return parsed
+  }, [])
 
   const fetchRevenueSchedules = useCallback(async () => {
     setLoading(true)
@@ -648,17 +671,37 @@ export default function RevenueSchedulesPage() {
       return
     }
     const defaultDate = computeCloneDefaultDate(targetRow.revenueScheduleDate)
+    const quantityRaw =
+      typeof targetRow.quantityRaw === 'number' && Number.isFinite(targetRow.quantityRaw)
+        ? targetRow.quantityRaw
+        : parseDisplayNumber(targetRow.quantity)
+    const unitPriceRaw =
+      typeof targetRow.unitPriceRaw === 'number' && Number.isFinite(targetRow.unitPriceRaw)
+        ? targetRow.unitPriceRaw
+        : parseDisplayNumber(targetRow.priceEach)
+    const usageAdjustmentRaw =
+      typeof targetRow.usageAdjustmentRaw === 'number' && Number.isFinite(targetRow.usageAdjustmentRaw)
+        ? targetRow.usageAdjustmentRaw
+        : parseDisplayNumber(targetRow.expectedUsageAdjustment ?? targetRow.usageAdjustment)
+    setCloneSourceSchedule({
+      scheduleNumber: targetRow.revenueScheduleName ?? targetRow.revenueSchedule ?? null,
+      scheduleDate: targetRow.revenueScheduleDate ?? null,
+      quantity: quantityRaw ?? null,
+      unitPrice: unitPriceRaw ?? null,
+      usageAdjustment: usageAdjustmentRaw ?? null,
+    })
     setCloneTargetId(targetId)
     setCloneDefaultDate(defaultDate)
     setCloneModalOpen(true)
-  }, [computeCloneDefaultDate, selectedScheduleRows, selectedSchedules, showError])
+  }, [computeCloneDefaultDate, parseDisplayNumber, selectedScheduleRows, selectedSchedules, showError])
 
   const handleCloneModalClose = useCallback(() => {
     setCloneModalOpen(false)
     setCloneTargetId(null)
+    setCloneSourceSchedule(undefined)
   }, [])
   
-  const handleConfirmCloneSchedule = useCallback(async (effectiveDate: string, months: number) => {
+  const handleConfirmCloneSchedule = useCallback(async (params: CloneParameters) => {
       if (!cloneTargetId) {
         showError('Schedule unavailable', 'Unable to identify the selected schedule. Refresh and try again.')
         return
@@ -669,7 +712,7 @@ export default function RevenueSchedulesPage() {
         const response = await fetch(`/api/revenue-schedules/${encodeURIComponent(cloneTargetId)}/clone`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ effectiveDate, months }),
+          body: JSON.stringify(params),
         })
       const payload = await response.json().catch(() => null)
       if (!response.ok) {
@@ -1061,6 +1104,7 @@ export default function RevenueSchedulesPage() {
           isOpen={cloneModalOpen}
           defaultDate={cloneDefaultDate}
           submitting={bulkActionBusy}
+          sourceSchedule={cloneSourceSchedule}
           onCancel={handleCloneModalClose}
           onConfirm={handleConfirmCloneSchedule}
         />

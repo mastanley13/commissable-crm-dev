@@ -52,6 +52,7 @@ export interface TableProps {
   selectHeaderLabel?: string // Text label to show next to the select-all checkbox
   maxBodyHeight?: number // Maximum height for the table body with scroll
   preferOverflowHorizontalScroll?: boolean // Prefer horizontal scroll over shrink-to-fit when table is wider than container
+  hasLoadedPreferences?: boolean // Indicates columns include loaded user preferences
 }
 
 export function DynamicTable({
@@ -76,7 +77,8 @@ export function DynamicTable({
   hideSelectAllLabel = false,
   selectHeaderLabel,
   maxBodyHeight,
-  preferOverflowHorizontalScroll = false
+  preferOverflowHorizontalScroll = false,
+  hasLoadedPreferences = false
 }: TableProps) {
   const SortTriangles = useCallback(({ direction }: { direction: "asc" | "desc" | null }) => {
     const base = "w-2.5 h-2.5"
@@ -259,6 +261,13 @@ export function DynamicTable({
   React.useEffect(() => {
     setColumnsState(initialColumns.map(column => ({ ...column })))
   }, [initialColumns])
+
+  // Set manual resize flag when loaded preferences contain custom widths
+  React.useEffect(() => {
+    if (hasLoadedPreferences) {
+      setIsManuallyResized(true)
+    }
+  }, [hasLoadedPreferences])
 
   // Re-calculate optimal widths when data changes significantly
   React.useEffect(() => {

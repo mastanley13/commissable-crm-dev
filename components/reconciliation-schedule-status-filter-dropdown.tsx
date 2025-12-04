@@ -3,7 +3,7 @@
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu"
 import { Check, ChevronDown } from "lucide-react"
 
-type ReconciliationScheduleFilterValue = "suggested" | "all" | "reconciled" | "unreconciled"
+type ReconciliationScheduleFilterValue = "suggested" | "unmatched" | "matched" | "reconciled" | "all"
 type DropdownSize = "default" | "compact"
 
 interface ReconciliationScheduleStatusFilterDropdownProps {
@@ -14,9 +14,10 @@ interface ReconciliationScheduleStatusFilterDropdownProps {
 
 const statusOptions: Array<{ id: ReconciliationScheduleFilterValue; label: string }> = [
   { id: "suggested", label: "Suggested" },
-  { id: "all", label: "All Schedules" },
+  { id: "unmatched", label: "Unmatched" },
+  { id: "matched", label: "Matched" },
   { id: "reconciled", label: "Reconciled" },
-  { id: "unreconciled", label: "Un-Reconciled" }
+  { id: "all", label: "All Schedules" }
 ]
 
 export function ReconciliationScheduleStatusFilterDropdown({

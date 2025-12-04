@@ -1244,6 +1244,7 @@ export default function ReconciliationPage() {
           }}
           fillContainerWidth={true}
           autoSizeColumns={false}
+          hasLoadedPreferences={!preferenceLoading && preferenceColumns.length > 0}
           alwaysShowPagination={true}
           maxBodyHeight={tableBodyHeight}
           pagination={paginationInfo}

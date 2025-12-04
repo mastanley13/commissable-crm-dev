@@ -121,33 +121,95 @@ export async function POST(request: NextRequest, { params }: { params: { revenue
         return NextResponse.json({ error: "Revenue schedule not found" }, { status: 404 })
       }
 
-      const scheduleNumber = buildCloneScheduleNumber(source.scheduleNumber)
-      let effectiveDate: Date | null = source.scheduleDate ?? null
-      let months = 1
-
       const rawBody = await request.text()
+      let parsed: any = null
       if (rawBody) {
         try {
-          const parsed = JSON.parse(rawBody)
-          const input = typeof parsed?.effectiveDate === "string" ? parsed.effectiveDate.trim() : ""
-          if (input) {
-            const candidate = new Date(input)
-            if (!Number.isNaN(candidate.getTime())) {
-              effectiveDate = candidate
-            }
-          }
-          const rawMonths = (parsed as any)?.months
-          const parsedMonths =
-            typeof rawMonths === "string"
-              ? Number.parseInt(rawMonths, 10)
-              : typeof rawMonths === "number"
-                ? rawMonths
-                : NaN
-          if (Number.isFinite(parsedMonths)) {
-            months = parsedMonths
-          }
+          parsed = JSON.parse(rawBody)
         } catch {
           // Ignore malformed JSON and fall back to defaults
+        }
+      }
+
+      // Parse effectiveDate
+      let effectiveDate: Date | null = source.scheduleDate ?? null
+      const dateInput = typeof parsed?.effectiveDate === "string" ? parsed.effectiveDate.trim() : ""
+      if (dateInput) {
+        const candidate = new Date(dateInput)
+        if (!Number.isNaN(candidate.getTime())) {
+          effectiveDate = candidate
+        }
+      }
+
+      // Parse months
+      let months = 1
+      const rawMonths = parsed?.months
+      const parsedMonths =
+        typeof rawMonths === "string"
+          ? Number.parseInt(rawMonths, 10)
+          : typeof rawMonths === "number"
+            ? rawMonths
+            : NaN
+      if (Number.isFinite(parsedMonths)) {
+        months = parsedMonths
+      }
+
+      // Parse scheduleNumber override
+      let scheduleNumber: string | null = null
+      if (parsed?.scheduleNumber && typeof parsed.scheduleNumber === "string") {
+        const trimmed = parsed.scheduleNumber.trim()
+        if (trimmed) {
+          scheduleNumber = trimmed
+        }
+      }
+      // Fall back to auto-generated name if not provided
+      if (!scheduleNumber) {
+        scheduleNumber = buildCloneScheduleNumber(source.scheduleNumber)
+      }
+
+      // Parse quantity override
+      let quantity: number | null = null
+      if (parsed?.quantity !== undefined && parsed.quantity !== null) {
+        const parsedQty =
+          typeof parsed.quantity === "string"
+            ? Number.parseFloat(parsed.quantity)
+            : typeof parsed.quantity === "number"
+              ? parsed.quantity
+              : NaN
+        if (Number.isFinite(parsedQty) && parsedQty > 0) {
+          quantity = parsedQty
+        } else if (Number.isFinite(parsedQty) && parsedQty <= 0) {
+          return NextResponse.json({ error: "Quantity must be greater than 0" }, { status: 400 })
+        }
+      }
+
+      // Parse unitPrice override
+      let unitPrice: number | null = null
+      if (parsed?.unitPrice !== undefined && parsed.unitPrice !== null) {
+        const parsedPrice =
+          typeof parsed.unitPrice === "string"
+            ? Number.parseFloat(parsed.unitPrice)
+            : typeof parsed.unitPrice === "number"
+              ? parsed.unitPrice
+              : NaN
+        if (Number.isFinite(parsedPrice) && parsedPrice >= 0) {
+          unitPrice = parsedPrice
+        } else if (Number.isFinite(parsedPrice) && parsedPrice < 0) {
+          return NextResponse.json({ error: "Unit price cannot be negative" }, { status: 400 })
+        }
+      }
+
+      // Parse usageAdjustment override
+      let usageAdjustment: number | null = null
+      if (parsed?.usageAdjustment !== undefined && parsed.usageAdjustment !== null) {
+        const parsedAdj =
+          typeof parsed.usageAdjustment === "string"
+            ? Number.parseFloat(parsed.usageAdjustment)
+            : typeof parsed.usageAdjustment === "number"
+              ? parsed.usageAdjustment
+              : NaN
+        if (Number.isFinite(parsedAdj)) {
+          usageAdjustment = parsedAdj
         }
       }
 
@@ -166,6 +228,56 @@ export async function POST(request: NextRequest, { params }: { params: { revenue
 
       const clones = await prisma.$transaction(async tx => {
         const results: RevenueScheduleWithRelations[] = []
+
+        // Fetch related data if we need to recalculate
+        let opportunityProduct = null
+        let product = null
+        if (quantity !== null || unitPrice !== null) {
+          if (source.opportunityProductId) {
+            opportunityProduct = await tx.opportunityProduct.findUnique({
+              where: { id: source.opportunityProductId },
+              select: {
+                quantity: true,
+                unitPrice: true,
+                expectedUsage: true,
+                expectedCommission: true,
+              },
+            })
+          }
+          if (source.productId) {
+            product = await tx.product.findUnique({
+              where: { id: source.productId },
+              select: {
+                priceEach: true,
+                commissionPercent: true,
+              },
+            })
+          }
+        }
+
+        // Calculate expectedUsage and expectedCommission with overrides
+        let finalExpectedUsage = source.expectedUsage
+        let finalUsageAdjustment = usageAdjustment !== null ? usageAdjustment : source.usageAdjustment
+        let finalExpectedCommission = source.expectedCommission
+
+        if (quantity !== null || unitPrice !== null) {
+          // Get effective quantity and unit price
+          const effectiveQuantity = quantity ?? (opportunityProduct?.quantity ? Number(opportunityProduct.quantity) : 0)
+          const effectiveUnitPrice = unitPrice ?? (opportunityProduct?.unitPrice ? Number(opportunityProduct.unitPrice) : product?.priceEach ? Number(product.priceEach) : 0)
+          const effectiveAdjustment = finalUsageAdjustment ? Number(finalUsageAdjustment) : 0
+
+          // Recalculate expectedUsage: quantity * unitPrice + adjustment
+          const baseUsage = effectiveQuantity * effectiveUnitPrice
+          const calculatedExpectedUsage = baseUsage + effectiveAdjustment
+
+          // Recalculate expectedCommission using commission rate
+          const commissionRate = product?.commissionPercent ? Number(product.commissionPercent) / 100 : 0
+          const calculatedExpectedCommission = calculatedExpectedUsage * commissionRate
+
+          // Convert to Prisma Decimal
+          finalExpectedUsage = new Prisma.Decimal(calculatedExpectedUsage)
+          finalExpectedCommission = new Prisma.Decimal(calculatedExpectedCommission)
+        }
 
         for (let i = 0; i < months; i++) {
           const scheduleDate =
@@ -191,13 +303,13 @@ export async function POST(request: NextRequest, { params }: { params: { revenue
               scheduleNumber: scheduleNumber,
               scheduleDate,
               scheduleType: source.scheduleType,
-              expectedUsage: source.expectedUsage,
-              usageAdjustment: source.usageAdjustment,
-              expectedCommission: source.expectedCommission,
+              expectedUsage: finalExpectedUsage,
+              usageAdjustment: finalUsageAdjustment,
+              expectedCommission: finalExpectedCommission,
               orderIdHouse: source.orderIdHouse,
               distributorOrderId: source.distributorOrderId,
               notes: source.notes,
-              status: RevenueScheduleStatus.Projected,
+              status: RevenueScheduleStatus.Unreconciled,
               isSelected: false,
               createdById: req.user.id,
               updatedById: req.user.id,

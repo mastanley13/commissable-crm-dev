@@ -1764,6 +1764,13 @@ export function OpportunityDetailsView({
   const [showRevenueCloneModal, setShowRevenueCloneModal] = useState(false)
   const [revenueCloneTargetId, setRevenueCloneTargetId] = useState<string | null>(null)
   const [revenueCloneDefaultDate, setRevenueCloneDefaultDate] = useState<string>("")
+  const [revenueCloneSourceData, setRevenueCloneSourceData] = useState<{
+    scheduleNumber: string | null
+    scheduleDate: string | null
+    quantity: number | null
+    unitPrice: number | null
+    usageAdjustment: number | null
+  } | null>(null)
   const [revenueBulkPrompt, setRevenueBulkPrompt] = useState<RevenueFillDownPrompt | null>(null)
   const [revenueBulkApplying, setRevenueBulkApplying] = useState(false)
 
@@ -2884,6 +2891,16 @@ export function OpportunityDetailsView({
       return
     }
     const defaultDate = computeRevenueCloneDefaultDate(targetRow.scheduleDate)
+
+    // Prepare source schedule data for modal
+    setRevenueCloneSourceData({
+      scheduleNumber: targetRow.scheduleNumber ?? null,
+      scheduleDate: targetRow.scheduleDate ?? null,
+      quantity: targetRow.quantity ?? null,
+      unitPrice: targetRow.unitPrice ?? null,
+      usageAdjustment: targetRow.expectedUsageAdjustment ?? null,
+    })
+
     setRevenueCloneTargetId(sourceId)
     setRevenueCloneDefaultDate(defaultDate)
     setShowRevenueCloneModal(true)
@@ -2892,10 +2909,18 @@ export function OpportunityDetailsView({
   const handleRevenueCloneCancel = useCallback(() => {
     setShowRevenueCloneModal(false)
     setRevenueCloneTargetId(null)
+    setRevenueCloneSourceData(null)
   }, [])
 
     const handleRevenueConfirmClone = useCallback(
-      async (effectiveDate: string, months: number) => {
+      async (params: {
+        effectiveDate: string
+        months: number
+        scheduleNumber?: string
+        quantity?: number
+        unitPrice?: number
+        usageAdjustment?: number
+      }) => {
         if (!revenueCloneTargetId) {
           showError("Schedules unavailable", "Unable to locate the selected revenue schedules. Refresh and try again.")
           return
@@ -2906,7 +2931,7 @@ export function OpportunityDetailsView({
           const response = await fetch(`/api/revenue-schedules/${encodeURIComponent(revenueCloneTargetId)}/clone`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ effectiveDate, months }),
+            body: JSON.stringify(params),
           })
         const payload = await response.json().catch(() => null)
         if (!response.ok) {
@@ -2921,6 +2946,7 @@ export function OpportunityDetailsView({
 
         setShowRevenueCloneModal(false)
         setRevenueCloneTargetId(null)
+        setRevenueCloneSourceData(null)
         showSuccess("Schedule cloned", "Opening the cloned schedule so you can review it.")
         router.push(`/revenue-schedules/${encodeURIComponent(newId)}`)
       } catch (err) {
@@ -4536,6 +4562,7 @@ export function OpportunityDetailsView({
         isOpen={showRevenueCloneModal}
         defaultDate={revenueCloneDefaultDate}
         submitting={revenueBulkBusy}
+        sourceSchedule={revenueCloneSourceData ?? undefined}
         onCancel={handleRevenueCloneCancel}
         onConfirm={handleRevenueConfirmClone}
       />

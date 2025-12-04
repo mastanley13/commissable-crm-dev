@@ -1,4 +1,4 @@
-import { PrismaClient } from "@prisma/client"
+import { PrismaClient, RevenueScheduleStatus } from "@prisma/client"
 import bcrypt from "bcryptjs"
 
 const prisma = new PrismaClient()
@@ -640,7 +640,7 @@ async function seed() {
       scheduleType: "Recurring",
       expectedUsage: 5000,
       expectedCommission: 5618.75,
-      status: "Projected",
+      status: RevenueScheduleStatus.Unreconciled,
       createdById: financeUser.id,
       updatedById: financeUser.id,
     },

@@ -1,4 +1,4 @@
-import { ActivityStatus, OpportunityStatus, OpportunityStage, OpportunityType } from "@prisma/client"
+import { ActivityStatus, OpportunityStatus, OpportunityStage, OpportunityType, RevenueScheduleStatus } from "@prisma/client"
 import { isActivityOpen } from "@/lib/activity-status"
 
 type RelatedAccount = {
@@ -533,15 +533,20 @@ function mapRevenueStatus(status: string | null | undefined, usageBalance: numbe
   inDispute: boolean
 } {
   const hasVariance = Math.abs(usageBalance) > 0.005 || Math.abs(commissionDifference) > 0.005
-  if (status === "Paid") {
+
+  if (status === RevenueScheduleStatus.Reconciled) {
     return { status: "Reconciled", inDispute: false }
   }
 
-  if (status === "Cancelled") {
-    return { status: "In Dispute", inDispute: true }
+  if (status === RevenueScheduleStatus.Overpaid) {
+    return { status: "Overpaid", inDispute: true }
   }
 
-  return { status: "Open", inDispute: hasVariance }
+  if (status === RevenueScheduleStatus.Underpaid) {
+    return { status: "Underpaid", inDispute: hasVariance }
+  }
+
+  return { status: "Unreconciled", inDispute: hasVariance }
 }
 
 function mapRevenueScheduleToDetail(schedule: RevenueScheduleWithRelations): OpportunityRevenueScheduleDetail {

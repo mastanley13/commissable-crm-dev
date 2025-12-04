@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { candidatesToSuggestedRows, matchDepositLine } from "@/lib/matching/deposit-matcher"
 import { withPermissions, createErrorResponse } from "@/lib/api-auth"
 import { prisma } from "@/lib/db"
+import { getTenantMatchingPreferences } from "@/lib/matching/settings"
 
 export async function GET(request: NextRequest, { params }: { params: { depositId: string; lineId: string } }) {
   return withPermissions(request, ["reconciliation.view"], async (req) => {
@@ -9,10 +10,8 @@ export async function GET(request: NextRequest, { params }: { params: { depositI
     const lineId = params?.lineId?.trim()
     const tenantId = req.user.tenantId
     const searchParams = request.nextUrl.searchParams
-    const includeFutureSchedules = searchParams.get("includeFutureSchedules") === "true"
+    const includeFutureSchedulesParam = searchParams.get("includeFutureSchedules")
     const useHierarchicalMatchingParam = searchParams.get("useHierarchicalMatching")
-    const useHierarchicalMatching =
-      useHierarchicalMatchingParam === null ? undefined : useHierarchicalMatchingParam === "true"
 
     if (!depositId || !lineId) {
       return createErrorResponse("Deposit id and line id are required", 400)
@@ -26,15 +25,49 @@ export async function GET(request: NextRequest, { params }: { params: { depositI
       return createErrorResponse("Deposit line item not found", 404)
     }
 
+    const matchingPrefs = await getTenantMatchingPreferences(tenantId)
+    const includeFutureSchedules =
+      includeFutureSchedulesParam === null
+        ? matchingPrefs.includeFutureSchedulesDefault
+        : includeFutureSchedulesParam === "true"
+
+    const resolvedEngineMode =
+      useHierarchicalMatchingParam === null
+        ? matchingPrefs.engineMode
+        : useHierarchicalMatchingParam === "true"
+          ? "hierarchical"
+          : "legacy"
+
+    const useHierarchicalMatching =
+      resolvedEngineMode === "env" ? undefined : resolvedEngineMode === "hierarchical"
+
+    const varianceTolerance = matchingPrefs.varianceTolerance
+
     const matchResult = await matchDepositLine(lineId, {
       limit: 10,
       includeFutureSchedules,
       useHierarchicalMatching,
+      varianceTolerance,
     })
+
+    // Update cache flag if suggestions found
+    if (matchResult.candidates.length > 0 && !lineItem.hasSuggestedMatches) {
+      await prisma.depositLineItem.update({
+        where: { id: lineId },
+        data: {
+          hasSuggestedMatches: true,
+          lastMatchCheckAt: new Date(),
+        },
+      })
+    }
+
     const mapped = candidatesToSuggestedRows(
       matchResult.lineItem,
       matchResult.candidates,
-      matchResult.appliedMatchScheduleId,
+      {
+        scheduleId: matchResult.appliedMatchScheduleId,
+        reconciled: matchResult.appliedMatchReconciled,
+      },
     )
 
     return NextResponse.json({

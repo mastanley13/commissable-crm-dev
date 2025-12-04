@@ -4,11 +4,11 @@ import { prisma } from "@/lib/db"
 import { withPermissions, createErrorResponse } from "@/lib/api-auth"
 
 const LINE_STATUS_LABEL: Record<DepositLineItemStatus, string> = {
-  [DepositLineItemStatus.Unmatched]: "Unreconciled",
-  [DepositLineItemStatus.Suggested]: "Unreconciled",
+  [DepositLineItemStatus.Unmatched]: "Unmatched",
+  [DepositLineItemStatus.Suggested]: "Suggested",
   [DepositLineItemStatus.Matched]: "Matched",
   [DepositLineItemStatus.PartiallyMatched]: "Partially Matched",
-  [DepositLineItemStatus.Ignored]: "Unreconciled",
+  [DepositLineItemStatus.Ignored]: "Ignored",
 }
 
 function mapDepositMetadata(deposit: any) {
@@ -30,13 +30,16 @@ function mapDepositMetadata(deposit: any) {
     usageTotal,
     unallocated,
     allocated,
+    status: deposit.status ?? "Pending",
+    reconciled: Boolean(deposit.reconciled),
+    reconciledAt: deposit.reconciledAt?.toISOString() ?? null,
   }
 }
 
 function mapDepositLineItem(deposit: any, line: any, index: number) {
   return {
     id: line.id,
-    status: LINE_STATUS_LABEL[line.status as DepositLineItemStatus] ?? "Unreconciled",
+    status: LINE_STATUS_LABEL[line.status as DepositLineItemStatus] ?? "Unmatched",
     paymentDate: line.paymentDate?.toISOString() ?? "",
     accountName: line.accountNameRaw ?? line.account?.accountName ?? "Unknown Account",
     vendorName: line.vendorNameRaw ?? line.vendorAccount?.accountName ?? deposit.vendor?.accountName ?? "Unknown Vendor",
@@ -53,48 +56,61 @@ function mapDepositLineItem(deposit: any, line: any, index: number) {
     customerIdVendor: line.customerIdVendor ?? "",
     orderIdVendor: line.orderIdVendor ?? "",
     distributorName: line.distributorNameRaw ?? deposit.distributor?.accountName ?? "",
+    locationId: line.locationId ?? line.account?.locationId ?? null,
+    customerPurchaseOrder: line.customerPurchaseOrder ?? null,
+    reconciled: Boolean(line.reconciled),
+    reconciledAt: line.reconciledAt?.toISOString() ?? null,
+    hasSuggestedMatches: Boolean(line.hasSuggestedMatches),
   }
 }
 
 export async function GET(request: NextRequest, { params }: { params: { depositId: string } }) {
   return withPermissions(request, ["reconciliation.view"], async (req) => {
-    const depositId = params?.depositId?.trim()
-    const tenantId = req.user.tenantId
+    try {
+      const depositId = params?.depositId?.trim()
+      const tenantId = req.user.tenantId
 
-    if (!depositId) {
-      return createErrorResponse("Deposit id is required", 400)
-    }
+      if (!depositId) {
+        return createErrorResponse("Deposit id is required", 400)
+      }
 
-    const deposit = await prisma.deposit.findFirst({
-      where: { id: depositId, tenantId },
-      include: {
-        distributor: { select: { accountName: true } },
-        vendor: { select: { accountName: true } },
-        createdByUser: { select: { fullName: true } },
-        createdByContact: { select: { firstName: true, lastName: true } },
-        lineItems: {
-          include: {
-            account: { select: { accountName: true } },
-            vendorAccount: { select: { accountName: true } },
-            product: { select: { productNameVendor: true } },
+      const deposit = await prisma.deposit.findFirst({
+        where: { id: depositId, tenantId },
+        include: {
+          distributor: { select: { accountName: true } },
+          vendor: { select: { accountName: true } },
+          createdByUser: { select: { fullName: true } },
+          createdByContact: { select: { firstName: true, lastName: true } },
+          lineItems: {
+            include: {
+              account: { select: { accountName: true, accountLegalName: true } },
+              vendorAccount: { select: { accountName: true } },
+              product: { select: { productNameVendor: true } },
+            },
+            orderBy: [{ lineNumber: "asc" }, { createdAt: "asc" }],
           },
-          orderBy: [{ lineNumber: "asc" }, { createdAt: "asc" }],
         },
-      },
-    })
+      })
 
-    if (!deposit) {
-      return createErrorResponse("Deposit not found", 404)
+      if (!deposit) {
+        return createErrorResponse("Deposit not found", 404)
+      }
+
+      const metadata = mapDepositMetadata(deposit)
+      const lineItems = (deposit.lineItems ?? []).map((line: any, index: number) => mapDepositLineItem(deposit, line, index))
+
+      return NextResponse.json({
+        data: {
+          metadata,
+          lineItems,
+        },
+      })
+    } catch (error) {
+      console.error("Failed to load deposit detail", error)
+      const message = process.env.NODE_ENV === "development" && error instanceof Error
+        ? `Failed to load deposit detail: ${error.message}`
+        : "Failed to load deposit detail"
+      return createErrorResponse(message, 500)
     }
-
-    const metadata = mapDepositMetadata(deposit)
-    const lineItems = (deposit.lineItems ?? []).map((line: any, index: number) => mapDepositLineItem(deposit, line, index))
-
-    return NextResponse.json({
-      data: {
-        metadata,
-        lineItems,
-      },
-    })
   })
 }

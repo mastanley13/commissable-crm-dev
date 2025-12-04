@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
-import { Prisma } from "@prisma/client"
+import { Prisma, RevenueScheduleStatus } from "@prisma/client"
 import { withAuth } from "@/lib/api-auth"
 import { dedupeColumnFilters } from "@/lib/filter-utils"
 import { mapRevenueScheduleToListItem, type RevenueScheduleWithRelations } from "./helpers"
@@ -63,14 +63,20 @@ export async function GET(request: NextRequest) {
         })
       }
 
-      if (statusFilter === "active") {
-        andFilters.push({ status: { not: "Cancelled" } })
-      } else if (statusFilter === "cancelled") {
-        andFilters.push({ status: "Cancelled" })
+      if (statusFilter === "active" || statusFilter === "open") {
+        andFilters.push({ status: { not: RevenueScheduleStatus.Reconciled } })
+      } else if (statusFilter === "reconciled") {
+        andFilters.push({ status: RevenueScheduleStatus.Reconciled })
+      } else if (statusFilter === "underpaid") {
+        andFilters.push({ status: RevenueScheduleStatus.Underpaid })
+      } else if (statusFilter === "overpaid") {
+        andFilters.push({ status: RevenueScheduleStatus.Overpaid })
+      } else if (statusFilter === "unreconciled") {
+        andFilters.push({ status: RevenueScheduleStatus.Unreconciled })
       }
 
       if (disputeOnly) {
-        andFilters.push({ status: "Cancelled" })
+        andFilters.push({ status: RevenueScheduleStatus.Overpaid })
       }
 
       if (startDateParam) {

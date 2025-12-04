@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils"
 import type { DepositLineItemRow, SuggestedMatchScheduleRow } from "@/lib/mock-data"
 import { useToasts } from "./toast"
 import { ColumnChooserModal } from "./column-chooser-modal"
+import { useTablePreferences } from "@/hooks/useTablePreferences"
 import {
   DepositLineStatusFilterDropdown,
   type DepositLineStatusFilterValue
@@ -28,6 +29,18 @@ export interface DepositReconciliationMetadata {
   usageTotal: number
   unallocated: number
   allocated: number
+  status: string
+  reconciled: boolean
+  reconciledAt: string | null
+}
+
+export interface AutoMatchSummary {
+  processed: number
+  autoMatched: number
+  alreadyMatched: number
+  fuzzyOnly: number
+  noCandidates: number
+  errors: number
 }
 
 type LineTabKey = DepositLineStatusFilterValue
@@ -147,22 +160,26 @@ const SCHEDULE_FILTER_COLUMN_IDS = new Set<ScheduleFilterColumnId>(scheduleFilte
 type LineColumnFilter = ColumnFilter & { columnId: LineFilterColumnId }
 type ScheduleColumnFilter = ColumnFilter & { columnId: ScheduleFilterColumnId }
 
-const lineStatusStyles: Record<DepositLineItemRow["status"], string> = {
+const lineStatusStyles: Record<DepositLineItemRow["status"] | "Reconciled", string> = {
   Matched: "bg-emerald-100 text-emerald-700 border border-emerald-200",
-  Unreconciled: "bg-red-100 text-red-700 border border-red-200",
-  "Partially Matched": "bg-amber-100 text-amber-700 border border-amber-200"
+  "Partially Matched": "bg-amber-100 text-amber-700 border border-amber-200",
+  Unmatched: "bg-red-100 text-red-700 border border-red-200",
+  Suggested: "bg-indigo-50 text-indigo-700 border border-indigo-200",
+  Reconciled: "bg-emerald-50 text-emerald-700 border border-emerald-200",
+  Ignored: "bg-slate-100 text-slate-600 border border-slate-200"
 }
 
 const scheduleStatusStyles: Record<SuggestedMatchScheduleRow["status"], string> = {
   Suggested: "bg-indigo-50 text-indigo-700 border border-indigo-200",
+  Matched: "bg-sky-50 text-sky-700 border border-sky-200",
   Reconciled: "bg-emerald-50 text-emerald-700 border border-emerald-200",
-  "Un-Reconciled": "bg-amber-50 text-amber-700 border border-amber-200"
+  Unmatched: "bg-amber-50 text-amber-700 border border-amber-200"
 }
 
-const TABLE_CONTAINER_PADDING = 16
+const TABLE_CONTAINER_PADDING = 1
 const TABLE_BODY_MIN_HEIGHT = 200
-const TABLE_BODY_FOOTER_RESERVE = 96
-const DEFAULT_TABLE_BODY_HEIGHT = 360
+const TABLE_BODY_FOOTER_RESERVE = 1
+const DEFAULT_TABLE_BODY_HEIGHT = 260
 
 function useTableScrollMetrics() {
   const containerRef = useRef<HTMLDivElement | null>(null)
@@ -173,8 +190,11 @@ function useTableScrollMetrics() {
     if (!container) return
     const rect = container.getBoundingClientRect()
     const available = window.innerHeight - rect.top - TABLE_CONTAINER_PADDING
-    if (!Number.isFinite(available)) return
-    setContainerHeight(Math.max(Math.floor(available), 0))
+    // Ignore measurements that would collapse the table (e.g. when the container
+    // is below the viewport and getBoundingClientRect().top is greater than
+    // window.innerHeight). In those cases we keep the last known good height.
+    if (!Number.isFinite(available) || available <= 0) return
+    setContainerHeight(Math.floor(available))
   }, [])
 
   const refCallback = useCallback((node: HTMLDivElement | null) => {
@@ -235,6 +255,14 @@ interface DepositReconciliationDetailViewProps {
     onEngineModeChange: (mode: "env" | "legacy" | "hierarchical") => void
     onIncludeFutureSchedulesChange: (next: boolean) => void
   }
+  onRunAutoMatch?: () => void
+  autoMatchLoading?: boolean
+  autoMatchSummary?: AutoMatchSummary | null
+  onFinalizeDeposit?: () => void
+  finalizeLoading?: boolean
+  onUnfinalizeDeposit?: () => void
+  unfinalizeLoading?: boolean
+  onOpenSettings?: () => void
 }
 
 interface MetaStatProps {
@@ -271,7 +299,15 @@ export function DepositReconciliationDetailView({
   onLineSelectionChange,
   onMatchApplied,
   onUnmatchApplied,
-  devMatchingControls
+  devMatchingControls,
+  onRunAutoMatch,
+  autoMatchLoading = false,
+  autoMatchSummary = null,
+  onFinalizeDeposit,
+  finalizeLoading = false,
+  onUnfinalizeDeposit,
+  unfinalizeLoading = false,
+  onOpenSettings,
 }: DepositReconciliationDetailViewProps) {
   const { showSuccess, showError, ToastContainer } = useToasts()
   const [lineTab, setLineTab] = useState<LineTabKey>("all")
@@ -286,6 +322,7 @@ export function DepositReconciliationDetailView({
   const [scheduleColumnFilters, setScheduleColumnFilters] = useState<ScheduleColumnFilter[]>([])
   const [showLineColumnSettings, setShowLineColumnSettings] = useState(false)
   const [showScheduleColumnSettings, setShowScheduleColumnSettings] = useState(false)
+  const [showFinalizePreview, setShowFinalizePreview] = useState(false)
   const {
     refCallback: lineTableAreaRefCallback,
     maxBodyHeight: lineTableBodyHeight,
@@ -339,6 +376,19 @@ export function DepositReconciliationDetailView({
   const normalizedScheduleTableHeight =
     sharedTableBodyHeight ?? scheduleTableBodyHeight ?? DEFAULT_TABLE_BODY_HEIGHT
 
+  const matchedLineItems = useMemo(
+    () =>
+      lineItemRows.filter(
+        line => line.status === "Matched" || line.status === "Partially Matched",
+      ),
+    [lineItemRows],
+  )
+
+  const matchedSchedules = useMemo(
+    () => scheduleRows.filter(schedule => schedule.status === "Reconciled"),
+    [scheduleRows],
+  )
+
   const currencyFormatter = useMemo(
     () =>
       new Intl.NumberFormat("en-US", {
@@ -372,11 +422,10 @@ export function DepositReconciliationDetailView({
 
   const renderDevMatchingControls = () => {
     if (!devMatchingControls) return null
-    const { engineMode, includeFutureSchedules, onEngineModeChange, onIncludeFutureSchedulesChange } =
-      devMatchingControls
+    const { engineMode, onEngineModeChange } = devMatchingControls
 
     return (
-      <div className="mb-2 flex items-center justify-between rounded-md border border-dashed border-slate-300 bg-slate-50 px-3 py-2 text-xs text-slate-700">
+      <div className="mb-2 flex items-center justify-between rounded-md border border-dashed border-slate-300 bg-slate-50 px-2 py-2 text-xs text-slate-700">
         <div className="flex items-center gap-3">
           <span className="font-semibold uppercase tracking-wide text-slate-500">
             Matching Dev Controls
@@ -421,15 +470,6 @@ export function DepositReconciliationDetailView({
             </button>
           </div>
         </div>
-        <label className="flex cursor-pointer items-center gap-2">
-          <input
-            type="checkbox"
-            className="h-3 w-3 rounded border-slate-400 text-slate-800"
-            checked={includeFutureSchedules}
-            onChange={event => onIncludeFutureSchedulesChange(event.target.checked)}
-          />
-          <span className="text-[11px] font-medium text-slate-600">Include future schedules</span>
-        </label>
       </div>
     )
   }
@@ -536,7 +576,7 @@ export function DepositReconciliationDetailView({
         case "lineItem":
           return String(row.lineItem)
         case "status":
-          return row.status
+          return row.reconciled ? "Reconciled" : row.status
         case "paymentDate": {
           const parsed = new Date(row.paymentDate)
           return Number.isNaN(parsed.getTime()) ? row.paymentDate : dateFormatter.format(parsed)
@@ -636,14 +676,24 @@ export function DepositReconciliationDetailView({
 
   const filteredLineItems = useMemo(() => {
     return lineItemRows.filter(item => {
+      const isMatched =
+        !item.reconciled &&
+        (item.status === "Matched" || item.status === "Partially Matched")
+      const isSuggested =
+        !item.reconciled &&
+        (item.status === "Suggested" || (!isMatched && item.hasSuggestedMatches))
+      const isUnmatched = !item.reconciled && !isMatched
+
       const matchesTab =
         lineTab === "all"
           ? true
-          : lineTab === "matched"
-            ? item.status === "Matched"
-            : lineTab === "unmatched"
-              ? item.status === "Unreconciled"
-              : item.status === "Partially Matched"
+          : lineTab === "reconciled"
+            ? item.reconciled === true
+            : lineTab === "matched"
+              ? isMatched
+              : lineTab === "suggested"
+                ? isSuggested
+                : isUnmatched
 
       const matchesSearch = lineSearchValue
         ? [
@@ -672,14 +722,21 @@ export function DepositReconciliationDetailView({
 
   const filteredSchedules = useMemo(() => {
     return scheduleRows.filter(schedule => {
+      const scheduleIsReconciled = schedule.status === "Reconciled"
+      const scheduleIsMatched = schedule.status === "Matched"
+      const scheduleIsSuggested = schedule.status === "Suggested"
+      const scheduleIsUnmatched = !scheduleIsMatched && !scheduleIsReconciled
+
       const matchesTab =
         scheduleTab === "all"
           ? true
-          : scheduleTab === "suggested"
-            ? schedule.status === "Suggested"
-            : scheduleTab === "reconciled"
-              ? schedule.status === "Reconciled"
-              : schedule.status === "Un-Reconciled"
+          : scheduleTab === "reconciled"
+            ? scheduleIsReconciled
+            : scheduleTab === "matched"
+              ? scheduleIsMatched
+              : scheduleTab === "suggested"
+                ? scheduleIsSuggested
+                : scheduleIsUnmatched
 
       const matchesSearch = scheduleSearchValue
         ? [
@@ -709,16 +766,16 @@ export function DepositReconciliationDetailView({
       {
         id: "select",
         label: "Select All",
-        width: 140,
-        minWidth: 100,
+        width: 100,
+        minWidth: 95,
         type: "checkbox",
         sortable: false
       },
       {
         id: "match",
         label: "Match",
-        width: 140,
-        minWidth: 120,
+        width: 120,
+        minWidth: 100,
         accessor: "id",
         render: (_value: string, row: DepositLineItemRow) => (
           <button
@@ -729,7 +786,7 @@ export function DepositReconciliationDetailView({
                 void handleRowMatchClick(row.id)
               }
             }}
-            className="rounded-full border border-primary-200 bg-white px-4 py-1.5 text-sm font-semibold text-primary-600 transition hover:bg-primary-50"
+            className="rounded-full border border-primary-200 bg-white px-2 py-1 text-xs font-semibold text-primary-600 transition hover:bg-primary-50"
           >
             Match
           </button>
@@ -744,19 +801,23 @@ export function DepositReconciliationDetailView({
       {
         id: "lineItem",
         label: depositFieldLabels.lineItem,
-        width: 140,
-        minWidth: minTextWidth(depositFieldLabels.lineItem)
+        width: 100,
+        minWidth: 70
       },
       {
         id: "status",
         label: depositFieldLabels.status,
         width: 200,
         minWidth: minTextWidth(depositFieldLabels.status),
-        render: (value: DepositLineItemRow["status"]) => (
-          <span className={cn("inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold", lineStatusStyles[value])}>
-            {value}
-          </span>
-        )
+        render: (_value: DepositLineItemRow["status"], row: DepositLineItemRow) => {
+          const displayStatus = row.reconciled ? "Reconciled" : row.status
+          const toneClass = lineStatusStyles[displayStatus as keyof typeof lineStatusStyles] ?? "bg-slate-100 text-slate-700 border border-slate-200"
+          return (
+            <span className={cn("inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold", toneClass)}>
+              {displayStatus}
+            </span>
+          )
+        }
       },
       {
         id: "paymentDate",
@@ -862,16 +923,16 @@ export function DepositReconciliationDetailView({
       {
         id: "select",
         label: "Select All",
-        width: 140,
-        minWidth: 100,
+        width: 100,
+        minWidth: 95,
         type: "checkbox",
         sortable: false
       },
       {
         id: "lineItem",
         label: scheduleFieldLabels.lineItem,
-        width: 140,
-        minWidth: minTextWidth(scheduleFieldLabels.lineItem)
+        width: 100,
+        minWidth: 70
       },
       {
         id: "matchConfidence",
@@ -879,6 +940,59 @@ export function DepositReconciliationDetailView({
         width: 180,
         minWidth: minTextWidth(scheduleFieldLabels.matchConfidence),
         render: (value: number) => percentFormatter.format(value)
+      },
+      {
+        id: "origin",
+        label: "Origin",
+        width: 180,
+        minWidth: 150,
+        render: (_value: unknown, row: SuggestedMatchScheduleRow) => (
+          <div className="flex flex-wrap items-center gap-1">
+            {row.matchType ? (
+              <span
+                className={cn(
+                  "inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold",
+                  row.matchType === "exact"
+                    ? "bg-green-50 text-green-700 ring-1 ring-green-200"
+                    : row.matchType === "fuzzy"
+                      ? "bg-amber-50 text-amber-700 ring-1 ring-amber-200"
+                      : "bg-slate-100 text-slate-700 ring-1 ring-slate-200"
+                )}
+              >
+                {row.matchType === "exact" ? "Exact" : row.matchType === "fuzzy" ? "Fuzzy" : "Legacy"}
+              </span>
+            ) : null}
+            {row.matchSource ? (
+              <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-700 ring-1 ring-slate-200">
+                {row.matchSource}
+              </span>
+            ) : null}
+            {row.confidenceLevel ? (
+              <span className="inline-flex items-center rounded-full bg-slate-50 px-2 py-0.5 text-[11px] font-semibold text-slate-600 ring-1 ring-slate-200">
+                {row.confidenceLevel}
+              </span>
+            ) : null}
+          </div>
+        )
+      },
+      {
+        id: "why",
+        label: "Why this match",
+        width: 160,
+        minWidth: 140,
+        render: (_value: unknown, row: SuggestedMatchScheduleRow) => {
+          const reasons = row.reasons?.slice(0, 3) ?? []
+          const title = reasons.length > 0 ? reasons.join("; ") : "No reasons recorded"
+          return (
+            <div
+              className="inline-flex cursor-help items-center gap-1 rounded-full bg-slate-50 px-2 py-1 text-[11px] font-semibold text-slate-700 ring-1 ring-slate-200"
+              title={title}
+            >
+              <span>Why?</span>
+              <span className="text-slate-400">ⓘ</span>
+            </div>
+          )
+        }
       },
       {
         id: "vendorName",
@@ -1034,7 +1148,7 @@ export function DepositReconciliationDetailView({
         width: 160,
         minWidth: minTextWidth("Status"),
         render: (value: SuggestedMatchScheduleRow["status"]) => (
-          <span className={cn("inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold", scheduleStatusStyles[value])}>
+          <span className={cn("inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold", scheduleStatusStyles[value])}>
             {value}
           </span>
         )
@@ -1042,34 +1156,33 @@ export function DepositReconciliationDetailView({
     ]
   }, [currencyFormatter, percentFormatter, dateFormatter])
 
-  const [lineTableColumns, setLineTableColumns] = useState<Column[]>(baseLineColumns)
-  const [scheduleTableColumns, setScheduleTableColumns] = useState<Column[]>(baseScheduleColumns)
+  // Line items table with persistence
+  const {
+    columns: lineTableColumns,
+    loading: linePreferenceLoading,
+    handleColumnsChange: handleLineColumnsChange,
+    saveChangesOnModalClose: saveLineChangesOnModalClose
+  } = useTablePreferences('reconciliation:deposit-line-items', baseLineColumns)
 
-  useEffect(() => {
-    setLineTableColumns(baseLineColumns)
-  }, [baseLineColumns])
-
-  useEffect(() => {
-    setScheduleTableColumns(baseScheduleColumns)
-  }, [baseScheduleColumns])
-
-  const handleLineColumnsChange = useCallback((columns: Column[]) => {
-    setLineTableColumns(columns)
-  }, [])
-
-  const handleScheduleColumnsChange = useCallback((columns: Column[]) => {
-    setScheduleTableColumns(columns)
-  }, [])
+  // Revenue schedules table with persistence
+  const {
+    columns: scheduleTableColumns,
+    loading: schedulePreferenceLoading,
+    handleColumnsChange: handleScheduleColumnsChange,
+    saveChangesOnModalClose: saveScheduleChangesOnModalClose
+  } = useTablePreferences('reconciliation:revenue-schedules', baseScheduleColumns)
 
   const handleLineColumnModalApply = useCallback((columns: Column[]) => {
-    setLineTableColumns(columns)
+    handleLineColumnsChange(columns)
+    saveLineChangesOnModalClose()
     setShowLineColumnSettings(false)
-  }, [])
+  }, [handleLineColumnsChange, saveLineChangesOnModalClose])
 
   const handleScheduleColumnModalApply = useCallback((columns: Column[]) => {
-    setScheduleTableColumns(columns)
+    handleScheduleColumnsChange(columns)
+    saveScheduleChangesOnModalClose()
     setShowScheduleColumnSettings(false)
-  }, [])
+  }, [handleScheduleColumnsChange, saveScheduleChangesOnModalClose])
 
   const handleLineColumnModalClose = useCallback(() => {
     setShowLineColumnSettings(false)
@@ -1167,32 +1280,46 @@ export function DepositReconciliationDetailView({
     }
   }, [metadata.id, onMatchApplied, selectedLineId, selectedLineItems, selectedSchedules, showError, showSuccess])
 
-  const handleBulkLineUnmatch = useCallback(async () => {
-    const lineId = selectedLineId ?? selectedLineItems[0]
-    if (!lineId) {
-      showError("No line selected", "Select a deposit line item to update.")
-      return
-    }
-    try {
-      const response = await fetch(
-        `/api/reconciliation/deposits/${encodeURIComponent(metadata.id)}/line-items/${encodeURIComponent(lineId)}/unmatch`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-        }
-      )
-      const payload = await response.json().catch(() => null)
-      if (!response.ok) {
-        throw new Error(payload?.error || "Failed to mark line unmatched")
+  const [undoingLineId, setUndoingLineId] = useState<string | null>(null)
+
+  const unmatchLineById = useCallback(
+    async (lineId?: string | null) => {
+      const targetLineId = lineId ?? selectedLineId ?? selectedLineItems[0]
+      if (!targetLineId) {
+        showError("No line selected", "Select a deposit line item to update.")
+        return false
       }
-      setSelectedSchedules([])
-      onUnmatchApplied?.()
-      showSuccess("Line reset", "The selected line item was marked as Unreconciled.")
-    } catch (err) {
-      console.error("Failed to unmatch line", err)
-      showError("Unable to mark unmatched", err instanceof Error ? err.message : "Unknown error")
-    }
-  }, [metadata.id, onUnmatchApplied, selectedLineId, selectedLineItems, showError, showSuccess])
+      try {
+        setUndoingLineId(targetLineId)
+        const response = await fetch(
+          `/api/reconciliation/deposits/${encodeURIComponent(metadata.id)}/line-items/${encodeURIComponent(targetLineId)}/unmatch`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+          }
+        )
+        const payload = await response.json().catch(() => null)
+        if (!response.ok) {
+          throw new Error(payload?.error || "Failed to mark line unmatched")
+        }
+        setSelectedSchedules([])
+        onUnmatchApplied?.()
+        showSuccess("Line reset", "The selected line item was marked as Unmatched.")
+        return true
+      } catch (err) {
+        console.error("Failed to unmatch line", err)
+        showError("Unable to mark unmatched", err instanceof Error ? err.message : "Unknown error")
+        return false
+      } finally {
+        setUndoingLineId(null)
+      }
+    },
+    [metadata.id, onUnmatchApplied, selectedLineId, selectedLineItems, showError, showSuccess]
+  )
+
+  const handleBulkLineUnmatch = useCallback(async () => {
+    await unmatchLineById()
+  }, [unmatchLineById])
 
   const handleBulkLineExport = useCallback(() => {
     if (selectedLineItems.length === 0) {
@@ -1465,23 +1592,236 @@ export function DepositReconciliationDetailView({
   return (
     <div className="flex min-h-[calc(100vh-110px)] flex-col gap-3 px-4 pb-4 pt-3 sm:px-6">
       {showDevControls ? renderDevMatchingControls() : null}
-      <div className="flex-shrink-0 space-y-1.5">
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-primary-600">Deposit Reconciliation</p>
-        <div className="grid grid-cols-8 gap-4 text-sm font-medium text-slate-700">
-          <div className="col-span-2 min-w-0">
-            <MetaStat label="Deposit Name" value={metadata.depositName} emphasis wrapValue />
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex-shrink-0 space-y-1.5">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-primary-600">Deposit Reconciliation</p>
+            <div className="grid grid-cols-8 gap-4 text-sm font-medium text-slate-700">
+              <div className="col-span-2 min-w-0">
+                <MetaStat label="Deposit Name" value={metadata.depositName} emphasis wrapValue />
+              </div>
+              <MetaStat label="Date" value={formattedDate} />
+              <MetaStat label="Created By" value={metadata.createdBy} />
+              <MetaStat label="Payment Type" value={metadata.paymentType} />
+              <MetaStat label="Usage Total" value={currencyFormatter.format(metadata.usageTotal)} emphasis />
+              <MetaStat label="Unallocated" value={currencyFormatter.format(metadata.unallocated)} emphasis />
+              <MetaStat label="Allocated" value={currencyFormatter.format(metadata.allocated)} emphasis />
+            </div>
           </div>
-          <MetaStat label="Date" value={formattedDate} />
-          <MetaStat label="Created By" value={metadata.createdBy} />
-          <MetaStat label="Payment Type" value={metadata.paymentType} />
-          <MetaStat label="Usage Total" value={currencyFormatter.format(metadata.usageTotal)} emphasis />
-          <MetaStat label="Unallocated" value={currencyFormatter.format(metadata.unallocated)} emphasis />
-          <MetaStat label="Allocated" value={currencyFormatter.format(metadata.allocated)} emphasis />
+          <div className="flex flex-wrap items-center gap-3 md:flex-nowrap">
+            {onOpenSettings ? (
+              <button
+                type="button"
+                onClick={onOpenSettings}
+                className="rounded border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+              >
+                Reconciliation Settings
+              </button>
+            ) : null}
+            {devMatchingControls && devMatchingControls.includeFutureSchedules !== undefined ? (
+              <div className="group relative inline-flex items-center" role="tooltip">
+                <label className="flex cursor-pointer items-center gap-2 rounded-full border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-slate-400 text-primary-600 accent-primary-600"
+                    checked={devMatchingControls.includeFutureSchedules}
+                    onChange={event => devMatchingControls.onIncludeFutureSchedulesChange(event.target.checked)}
+                    aria-label="Include Future-Dated Schedules"
+                  />
+                  <span>Include Future-Dated Schedules</span>
+                </label>
+                <div className="pointer-events-none absolute bottom-full left-0 mb-2 rounded-lg bg-slate-900 px-3 py-2 text-xs font-medium text-white opacity-0 transition-opacity duration-200 group-hover:opacity-100 whitespace-normal w-56 z-50 shadow-lg">
+                  By default, the system only matches against revenue schedules dated on or before the current month. Future-dated schedules are excluded unless toggled here.
+                </div>
+              </div>
+            ) : null}
+            {metadata.reconciled && onUnfinalizeDeposit ? (
+              <button
+                type="button"
+                onClick={onUnfinalizeDeposit}
+                disabled={unfinalizeLoading}
+                className={cn(
+                  "inline-flex items-center justify-center rounded border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50",
+                  unfinalizeLoading ? "cursor-not-allowed opacity-60" : "",
+                )}
+              >
+                {unfinalizeLoading ? "Reopening…" : "Reopen Deposit"}
+              </button>
+            ) : null}
+            {!metadata.reconciled && onFinalizeDeposit ? (
+              <button
+                type="button"
+                onClick={() => setShowFinalizePreview(true)}
+                disabled={finalizeLoading}
+                className={cn(
+                  "inline-flex items-center justify-center rounded border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50",
+                  finalizeLoading ? "cursor-not-allowed opacity-60" : "",
+                )}
+              >
+                {finalizeLoading ? "Reconciling…" : "Reconcile Matches"}
+              </button>
+            ) : null}
+            {onRunAutoMatch ? (
+              <button
+                type="button"
+                onClick={onRunAutoMatch}
+                disabled={autoMatchLoading}
+                className={cn(
+                  "inline-flex items-center justify-center rounded border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50",
+                  autoMatchLoading ? "cursor-not-allowed opacity-60" : "",
+                )}
+              >
+                {autoMatchLoading ? "Loading…" : "Run AI Matching"}
+              </button>
+            ) : null}
+          </div>
+        </div>
+      {autoMatchSummary ? (
+        <div className="rounded-md border border-emerald-100 bg-emerald-50 px-3 py-2 text-[11px] font-medium text-emerald-800">
+          Auto-matched <span className="font-semibold">{autoMatchSummary.autoMatched}</span> of{" "}
+          <span className="font-semibold">{autoMatchSummary.processed}</span> lines
+          {autoMatchSummary.alreadyMatched > 0 ? (
+              <> · Already matched: {autoMatchSummary.alreadyMatched}</>
+            ) : null}
+            {autoMatchSummary.fuzzyOnly > 0 ? (
+              <> · Fuzzy-only: {autoMatchSummary.fuzzyOnly}</>
+            ) : null}
+            {autoMatchSummary.noCandidates > 0 ? (
+              <> · No candidates: {autoMatchSummary.noCandidates}</>
+            ) : null}
+            {autoMatchSummary.errors > 0 ? <> · Errors: {autoMatchSummary.errors}</> : null}
+          </div>
+      ) : null}
+    </div>
+
+    {showFinalizePreview ? (
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50"
+        onClick={() => setShowFinalizePreview(false)}
+      >
+        <div
+          className="w-full max-w-5xl rounded-2xl bg-white shadow-xl"
+          onClick={event => event.stopPropagation()}
+        >
+          <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900">Review matches before reconciliation</h2>
+              <p className="text-xs text-slate-500">
+                Matched line items and schedules will be reconciled when you confirm.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowFinalizePreview(false)}
+              className="text-sm text-slate-500 hover:text-slate-700"
+            >
+              Close
+            </button>
+          </div>
+          <div className="grid gap-4 px-6 py-5 md:grid-cols-2">
+            <div className="rounded-lg border border-slate-200">
+              <div className="border-b border-slate-200 px-4 py-2 text-sm font-semibold text-slate-800">
+                Matched Line Items ({matchedLineItems.length})
+              </div>
+              <div className="max-h-64 overflow-y-auto">
+                {matchedLineItems.length ? (
+                  <table className="min-w-full divide-y divide-slate-200 text-sm">
+                    <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      <tr>
+                        <th className="px-3 py-2 text-left">Line</th>
+                        <th className="px-3 py-2 text-left">Account</th>
+                        <th className="px-3 py-2 text-left">Product</th>
+                        <th className="px-3 py-2 text-left">Status</th>
+                        <th className="px-3 py-2 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {matchedLineItems.map(item => (
+                        <tr key={item.id}>
+                          <td className="px-3 py-2 text-slate-900">{item.lineItem}</td>
+                          <td className="px-3 py-2 text-slate-700">{item.accountName}</td>
+                          <td className="px-3 py-2 text-slate-700">{item.productName}</td>
+                          <td className="px-3 py-2 text-slate-700">{item.status}</td>
+                          <td className="px-3 py-2 text-right">
+                            <button
+                              type="button"
+                              onClick={() => void unmatchLineById(item.id)}
+                              disabled={undoingLineId === item.id}
+                              className="rounded border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              {undoingLineId === item.id ? "Undoing..." : "Undo"}
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  <div className="p-4 text-xs text-slate-500">No matched line items yet.</div>
+                )}
+              </div>
+            </div>
+            <div className="rounded-lg border border-slate-200">
+              <div className="border-b border-slate-200 px-4 py-2 text-sm font-semibold text-slate-800">
+                Matched Revenue Schedules ({matchedSchedules.length})
+              </div>
+              <div className="max-h-64 overflow-y-auto">
+                {matchedSchedules.length ? (
+                  <table className="min-w-full divide-y divide-slate-200 text-sm">
+                    <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      <tr>
+                        <th className="px-3 py-2 text-left">Schedule</th>
+                        <th className="px-3 py-2 text-left">Account</th>
+                        <th className="px-3 py-2 text-left">Product</th>
+                        <th className="px-3 py-2 text-left">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {matchedSchedules.map(schedule => (
+                        <tr key={schedule.id}>
+                          <td className="px-3 py-2 text-slate-900">{schedule.revenueScheduleName}</td>
+                          <td className="px-3 py-2 text-slate-700">{schedule.legalName}</td>
+                          <td className="px-3 py-2 text-slate-700">{schedule.productNameVendor}</td>
+                          <td className="px-3 py-2 text-slate-700">{schedule.status}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  <div className="p-4 text-xs text-slate-500">No matched schedules yet.</div>
+                )}
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center justify-end gap-3 border-t border-slate-200 px-6 py-4">
+            <button
+              type="button"
+              onClick={() => setShowFinalizePreview(false)}
+              className="rounded border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed"
+              disabled={finalizeLoading}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setShowFinalizePreview(false)
+                onFinalizeDeposit?.()
+              }}
+              disabled={finalizeLoading}
+              className={cn(
+                "rounded bg-primary-600 px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-60",
+              )}
+            >
+              {finalizeLoading ? "Reconciling…" : "Confirm & Reconcile"}
+            </button>
+          </div>
         </div>
       </div>
+    ) : null}
 
-      <section className="flex min-h-0 flex-1 flex-col rounded-2xl border border-slate-100 bg-white px-5 py-4 shadow-sm">
-        <div className="-mx-5 -mt-4 border-b border-slate-100 px-5 pt-4">
+      <section className="flex min-h-0 flex-1 flex-col">
+        <div className="border-b border-slate-100">
           <ListHeader
             pageTitle="DEPOSIT LINE ITEMS"
             searchPlaceholder="Search deposit line items"
@@ -1502,15 +1842,16 @@ export function DepositReconciliationDetailView({
             }
           />
         </div>
-        <div className="flex min-h-0 flex-1 flex-col pt-4">
+        <div className="flex min-h-0 flex-1 flex-col pt-1">
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden" ref={lineTableAreaRefCallback}>
             <DynamicTable
               className="flex flex-col"
               columns={lineTableColumns}
               data={filteredLineItems}
-              loading={loading}
+              loading={loading || linePreferenceLoading}
               emptyMessage="No deposit line items found"
               fillContainerWidth={false}
+              hasLoadedPreferences={!linePreferenceLoading && lineTableColumns.length > 0}
               maxBodyHeight={normalizedLineTableHeight}
               selectedItems={selectedLineItems}
               onItemSelect={(itemId, selected) => handleLineItemSelect(String(itemId), selected)}
@@ -1522,8 +1863,8 @@ export function DepositReconciliationDetailView({
         </div>
       </section>
 
-      <section className="flex min-h-0 flex-1 flex-col rounded-2xl border border-slate-100 bg-white px-5 py-4 shadow-sm">
-        <div className="-mx-5 -mt-4 border-b border-slate-100 px-5 pt-4">
+      <section className="flex min-h-0 flex-1 flex-col">
+        <div className="border-b border-slate-100">
           <ListHeader
             pageTitle="SUGGESTED MATCHES - REVENUE SCHEDULES"
             searchPlaceholder="Search revenue schedules"
@@ -1548,16 +1889,17 @@ export function DepositReconciliationDetailView({
             }
           />
         </div>
-        <div className="flex min-h-0 flex-1 flex-col pt-4">
+        <div className="flex min-h-0 flex-1 flex-col pt-1">
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden" ref={scheduleTableAreaRefCallback}>
             <DynamicTable
               className="flex flex-col"
               columns={scheduleTableColumns}
               data={filteredSchedules}
-              loading={scheduleLoading || loading}
+              loading={scheduleLoading || loading || schedulePreferenceLoading}
               emptyMessage="No suggested schedules found"
               fillContainerWidth
               preferOverflowHorizontalScroll
+              hasLoadedPreferences={!schedulePreferenceLoading && scheduleTableColumns.length > 0}
               maxBodyHeight={normalizedScheduleTableHeight}
               selectedItems={selectedSchedules}
               onItemSelect={(itemId, selected) => handleScheduleSelect(String(itemId), selected)}
@@ -1584,3 +1926,4 @@ export function DepositReconciliationDetailView({
     </div>
   )
 }
+

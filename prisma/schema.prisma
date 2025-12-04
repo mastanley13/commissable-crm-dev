@@ -607,7 +607,7 @@ model RevenueSchedule {
   actualCommissionAdjustment Decimal?              @db.Decimal(16, 2)
   orderIdHouse               String?
   distributorOrderId         String?
-  status                     RevenueScheduleStatus @default(Projected)
+  status                     RevenueScheduleStatus @default(Unreconciled)
   isSelected                 Boolean               @default(false)
   notes                      String?
   createdById                String?               @db.Uuid
@@ -716,6 +716,8 @@ model DepositLineItem {
   vendorNameRaw             String?
   productNameRaw            String?
   distributorNameRaw        String?
+  locationId                String?
+  customerPurchaseOrder     String?
   usage                     Decimal?               @db.Decimal(16, 2)
   usageAllocated            Decimal?               @db.Decimal(16, 2)
   usageUnallocated          Decimal?               @db.Decimal(16, 2)
@@ -724,6 +726,10 @@ model DepositLineItem {
   commissionUnallocated     Decimal?               @db.Decimal(16, 2)
   commissionRate            Decimal?               @db.Decimal(7, 4)
   isChargeback              Boolean                @default(false)
+  reconciled                Boolean                @default(false)
+  reconciledAt              DateTime?
+  hasSuggestedMatches       Boolean                @default(false)
+  lastMatchCheckAt          DateTime?
   createdAt                 DateTime               @default(now())
   updatedAt                 DateTime               @updatedAt
   tenant                    Tenant                 @relation(fields: [tenantId], references: [id])
@@ -738,6 +744,8 @@ model DepositLineItem {
   @@index([tenantId, accountIdVendor])
   @@index([tenantId, customerIdVendor])
   @@index([tenantId, orderIdVendor])
+  @@index([reconciled])
+  @@index([hasSuggestedMatches])
 }
 
 model DepositLineMatch {
@@ -751,6 +759,8 @@ model DepositLineMatch {
   status            DepositLineMatchStatus @default(Suggested)
   source            DepositLineMatchSource @default(Auto)
   explanation       Json?
+  reconciled        Boolean                @default(false)
+  reconciledAt      DateTime?
   createdAt         DateTime               @default(now())
   updatedAt         DateTime               @updatedAt
   tenant            Tenant                 @relation(fields: [tenantId], references: [id])
@@ -760,6 +770,7 @@ model DepositLineMatch {
   @@unique([depositLineItemId, revenueScheduleId])
   @@index([tenantId, depositLineItemId])
   @@index([tenantId, revenueScheduleId])
+  @@index([reconciled])
 }
 
 model ReconciliationItem {
@@ -1201,10 +1212,10 @@ enum RevenueScheduleType {
 }
 
 enum RevenueScheduleStatus {
-  Projected
-  Invoiced
-  Paid
-  Cancelled
+  Unreconciled
+  Underpaid
+  Overpaid
+  Reconciled
 }
 
 enum ReconciliationStatus {

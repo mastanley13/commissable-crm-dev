@@ -7,6 +7,9 @@ import {
 import { withPermissions, createErrorResponse } from "@/lib/api-auth"
 import { prisma } from "@/lib/db"
 import { recomputeDepositAggregates } from "@/lib/matching/deposit-aggregates"
+import { recomputeRevenueScheduleFromMatches } from "@/lib/matching/revenue-schedule-status"
+import { getTenantVarianceTolerance } from "@/lib/matching/settings"
+import { logMatchingMetric } from "@/lib/matching/metrics"
 
 interface ApplyMatchRequestBody {
   revenueScheduleId: string
@@ -59,6 +62,8 @@ export async function POST(
     const allocationUsage = usageAmount ?? Number(lineItem.usage ?? 0)
     const allocationCommission = commissionAmount ?? Number(lineItem.commission ?? 0)
 
+    const varianceTolerance = await getTenantVarianceTolerance(tenantId)
+
     const result = await prisma.$transaction(async tx => {
       const match = await tx.depositLineMatch.upsert({
         where: {
@@ -103,8 +108,23 @@ export async function POST(
       })
 
       const deposit = await recomputeDepositAggregates(tx, depositId, tenantId)
+      const revenueSchedule = await recomputeRevenueScheduleFromMatches(tx, revenueScheduleId, tenantId, {
+        varianceTolerance,
+      })
 
-      return { match, updatedLine, deposit }
+      return { match, updatedLine, deposit, revenueSchedule }
+    })
+
+    await logMatchingMetric({
+      tenantId,
+      userId: req.user.id,
+      event: "manual_match",
+      depositId,
+      lineItemId: lineItem.id,
+      scheduleId: revenueScheduleId,
+      confidence: confidenceScore,
+      source: DepositLineMatchSource.Manual,
+      request,
     })
 
     return NextResponse.json({ data: result })

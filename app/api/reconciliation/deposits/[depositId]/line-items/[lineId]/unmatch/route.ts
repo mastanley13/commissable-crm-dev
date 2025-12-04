@@ -3,6 +3,8 @@ import { DepositLineItemStatus } from "@prisma/client"
 import { withPermissions, createErrorResponse } from "@/lib/api-auth"
 import { prisma } from "@/lib/db"
 import { recomputeDepositAggregates } from "@/lib/matching/deposit-aggregates"
+import { recomputeRevenueSchedules } from "@/lib/matching/revenue-schedule-status"
+import { getTenantVarianceTolerance } from "@/lib/matching/settings"
 
 export async function POST(
   request: NextRequest,
@@ -24,7 +26,14 @@ export async function POST(
       return createErrorResponse("Deposit line item not found", 404)
     }
 
+    const varianceTolerance = await getTenantVarianceTolerance(tenantId)
+
     const result = await prisma.$transaction(async tx => {
+      const existingMatches = await tx.depositLineMatch.findMany({
+        where: { depositLineItemId: lineItem.id, tenantId },
+        select: { revenueScheduleId: true },
+      })
+
       await tx.depositLineMatch.deleteMany({
         where: { depositLineItemId: lineItem.id },
       })
@@ -42,8 +51,17 @@ export async function POST(
       })
 
       const deposit = await recomputeDepositAggregates(tx, depositId, tenantId)
+      const revenueSchedules =
+        existingMatches.length > 0
+          ? await recomputeRevenueSchedules(
+              tx,
+              existingMatches.map(match => match.revenueScheduleId),
+              tenantId,
+              { varianceTolerance },
+            )
+          : []
 
-      return { lineItem: updatedLine, deposit }
+      return { lineItem: updatedLine, deposit, revenueSchedules }
     })
 
     return NextResponse.json({ data: result })

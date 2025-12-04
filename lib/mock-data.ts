@@ -685,7 +685,7 @@ export const depositSummaryMock = {
 
 export type DepositLineItemRow = {
   id: string
-  status: 'Matched' | 'Unreconciled' | 'Partially Matched'
+  status: 'Matched' | 'Partially Matched' | 'Unmatched' | 'Suggested' | 'Ignored'
   paymentDate: string
   accountName: string
   vendorName: string
@@ -702,12 +702,17 @@ export type DepositLineItemRow = {
   customerIdVendor: string
   orderIdVendor: string
   distributorName: string
+  locationId?: string
+  customerPurchaseOrder?: string
+  reconciled?: boolean
+  reconciledAt?: string | null
+  hasSuggestedMatches?: boolean
 }
 
 export const depositLineItemsMock: DepositLineItemRow[] = [
   {
     id: 'dli-1001',
-    status: 'Unreconciled',
+    status: 'Unmatched',
     paymentDate: '2025-02-01',
     accountName: 'Mike Inc',
     vendorName: 'Lingo',
@@ -723,11 +728,12 @@ export const depositLineItemsMock: DepositLineItemRow[] = [
     accountId: 'A123543',
     customerIdVendor: 'CUST-1101',
     orderIdVendor: 'ORD-2201',
-    distributorName: 'Telarus'
+    distributorName: 'Telarus',
+    hasSuggestedMatches: true
   },
   {
     id: 'dli-1002',
-    status: 'Unreconciled',
+    status: 'Suggested',
     paymentDate: '2025-02-01',
     accountName: 'Alvin Inc',
     vendorName: 'Lingo',
@@ -743,7 +749,8 @@ export const depositLineItemsMock: DepositLineItemRow[] = [
     accountId: 'A123111',
     customerIdVendor: 'CUST-1102',
     orderIdVendor: 'ORD-2202',
-    distributorName: 'Telarus'
+    distributorName: 'Telarus',
+    hasSuggestedMatches: true
   },
   {
     id: 'dli-1003',
@@ -829,9 +836,13 @@ export const depositLineItemsMock: DepositLineItemRow[] = [
 
 export type SuggestedMatchScheduleRow = {
   id: string
-  status: 'Suggested' | 'Reconciled' | 'Un-Reconciled'
+  status: 'Suggested' | 'Matched' | 'Reconciled' | 'Unmatched'
   lineItem: number
   matchConfidence: number
+  matchType?: 'exact' | 'fuzzy' | 'legacy'
+  matchSource?: 'Auto' | 'Manual' | 'Unknown' | null
+  reasons?: string[]
+  confidenceLevel?: 'high' | 'medium' | 'low'
   vendorName: string
   legalName: string
   productNameVendor: string
@@ -966,7 +977,7 @@ export const suggestedScheduleMatchesMock: SuggestedMatchScheduleRow[] = [
   },
   {
     id: 'rs-2005',
-    status: 'Un-Reconciled',
+    status: 'Unmatched',
     lineItem: 5,
     matchConfidence: 0.65,
     vendorName: 'Lingo',
@@ -1001,7 +1012,10 @@ export const depositDetailMetadataMock = {
   paymentType: 'ACH Transfer',
   usageTotal: 10700,
   unallocated: 0,
-  allocated: 10700
+  allocated: 10700,
+  status: 'Pending',
+  reconciled: false,
+  reconciledAt: null
 }
 
 // Groups Data

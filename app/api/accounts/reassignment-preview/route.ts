@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { OpportunityStatus } from "@prisma/client";
+import { OpportunityStatus, RevenueScheduleStatus } from "@prisma/client";
 import { OPEN_ACTIVITY_STATUSES, isActivityOpen } from "@/lib/activity-status";
 import { isTaskType } from "@/lib/activity-type";
 import { getCurrentUser } from "@/lib/api-auth";
@@ -450,7 +450,9 @@ async function calculateReassignmentImpact(
     }
   }
 
-  const activeRevenueSchedules = allRevenueSchedules.filter(schedule => schedule.status !== 'Cancelled');
+  const activeRevenueSchedules = allRevenueSchedules.filter(
+    schedule => schedule.status !== RevenueScheduleStatus.Reconciled,
+  );
   const upcomingRenewalDates = activeRevenueSchedules
     .map(schedule => schedule.scheduleDate)
     .filter((date): date is Date => !!date && date >= now)
