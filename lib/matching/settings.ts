@@ -7,6 +7,9 @@ const DEFAULT_VARIANCE_TOLERANCE = Number(process.env.DEFAULT_VARIANCE_TOLERANCE
 
 export type MatchingEngineMode = "env" | "legacy" | "hierarchical"
 
+// Hierarchical matching is now the primary/default engine.
+const DEFAULT_ENGINE_MODE: MatchingEngineMode = "hierarchical"
+
 function deserializeSettingValue(raw: unknown): unknown {
   if (raw == null) return raw
   if (typeof raw !== "string") return raw
@@ -52,7 +55,7 @@ function normalizeEngineMode(raw: unknown): MatchingEngineMode {
     if (lowered === "legacy") return "legacy"
     if (lowered === "hierarchical") return "hierarchical"
   }
-  return "env"
+  return DEFAULT_ENGINE_MODE
 }
 
 export async function getTenantVarianceTolerance(tenantId: string): Promise<number> {
@@ -73,7 +76,7 @@ export async function getTenantMatchingPreferences(tenantId: string): Promise<{
     return {
       varianceTolerance: DEFAULT_VARIANCE_TOLERANCE,
       includeFutureSchedulesDefault: false,
-      engineMode: "env",
+      engineMode: DEFAULT_ENGINE_MODE,
     }
   }
 
@@ -101,7 +104,7 @@ export async function getTenantMatchingPreferences(tenantId: string): Promise<{
     return {
       varianceTolerance: DEFAULT_VARIANCE_TOLERANCE,
       includeFutureSchedulesDefault: false,
-      engineMode: "env",
+      engineMode: DEFAULT_ENGINE_MODE,
     }
   }
 }

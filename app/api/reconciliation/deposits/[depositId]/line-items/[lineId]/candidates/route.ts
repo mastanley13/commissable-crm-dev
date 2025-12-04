@@ -38,8 +38,11 @@ export async function GET(request: NextRequest, { params }: { params: { depositI
           ? "hierarchical"
           : "legacy"
 
-    const useHierarchicalMatching =
-      resolvedEngineMode === "env" ? undefined : resolvedEngineMode === "hierarchical"
+    // Treat hierarchical matching as the default engine:
+    // - explicit "hierarchical" -> hierarchical scoring
+    // - explicit "legacy"       -> legacy scoring
+    // - "env"                   -> hierarchical scoring (no longer gated by env var)
+    const useHierarchicalMatching = resolvedEngineMode !== "legacy"
 
     const varianceTolerance = matchingPrefs.varianceTolerance
 

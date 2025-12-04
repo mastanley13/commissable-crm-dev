@@ -67,19 +67,21 @@ export default function DepositReconciliationDetailPage() {
     save: saveReconciliationSettings,
   } = useReconciliationSettings()
   const [includeFutureSchedules, setIncludeFutureSchedules] = useState(false)
-  const [engineModeSetting, setEngineModeSetting] = useState<EngineMode>("env")
+  const [engineModeSetting, setEngineModeSetting] = useState<EngineMode>("hierarchical")
   const [varianceToleranceSetting, setVarianceToleranceSetting] = useState<number>(0)
   const [settingsMessage, setSettingsMessage] = useState<string | null>(null)
   const [settingsSaving, setSettingsSaving] = useState(false)
   const [settingsModalOpen, setSettingsModalOpen] = useState(false)
-  const [engineMode, setEngineMode] = useState<EngineMode>("env")
+  const [engineMode, setEngineMode] = useState<EngineMode>("hierarchical")
 
   useEffect(() => {
     if (!reconciliationSettings) return
     setIncludeFutureSchedules(reconciliationSettings.includeFutureSchedulesDefault ?? false)
     setEngineModeSetting(reconciliationSettings.engineMode ?? "env")
     setVarianceToleranceSetting(reconciliationSettings.varianceTolerance ?? 0)
-    setEngineMode(reconciliationSettings.engineMode ?? "env")
+    const preferredEngineMode: EngineMode =
+      reconciliationSettings.engineMode === "legacy" ? "legacy" : "hierarchical"
+    setEngineMode(preferredEngineMode)
   }, [reconciliationSettings])
 
   useEffect(() => {
@@ -392,15 +394,6 @@ export default function DepositReconciliationDetailPage() {
       {reconciliationSettingsError ? (
         <div className="px-4 text-xs text-amber-600">{reconciliationSettingsError}</div>
       ) : null}
-      <div className="flex items-center justify-end px-4 pb-2">
-        <button
-          type="button"
-          onClick={() => router.push('/reconciliation')}
-          className="inline-flex items-center rounded border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
-        >
-          ← Back to Reconciliation
-        </button>
-      </div>
       <DepositReconciliationDetailView
         metadata={resolvedMetadata}
         lineItems={metadata ? lineItems : []}
@@ -419,6 +412,7 @@ export default function DepositReconciliationDetailPage() {
         finalizeLoading={finalizeLoading}
         onUnfinalizeDeposit={handleUnfinalizeDeposit}
         unfinalizeLoading={unfinalizeLoading}
+        onBackToReconciliation={() => router.push('/reconciliation')}
       />
       <AutoMatchPreviewModal
         isOpen={autoMatchPreviewOpen}

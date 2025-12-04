@@ -28,6 +28,17 @@ const RECONCILIATION_DEFAULT_VISIBLE_COLUMN_IDS = new Set<string>([
   'status'
 ])
 
+// Helper function to format dates as YYYY-MM-DD
+const formatDateYYYYMMDD = (value: string | Date | null | undefined): string => {
+  if (!value) return ''
+  const date = typeof value === 'string' ? new Date(value) : value
+  if (Number.isNaN(date.getTime())) return String(value)
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 const reconciliationColumns: Column[] = [
   {
     id: 'multi-action',
@@ -60,7 +71,8 @@ const reconciliationColumns: Column[] = [
     minWidth: calculateMinWidth({ label: 'Period', type: 'text', sortable: true }),
     maxWidth: 200,
     sortable: true,
-    type: 'text'
+    type: 'text',
+    render: (value) => formatDateYYYYMMDD(value)
   },
   {
     id: 'totalRevenue',
@@ -175,7 +187,8 @@ const reconciliationColumns: Column[] = [
     maxWidth: 220,
     sortable: true,
     type: 'text',
-    hidden: true
+    hidden: true,
+    render: (value) => formatDateYYYYMMDD(value)
   },
   {
     id: 'totalItems',
@@ -586,16 +599,51 @@ export default function ReconciliationPage() {
 
   const handleCustomDateChange = useCallback((field: keyof CustomDateRange) => {
     return (event: ChangeEvent<HTMLInputElement>) => {
-      setCustomDateRange(prev => ({
-        ...prev,
-        [field]: event.target.value ? event.target.value : null
-      }))
+      const value = event.target.value.trim()
+      // Allow empty value or validate YYYY-MM-DD format
+      if (!value) {
+        setCustomDateRange(prev => ({ ...prev, [field]: null }))
+        return
+      }
+      // Basic validation: check if it matches YYYY-MM-DD pattern
+      const datePattern = /^\d{4}-\d{2}-\d{2}$/
+      if (datePattern.test(value)) {
+        // Verify it's a valid date
+        const date = new Date(value)
+        if (!Number.isNaN(date.getTime())) {
+          setCustomDateRange(prev => ({ ...prev, [field]: value }))
+          return
+        }
+      }
+      // For invalid dates, still update but validation will catch it
+      setCustomDateRange(prev => ({ ...prev, [field]: value }))
     }
   }, [])
 
   const handleApplyCustomDateRange = useCallback(() => {
     if (!customDateRange.from || !customDateRange.to) {
       setSummaryError('Please select both a start date and end date.')
+      return
+    }
+
+    // Validate date format
+    const datePattern = /^\d{4}-\d{2}-\d{2}$/
+    if (!datePattern.test(customDateRange.from) || !datePattern.test(customDateRange.to)) {
+      setSummaryError('Please enter dates in YYYY-MM-DD format.')
+      return
+    }
+
+    // Validate dates are valid
+    const fromDate = new Date(customDateRange.from)
+    const toDate = new Date(customDateRange.to)
+    if (Number.isNaN(fromDate.getTime()) || Number.isNaN(toDate.getTime())) {
+      setSummaryError('Please enter valid dates.')
+      return
+    }
+
+    // Validate from date is before to date
+    if (fromDate > toDate) {
+      setSummaryError('Start date must be before end date.')
       return
     }
 
@@ -609,6 +657,34 @@ export default function ReconciliationPage() {
     !customDateRange.from ||
     !customDateRange.to ||
     summaryLoading
+
+  // Compute the actual date range to display based on preset
+  const displayDateRange = useMemo(() => {
+    if (dateRangePreset === 'custom') {
+      return {
+        from: customDateRange.from || '',
+        to: customDateRange.to || ''
+      }
+    }
+
+    const today = new Date()
+    let fromDate: Date
+    const toDate = today
+
+    if (dateRangePreset === 'ytd') {
+      // Year to Date: January 1 of current year to today
+      fromDate = new Date(today.getFullYear(), 0, 1)
+    } else {
+      // Last 6 Months: 6 months ago to today
+      fromDate = new Date(today)
+      fromDate.setMonth(today.getMonth() - 6)
+    }
+
+    return {
+      from: formatDateYYYYMMDD(fromDate),
+      to: formatDateYYYYMMDD(toDate)
+    }
+  }, [dateRangePreset, customDateRange.from, customDateRange.to])
 
   const {
     columns: preferenceColumns,
@@ -1167,19 +1243,23 @@ export default function ReconciliationPage() {
               <option value="custom">Custom</option>
             </select>
             <input
-              type="date"
-              value={customDateRange.from ?? ''}
+              type="text"
+              value={displayDateRange.from}
               onChange={handleCustomDateChange('from')}
               disabled={dateRangePreset !== 'custom'}
-              className="border border-slate-300 bg-white px-3 py-1 text-sm focus:border-primary-500 focus:outline-none disabled:bg-slate-100"
+              readOnly={dateRangePreset !== 'custom'}
+              placeholder="YYYY-MM-DD"
+              className="border border-slate-300 bg-white px-3 py-1 text-sm focus:border-primary-500 focus:outline-none disabled:bg-slate-100 disabled:cursor-not-allowed"
             />
             <span className="text-xs font-medium text-slate-500">to</span>
             <input
-              type="date"
-              value={customDateRange.to ?? ''}
+              type="text"
+              value={displayDateRange.to}
               onChange={handleCustomDateChange('to')}
               disabled={dateRangePreset !== 'custom'}
-              className="border border-slate-300 bg-white px-3 py-1 text-sm focus:border-primary-500 focus:outline-none disabled:bg-slate-100"
+              readOnly={dateRangePreset !== 'custom'}
+              placeholder="YYYY-MM-DD"
+              className="border border-slate-300 bg-white px-3 py-1 text-sm focus:border-primary-500 focus:outline-none disabled:bg-slate-100 disabled:cursor-not-allowed"
             />
             <button
               type="button"

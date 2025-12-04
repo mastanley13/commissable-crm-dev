@@ -1,0 +1,80 @@
+              >
+                ← Back
+              </button>
+            ) : null}
+            {onOpenSettings ? (
+              <button
+                type="button"
+                onClick={onOpenSettings}
+                className="rounded border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+              >
+                Settings
+              </button>
+            ) : null}
+            {devMatchingControls && devMatchingControls.includeFutureSchedules !== undefined ? (
+              <div className="group relative inline-flex items-center" role="tooltip">
+                <label className="flex cursor-pointer items-center gap-2 rounded-full border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-slate-400 text-primary-600 accent-primary-600"
+                    checked={devMatchingControls.includeFutureSchedules}
+                    onChange={event => devMatchingControls.onIncludeFutureSchedulesChange(event.target.checked)}
+                    aria-label="Include Future-Dated Schedules"
+                  />
+                  <span>Include Future-Dated Schedules</span>
+                </label>
+                <div className="pointer-events-none absolute bottom-full left-0 mb-2 rounded-lg bg-slate-900 px-3 py-2 text-xs font-medium text-white opacity-0 transition-opacity duration-200 group-hover:opacity-100 whitespace-normal w-56 z-50 shadow-lg">
+                  By default, the system only matches against revenue schedules dated on or before the current month. Future-dated schedules are excluded unless toggled here.
+                </div>
+              </div>
+            ) : null}
+            {metadata.reconciled && onUnfinalizeDeposit ? (
+              <button
+                type="button"
+                onClick={onUnfinalizeDeposit}
+                disabled={unfinalizeLoading}
+                className={cn(
+                  "inline-flex items-center justify-center rounded border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50",
+                  unfinalizeLoading ? "cursor-not-allowed opacity-60" : "",
+                )}
+              >
+                {unfinalizeLoading ? "Reopening…" : "Reopen Deposit"}
+              </button>
+            ) : null}
+            {!metadata.reconciled && onFinalizeDeposit ? (
+              <button
+                type="button"
+                onClick={() => setShowFinalizePreview(true)}
+                disabled={finalizeLoading}
+                className={cn(
+                  "inline-flex items-center justify-center rounded border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50",
+                  finalizeLoading ? "cursor-not-allowed opacity-60" : "",
+                )}
+              >
+                {finalizeLoading ? "Reconciling…" : "Reconcile Matches"}
+              </button>
+            ) : null}
+            {onRunAutoMatch ? (
+              <button
+                type="button"
+                onClick={onRunAutoMatch}
+                disabled={autoMatchLoading}
+                className={cn(
+                  "inline-flex items-center justify-center rounded border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50",
+                  autoMatchLoading ? "cursor-not-allowed opacity-60" : "",
+                )}
+              >
+                {autoMatchLoading ? "Loading…" : "AI Matching"}
+              </button>
+            ) : null}
+          </div>
+        </div>
+      {autoMatchSummary ? (
+        <div className="rounded-md border border-emerald-100 bg-emerald-50 px-3 py-2 text-[11px] font-medium text-emerald-800">
+          Auto-matched <span className="font-semibold">{autoMatchSummary.autoMatched}</span> of{" "}
+          <span className="font-semibold">{autoMatchSummary.processed}</span> lines
+          {autoMatchSummary.alreadyMatched > 0 ? (
+              <> · Already matched: {autoMatchSummary.alreadyMatched}</>
+            ) : null}
+            {autoMatchSummary.fuzzyOnly > 0 ? (
+              <> · Fuzzy-only: {autoMatchSummary.fuzzyOnly}</>

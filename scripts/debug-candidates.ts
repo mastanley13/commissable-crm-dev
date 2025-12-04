@@ -14,6 +14,8 @@ async function main() {
   try {
     const result = await matchDepositLine(lineId, {
       limit: 10,
+      // Hierarchical matching is the default engine in the app.
+      useHierarchicalMatching: true,
     })
 
     console.info("[debug-candidates] Line item:", {
@@ -44,4 +46,3 @@ main().catch((error) => {
   console.error("[debug-candidates] Unhandled error:", error)
   process.exit(1)
 })
-

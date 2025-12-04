@@ -36,8 +36,8 @@ async function main() {
 
     const includeFutureSchedules = matchingPrefs.includeFutureSchedulesDefault
     const resolvedEngineMode = matchingPrefs.engineMode
-    const useHierarchicalMatching =
-      resolvedEngineMode === "env" ? undefined : resolvedEngineMode === "hierarchical"
+    // Mirror the candidates route: hierarchical for all modes except explicit legacy.
+    const useHierarchicalMatching = resolvedEngineMode !== "legacy"
     const varianceTolerance = matchingPrefs.varianceTolerance
 
     console.info("[debug-candidates-route] Matching prefs", {

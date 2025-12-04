@@ -263,6 +263,7 @@ interface DepositReconciliationDetailViewProps {
   onUnfinalizeDeposit?: () => void
   unfinalizeLoading?: boolean
   onOpenSettings?: () => void
+  onBackToReconciliation?: () => void
 }
 
 interface MetaStatProps {
@@ -308,6 +309,7 @@ export function DepositReconciliationDetailView({
   onUnfinalizeDeposit,
   unfinalizeLoading = false,
   onOpenSettings,
+  onBackToReconciliation,
 }: DepositReconciliationDetailViewProps) {
   const { showSuccess, showError, ToastContainer } = useToasts()
   const [lineTab, setLineTab] = useState<LineTabKey>("all")
@@ -408,12 +410,14 @@ export function DepositReconciliationDetailView({
     []
   )
   const dateFormatter = useMemo(
-    () =>
-      new Intl.DateTimeFormat("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric"
-      }),
+    () => ({
+      format: (date: Date) => {
+        const year = date.getFullYear()
+        const month = String(date.getMonth() + 1).padStart(2, '0')
+        const day = String(date.getDate()).padStart(2, '0')
+        return `${year}-${month}-${day}`
+      }
+    }),
     []
   )
 
@@ -1593,7 +1597,7 @@ export function DepositReconciliationDetailView({
     <div className="flex min-h-[calc(100vh-110px)] flex-col gap-3 px-4 pb-4 pt-3 sm:px-6">
       {showDevControls ? renderDevMatchingControls() : null}
       <div className="flex flex-col gap-3">
-        <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex items-start justify-between gap-3">
           <div className="flex-shrink-0 space-y-1.5">
             <p className="text-[11px] font-semibold uppercase tracking-wide text-primary-600">Deposit Reconciliation</p>
             <div className="grid grid-cols-8 gap-4 text-sm font-medium text-slate-700">
@@ -1608,14 +1612,23 @@ export function DepositReconciliationDetailView({
               <MetaStat label="Allocated" value={currencyFormatter.format(metadata.allocated)} emphasis />
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-3 md:flex-nowrap">
+          <div className="flex items-center gap-3">
+            {onBackToReconciliation ? (
+              <button
+                type="button"
+                onClick={onBackToReconciliation}
+                className="inline-flex items-center rounded border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+              >
+                ← Back
+              </button>
+            ) : null}
             {onOpenSettings ? (
               <button
                 type="button"
                 onClick={onOpenSettings}
-                className="rounded border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                className="rounded border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
               >
-                Reconciliation Settings
+                Settings
               </button>
             ) : null}
             {devMatchingControls && devMatchingControls.includeFutureSchedules !== undefined ? (
@@ -1635,27 +1648,27 @@ export function DepositReconciliationDetailView({
                 </div>
               </div>
             ) : null}
-            {metadata.reconciled && onUnfinalizeDeposit ? (
+            {onUnfinalizeDeposit ? (
               <button
                 type="button"
                 onClick={onUnfinalizeDeposit}
-                disabled={unfinalizeLoading}
+                disabled={unfinalizeLoading || !metadata.reconciled}
                 className={cn(
-                  "inline-flex items-center justify-center rounded border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50",
+                  "inline-flex items-center justify-center rounded border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50",
                   unfinalizeLoading ? "cursor-not-allowed opacity-60" : "",
                 )}
               >
-                {unfinalizeLoading ? "Reopening…" : "Reopen Deposit"}
+                {unfinalizeLoading ? "Reopening…" : "Unreconcile Deposit"}
               </button>
             ) : null}
-            {!metadata.reconciled && onFinalizeDeposit ? (
+            {onFinalizeDeposit ? (
               <button
                 type="button"
                 onClick={() => setShowFinalizePreview(true)}
-                disabled={finalizeLoading}
+                disabled={finalizeLoading || metadata.reconciled}
                 className={cn(
-                  "inline-flex items-center justify-center rounded border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50",
-                  finalizeLoading ? "cursor-not-allowed opacity-60" : "",
+                  "inline-flex items-center justify-center rounded border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50",
+                  finalizeLoading || metadata.reconciled ? "cursor-not-allowed opacity-60" : "",
                 )}
               >
                 {finalizeLoading ? "Reconciling…" : "Reconcile Matches"}
@@ -1667,11 +1680,11 @@ export function DepositReconciliationDetailView({
                 onClick={onRunAutoMatch}
                 disabled={autoMatchLoading}
                 className={cn(
-                  "inline-flex items-center justify-center rounded border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50",
+                  "inline-flex items-center justify-center rounded border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50",
                   autoMatchLoading ? "cursor-not-allowed opacity-60" : "",
                 )}
               >
-                {autoMatchLoading ? "Loading…" : "Run AI Matching"}
+                {autoMatchLoading ? "Loading…" : "AI Matching"}
               </button>
             ) : null}
           </div>
