@@ -8,6 +8,11 @@ export async function GET(request: NextRequest, { params }: { params: { depositI
     const depositId = params?.depositId?.trim()
     const lineId = params?.lineId?.trim()
     const tenantId = req.user.tenantId
+    const searchParams = request.nextUrl.searchParams
+    const includeFutureSchedules = searchParams.get("includeFutureSchedules") === "true"
+    const useHierarchicalMatchingParam = searchParams.get("useHierarchicalMatching")
+    const useHierarchicalMatching =
+      useHierarchicalMatchingParam === null ? undefined : useHierarchicalMatchingParam === "true"
 
     if (!depositId || !lineId) {
       return createErrorResponse("Deposit id and line id are required", 400)
@@ -21,7 +26,11 @@ export async function GET(request: NextRequest, { params }: { params: { depositI
       return createErrorResponse("Deposit line item not found", 404)
     }
 
-    const matchResult = await matchDepositLine(lineId, { limit: 10 })
+    const matchResult = await matchDepositLine(lineId, {
+      limit: 10,
+      includeFutureSchedules,
+      useHierarchicalMatching,
+    })
     const mapped = candidatesToSuggestedRows(
       matchResult.lineItem,
       matchResult.candidates,

@@ -27,7 +27,7 @@ async function main() {
     }
 
     // Find the HOUSE account type for this tenant
-    const houseType = await prisma.accountType.findFirst({
+    let houseType = await prisma.accountType.findFirst({
       where: {
         tenantId: tenant.id,
         code: "HOUSE",
@@ -35,8 +35,18 @@ async function main() {
     });
 
     if (!houseType) {
-      console.log("  No HOUSE account type found for this tenant. Skipping.");
-      continue;
+      houseType = await prisma.accountType.create({
+        data: {
+          tenantId: tenant.id,
+          code: "HOUSE",
+          name: "House",
+          description: "House accounts",
+          displayOrder: 2,
+        },
+      });
+      console.log("  Created HOUSE account type for this tenant.");
+    } else {
+      console.log("  Using existing HOUSE account type.");
     }
 
     // Find or create the parent agency account
@@ -107,4 +117,3 @@ main()
   .finally(async () => {
     await prisma.$disconnect();
   });
-

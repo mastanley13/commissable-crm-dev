@@ -38,6 +38,12 @@ export default function DepositReconciliationDetailPage() {
   const [detailRefresh, setDetailRefresh] = useState(0)
   const [candidatesRefresh, setCandidatesRefresh] = useState(0)
 
+  // Dev-only matching controls (for side-by-side comparison of engines)
+  const showDevMatchingControls = process.env.NODE_ENV !== "production"
+  type EngineMode = "env" | "legacy" | "hierarchical"
+  const [engineMode, setEngineMode] = useState<EngineMode>("env")
+  const [includeFutureSchedulesDev, setIncludeFutureSchedulesDev] = useState<boolean>(false)
+
   useEffect(() => {
     if (!depositParam) return
     let cancelled = false
@@ -121,8 +127,22 @@ export default function DepositReconciliationDetailPage() {
       setCandidatesLoading(true)
       setCandidatesError(null)
       try {
+        const searchParams = new URLSearchParams()
+        if (showDevMatchingControls) {
+          if (engineMode === "legacy") {
+            searchParams.set("useHierarchicalMatching", "false")
+          } else if (engineMode === "hierarchical") {
+            searchParams.set("useHierarchicalMatching", "true")
+          }
+          if (includeFutureSchedulesDev) {
+            searchParams.set("includeFutureSchedules", "true")
+          }
+        }
+        const query = searchParams.toString()
         const response = await fetch(
-          `/api/reconciliation/deposits/${encodeURIComponent(depositParam)}/line-items/${encodeURIComponent(selectedLineId)}/candidates`,
+          `/api/reconciliation/deposits/${encodeURIComponent(
+            depositParam,
+          )}/line-items/${encodeURIComponent(selectedLineId)}/candidates${query ? `?${query}` : ""}`,
           {
             cache: "no-store",
             signal: controller.signal,
@@ -153,7 +173,14 @@ export default function DepositReconciliationDetailPage() {
       cancelled = true
       controller.abort()
     }
-  }, [depositParam, selectedLineId, candidatesRefresh])
+  }, [
+    depositParam,
+    selectedLineId,
+    candidatesRefresh,
+    showDevMatchingControls,
+    engineMode,
+    includeFutureSchedulesDev,
+  ])
 
   const handleLineSelect = useCallback((lineId: string | null) => {
     setSelectedLineId(lineId)
@@ -182,6 +209,16 @@ export default function DepositReconciliationDetailPage() {
         onLineSelectionChange={handleLineSelect}
         onMatchApplied={handleMatchMutation}
         onUnmatchApplied={handleMatchMutation}
+        devMatchingControls={
+          showDevMatchingControls
+            ? {
+                engineMode,
+                includeFutureSchedules: includeFutureSchedulesDev,
+                onEngineModeChange: setEngineMode,
+                onIncludeFutureSchedulesChange: setIncludeFutureSchedulesDev,
+              }
+            : undefined
+        }
       />
     </CopyProtectionWrapper>
   )

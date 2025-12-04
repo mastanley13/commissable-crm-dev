@@ -6,7 +6,7 @@ Priority order follows the earlier recommendation.
 
 ---
 
-## Ticket 1 – Add `logRevenueScheduleAudit` Helper
+## Ticket 1 – Add `logRevenueScheduleAudit` Helper!
 
 **Goal:** Centralize audit logging for Revenue Schedule changes.
 

@@ -229,6 +229,12 @@ interface DepositReconciliationDetailViewProps {
   onLineSelectionChange?: (lineId: string | null) => void
   onMatchApplied?: () => void
   onUnmatchApplied?: () => void
+  devMatchingControls?: {
+    engineMode: "env" | "legacy" | "hierarchical"
+    includeFutureSchedules: boolean
+    onEngineModeChange: (mode: "env" | "legacy" | "hierarchical") => void
+    onIncludeFutureSchedulesChange: (next: boolean) => void
+  }
 }
 
 interface MetaStatProps {
@@ -264,7 +270,8 @@ export function DepositReconciliationDetailView({
   selectedLineId,
   onLineSelectionChange,
   onMatchApplied,
-  onUnmatchApplied
+  onUnmatchApplied,
+  devMatchingControls
 }: DepositReconciliationDetailViewProps) {
   const { showSuccess, showError, ToastContainer } = useToasts()
   const [lineTab, setLineTab] = useState<LineTabKey>("all")
@@ -362,6 +369,72 @@ export function DepositReconciliationDetailView({
 
   const lineSearchValue = lineSearch.trim().toLowerCase()
   const scheduleSearchValue = scheduleSearch.trim().toLowerCase()
+
+  const renderDevMatchingControls = () => {
+    if (!devMatchingControls) return null
+    const { engineMode, includeFutureSchedules, onEngineModeChange, onIncludeFutureSchedulesChange } =
+      devMatchingControls
+
+    return (
+      <div className="mb-2 flex items-center justify-between rounded-md border border-dashed border-slate-300 bg-slate-50 px-3 py-2 text-xs text-slate-700">
+        <div className="flex items-center gap-3">
+          <span className="font-semibold uppercase tracking-wide text-slate-500">
+            Matching Dev Controls
+          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-medium text-slate-600">Engine:</span>
+            <button
+              type="button"
+              className={cn(
+                "rounded-full px-2 py-0.5 text-[11px]",
+                engineMode === "env"
+                  ? "bg-slate-800 text-white"
+                  : "bg-white text-slate-700 border border-slate-300"
+              )}
+              onClick={() => onEngineModeChange("env")}
+            >
+              Env default
+            </button>
+            <button
+              type="button"
+              className={cn(
+                "rounded-full px-2 py-0.5 text-[11px]",
+                engineMode === "legacy"
+                  ? "bg-slate-800 text-white"
+                  : "bg-white text-slate-700 border border-slate-300"
+              )}
+              onClick={() => onEngineModeChange("legacy")}
+            >
+              Legacy
+            </button>
+            <button
+              type="button"
+              className={cn(
+                "rounded-full px-2 py-0.5 text-[11px]",
+                engineMode === "hierarchical"
+                  ? "bg-slate-800 text-white"
+                  : "bg-white text-slate-700 border border-slate-300"
+              )}
+              onClick={() => onEngineModeChange("hierarchical")}
+            >
+              Hierarchical
+            </button>
+          </div>
+        </div>
+        <label className="flex cursor-pointer items-center gap-2">
+          <input
+            type="checkbox"
+            className="h-3 w-3 rounded border-slate-400 text-slate-800"
+            checked={includeFutureSchedules}
+            onChange={event => onIncludeFutureSchedulesChange(event.target.checked)}
+          />
+          <span className="text-[11px] font-medium text-slate-600">Include future schedules</span>
+        </label>
+      </div>
+    )
+  }
+
+  const showDevControls = Boolean(devMatchingControls)
 
   const handleRowMatchClick = useCallback(
     async (lineId: string) => {
@@ -637,10 +710,9 @@ export function DepositReconciliationDetailView({
         id: "select",
         label: "Select All",
         width: 140,
-        minWidth: 120,
+        minWidth: 100,
         type: "checkbox",
-        sortable: false,
-        resizable: false
+        sortable: false
       },
       {
         id: "match",
@@ -791,10 +863,9 @@ export function DepositReconciliationDetailView({
         id: "select",
         label: "Select All",
         width: 140,
-        minWidth: 120,
+        minWidth: 100,
         type: "checkbox",
-        sortable: false,
-        resizable: false
+        sortable: false
       },
       {
         id: "lineItem",
@@ -1393,6 +1464,7 @@ export function DepositReconciliationDetailView({
 
   return (
     <div className="flex min-h-[calc(100vh-110px)] flex-col gap-3 px-4 pb-4 pt-3 sm:px-6">
+      {showDevControls ? renderDevMatchingControls() : null}
       <div className="flex-shrink-0 space-y-1.5">
         <p className="text-[11px] font-semibold uppercase tracking-wide text-primary-600">Deposit Reconciliation</p>
         <div className="grid grid-cols-8 gap-4 text-sm font-medium text-slate-700">
@@ -1485,6 +1557,7 @@ export function DepositReconciliationDetailView({
               loading={scheduleLoading || loading}
               emptyMessage="No suggested schedules found"
               fillContainerWidth
+              preferOverflowHorizontalScroll
               maxBodyHeight={normalizedScheduleTableHeight}
               selectedItems={selectedSchedules}
               onItemSelect={(itemId, selected) => handleScheduleSelect(String(itemId), selected)}
