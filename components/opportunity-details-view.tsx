@@ -241,9 +241,9 @@ export const REVENUE_TABLE_BASE_COLUMNS: Column[] = [
   {
     id: "multi-action",
     label: "Select All",
-    width: 200,
-    minWidth: calculateMinWidth({ label: "Select All", type: "multi-action", sortable: false }),
-    maxWidth: 240,
+    width: 140,
+    minWidth: 120,
+    maxWidth: 180,
     type: "multi-action",
     hideable: false
   },
@@ -252,8 +252,8 @@ export const REVENUE_TABLE_BASE_COLUMNS: Column[] = [
   { id: "distributorName", label: "Distributor Name", width: 200, minWidth: calculateMinWidth({ label: "Distributor Name", type: "text", sortable: true }), accessor: "distributorName", sortable: true },
   { id: "scheduleNumber", label: "Revenue Schedule", width: 180, minWidth: calculateMinWidth({ label: "Revenue Schedule", type: "text", sortable: true }), accessor: "scheduleNumber", sortable: true },
   { id: "scheduleDate", label: "Schedule Date", width: 160, minWidth: calculateMinWidth({ label: "Schedule Date", type: "text", sortable: true }), accessor: "scheduleDate", sortable: true },
-  { id: "status", label: "Status", width: 150, minWidth: calculateMinWidth({ label: "Status", type: "text", sortable: true }), accessor: "status", sortable: true },
-  { id: "quantity", label: "Quantity", width: 120, minWidth: calculateMinWidth({ label: "Quantity", type: "text", sortable: true }), accessor: "quantity", sortable: true },
+  { id: "status", label: "Status", width: 120, minWidth: 110, accessor: "status", sortable: true },
+  { id: "quantity", label: "Quantity", width: 100, minWidth: 90, accessor: "quantity", sortable: true },
   { id: "unitPrice", label: "Price Each", width: 140, minWidth: calculateMinWidth({ label: "Price Each", type: "text", sortable: true }), accessor: "unitPrice", sortable: true },
   { id: "expectedUsageGross", label: "Expected Usage Gross", width: 200, minWidth: calculateMinWidth({ label: "Expected Usage Gross", type: "text", sortable: true }), accessor: "expectedUsageGross", sortable: true },
   { id: "expectedUsageAdjustment", label: "Expected Usage Adjustment", width: 220, minWidth: calculateMinWidth({ label: "Expected Usage Adjustment", type: "text", sortable: true }), accessor: "expectedUsageAdjustment", sortable: true },
@@ -661,14 +661,17 @@ function formatCurrency(value: number | null | undefined): string {
   if (value === null || value === undefined || Number.isNaN(value)) {
     return "--"
   }
-  // Use accounting-style negatives with leading minus per spec: -($X.XX)
-  const isNegative = value < 0
-  const abs = Math.abs(value)
-  const formatted = new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD"
-  }).format(abs)
-  return isNegative ? `-(${formatted})` : formatted
+  try {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(value)
+  } catch {
+    const numeric = Number(value) || 0
+    return `$${numeric.toFixed(2)}`
+  }
 }
 
 function normalisePercentValue(value: number | null | undefined): number | null {
@@ -1773,6 +1776,7 @@ export function OpportunityDetailsView({
   } | null>(null)
   const [revenueBulkPrompt, setRevenueBulkPrompt] = useState<RevenueFillDownPrompt | null>(null)
   const [revenueBulkApplying, setRevenueBulkApplying] = useState(false)
+  const [revenueSort, setRevenueSort] = useState<{ columnId: string; direction: "asc" | "desc" } | null>(null)
 
   const {
     columns: revenuePreferenceColumns,
@@ -2289,8 +2293,45 @@ export function OpportunityDetailsView({
       ) as unknown as OpportunityRevenueScheduleRecord[]
     }
 
+    if (revenueSort) {
+      const { columnId, direction } = revenueSort
+      const multiplier = direction === "asc" ? 1 : -1
+      const numericColumn =
+        REVENUE_CURRENCY_COLUMN_IDS.has(columnId) ||
+        REVENUE_PERCENT_COLUMN_IDS.has(columnId) ||
+        REVENUE_NUMBER_COLUMN_IDS.has(columnId)
+
+      const toComparable = (row: OpportunityRevenueScheduleRecord): number | string => {
+        const raw = (row as any)?.[columnId]
+        if (columnId === "scheduleDate") {
+          const date = raw ? new Date(raw as string) : null
+          return date && !Number.isNaN(date.getTime()) ? date.getTime() : 0
+        }
+        if (numericColumn) {
+          const numeric = Number(raw)
+          return Number.isFinite(numeric) ? numeric : 0
+        }
+        return raw === null || raw === undefined ? "" : String(raw).toLowerCase()
+      }
+
+      rows.sort((a, b) => {
+        const aVal = toComparable(a)
+        const bVal = toComparable(b)
+
+        if (typeof aVal === "number" && typeof bVal === "number") {
+          if (aVal === bVal) return 0
+          return aVal < bVal ? -1 * multiplier : 1 * multiplier
+        }
+
+        const aStr = String(aVal)
+        const bStr = String(bVal)
+        if (aStr === bStr) return 0
+        return aStr < bStr ? -1 * multiplier : 1 * multiplier
+      })
+    }
+
     return rows
-  }, [revenueRows, revenueStatusFilter, revenueSearchQuery, revenueColumnFilters])
+  }, [revenueRows, revenueStatusFilter, revenueSearchQuery, revenueColumnFilters, revenueSort])
 
   const paginatedRevenueRows = useMemo(() => {
     const start = (revenueCurrentPage - 1) * revenuePageSize
@@ -2463,6 +2504,7 @@ export function OpportunityDetailsView({
     setSelectedRevenueSchedules([])
     setRevenueStatusFilter("all")
     setRevenueCurrentPage(1)
+    setRevenueSort(null)
   }, [opportunity?.id])
 
   const handleRevenueSelect = useCallback((scheduleId: string, selected: boolean) => {
@@ -2494,6 +2536,11 @@ export function OpportunityDetailsView({
 
   const handleRevenuePageSizeChange = useCallback((size: number) => {
     setRevenuePageSize(size)
+    setRevenueCurrentPage(1)
+  }, [])
+
+  const handleRevenueSort = useCallback((columnId: string, direction: "asc" | "desc") => {
+    setRevenueSort({ columnId, direction })
     setRevenueCurrentPage(1)
   }, [])
 
@@ -2625,13 +2672,29 @@ export function OpportunityDetailsView({
 
         const formattedForDisplay = () => {
           if (!Number.isFinite(displayValue)) return ""
-          if (columnId === "expectedCommissionRatePercent") {
-            return displayValue.toLocaleString(undefined, {
-              minimumFractionDigits: revenueEditableColumnsMeta[columnId].decimals,
-              maximumFractionDigits: revenueEditableColumnsMeta[columnId].decimals
+
+          const { decimals, type } = revenueEditableColumnsMeta[columnId]
+
+          if (type === "currency") {
+            return displayValue.toLocaleString("en-US", {
+              style: "currency",
+              currency: "USD",
+              minimumFractionDigits: decimals,
+              maximumFractionDigits: decimals
             })
           }
-          const decimals = revenueEditableColumnsMeta[columnId].decimals
+
+          if (type === "percent") {
+            // Normalize: if value > 1, divide by 100 to convert to decimal form
+            const normalized = displayValue > 1 ? displayValue / 100 : displayValue
+            return normalized.toLocaleString("en-US", {
+              style: "percent",
+              minimumFractionDigits: decimals,
+              maximumFractionDigits: decimals
+            })
+          }
+
+          // type === "number"
           return displayValue.toLocaleString(undefined, {
             minimumFractionDigits: decimals,
             maximumFractionDigits: decimals
@@ -4392,6 +4455,7 @@ export function OpportunityDetailsView({
                           data={paginatedRevenueRows}
                           loading={revenuePreferencesLoading}
                           onColumnsChange={handleRevenueColumnsChange}
+                          onSort={handleRevenueSort}
                           emptyMessage="No revenue schedules available for this opportunity"
                           maxBodyHeight={tableBodyMaxHeight}
                           pagination={revenuePagination}

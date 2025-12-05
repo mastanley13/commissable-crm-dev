@@ -685,10 +685,10 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
                       type="date"
                       value={form.commissionStartDate}
                       onChange={e=>setForm(prev=>({...prev, commissionStartDate: e.target.value}))}
-                      className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500 [color-scheme:light] [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-2 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-datetime-edit]:opacity-0 [&::-webkit-datetime-edit]:focus:opacity-100"
+                      className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1.5 text-xs focus:outline-none focus:border-primary-500 [color-scheme:light] [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-2 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-datetime-edit]:opacity-0"
                       style={{ colorScheme: 'light' }}
                     />
-                    <span className="pointer-events-none absolute left-0 top-1/2 -translate-y-1/2 text-sm text-gray-900">
+                    <span className="pointer-events-none absolute left-0 top-1/2 -translate-y-1/2 text-xs text-gray-900">
                       {form.commissionStartDate || <span className="text-gray-400">YYYY-MM-DD</span>}
                     </span>
                   </div>
@@ -894,13 +894,13 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
                   <div className="relative">
                     <input
                       type="date"
-                      value={form.commissionStartDate}
-                      onChange={e=>setForm(prev=>({...prev, commissionStartDate: e.target.value}))}
-                      className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500 [color-scheme:light] [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-2 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-datetime-edit]:opacity-0 [&::-webkit-datetime-edit]:focus:opacity-100"
+                      value={form.revenueStartDate}
+                      onChange={e=>setForm(prev=>({...prev, revenueStartDate: e.target.value}))}
+                      className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1.5 text-xs focus:outline-none focus:border-primary-500 [color-scheme:light] [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-2 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-datetime-edit]:opacity-0"
                       style={{ colorScheme: 'light' }}
                     />
-                    <span className="pointer-events-none absolute left-0 top-1/2 -translate-y-1/2 text-sm text-gray-900">
-                      {form.commissionStartDate || <span className="text-gray-400">YYYY-MM-DD</span>}
+                    <span className="pointer-events-none absolute left-0 top-1/2 -translate-y-1/2 text-xs text-gray-900">
+                      {form.revenueStartDate || <span className="text-gray-400">YYYY-MM-DD</span>}
                     </span>
                   </div>
                 </div>
@@ -929,7 +929,5 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
     </div>
   )
 }
-
-
 
 

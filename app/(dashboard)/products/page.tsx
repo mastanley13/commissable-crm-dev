@@ -593,24 +593,14 @@ export default function ProductsPage() {
       return
     }
 
-    const deletableTargets = targets.filter(
-      (product) => isRowInactive(product) && !product.hasRevenueSchedules,
-    )
-    const nonDeletableTargets = targets.filter(
-      (product) => !isRowInactive(product) || product.hasRevenueSchedules,
-    )
+    const deletableTargets = targets.filter((product) => isRowInactive(product))
+    const nonDeletableTargets = targets.filter((product) => !isRowInactive(product))
 
     if (nonDeletableTargets.length > 0) {
       const details = nonDeletableTargets
         .map((product) => {
           const name = product.productNameHouse || product.productNameVendor || 'Product'
-          if (!isRowInactive(product)) {
-            return `${name} (must be inactive before it can be deleted)`
-          }
-          if (product.hasRevenueSchedules) {
-            return `${name} (has revenue schedules and can only be made inactive)`
-          }
-          return name
+          return `${name} (must be inactive before it can be deleted)`
         })
         .join('; ')
 
@@ -639,14 +629,6 @@ export default function ProductsPage() {
       showWarning(
         'Cannot delete active product',
         'Deactivate the product before attempting to delete it.',
-      )
-      return
-    }
-
-    if (product.hasRevenueSchedules) {
-      showWarning(
-        'Cannot delete product',
-        'This product has related revenue schedules and can only be made inactive.',
       )
       return
     }

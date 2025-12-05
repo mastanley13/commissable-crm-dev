@@ -329,8 +329,66 @@ export async function DELETE(
         }
       }
 
-      await prisma.opportunityProduct.delete({
-        where: { id: existingLineItem.id }
+      // Ensure no monies have been applied to related revenue schedules before deleting.
+      const relatedSchedules = await prisma.revenueSchedule.findMany({
+        where: { tenantId, opportunityProductId: existingLineItem.id },
+        select: {
+          id: true,
+          scheduleNumber: true,
+          actualUsage: true,
+          actualCommission: true
+        }
+      })
+
+      const scheduleIds = relatedSchedules.map(s => s.id)
+
+      if (scheduleIds.length > 0) {
+        const [matchCount, reconCount, primaryDepositCount] = await Promise.all([
+          prisma.depositLineMatch.count({ where: { tenantId, revenueScheduleId: { in: scheduleIds } } }),
+          prisma.reconciliationItem.count({ where: { tenantId, revenueScheduleId: { in: scheduleIds } } }),
+          prisma.depositLineItem.count({ where: { tenantId, primaryRevenueScheduleId: { in: scheduleIds } } })
+        ])
+
+        const blockingSchedule = relatedSchedules.find(schedule => {
+          const usage = Number(schedule.actualUsage ?? 0)
+          const commission = Number(schedule.actualCommission ?? 0)
+          const hasAppliedMonies =
+            (Number.isFinite(usage) && Math.abs(usage) > 0.0001) ||
+            (Number.isFinite(commission) && Math.abs(commission) > 0.0001)
+          return hasAppliedMonies
+        })
+
+        if (blockingSchedule || matchCount > 0 || reconCount > 0 || primaryDepositCount > 0) {
+          const label = blockingSchedule?.scheduleNumber ?? blockingSchedule?.id ?? relatedSchedules[0]?.scheduleNumber ?? relatedSchedules[0]?.id
+          const reason =
+            blockingSchedule && (Number(blockingSchedule.actualUsage ?? 0) !== 0 || Number(blockingSchedule.actualCommission ?? 0) !== 0)
+              ? "has applied monies"
+              : matchCount > 0
+                ? "has deposit matches"
+                : reconCount > 0
+                  ? "has reconciliation items"
+                  : "has linked deposit lines"
+          return NextResponse.json(
+            { error: `Cannot delete product because revenue schedule ${label} ${reason}.` },
+            { status: 409 }
+          )
+        }
+      }
+
+      await prisma.$transaction(async tx => {
+        if (scheduleIds.length > 0) {
+          // Remove non-monetary dependents to satisfy FKs
+          await tx.activity.deleteMany({ where: { tenantId, revenueScheduleId: { in: scheduleIds } } })
+          await tx.ticket.deleteMany({ where: { tenantId, revenueScheduleId: { in: scheduleIds } } })
+
+          await tx.revenueSchedule.deleteMany({
+            where: { tenantId, id: { in: scheduleIds } }
+          })
+        }
+
+        await tx.opportunityProduct.delete({
+          where: { id: existingLineItem.id }
+        })
       })
 
       await revalidateOpportunityPaths(existingLineItem.opportunity?.accountId ?? null)
