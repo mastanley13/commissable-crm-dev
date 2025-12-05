@@ -3926,16 +3926,62 @@ export function OpportunityDetailsView({
       if (column.id === "productName") {
         return {
           ...column,
-          render: (value: unknown, row: any) => {
+          render: (value: unknown, row: OpportunityLineItemRecord) => {
             const displayValue = value === null || value === undefined ? "--" : String(value)
-            return (
-              <div className="flex flex-col leading-tight">
-                <span className="font-medium text-gray-900">{displayValue}</span>
-                {row.productCode ? (
-                  <span className="text-xs text-gray-500">{String(row.productCode)}</span>
-                ) : null}
-              </div>
-            )
+            const content = <span className="font-medium text-gray-900 group-hover:underline">{displayValue}</span>
+
+            if (row.productId) {
+              return (
+                <Link
+                  href={`/products/${row.productId}`}
+                  className="group block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"
+                >
+                  {content}
+                </Link>
+              )
+            }
+
+            return content
+          }
+        }
+      }
+
+      if (column.id === "distributorName") {
+        return {
+          ...column,
+          render: (value: unknown, row: OpportunityLineItemRecord) => {
+            const displayValue = value === null || value === undefined ? "--" : String(value)
+            if (row.distributorId) {
+              return (
+                <Link
+                  href={`/accounts/${row.distributorId}`}
+                  className="text-primary-700 hover:text-primary-800 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"
+                >
+                  {displayValue}
+                </Link>
+              )
+            }
+            return <span>{displayValue}</span>
+          }
+        }
+      }
+
+      if (column.id === "vendorName") {
+        return {
+          ...column,
+          render: (value: unknown, row: OpportunityLineItemRecord) => {
+            const displayValue = value === null || value === undefined ? "--" : String(value)
+            if (row.vendorId) {
+              return (
+                <Link
+                  href={`/accounts/${row.vendorId}`}
+                  className="text-primary-700 hover:text-primary-800 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"
+                >
+                  {displayValue}
+                </Link>
+              )
+            }
+            return <span>{displayValue}</span>
           }
         }
       }

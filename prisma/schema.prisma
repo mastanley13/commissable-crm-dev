@@ -435,6 +435,7 @@ model Opportunity {
   name                  String
   stage                 OpportunityStage     @default(Qualification)
   status                OpportunityStatus    @default(Open)
+  active                Boolean              @default(true)
   type                  OpportunityType      @default(NewBusiness)
   leadSource            LeadSource           @default(Referral)
   amount                Decimal?             @db.Decimal(16, 2)
@@ -483,6 +484,7 @@ model Opportunity {
   @@index([tenantId, ownerId])
   @@index([tenantId, stage])
   @@index([tenantId, estimatedCloseDate])
+  @@index([tenantId, active])
 }
 
 model OpportunityProduct {

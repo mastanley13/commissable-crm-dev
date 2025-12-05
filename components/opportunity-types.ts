@@ -11,7 +11,9 @@ export interface OpportunityLineItemRecord {
   expectedCommission: number
   revenueStartDate: string | null
   revenueEndDate: string | null
+  distributorId?: string | null
   distributorName?: string | null
+  vendorId?: string | null
   vendorName?: string | null
   priceEach: number | null
   createdAt?: string | null

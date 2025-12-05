@@ -292,6 +292,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { opport
           ownerId: true,
           stage: true,
           status: true,
+          active: true,
           name: true,
           leadSource: true,
           estimatedCloseDate: true,
@@ -405,8 +406,25 @@ export async function PATCH(request: NextRequest, { params }: { params: { opport
 
       if (typeof payload.status === "string") {
         return NextResponse.json({ error: "Opportunity status is managed automatically by stage" }, { status: 400 })
-      } else if (typeof payload.active === "boolean") {
-        return NextResponse.json({ error: "Opportunity status is managed automatically by stage" }, { status: 400 })
+      }
+
+      // Allow explicit active/inactive toggles using the dedicated `active` flag.
+      if (typeof payload.active === "boolean") {
+        const currentStage = existing.stage as OpportunityStageValue
+        const isTerminalStage =
+          currentStage === OpportunityStage.ClosedLost ||
+          currentStage === "ClosedWon_BillingEnded"
+
+        // Guardrails: do not allow reactivating fully closed-out opportunities.
+        if (payload.active && isTerminalStage) {
+          return NextResponse.json(
+            { error: "Closed Lost / Billing Ended opportunities cannot be reactivated. Create a new opportunity instead." },
+            { status: 400 }
+          )
+        }
+
+        data.active = payload.active
+        hasChanges = true
       }
 
       // Referred By (optional string)
@@ -497,6 +515,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { opport
         if ("name" in data) pushSet("name", data.name)
         if ("stage" in data) pushSet("stage", data.stage, '"OpportunityStage"')
         if ("status" in data) pushSet("status", data.status, '"OpportunityStatus"')
+        if ("active" in data) pushSet("active", data.active)
         if ("leadSource" in data) pushSet("leadSource", data.leadSource, '"LeadSource"')
         if ("ownerId" in data) pushSet("ownerId", data.ownerId, "uuid")
         if ("estimatedCloseDate" in data) pushSet("estimatedCloseDate", data.estimatedCloseDate, "timestamptz")

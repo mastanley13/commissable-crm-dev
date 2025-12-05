@@ -31,9 +31,6 @@ const OPPORTUNITY_VIEW_PERMISSIONS = Array.from(new Set([
   ...OPPORTUNITY_VIEW_ASSIGNED_PERMISSIONS
 ]))
 
-const ACTIVE_STATUS_FILTER: OpportunityStatus[] = [OpportunityStatus.Open, OpportunityStatus.OnHold]
-const INACTIVE_STATUS_FILTER: OpportunityStatus[] = [OpportunityStatus.Lost, OpportunityStatus.Won]
-
 function resolveSortOrder(sortColumn: string, direction: "asc" | "desc"): Prisma.OpportunityOrderByWithRelationInput[] {
   if (sortColumn === "closeDate") {
     return [
@@ -154,12 +151,24 @@ export async function GET(request: NextRequest) {
 
       const andConditions: Prisma.OpportunityWhereInput[] = []
 
+      // Status filter now uses the dedicated `active` flag, with a safety net
+      // for obviously closed-out stages.
       if (statusParam === "inactive") {
-        andConditions.push({ status: { in: INACTIVE_STATUS_FILTER } })
+        andConditions.push({
+          OR: [
+            { active: false },
+            { stage: { in: [OpportunityStage.ClosedLost, "ClosedWon_BillingEnded" as any] } }
+          ]
+        })
       } else if (statusParam === "all") {
         // No additional status filter
       } else {
-        andConditions.push({ status: { in: ACTIVE_STATUS_FILTER } })
+        andConditions.push({
+          AND: [
+            { active: true },
+            { stage: { notIn: [OpportunityStage.ClosedLost, "ClosedWon_BillingEnded" as any] } }
+          ]
+        })
       }
 
       if (query.length > 0) {

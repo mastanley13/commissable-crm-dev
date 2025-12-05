@@ -6,6 +6,7 @@ import { hasAnyPermission } from "@/lib/auth"
 import { mapOpportunityProductToDetail } from "../../helpers"
 import { revalidateOpportunityPaths } from "../../revalidate"
 import { recalculateOpportunityStage } from "@/lib/opportunities/stage"
+import { generateRevenueScheduleName } from "@/lib/revenue-schedule-number"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -169,6 +170,19 @@ export async function POST(
       const commissionPercentOverrideRaw = (payload as any).commissionPercent
       const commissionPercentOverride = typeof commissionPercentOverrideRaw === 'number' ? commissionPercentOverrideRaw : Number(commissionPercentOverrideRaw)
 
+      const hasAccountForSchedules = Boolean(existingOpportunity.accountId)
+      const wantsSchedules =
+        Number.isFinite(schedulePeriods) &&
+        (schedulePeriods as number) > 0 &&
+        commissionStartDate !== null
+
+      if (wantsSchedules && !hasAccountForSchedules) {
+        return NextResponse.json(
+          { error: "Cannot generate revenue schedules because the opportunity is missing an account." },
+          { status: 400 }
+        )
+      }
+
       // perform in a transaction so schedules and line item are in sync
       const lineItem = await prisma.$transaction(async (tx) => {
         const created = await tx.opportunityProduct.create({
@@ -210,44 +224,55 @@ export async function POST(
         })
 
         // Generate revenue schedules if instructed
-        const shouldCreateSchedules = Number.isFinite(schedulePeriods) && (schedulePeriods as number) > 0 && commissionStartDate !== null
+        const shouldCreateSchedules = wantsSchedules && hasAccountForSchedules
         if (shouldCreateSchedules) {
-          const nPeriods = Number(schedulePeriods)
-          // Determine base amounts
-          const totalExpectedRevenue = (expectedRevenueNumber ?? (quantityNumber && unitPriceNumber ? Number((quantityNumber * unitPriceNumber).toFixed(2)) : 0)) || 0
-          const perPeriodExpectedUsage = nPeriods > 0 ? Number((totalExpectedRevenue / nPeriods).toFixed(2)) : 0
-          const commissionPercent = Number.isFinite(commissionPercentOverride) && commissionPercentOverride! >= 0
-            ? Number(commissionPercentOverride)
-            : (product.commissionPercent !== null && product.commissionPercent !== undefined ? Number(product.commissionPercent) : 0)
-          const commissionDecimal = commissionPercent > 1 ? commissionPercent / 100 : commissionPercent
+          try {
+            const nPeriods = Number(schedulePeriods)
+            // Determine base amounts
+            const totalExpectedRevenue = (expectedRevenueNumber ?? (quantityNumber && unitPriceNumber ? Number((quantityNumber * unitPriceNumber).toFixed(2)) : 0)) || 0
+            const perPeriodExpectedUsage = nPeriods > 0 ? Number((totalExpectedRevenue / nPeriods).toFixed(2)) : 0
+            const commissionPercent = Number.isFinite(commissionPercentOverride) && commissionPercentOverride! >= 0
+              ? Number(commissionPercentOverride)
+              : (product.commissionPercent !== null && product.commissionPercent !== undefined ? Number(product.commissionPercent) : 0)
+            const commissionDecimal = commissionPercent > 1 ? commissionPercent / 100 : commissionPercent
 
-          // Helper to add months preserving first-of-month
-          const addMonths = (date: Date, months: number) => {
-            const d = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + months, 1))
-            return d
-          }
+            // Helper to add months preserving first-of-month
+            const addMonths = (date: Date, months: number) => {
+              const d = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + months, 1))
+              return d
+            }
 
-          const scheduleData: Prisma.RevenueScheduleCreateManyInput[] = []
-          for (let i = 0; i < nPeriods; i++) {
-            const date = addMonths(commissionStartDate!, i)
-            const expectedCommissionForPeriod = Number((perPeriodExpectedUsage * commissionDecimal).toFixed(2))
-            scheduleData.push({
-              tenantId,
-              opportunityId: existingOpportunity.id,
-              opportunityProductId: created.id,
-              accountId: existingOpportunity.accountId!,
-              productId: product.id,
-              distributorAccountId: product.distributorAccountId ?? null,
-              vendorAccountId: product.vendorAccountId ?? null,
-              scheduleDate: date,
-              expectedUsage: decimalFromNumber(perPeriodExpectedUsage),
-              expectedCommission: decimalFromNumber(expectedCommissionForPeriod),
-              // scheduleNumber left null; can be managed later
+            const scheduleData: Prisma.RevenueScheduleCreateManyInput[] = []
+            for (let i = 0; i < nPeriods; i++) {
+              const date = addMonths(commissionStartDate!, i)
+              const expectedCommissionForPeriod = Number((perPeriodExpectedUsage * commissionDecimal).toFixed(2))
+              const scheduleNumber = await generateRevenueScheduleName(tx)
+              scheduleData.push({
+                tenantId,
+                opportunityId: existingOpportunity.id,
+                opportunityProductId: created.id,
+                accountId: existingOpportunity.accountId!,
+                productId: product.id,
+                distributorAccountId: product.distributorAccountId ?? null,
+                vendorAccountId: product.vendorAccountId ?? null,
+                scheduleDate: date,
+                expectedUsage: decimalFromNumber(perPeriodExpectedUsage),
+                expectedCommission: decimalFromNumber(expectedCommissionForPeriod),
+                scheduleNumber
+              })
+            }
+
+            if (scheduleData.length > 0) {
+              await tx.revenueSchedule.createMany({ data: scheduleData })
+            }
+          } catch (err: any) {
+            console.error("Failed to create revenue schedules", {
+              message: err?.message,
+              accountId: existingOpportunity.accountId,
+              schedulePeriods,
+              commissionStartDate
             })
-          }
-
-          if (scheduleData.length > 0) {
-            await tx.revenueSchedule.createMany({ data: scheduleData })
+            throw err
           }
         }
 

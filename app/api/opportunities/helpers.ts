@@ -83,6 +83,7 @@ type RevenueScheduleWithRelations = {
 
 type OpportunityWithRelations = {
   id: string
+  active?: boolean | null
   status?: OpportunityStatus | string | null
   name?: string | null
   orderIdHouse?: string | null
@@ -176,7 +177,9 @@ export type OpportunityLineItemDetail = {
   expectedCommission: number
   revenueStartDate: string | null
   revenueEndDate: string | null
+  distributorId?: string | null
   distributorName?: string | null
+  vendorId?: string | null
   vendorName?: string | null
   priceEach: number | null
   createdAt?: string | null
@@ -403,7 +406,24 @@ export function mapOpportunityToRow(opportunity: OpportunityWithRelations) {
     ?? `${opportunity.owner?.firstName ?? ""} ${opportunity.owner?.lastName ?? ""}`.trim()
 
   const status = normalizeStatus(opportunity.status)
-  const isActive = status === OpportunityStatus.Open || status === OpportunityStatus.OnHold
+  const rawActive = typeof opportunity.active === "boolean" ? opportunity.active : null
+  const stageValue = (opportunity.stage ?? OpportunityStage.Qualification) as OpportunityStage | string
+  const stageCode = typeof stageValue === "string" ? stageValue : stageValue
+
+  // Treat clearly closed-out stages as inactive regardless of explicit flag
+  const isTerminalStage =
+    stageCode === OpportunityStage.ClosedLost ||
+    stageCode === "ClosedWon_BillingEnded"
+
+  let isActive: boolean
+
+  if (rawActive !== null) {
+    isActive = rawActive && !isTerminalStage
+  } else {
+    // Backwards-compatible fallback for older records without an explicit active flag.
+    // Default to active for all non-terminal stages; Closed Lost / Billing Ended are inactive.
+    isActive = !isTerminalStage
+  }
 
   const subAgent = extractSubAgent(opportunity.description ?? "")
   const estimatedCloseDate = formatDateValue(opportunity.estimatedCloseDate)
@@ -500,6 +520,8 @@ export function mapOpportunityProductToDetail(item: OpportunityProductWithRelati
   const revenueTypeSnapshot = item.revenueTypeSnapshot
   const distributorNameSnapshot = item.distributorNameSnapshot
   const vendorNameSnapshot = item.vendorNameSnapshot
+  const distributorId = item.product?.distributor?.id ?? null
+  const vendorId = item.product?.vendor?.id ?? null
 
   return {
     id: item.id,
@@ -519,7 +541,9 @@ export function mapOpportunityProductToDetail(item: OpportunityProductWithRelati
     expectedCommission,
     revenueStartDate,
     revenueEndDate,
+    distributorId,
     distributorName: distributorNameSnapshot ?? item.product?.distributor?.accountName ?? null,
+    vendorId,
     vendorName: vendorNameSnapshot ?? item.product?.vendor?.accountName ?? null,
     priceEach,
     createdAt: formatDateValue(item.createdAt ?? null),
