@@ -269,6 +269,7 @@ export default function ContactsPage() {
   const [contactToEdit, setContactToEdit] = useState<ContactRow | null>(null)
   const [showEditModal, setShowEditModal] = useState(false)
   const [tableBodyHeight, setTableBodyHeight] = useState<number>()
+  const [contactColumnsNormalized, setContactColumnsNormalized] = useState(false)
   const tableAreaNodeRef = useRef<HTMLDivElement | null>(null)
   const router = useRouter()
   
@@ -279,6 +280,7 @@ export default function ContactsPage() {
     loading: preferenceLoading,
     error: preferenceError,
     saving: preferenceSaving,
+    hasServerPreferences,
     hasUnsavedChanges,
     lastSaved,
     handleColumnsChange,
@@ -428,9 +430,17 @@ export default function ContactsPage() {
     loadContacts()
   }, [loadContacts])
 
-  // Apply default column visibility on initial load
+  // Apply default column visibility only on first load when there are
+  // no saved preferences for this user/page.
   useEffect(() => {
+    if (contactColumnsNormalized) return
     if (preferenceLoading) return
+    if (!preferenceColumns || preferenceColumns.length === 0) return
+
+    if (hasServerPreferences) {
+      setContactColumnsNormalized(true)
+      return
+    }
 
     const normalized = preferenceColumns.map(column => {
       if (column.id === "multi-action") {
@@ -449,7 +459,9 @@ export default function ContactsPage() {
     if (changed) {
       handleColumnsChange(normalized)
     }
-  }, [preferenceLoading, preferenceColumns, handleColumnsChange])
+
+    setContactColumnsNormalized(true)
+  }, [contactColumnsNormalized, preferenceLoading, preferenceColumns, handleColumnsChange, hasServerPreferences])
 
   const debouncedSearch = useCallback((query: string) => {
     if (searchTimeout) {

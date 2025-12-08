@@ -418,6 +418,7 @@ export default function AccountsPage() {
     loading: preferenceLoading,
     error: preferenceError,
     saving: preferenceSaving,
+    hasServerPreferences,
     hasUnsavedChanges,
     lastSaved,
     handleColumnsChange,
@@ -433,6 +434,13 @@ export default function AccountsPage() {
       return;
     }
     if (!preferenceColumns || preferenceColumns.length === 0) {
+      return;
+    }
+
+    // If the server already has saved preferences for this user/page,
+    // respect them as-is and skip default-visibility normalization.
+    if (hasServerPreferences) {
+      setAccountColumnsNormalized(true);
       return;
     }
 
@@ -455,7 +463,7 @@ export default function AccountsPage() {
     }
 
     setAccountColumnsNormalized(true);
-  }, [preferenceColumns, preferenceLoading, handleColumnsChange, accountColumnsNormalized]);
+  }, [preferenceColumns, preferenceLoading, handleColumnsChange, accountColumnsNormalized, hasServerPreferences]);
 
   const measureTableArea = useCallback(() => {
     const node = tableAreaNodeRef.current

@@ -540,6 +540,7 @@ export default function ReconciliationPage() {
     loading: preferenceLoading,
     error: preferenceError,
     saving: preferenceSaving,
+    hasServerPreferences,
     hasUnsavedChanges,
     lastSaved,
     handleColumnsChange,
@@ -548,7 +549,8 @@ export default function ReconciliationPage() {
     saveChangesOnModalClose,
   } = useTablePreferences("reconciliation:list", reconciliationColumns)
 
-  // Normalize column visibility on initial load
+  // Normalize column visibility on first load only when there are no
+  // saved preferences for this user/page.
   useEffect(() => {
     if (reconciliationColumnsNormalized) {
       return
@@ -557,6 +559,11 @@ export default function ReconciliationPage() {
       return
     }
     if (!preferenceColumns || preferenceColumns.length === 0) {
+      return
+    }
+
+    if (hasServerPreferences) {
+      setReconciliationColumnsNormalized(true)
       return
     }
 
@@ -579,7 +586,7 @@ export default function ReconciliationPage() {
     }
 
     setReconciliationColumnsNormalized(true)
-  }, [preferenceColumns, preferenceLoading, handleColumnsChange, reconciliationColumnsNormalized])
+  }, [preferenceColumns, preferenceLoading, handleColumnsChange, reconciliationColumnsNormalized, hasServerPreferences])
 
   // Measure table area for height calculation
   const measureTableArea = useCallback(() => {

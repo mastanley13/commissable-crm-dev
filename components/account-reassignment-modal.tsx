@@ -551,7 +551,7 @@ export function AccountReassignmentModal({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden">
+      <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <div className="flex items-center gap-3">
@@ -632,16 +632,16 @@ export function AccountReassignmentModal({
                   <h3 className="text-lg font-medium text-gray-900 mb-4">
                     Account Reassignment Configuration
                   </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-6">
                     {/* New Owner Selection */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        New Owner *
+                      <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                        New Owner <span className="text-red-500">*</span>
                       </label>
                       <select
                         value={reassignmentData.newOwnerId}
                         onChange={(e) => setReassignmentData(prev => ({ ...prev, newOwnerId: e.target.value }))}
-                        className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
                         disabled={loading}
                       >
                         <option value="">Select New Owner</option>
@@ -672,13 +672,13 @@ export function AccountReassignmentModal({
 
                     {/* Assignment Role */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Assignment Role *
+                      <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                        Assignment Role <span className="text-red-500">*</span>
                       </label>
                       <select
                         value={reassignmentData.assignmentRole}
                         onChange={(e) => setReassignmentData(prev => ({ ...prev, assignmentRole: e.target.value as AssignmentRole }))}
-                        className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
                       >
                         <option value="PrimaryOwner">Primary Owner</option>
                         <option value="SalesSupport">Sales Support</option>
@@ -689,15 +689,21 @@ export function AccountReassignmentModal({
 
                     {/* Effective Date */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Effective Date *
+                      <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                        Effective Date <span className="text-red-500">*</span>
                       </label>
-                      <input
-                        type="date"
-                        value={reassignmentData.effectiveDate.toISOString().split('T')[0]}
-                        onChange={(e) => setReassignmentData(prev => ({ ...prev, effectiveDate: new Date(e.target.value) }))}
-                        className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      />
+                      <div className="relative">
+                        <input
+                          type="date"
+                          value={reassignmentData.effectiveDate.toISOString().split('T')[0]}
+                          onChange={(e) => setReassignmentData(prev => ({ ...prev, effectiveDate: new Date(e.target.value) }))}
+                          className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500 [color-scheme:light] [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-2 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-datetime-edit]:opacity-0"
+                          style={{ colorScheme: 'light' }}
+                        />
+                        <span className="pointer-events-none absolute left-0 top-1/2 -translate-y-1/2 text-xs text-gray-900">
+                          {reassignmentData.effectiveDate.toISOString().split('T')[0] || <span className="text-gray-400">YYYY-MM-DD</span>}
+                        </span>
+                      </div>
                     </div>
 
                     {/* Options */}
@@ -738,7 +744,7 @@ export function AccountReassignmentModal({
                               checked={reassignmentData.commissionOption === 'transferToNewRep'}
                               onChange={() => setReassignmentData(prev => ({ ...prev, commissionOption: 'transferToNewRep' }))}
                             />
-                            Transfer to New Representative
+                        Transfer to New Owner
                           </label>
                           <label className="flex items-center gap-2 text-sm text-gray-700">
                             <input
@@ -755,11 +761,11 @@ export function AccountReassignmentModal({
                       {/* House Dummy Rep Selector when House chosen */}
                       {reassignmentData.newOwnerId === 'house' && (
                         <div className="mt-2">
-                          <label className="block text-sm font-medium text-gray-700 mb-2">Select House Dummy Representative</label>
+                          <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Select House Dummy Representative</label>
                           <select
                             value={reassignmentData.houseDummyRepId || ''}
                             onChange={(e) => setReassignmentData(prev => ({ ...prev, houseDummyRepId: e.target.value }))}
-                            className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
                           >
                             <option value="">Select Dummy Rep</option>
                             {specialUsers

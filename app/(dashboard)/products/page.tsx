@@ -10,7 +10,7 @@ import { CopyProtectionWrapper } from '@/components/copy-protection'
 import { TwoStageDeleteDialog } from '@/components/two-stage-delete-dialog'
 import { ProductCreateModal } from '@/components/product-create-modal'
 import { useToasts } from '@/components/toast'
-import { Check, Download, ToggleLeft, ToggleRight, Trash2 } from 'lucide-react'
+import { Check, Download, ToggleLeft, ToggleRight, Trash2, X } from 'lucide-react'
 import { isRowInactive } from '@/lib/row-state'
 import { calculateMinWidth } from '@/lib/column-width-utils'
 import { cn } from '@/lib/utils'
@@ -229,6 +229,17 @@ const DEFAULT_PAGINATION: PaginationInfo = {
 const TABLE_BOTTOM_RESERVE = 110
 const TABLE_MIN_BODY_HEIGHT = 320
 
+type ProductEditableColumnId = 'priceEach' | 'commissionPercent'
+
+type ProductFillDownPrompt = {
+  columnId: ProductEditableColumnId
+  label: string
+  value: number
+  rowId: string
+  selectedCount: number
+  anchor: { top: number; left: number }
+}
+
 function formatCurrency(value: number | null | undefined) {
   if (value === null || value === undefined || Number.isNaN(value)) {
     return '$0.00'
@@ -240,7 +251,32 @@ function formatPercent(value: number | null | undefined) {
   if (value === null || value === undefined || Number.isNaN(value)) {
     return '0.00%'
   }
-  return `${value.toFixed(2)}%`
+  const normalized = value > 1 ? value : value * 100
+  return `${normalized.toFixed(2)}%`
+}
+
+function getEditableDisplayValue(columnId: ProductEditableColumnId, rowValue: unknown): number {
+  if (columnId === 'commissionPercent') {
+    const fraction = typeof rowValue === 'number' ? rowValue : Number(rowValue) || 0
+    return fraction * 100
+  }
+  return typeof rowValue === 'number' ? rowValue : Number(rowValue) || 0
+}
+
+function normaliseProductEditValue(columnId: ProductEditableColumnId, value: number): number | null {
+  if (!Number.isFinite(value)) return null
+  switch (columnId) {
+    case 'priceEach': {
+      const next = Math.max(0, value)
+      return Number(next.toFixed(2))
+    }
+    case 'commissionPercent': {
+      const next = Math.max(0, value)
+      return Number(next.toFixed(2))
+    }
+    default:
+      return null
+  }
 }
 
 function formatIsoDate(value?: string | null) {
@@ -279,6 +315,11 @@ export default function ProductsPage() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [tableBodyHeight, setTableBodyHeight] = useState<number>()
   const tableAreaNodeRef = useRef<HTMLDivElement | null>(null)
+  const [productBulkPrompt, setProductBulkPrompt] = useState<ProductFillDownPrompt | null>(null)
+  const [productBulkApplying, setProductBulkApplying] = useState(false)
+  const [showBulkStatusModal, setShowBulkStatusModal] = useState(false)
+  const [bulkStatusChoice, setBulkStatusChoice] = useState<'active' | 'inactive'>('active')
+  const [bulkStatusSubmitting, setBulkStatusSubmitting] = useState(false)
 
   const selectedProductRows = useMemo(() => {
     if (selectedProducts.length === 0) {
@@ -850,6 +891,46 @@ export default function ProductsPage() {
       setBulkActionLoading(false)
     }
   }, [canEditProducts, products, reloadProducts, requireAdminForEdit, showError, showSuccess])
+
+  const openBulkStatusModal = useCallback(() => {
+    if (selectedProductRows.length === 0) {
+      showError('No products selected', 'Select at least one product to update.')
+      return
+    }
+    setBulkStatusChoice('active')
+    setShowBulkStatusModal(true)
+  }, [selectedProductRows, showError])
+
+  const closeBulkStatusModal = useCallback(() => {
+    if (bulkStatusSubmitting) return
+    setShowBulkStatusModal(false)
+  }, [bulkStatusSubmitting])
+
+  const handleConfirmBulkStatusChange = useCallback(async () => {
+    if (selectedProducts.length === 0) {
+      showError('No products selected', 'Select at least one product to update.')
+      setShowBulkStatusModal(false)
+      return
+    }
+
+    setBulkStatusSubmitting(true)
+    try {
+      if (bulkStatusChoice === 'active') {
+        await handleBulkActivateProducts(selectedProducts)
+      } else {
+        await handleBulkDeactivateProducts(selectedProducts)
+      }
+      setShowBulkStatusModal(false)
+    } finally {
+      setBulkStatusSubmitting(false)
+    }
+  }, [
+    bulkStatusChoice,
+    handleBulkActivateProducts,
+    handleBulkDeactivateProducts,
+    selectedProducts,
+    showError,
+  ])
   const handleBulkExportCsv = useCallback(() => {
     const rows = selectedProducts.length > 0
       ? products.filter((row) => selectedProducts.includes(row.id))
@@ -950,47 +1031,107 @@ export default function ProductsPage() {
         onClick: handleBulkExportCsv,
       },
       {
-        key: 'activate',
-        label: 'Mark Active',
+        key: 'status',
+        label: 'Change Status',
         icon: ToggleRight,
         tone: 'primary',
         disabled: !canEditProducts,
-        tooltip: (count) => `Mark ${count} product${count === 1 ? '' : 's'} active`,
-        onClick: () => {
-          if (selectedProducts.length === 0) {
-            showError('No products selected', 'Select at least one product to update.')
-            return
-          }
-          handleBulkActivateProducts(selectedProducts)
-        },
-      },
-      {
-        key: 'deactivate',
-        label: 'Mark Inactive',
-        icon: ToggleLeft,
-        tone: 'neutral',
-        disabled: !canEditProducts,
-        tooltip: (count) => `Mark ${count} product${count === 1 ? '' : 's'} inactive`,
-        onClick: () => {
-          if (selectedProducts.length === 0) {
-            showError('No products selected', 'Select at least one product to update.')
-            return
-          }
-          handleBulkDeactivateProducts(selectedProducts)
-        },
+        tooltip: (count) => `Change status for ${count} product${count === 1 ? '' : 's'}`,
+        onClick: openBulkStatusModal,
       },
     ],
   }), [
     bulkActionLoading,
     canEditProducts,
-    handleBulkActivateProducts,
-    handleBulkDeactivateProducts,
     handleBulkExportCsv,
+    openBulkStatusModal,
     openDeleteDialog,
     selectedProductRows,
     selectedProducts,
     showError,
   ])
+
+  const handleProductInlineChange = useCallback(
+    async (row: ProductRow, columnId: ProductEditableColumnId, nextValue: number, rect: DOMRect | null) => {
+      if (!canEditProducts) {
+        requireAdminForEdit()
+        return
+      }
+
+      const normalised = normaliseProductEditValue(columnId, nextValue)
+      if (normalised === null) {
+        return
+      }
+
+      const payload: Record<string, unknown> = {}
+      if (columnId === 'priceEach') {
+        payload.priceEach = normalised
+      }
+      if (columnId === 'commissionPercent') {
+        const fraction = normalised === 0 ? 0 : normalised > 1 ? normalised / 100 : normalised
+        payload.commissionPercent = fraction
+      }
+
+      try {
+        const response = await fetch(`/api/products/${row.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        })
+
+        if (!response.ok) {
+          const body = await response.json().catch(() => null)
+          const message = body?.error ?? 'Failed to update product'
+          throw new Error(message)
+        }
+
+        const updated = await response.json().catch(() => null)
+        const updatedData = updated?.data ?? updated
+
+        setProducts(previous =>
+          previous.map(product =>
+            product.id === row.id
+              ? {
+                  ...product,
+                  priceEach:
+                    columnId === 'priceEach' ? normalised : product.priceEach,
+                  commissionPercent:
+                    columnId === 'commissionPercent'
+                      ? (payload.commissionPercent as number)
+                      : product.commissionPercent,
+                }
+              : product,
+          ),
+        )
+
+        if (selectedProducts.length > 1 && rect && selectedProducts.includes(row.id)) {
+          setProductBulkPrompt({
+            columnId,
+            label: columnId === 'priceEach' ? 'Price Each' : 'Expected Commission Rate %',
+            value: normalised,
+            rowId: row.id,
+            selectedCount: selectedProducts.length,
+            anchor: {
+              top: rect.bottom + 8,
+              left: rect.right + 12,
+            },
+          })
+        } else {
+          setProductBulkPrompt(null)
+        }
+
+        if (!updatedData) {
+          await reloadProducts()
+        }
+      } catch (err) {
+        console.error('Failed to update product inline', err)
+        const message = err instanceof Error ? err.message : 'Failed to update product'
+        showError('Unable to update product', message)
+      }
+    },
+    [canEditProducts, reloadProducts, requireAdminForEdit, selectedProducts, showError],
+  )
+
   const tableColumns = useMemo(() => {
     return normalizedPreferenceColumns.map((column) => {
       if (column.id === 'multi-action') {
@@ -1093,6 +1234,47 @@ export default function ProductsPage() {
       }
 
       if (column.id === 'priceEach') {
+        if (canEditProducts) {
+          return {
+            ...column,
+            render: (_value: unknown, row: ProductRow) => {
+              let spanRef: HTMLSpanElement | null = null
+              const displayValue = getEditableDisplayValue('priceEach', row.priceEach)
+
+              const commit = () => {
+                if (!spanRef) return
+                const rawText = spanRef.innerText.trim()
+                if (!rawText) return
+                const sanitised = rawText.replace(/[^0-9.\-]/g, '')
+                const parsed = sanitised === '' ? NaN : Number(sanitised)
+                if (Number.isNaN(parsed)) return
+                handleProductInlineChange(row, 'priceEach', parsed, spanRef.getBoundingClientRect())
+              }
+
+              return (
+                <span
+                  ref={(node) => {
+                    spanRef = node
+                  }}
+                  contentEditable
+                  suppressContentEditableWarning
+                  data-disable-row-click="true"
+                  className="block min-w-0 truncate text-sm text-gray-900 focus:outline-none"
+                  onBlur={commit}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault()
+                      commit()
+                    }
+                  }}
+                  aria-label="Edit Price Each"
+                >
+                  {formatCurrency(displayValue)}
+                </span>
+              )
+            },
+          }
+        }
         return {
           ...column,
           render: (value: unknown) => formatCurrency(typeof value === 'number' ? value : Number(value) || 0),
@@ -1100,6 +1282,54 @@ export default function ProductsPage() {
       }
 
       if (column.id === 'commissionPercent') {
+        if (canEditProducts) {
+          return {
+            ...column,
+            render: (_value: unknown, row: ProductRow) => {
+              let spanRef: HTMLSpanElement | null = null
+              const displayValue = getEditableDisplayValue('commissionPercent', row.commissionPercent)
+
+              const commit = () => {
+                if (!spanRef) return
+                const rawText = spanRef.innerText.trim()
+                if (!rawText) return
+                const sanitised = rawText.replace(/[^0-9.\-]/g, '')
+                const parsed = sanitised === '' ? NaN : Number(sanitised)
+                if (Number.isNaN(parsed)) return
+                handleProductInlineChange(row, 'commissionPercent', parsed, spanRef.getBoundingClientRect())
+              }
+
+              const normalized = displayValue > 1 ? displayValue / 100 : displayValue
+              const formatted = normalized.toLocaleString('en-US', {
+                style: 'percent',
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })
+
+              return (
+                <span
+                  ref={(node) => {
+                    spanRef = node
+                  }}
+                  contentEditable
+                  suppressContentEditableWarning
+                  data-disable-row-click="true"
+                  className="block min-w-0 truncate text-sm text-gray-900 focus:outline-none"
+                  onBlur={commit}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault()
+                      commit()
+                    }
+                  }}
+                  aria-label="Edit Expected Commission Rate %"
+                >
+                  {formatted}
+                </span>
+              )
+            },
+          }
+        }
         return {
           ...column,
           render: (value: unknown) => formatPercent(typeof value === 'number' ? value : Number(value) || 0),
@@ -1163,18 +1393,19 @@ export default function ProductsPage() {
       return column
     })
   }, [
+    canEditProducts,
     handleProductToggleActive,
     handleSelectProduct,
-    canEditProducts,
     normalizedPreferenceColumns,
     requestProductDelete,
     selectedProducts,
+    handleProductInlineChange,
   ])
 
   return (
     <CopyProtectionWrapper className="dashboard-page-container">
       <ListHeader
-        pageTitle="PRODUCTS LIST"
+        pageTitle="CATALOG"
         searchPlaceholder="Search products..."
         onSearch={handleSearch}
         onFilterChange={handleStatusFilterChange}
@@ -1277,6 +1508,125 @@ export default function ProductsPage() {
         />
       ) : null}
 
+      {showBulkStatusModal ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-6">
+          <div className="w-full max-w-3xl rounded-lg bg-white shadow-xl">
+            <div className="flex items-start justify-between border-b border-gray-200 px-6 py-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-primary-600">
+                  Bulk Status Change
+                </p>
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Update {selectedProductRows.length} product{selectedProductRows.length === 1 ? '' : 's'}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={closeBulkStatusModal}
+                className="rounded p-2 text-gray-500 transition hover:bg-gray-100 hover:text-gray-700"
+                aria-label="Close status modal"
+                disabled={bulkStatusSubmitting || bulkActionLoading}
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="space-y-4 px-6 py-4">
+              <div className="flex flex-wrap gap-3">
+                <label className="inline-flex items-center gap-2 rounded border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700">
+                  <input
+                    type="radio"
+                    name="bulk-status"
+                    value="active"
+                    checked={bulkStatusChoice === 'active'}
+                    onChange={() => setBulkStatusChoice('active')}
+                    className="h-4 w-4 text-primary-600"
+                  />
+                  <ToggleRight className="h-4 w-4 text-green-600" />
+                  <span>Mark Active</span>
+                </label>
+                <label className="inline-flex items-center gap-2 rounded border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700">
+                  <input
+                    type="radio"
+                    name="bulk-status"
+                    value="inactive"
+                    checked={bulkStatusChoice === 'inactive'}
+                    onChange={() => setBulkStatusChoice('inactive')}
+                    className="h-4 w-4 text-primary-600"
+                  />
+                  <ToggleLeft className="h-4 w-4 text-slate-600" />
+                  <span>Mark Inactive</span>
+                </label>
+              </div>
+
+              <div className="rounded-lg border border-gray-200">
+                <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
+                  <div className="text-sm font-medium text-gray-700">
+                    Selected products ({selectedProductRows.length})
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    Current status shown for review before applying changes.
+                  </div>
+                </div>
+                <div className="max-h-72 overflow-y-auto divide-y divide-gray-100">
+                  {selectedProductRows.map((product) => {
+                    const name =
+                      product.productNameHouse || product.productNameVendor || 'Product'
+                    const vendor = product.vendorName || product.distributorName || 'Vendor'
+                    return (
+                      <div
+                        key={product.id}
+                        className="flex items-center justify-between gap-4 px-4 py-3"
+                      >
+                        <div className="min-w-0">
+                          <p className="truncate font-medium text-gray-900">{name}</p>
+                          <p className="truncate text-xs text-gray-500">{vendor}</p>
+                        </div>
+                        <span
+                          className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${
+                            product.active
+                              ? 'bg-green-100 text-green-800'
+                              : 'bg-gray-100 text-gray-800'
+                          }`}
+                        >
+                          {product.active ? 'Active' : 'Inactive'}
+                        </span>
+                      </div>
+                    )
+                  })}
+                  {selectedProductRows.length === 0 && (
+                    <div className="px-4 py-3 text-sm text-gray-500">No products selected.</div>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 border-t border-gray-100 pt-4">
+                <button
+                  type="button"
+                  onClick={closeBulkStatusModal}
+                  className="rounded border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={bulkStatusSubmitting || bulkActionLoading}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmBulkStatusChange}
+                  className="rounded bg-primary-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={bulkStatusSubmitting || bulkActionLoading}
+                >
+                  {bulkStatusSubmitting || bulkActionLoading
+                    ? 'Updating...'
+                    : bulkStatusChoice === 'active'
+                      ? 'Mark Active'
+                      : 'Mark Inactive'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       <ProductCreateModal
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
@@ -1284,6 +1634,75 @@ export default function ProductsPage() {
       />
 
       <ToastContainer />
+
+      {productBulkPrompt ? (
+        <button
+          type="button"
+          className="fixed z-40 rounded-full border border-primary-200 bg-white px-4 py-2 text-sm font-semibold text-primary-700 shadow-lg transition hover:bg-primary-50 disabled:opacity-60"
+          style={{ top: productBulkPrompt.anchor.top, left: productBulkPrompt.anchor.left }}
+          onClick={async () => {
+            if (!canEditProducts || !productBulkPrompt || selectedProducts.length <= 1) {
+              return
+            }
+
+            const columnId = productBulkPrompt.columnId
+            const patch: Record<string, number> = {}
+
+            if (columnId === 'priceEach') {
+              patch.priceEach = productBulkPrompt.value
+            }
+            if (columnId === 'commissionPercent') {
+              const fraction = productBulkPrompt.value === 0
+                ? 0
+                : productBulkPrompt.value > 1
+                  ? productBulkPrompt.value / 100
+                  : productBulkPrompt.value
+              patch.commissionPercent = fraction
+            }
+
+            if (Object.keys(patch).length === 0) {
+              return
+            }
+
+            setProductBulkApplying(true)
+            try {
+              const response = await fetch('/api/products/bulk-update', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  ids: selectedProducts,
+                  patch,
+                }),
+              })
+
+              const body = await response.json().catch(() => null)
+              if (!response.ok) {
+                const message = body?.error ?? 'Unable to apply bulk update'
+                throw new Error(message)
+              }
+
+              const updatedCount: number = body?.updated ?? selectedProducts.length
+              showSuccess(
+                `Applied to ${updatedCount} product${updatedCount === 1 ? '' : 's'}`,
+                `${productBulkPrompt.label} updated across the selected products.`,
+              )
+              setProductBulkPrompt(null)
+              await reloadProducts()
+            } catch (error) {
+              console.error('Failed to apply bulk update for products', error)
+              const message = error instanceof Error ? error.message : 'Unable to apply bulk update'
+              showError('Bulk update failed', message)
+            } finally {
+              setProductBulkApplying(false)
+            }
+          }}
+          disabled={productBulkApplying}
+        >
+          {productBulkApplying
+            ? 'Applying...'
+            : `Apply to ${selectedProducts.length} selected`}
+        </button>
+      ) : null}
     </CopyProtectionWrapper>
   )
 }

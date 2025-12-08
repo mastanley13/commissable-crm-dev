@@ -30,7 +30,7 @@ For each item, **Cross-ref** lines tell you exactly where it lives:
 
 ### A. Data Integrity & Core Constraints
 
-- [ ] [M3] Enforce product creation constraints  
+- [x] [M3] Enforce product creation constraints  
   Status: TODO – No explicit implementation status yet; product creation still behaves per older specs.  
   Cross-ref: Master A-1; related product-create gaps in `Markdown-Notes/Products_Implementation_Status_Report.md`.
 
@@ -50,7 +50,7 @@ For each item, **Cross-ref** lines tell you exactly where it lives:
   Status: DONE – Product DELETE API now blocks when any revenue schedules exist (past or future) and instructs users to inactivate instead; delete proceeds only when no schedules exist.  
   Cross-ref: Master A-5; Old RS-03 (product-side guard); code: `app/api/products/[productId]/route.ts`.
 
-- [ ] [M3] Account-type filtering for Distributor/Vendor dropdowns  
+- [x] [M3] Account-type filtering for Distributor/Vendor dropdowns  
   Status: TODO – Specs call for account-type constrained dropdowns, but there is no tracked implementation status.  
   Cross-ref: Master A-6; see field definitions in `Commissable - Global - Fields by Page(Fields by Page) (3).csv`.
 

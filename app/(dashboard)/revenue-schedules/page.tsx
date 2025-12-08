@@ -242,6 +242,21 @@ type FilterableColumnKey =
   | 'revenueScheduleDate'
   | 'scheduleStatus'
 
+type RevenueEditableColumnId =
+  | 'quantity'
+  | 'priceEach'
+  | 'expectedUsageAdjustment'
+  | 'expectedCommissionRatePercent'
+
+type RevenueFillDownPrompt = {
+  columnId: RevenueEditableColumnId
+  label: string
+  value: number
+  rowId: string
+  selectedCount: number
+  anchor: { top: number; left: number }
+}
+
 const RS_DEFAULT_VISIBLE_COLUMN_IDS = new Set<string>([
   'distributorName',
   'vendorName',
@@ -288,6 +303,8 @@ export default function RevenueSchedulesPage() {
   const [columnFilters, setColumnFilters] = useState<{ columnId: FilterableColumnKey; value: string }[]>([])
   const [tableBodyHeight, setTableBodyHeight] = useState<number>()
   const tableAreaNodeRef = useRef<HTMLDivElement | null>(null)
+  const [revenueBulkPrompt, setRevenueBulkPrompt] = useState<RevenueFillDownPrompt | null>(null)
+  const [revenueBulkApplying, setRevenueBulkApplying] = useState(false)
   const selectedScheduleRows = useMemo(() => {
     if (selectedSchedules.length === 0) {
       return []
@@ -356,6 +373,7 @@ export default function RevenueSchedulesPage() {
     loading: preferenceLoading,
     error: preferenceError,
     saving: preferenceSaving,
+    hasServerPreferences,
     hasUnsavedChanges,
     lastSaved,
     handleColumnsChange,
@@ -363,11 +381,17 @@ export default function RevenueSchedulesPage() {
     saveChangesOnModalClose,
   } = useTablePreferences('revenue-schedules:list', revenueScheduleColumns)
 
-  // Normalize default column visibility for first load
+  // Normalize default column visibility only on first load when there are
+  // no saved preferences for this user/page.
   const [rsColumnsNormalized, setRsColumnsNormalized] = useState(false)
   useEffect(() => {
     if (rsColumnsNormalized || preferenceLoading) return
     if (!preferenceColumns || preferenceColumns.length === 0) return
+
+    if (hasServerPreferences) {
+      setRsColumnsNormalized(true)
+      return
+    }
 
     const normalized = preferenceColumns.map(column => {
       if (column.id === 'multi-action') return column
@@ -382,7 +406,7 @@ export default function RevenueSchedulesPage() {
       handleColumnsChange(normalized)
     }
     setRsColumnsNormalized(true)
-  }, [preferenceColumns, preferenceLoading, handleColumnsChange, rsColumnsNormalized])
+  }, [preferenceColumns, preferenceLoading, handleColumnsChange, rsColumnsNormalized, hasServerPreferences])
 
   const measureTableArea = useCallback(() => {
     const node = tableAreaNodeRef.current
@@ -781,6 +805,147 @@ export default function RevenueSchedulesPage() {
     }
   }
 
+  const revenueEditableColumnsMeta = useMemo(
+    () =>
+      ({
+        quantity: { label: 'Quantity', decimals: 0, type: 'number' as const },
+        priceEach: { label: 'Price Each', decimals: 2, type: 'currency' as const },
+        expectedUsageAdjustment: { label: 'Expected Usage Adjustment', decimals: 2, type: 'currency' as const },
+        expectedCommissionRatePercent: { label: 'Expected Commission Rate %', decimals: 2, type: 'percent' as const },
+      }),
+    [],
+  )
+
+  const normalizeRevenueEditValue = useCallback(
+    (columnId: RevenueEditableColumnId, value: number) => {
+      if (!Number.isFinite(value)) return null
+      switch (columnId) {
+        case 'quantity':
+          return Math.max(0, Math.round(value))
+        case 'priceEach':
+        case 'expectedUsageAdjustment':
+        case 'expectedCommissionRatePercent':
+          return Number(Math.max(0, value).toFixed(revenueEditableColumnsMeta[columnId].decimals))
+        default:
+          return null
+      }
+    },
+    [revenueEditableColumnsMeta],
+  )
+
+  const getEditableDisplayValue = useCallback(
+    (columnId: RevenueEditableColumnId, row: any): number => {
+      if (!row) return 0
+      if (columnId === 'quantity') {
+        if (typeof row.quantityRaw === 'number' && Number.isFinite(row.quantityRaw)) {
+          return row.quantityRaw
+        }
+        const parsed = parseDisplayNumber(row.quantity)
+        return parsed ?? 0
+      }
+      if (columnId === 'priceEach') {
+        if (typeof row.unitPriceRaw === 'number' && Number.isFinite(row.unitPriceRaw)) {
+          return row.unitPriceRaw
+        }
+        const parsed = parseDisplayNumber(row.priceEach)
+        return parsed ?? 0
+      }
+      if (columnId === 'expectedUsageAdjustment') {
+        if (typeof row.usageAdjustmentRaw === 'number' && Number.isFinite(row.usageAdjustmentRaw)) {
+          return row.usageAdjustmentRaw
+        }
+        return parseCurrency(row.expectedUsageAdjustment ?? row.usageAdjustment)
+      }
+      // expectedCommissionRatePercent – parse from display string like "5.00%"
+      const raw = row.expectedCommissionRatePercent
+      if (typeof raw === 'number' && Number.isFinite(raw)) {
+        return raw
+      }
+      if (typeof raw === 'string') {
+        const trimmed = raw.trim()
+        if (!trimmed || trimmed === '-') return 0
+        const numeric = trimmed.replace(/[^0-9.\-]/g, '')
+        const parsed = Number(numeric || '0')
+        return Number.isFinite(parsed) ? parsed : 0
+      }
+      return 0
+    },
+    [parseDisplayNumber],
+  )
+
+  const handleRevenueInlineChange = useCallback(
+    (rowId: string, columnId: RevenueEditableColumnId, nextValue: number, rect: DOMRect | null) => {
+      const normalised = normalizeRevenueEditValue(columnId, nextValue)
+      if (normalised === null) {
+        return
+      }
+
+      if (selectedSchedules.length > 1 && selectedSchedules.includes(rowId) && rect) {
+        setRevenueBulkPrompt({
+          columnId,
+          label: revenueEditableColumnsMeta[columnId].label,
+          value: normalised,
+          rowId,
+          selectedCount: selectedSchedules.length,
+          anchor: {
+            top: rect.bottom + 8,
+            left: rect.right + 12,
+          },
+        })
+      } else {
+        setRevenueBulkPrompt(null)
+      }
+    },
+    [normalizeRevenueEditValue, revenueEditableColumnsMeta, selectedSchedules],
+  )
+
+  const handleRevenueApplyFillDown = useCallback(async () => {
+    if (!revenueBulkPrompt || selectedSchedules.length <= 1) {
+      return
+    }
+
+    const columnId = revenueBulkPrompt.columnId
+    const payload: Record<string, number> = {}
+    if (columnId === 'quantity') payload.quantity = revenueBulkPrompt.value
+    if (columnId === 'priceEach') payload.priceEach = revenueBulkPrompt.value
+    if (columnId === 'expectedUsageAdjustment') payload.expectedUsageAdjustment = revenueBulkPrompt.value
+    if (columnId === 'expectedCommissionRatePercent') payload.expectedCommissionRatePercent = revenueBulkPrompt.value
+
+    if (Object.keys(payload).length === 0) {
+      return
+    }
+
+    setRevenueBulkApplying(true)
+    try {
+      const response = await fetch('/api/revenue-schedules/bulk-update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ids: selectedSchedules,
+          patch: payload,
+        }),
+      })
+      const body = await response.json().catch(() => null)
+      if (!response.ok) {
+        const message = body?.error ?? 'Unable to apply bulk update'
+        throw new Error(message)
+      }
+      const updatedCount: number = body?.updated ?? selectedSchedules.length
+      showSuccess(
+        `Applied to ${updatedCount} schedule${updatedCount === 1 ? '' : 's'}`,
+        `${revenueBulkPrompt.label} updated across the selected schedules.`,
+      )
+      setRevenueBulkPrompt(null)
+      await fetchRevenueSchedules()
+    } catch (error) {
+      console.error('Failed to apply bulk update for revenue schedules', error)
+      const message = error instanceof Error ? error.message : 'Unable to apply bulk update'
+      showError('Bulk update failed', message)
+    } finally {
+      setRevenueBulkApplying(false)
+    }
+  }, [fetchRevenueSchedules, revenueBulkPrompt, selectedSchedules, showError, showSuccess])
+
   // Apply status and column filters
   const filteredByStatusAndColumns = useMemo(() => {
     let next = activeFilter === 'active' ? revenueSchedules.filter(r => r.active) : [...revenueSchedules]
@@ -908,6 +1073,75 @@ export default function RevenueSchedulesPage() {
 
   const tableLoading = loading || preferenceLoading
   const tableColumns = useMemo(() => {
+    const renderEditableCell = (columnId: RevenueEditableColumnId, label: string) => {
+      return function EditableCell(_: unknown, row: any) {
+        let spanRef: HTMLSpanElement | null = null
+        const displayValue = getEditableDisplayValue(columnId, row)
+
+        const commit = () => {
+          if (!spanRef) return
+          const rawText = spanRef.innerText.trim()
+          if (!rawText) return
+          const sanitised = rawText.replace(/[^0-9.\-]/g, '')
+          const parsed = sanitised === '' ? NaN : Number(sanitised)
+          if (Number.isNaN(parsed)) return
+          const rowId = String(row.id)
+          handleRevenueInlineChange(rowId, columnId, parsed, spanRef.getBoundingClientRect())
+        }
+
+        const formattedForDisplay = () => {
+          if (!Number.isFinite(displayValue)) return ''
+
+          const { decimals, type } = revenueEditableColumnsMeta[columnId]
+
+          if (type === 'currency') {
+            return displayValue.toLocaleString('en-US', {
+              style: 'currency',
+              currency: 'USD',
+              minimumFractionDigits: decimals,
+              maximumFractionDigits: decimals,
+            })
+          }
+
+          if (type === 'percent') {
+            const normalized = displayValue > 1 ? displayValue / 100 : displayValue
+            return normalized.toLocaleString('en-US', {
+              style: 'percent',
+              minimumFractionDigits: decimals,
+              maximumFractionDigits: decimals,
+            })
+          }
+
+          return displayValue.toLocaleString(undefined, {
+            minimumFractionDigits: decimals,
+            maximumFractionDigits: decimals,
+          })
+        }
+
+        return (
+          <span
+            ref={(node) => {
+              spanRef = node
+            }}
+            contentEditable
+            suppressContentEditableWarning
+            data-disable-row-click="true"
+            className="block min-w-0 truncate text-sm text-gray-900 focus:outline-none"
+            onBlur={commit}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                event.preventDefault()
+                commit()
+              }
+            }}
+            aria-label={`Edit ${label}`}
+          >
+            {formattedForDisplay()}
+          </span>
+        )
+      }
+    }
+
     return preferenceColumns.map((column) => {
       if (column.id === 'multi-action') {
         return {
@@ -982,9 +1216,31 @@ export default function RevenueSchedulesPage() {
           }
         }
       }
-      return column;
-    });
-  }, [preferenceColumns, selectedSchedules, handleSelectSchedule, handleDeleteRow, router])
+
+      if (
+        column.id === 'quantity' ||
+        column.id === 'priceEach' ||
+        column.id === 'expectedUsageAdjustment' ||
+        column.id === 'expectedCommissionRatePercent'
+      ) {
+        return {
+          ...column,
+          render: renderEditableCell(column.id as RevenueEditableColumnId, column.label),
+        }
+      }
+
+      return column
+    })
+  }, [
+    handleDeleteRow,
+    handleRevenueInlineChange,
+    handleSelectSchedule,
+    getEditableDisplayValue,
+    preferenceColumns,
+    revenueEditableColumnsMeta,
+    router,
+    selectedSchedules,
+  ])
   
   // Update schedules data to include selection state
   const schedulesWithSelection = paginatedRevenueSchedules.map(schedule => ({
@@ -1098,16 +1354,31 @@ export default function RevenueSchedulesPage() {
           setShowColumnSettings(false)
           await saveChangesOnModalClose()
         }}
-        />
-        <ToastContainer />
-        <RevenueScheduleCloneModal
-          isOpen={cloneModalOpen}
-          defaultDate={cloneDefaultDate}
-          submitting={bulkActionBusy}
-          sourceSchedule={cloneSourceSchedule}
-          onCancel={handleCloneModalClose}
-          onConfirm={handleConfirmCloneSchedule}
-        />
-      </CopyProtectionWrapper>
-    )
-  }
+      />
+
+      {revenueBulkPrompt ? (
+        <button
+          type="button"
+          className="fixed z-40 rounded-full border border-primary-200 bg-white px-4 py-2 text-sm font-semibold text-primary-700 shadow-lg transition hover:bg-primary-50 disabled:opacity-60"
+          style={{ top: revenueBulkPrompt.anchor.top, left: revenueBulkPrompt.anchor.left }}
+          onClick={handleRevenueApplyFillDown}
+          disabled={revenueBulkApplying}
+        >
+          {revenueBulkApplying
+            ? 'Applying...'
+            : `Apply to ${selectedSchedules.length} selected`}
+        </button>
+      ) : null}
+
+      <ToastContainer />
+      <RevenueScheduleCloneModal
+        isOpen={cloneModalOpen}
+        defaultDate={cloneDefaultDate}
+        submitting={bulkActionBusy}
+        sourceSchedule={cloneSourceSchedule}
+        onCancel={handleCloneModalClose}
+        onConfirm={handleConfirmCloneSchedule}
+      />
+    </CopyProtectionWrapper>
+  )
+}

@@ -1523,7 +1523,7 @@ function TabToolbar({ suffix }: TabToolbarProps) {
         </button>
         <button className="flex items-center gap-1 rounded-full border border-gray-300 bg-white px-2.5 py-1 text-sm font-medium text-gray-600 hover:border-primary-400 hover:text-primary-600">
           <Filter className="h-3.5 w-3.5" />
-          Apply Filter
+          Apply
         </button>
       </div>
       <div className="flex items-center gap-1">

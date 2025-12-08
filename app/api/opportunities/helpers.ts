@@ -1,4 +1,4 @@
-import { ActivityStatus, OpportunityStatus, OpportunityStage, OpportunityType, RevenueScheduleStatus } from "@prisma/client"
+import { ActivityStatus, OpportunityStatus, OpportunityStage, OpportunityType, RevenueScheduleStatus, OpportunityProductStatus } from "@prisma/client"
 import { isActivityOpen } from "@/lib/activity-status"
 
 type RelatedAccount = {
@@ -150,6 +150,7 @@ type OpportunityProductWithRelations = {
   revenueStartDate?: string | Date | null
   revenueEndDate?: string | Date | null
   active?: boolean | null
+   status?: OpportunityProductStatus | string | null
   createdAt?: string | Date | null
   updatedAt?: string | Date | null
   product?: {
@@ -170,6 +171,7 @@ export type OpportunityLineItemDetail = {
   productName: string
   productCode?: string | null
   revenueType?: string | null
+  status?: string | null
   quantity: number
   unitPrice: number
   expectedUsage: number
@@ -548,6 +550,7 @@ export function mapOpportunityProductToDetail(item: OpportunityProductWithRelati
     priceEach,
     createdAt: formatDateValue(item.createdAt ?? null),
     updatedAt: formatDateValue(item.updatedAt ?? null),
+    status: typeof item.status === "string" ? item.status : null,
     active: item.active !== false
   }
 }

@@ -57,7 +57,7 @@ const parseCurrency = (val: any): number => {
 
 const fieldLabelClass = "text-[11px] font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap"
 const fieldBoxClass =
-  "flex min-h-[28px] w-full min-w-0 max-w-md items-center justify-between border-b-2 border-gray-300 bg-transparent pl-[3px] pr-0 py-1 text-[11px] text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis tabular-nums"
+  "flex min-h-[28px] w-full min-w-0 max-w-[260px] items-center justify-between border-b-2 border-gray-300 bg-transparent pl-[3px] pr-0 py-1 text-[11px] text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis tabular-nums"
 
 type RevenueEditableColumnId = "quantity" | "unitPrice" | "expectedUsageAdjustment" | "expectedCommissionRatePercent"
 
@@ -194,6 +194,25 @@ const isAutoManagedStageValue = (value: unknown): boolean => {
   return isOpportunityStageValue(value) && isOpportunityStageAutoManaged(value)
 }
 
+const formatProductBillingStatus = (status: unknown): string => {
+  if (!status || typeof status !== "string") {
+    return ""
+  }
+
+  switch (status) {
+    case "ActiveBilling":
+      return "Active - Billing"
+    case "BillingEnded":
+      return "Closed - Billing Ended"
+    case "Provisioning":
+      return "Provisioning"
+    case "Cancelled":
+      return "Cancelled"
+    default:
+      return status
+  }
+}
+
 export const PRODUCT_TABLE_BASE_COLUMNS: Column[] = [
   {
     id: "multi-action",
@@ -220,6 +239,7 @@ export const PRODUCT_TABLE_BASE_COLUMNS: Column[] = [
   { id: "expectedRevenue", label: "Expected Revenue", width: 180, minWidth: calculateMinWidth({ label: "Expected Revenue", type: "text", sortable: true }), accessor: "expectedRevenue", sortable: true },
   { id: "expectedCommission", label: "Expected Commission", width: 200, minWidth: calculateMinWidth({ label: "Expected Commission", type: "text", sortable: true }), accessor: "expectedCommission", sortable: true },
   { id: "expectedUsage", label: "Expected Usage", width: 160, minWidth: calculateMinWidth({ label: "Expected Usage", type: "text", sortable: true }), accessor: "expectedUsage", sortable: true },
+  { id: "billingStatus", label: "Billing Status", width: 180, minWidth: calculateMinWidth({ label: "Billing Status", type: "text", sortable: true }), accessor: "billingStatus", sortable: true },
   { id: "revenueStartDate", label: "Start Date", width: 150, minWidth: calculateMinWidth({ label: "Start Date", type: "text", sortable: true }), accessor: "revenueStartDate", sortable: true },
   { id: "revenueEndDate", label: "End Date", width: 150, minWidth: calculateMinWidth({ label: "End Date", type: "text", sortable: true }), accessor: "revenueEndDate", sortable: true },
   { id: "distributorName", label: "Distributor", width: 200, minWidth: calculateMinWidth({ label: "Distributor", type: "text", sortable: true }), accessor: "distributorName", sortable: true },
@@ -1205,7 +1225,7 @@ function EditableOpportunityHeader({
     error?: string
   ) => (
     <FieldRow label={label}>
-      <div className="flex flex-col gap-1 w-full max-w-md">
+      <div className="flex flex-col gap-1 w-full max-w-[260px]">
         {control}
         {error ? <p className="text-[10px] text-red-600">{error}</p> : null}
       </div>
@@ -1501,12 +1521,12 @@ export interface OpportunityDetailsViewProps {
 type TabKey = "summary" | "roles" | "details" | "products" | "revenue-schedules" | "activities" | "history"
 
 const DETAIL_TABS: { id: TabKey; label: string }[] = [
-  { id: "summary", label: "Summary" },
-  { id: "roles", label: "Roles" },
-  { id: "details", label: "Details" },
   { id: "products", label: "Products" },
   { id: "revenue-schedules", label: "Revenue Schedules" },
   { id: "activities", label: "Activities & Notes" },
+  { id: "summary", label: "Summary" },
+  { id: "roles", label: "Roles" },
+  { id: "details", label: "Details" },
   { id: "history", label: "History" }
 ]
 export function OpportunityDetailsView({
@@ -2163,6 +2183,8 @@ export function OpportunityDetailsView({
       vendorName: item.vendorName ?? "",
       createdAt: item.createdAt,
       updatedAt: item.updatedAt,
+      status: item.status ?? null,
+      billingStatus: formatProductBillingStatus(item.status),
       isActive: item.active !== false
     }))
   }, [opportunity])
@@ -4325,18 +4347,20 @@ export function OpportunityDetailsView({
                       onCreateClick={() => setShowCreateLineItemModal(true)}
                       createButtonLabel="Create/Add Product"
                       onSearch={setProductSearchQuery}
-                      searchPlaceholder="Search line items"
-                      showColumnFilters={false}
-                      onSettingsClick={() => setShowProductColumnSettings(true)}
-                      statusFilter={productStatusFilter}
-                      onFilterChange={value =>
-                        setProductStatusFilter(value === "inactive" ? "inactive" : "active")
-                      }
-                      hasUnsavedTableChanges={productHasUnsavedChanges}
-                      isSavingTableChanges={productPreferencesSaving}
-                      lastTableSaved={productLastSaved ?? undefined}
-                      onSaveTableChanges={saveProductTablePreferences}
-                      bulkActions={productBulkActions}
+                        searchPlaceholder="Search line items"
+                        filterColumns={PRODUCT_FILTER_COLUMNS}
+                        columnFilters={productColumnFilters}
+                        onColumnFiltersChange={setProductColumnFilters}
+                        onSettingsClick={() => setShowProductColumnSettings(true)}
+                        statusFilter={productStatusFilter}
+                        onFilterChange={value =>
+                          setProductStatusFilter(value === "inactive" ? "inactive" : "active")
+                        }
+                        hasUnsavedTableChanges={productHasUnsavedChanges}
+                        isSavingTableChanges={productPreferencesSaving}
+                        lastTableSaved={productLastSaved ?? undefined}
+                        onSaveTableChanges={saveProductTablePreferences}
+                        bulkActions={productBulkActions}
                     />
                     <div
                       className="flex flex-1 min-h-0 flex-col overflow-hidden"
@@ -4422,6 +4446,7 @@ export function OpportunityDetailsView({
                         inTab
                         onCreateClick={() => setShowRevenueCreateModal(true)}
                         showCreateButton={Boolean(opportunity)}
+                        createButtonLabel="Manage"
                         onSearch={setRevenueSearchQuery}
                         searchPlaceholder="Search revenue schedules"
                         filterColumns={REVENUE_FILTER_COLUMNS}
@@ -4725,6 +4750,3 @@ export function OpportunityDetailsView({
     </>
   )
 }
-
-
-

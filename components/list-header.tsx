@@ -423,7 +423,7 @@ export function ListHeader({
                   disabled={!selectedColumn || !filterValue.trim()}
                   className={`rounded bg-primary-600 ${btnPad} text-sm font-medium text-white transition-colors hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50`}
                 >
-                  Apply Filter
+                  Apply
                 </button>
 
                 {showColumnFilters && savedFilterSets && savedFilterSets.length > 0 && (

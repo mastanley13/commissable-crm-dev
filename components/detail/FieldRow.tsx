@@ -3,11 +3,13 @@ import { fieldLabelClass } from "./shared"
 
 export interface FieldRowProps {
   label: string
-  value: ReactNode
+  value?: ReactNode
   labelExtra?: ReactNode
+  children?: ReactNode
 }
 
-export function FieldRow({ label, value, labelExtra }: FieldRowProps) {
+export function FieldRow({ label, value, labelExtra, children }: FieldRowProps) {
+  const content = value ?? children ?? null
   return (
     <div className="grid items-start gap-2 sm:grid-cols-[140px,minmax(0,1fr)]">
       {labelExtra ? (
@@ -18,7 +20,7 @@ export function FieldRow({ label, value, labelExtra }: FieldRowProps) {
       ) : (
         <span className={`${fieldLabelClass} flex items-center min-h-[28px]`}>{label}</span>
       )}
-      <div className="min-w-0">{value}</div>
+      <div className="min-w-0">{content}</div>
     </div>
   )
 }

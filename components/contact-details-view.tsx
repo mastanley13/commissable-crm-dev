@@ -920,7 +920,7 @@ function TabToolbar({ onCreateNew, disabled, activeFilter = "active", onFilterCh
         </button>
         <button className="flex items-center gap-1 rounded-full border border-gray-300 bg-white px-2.5 py-1 text-sm font-medium text-gray-600 hover:border-primary-400 hover:text-primary-600">
           <Filter className="h-3.5 w-3.5" />
-          Apply Filter
+          Apply
         </button>
       </div>
       <div className="flex items-center gap-1">
@@ -3861,24 +3861,28 @@ function EditableContactHeaderV2({
             <div className="max-w-md w-full">
               <div className="flex items-center gap-2">
                 <div className="flex-1">
-                  <EditableField.Input
-                    className="h-[28px] py-0 text-[11px]"
-                    type="email"
-                    value={(emailField.value as string) ?? ""}
-                    onChange={emailField.onChange}
-                    onBlur={emailField.onBlur}
-                    placeholder="name@example.com"
-                  />
+                  {contact.emailAddress ? (
+                    <a href={`mailto:${contact.emailAddress}`} className="block w-full min-w-0">
+                      <div
+                        className={cn(
+                          sharedFieldBoxClass,
+                          "cursor-pointer text-primary-700 hover:border-primary-500 hover:text-primary-800"
+                        )}
+                      >
+                        <span className="truncate">{contact.emailAddress}</span>
+                      </div>
+                    </a>
+                  ) : (
+                    <EditableField.Input
+                      className="h-[28px] py-0 text-[11px]"
+                      type="email"
+                      value={(emailField.value as string) ?? ""}
+                      onChange={emailField.onChange}
+                      onBlur={emailField.onBlur}
+                      placeholder="name@example.com"
+                    />
+                  )}
                 </div>
-                {contact.emailAddress && (
-                  <a
-                    href={`mailto:${contact.emailAddress}`}
-                    className="text-primary-600 hover:text-primary-700 transition-colors text-xs underline shrink-0"
-                    title="Send email"
-                  >
-                    Send Email
-                  </a>
-                )}
               </div>
               {editor.errors.emailAddress ? (
                 <p className="text-[10px] text-red-600">{editor.errors.emailAddress}</p>
@@ -3894,30 +3898,34 @@ function EditableContactHeaderV2({
             <div className="flex flex-col gap-1">
               <div className="flex flex-wrap items-center gap-2 w-full max-w-md">
                 <div className="flex-1 min-w-[12rem]">
-                  <EditableField.Select
-                    className="w-full h-[28px] py-0 text-[11px]"
-                    value={(accountField.value as string) ?? ""}
-                    onChange={handleAccountChange}
-                    onBlur={accountField.onBlur}
-                    disabled={optionsLoading}
-                  >
-                    <option value="">Select account</option>
-                    {accountOptions.map(option => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </EditableField.Select>
+                  {contact.accountId && contact.accountName ? (
+                    <Link href={`/accounts/${contact.accountId}`} className="block w-full min-w-0">
+                      <div
+                        className={cn(
+                          sharedFieldBoxClass,
+                          "cursor-pointer text-primary-700 hover:border-primary-500 hover:text-primary-800"
+                        )}
+                      >
+                        <span className="truncate">{contact.accountName}</span>
+                      </div>
+                    </Link>
+                  ) : (
+                    <EditableField.Select
+                      className="w-full h-[28px] py-0 text-[11px]"
+                      value={(accountField.value as string) ?? ""}
+                      onChange={handleAccountChange}
+                      onBlur={accountField.onBlur}
+                      disabled={optionsLoading}
+                    >
+                      <option value="">Select account</option>
+                      {accountOptions.map(option => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </EditableField.Select>
+                  )}
                 </div>
-                {contact.accountId && (
-                  <Link
-                    href={`/accounts/${contact.accountId}`}
-                    className="text-primary-600 hover:text-primary-700 transition-colors text-xs underline"
-                    title="View account details"
-                  >
-                    View Account
-                  </Link>
-                )}
                 <div className="flex items-center gap-2 shrink-0 bg-transparent px-0 py-0 text-[11px] font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap">
                   <span>Active (Y/N)</span>
                   <ReadOnlySwitch value={contact.active} />

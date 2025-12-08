@@ -890,6 +890,14 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
                 </div>
 
                 <div>
+                  <label className={labelCls}>Expected Commission Rate %</label>
+                  <div className="relative">
+                    <input type="number" min="0" max="100" step="0.01" value={form.commissionPercent} onChange={e=>setForm(prev=>({...prev, commissionPercent: e.target.value}))} onBlur={e=>{ const n = Number(e.target.value); if (Number.isFinite(n)) setForm(prev=>({...prev, commissionPercent: n.toFixed(2)})) }} className={`${inputCls} pr-4`} placeholder="e.g., 10.00" />
+                    <span className="absolute right-0 top-1/2 -translate-y-1/2 text-xs text-gray-900">%</span>
+                  </div>
+                </div>
+
+                <div>
                   <label className={labelCls}>Revenue Schedule Start Date</label>
                   <div className="relative">
                     <input
@@ -908,14 +916,6 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
                 <div>
                   <label className={labelCls}>Number of Periods</label>
                   <input type="number" min="1" step="1" value={form.schedulePeriods} onChange={e=>setForm(prev=>({...prev, schedulePeriods: e.target.value}))} className={inputCls} placeholder="e.g., 12" />
-                </div>
-
-                <div>
-                  <label className={labelCls}>Expected Commission Rate %</label>
-                  <div className="relative">
-                    <input type="number" min="0" max="100" step="0.01" value={form.commissionPercent} onChange={e=>setForm(prev=>({...prev, commissionPercent: e.target.value}))} onBlur={e=>{ const n = Number(e.target.value); if (Number.isFinite(n)) setForm(prev=>({...prev, commissionPercent: n.toFixed(2)})) }} className={`${inputCls} pr-4`} placeholder="e.g., 10.00" />
-                    <span className="absolute right-0 top-1/2 -translate-y-1/2 text-xs text-gray-900">%</span>
-                  </div>
                 </div>
               </div>
             </div>

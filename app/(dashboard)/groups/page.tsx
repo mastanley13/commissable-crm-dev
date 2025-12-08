@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useCallback, useMemo, useEffect, useRef, useLayoutEffect } from 'react'
+import Link from 'next/link'
 import { ListHeader } from '@/components/list-header'
 import { DynamicTable, Column, PaginationInfo } from '@/components/dynamic-table'
 import { ColumnChooserModal } from '@/components/column-chooser-modal'
@@ -72,10 +73,13 @@ const groupColumns: Column[] = [
     maxWidth: 320,
     sortable: true,
     type: 'text',
-    render: (value) => (
-      <span className="text-blue-600 hover:text-blue-800 cursor-pointer font-medium">
+    render: (value, row: any) => (
+      <Link
+        href={`/groups/${row.id}`}
+        className="text-blue-600 hover:text-blue-800 cursor-pointer font-medium"
+      >
         {value}
-      </span>
+      </Link>
     )
   },
   {

@@ -4,6 +4,7 @@ export interface OpportunityLineItemRecord {
   productName: string
   productCode?: string | null
   revenueType?: string | null
+  status?: string | null
   quantity: number
   unitPrice: number
   expectedUsage: number

@@ -65,6 +65,11 @@ export interface UseTablePreferencesResult {
   loading: boolean
   saving: boolean
   error: string | null
+  /**
+   * True when a persisted preference row exists for this pageKey.
+   * Used by callers to apply "default visibility" only on first load.
+   */
+  hasServerPreferences: boolean
   hasUnsavedChanges: boolean
   lastSaved: Date | null
   handleColumnsChange: (columns: Column[]) => void
@@ -82,6 +87,7 @@ export function useTablePreferences(
   const [loading, setLoading] = useState<boolean>(true)
   const [saving, setSaving] = useState<boolean>(false)
   const [error, setError] = useState<string | null>(null)
+  const [hasServerPreferences, setHasServerPreferences] = useState<boolean>(false)
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState<boolean>(false)
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
   const [savedColumns, setSavedColumns] = useState<Column[]>(() => cloneColumns(baseColumns))
@@ -132,6 +138,7 @@ export function useTablePreferences(
       }
 
       const payload: TablePreferencePayload | null = await response.json()
+      setHasServerPreferences(!!payload)
       const base = baseColumnsRef.current
       const newColumns = applyPreferences(base, payload)
       setColumns(newColumns)
@@ -144,6 +151,7 @@ export function useTablePreferences(
       setColumns(fallbackColumns)
       setSavedColumns(fallbackColumns.map(col => ({ ...col })))
       setHasUnsavedChanges(false)
+      setHasServerPreferences(false)
       setError(err instanceof Error ? err.message : "Unable to load table preferences")
     } finally {
       setLoading(false)
@@ -253,6 +261,7 @@ export function useTablePreferences(
     loading,
     saving,
     error,
+    hasServerPreferences,
     hasUnsavedChanges,
     lastSaved,
     handleColumnsChange,
