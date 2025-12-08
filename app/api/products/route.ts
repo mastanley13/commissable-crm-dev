@@ -290,15 +290,18 @@ export async function POST(request: NextRequest) {
       }
 
       const created = await prisma.product.create({
+        // Cast to any to allow recently added nullable metadata fields
         data: {
           tenantId: req.user.tenantId,
           productCode,
           productNameHouse,
           productNameDistributor: getOptionalString((payload as any).productNameDistributor),
           productFamilyHouse: getOptionalString((payload as any).productFamilyHouse),
+          productSubtypeHouse: getOptionalString((payload as any).productSubtypeHouse),
           productNameVendor: getOptionalString((payload as any).productNameVendor),
           productFamilyVendor: getOptionalString((payload as any).productFamilyVendor),
           productSubtypeVendor: getOptionalString((payload as any).productSubtypeVendor),
+          distributorProductSubtype: getOptionalString((payload as any).distributorProductSubtype),
           partNumberHouse: getOptionalString((payload as any).partNumberHouse),
           productDescriptionVendor: getOptionalString((payload as any).productDescriptionVendor),
           description: getOptionalString((payload as any).description),
@@ -310,7 +313,7 @@ export async function POST(request: NextRequest) {
           distributorAccountId: distributorAccountId,
           createdById: req.user.id ?? null,
           updatedById: req.user.id ?? null,
-        },
+        } as any,
         include: {
           distributor: { select: { accountName: true } },
           vendor: { select: { accountName: true } },

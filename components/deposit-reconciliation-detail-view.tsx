@@ -1,7 +1,8 @@
 "use client"
 
+import Link from "next/link"
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
-import { ClipboardCheck, Eye, FileDown, Link2, Sparkles, Trash2 } from "lucide-react"
+import { ClipboardCheck, Eye, FileDown, Sparkles, Trash2 } from "lucide-react"
 import { DynamicTable, type Column } from "./dynamic-table"
 import { ListHeader, type ColumnFilter } from "./list-header"
 import type { BulkActionsGridProps } from "./bulk-actions-grid"
@@ -976,7 +977,27 @@ export function DepositReconciliationDetailView({
         label: depositFieldLabels.accountName,
         width: 220,
         minWidth: minTextWidth(depositFieldLabels.accountName),
-        sortable: true
+        sortable: true,
+        render: (value: string, row: DepositLineItemRow) => {
+          const trimmedName = value?.trim()
+          const href = row.accountId
+            ? `/accounts/${encodeURIComponent(row.accountId)}`
+            : trimmedName
+              ? `/accounts?search=${encodeURIComponent(trimmedName)}`
+              : "/accounts"
+          const displayValue = trimmedName || row.accountId || "View account"
+          return (
+            <Link
+              href={href}
+              className="inline-flex max-w-full items-center text-sm font-semibold text-primary-600 transition hover:text-primary-700"
+              title={displayValue}
+              onClick={event => event.stopPropagation()}
+              data-disable-row-click="true"
+            >
+              <span className="truncate">{displayValue}</span>
+            </Link>
+          )
+        }
       },
       {
         id: "vendorName",
@@ -990,7 +1011,27 @@ export function DepositReconciliationDetailView({
         label: depositFieldLabels.productName,
         width: 240,
         minWidth: minTextWidth(depositFieldLabels.productName),
-        sortable: true
+        sortable: true,
+        render: (value: string, row: DepositLineItemRow) => {
+          const trimmedName = value?.trim()
+          const href = row.productId
+            ? `/products/${encodeURIComponent(row.productId)}`
+            : trimmedName
+              ? `/products?search=${encodeURIComponent(trimmedName)}`
+              : "/products"
+          const displayValue = trimmedName || "View product"
+          return (
+            <Link
+              href={href}
+              className="inline-flex max-w-full items-center text-sm font-semibold text-primary-600 transition hover:text-primary-700"
+              title={displayValue}
+              onClick={event => event.stopPropagation()}
+              data-disable-row-click="true"
+            >
+              <span className="truncate">{displayValue}</span>
+            </Link>
+          )
+        }
       },
       {
         id: "usage",
@@ -1163,7 +1204,27 @@ export function DepositReconciliationDetailView({
         label: scheduleFieldLabels.legalName,
         width: 220,
         minWidth: minTextWidth(scheduleFieldLabels.legalName),
-        sortable: true
+        sortable: true,
+        render: (value: string, row: SuggestedMatchScheduleRow) => {
+          const trimmedName = value?.trim()
+          const href = row.accountId
+            ? `/accounts/${encodeURIComponent(row.accountId)}`
+            : trimmedName
+              ? `/accounts?search=${encodeURIComponent(trimmedName)}`
+              : "/accounts"
+          const displayValue = trimmedName || "View account"
+          return (
+            <Link
+              href={href}
+              className="inline-flex max-w-full items-center text-sm font-semibold text-primary-600 transition hover:text-primary-700"
+              title={displayValue}
+              onClick={event => event.stopPropagation()}
+              data-disable-row-click="true"
+            >
+              <span className="truncate">{displayValue}</span>
+            </Link>
+          )
+        }
       },
       {
         id: "productNameVendor",
@@ -1188,7 +1249,24 @@ export function DepositReconciliationDetailView({
         label: scheduleFieldLabels.revenueScheduleName,
         width: 200,
         minWidth: minTextWidth(scheduleFieldLabels.revenueScheduleName),
-        sortable: true
+        sortable: true,
+        render: (value: string, row: SuggestedMatchScheduleRow) => {
+          const displayValue = value?.trim() || row.revenueScheduleName || row.id || "View schedule"
+          const href = row.id
+            ? `/revenue-schedules/${encodeURIComponent(row.id)}`
+            : `/revenue-schedules`
+          return (
+            <Link
+              href={href}
+              className="inline-flex max-w-full items-center text-sm font-semibold text-primary-600 transition hover:text-primary-700"
+              title={displayValue}
+              onClick={event => event.stopPropagation()}
+              data-disable-row-click="true"
+            >
+              <span className="truncate">{displayValue}</span>
+            </Link>
+          )
+        }
       },
       {
         id: "quantity",

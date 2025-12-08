@@ -566,11 +566,13 @@ model Product {
   createdAt                     DateTime             @default(now())
   updatedAt                     DateTime             @updatedAt
   distributorProductFamily      String?
+  distributorProductSubtype     String?
   partNumberDistributor         String?
   partNumberVendor              String?
   productDescriptionDistributor String?
   productDescriptionVendor      String?
   productFamilyHouse            String?
+  productSubtypeHouse           String?
   productFamilyVendor           String?
   productNameDistributor        String?
   productSubtypeVendor          String?

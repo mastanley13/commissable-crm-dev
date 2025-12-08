@@ -28,6 +28,8 @@ export async function POST(request: NextRequest) {
     await validateManagerReassignmentPermission(user, tenantId);
 
     const body: BulkReassignmentRequest = await request.json();
+    const commissionOption: BulkReassignmentRequest['commissionOption'] =
+      body.commissionOption ?? 'transferToNewRep';
 
     // Validate input
     if (!body.accountIds || !Array.isArray(body.accountIds) || body.accountIds.length === 0) {
@@ -149,7 +151,8 @@ export async function POST(request: NextRequest) {
             tx,
             accountId,
             body.newOwnerId,
-            effectiveDate
+            effectiveDate,
+            commissionOption
           );
         }
 
@@ -248,8 +251,11 @@ async function transferAccountCommissions(
   tx: any,
   accountId: string,
   newOwnerId: string,
-  effectiveDate: Date
+  effectiveDate: Date,
+  _commissionOption?: 'transferToNewRep' | 'transferToHouse'
 ) {
+  const now = new Date();
+
   // Transfer future revenue schedules
   await tx.revenueSchedule.updateMany({
     where: {
@@ -259,19 +265,92 @@ async function transferAccountCommissions(
     data: {
       // If there is an assignee/owner field, set it; fallback to updatedBy only
       updatedById: undefined,
-      updatedAt: new Date()
+      updatedAt: now
     }
   });
 
-  // Transfer future opportunities
-  await tx.opportunity.updateMany({
-    where: {
-      accountId,
-      estimatedCloseDate: { gte: effectiveDate }
-    },
-    data: {
-      ownerId: newOwnerId === 'house' ? null : newOwnerId,
-      updatedAt: new Date()
+  const transferringToHouse = newOwnerId === 'house';
+
+  if (transferringToHouse) {
+    // Move any existing house rep % into the house split when transferring to House.
+    const opportunities = await tx.opportunity.findMany({
+      where: {
+        accountId,
+        estimatedCloseDate: { gte: effectiveDate }
+      },
+      select: {
+        id: true,
+        houseRepPercent: true,
+        houseSplitPercent: true,
+        subagentPercent: true
+      }
+    });
+
+    for (const opp of opportunities) {
+      const repPercent = normalizePercent(opp.houseRepPercent) ?? 0;
+      const baseHouseSplit =
+        deriveHouseSplitPercent({
+          currentHouseSplit: opp.houseSplitPercent,
+          houseRepPercent: opp.houseRepPercent,
+          subagentPercent: opp.subagentPercent
+        }) ?? 0;
+
+      const updatedHouseSplit = clampPercent(baseHouseSplit + repPercent);
+
+      await tx.opportunity.update({
+        where: { id: opp.id },
+        data: {
+          ownerId: null,
+          houseRepPercent: 0,
+          houseSplitPercent: updatedHouseSplit,
+          updatedAt: now
+        }
+      });
     }
-  });
+  } else {
+    // Transfer future opportunities
+    await tx.opportunity.updateMany({
+      where: {
+        accountId,
+        estimatedCloseDate: { gte: effectiveDate }
+      },
+      data: {
+        ownerId: newOwnerId === 'house' ? null : newOwnerId,
+        updatedAt: now
+      }
+    });
+  }
+}
+
+function normalizePercent(value: unknown): number | null {
+  if (value === null || value === undefined) return null;
+  const num = Number(value);
+  if (!Number.isFinite(num)) return null;
+  return num;
+}
+
+function clampPercent(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(0, Math.min(1, value));
+}
+
+function deriveHouseSplitPercent({
+  currentHouseSplit,
+  subagentPercent,
+  houseRepPercent
+}: {
+  currentHouseSplit: unknown;
+  subagentPercent: unknown;
+  houseRepPercent: unknown;
+}): number | null {
+  const existing = normalizePercent(currentHouseSplit);
+  if (existing != null) {
+    return clampPercent(existing);
+  }
+
+  const subagent = normalizePercent(subagentPercent) ?? 0;
+  const houseRep = normalizePercent(houseRepPercent) ?? 0;
+  const computed = 1 - (subagent + houseRep);
+
+  return clampPercent(computed);
 }

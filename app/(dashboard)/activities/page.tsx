@@ -136,7 +136,7 @@ function transformActivityForTable(activity: ActivityListItem): ActivityRow {
   const dateInstance = sourceDate instanceof Date ? sourceDate : new Date(sourceDate)
   const formattedDate = Number.isNaN(dateInstance.getTime())
     ? '-'
-    : `${dateInstance.getFullYear()}/${String(dateInstance.getMonth() + 1).padStart(2, '0')}/${String(dateInstance.getDate()).padStart(2, '0')}`
+    : `${dateInstance.getFullYear()}-${String(dateInstance.getMonth() + 1).padStart(2, '0')}-${String(dateInstance.getDate()).padStart(2, '0')}`
 
   const attachments = activity.attachments ?? []
   const hasAttachment = attachments.length > 0

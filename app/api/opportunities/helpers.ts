@@ -27,8 +27,8 @@ type RelatedProduct = {
   expectedUsage?: unknown
   expectedCommission?: unknown
   product?: {
-    distributor?: { accountName?: string | null } | null
-    vendor?: { accountName?: string | null } | null
+    distributor?: { id?: string; accountName?: string | null } | null
+    vendor?: { id?: string; accountName?: string | null } | null
   } | null
 }
 
@@ -76,6 +76,7 @@ type RevenueScheduleWithRelations = {
     priceEach?: unknown
   } | null
   opportunityProduct?: {
+    id?: string
     quantity?: unknown
     unitPrice?: unknown
   } | null
@@ -169,6 +170,8 @@ export type OpportunityLineItemDetail = {
   id: string
   productId: string
   productName: string
+  productNameHouse?: string | null
+  productNameVendor?: string | null
   productCode?: string | null
   revenueType?: string | null
   status?: string | null
@@ -306,6 +309,7 @@ export type OpportunityDetailSummary = {
 
 export type OpportunityRevenueScheduleDetail = {
   id: string
+  opportunityProductId?: string | null
   distributorName: string | null
   vendorName: string | null
   scheduleNumber: string | null
@@ -446,10 +450,22 @@ export function mapOpportunityToRow(opportunity: OpportunityWithRelations) {
     ?? opportunity.account?.accountName
     ?? ""
 
+  // Only use distributor account ID if the name came from product relation
+  const distributorAccountId =
+    (!opportunity.distributorName && firstProduct?.product?.distributor?.id)
+      ? firstProduct.product.distributor.id
+      : null
+
   const vendorName =
     opportunity.vendorName
     ?? firstProduct?.product?.vendor?.accountName
     ?? ""
+
+  // Only use vendor account ID if the name came from product relation
+  const vendorAccountId =
+    (!opportunity.vendorName && firstProduct?.product?.vendor?.id)
+      ? firstProduct.product.vendor.id
+      : null
 
   const derivedOrderId = typeof opportunity.id === "string"
     ? opportunity.id.slice(0, 8).toUpperCase()
@@ -457,6 +473,7 @@ export function mapOpportunityToRow(opportunity: OpportunityWithRelations) {
 
   const accountLegalName = opportunity.account?.accountLegalName ?? ""
   const accountName = opportunity.account?.accountName ?? ""
+  const accountId = opportunity.account?.id ?? null
   const formattedOpportunityId = typeof opportunity.id === "string"
     ? opportunity.id.slice(0, 8).toUpperCase()
     : ""
@@ -475,10 +492,13 @@ export function mapOpportunityToRow(opportunity: OpportunityWithRelations) {
     orderIdHouse: opportunity.orderIdHouse ?? derivedOrderId,
     accountLegalName,
     accountName,
+    accountId,
     opportunityName: opportunity.name ?? "",
     stage: opportunity.stage ?? "",
     distributorName,
+    distributorAccountId,
     vendorName,
+    vendorAccountId,
     referredBy: opportunity.referredBy ?? opportunity.leadSource ?? "",
     owner: ownerName,
     ownerId: opportunity.ownerId ?? null,
@@ -534,6 +554,14 @@ export function mapOpportunityProductToDetail(item: OpportunityProductWithRelati
       item.product?.productNameHouse ??
       item.product?.productNameVendor ??
       "Product",
+    productNameHouse:
+      productNameHouseSnapshot ??
+      item.product?.productNameHouse ??
+      null,
+    productNameVendor:
+      productNameVendorSnapshot ??
+      item.product?.productNameVendor ??
+      null,
     productCode: productCodeSnapshot ?? item.product?.productCode ?? null,
     revenueType: revenueTypeSnapshot ?? item.product?.revenueType ?? null,
     quantity,
@@ -627,6 +655,7 @@ function mapRevenueScheduleToDetail(schedule: RevenueScheduleWithRelations): Opp
 
   return {
     id: schedule.id,
+    opportunityProductId: schedule.opportunityProduct?.id ?? null,
     distributorName,
     vendorName,
     scheduleNumber,

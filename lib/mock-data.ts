@@ -690,6 +690,7 @@ export type DepositLineItemRow = {
   accountName: string
   vendorName: string
   lineItem: number
+  productId?: string
   productName: string
   usage: number
   usageAllocated: number
@@ -843,6 +844,7 @@ export type SuggestedMatchScheduleRow = {
   matchSource?: 'Auto' | 'Manual' | 'Unknown' | null
   reasons?: string[]
   confidenceLevel?: 'high' | 'medium' | 'low'
+  accountId?: string
   vendorName: string
   legalName: string
   productNameVendor: string

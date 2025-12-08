@@ -2,6 +2,8 @@ export interface OpportunityLineItemRecord {
   id: string
   productId: string
   productName: string
+  productNameHouse?: string | null
+  productNameVendor?: string | null
   productCode?: string | null
   revenueType?: string | null
   status?: string | null
@@ -97,6 +99,7 @@ export interface OpportunityIdentifiers {
 
 export interface OpportunityRevenueScheduleRecord {
   id: string
+  opportunityProductId?: string | null
   distributorName?: string | null
   vendorName?: string | null
   scheduleNumber?: string | null
@@ -196,7 +199,7 @@ export interface HistoryRow {
 export const MOCK_HISTORY_ROWS: HistoryRow[] = [
   {
     id: "1",
-    occurredAt: "2025/11/15 14:32",
+    occurredAt: "2025-11-15 14:32",
     userName: "Jordan Lee",
     action: "Update",
     field: "Account Owner",
@@ -205,7 +208,7 @@ export const MOCK_HISTORY_ROWS: HistoryRow[] = [
   },
   {
     id: "2",
-    occurredAt: "2025/11/12 09:04",
+    occurredAt: "2025-11-12 09:04",
     userName: "Priya Patel",
     action: "Update",
     field: "Status",
@@ -214,7 +217,7 @@ export const MOCK_HISTORY_ROWS: HistoryRow[] = [
   },
   {
     id: "3",
-    occurredAt: "2025/11/05 17:20",
+    occurredAt: "2025-11-05 17:20",
     userName: "Alex Morgan",
     action: "Update",
     field: "Primary Contact",
@@ -223,7 +226,7 @@ export const MOCK_HISTORY_ROWS: HistoryRow[] = [
   },
   {
     id: "4",
-    occurredAt: "2025/10/30 11:11",
+    occurredAt: "2025-10-30 11:11",
     userName: "System",
     action: "Create",
     field: "Account Name",
@@ -232,7 +235,7 @@ export const MOCK_HISTORY_ROWS: HistoryRow[] = [
   },
   {
     id: "5",
-    occurredAt: "2025/11/18 10:15",
+    occurredAt: "2025-11-18 10:15",
     userName: "Sarah Chen",
     action: "Update",
     field: "Subagent %",
@@ -241,7 +244,7 @@ export const MOCK_HISTORY_ROWS: HistoryRow[] = [
   },
   {
     id: "6",
-    occurredAt: "2025/11/18 10:15",
+    occurredAt: "2025-11-18 10:15",
     userName: "Sarah Chen",
     action: "Update",
     field: "House Rep %",
@@ -250,7 +253,7 @@ export const MOCK_HISTORY_ROWS: HistoryRow[] = [
   },
   {
     id: "7",
-    occurredAt: "2025/11/18 10:15",
+    occurredAt: "2025-11-18 10:15",
     userName: "System",
     action: "Auto-Update",
     field: "House Split %",

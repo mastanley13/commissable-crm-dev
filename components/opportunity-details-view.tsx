@@ -42,7 +42,7 @@ import { StatusFilterDropdown } from "@/components/status-filter-dropdown"
 import { AuditHistoryTab } from "./audit-history-tab"
 import { buildStandardBulkActions } from "@/components/standard-bulk-actions"
 import type { BulkActionsGridProps } from "@/components/bulk-actions-grid"
-import { RevenueScheduleCloneModal } from "@/components/revenue-schedule-clone-modal"
+import { RevenueScheduleCloneModal, type SourceScheduleData } from "@/components/revenue-schedule-clone-modal"
 
 // Helper function to parse currency values
 const parseCurrency = (val: any): number => {
@@ -223,7 +223,8 @@ export const PRODUCT_TABLE_BASE_COLUMNS: Column[] = [
     type: "multi-action",
     hideable: false
   },
-  { id: "productName", label: "Product", width: 240, minWidth: calculateMinWidth({ label: "Product", type: "text", sortable: true }), accessor: "productName", sortable: true },
+  { id: "productNameHouse", label: "Product Name - House", width: 240, minWidth: calculateMinWidth({ label: "Product Name - House", type: "text", sortable: true }), accessor: "productNameHouse", sortable: true },
+  { id: "productNameVendor", label: "Product Name - Vendor", width: 240, minWidth: calculateMinWidth({ label: "Product Name - Vendor", type: "text", sortable: true }), accessor: "productNameVendor", sortable: true },
   { id: "productCode", label: "Product Code", width: 160, minWidth: calculateMinWidth({ label: "Product Code", type: "text", sortable: true }), accessor: "productCode", sortable: true },
   {
     id: "revenueType",
@@ -735,7 +736,7 @@ function formatDate(value: string | null | undefined): string {
   const year = date.getFullYear()
   const month = String(date.getMonth() + 1).padStart(2, "0")
   const day = String(date.getDate()).padStart(2, "0")
-  return `${year}/${month}/${day}`
+  return `${year}-${month}-${day}`
 }
 
 function formatDateTime(value: string | null | undefined): string {
@@ -850,13 +851,13 @@ function formatDateForInput(value: string | null | undefined): string {
   const year = date.getFullYear()
   const month = String(date.getMonth() + 1).padStart(2, "0")
   const day = String(date.getDate()).padStart(2, "0")
-  return `${year}/${month}/${day}`
+  return `${year}-${month}-${day}`
 }
 
 function parseInputDateToISO(value: string | null | undefined): string | null {
   if (!value) return null
   const trimmed = value.trim()
-  const match = trimmed.match(/^(\d{4})\/(\d{2})\/(\d{2})$/)
+  const match = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/)
   if (!match) return null
   const [, y, m, d] = match
   const year = Number(y)
@@ -947,7 +948,7 @@ function validateOpportunityForm(form: OpportunityInlineForm): Record<string, st
   if (!form.estimatedCloseDate) {
     errors.estimatedCloseDate = "Estimated close date is required."
   } else if (!parseInputDateToISO(form.estimatedCloseDate)) {
-    errors.estimatedCloseDate = "Enter a valid date in YYYY/MM/DD format."
+    errors.estimatedCloseDate = "Enter a valid date in YYYY-MM-DD format."
   }
   if (form.leadSource && !Object.values(LeadSource).includes(form.leadSource as LeadSource)) {
     errors.leadSource = "Select a valid lead source."
@@ -1200,7 +1201,7 @@ function EditableOpportunityHeader({
 
   const disableSave = editor.saving || !editor.isDirty
 
-  // Native date picker bridge for YYYY/MM/DD text field
+  // Native date picker bridge for YYYY-MM-DD text field
   const nativeDateRef = useRef<HTMLInputElement | null>(null)
 
   const nativeDateValue = useMemo(() => {
@@ -1352,7 +1353,7 @@ function EditableOpportunityHeader({
               <EditableField.Input
                 className="w-full pr-9"
                 type="text"
-                placeholder="YYYY/MM/DD"
+                placeholder="YYYY-MM-DD"
                 inputMode="numeric"
                 maxLength={10}
                 value={(closeDateField.value as string) ?? ""}
@@ -1377,7 +1378,7 @@ function EditableOpportunityHeader({
                   const iso = e.target.value // YYYY-MM-DD
                   if (!iso) return
                   const [y, m, d] = iso.split('-')
-                  const display = `${y}/${m}/${d}`
+                  const display = `${y}-${m}-${d}`
                   // feed back into editor via onChange shape
                   closeDateField.onChange({ target: { value: display } } as any)
                   // trigger validation on blur
@@ -1787,13 +1788,7 @@ export function OpportunityDetailsView({
   const [showRevenueCloneModal, setShowRevenueCloneModal] = useState(false)
   const [revenueCloneTargetId, setRevenueCloneTargetId] = useState<string | null>(null)
   const [revenueCloneDefaultDate, setRevenueCloneDefaultDate] = useState<string>("")
-  const [revenueCloneSourceData, setRevenueCloneSourceData] = useState<{
-    scheduleNumber: string | null
-    scheduleDate: string | null
-    quantity: number | null
-    unitPrice: number | null
-    usageAdjustment: number | null
-  } | null>(null)
+  const [revenueCloneSourceData, setRevenueCloneSourceData] = useState<SourceScheduleData | null>(null)
   const [revenueBulkPrompt, setRevenueBulkPrompt] = useState<RevenueFillDownPrompt | null>(null)
   const [revenueBulkApplying, setRevenueBulkApplying] = useState(false)
   const [revenueSort, setRevenueSort] = useState<{ columnId: string; direction: "asc" | "desc" } | null>(null)
@@ -2167,26 +2162,35 @@ export function OpportunityDetailsView({
       return []
     }
 
-    return opportunity.lineItems.map(item => ({
-      id: item.id,
-      productName: item.productName,
-      productCode: item.productCode ?? "",
-      revenueType: item.revenueType ?? "",
-      quantity: item.quantity,
-      unitPrice: item.unitPrice,
-      expectedRevenue: item.expectedRevenue,
-      expectedCommission: item.expectedCommission,
-      expectedUsage: item.expectedUsage,
-      revenueStartDate: item.revenueStartDate,
-      revenueEndDate: item.revenueEndDate,
-      distributorName: item.distributorName ?? "",
-      vendorName: item.vendorName ?? "",
-      createdAt: item.createdAt,
-      updatedAt: item.updatedAt,
-      status: item.status ?? null,
-      billingStatus: formatProductBillingStatus(item.status),
-      isActive: item.active !== false
-    }))
+    return opportunity.lineItems.map(item => {
+      const productName = item.productName ?? ""
+      const productNameHouse = item.productNameHouse ?? productName
+      const productNameVendor = item.productNameVendor ?? productName
+
+      return {
+        id: item.id,
+        productId: item.productId,
+        productName,
+        productNameHouse,
+        productNameVendor,
+        productCode: item.productCode ?? "",
+        revenueType: item.revenueType ?? "",
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        expectedRevenue: item.expectedRevenue,
+        expectedCommission: item.expectedCommission,
+        expectedUsage: item.expectedUsage,
+        revenueStartDate: item.revenueStartDate,
+        revenueEndDate: item.revenueEndDate,
+        distributorName: item.distributorName ?? "",
+        vendorName: item.vendorName ?? "",
+        createdAt: item.createdAt,
+        updatedAt: item.updatedAt,
+        status: item.status ?? null,
+        billingStatus: formatProductBillingStatus(item.status),
+        isActive: item.active !== false
+      }
+    })
   }, [opportunity])
 
   const effectiveProductRows = useMemo(() => {
@@ -2805,6 +2809,32 @@ export function OpportunityDetailsView({
         }
       }
 
+      if (column.id === "scheduleNumber") {
+        return {
+          ...column,
+          render: (value: unknown, row: unknown) => {
+            const label = String(value ?? '')
+            const scheduleRow = row as OpportunityRevenueScheduleRecord | undefined
+            const scheduleId = scheduleRow?.id
+
+            if (!scheduleId || !label) {
+              return <span className="text-gray-900">{label || "--"}</span>
+            }
+
+            return (
+              <Link
+                href={`/revenue-schedules/${scheduleId}`}
+                className="cursor-pointer text-blue-600 hover:text-blue-800"
+                onClick={(event) => event.stopPropagation()}
+                prefetch={false}
+              >
+                {label}
+              </Link>
+            )
+          }
+        }
+      }
+
       if (isRevenueEditableColumn(column.id)) {
         return {
           ...column,
@@ -2966,7 +2996,7 @@ export function OpportunityDetailsView({
 
   const handleRevenueCloneSchedule = useCallback(() => {
     if (selectedRevenueSchedules.length !== 1) {
-      showError("Select a single schedule", "Choose exactly one revenue schedule to clone.")
+      showError("Select a single schedule", "Choose exactly one revenue schedule to copy/extend.")
       return
     }
     const sourceId = selectedRevenueSchedules[0]
@@ -2984,6 +3014,7 @@ export function OpportunityDetailsView({
       quantity: targetRow.quantity ?? null,
       unitPrice: targetRow.unitPrice ?? null,
       usageAdjustment: targetRow.expectedUsageAdjustment ?? null,
+      commissionRatePercent: targetRow.expectedCommissionRatePercent ?? null,
     })
 
     setRevenueCloneTargetId(sourceId)
@@ -2997,47 +3028,47 @@ export function OpportunityDetailsView({
     setRevenueCloneSourceData(null)
   }, [])
 
-    const handleRevenueConfirmClone = useCallback(
-      async (params: {
-        effectiveDate: string
-        months: number
-        scheduleNumber?: string
-        quantity?: number
-        unitPrice?: number
-        usageAdjustment?: number
-      }) => {
-        if (!revenueCloneTargetId) {
-          showError("Schedules unavailable", "Unable to locate the selected revenue schedules. Refresh and try again.")
-          return
-        }
+  const handleRevenueConfirmClone = useCallback(
+    async (params: {
+      effectiveDate: string
+      months: number
+      scheduleNumber?: string
+      quantity?: number
+      unitPrice?: number
+      usageAdjustment?: number
+    }) => {
+      if (!revenueCloneTargetId) {
+        showError("Schedules unavailable", "Unable to locate the selected revenue schedules. Refresh and try again.")
+        return
+      }
 
-        setRevenueBulkBusy(true)
-        try {
-          const response = await fetch(`/api/revenue-schedules/${encodeURIComponent(revenueCloneTargetId)}/clone`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(params),
-          })
+      setRevenueBulkBusy(true)
+      try {
+        const response = await fetch(`/api/revenue-schedules/${encodeURIComponent(revenueCloneTargetId)}/clone`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...params, mode: "copyExtend" }),
+        })
         const payload = await response.json().catch(() => null)
         if (!response.ok) {
-          const message = payload?.error ?? "Unable to clone the selected revenue schedule."
+          const message = payload?.error ?? "Unable to copy/extend the selected revenue schedule."
           throw new Error(message)
         }
 
         const newId: string | undefined = payload?.data?.id ?? payload?.id
         if (!newId) {
-          throw new Error("Clone completed but the new schedule id was not returned.")
+          throw new Error("Copy/Extend completed but the new schedule id was not returned.")
         }
 
         setShowRevenueCloneModal(false)
         setRevenueCloneTargetId(null)
         setRevenueCloneSourceData(null)
-        showSuccess("Schedule cloned", "Opening the cloned schedule so you can review it.")
+        showSuccess("Schedule copied/extended", "Opening the new schedule so you can review it.")
         router.push(`/revenue-schedules/${encodeURIComponent(newId)}`)
       } catch (err) {
-        console.error("Failed to clone revenue schedule", err)
-        const message = err instanceof Error ? err.message : "Unable to clone revenue schedule."
-        showError("Clone failed", message)
+        console.error("Failed to copy/extend revenue schedule", err)
+        const message = err instanceof Error ? err.message : "Unable to copy/extend revenue schedule."
+        showError("Copy/Extend failed", message)
       } finally {
         setRevenueBulkBusy(false)
       }
@@ -3654,6 +3685,70 @@ export function OpportunityDetailsView({
     }
   }, [opportunity, selectedLineItems, onRefresh, showError, showSuccess])
 
+  const handleProductCopyExtendSchedules = useCallback(() => {
+    if (!opportunity) {
+      showError("Unable to copy/extend schedules", "Opportunity data is unavailable.")
+      return
+    }
+
+    if (selectedLineItems.length !== 1) {
+      showError(
+        "Select a single product",
+        "Choose exactly one product line item to copy/extend schedules for."
+      )
+      return
+    }
+
+    const lineItemId = selectedLineItems[0]
+    const schedules = (opportunity.revenueSchedules ?? []).filter(
+      schedule => schedule.opportunityProductId === lineItemId
+    )
+
+    if (schedules.length === 0) {
+      showError(
+        "No schedules found",
+        "The selected product does not have any revenue schedules to copy/extend."
+      )
+      return
+    }
+
+    let template = schedules[0]
+    for (const schedule of schedules) {
+      if (!schedule.scheduleDate) continue
+      if (!template.scheduleDate) {
+        template = schedule
+        continue
+      }
+      const current = new Date(schedule.scheduleDate)
+      const best = new Date(template.scheduleDate)
+      if (!Number.isNaN(current.getTime()) && current > best) {
+        template = schedule
+      }
+    }
+
+    if (!template.id) {
+      showError(
+        "Schedule unavailable",
+        "Unable to locate a schedule to copy/extend for this product."
+      )
+      return
+    }
+
+    const defaultDate = computeRevenueCloneDefaultDate(template.scheduleDate)
+
+    setRevenueCloneSourceData({
+      scheduleNumber: template.scheduleNumber ?? null,
+      scheduleDate: template.scheduleDate ?? null,
+      quantity: template.quantity ?? null,
+      unitPrice: template.unitPrice ?? null,
+      usageAdjustment: template.expectedUsageAdjustment ?? null,
+      commissionRatePercent: template.expectedCommissionRatePercent ?? null,
+    })
+    setRevenueCloneTargetId(template.id)
+    setRevenueCloneDefaultDate(defaultDate)
+    setShowRevenueCloneModal(true)
+  }, [computeRevenueCloneDefaultDate, opportunity, selectedLineItems, showError])
+
   const handleBulkExportLineItems = useCallback(() => {
     if (selectedProductRows.length === 0) {
       showError("Nothing selected", "Select at least one product line item to export.")
@@ -4008,25 +4103,50 @@ export function OpportunityDetailsView({
         }
       }
 
-      if (column.id === "productName") {
+      if (column.id === "productNameHouse") {
         return {
           ...column,
           render: (value: unknown, row: OpportunityLineItemRecord) => {
-            const displayValue = value === null || value === undefined ? "--" : String(value)
-            const content = <span className="font-medium text-gray-900 group-hover:underline">{displayValue}</span>
+            const label = String(value ?? '')
 
-            if (row.productId) {
-              return (
-                <Link
-                  href={`/products/${row.productId}`}
-                  className="group block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"
-                >
-                  {content}
-                </Link>
-              )
+            if (!row.productId || !label) {
+              return <span className="text-gray-900">{label || "--"}</span>
             }
 
-            return content
+            return (
+              <Link
+                href={`/products/${row.productId}`}
+                className="cursor-pointer text-blue-600 hover:text-blue-800"
+                onClick={(event) => event.stopPropagation()}
+                prefetch={false}
+              >
+                {label}
+              </Link>
+            )
+          }
+        }
+      }
+
+      if (column.id === "productNameVendor") {
+        return {
+          ...column,
+          render: (value: unknown, row: OpportunityLineItemRecord) => {
+            const label = String(value ?? '')
+
+            if (!row.productId || !label) {
+              return <span className="text-gray-900">{label || "--"}</span>
+            }
+
+            return (
+              <Link
+                href={`/products/${row.productId}`}
+                className="cursor-pointer text-blue-600 hover:text-blue-800"
+                onClick={(event) => event.stopPropagation()}
+                prefetch={false}
+              >
+                {label}
+              </Link>
+            )
           }
         }
       }
@@ -4123,6 +4243,17 @@ export function OpportunityDetailsView({
       entityName: "product line items",
       actions: [
         {
+          key: "copy-extend-schedules",
+          label: "Copy/Extend Schedules",
+          icon: Calendar,
+          tone: "primary",
+          onClick: handleProductCopyExtendSchedules,
+          tooltip: count =>
+            count === 1
+              ? "Copy/Extend revenue schedules for this product"
+              : "Select a single product to copy/extend schedules",
+        },
+        {
           key: "clone",
           label: "Clone",
           icon: Copy,
@@ -4171,6 +4302,7 @@ export function OpportunityDetailsView({
       selectedLineItems.length,
       lineItemBulkActionLoading,
       lineItemDeleteLoading,
+      handleProductCopyExtendSchedules,
       handleBulkCloneLineItems,
       handleBulkDeleteLineItems,
       handleBulkExportLineItems,
@@ -4186,12 +4318,15 @@ export function OpportunityDetailsView({
       isBusy: revenueBulkBusy,
       actions: [
         {
-          key: "revenue-clone",
-          label: "Clone",
+          key: "revenue-copy-extend",
+          label: "Copy/Extend",
           icon: Copy,
           tone: "primary",
           onClick: handleRevenueCloneSchedule,
-          tooltip: count => (count === 1 ? "Clone this revenue schedule" : "Select exactly one schedule to clone"),
+          tooltip: count =>
+            count === 1
+              ? "Copy/Extend this revenue schedule"
+              : "Select exactly one schedule to copy/extend",
           disabled: selectedRevenueSchedules.length !== 1,
         },
         {

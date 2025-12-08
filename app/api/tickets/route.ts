@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { TicketStatus, type Prisma } from "@prisma/client"
+import { TicketPriority, TicketSeverity, TicketStatus, type Prisma } from "@prisma/client"
 import { withAuth } from "@/lib/api-auth"
 import { prisma } from "@/lib/db"
 
@@ -11,6 +11,7 @@ type TicketRow = {
   distributorName: string
   vendorName: string
   issue: string
+  revenueScheduleId: string
   revenueSchedule: string
   opportunityName: string
   productNameVendor: string
@@ -142,6 +143,7 @@ function mapTicketToRow(ticket: TicketWithRelations): TicketRow {
     ""
 
   const revenueScheduleName = schedule?.scheduleNumber ?? schedule?.id ?? ""
+  const revenueScheduleId = schedule?.id ?? ""
 
   const opportunityName = opportunity?.name ?? ""
   const opportunityIdDisplay = formatShortId(opportunity?.id ?? null)
@@ -177,6 +179,7 @@ function mapTicketToRow(ticket: TicketWithRelations): TicketRow {
     distributorName,
     vendorName,
     issue: ticket.issue,
+    revenueScheduleId,
     revenueSchedule: revenueScheduleName,
     opportunityName,
     productNameVendor,
@@ -190,6 +193,214 @@ function mapTicketToRow(ticket: TicketWithRelations): TicketRow {
   }
 }
 
+function coerceId(value: unknown): string | null {
+  if (typeof value !== "string") return null
+  const trimmed = value.trim()
+  return trimmed.length > 0 ? trimmed : null
+}
+
+const TICKET_TYPE_OPTIONS = new Set([
+  "Support Request",
+  "Product/Inventory Issue",
+  "Commission Question",
+  "Other"
+])
+
+export async function POST(request: NextRequest) {
+  return withAuth(request, async (req) => {
+    try {
+      const tenantId = req.user.tenantId
+      const payload = await request.json().catch(() => null)
+
+      if (!payload || typeof payload !== "object") {
+        return NextResponse.json({ error: "Invalid request payload" }, { status: 400 })
+      }
+
+      const issue = typeof (payload as any).issue === "string" ? (payload as any).issue.trim() : ""
+      const descriptionInput = typeof (payload as any).description === "string"
+        ? (payload as any).description.trim()
+        : ""
+      const notesInput = typeof (payload as any).notes === "string"
+        ? (payload as any).notes.trim()
+        : ""
+      const active = (payload as any).active !== false
+
+      if (!issue) {
+        return NextResponse.json({ error: "Issue is required" }, { status: 400 })
+      }
+
+      const opportunityIdInput = coerceId((payload as any).opportunityId)
+      const revenueScheduleIdInput = coerceId((payload as any).revenueScheduleId)
+      const distributorAccountIdInput = coerceId((payload as any).distributorAccountId)
+      const vendorAccountIdInput = coerceId((payload as any).vendorAccountId)
+      const productNameVendorInput = typeof (payload as any).productNameVendor === "string"
+        ? (payload as any).productNameVendor.trim()
+        : ""
+      const ticketTypeInput = typeof (payload as any).ticketType === "string"
+        ? (payload as any).ticketType.trim()
+        : ""
+
+      const ticketType = ticketTypeInput && TICKET_TYPE_OPTIONS.has(ticketTypeInput)
+        ? ticketTypeInput
+        : ""
+
+      let opportunityId = opportunityIdInput
+      let revenueScheduleId = revenueScheduleIdInput
+      let distributorAccountId = distributorAccountIdInput
+      let vendorAccountId = vendorAccountIdInput
+      let accountId: string | null = null
+
+      if (revenueScheduleId) {
+        const schedule = await prisma.revenueSchedule.findFirst({
+          where: { id: revenueScheduleId, tenantId },
+          select: {
+            id: true,
+            accountId: true,
+            opportunityId: true,
+            distributorAccountId: true,
+            vendorAccountId: true
+          }
+        })
+
+        if (!schedule) {
+          return NextResponse.json({ error: "Revenue schedule not found" }, { status: 404 })
+        }
+
+        accountId = schedule.accountId ?? accountId
+        opportunityId = schedule.opportunityId ?? opportunityId
+        distributorAccountId = schedule.distributorAccountId ?? distributorAccountId
+        vendorAccountId = schedule.vendorAccountId ?? vendorAccountId
+        revenueScheduleId = schedule.id
+      }
+
+      if (opportunityId) {
+        const opportunity = await prisma.opportunity.findFirst({
+          where: { id: opportunityId, tenantId },
+          select: {
+            id: true,
+            accountId: true,
+            accountIdDistributor: true,
+            accountIdVendor: true
+          }
+        })
+
+        if (!opportunity) {
+          return NextResponse.json({ error: "Opportunity not found" }, { status: 404 })
+        }
+
+        accountId = opportunity.accountId ?? accountId
+        distributorAccountId = distributorAccountId ?? opportunity.accountIdDistributor ?? null
+        vendorAccountId = vendorAccountId ?? opportunity.accountIdVendor ?? null
+        opportunityId = opportunity.id
+      }
+
+      if (distributorAccountId) {
+        const distributorExists = await prisma.account.findFirst({
+          where: { id: distributorAccountId, tenantId },
+          select: { id: true }
+        })
+        if (!distributorExists) {
+          return NextResponse.json({ error: "Distributor account not found" }, { status: 404 })
+        }
+      }
+
+      if (vendorAccountId) {
+        const vendorExists = await prisma.account.findFirst({
+          where: { id: vendorAccountId, tenantId },
+          select: { id: true }
+        })
+        if (!vendorExists) {
+          return NextResponse.json({ error: "Vendor account not found" }, { status: 404 })
+        }
+      }
+
+      const notesParts: string[] = []
+      if (ticketType) {
+        notesParts.push(`Type: ${ticketType}`)
+      }
+      if (productNameVendorInput) {
+        notesParts.push(`Product Name - Vendor: ${productNameVendorInput}`)
+      }
+      if (descriptionInput) {
+        notesParts.push(descriptionInput)
+      }
+      if (notesInput) {
+        notesParts.push(notesInput)
+      }
+      const notesValue = notesParts.length > 0 ? notesParts.join("\n\n") : null
+
+      const created = await prisma.ticket.create({
+        data: {
+          tenantId,
+          accountId,
+          opportunityId,
+          revenueScheduleId,
+          distributorAccountId,
+          vendorAccountId,
+          issue,
+          notes: notesValue,
+          status: active ? TicketStatus.Open : TicketStatus.Closed,
+          priority: TicketPriority.Medium,
+          severity: TicketSeverity.Minor,
+          createdById: req.user.id ?? null,
+          closedAt: active ? null : new Date()
+        },
+        include: {
+          distributor: { select: { accountName: true } },
+          vendor: { select: { accountName: true, accountNumber: true } },
+          opportunity: {
+            select: {
+              id: true,
+              name: true,
+              distributorName: true,
+              vendorName: true,
+              accountIdVendor: true,
+              customerIdVendor: true,
+              orderIdVendor: true,
+              description: true
+            }
+          },
+          revenueSchedule: {
+            select: {
+              id: true,
+              scheduleNumber: true,
+              distributor: { select: { accountName: true } },
+              vendor: { select: { accountName: true, accountNumber: true } },
+              product: { select: { productNameVendor: true } },
+              opportunity: {
+                select: {
+                  id: true,
+                  name: true,
+                  distributorName: true,
+                  vendorName: true,
+                  accountIdVendor: true,
+                  customerIdVendor: true,
+                  orderIdVendor: true,
+                  description: true
+                }
+              },
+              primaryDepositLineItems: {
+                select: {
+                  accountIdVendor: true,
+                  customerIdVendor: true,
+                  orderIdVendor: true
+                },
+                take: 1
+              }
+            }
+          },
+          assignedTo: { select: { fullName: true } }
+        }
+      })
+
+      return NextResponse.json({ data: mapTicketToRow(created as TicketWithRelations) }, { status: 201 })
+    } catch (error) {
+      console.error("Failed to create ticket", error)
+      return NextResponse.json({ error: "Failed to create ticket" }, { status: 500 })
+    }
+  })
+}
+
 export async function GET(request: NextRequest) {
   return withAuth(request, async (req) => {
     try {
@@ -198,6 +409,7 @@ export async function GET(request: NextRequest) {
 
       const pageParam = Number(searchParams.get("page") ?? "1")
       const pageSizeParam = Number(searchParams.get("pageSize") ?? "25")
+      const revenueScheduleIdParam = searchParams.get("revenueScheduleId")
       const query = searchParams.get("q")?.trim() ?? ""
       const statusFilter = (searchParams.get("status") ?? "active").toLowerCase()
       const sortByParam = searchParams.get("sortBy") ?? "distributorName"
@@ -209,6 +421,15 @@ export async function GET(request: NextRequest) {
 
       const where: Prisma.TicketWhereInput = {
         tenantId
+      }
+
+      const revenueScheduleId =
+        typeof revenueScheduleIdParam === "string" && revenueScheduleIdParam.trim().length > 0
+          ? revenueScheduleIdParam.trim()
+          : null
+
+      if (revenueScheduleId) {
+        where.revenueScheduleId = revenueScheduleId
       }
 
       if (statusFilter === "active") {

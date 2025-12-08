@@ -2,8 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Users, ArrowRight, ChevronRight, AlertTriangle, RefreshCcw, Calendar } from "lucide-react"
+import { Users, ArrowRight, ChevronRight, AlertTriangle, Calendar } from "lucide-react"
 import { CopyProtectionWrapper } from "@/components/copy-protection"
+
+type WizardStep = "selectUsers" | "configure" | "confirm"
+type CommissionOption = "transferToNewRep" | "transferToHouse"
 
 interface AdminUser {
   id: string
@@ -12,50 +15,43 @@ interface AdminUser {
   status: string
 }
 
-interface AccountListRow {
-  id: string
-  accountName: string
-  accountLegalName: string
-  accountType: string
-  accountOwner: string
-  accountOwnerId: string | null
-  status: string
+interface EntityCounts {
+  accounts: number
+  contacts: number
+  groups: number
+  products: number
+  opportunities: number
+  tasks: number
+  tickets: number
+  activities: number
+  notes: number
+  revenueSchedules: number
 }
 
-interface ContactSummary {
-  id: string
-  fullName: string
-  emailAddress: string
-  accountName: string
+interface ReassignmentSummary {
+  accountsUpdated: number
+  contactsUpdated: number
+  groupsUpdated: number
+  productsUpdated: number
+  opportunitiesUpdated: number
+  tasksUpdated: number
+  ticketsUpdated: number
+  activitiesUpdated: number
+  notesUpdated: number
+  revenueSchedulesUpdated: number
+  commissionSplitsAdjusted: number
+  counts: EntityCounts
+  commissionOption: CommissionOption
+  noHouseRepContactId?: string | null
 }
-
-interface GroupSummary {
-  id: string
-  name: string
-  memberCount: number
-  isActive: boolean
-}
-
-interface ProductSummary {
-  id: string
-  productNameHouse: string
-  active: boolean
-}
-
-type WizardStep = "selectUsers" | "selectAccounts" | "configure" | "confirm"
 
 function getDefaultEffectiveDate(): Date {
   const now = new Date()
   const year = now.getFullYear()
   const month = now.getMonth()
-
-  // If today is the 1st, use the current month.
-  // Otherwise, use the 1st of the next month so the effective date is always in the future.
   if (now.getDate() === 1) {
     return new Date(year, month, 1)
   }
-
-  // JS Date will roll the year correctly when month === 11 (December)
   return new Date(year, month + 1, 1)
 }
 
@@ -64,8 +60,7 @@ export default function UserReassignmentPage() {
 
   const [step, setStep] = useState<WizardStep>("selectUsers")
   const [loadingUsers, setLoadingUsers] = useState(false)
-  const [loadingAccounts, setLoadingAccounts] = useState(false)
-  const [loadingRelated, setLoadingRelated] = useState(false)
+  const [loadingCounts, setLoadingCounts] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -73,26 +68,23 @@ export default function UserReassignmentPage() {
   const [previousUserId, setPreviousUserId] = useState<string>("")
   const [newOwnerId, setNewOwnerId] = useState<string>("")
 
-  const [accounts, setAccounts] = useState<AccountListRow[]>([])
-  const [selectedAccountIds, setSelectedAccountIds] = useState<string[]>([])
-
-  const [contacts, setContacts] = useState<ContactSummary[]>([])
-  const [groups, setGroups] = useState<GroupSummary[]>([])
-  const [products, setProducts] = useState<ProductSummary[]>([])
-
   const [effectiveDate, setEffectiveDate] = useState<Date>(() => getDefaultEffectiveDate())
-  const [includeAccounts, setIncludeAccounts] = useState(true)
-  const [includeContacts, setIncludeContacts] = useState(true)
-  const [includeGroups, setIncludeGroups] = useState(true)
-  const [includeProducts, setIncludeProducts] = useState(true)
-  const [submitSummary, setSubmitSummary] = useState<{
-    accountsUpdated: number
-    contactsUpdated: number
-    groupsUpdated: number
-    productsUpdated: number
-  } | null>(null)
+  const [commissionOption, setCommissionOption] = useState<CommissionOption>("transferToNewRep")
+  const [counts, setCounts] = useState<EntityCounts>({
+    accounts: 0,
+    contacts: 0,
+    groups: 0,
+    products: 0,
+    opportunities: 0,
+    tasks: 0,
+    tickets: 0,
+    activities: 0,
+    notes: 0,
+    revenueSchedules: 0
+  })
+  const [noHouseRepContactId, setNoHouseRepContactId] = useState<string | null>(null)
+  const [submitSummary, setSubmitSummary] = useState<ReassignmentSummary | null>(null)
 
-  // Load users once for the wizard (admin view of users)
   useEffect(() => {
     const loadUsers = async () => {
       try {
@@ -111,18 +103,24 @@ export default function UserReassignmentPage() {
         const payload = await response.json().catch(() => null)
         const items: any[] = payload?.data?.users ?? payload?.users ?? []
 
-        setUsers(
-          items.map(item => ({
-            id: item.id,
-            fullName: item.fullName || `${item.firstName ?? ""} ${item.lastName ?? ""}`.trim(),
-            email: item.email,
-            status: item.status
-          }))
-        )
+        const normalizedUsers = items.map(item => ({
+          id: item.id,
+          fullName: item.fullName || `${item.firstName ?? ""} ${item.lastName ?? ""}`.trim(),
+          email: item.email,
+          status: item.status
+        }))
+
+        setUsers(normalizedUsers)
+
+        if (!newOwnerId && normalizedUsers.length > 0) {
+          setNewOwnerId(normalizedUsers[0].id)
+        }
       } catch (err) {
         console.error("Failed to load users for reassignment wizard", err)
         setError(
-          err instanceof Error ? err.message : "Unable to load users. Please try again or contact an administrator."
+          err instanceof Error
+            ? err.message
+            : "Unable to load users. Please try again or contact an administrator."
         )
       } finally {
         setLoadingUsers(false)
@@ -130,7 +128,14 @@ export default function UserReassignmentPage() {
     }
 
     loadUsers()
-  }, [])
+  }, [newOwnerId])
+
+  useEffect(() => {
+    if (previousUserId && previousUserId === newOwnerId) {
+      const fallback = users.find(u => u.id !== previousUserId)
+      setNewOwnerId(fallback?.id ?? "")
+    }
+  }, [previousUserId, newOwnerId, users])
 
   const previousUser = useMemo(
     () => users.find(user => user.id === previousUserId) ?? null,
@@ -142,181 +147,145 @@ export default function UserReassignmentPage() {
     [users, newOwnerId]
   )
 
-  const canGoToAccountSelection =
+  const stepIndex: Record<WizardStep, number> = {
+    selectUsers: 1,
+    configure: 2,
+    confirm: 3
+  }
+
+  const canProceedFromSelect =
     !!previousUserId && !!newOwnerId && previousUserId !== newOwnerId && !loadingUsers
 
-  const handleLoadAccounts = async () => {
+  const loadCounts = async () => {
     if (!previousUserId) return
-
     try {
-      setLoadingAccounts(true)
+      setLoadingCounts(true)
       setError(null)
-      setAccounts([])
-      setSelectedAccountIds([])
-
-      // Fetch accounts owned by the previous user
-      const response = await fetch(
-        `/api/accounts?ownerId=${encodeURIComponent(previousUserId)}&status=active&page=1&pageSize=500`,
-        { cache: "no-store" }
+      const params = new URLSearchParams({
+        previousUserId,
+        effectiveDate: effectiveDate.toISOString()
+      })
+      const response = await fetch(`/api/admin/user-reassignment?${params.toString()}`, {
+        cache: "no-store"
+      })
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null)
+        throw new Error(payload?.error ?? "Failed to load reassignment preview")
+      }
+      const payload = await response.json().catch(() => null)
+      if (payload?.counts) {
+        setCounts(payload.counts as EntityCounts)
+      }
+      if (payload?.noHouseRepContactId) {
+        setNoHouseRepContactId(payload.noHouseRepContactId)
+      }
+    } catch (err) {
+      console.error("Failed to load reassignment preview", err)
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Unable to load reassignment preview. Please try again."
       )
+    } finally {
+      setLoadingCounts(false)
+    }
+  }
+
+  const goToConfigure = async () => {
+    if (!canProceedFromSelect) return
+    await loadCounts()
+    setStep("configure")
+  }
+
+  const goToConfirm = () => {
+    setStep("confirm")
+  }
+
+  const handleSubmit = async () => {
+    if (!previousUserId || !newOwnerId) return
+    setSubmitting(true)
+    setError(null)
+    setSubmitSummary(null)
+    try {
+      const response = await fetch("/api/admin/user-reassignment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          previousUserId,
+          newUserId: newOwnerId,
+          effectiveDate: effectiveDate.toISOString(),
+          commissionOption
+        })
+      })
 
       if (!response.ok) {
         const payload = await response.json().catch(() => null)
-        throw new Error(payload?.error ?? "Failed to load accounts for previous user")
+        const message = payload?.error ?? "Failed to apply user reassignment"
+        throw new Error(message)
       }
 
       const payload = await response.json().catch(() => null)
-      const rows: any[] = Array.isArray(payload?.data) ? payload.data : payload?.rows ?? []
-
-      const mapped: AccountListRow[] = rows.map(row => ({
-        id: row.id,
-        accountName: row.accountName,
-        accountLegalName: row.accountLegalName ?? "",
-        accountType: row.accountType ?? "",
-        accountOwner: row.accountOwner ?? "",
-        accountOwnerId: row.accountOwnerId ?? null,
-        status: row.status ?? "Active"
-      }))
-
-      setAccounts(mapped)
-      setSelectedAccountIds(mapped.map(a => a.id))
-      setStep("selectAccounts")
+      if (payload?.summary) {
+        setSubmitSummary(payload.summary as ReassignmentSummary)
+      }
     } catch (err) {
-      console.error("Failed to load accounts for previous user", err)
+      console.error("User reassignment operation failed", err)
       setError(
         err instanceof Error
           ? err.message
-          : "Unable to load accounts for this user. Please try again or adjust filters."
+          : "User reassignment failed. Please review selections and try again."
       )
     } finally {
-      setLoadingAccounts(false)
+      setSubmitting(false)
     }
   }
 
-  const handleToggleAccount = (id: string) => {
-    setSelectedAccountIds(prev =>
-      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+  const renderStepBadge = (label: string, index: number, value: WizardStep) => {
+    const active = step === value
+    const completed = stepIndex[step] > index + 1
+    return (
+      <div key={value} className="flex items-center gap-2">
+        <div
+          className={[
+            "flex h-8 w-8 items-center justify-center rounded-full text-sm font-medium",
+            active
+              ? "bg-blue-600 text-white"
+              : completed
+                ? "bg-green-600 text-white"
+                : "bg-gray-200 text-gray-700"
+          ].join(" ")}
+        >
+          {index + 1}
+        </div>
+        <span className={["text-sm font-medium", active ? "text-blue-700" : "text-gray-700"].join(" ")}>
+          {label}
+        </span>
+        {index < 2 && <ChevronRight className="h-4 w-4 text-gray-300" aria-hidden="true" />}
+      </div>
     )
   }
 
-  const handleToggleAllAccounts = () => {
-    if (selectedAccountIds.length === accounts.length) {
-      setSelectedAccountIds([])
-    } else {
-      setSelectedAccountIds(accounts.map(a => a.id))
-    }
-  }
-
-  const loadRelatedEntities = async () => {
-    if (!previousUserId) return
-
-    try {
-      setLoadingRelated(true)
-      setError(null)
-      setContacts([])
-      setGroups([])
-      setProducts([])
-
-      const [contactsResponse, groupsResponse, productsResponse] = await Promise.all([
-        fetch(
-          `/api/contacts?ownerId=${encodeURIComponent(previousUserId)}&page=1&pageSize=500`,
-          { cache: "no-store" }
-        ),
-        fetch(
-          `/api/groups?ownerId=${encodeURIComponent(previousUserId)}&includeInactive=false`,
-          { cache: "no-store" }
-        ).catch(() => null),
-        fetch(
-          `/api/products?createdById=${encodeURIComponent(previousUserId)}&status=all&page=1&pageSize=500`,
-          { cache: "no-store" }
-        ).catch(() => null)
-      ])
-
-      if (contactsResponse.ok) {
-        const payload = await contactsResponse.json().catch(() => null)
-        const rows: any[] = Array.isArray(payload?.data) ? payload.data : []
-        setContacts(
-          rows.map(row => ({
-            id: row.id,
-            fullName: row.fullName ?? "",
-            emailAddress: row.emailAddress ?? "",
-            accountName: row.accountName ?? ""
-          }))
-        )
-      }
-
-      if (groupsResponse && groupsResponse.ok) {
-        const payload = await groupsResponse.json().catch(() => null)
-        const rows: any[] = Array.isArray(payload?.data) ? payload.data : []
-        setGroups(
-          rows.map(row => ({
-            id: row.id,
-            name: row.name ?? "",
-            memberCount: typeof row.memberCount === "number" ? row.memberCount : 0,
-            isActive: row.isActive !== false
-          }))
-        )
-      }
-
-      if (productsResponse && productsResponse.ok) {
-        const payload = await productsResponse.json().catch(() => null)
-        const rows: any[] = Array.isArray(payload?.data) ? payload.data : []
-        setProducts(
-          rows.map(row => ({
-            id: row.id,
-            productNameHouse: row.productNameHouse ?? "",
-            active: row.active !== false
-          }))
-        )
-      }
-
-      setStep("configure")
-    } catch (err) {
-      console.error("Failed to load related entities for reassignment", err)
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Unable to load related entities for this user. Please try again."
-      )
-    } finally {
-      setLoadingRelated(false)
-    }
-  }
-
-  const goToConfigureStep = () => {
-    if (selectedAccountIds.length === 0) {
-      return
-    }
-    loadRelatedEntities()
-  }
-
-  const stepIndex: Record<WizardStep, number> = {
-    selectUsers: 1,
-    selectAccounts: 2,
-    configure: 3,
-    confirm: 4
-  }
-
-  const anyIncluded =
-    includeAccounts || includeContacts || includeGroups || includeProducts
-
-  const canSubmit =
-    !submitting &&
-    anyIncluded &&
-    ((includeAccounts && selectedAccountIds.length > 0) ||
-      (includeContacts && contacts.length > 0) ||
-      (includeGroups && groups.length > 0) ||
-      (includeProducts && products.length > 0))
+  const summaryCounts = [
+    { label: "Accounts", value: counts.accounts },
+    { label: "Contacts", value: counts.contacts },
+    { label: "Opportunities", value: counts.opportunities },
+    { label: "Tasks", value: counts.tasks },
+    { label: "Tickets", value: counts.tickets },
+    { label: "Activities", value: counts.activities },
+    { label: "Notes", value: counts.notes },
+    { label: "Groups", value: counts.groups },
+    { label: "Future Revenue Schedules", value: counts.revenueSchedules },
+    { label: "Products", value: counts.products }
+  ]
 
   return (
     <CopyProtectionWrapper className="h-full flex flex-col">
       <div className="flex-1 p-6">
         <div className="mb-6 flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">User Reassignment Wizard</h1>
+            <h1 className="text-2xl font-bold text-gray-900">User Reassignment (Admin)</h1>
             <p className="mt-1 text-sm text-gray-600">
-              Start from a departing user, review their owned accounts, and launch the existing
-              bulk account reassignment flow with impact preview and audit logging.
+              Centralized, admin-only reassignment workflow. All associated records move with the reassignment and a commission adjustment is required.
             </p>
           </div>
           <button
@@ -329,48 +298,10 @@ export default function UserReassignmentPage() {
           </button>
         </div>
 
-        {/* Step indicator */}
         <div className="mb-6 flex items-center gap-4">
-          {["selectUsers", "selectAccounts", "configure", "confirm"].map((key, idx) => {
-            const value = key as WizardStep
-            const active = step === value
-            const completed = stepIndex[step] > idx + 1
-                const label =
-                  value === "selectUsers"
-                    ? "Select Users"
-                    : value === "selectAccounts"
-                      ? "Review Accounts"
-                      : value === "configure"
-                        ? "Configure Reassignment"
-                        : "Confirm & Apply"
-            return (
-              <div key={value} className="flex items-center gap-2">
-                <div
-                  className={[
-                    "flex h-8 w-8 items-center justify-center rounded-full text-sm font-medium",
-                    active
-                      ? "bg-blue-600 text-white"
-                      : completed
-                        ? "bg-green-600 text-white"
-                        : "bg-gray-200 text-gray-700"
-                  ].join(" ")}
-                >
-                  {idx + 1}
-                </div>
-                <span
-                  className={[
-                    "text-sm font-medium",
-                    active ? "text-blue-700" : "text-gray-700"
-                  ].join(" ")}
-                >
-                  {label}
-                </span>
-                {idx < 3 && (
-                  <ChevronRight className="h-4 w-4 text-gray-300" aria-hidden="true" />
-                )}
-              </div>
-            )
-          })}
+          {renderStepBadge("Select Users", 0, "selectUsers")}
+          {renderStepBadge("Configure", 1, "configure")}
+          {renderStepBadge("Confirm & Apply", 2, "confirm")}
         </div>
 
         {error && (
@@ -380,20 +311,16 @@ export default function UserReassignmentPage() {
           </div>
         )}
 
-        {/* Step 1: Select previous user + new owner */}
         {step === "selectUsers" && (
           <div className="rounded-lg border border-gray-200 bg-white p-5">
-            <h2 className="mb-4 text-lg font-semibold text-gray-900">
-              1. Choose Previous User and New Owner
-            </h2>
+            <h2 className="mb-4 text-lg font-semibold text-gray-900">1. Choose users</h2>
             <p className="mb-4 text-sm text-gray-600">
-              Select the departing user whose accounts you want to reassign, then select the new
-              owner who will take over those accounts.
+              Pick the departing user and the new owner. New owner is defaulted; the selection is required.
             </p>
             <div className="grid gap-6 md:grid-cols-2">
               <div>
                 <label className="mb-2 block text-sm font-medium text-gray-700">
-                  Previous User (From) *
+                  Departing user *
                 </label>
                 <div className="flex items-center gap-2">
                   <Users className="h-4 w-4 text-gray-400" />
@@ -412,169 +339,158 @@ export default function UserReassignmentPage() {
                   </select>
                 </div>
               </div>
+
               <div>
                 <label className="mb-2 block text-sm font-medium text-gray-700">
-                  New House Rep / Account Owner (To) *
+                  New owner (radio, defaulted) *
                 </label>
-                <div className="flex items-center gap-2">
-                  <Users className="h-4 w-4 text-gray-400" />
-                  <select
-                    value={newOwnerId}
-                    onChange={e => setNewOwnerId(e.target.value)}
-                    className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    disabled={loadingUsers}
-                  >
-                    <option value="">Select replacement owner</option>
-                    {users.map(user => (
-                      <option key={user.id} value={user.id}>
-                        {user.fullName} ({user.email})
-                      </option>
-                    ))}
-                  </select>
+                <div className="max-h-48 overflow-y-auto rounded-md border border-gray-200 bg-gray-50 px-3 py-2 space-y-2">
+                  {users.length === 0 && (
+                    <p className="text-xs text-gray-500">No active users available.</p>
+                  )}
+                  {users.map(user => (
+                    <label key={user.id} className="flex items-center gap-2 text-sm text-gray-800">
+                      <input
+                        type="radio"
+                        name="newOwner"
+                        value={user.id}
+                        checked={newOwnerId === user.id}
+                        onChange={() => setNewOwnerId(user.id)}
+                        disabled={loadingUsers}
+                      />
+                      <span className="flex flex-col">
+                        <span className="font-medium">{user.fullName}</span>
+                        <span className="text-xs text-gray-500">{user.email}</span>
+                      </span>
+                    </label>
+                  ))}
                 </div>
                 {previousUserId && newOwnerId && previousUserId === newOwnerId && (
-                  <p className="mt-2 text-xs text-red-600">
-                    Previous user and new owner must be different.
-                  </p>
+                  <p className="mt-2 text-xs text-red-600">Users must be different.</p>
                 )}
               </div>
             </div>
-            <div className="mt-6 flex items-center justify-between">
-              <div className="flex items-center gap-2 text-xs text-gray-500">
-                <RefreshCcw className="h-3 w-3" />
-                <span>
-                  Effective dates and commission options are configured in the existing Reassign
-                  Accounts modal on the next step.
-                </span>
-              </div>
+            <div className="mt-6 flex items-center justify-end">
               <button
                 type="button"
-                onClick={handleLoadAccounts}
-                disabled={!canGoToAccountSelection || loadingAccounts}
+                onClick={goToConfigure}
+                disabled={!canProceedFromSelect || loadingCounts}
                 className={[
                   "inline-flex items-center rounded-md px-4 py-2 text-sm font-medium text-white",
-                  !canGoToAccountSelection || loadingAccounts
+                  !canProceedFromSelect || loadingCounts
                     ? "cursor-not-allowed bg-blue-400"
                     : "bg-blue-600 hover:bg-blue-700"
                 ].join(" ")}
               >
-                {loadingAccounts ? "Loading accounts..." : "Next: Review Accounts"}
+                {loadingCounts ? "Loading preview..." : "Next: Configure"}
                 <ChevronRight className="ml-2 h-4 w-4" />
               </button>
             </div>
           </div>
         )}
 
-        {/* Step 2: Review accounts owned by previous user */}
-        {step === "selectAccounts" && (
+        {step === "configure" && (
           <div className="rounded-lg border border-gray-200 bg-white p-5">
-            <h2 className="mb-1 text-lg font-semibold text-gray-900">
-              2. Review Accounts for {previousUser?.fullName ?? "Selected User"}
-            </h2>
+            <h2 className="mb-2 text-lg font-semibold text-gray-900">2. Configure & preview</h2>
             <p className="mb-4 text-sm text-gray-600">
-              These accounts are currently owned by the previous user. Adjust the selection if
-              there are any accounts that should not be moved in this operation.
+              All associated records will move. Commission adjustment is required.
             </p>
-            <div className="mb-3 flex items-center justify-between text-xs text-gray-600">
-              <div>
-                <span className="font-medium">Accounts found:</span>{" "}
-                {accounts.length.toLocaleString()}
-              </div>
-              <div>
-                <span className="font-medium">Selected for reassignment:</span>{" "}
-                {selectedAccountIds.length.toLocaleString()}
-              </div>
-            </div>
-            <div className="mb-4 max-h-[360px] overflow-y-auto rounded-md border border-gray-200">
-              <table className="min-w-full divide-y divide-gray-200 text-sm">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-3 py-2">
-                      <input
-                        type="checkbox"
-                        checked={
-                          accounts.length > 0 &&
-                          selectedAccountIds.length === accounts.length
+
+            <div className="grid gap-6 lg:grid-cols-2">
+              <div className="space-y-4">
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700">
+                    Effective date *
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <Calendar className="h-4 w-4 text-gray-400" />
+                    <input
+                      type="date"
+                      value={effectiveDate.toISOString().slice(0, 10)}
+                      onChange={e => {
+                        const value = e.target.value
+                        if (!value) return
+                        const parsed = new Date(value)
+                        if (!Number.isNaN(parsed.getTime())) {
+                          setEffectiveDate(parsed)
                         }
-                        onChange={handleToggleAllAccounts}
+                      }}
+                      className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <p className="mt-2 text-xs text-gray-500">
+                    Use the 1st of the removal month; changes apply from this date forward.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700">
+                    Commission adjustment (required)
+                  </label>
+                  <fieldset className="space-y-2 rounded-md border border-gray-200 bg-gray-50 p-3 text-sm">
+                    <label className="flex items-start gap-2">
+                      <input
+                        type="radio"
+                        name="commissionOption"
+                        value="transferToNewRep"
+                        checked={commissionOption === "transferToNewRep"}
+                        onChange={() => setCommissionOption("transferToNewRep")}
                       />
-                    </th>
-                    <th className="px-3 py-2 text-left font-medium text-gray-700">
-                      Account Name
-                    </th>
-                    <th className="px-3 py-2 text-left font-medium text-gray-700">
-                      Account Type
-                    </th>
-                    <th className="px-3 py-2 text-left font-medium text-gray-700">
-                      Current Owner
-                    </th>
-                    <th className="px-3 py-2 text-left font-medium text-gray-700">
-                      Status
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100 bg-white">
-                  {accounts.length === 0 && (
-                    <tr>
-                      <td
-                        colSpan={5}
-                        className="px-4 py-6 text-center text-sm text-gray-500"
-                      >
-                        No active accounts currently owned by this user.
-                      </td>
-                    </tr>
-                  )}
-                  {accounts.map(account => {
-                    const checked = selectedAccountIds.includes(account.id)
-                    return (
-                      <tr
-                        key={account.id}
-                        className={checked ? "bg-blue-50/60" : undefined}
-                      >
-                        <td className="px-3 py-2">
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={() => handleToggleAccount(account.id)}
-                          />
-                        </td>
-                        <td className="px-3 py-2">
-                          <div className="flex flex-col">
-                            <span className="font-medium text-gray-900">
-                              {account.accountName}
-                            </span>
-                            {account.accountLegalName && (
-                              <span className="text-xs text-gray-500">
-                                {account.accountLegalName}
-                              </span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-3 py-2 text-gray-700">
-                          {account.accountType || "—"}
-                        </td>
-                        <td className="px-3 py-2 text-gray-700">
-                          {account.accountOwner || "Unassigned"}
-                        </td>
-                        <td className="px-3 py-2">
-                          <span
-                            className={[
-                              "inline-flex rounded-full px-2 py-0.5 text-xs font-medium",
-                              account.status === "Active"
-                                ? "bg-green-50 text-green-700"
-                                : "bg-gray-100 text-gray-700"
-                            ].join(" ")}
-                          >
-                            {account.status}
-                          </span>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
+                      <span>
+                        <span className="font-semibold text-gray-900">Transfer to New Owner</span>
+                        <p className="text-xs text-gray-600">
+                          Full commission follows the new owner for in-flight items.
+                        </p>
+                      </span>
+                    </label>
+                    <label className="flex items-start gap-2">
+                      <input
+                        type="radio"
+                        name="commissionOption"
+                        value="transferToHouse"
+                        checked={commissionOption === "transferToHouse"}
+                        onChange={() => setCommissionOption("transferToHouse")}
+                      />
+                      <span>
+                        <span className="font-semibold text-gray-900">Transfer to House</span>
+                        <p className="text-xs text-gray-600">
+                          Previous user’s commission portion moves to House from the effective date forward.
+                        </p>
+                      </span>
+                    </label>
+                    {commissionOption === "transferToHouse" && noHouseRepContactId && (
+                      <p className="text-xs text-gray-500">
+                        Using “No House Rep” contact for house-only scenarios (ID: {noHouseRepContactId}).
+                      </p>
+                    )}
+                  </fieldset>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex flex-col">
+                    <span className="text-sm text-gray-600">Departing user</span>
+                    <span className="font-semibold text-gray-900">{previousUser?.fullName ?? "—"}</span>
+                  </div>
+                  <div className="flex flex-col items-end">
+                    <span className="text-sm text-gray-600">New owner</span>
+                    <span className="font-semibold text-gray-900">{newOwnerUser?.fullName ?? "—"}</span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {summaryCounts.map(item => (
+                    <div key={item.label} className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
+                      <p className="text-xs uppercase tracking-wide text-gray-500">{item.label}</p>
+                      <p className="text-lg font-semibold text-gray-900">{item.value.toLocaleString()}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
-            <div className="flex items-center justify-between">
+
+            <div className="mt-6 flex items-center justify-between">
               <button
                 type="button"
                 onClick={() => setStep("selectUsers")}
@@ -584,285 +500,105 @@ export default function UserReassignmentPage() {
               </button>
               <button
                 type="button"
-                onClick={goToConfigureStep}
-                disabled={selectedAccountIds.length === 0 || loadingRelated}
+                onClick={goToConfirm}
+                disabled={loadingCounts || !commissionOption}
                 className={[
                   "inline-flex items-center rounded-md px-4 py-2 text-sm font-medium text-white",
-                  selectedAccountIds.length === 0 || loadingRelated
+                  loadingCounts || !commissionOption
                     ? "cursor-not-allowed bg-blue-400"
                     : "bg-blue-600 hover:bg-blue-700"
                 ].join(" ")}
               >
-                {loadingRelated ? "Loading related entities..." : "Next: Configure reassignment"}
+                Next: Confirm
                 <ChevronRight className="ml-2 h-4 w-4" />
               </button>
             </div>
           </div>
         )}
 
-        {/* Step 3: Configure reassignment (date + scope) */}
-        {step === "configure" && (
-          <div className="rounded-lg border border-gray-200 bg-white p-5">
-            <h2 className="mb-2 text-lg font-semibold text-gray-900">
-              3. Configure Reassignment
-            </h2>
-            <p className="mb-4 text-sm text-gray-600">
-              Confirm the effective reassignment date and which non-opportunity records should be
-              reassigned from the previous user to the new owner. The effective date should be set
-              to the <strong>1st of the month of the user&apos;s removal</strong>.
-            </p>
-            <div className="grid gap-6 md:grid-cols-2">
-              <div>
-                <label className="mb-2 block text-sm font-medium text-gray-700">
-                  Effective Reassignment Date (1st of month) *
-                </label>
-                <div className="flex items-center gap-2">
-                  <Calendar className="h-4 w-4 text-gray-400" />
-                  <input
-                    type="date"
-                    value={effectiveDate?.toISOString().slice(0, 10)}
-                    onChange={e => {
-                      const value = e.target.value
-                      if (!value) return
-                      const parsed = new Date(value)
-                      if (!Number.isNaN(parsed.getTime())) {
-                        setEffectiveDate(parsed)
-                      }
-                    }}
-                    className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-                <p className="mt-2 text-xs text-gray-500">
-                  This date will be recorded as the effective reassignment date for updated
-                  records. Opportunity commission changes are handled separately via commission
-                  reassignment tools.
-                </p>
-              </div>
-              <div>
-                <label className="mb-2 block text-sm font-medium text-gray-700">
-                  Included entity types
-                </label>
-                <div className="space-y-2 rounded-md border border-gray-200 bg-gray-50 p-3 text-sm">
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={includeAccounts}
-                      onChange={e => setIncludeAccounts(e.target.checked)}
-                    />
-                    <span>
-                      Accounts{" "}
-                      <span className="text-xs text-gray-500">
-                        ({selectedAccountIds.length} selected)
-                      </span>
-                    </span>
-                  </label>
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={includeContacts}
-                      onChange={e => setIncludeContacts(e.target.checked)}
-                    />
-                    <span>
-                      Contacts{" "}
-                      <span className="text-xs text-gray-500">
-                        ({contacts.length.toLocaleString()} owned by previous user)
-                      </span>
-                    </span>
-                  </label>
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={includeGroups}
-                      onChange={e => setIncludeGroups(e.target.checked)}
-                    />
-                    <span>
-                      Groups{" "}
-                      <span className="text-xs text-gray-500">
-                        ({groups.length.toLocaleString()} owned by previous user)
-                      </span>
-                    </span>
-                  </label>
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={includeProducts}
-                      onChange={e => setIncludeProducts(e.target.checked)}
-                    />
-                    <span>
-                      Products{" "}
-                      <span className="text-xs text-gray-500">
-                        ({products.length.toLocaleString()} created by previous user)
-                      </span>
-                    </span>
-                  </label>
-                </div>
-              </div>
-            </div>
-            <div className="mt-6 flex items-center justify-between">
-              <button
-                type="button"
-                onClick={() => setStep("selectAccounts")}
-                className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-              >
-                Back to account selection
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setSubmitSummary(null)
-                  setStep("confirm")
-                }}
-                disabled={submitting || (!includeAccounts && !includeContacts && !includeGroups && !includeProducts)}
-                className={[
-                  "inline-flex items-center rounded-md px-4 py-2 text-sm font-medium text-white",
-                  submitting || (!includeAccounts && !includeContacts && !includeGroups && !includeProducts)
-                    ? "cursor-not-allowed bg-blue-400"
-                    : "bg-blue-600 hover:bg-blue-700"
-                ].join(" ")}
-              >
-                Next: Review &amp; confirm
-                <ChevronRight className="ml-2 h-4 w-4" />
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Step 4: Review & confirm reassignment */}
         {step === "confirm" && (
           <div className="rounded-lg border border-gray-200 bg-white p-5">
-            <h2 className="mb-2 text-lg font-semibold text-gray-900">
-              4. Review &amp; Confirm Reassignment
-            </h2>
+            <h2 className="mb-2 text-lg font-semibold text-gray-900">3. Confirm & apply</h2>
             <p className="mb-4 text-sm text-gray-600">
-              Confirm that you want to reassign non-opportunity objects from the previous user to
-              the new owner. When you submit, the system will update ownership/creator fields for
-              the selected entity types effective on the date shown.
+              Review selections and apply the reassignment. All associated records move with the accounts.
             </p>
-            <div className="mb-4 rounded-md bg-blue-50 px-3 py-2 text-xs text-blue-800">
-              <p className="font-semibold">
-                Previous user:{" "}
-                <span className="font-normal">
-                  {previousUser?.fullName ?? "Unknown"} ({previousUser?.email ?? "N/A"})
-                </span>
-              </p>
-              <p className="mt-1 font-semibold">
-                New owner (House Rep):{" "}
-                <span className="font-normal">
-                  {newOwnerUser?.fullName ?? "Unknown"} ({newOwnerUser?.email ?? "N/A"})
-                </span>
-              </p>
-              <p className="mt-1 font-semibold">
-                Effective reassignment date:{" "}
-                <span className="font-normal">
-                  {effectiveDate?.toISOString().slice(0, 10)}
-                </span>
-              </p>
-              <p className="mt-2">
-                This operation will update ownership/creator fields for:
-              </p>
-              <ul className="mt-1 list-disc pl-5">
-                {includeAccounts && (
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="rounded-md border border-gray-200 bg-gray-50 p-3">
+                <p className="text-xs uppercase tracking-wide text-gray-500">Summary</p>
+                <ul className="mt-2 space-y-1 text-sm text-gray-800">
                   <li>
-                    <strong>{selectedAccountIds.length}</strong> Accounts (owner → new user)
+                    <span className="text-gray-600">From:</span>{" "}
+                    <span className="font-medium">{previousUser?.fullName ?? "—"}</span>
                   </li>
-                )}
-                {includeContacts && (
                   <li>
-                    <strong>{contacts.length}</strong> Contacts (owner → new user)
+                    <span className="text-gray-600">To:</span>{" "}
+                    <span className="font-medium">{newOwnerUser?.fullName ?? "—"}</span>
                   </li>
-                )}
-                {includeGroups && (
                   <li>
-                    <strong>{groups.length}</strong> Groups (owner → new user)
+                    <span className="text-gray-600">Effective date:</span>{" "}
+                    <span className="font-medium">{effectiveDate.toISOString().slice(0, 10)}</span>
                   </li>
-                )}
-                {includeProducts && (
                   <li>
-                    <strong>{products.length}</strong> Products (creator → new user)
+                    <span className="text-gray-600">Commission adjustment:</span>{" "}
+                    <span className="font-medium">
+                      {commissionOption === "transferToHouse" ? "Transfer to House" : "Transfer to New Owner"}
+                    </span>
                   </li>
-                )}
-              </ul>
+                </ul>
+              </div>
+
+              <div className="rounded-md border border-gray-200 bg-gray-50 p-3">
+                <p className="text-xs uppercase tracking-wide text-gray-500">Counts to move</p>
+                <ul className="mt-2 space-y-1 text-sm text-gray-800">
+                  {summaryCounts.map(item => (
+                    <li key={item.label} className="flex justify-between">
+                      <span className="text-gray-600">{item.label}</span>
+                      <span className="font-semibold">{item.value.toLocaleString()}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             </div>
-            <div className="flex items-center justify-between">
+
+            <div className="mt-6 flex items-center justify-between">
               <button
                 type="button"
                 onClick={() => setStep("configure")}
                 className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
               >
-                Back to configuration
+                Back to configure
               </button>
               <button
                 type="button"
-                onClick={async () => {
-                  if (!previousUserId || !newOwnerId) return
-                  setSubmitting(true)
-                  setError(null)
-                  setSubmitSummary(null)
-                  try {
-                    const response = await fetch("/api/admin/user-reassignment", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({
-                        previousUserId,
-                        newUserId: newOwnerId,
-                        effectiveDate: effectiveDate?.toISOString(),
-                        accountIds: includeAccounts ? selectedAccountIds : [],
-                        includeAccounts,
-                        includeContacts,
-                        includeGroups,
-                        includeProducts
-                      })
-                    })
-
-                    if (!response.ok) {
-                      const payload = await response.json().catch(() => null)
-                      const message = payload?.error ?? "Failed to apply user reassignment"
-                      throw new Error(message)
-                    }
-
-                    const payload = await response.json().catch(() => null)
-                    const summary = payload?.summary ?? null
-                    if (summary) {
-                      setSubmitSummary({
-                        accountsUpdated: summary.accountsUpdated ?? 0,
-                        contactsUpdated: summary.contactsUpdated ?? 0,
-                        groupsUpdated: summary.groupsUpdated ?? 0,
-                        productsUpdated: summary.productsUpdated ?? 0
-                      })
-                    } else {
-                      setSubmitSummary(null)
-                    }
-                  } catch (err) {
-                    console.error("User reassignment operation failed", err)
-                    setError(
-                      err instanceof Error
-                        ? err.message
-                        : "User reassignment failed. Please review selections and try again."
-                    )
-                  } finally {
-                    setSubmitting(false)
-                  }
-                }}
-                disabled={!canSubmit}
+                onClick={handleSubmit}
+                disabled={submitting || loadingCounts || !commissionOption}
                 className={[
                   "inline-flex items-center rounded-md px-4 py-2 text-sm font-medium text-white",
-                  !canSubmit
+                  submitting || loadingCounts || !commissionOption
                     ? "cursor-not-allowed bg-blue-400"
                     : "bg-blue-600 hover:bg-blue-700"
                 ].join(" ")}
               >
-                {submitting ? "Applying reassignment..." : "Reassign to New User"}
+                {submitting ? "Applying reassignment..." : "Reassign now"}
                 <ArrowRight className="ml-2 h-4 w-4" />
               </button>
             </div>
+
             {submitSummary && (
               <div className="mt-4 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-800">
                 <p className="font-semibold">Reassignment complete.</p>
-                <ul className="mt-1 list-disc pl-5">
+                <ul className="mt-1 list-disc pl-5 space-y-1">
                   <li>{submitSummary.accountsUpdated} accounts updated</li>
                   <li>{submitSummary.contactsUpdated} contacts updated</li>
+                  <li>{submitSummary.opportunitiesUpdated} opportunities updated</li>
+                  <li>{submitSummary.tasksUpdated} tasks updated</li>
+                  <li>{submitSummary.ticketsUpdated} tickets updated</li>
+                  <li>{submitSummary.activitiesUpdated} activities updated</li>
+                  <li>{submitSummary.notesUpdated} notes touched</li>
                   <li>{submitSummary.groupsUpdated} groups updated</li>
                   <li>{submitSummary.productsUpdated} products updated</li>
+                  <li>{submitSummary.revenueSchedulesUpdated} revenue schedules adjusted</li>
                 </ul>
               </div>
             )}

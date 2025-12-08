@@ -49,7 +49,7 @@ function formatDate(value?: string | null) {
   const year = date.getFullYear()
   const month = String(date.getMonth() + 1).padStart(2, '0')
   const day = String(date.getDate()).padStart(2, '0')
-  return `${year}/${month}/${day}`
+  return `${year}-${month}-${day}`
 }
 
 function fallbackStageLabel(value: string): string {
@@ -317,10 +317,13 @@ interface OpportunityRow {
   orderIdHouse?: string | null
   accountLegalName?: string | null
   accountName?: string | null
+  accountId?: string | null
   opportunityName: string
   stage?: string | null
   distributorName?: string | null
+  distributorAccountId?: string | null
   vendorName?: string | null
+  vendorAccountId?: string | null
   referredBy?: string | null
   subAgent?: string | null
   subagent?: string | null
@@ -1336,6 +1339,110 @@ export default function OpportunitiesPage() {
               <Link
                 href={`/opportunities/${opportunityId}?tab=products`}
                 className="cursor-pointer font-medium text-blue-600 hover:text-blue-800"
+                onClick={(event) => event.stopPropagation()}
+                prefetch={false}
+              >
+                {label}
+              </Link>
+            )
+          },
+        }
+      }
+
+      if (column.id === 'accountLegalName') {
+        return {
+          ...column,
+          render: (value: unknown, row: unknown) => {
+            const label = String(value ?? '')
+            const opportunityRow = row as OpportunityRow | undefined
+            const accountId = opportunityRow?.accountId
+
+            if (!accountId) {
+              return <span className="text-gray-900">{label}</span>
+            }
+
+            return (
+              <Link
+                href={`/accounts/${accountId}`}
+                className="cursor-pointer text-blue-600 hover:text-blue-800"
+                onClick={(event) => event.stopPropagation()}
+                prefetch={false}
+              >
+                {label}
+              </Link>
+            )
+          },
+        }
+      }
+
+      if (column.id === 'accountName') {
+        return {
+          ...column,
+          render: (value: unknown, row: unknown) => {
+            const label = String(value ?? '')
+            const opportunityRow = row as OpportunityRow | undefined
+            const accountId = opportunityRow?.accountId
+
+            if (!accountId) {
+              return <span className="text-gray-900">{label}</span>
+            }
+
+            return (
+              <Link
+                href={`/accounts/${accountId}`}
+                className="cursor-pointer text-blue-600 hover:text-blue-800"
+                onClick={(event) => event.stopPropagation()}
+                prefetch={false}
+              >
+                {label}
+              </Link>
+            )
+          },
+        }
+      }
+
+      if (column.id === 'distributorName') {
+        return {
+          ...column,
+          render: (value: unknown, row: unknown) => {
+            const label = String(value ?? '')
+            const opportunityRow = row as OpportunityRow | undefined
+            const distributorAccountId = opportunityRow?.distributorAccountId
+
+            if (!distributorAccountId) {
+              return <span className="text-gray-900">{label}</span>
+            }
+
+            return (
+              <Link
+                href={`/accounts/${distributorAccountId}`}
+                className="cursor-pointer text-blue-600 hover:text-blue-800"
+                onClick={(event) => event.stopPropagation()}
+                prefetch={false}
+              >
+                {label}
+              </Link>
+            )
+          },
+        }
+      }
+
+      if (column.id === 'vendorName') {
+        return {
+          ...column,
+          render: (value: unknown, row: unknown) => {
+            const label = String(value ?? '')
+            const opportunityRow = row as OpportunityRow | undefined
+            const vendorAccountId = opportunityRow?.vendorAccountId
+
+            if (!vendorAccountId) {
+              return <span className="text-gray-900">{label}</span>
+            }
+
+            return (
+              <Link
+                href={`/accounts/${vendorAccountId}`}
+                className="cursor-pointer text-blue-600 hover:text-blue-800"
                 onClick={(event) => event.stopPropagation()}
                 prefetch={false}
               >

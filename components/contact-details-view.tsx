@@ -2814,9 +2814,26 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
       if (column.id === "groupName") {
         return {
           ...column,
-          render: (value?: string) => (
-            <span className="font-medium text-primary-600">{value || "--"}</span>
-          )
+          render: (value: unknown, row: unknown) => {
+            const label = String(value ?? '')
+            const groupRow = row as ContactGroupRow | undefined
+            const groupId = groupRow?.id
+
+            if (!groupId || !label) {
+              return <span className="font-medium text-primary-600">{label || "--"}</span>
+            }
+
+            return (
+              <Link
+                href={`/groups/${groupId}`}
+                className="cursor-pointer font-medium text-primary-600 hover:text-primary-800 hover:underline"
+                onClick={(event) => event.stopPropagation()}
+                prefetch={false}
+              >
+                {label}
+              </Link>
+            )
+          }
         }
       }
       if (column.id === "visibility") {

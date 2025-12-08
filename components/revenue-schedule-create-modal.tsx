@@ -693,12 +693,18 @@ export function RevenueScheduleCreateModal({
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div>
                       <label className={labelCls}>Start Date<span className="ml-1 text-red-500">*</span></label>
-                      <input
-                        type="date"
-                        value={createForm.startDate}
-                        onChange={event => setCreateForm(prev => ({ ...prev, startDate: event.target.value }))}
-                        className={`${inputCls} [color-scheme:light]`}
-                      />
+                      <div className="relative">
+                        <input
+                          type="date"
+                          value={createForm.startDate}
+                          onChange={event => setCreateForm(prev => ({ ...prev, startDate: event.target.value }))}
+                          className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1.5 text-xs focus:outline-none focus:border-primary-500 [color-scheme:light] [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-2 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-datetime-edit]:opacity-0"
+                          style={{ colorScheme: "light" }}
+                        />
+                        <span className="pointer-events-none absolute left-0 top-1/2 -translate-y-1/2 text-xs text-gray-900">
+                          {createForm.startDate || <span className="text-gray-400">YYYY-MM-DD</span>}
+                        </span>
+                      </div>
                     </div>
                     <div>
                       <label className={labelCls}>Cadence</label>
@@ -969,12 +975,18 @@ export function RevenueScheduleCreateModal({
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <label className={labelCls}>Effective Date<span className="ml-1 text-red-500">*</span></label>
-                  <input
-                    type="date"
-                    value={rateForm.effectiveDate}
-                    onChange={event => setRateForm(prev => ({ ...prev, effectiveDate: event.target.value }))}
-                    className={`${inputCls} [color-scheme:light]`}
-                  />
+                  <div className="relative">
+                    <input
+                      type="date"
+                      value={rateForm.effectiveDate}
+                      onChange={event => setRateForm(prev => ({ ...prev, effectiveDate: event.target.value }))}
+                      className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1.5 text-xs focus:outline-none focus:border-primary-500 [color-scheme:light] [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-2 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-datetime-edit]:opacity-0"
+                      style={{ colorScheme: "light" }}
+                    />
+                    <span className="pointer-events-none absolute left-0 top-1/2 -translate-y-1/2 text-xs text-gray-900">
+                      {rateForm.effectiveDate || <span className="text-gray-400">YYYY-MM-DD</span>}
+                    </span>
+                  </div>
                 </div>
                 <div>
                   <label className={labelCls}>New Commission Rate %<span className="ml-1 text-red-500">*</span></label>
@@ -1053,12 +1065,18 @@ export function RevenueScheduleCreateModal({
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <label className={labelCls}>Effective Date<span className="ml-1 text-red-500">*</span></label>
-                  <input
-                    type="date"
-                    value={splitForm.effectiveDate}
-                    onChange={event => setSplitForm(prev => ({ ...prev, effectiveDate: event.target.value }))}
-                    className={`${inputCls} [color-scheme:light]`}
-                  />
+                  <div className="relative">
+                    <input
+                      type="date"
+                      value={splitForm.effectiveDate}
+                      onChange={event => setSplitForm(prev => ({ ...prev, effectiveDate: event.target.value }))}
+                      className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1.5 text-xs focus:outline-none focus:border-primary-500 [color-scheme:light] [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-2 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-datetime-edit]:opacity-0"
+                      style={{ colorScheme: "light" }}
+                    />
+                    <span className="pointer-events-none absolute left-0 top-1/2 -translate-y-1/2 text-xs text-gray-900">
+                      {splitForm.effectiveDate || <span className="text-gray-400">YYYY-MM-DD</span>}
+                    </span>
+                  </div>
                 </div>
                 <div>
                   <label className={labelCls}>Apply To</label>
@@ -1220,12 +1238,18 @@ export function RevenueScheduleCreateModal({
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <label className={labelCls}>From Date</label>
-                  <input
-                    type="date"
-                    value={statusForm.fromDate}
-                    onChange={event => setStatusForm(prev => ({ ...prev, fromDate: event.target.value }))}
-                    className={`${inputCls} [color-scheme:light]`}
-                  />
+                  <div className="relative">
+                    <input
+                      type="date"
+                      value={statusForm.fromDate}
+                      onChange={event => setStatusForm(prev => ({ ...prev, fromDate: event.target.value }))}
+                      className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1.5 text-xs focus:outline-none focus:border-primary-500 [color-scheme:light] [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-2 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-datetime-edit]:opacity-0"
+                      style={{ colorScheme: "light" }}
+                    />
+                    <span className="pointer-events-none absolute left-0 top-1/2 -translate-y-1/2 text-xs text-gray-900">
+                      {statusForm.fromDate || <span className="text-gray-400">YYYY-MM-DD</span>}
+                    </span>
+                  </div>
                   <p className="mt-2 text-[11px] text-gray-500">Leave blank to apply to all future schedules.</p>
                 </div>
                 <div>

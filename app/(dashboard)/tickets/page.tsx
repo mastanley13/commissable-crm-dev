@@ -11,12 +11,14 @@ import { buildStandardBulkActions } from '@/components/standard-bulk-actions'
 import { Check } from 'lucide-react'
 import { BulkOwnerModal, type BulkOwnerOption } from '@/components/bulk-owner-modal'
 import { BulkStatusModal } from '@/components/bulk-status-modal'
+import { TicketCreateModal } from '@/components/ticket-create-modal'
 
 interface TicketRow {
   id: string
   distributorName: string
   vendorName: string
   issue: string
+  revenueScheduleId?: string
   revenueSchedule: string
   opportunityName: string
   productNameVendor?: string
@@ -214,6 +216,7 @@ export default function TicketsPage() {
   const [pagination, setPagination] = useState<PaginationInfo>({ page: 1, pageSize: 25, total: 0, totalPages: 1 })
   const [tableBodyHeight, setTableBodyHeight] = useState<number>()
   const tableAreaNodeRef = useRef<HTMLDivElement | null>(null)
+  const [showCreateModal, setShowCreateModal] = useState(false)
   const { showError, showSuccess } = useToasts()
 
   const {
@@ -266,6 +269,7 @@ export default function TicketsPage() {
         distributorName: item?.distributorName ?? "",
         vendorName: item?.vendorName ?? "",
         issue: item?.issue ?? "",
+        revenueScheduleId: item?.revenueScheduleId ?? "",
         revenueSchedule: item?.revenueSchedule ?? "",
         opportunityName: item?.opportunityName ?? "",
         productNameVendor: item?.productNameVendor ?? "",
@@ -429,7 +433,7 @@ export default function TicketsPage() {
   }, [tickets])
 
   const handleCreateTicket = () => {
-    showError("Not implemented", "Ticket creation is not available yet.")
+    setShowCreateModal(true)
   }
 
   const handleBulkDelete = useCallback(() => {
@@ -602,6 +606,26 @@ export default function TicketsPage() {
         }
       }
 
+      if (column.id === 'revenueSchedule') {
+        return {
+          ...column,
+          render: (value: any, row: TicketRow) => {
+            const scheduleId = row.revenueScheduleId
+            if (!scheduleId) {
+              return <span>{value}</span>
+            }
+            return (
+              <a
+                href={`/revenue-schedules/${scheduleId}`}
+                className="text-blue-600 hover:text-blue-800 font-medium"
+              >
+                {value}
+              </a>
+            )
+          }
+        }
+      }
+
       if (column.id === 'status') {
         return {
           ...column,
@@ -715,6 +739,15 @@ export default function TicketsPage() {
           setShowStatusModal(false)
         }}
         onSubmit={handleStatusSubmit}
+      />
+
+      <TicketCreateModal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onSuccess={() => {
+          setShowCreateModal(false)
+          reloadTickets().catch(() => undefined)
+        }}
       />
     </div>
   )

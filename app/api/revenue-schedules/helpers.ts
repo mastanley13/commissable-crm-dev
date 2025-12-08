@@ -120,6 +120,9 @@ export interface RevenueScheduleListItem {
   commissionDifference: string | null
   customerIdDistributor: string | null
   distributorId?: string | null
+  vendorId?: string | null
+  accountId?: string | null
+  productId?: string | null
   customerIdVendor: string | null
   orderIdDistributor: string | null
   orderIdVendor: string | null
@@ -320,7 +323,10 @@ export function mapRevenueScheduleToListItem(schedule: RevenueScheduleWithRelati
     actualCommission: formatCurrency(actualCommission),
     commissionDifference: formatCurrency(commissionDifference),
     customerIdDistributor: schedule.opportunity?.customerIdDistributor ?? schedule.distributor?.accountNumber ?? null,
-    distributorId: schedule.opportunity?.customerIdDistributor ?? schedule.distributor?.accountNumber ?? null,
+    distributorId: schedule.distributor?.id ?? null,
+    vendorId: schedule.vendor?.id ?? null,
+    accountId: schedule.account?.id ?? null,
+    productId: schedule.product?.id ?? null,
     customerIdVendor: schedule.opportunity?.customerIdVendor ?? schedule.vendor?.accountNumber ?? null,
     orderIdDistributor: schedule.distributorOrderId ?? schedule.opportunity?.orderIdDistributor ?? null,
     orderIdVendor: schedule.opportunity?.orderIdVendor ?? null,

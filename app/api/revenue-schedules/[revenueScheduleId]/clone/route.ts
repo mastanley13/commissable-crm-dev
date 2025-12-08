@@ -103,6 +103,24 @@ function buildCloneScheduleNumber(originalNumber?: string | null): string | null
   return `${trimmed} (Copy)`
 }
 
+function getSeriesBaseName(originalNumber?: string | null): string | null {
+  if (!originalNumber) return null
+  const trimmed = originalNumber.trim()
+  if (!trimmed) return null
+
+  const copyMatch = trimmed.match(/^(.*)\s+\(copy.*\)$/i)
+  if (copyMatch && copyMatch[1]) {
+    return copyMatch[1].trim()
+  }
+
+  const dashIndexMatch = trimmed.match(/^(.*)\s-\s\d+$/)
+  if (dashIndexMatch && dashIndexMatch[1]) {
+    return dashIndexMatch[1].trim()
+  }
+
+  return trimmed
+}
+
 export async function POST(request: NextRequest, { params }: { params: { revenueScheduleId: string } }) {
   return withPermissions(request, ["revenue-schedules.manage"], async req => {
     try {
@@ -131,6 +149,9 @@ export async function POST(request: NextRequest, { params }: { params: { revenue
         }
       }
 
+      const rawMode = typeof parsed?.mode === "string" ? parsed.mode : null
+      const mode: "clone" | "copyExtend" = rawMode === "copyExtend" ? "copyExtend" : "clone"
+
       // Parse effectiveDate
       let effectiveDate: Date | null = source.scheduleDate ?? null
       const dateInput = typeof parsed?.effectiveDate === "string" ? parsed.effectiveDate.trim() : ""
@@ -155,16 +176,12 @@ export async function POST(request: NextRequest, { params }: { params: { revenue
       }
 
       // Parse scheduleNumber override
-      let scheduleNumber: string | null = null
+      let scheduleNumberOverride: string | null = null
       if (parsed?.scheduleNumber && typeof parsed.scheduleNumber === "string") {
         const trimmed = parsed.scheduleNumber.trim()
         if (trimmed) {
-          scheduleNumber = trimmed
+          scheduleNumberOverride = trimmed
         }
-      }
-      // Fall back to auto-generated name if not provided
-      if (!scheduleNumber) {
-        scheduleNumber = buildCloneScheduleNumber(source.scheduleNumber)
       }
 
       // Parse quantity override
@@ -224,6 +241,51 @@ export async function POST(request: NextRequest, { params }: { params: { revenue
       // Cap months defensively to avoid runaway clones
       if (months > 60) {
         months = 60
+      }
+
+      let scheduleNumber: string | null = null
+
+      if (mode === "clone") {
+        scheduleNumber = scheduleNumberOverride ?? buildCloneScheduleNumber(source.scheduleNumber)
+      } else {
+        const baseName = getSeriesBaseName(scheduleNumberOverride ?? source.scheduleNumber)
+
+        if (baseName) {
+          const where: Prisma.RevenueScheduleWhereInput = {
+            tenantId,
+            scheduleNumber: { startsWith: baseName },
+          }
+
+          if (source.opportunityProductId) {
+            where.opportunityProductId = source.opportunityProductId
+          }
+
+          const siblings = await prisma.revenueSchedule.findMany({
+            where,
+            select: { scheduleNumber: true },
+          })
+
+          let maxIndex = 0
+          const suffixPattern = new RegExp(`^${baseName.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\$&")}\\s-\\s(\\d+)$`)
+
+          for (const sibling of siblings) {
+            const name = sibling.scheduleNumber?.trim()
+            if (!name) continue
+            const match = name.match(suffixPattern)
+            if (match && match[1]) {
+              const n = Number.parseInt(match[1], 10)
+              if (Number.isFinite(n) && n > maxIndex) {
+                maxIndex = n
+              }
+            }
+          }
+
+          const nextIndex = maxIndex + 1
+          const padded = String(nextIndex).padStart(3, "0")
+          scheduleNumber = `${baseName} - ${padded}`
+        } else {
+          scheduleNumber = scheduleNumberOverride ?? source.scheduleNumber ?? null
+        }
       }
 
       const clones = await prisma.$transaction(async tx => {

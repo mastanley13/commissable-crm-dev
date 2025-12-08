@@ -4517,6 +4517,33 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
           }
         }
       }
+
+      if (column.id === "groupName") {
+        return {
+          ...column,
+          render: (value: unknown, row: unknown) => {
+            const label = String(value ?? '')
+            const groupRow = row as AccountGroupRow | undefined
+            const groupId = groupRow?.id
+
+            if (!groupId) {
+              return <span className="text-gray-900">{label}</span>
+            }
+
+            return (
+              <Link
+                href={`/groups/${groupId}`}
+                className="cursor-pointer text-blue-600 hover:text-blue-800"
+                onClick={(event) => event.stopPropagation()}
+                prefetch={false}
+              >
+                {label}
+              </Link>
+            )
+          },
+        }
+      }
+
       return column
     })
   }, [groupPreferenceColumns, selectedGroups, handleGroupSelect, requestGroupDelete, handleToggleGroupStatus])

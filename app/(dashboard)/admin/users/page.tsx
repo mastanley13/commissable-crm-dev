@@ -6,7 +6,6 @@ import { DynamicTable, Column, PaginationInfo } from '@/components/dynamic-table
 import { ColumnChooserModal } from '@/components/column-chooser-modal'
 import { UserCreateModal } from '@/components/user-create-modal'
 import { useTablePreferences } from '@/hooks/useTablePreferences'
-import { TableChangeNotification } from '@/components/table-change-notification'
 import { PermissionGate } from '@/components/auth/permission-gate'
 import { Edit, Trash2, User, Shield } from 'lucide-react'
 import { isRowInactive } from '@/lib/row-state'
@@ -135,39 +134,39 @@ const userColumns: Column[] = [
       const y = d.getFullYear()
       const m = String(d.getMonth() + 1).padStart(2, '0')
       const day = String(d.getDate()).padStart(2, '0')
-      return `${y}/${m}/${day}`
+      return `${y}-${m}-${day}`
     }
   }
 ]
 
 export default function AdminUsersPage() {
-  const [users, setUsers] = useState([])
-  const [filteredUsers, setFilteredUsers] = useState([])
+  const [users, setUsers] = useState<any[]>([])
+  const [filteredUsers, setFilteredUsers] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [showColumnSettings, setShowColumnSettings] = useState(false)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [currentPage, setCurrentPage] = useState<number>(1)
   const [pageSize, setPageSize] = useState<number>(25)
+  const [updatingUserIds, setUpdatingUserIds] = useState<Set<string>>(new Set())
 
   const {
     columns: preferenceColumns,
     loading: preferenceLoading,
     error: preferenceError,
-    saving: preferenceSaving,
-    hasUnsavedChanges,
-    lastSaved,
     handleColumnsChange,
-    handleHiddenColumnsChange,
-    saveChanges,
     saveChangesOnModalClose,
   } = useTablePreferences("admin:users", userColumns)
 
-  useEffect(() => {
-    fetchUsers()
+  const normalizeUsers = useCallback((userList: any[]) => {
+    return userList.map((user) => ({
+      ...user,
+      // Derive an "active" boolean from the status enum so the toggle renders correctly
+      active: user.status === 'Active'
+    }))
   }, [])
 
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     try {
       setLoading(true)
       const response = await fetch('/api/admin/users')
@@ -178,7 +177,7 @@ export default function AdminUsersPage() {
       }
 
       const data = await response.json()
-      const userData = data.data?.users || []
+      const userData = normalizeUsers(data.data?.users || [])
 
       setUsers(userData)
       setFilteredUsers(userData)
@@ -188,7 +187,58 @@ export default function AdminUsersPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [normalizeUsers])
+
+  useEffect(() => {
+    void fetchUsers()
+  }, [fetchUsers])
+
+  const updateUserState = useCallback((userId: string, updater: (user: any) => any) => {
+    setUsers((previous) => previous.map((user: any) => (user.id === userId ? updater(user) : user)))
+    setFilteredUsers((previous) => previous.map((user: any) => (user.id === userId ? updater(user) : user)))
+  }, [])
+
+  const handleToggleUserActive = useCallback(
+    async (user: any, activeValue: boolean) => {
+      if (updatingUserIds.has(user.id)) return
+
+      const nextStatus = activeValue ? 'Active' : 'Disabled'
+      const previousUsers = users
+      const previousFiltered = filteredUsers
+
+      setUpdatingUserIds((prev) => new Set(prev).add(user.id))
+      updateUserState(user.id, (current) => ({
+        ...current,
+        active: activeValue,
+        status: nextStatus
+      }))
+
+      try {
+        const response = await fetch(`/api/admin/users/${user.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: nextStatus })
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}))
+          throw new Error(errorData.error || 'Failed to update user status')
+        }
+      } catch (err) {
+        console.error('Error updating user status:', err)
+        setError(err instanceof Error ? err.message : 'Failed to update user status')
+        setUsers(previousUsers)
+        setFilteredUsers(previousFiltered)
+      } finally {
+        setUpdatingUserIds((prev) => {
+          const next = new Set(prev)
+          next.delete(user.id)
+          return next
+        })
+      }
+    },
+    [filteredUsers, updateUserState, updatingUserIds, users]
+  )
 
   const handleSearch = (query: string) => {
     if (!query.trim()) {
@@ -286,16 +336,6 @@ export default function AdminUsersPage() {
           onSettingsClick={() => setShowColumnSettings(true)}
         />
 
-        {/* Table Change Notification */}
-        {hasUnsavedChanges && (
-          <TableChangeNotification
-            hasUnsavedChanges={hasUnsavedChanges}
-            isSaving={preferenceSaving}
-            lastSaved={lastSaved || undefined}
-            onSave={saveChanges}
-          />
-        )}
-
         {/* Error Message */}
         {(error || preferenceError) && (
           <div className="mx-6 mt-4 p-4 bg-red-50 border border-red-200 rounded-md">
@@ -322,6 +362,11 @@ export default function AdminUsersPage() {
             pagination={paginationInfo}
             onPageChange={handlePageChange}
             onPageSizeChange={handlePageSizeChange}
+          onToggle={(row, columnId, value) => {
+            if (columnId === 'active') {
+              void handleToggleUserActive(row, Boolean(value))
+            }
+          }}
           />
         </div>
 

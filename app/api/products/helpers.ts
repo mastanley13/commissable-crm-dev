@@ -1,7 +1,9 @@
 import type { Product, Account } from "@prisma/client"
 import { getRevenueTypeLabel } from "@/lib/revenue-types"
 
-interface ProductWithRelations extends Product {
+type ProductWithRelations = Product & {
+  productSubtypeHouse?: string | null
+  distributorProductSubtype?: string | null
   distributor?: Pick<Account, "accountName"> | null
   vendor?: Pick<Account, "accountName"> | null
   _count?: {
@@ -16,12 +18,15 @@ export interface ProductListRow {
   productNameHouse: string
   distributorName: string
   vendorName: string
+  productFamilyHouse: string | null
   productFamilyVendor: string | null
+  productSubtypeHouse: string | null
   productSubtypeVendor: string | null
   productNameVendor: string
   partNumberVendor: string
   productDescriptionHouse: string
   productDescriptionVendor: string | null
+  distributorProductSubtype: string | null
   quantity: number | null
   priceEach: number | null
   commissionPercent: number | null
@@ -76,12 +81,15 @@ export function mapProductToRow(product: ProductWithRelations): ProductListRow {
     productNameHouse: product.productNameHouse ?? "",
     distributorName: product.distributor?.accountName ?? "",
     vendorName: product.vendor?.accountName ?? "",
+    productFamilyHouse: product.productFamilyHouse ?? null,
     productFamilyVendor: product.productFamilyVendor ?? null,
+    productSubtypeHouse: product.productSubtypeHouse ?? null,
     productSubtypeVendor: product.productSubtypeVendor ?? null,
     productNameVendor: product.productNameVendor ?? "",
     partNumberVendor: product.productCode ?? "",
     productDescriptionHouse: product.description ?? "",
-    productDescriptionVendor: null,
+    productDescriptionVendor: product.productDescriptionVendor ?? null,
+    distributorProductSubtype: product.distributorProductSubtype ?? null,
     quantity: null,
     priceEach,
     commissionPercent,

@@ -111,13 +111,7 @@ function convertAuditLogsToHistoryRows(logs: AuditLogAPIResponse[]): HistoryRow[
       // If no changed fields, create a single row for the action
       rows.push({
         id: log.id,
-        occurredAt: new Date(log.createdAt).toLocaleString('en-US', {
-          year: 'numeric',
-          month: '2-digit',
-          day: '2-digit',
-          hour: '2-digit',
-          minute: '2-digit'
-        }),
+        occurredAt: new Date(log.createdAt).toISOString().slice(0, 16).replace('T', ' '),
         userName: log.userName || 'System',
         action: log.action,
         field: '-',
@@ -130,13 +124,7 @@ function convertAuditLogsToHistoryRows(logs: AuditLogAPIResponse[]): HistoryRow[
         const changeObj = change as any
         rows.push({
           id: `${log.id}-${fieldName}`,
-          occurredAt: new Date(log.createdAt).toLocaleString('en-US', {
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit'
-          }),
+          occurredAt: new Date(log.createdAt).toISOString().slice(0, 16).replace('T', ' '),
           userName: log.userName || 'System',
           action: log.action,
           field: fieldName,

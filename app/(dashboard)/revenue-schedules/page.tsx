@@ -685,7 +685,7 @@ export default function RevenueSchedulesPage() {
 
   const handleCloneSchedule = useCallback(() => {
     if (selectedSchedules.length !== 1) {
-      showError('Select a single schedule', 'Choose exactly one revenue schedule to clone.')
+      showError('Select a single schedule', 'Choose exactly one revenue schedule to copy/extend.')
       return
     }
     const targetId = selectedSchedules[0]
@@ -713,6 +713,10 @@ export default function RevenueSchedulesPage() {
       quantity: quantityRaw ?? null,
       unitPrice: unitPriceRaw ?? null,
       usageAdjustment: usageAdjustmentRaw ?? null,
+      commissionRatePercent:
+        typeof targetRow.expectedCommissionRatePercent === 'number' && Number.isFinite(targetRow.expectedCommissionRatePercent)
+          ? targetRow.expectedCommissionRatePercent
+          : null,
     })
     setCloneTargetId(targetId)
     setCloneDefaultDate(defaultDate)
@@ -736,7 +740,7 @@ export default function RevenueSchedulesPage() {
         const response = await fetch(`/api/revenue-schedules/${encodeURIComponent(cloneTargetId)}/clone`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(params),
+          body: JSON.stringify({ ...params, mode: 'copyExtend' }),
         })
       const payload = await response.json().catch(() => null)
       if (!response.ok) {
@@ -750,12 +754,13 @@ export default function RevenueSchedulesPage() {
       }
 
       handleCloneModalClose()
-      showSuccess('Schedule cloned', 'Opening the cloned schedule so you can review it.')
+      handleCloneModalClose()
+      showSuccess('Schedule copied/extended', 'Opening the new schedule so you can review it.')
       router.push(`/revenue-schedules/${encodeURIComponent(newId)}`)
     } catch (err) {
-      console.error('Failed to clone revenue schedule', err)
-      const message = err instanceof Error ? err.message : 'Unable to clone revenue schedule.'
-      showError('Clone failed', message)
+      console.error('Failed to copy/extend revenue schedule', err)
+      const message = err instanceof Error ? err.message : 'Unable to copy/extend revenue schedule.'
+      showError('Copy/Extend failed', message)
     } finally {
       setBulkActionBusy(false)
     }
@@ -1254,12 +1259,12 @@ export default function RevenueSchedulesPage() {
     isBusy: bulkActionBusy,
     actions: [
       {
-        key: 'clone',
-        label: 'Clone',
+        key: 'copy-extend',
+        label: 'Copy/Extend',
         icon: Copy,
         tone: 'primary',
         onClick: handleCloneSchedule,
-        tooltip: (count) => (count === 1 ? 'Clone this revenue schedule' : 'Select exactly one schedule to clone'),
+        tooltip: (count) => (count === 1 ? 'Copy/Extend this revenue schedule' : 'Select exactly one schedule to copy/extend'),
         disabled: selectedSchedules.length !== 1,
       },
       {

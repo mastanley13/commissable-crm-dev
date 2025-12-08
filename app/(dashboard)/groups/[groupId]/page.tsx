@@ -96,14 +96,12 @@ export default function GroupDetailPage() {
 
   return (
     <CopyProtectionWrapper className="min-h-screen bg-slate-50">
-      <main className="mx-auto max-w-6xl py-4">
-        <GroupDetailsView
-          group={group}
-          loading={loading}
-          error={error}
-          onRefresh={handleRefresh}
-        />
-      </main>
+      <GroupDetailsView
+        group={group}
+        loading={loading}
+        error={error}
+        onRefresh={handleRefresh}
+      />
     </CopyProtectionWrapper>
   )
 }

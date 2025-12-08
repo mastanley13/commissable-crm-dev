@@ -258,15 +258,15 @@ export async function GET(request: NextRequest) {
           where,
           include: {
             owner: { select: { firstName: true, lastName: true, fullName: true } },
-            account: { select: { accountName: true, accountLegalName: true } },
+            account: { select: { id: true, accountName: true, accountLegalName: true } },
             products: {
               select: {
                 expectedUsage: true,
                 expectedCommission: true,
                 product: {
                   select: {
-                    distributor: { select: { accountName: true } },
-                    vendor: { select: { accountName: true } }
+                    distributor: { select: { id: true, accountName: true } },
+                    vendor: { select: { id: true, accountName: true } }
                   }
                 }
               }

@@ -76,12 +76,14 @@ export interface ProductDetailRecord {
   createdAt: string
   updatedAt: string
   productFamilyHouse?: string | null
+  productSubtypeHouse?: string | null
   productFamilyVendor?: string | null
   productSubtypeVendor?: string | null
   productNameDistributor?: string | null
   partNumberVendor?: string | null
   partNumberDistributor?: string | null
   distributorProductFamily?: string | null
+  distributorProductSubtype?: string | null
   productDescriptionDistributor?: string | null
   productDescriptionVendor?: string | null
   productDescriptionHouse?: string | null
@@ -116,12 +118,14 @@ interface ProductInlineForm {
   commissionPercent: string
   description: string
   productFamilyHouse: string
+  productSubtypeHouse: string
   productFamilyVendor: string
   productSubtypeVendor: string
   productNameDistributor: string
   partNumberVendor: string
   partNumberDistributor: string
   distributorProductFamily: string
+  distributorProductSubtype: string
   productDescriptionVendor: string
   productDescriptionDistributor: string
   vendorAccountId: string
@@ -173,12 +177,14 @@ function createProductInlineForm(product: ProductDetailRecord | null | undefined
     commissionPercent: percentToInputString(product.commissionPercent),
     description: product.description ?? "",
     productFamilyHouse: product.productFamilyHouse ?? "",
+    productSubtypeHouse: product.productSubtypeHouse ?? "",
     productFamilyVendor: product.productFamilyVendor ?? "",
     productSubtypeVendor: product.productSubtypeVendor ?? "",
     productNameDistributor: product.productNameDistributor ?? "",
     partNumberVendor: product.partNumberVendor ?? "",
     partNumberDistributor: product.partNumberDistributor ?? "",
     distributorProductFamily: product.distributorProductFamily ?? "",
+    distributorProductSubtype: product.distributorProductSubtype ?? "",
     productDescriptionVendor: product.productDescriptionVendor ?? "",
     productDescriptionDistributor: product.productDescriptionDistributor ?? "",
     vendorAccountId: product.vendor?.id ?? "",
@@ -208,6 +214,10 @@ function buildProductPayload(
   if ("productFamilyHouse" in patch) {
     const value = draft.productFamilyHouse.trim()
     payload.productFamilyHouse = value.length > 0 ? value : null
+  }
+  if ("productSubtypeHouse" in patch) {
+    const value = draft.productSubtypeHouse.trim()
+    payload.productSubtypeHouse = value.length > 0 ? value : null
   }
   if ("revenueType" in patch) {
     payload.revenueType = draft.revenueType
@@ -252,6 +262,10 @@ function buildProductPayload(
   if ("distributorProductFamily" in patch) {
     const value = draft.distributorProductFamily.trim()
     payload.distributorProductFamily = value.length > 0 ? value : null
+  }
+  if ("distributorProductSubtype" in patch) {
+    const value = draft.distributorProductSubtype.trim()
+    payload.distributorProductSubtype = value.length > 0 ? value : null
   }
   if ("productDescriptionVendor" in patch) {
     const value = draft.productDescriptionVendor.trim()
@@ -449,7 +463,7 @@ function ProductHeader({ product, onEdit, activeTab, onTabSelect }: ProductHeade
             </FieldRow>
             <FieldRow label="House - Product Subtype">
               <div className={fieldBoxClass}>
-                <span className="text-gray-500">--</span>
+                {product.productSubtypeHouse || <span className="text-gray-500">--</span>}
               </div>
             </FieldRow>
           </div>
@@ -517,16 +531,16 @@ function ProductHeader({ product, onEdit, activeTab, onTabSelect }: ProductHeade
                 {product.partNumberDistributor || <span className="text-gray-500">--</span>}
               </div>
             </FieldRow>
-            <FieldRow label="Distributor - Product Family">
-              <div className={fieldBoxClass}>
-                {product.distributorProductFamily || <span className="text-gray-500">--</span>}
-              </div>
-            </FieldRow>
-            <FieldRow label="Distributor - Product Subtype">
-              <div className={fieldBoxClass}>
-                <span className="text-gray-500">--</span>
-              </div>
-            </FieldRow>
+              <FieldRow label="Distributor - Product Family">
+                <div className={fieldBoxClass}>
+                  {product.distributorProductFamily || <span className="text-gray-500">--</span>}
+                </div>
+              </FieldRow>
+              <FieldRow label="Distributor - Product Subtype">
+                <div className={fieldBoxClass}>
+                  {product.distributorProductSubtype || <span className="text-gray-500">--</span>}
+                </div>
+              </FieldRow>
             <div className="grid items-start gap-6 sm:grid-cols-[200px,1fr]">
               <span className={cn(fieldLabelClass, "pt-1.5")}>Distributor - Description</span>
               <div className={cn(fieldBoxClass, "min-h-[80px] items-start whitespace-pre-wrap py-2")}>
@@ -591,22 +605,24 @@ interface EditableProductHeaderProps {
   onTabSelect: (tab: TabKey) => void
 }
 
-function EditableProductHeader({ product, editor, onSave, activeTab, onTabSelect }: EditableProductHeaderProps) {
-  const activeField = editor.register("active")
-  const nameField = editor.register("productNameHouse")
-  const vendorNameField = editor.register("productNameVendor")
-  const codeField = editor.register("productCode")
-  const familyHouseField = editor.register("productFamilyHouse")
+  function EditableProductHeader({ product, editor, onSave, activeTab, onTabSelect }: EditableProductHeaderProps) {
+    const activeField = editor.register("active")
+    const nameField = editor.register("productNameHouse")
+    const vendorNameField = editor.register("productNameVendor")
+    const codeField = editor.register("productCode")
+    const familyHouseField = editor.register("productFamilyHouse")
+    const subtypeHouseField = editor.register("productSubtypeHouse")
   const revenueTypeField = editor.register("revenueType")
   const priceField = editor.register("priceEach")
   const commissionField = editor.register("commissionPercent")
   const descriptionField = editor.register("description")
-  const partNumberVendorField = editor.register("partNumberVendor")
-  const familyVendorField = editor.register("productFamilyVendor")
-  const subtypeVendorField = editor.register("productSubtypeVendor")
-  const nameDistributorField = editor.register("productNameDistributor")
-  const partNumberDistributorField = editor.register("partNumberDistributor")
-  const familyDistributorField = editor.register("distributorProductFamily")
+    const partNumberVendorField = editor.register("partNumberVendor")
+    const familyVendorField = editor.register("productFamilyVendor")
+    const subtypeVendorField = editor.register("productSubtypeVendor")
+    const nameDistributorField = editor.register("productNameDistributor")
+    const partNumberDistributorField = editor.register("partNumberDistributor")
+    const familyDistributorField = editor.register("distributorProductFamily")
+    const subtypeDistributorField = editor.register("distributorProductSubtype")
   const descVendorField = editor.register("productDescriptionVendor")
   const descDistributorField = editor.register("productDescriptionDistributor")
   const vendorAccountField = editor.register("vendorAccountId")
@@ -754,11 +770,10 @@ function EditableProductHeader({ product, editor, onSave, activeTab, onTabSelect
             {renderRow(
               "House - Product Subtype",
               <EditableField.Input
-                value=""
-                onChange={() => {}}
-                onBlur={() => {}}
+                value={(subtypeHouseField?.value as string) ?? ""}
+                onChange={subtypeHouseField.onChange}
+                onBlur={subtypeHouseField.onBlur}
                 placeholder="Enter house subtype"
-                disabled
               />
             )}
           </div>
@@ -889,16 +904,15 @@ function EditableProductHeader({ product, editor, onSave, activeTab, onTabSelect
               />
             )}
 
-            {renderRow(
-              "Distributor - Product Subtype",
-              <EditableField.Input
-                value=""
-                onChange={() => {}}
-                onBlur={() => {}}
-                placeholder="Enter distributor subtype"
-                disabled
-              />
-            )}
+              {renderRow(
+                "Distributor - Product Subtype",
+                <EditableField.Input
+                  value={(subtypeDistributorField?.value as string) ?? ""}
+                  onChange={subtypeDistributorField.onChange}
+                  onBlur={subtypeDistributorField.onBlur}
+                  placeholder="Enter distributor subtype"
+                />
+              )}
 
             {renderRow(
               "Distributor - Description",

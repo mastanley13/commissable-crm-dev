@@ -10,6 +10,11 @@ interface ContactOption {
   accountName?: string
 }
 
+interface RoleOption {
+  value: string
+  label: string
+}
+
 interface OpportunityRoleCreateModalProps {
   isOpen: boolean
   opportunityId: string
@@ -31,6 +36,10 @@ export function OpportunityRoleCreateModal({ isOpen, opportunityId, onClose, onS
   const [showContactDropdown, setShowContactDropdown] = useState(false)
   const [selectedContact, setSelectedContact] = useState<ContactOption | null>(null)
   const [existingRole, setExistingRole] = useState("")
+  const [roleOptions, setRoleOptions] = useState<RoleOption[]>([])
+  const [roleQuery, setRoleQuery] = useState("")
+  const [showRoleDropdown, setShowRoleDropdown] = useState(false)
+  const [rolesLoading, setRolesLoading] = useState(false)
 
   // New role mode state
   const [newRole, setNewRole] = useState("")
@@ -53,6 +62,8 @@ export function OpportunityRoleCreateModal({ isOpen, opportunityId, onClose, onS
     setSelectedContact(null)
     setExistingRole("")
     setNewRole("")
+    setRoleQuery("")
+    setShowRoleDropdown(false)
     setFullName("")
     setJobTitle("")
     setEmail("")
@@ -90,6 +101,59 @@ export function OpportunityRoleCreateModal({ isOpen, opportunityId, onClose, onS
     return () => controller.abort()
   }, [isOpen, contactQuery])
 
+  useEffect(() => {
+    if (!isOpen) {
+      return
+    }
+
+    let cancelled = false
+
+    const fetchRoles = async () => {
+      setRolesLoading(true)
+      try {
+        const response = await fetch("/api/admin/roles", { cache: "no-store" })
+        if (!response.ok) {
+          throw new Error("Failed to load roles")
+        }
+        const payload = await response.json().catch(() => null)
+        const items: any[] = Array.isArray(payload?.data?.roles) ? payload.data.roles : []
+
+        if (cancelled) {
+          return
+        }
+
+        const options: RoleOption[] = items
+          .map(roleItem => {
+            const label = (roleItem.name || roleItem.code || "").trim()
+            return label
+              ? {
+                  value: label,
+                  label
+                }
+              : null
+          })
+          .filter((option): option is RoleOption => Boolean(option))
+
+        setRoleOptions(options)
+      } catch (error) {
+        if (!cancelled) {
+          console.error("Unable to load roles", error)
+          setRoleOptions([])
+        }
+      } finally {
+        if (!cancelled) {
+          setRolesLoading(false)
+        }
+      }
+    }
+
+    void fetchRoles()
+
+    return () => {
+      cancelled = true
+    }
+  }, [isOpen])
+
   const canSubmitExisting = useMemo(() => {
     return Boolean(selectedContact?.value && existingRole.trim().length > 0)
   }, [selectedContact, existingRole])
@@ -97,6 +161,14 @@ export function OpportunityRoleCreateModal({ isOpen, opportunityId, onClose, onS
   const canSubmitNew = useMemo(() => {
     return newRole.trim().length > 0 && fullName.trim().length > 0
   }, [newRole, fullName])
+
+  const filteredRoles = useMemo(() => {
+    if (!roleQuery.trim()) {
+      return roleOptions
+    }
+    const query = roleQuery.toLowerCase()
+    return roleOptions.filter(option => option.label.toLowerCase().includes(query))
+  }, [roleOptions, roleQuery])
 
   const handleSubmit = useCallback(async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -238,16 +310,51 @@ export function OpportunityRoleCreateModal({ isOpen, opportunityId, onClose, onS
                   )}
                 </div>
 
-                <div>
+                <div className="relative">
                   <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Role<span className="ml-1 text-red-500">*</span></label>
                   <input
                     type="text"
                     value={existingRole}
-                    onChange={e => setExistingRole(e.target.value)}
+                    onChange={e => {
+                      const value = e.target.value
+                      setExistingRole(value)
+                      setRoleQuery(value)
+                      setShowRoleDropdown(true)
+                    }}
+                    onFocus={() => {
+                      setRoleQuery(existingRole)
+                      setShowRoleDropdown(true)
+                    }}
+                    onBlur={() => {
+                      setTimeout(() => setShowRoleDropdown(false), 160)
+                    }}
                     placeholder="e.g., Decision Maker, Vendor, Distributor"
                     className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
+                    disabled={rolesLoading}
                     required
                   />
+                  {showRoleDropdown && (rolesLoading || filteredRoles.length > 0) && (
+                    <div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
+                      {rolesLoading ? (
+                        <div className="px-3 py-2 text-sm text-gray-500">Loading...</div>
+                      ) : (
+                        filteredRoles.map(option => (
+                          <button
+                            key={option.value}
+                            type="button"
+                            onClick={() => {
+                              setExistingRole(option.value)
+                              setRoleQuery(option.value)
+                              setShowRoleDropdown(false)
+                            }}
+                            className="w-full px-3 py-2 text-left text-sm hover:bg-primary-50 focus:bg-primary-50 focus:outline-none"
+                          >
+                            <div className="font-medium text-gray-900">{option.label}</div>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             ) : (
@@ -263,16 +370,51 @@ export function OpportunityRoleCreateModal({ isOpen, opportunityId, onClose, onS
                     required
                   />
                 </div>
-                <div className="sm:col-span-2">
+                <div className="relative sm:col-span-2">
                   <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Role<span className="ml-1 text-red-500">*</span></label>
                   <input
                     type="text"
                     value={newRole}
-                    onChange={e => setNewRole(e.target.value)}
+                    onChange={e => {
+                      const value = e.target.value
+                      setNewRole(value)
+                      setRoleQuery(value)
+                      setShowRoleDropdown(true)
+                    }}
+                    onFocus={() => {
+                      setRoleQuery(newRole)
+                      setShowRoleDropdown(true)
+                    }}
+                    onBlur={() => {
+                      setTimeout(() => setShowRoleDropdown(false), 160)
+                    }}
                     className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
                     placeholder="e.g., Decision Maker"
+                    disabled={rolesLoading}
                     required
                   />
+                  {showRoleDropdown && (rolesLoading || filteredRoles.length > 0) && (
+                    <div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
+                      {rolesLoading ? (
+                        <div className="px-3 py-2 text-sm text-gray-500">Loading...</div>
+                      ) : (
+                        filteredRoles.map(option => (
+                          <button
+                            key={option.value}
+                            type="button"
+                            onClick={() => {
+                              setNewRole(option.value)
+                              setRoleQuery(option.value)
+                              setShowRoleDropdown(false)
+                            }}
+                            className="w-full px-3 py-2 text-left text-sm hover:bg-primary-50 focus:bg-primary-50 focus:outline-none"
+                          >
+                            <div className="font-medium text-gray-900">{option.label}</div>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
                 </div>
                 <div>
                   <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Job Title</label>

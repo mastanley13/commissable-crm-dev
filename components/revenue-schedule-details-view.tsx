@@ -2,9 +2,10 @@
 
 import Link from "next/link"
 import { Loader2, AlertCircle } from "lucide-react"
-import { useCallback, useMemo, type ReactNode } from "react"
+import { useCallback, useMemo, useRef, type ReactNode } from "react"
 
-import { RevenueScheduleSupportingDetails } from "./revenue-schedule-supporting-details"
+import { cn } from "@/lib/utils"
+import { RevenueScheduleSupportingDetails, type RevenueScheduleSupportingDetailsHandle } from "./revenue-schedule-supporting-details"
 import { useEntityEditor } from "@/hooks/useEntityEditor"
 import { useUnsavedChangesPrompt } from "@/hooks/useUnsavedChangesPrompt"
 import { useAuth } from "@/lib/auth-context"
@@ -39,8 +40,12 @@ export interface RevenueScheduleDetailRecord {
   opportunityId?: string | number | null
   opportunityName?: string | null
   distributorName?: string | null
+  distributorId?: string | null
   vendorName?: string | null
+  vendorId?: string | null
   accountName?: string | null
+  accountId?: string | null
+  productId?: string | null
   legalName?: string | null
   shippingAddress?: string | null
   billingAddress?: string | null
@@ -172,7 +177,9 @@ export function RevenueScheduleDetailsView({
 }: RevenueScheduleDetailsViewProps) {
   const { hasPermission } = useAuth()
   const { showSuccess, showError } = useToasts()
+  const supportingDetailsRef = useRef<RevenueScheduleSupportingDetailsHandle | null>(null)
   const enableInlineEditing = hasPermission("revenue-schedules.manage")
+  const canCreateTickets = hasPermission("tickets.create")
 
   const inlineInitial = useMemo(() => mapDetailToInline(schedule), [schedule])
   const validateInline = useCallback((draft: RevenueScheduleInlineForm) => {
@@ -343,7 +350,23 @@ export function RevenueScheduleDetailsView({
   const columnOne: FieldDefinition[] = [
     { fieldId: "04.01.000", label: "Revenue Schedule Name", value: scheduleName },
     { fieldId: "04.01.001", label: "Revenue Schedule Date", value: scheduleDate },
-    { fieldId: "04.01.002", label: "Product Name - Vendor", value: schedule.productNameVendor },
+    {
+      fieldId: "04.01.002",
+      label: "Product Name - Vendor",
+      value:
+        schedule.productId &&
+        schedule.productNameVendor &&
+        UUID_REGEX.test(schedule.productId) ? (
+          <Link
+            href={`/products/${schedule.productId}`}
+            className="block w-full min-w-0 truncate text-primary-700 hover:text-primary-800 focus:text-primary-800 focus:outline-none no-underline"
+          >
+            {schedule.productNameVendor}
+          </Link>
+        ) : (
+          schedule.productNameVendor
+        )
+    },
     { fieldId: "04.01.003", label: "Product Description - Vendor", value: schedule.productDescriptionVendor },
     { fieldId: "04.01.004", label: "Product Revenue Type", value: productRevenueTypeDisplay },
     {
@@ -369,17 +392,73 @@ export function RevenueScheduleDetailsView({
         UUID_REGEX.test(schedule.opportunityId) ? (
           <Link
             href={`/opportunities/${schedule.opportunityId}`}
-            className="flex w-full items-center justify-between gap-2 text-primary-600 transition hover:text-primary-700"
+            className="block w-full min-w-0 truncate text-primary-700 hover:text-primary-800 focus:text-primary-800 focus:outline-none no-underline"
           >
-            <span className="truncate">{schedule.opportunityName}</span>
+            <span className="block w-full truncate text-primary-700 hover:text-primary-800 focus:text-primary-800 focus:outline-none">
+              {schedule.opportunityName}
+            </span>
           </Link>
         ) : (
           schedule.opportunityName
         )
     },
-    { fieldId: "04.01.008", label: "Distributor Name", value: schedule.distributorName },
-    { fieldId: "04.01.009", label: "Vendor Name", value: schedule.vendorName },
-    { fieldId: "04.01.010", label: "Account Name", value: schedule.accountName },
+    {
+      fieldId: "04.01.008",
+      label: "Distributor Name",
+      value:
+        schedule.distributorId &&
+        schedule.distributorName &&
+        UUID_REGEX.test(schedule.distributorId) ? (
+          <Link
+            href={`/accounts/${schedule.distributorId}`}
+            className="block w-full min-w-0 truncate text-primary-700 hover:text-primary-800 focus:text-primary-800 focus:outline-none no-underline"
+          >
+            <span className="block w-full truncate text-primary-700 hover:text-primary-800 focus:text-primary-800 focus:outline-none">
+              {schedule.distributorName}
+            </span>
+          </Link>
+        ) : (
+          schedule.distributorName
+        )
+    },
+    {
+      fieldId: "04.01.009",
+      label: "Vendor Name",
+      value:
+        schedule.vendorId &&
+        schedule.vendorName &&
+        UUID_REGEX.test(schedule.vendorId) ? (
+          <Link
+            href={`/accounts/${schedule.vendorId}`}
+            className="block w-full min-w-0 truncate text-primary-700 hover:text-primary-800 focus:text-primary-800 focus:outline-none no-underline"
+          >
+            <span className="block w-full truncate text-primary-700 hover:text-primary-800 focus:text-primary-800 focus:outline-none">
+              {schedule.vendorName}
+            </span>
+          </Link>
+        ) : (
+          schedule.vendorName
+        )
+    },
+    {
+      fieldId: "04.01.010",
+      label: "Account Name",
+      value:
+        schedule.accountId &&
+        schedule.accountName &&
+        UUID_REGEX.test(schedule.accountId) ? (
+          <Link
+            href={`/accounts/${schedule.accountId}`}
+            className="block w-full min-w-0 truncate text-primary-700 hover:text-primary-800 focus:text-primary-800 focus:outline-none no-underline"
+          >
+            <span className="block w-full truncate text-primary-700 hover:text-primary-800 focus:text-primary-800 focus:outline-none">
+              {schedule.accountName}
+            </span>
+          </Link>
+        ) : (
+          schedule.accountName
+        )
+    },
     { fieldId: "04.01.011", label: "Legal Name", value: schedule.legalName ?? schedule.accountName },
     {
       fieldId: "04.01.012",
@@ -444,16 +523,28 @@ export function RevenueScheduleDetailsView({
               <span className="text-[11px] font-semibold text-amber-600">Unsaved changes</span>
             ) : null}
           </div>
-          {enableInlineEditing ? (
-            <button
-              type="button"
-              onClick={handleSave}
-              disabled={editor.saving || !editor.isDirty}
-              className="flex items-center gap-2 rounded-md bg-primary-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {editor.saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Update"}
-            </button>
-          ) : null}
+          <div className="flex items-center gap-2">
+            {canCreateTickets ? (
+              <button
+                type="button"
+                onClick={() => supportingDetailsRef.current?.openTicketCreateModal()}
+                disabled={!schedule}
+                className="flex items-center gap-2 rounded-md border border-primary-600 bg-white px-3 py-1.5 text-sm font-medium text-primary-700 transition hover:bg-primary-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Create Ticket
+              </button>
+            ) : null}
+            {enableInlineEditing ? (
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={editor.saving || !editor.isDirty}
+                className="flex items-center gap-2 rounded-md bg-primary-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {editor.saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Update"}
+              </button>
+            ) : null}
+          </div>
         </div>
 
         <div className="grid gap-6 lg:grid-cols-3">
@@ -638,7 +729,7 @@ export function RevenueScheduleDetailsView({
         </div>
       </div>
 
-      <RevenueScheduleSupportingDetails schedule={schedule} />
+      <RevenueScheduleSupportingDetails ref={supportingDetailsRef} schedule={schedule} />
     </div>
   )
 }

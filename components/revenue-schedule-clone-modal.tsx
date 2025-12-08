@@ -10,6 +10,7 @@ export interface SourceScheduleData {
   quantity: number | null
   unitPrice: number | null
   usageAdjustment: number | null
+  commissionRatePercent?: number | null
 }
 
 export interface CloneParameters {
@@ -48,7 +49,6 @@ export function RevenueScheduleCloneModal({
   const [scheduleNumber, setScheduleNumber] = useState("")
   const [quantity, setQuantity] = useState("")
   const [unitPrice, setUnitPrice] = useState("")
-  const [usageAdjustment, setUsageAdjustment] = useState("")
 
   useEffect(() => {
     if (!isOpen) return
@@ -58,21 +58,14 @@ export function RevenueScheduleCloneModal({
     if (sourceSchedule) {
       const rawName = sourceSchedule.scheduleNumber ?? ""
       const trimmedName = rawName.trim()
-      const hasCopySuffix = trimmedName.toLowerCase().endsWith("(copy)")
-      const nameWithCopy =
-        trimmedName.length === 0 ? "(Copy)" : hasCopySuffix ? trimmedName : `${trimmedName} (Copy)`
-      setScheduleNumber(nameWithCopy)
+      setScheduleNumber(trimmedName)
 
       setQuantity(sourceSchedule.quantity !== null ? String(sourceSchedule.quantity) : "")
       setUnitPrice(sourceSchedule.unitPrice !== null ? String(sourceSchedule.unitPrice) : "")
-      setUsageAdjustment(
-        sourceSchedule.usageAdjustment !== null ? String(sourceSchedule.usageAdjustment) : "0",
-      )
     } else {
       setScheduleNumber("")
       setQuantity("")
       setUnitPrice("")
-      setUsageAdjustment("0")
     }
   }, [defaultDate, isOpen, sourceSchedule])
 
@@ -91,11 +84,6 @@ export function RevenueScheduleCloneModal({
   const unitPriceValid =
     unitPrice === "" || (parsedUnitPrice !== null && Number.isFinite(parsedUnitPrice) && parsedUnitPrice >= 0)
 
-  const parsedUsageAdjustment = usageAdjustment ? Number.parseFloat(usageAdjustment) : null
-  const usageAdjustmentValid =
-    usageAdjustment === "" ||
-    (parsedUsageAdjustment !== null && Number.isFinite(parsedUsageAdjustment))
-
   const scheduleNumberValid = scheduleNumber.trim().length > 0
 
   const disabled =
@@ -104,7 +92,6 @@ export function RevenueScheduleCloneModal({
     !monthsValid ||
     !quantityValid ||
     !unitPriceValid ||
-    !usageAdjustmentValid ||
     !scheduleNumberValid
 
   const handleConfirm = () => {
@@ -114,7 +101,6 @@ export function RevenueScheduleCloneModal({
       scheduleNumber: scheduleNumber.trim() || undefined,
       quantity: parsedQuantity ?? undefined,
       unitPrice: parsedUnitPrice ?? undefined,
-      usageAdjustment: parsedUsageAdjustment ?? undefined,
     }
     onConfirm(params)
   }
@@ -124,7 +110,7 @@ export function RevenueScheduleCloneModal({
       <div className="w-full max-w-2xl rounded-lg bg-white shadow-2xl">
         <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">Clone Revenue Schedule</h2>
+            <h2 className="text-lg font-semibold text-gray-900">Copy/Extend Revenue Schedule</h2>
           </div>
           <button
             type="button"
@@ -138,6 +124,67 @@ export function RevenueScheduleCloneModal({
         </div>
 
         <div className="space-y-4 px-6 py-4">
+          {sourceSchedule && (
+            <div className="rounded-md border border-gray-200 bg-gray-50 px-4 py-3 text-[11px] text-gray-700">
+              <div className="mb-1 font-semibold text-gray-800">Source Schedule</div>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                <div>
+                  <div className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+                    Name
+                  </div>
+                  <div className="truncate text-[11px] text-gray-900">
+                    {sourceSchedule.scheduleNumber?.trim() || "Untitled schedule"}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+                    Usage Net
+                  </div>
+                  <div className="text-[11px] text-gray-900">
+                    {(() => {
+                      const qty = sourceSchedule.quantity ?? null
+                      const price = sourceSchedule.unitPrice ?? null
+                      const adj = sourceSchedule.usageAdjustment ?? 0
+                      if (qty === null || price === null) return "--"
+                      const net = qty * price + adj
+                      if (!Number.isFinite(net)) return "--"
+                      try {
+                        return new Intl.NumberFormat("en-US", {
+                          style: "currency",
+                          currency: "USD",
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        }).format(net)
+                      } catch {
+                        return `$${net.toFixed(2)}`
+                      }
+                    })()}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+                    Expected Rate
+                  </div>
+                  <div className="text-[11px] text-gray-900">
+                    {(() => {
+                      const rate = sourceSchedule.commissionRatePercent
+                      if (rate === null || rate === undefined || !Number.isFinite(rate)) return "--"
+                      try {
+                        return new Intl.NumberFormat("en-US", {
+                          style: "percent",
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        }).format(rate / 100)
+                      } catch {
+                        return `${rate.toFixed(2)}%`
+                      }
+                    })()}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Schedule Number */}
           <div className="space-y-1">
             <label className={labelCls} htmlFor="clone-schedule-number">
@@ -155,8 +202,8 @@ export function RevenueScheduleCloneModal({
             {!scheduleNumberValid && <p className={errorTextCls}>Schedule name is required</p>}
           </div>
 
-          {/* Three column layout for Quantity, Price, Usage */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          {/* Layout for Quantity, Price */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-1">
               <label className={labelCls} htmlFor="clone-quantity">
                 Quantity
@@ -199,36 +246,13 @@ export function RevenueScheduleCloneModal({
               </div>
               {!unitPriceValid && <p className={errorTextCls}>Price cannot be negative</p>}
             </div>
-            <div className="space-y-1">
-              <label className={labelCls} htmlFor="clone-usage-adjustment">
-                Usage Adjustment
-              </label>
-              <div className="relative">
-                <span className="absolute left-0 top-1/2 -translate-y-1/2 text-xs text-gray-500">$</span>
-                <input
-                  id="clone-usage-adjustment"
-                  type="number"
-                  step="0.01"
-                  className={cn(
-                    inputUnderlineCls,
-                    "pl-4",
-                    !usageAdjustmentValid && "border-rose-500 focus:border-rose-500",
-                  )}
-                  value={usageAdjustment}
-                  onChange={event => setUsageAdjustment(event.target.value)}
-                  disabled={submitting}
-                  placeholder="0.00"
-                />
-              </div>
-              {!usageAdjustmentValid && <p className={errorTextCls}>Enter a valid adjustment</p>}
-            </div>
           </div>
 
           {/* Two column layout for Date and Months */}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-1">
               <label className={labelCls} htmlFor="clone-effective-date">
-                Start Date
+                Revenue Schedule Date
               </label>
               <input
                 id="clone-effective-date"
@@ -246,7 +270,7 @@ export function RevenueScheduleCloneModal({
 
             <div className="space-y-1">
               <label className={labelCls} htmlFor="clone-months">
-                Number of Months
+                Number of Schedules to Create
               </label>
               <input
                 id="clone-months"
@@ -278,7 +302,7 @@ export function RevenueScheduleCloneModal({
             onClick={handleConfirm}
             disabled={disabled}
           >
-            {submitting ? "Cloning..." : "Clone Schedule"}
+            {submitting ? "Copying..." : "Copy & Extend"}
           </button>
         </div>
       </div>

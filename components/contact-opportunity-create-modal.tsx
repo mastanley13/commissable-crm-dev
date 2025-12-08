@@ -404,7 +404,7 @@ export function ContactOpportunityCreateModal({ isOpen, contactName, accountId, 
                 disabled={ownersLoading}
                 required
               />
-              {showOwnerDropdown && ownerQuery.length > 0 && filteredOwners.length > 0 && (
+              {showOwnerDropdown && filteredOwners.length > 0 && (
                 <div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
                   {filteredOwners.map(option => (
                     <button
@@ -441,7 +441,7 @@ export function ContactOpportunityCreateModal({ isOpen, contactName, accountId, 
                 className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
                 disabled={contactsLoading}
               />
-              {showContactDropdown && contactQuery.length > 0 && contacts.length > 0 && (
+              {showContactDropdown && contacts.length > 0 && (
                 <div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
                   {contacts.map(option => (
                     <button

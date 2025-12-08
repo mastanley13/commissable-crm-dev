@@ -16,14 +16,12 @@ import { CopyProtectionWrapper } from "@/components/copy-protection";
 import { useToasts } from "@/components/toast";
 import { AccountEditModal } from "@/components/account-edit-modal";
 import { AccountBulkOwnerModal } from "@/components/account-bulk-owner-modal";
-import { AccountReassignmentModal } from "@/components/account-reassignment-modal";
 import { AccountBulkStatusModal } from "@/components/account-bulk-status-modal";
 import { Trash2, Check } from "lucide-react";
 import { isRowInactive } from "@/lib/row-state";
 import { calculateMinWidth } from "@/lib/column-width-utils";
 import { cn } from "@/lib/utils";
 import { buildStandardBulkActions } from "@/components/standard-bulk-actions";
-import { PermissionGate, RoleGate } from "@/components/auth/permission-gate";
 
 
 interface AccountRow {
@@ -388,7 +386,6 @@ export default function AccountsPage() {
   const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
   const [bulkDeleteTargets, setBulkDeleteTargets] = useState<AccountRow[]>([]);
   const [showBulkOwnerModal, setShowBulkOwnerModal] = useState(false);
-  const [showReassignModal, setShowReassignModal] = useState(false);
   const [showBulkStatusModal, setShowBulkStatusModal] = useState(false);
   const [bulkActionLoading, setBulkActionLoading] = useState(false);
   const [loading, setLoading] = useState<boolean>(true);
@@ -408,10 +405,6 @@ export default function AccountsPage() {
   const [accountColumnsNormalized, setAccountColumnsNormalized] = useState(false);
   const [tableBodyHeight, setTableBodyHeight] = useState<number>();
   const tableAreaNodeRef = useRef<HTMLDivElement | null>(null);
-  const selectedAccountRows = useMemo(
-    () => accounts.filter(account => selectedAccounts.includes(account.id)),
-    [accounts, selectedAccounts]
-  );
 
   const {
     columns: preferenceColumns,
@@ -1633,13 +1626,12 @@ export default function AccountsPage() {
     requestAccountDeletion,
   ]);
 
-  const accountBulkActions = buildStandardBulkActions({
+  const accountBulkActionsRaw = buildStandardBulkActions({
     selectedCount: selectedAccounts.length,
     isBusy: bulkActionLoading,
     entityLabelPlural: "accounts",
     labels: {
       delete: "Delete",
-      reassign: "Reassign",
       status: "Status",
       export: "Export",
     },
@@ -1648,25 +1640,15 @@ export default function AccountsPage() {
       status: (count) => `Update status for ${count} account${count === 1 ? "" : "s"}`,
       export: (count) => `Export ${count} account${count === 1 ? "" : "s"} to CSV`,
     },
-    wrappers: {
-      reassign: (button) => (
-        <RoleGate
-          roles={["ADMIN", "SALES_MGMT"]}
-          fallback={
-            <PermissionGate permissions={["accounts.reassign", "accounts.bulk"]}>
-              {button}
-            </PermissionGate>
-          }
-        >
-          {button}
-        </RoleGate>
-      ),
-    },
     onDelete: openBulkDeleteDialog,
-    onReassign: () => setShowReassignModal(true),
+    onReassign: () => {},
     onStatus: () => setShowBulkStatusModal(true),
     onExport: handleBulkExportCsv,
   });
+  const accountBulkActions = {
+    ...accountBulkActionsRaw,
+    actions: accountBulkActionsRaw.actions.filter(action => action.key !== "reassign")
+  };
 
   return (
     <CopyProtectionWrapper className="dashboard-page-container">
@@ -1695,43 +1677,6 @@ export default function AccountsPage() {
       )}
 
       <div className="flex-1 min-h-0 p-4 pt-0 flex flex-col gap-4">
-      <AccountReassignmentModal
-        isOpen={showReassignModal}
-        selectedAccountIds={selectedAccounts}
-        selectedAccountRows={selectedAccountRows}
-        onClose={() => setShowReassignModal(false)}
-        onConfirm={async (data) => {
-          setBulkActionLoading(true)
-          try {
-            const response = await fetch('/api/accounts/bulk-reassign', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                accountIds: selectedAccounts,
-                newOwnerId: data.newOwnerId,
-                assignmentRole: data.assignmentRole,
-                effectiveDate: data.effectiveDate.toISOString(),
-                transferCommissions: data.transferCommissions,
-                notifyUsers: data.notifyUsers,
-                reason: data.reason,
-                commissionOption: data.commissionOption,
-                houseDummyRepId: data.houseDummyRepId
-              })
-            })
-
-            if (!response.ok) {
-              const err = await response.json().catch(() => ({}))
-              throw new Error(err?.error || 'Reassignment failed')
-            }
-
-            await reloadAccounts()
-            setSelectedAccounts([])
-          } finally {
-            setBulkActionLoading(false)
-          }
-        }}
-      />
-
         <div ref={tableAreaRef} className="flex-1 min-h-0">
           <DynamicTable
             columns={tableColumns}

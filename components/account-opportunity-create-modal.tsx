@@ -461,7 +461,7 @@ export function OpportunityCreateModal({ isOpen, accountId, accountName, onClose
                 disabled={optionsLoading}
                 required
               />
-              {showOwnerDropdown && ownerQuery.length > 0 && filteredOwners.length > 0 && (
+              {showOwnerDropdown && filteredOwners.length > 0 && (
                 <div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
                   {filteredOwners.map(option => (
                     <button
@@ -500,7 +500,7 @@ export function OpportunityCreateModal({ isOpen, accountId, accountName, onClose
                 disabled={contactsLoading}
                 required
               />
-              {showContactDropdown && contactQuery.length > 0 && contacts.length > 0 && (
+              {showContactDropdown && contacts.length > 0 && (
                 <div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
                   {contacts.map(option => (
                     <button

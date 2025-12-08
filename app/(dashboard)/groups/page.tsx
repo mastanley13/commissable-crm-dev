@@ -203,7 +203,7 @@ export default function GroupsPage() {
         groupType: item.groupType ?? "",
         memberCount: typeof item.memberCount === "number" ? item.memberCount : 0,
         description: item.description ?? "",
-        createdDate: item.createdAt ? new Date(item.createdAt).toLocaleDateString() : "",
+        createdDate: item.createdAt ? new Date(item.createdAt).toISOString().slice(0, 10) : "",
         active: item.isActive !== false,
         ownerName: item.ownerName ?? ""
       }))

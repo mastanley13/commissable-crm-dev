@@ -19,6 +19,7 @@ type CatalogProductOption = {
   productSubtypeVendor?: string | null
   productFamilyHouse?: string | null
   productSubtypeHouse?: string | null
+  distributorProductSubtype?: string | null
   productCode?: string | null
   revenueType?: string | null
   priceEach?: number | null
@@ -55,6 +56,7 @@ interface ProductFormState {
   partNumberHouse: string
   productFamilyHouse: string
   productSubtypeHouse: string
+  distributorProductSubtype: string
   description: string
   partNumberDistributor: string
   distributorProductFamily: string
@@ -78,6 +80,7 @@ const INITIAL_FORM: ProductFormState = {
   partNumberHouse: "",
   productFamilyHouse: "",
   productSubtypeHouse: "",
+  distributorProductSubtype: "",
   description: "",
   partNumberDistributor: "",
   distributorProductFamily: "",
@@ -273,23 +276,24 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
     }
     const payload = await res.json().catch(() => null)
     const items = Array.isArray(payload?.data) ? payload.data : []
-    const mapped: CatalogProductOption[] = items.map((it: any) => ({
-      id: it.id,
-      name: it.productNameHouse || it.productNameVendor || "Product",
-      distributorName: it.distributorName ?? null,
-      vendorName: it.vendorName ?? null,
-      distributorId: it.distributorId ?? it.distributorAccountId ?? null,
-      vendorId: it.vendorId ?? it.vendorAccountId ?? null,
-      productNameVendor: it.productNameVendor ?? null,
-      productFamilyVendor: it.productFamilyVendor ?? null,
-      productSubtypeVendor: it.productSubtypeVendor ?? null,
-      productFamilyHouse: it.productFamilyHouse ?? null,
-      productSubtypeHouse: it.productSubtypeHouse ?? null,
-      productCode: it.partNumberVendor ?? it.productCode ?? null,
-      revenueType: it.revenueType ?? null,
-      priceEach: typeof it.priceEach === "number" ? it.priceEach : null,
-      commissionPercent: typeof it.commissionPercent === "number" ? it.commissionPercent : null,
-    }))
+      const mapped: CatalogProductOption[] = items.map((it: any) => ({
+        id: it.id,
+        name: it.productNameHouse || it.productNameVendor || "Product",
+        distributorName: it.distributorName ?? null,
+        vendorName: it.vendorName ?? null,
+        distributorId: it.distributorId ?? it.distributorAccountId ?? null,
+        vendorId: it.vendorId ?? it.vendorAccountId ?? null,
+        productNameVendor: it.productNameVendor ?? null,
+        productFamilyVendor: it.productFamilyVendor ?? null,
+        productSubtypeVendor: it.productSubtypeVendor ?? null,
+        productFamilyHouse: it.productFamilyHouse ?? null,
+        productSubtypeHouse: it.productSubtypeHouse ?? null,
+        distributorProductSubtype: it.distributorProductSubtype ?? null,
+        productCode: it.partNumberVendor ?? it.productCode ?? null,
+        revenueType: it.revenueType ?? null,
+        priceEach: typeof it.priceEach === "number" ? it.priceEach : null,
+        commissionPercent: typeof it.commissionPercent === "number" ? it.commissionPercent : null,
+      }))
     setProductOptions(mapped)
     const fams = Array.from(new Set(mapped.map((p) => p.productFamilyVendor).filter(Boolean))) as string[]
     const subs = Array.from(new Set(mapped.map((p) => p.productSubtypeVendor).filter(Boolean))) as string[]
@@ -343,6 +347,7 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
         productNameVendor: option.productNameVendor ?? prev.productNameVendor,
         productFamilyHouse: option.productFamilyHouse ?? prev.productFamilyHouse,
         productSubtypeHouse: option.productSubtypeHouse ?? prev.productSubtypeHouse,
+        distributorProductSubtype: option.distributorProductSubtype ?? prev.distributorProductSubtype,
         productNameHouse: option.name || prev.productNameHouse,
         productCode: option.productCode ?? prev.productCode,
         revenueType: option.revenueType ?? prev.revenueType,
@@ -361,28 +366,29 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
       setLoading(true)
       setErrors({})
 
-      const payload = {
-        isActive: Boolean(form.isActive),
-      distributorAccountId: form.distributorAccountId || null,
-      vendorAccountId: form.vendorAccountId || null,
-      productNameDistributor: form.productNameDistributor.trim() || null,
-      productFamilyVendor: form.productFamilyVendor.trim() || null,
-      productSubtypeVendor: form.productSubtypeVendor.trim() || null,
-      productNameVendor: form.productNameVendor.trim() || null,
-      productCode: form.productCode.trim(),
-      productDescriptionVendor: form.productDescriptionVendor.trim() || null,
-      revenueType: form.revenueType,
-      priceEach: form.priceEach.trim() ? Number(form.priceEach.trim()) : null,
-      commissionPercent: form.commissionPercent.trim() ? Number(form.commissionPercent.trim()) : null,
-      productNameHouse: form.productNameHouse.trim(),
-      partNumberHouse: form.partNumberHouse.trim() || null,
-      productFamilyHouse: form.productFamilyHouse.trim() || null,
-      productSubtypeHouse: form.productSubtypeHouse.trim() || null,
-      description: form.description.trim() || null,
-      partNumberDistributor: form.partNumberDistributor.trim() || null,
-      distributorProductFamily: form.distributorProductFamily.trim() || null,
-      productDescriptionDistributor: form.productDescriptionDistributor.trim() || null,
-    }
+        const payload = {
+          isActive: Boolean(form.isActive),
+        distributorAccountId: form.distributorAccountId || null,
+        vendorAccountId: form.vendorAccountId || null,
+        productNameDistributor: form.productNameDistributor.trim() || null,
+        productFamilyVendor: form.productFamilyVendor.trim() || null,
+        productSubtypeVendor: form.productSubtypeVendor.trim() || null,
+        productNameVendor: form.productNameVendor.trim() || null,
+        productCode: form.productCode.trim(),
+        productDescriptionVendor: form.productDescriptionVendor.trim() || null,
+        revenueType: form.revenueType,
+        priceEach: form.priceEach.trim() ? Number(form.priceEach.trim()) : null,
+        commissionPercent: form.commissionPercent.trim() ? Number(form.commissionPercent.trim()) : null,
+        productNameHouse: form.productNameHouse.trim(),
+        partNumberHouse: form.partNumberHouse.trim() || null,
+        productFamilyHouse: form.productFamilyHouse.trim() || null,
+        productSubtypeHouse: form.productSubtypeHouse.trim() || null,
+        description: form.description.trim() || null,
+        partNumberDistributor: form.partNumberDistributor.trim() || null,
+        distributorProductFamily: form.distributorProductFamily.trim() || null,
+        distributorProductSubtype: form.distributorProductSubtype.trim() || null,
+        productDescriptionDistributor: form.productDescriptionDistributor.trim() || null,
+      }
 
       try {
         const response = await fetch("/api/products", {
@@ -616,7 +622,12 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
 
                 <div className="space-y-1">
                   <label className={labelCls}>Distributor - Product Subtype</label>
-                  <input className={inputCls} value="" placeholder="Enter distributor subtype" disabled readOnly />
+                  <input
+                    className={inputCls}
+                    value={form.distributorProductSubtype}
+                    onChange={handleChange("distributorProductSubtype")}
+                    placeholder="Enter distributor subtype"
+                  />
                 </div>
 
                 <div className="space-y-1">

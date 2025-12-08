@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react"
 import {
   PiggyBank,
   BriefcaseBusiness,
@@ -8,7 +8,7 @@ import {
   Coins,
   CreditCard,
   NotebookPen,
-  Settings2
+  Ticket
 } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 
@@ -21,6 +21,8 @@ import { applySimpleFilters } from "@/lib/filter-utils"
 import { getRevenueTypeLabel } from "@/lib/revenue-types"
 import { ACTIVITY_TABLE_BASE_COLUMNS } from "@/components/opportunity-details-view"
 import { ActivityNoteCreateModal } from "@/components/activity-note-create-modal"
+import { TicketCreateModal } from "@/components/ticket-create-modal"
+import { useAuth } from "@/lib/auth-context"
 
 interface SectionNavigationItem {
   id: string
@@ -123,10 +125,26 @@ const SECTION_ITEMS: SectionNavigationItem[] = [
     label: "Activities and Notes",
     description: "Tasks, notes, and attached files",
     icon: NotebookPen
+  },
+  {
+    id: "tickets",
+    label: "Tickets",
+    description: "Support tickets for this schedule",
+    icon: Ticket
   }
 ]
 
-export function RevenueScheduleSupportingDetails({ schedule }: { schedule: RevenueScheduleDetailRecord }) {
+export interface RevenueScheduleSupportingDetailsHandle {
+  openTicketCreateModal: () => void
+}
+
+export const RevenueScheduleSupportingDetails = forwardRef<
+  RevenueScheduleSupportingDetailsHandle,
+  { schedule: RevenueScheduleDetailRecord | null }
+>(function RevenueScheduleSupportingDetails({ schedule }, ref) {
+  const { hasPermission } = useAuth()
+  const canCreateTickets = hasPermission ? hasPermission("tickets.create") : true
+
   const [activeSectionId, setActiveSectionId] = useState<string>(SECTION_ITEMS[0].id)
   // Activities & Notes – dynamic table state
   const [activitiesLoading, setActivitiesLoading] = useState<boolean>(false)
@@ -143,6 +161,34 @@ export function RevenueScheduleSupportingDetails({ schedule }: { schedule: Reven
   const [createModalOpen, setCreateModalOpen] = useState<boolean>(false)
   const searchDebounceRef = useRef<NodeJS.Timeout | null>(null)
 
+  // Tickets tab – dynamic table state
+  const [ticketsLoading, setTicketsLoading] = useState<boolean>(false)
+  const [ticketsError, setTicketsError] = useState<string | null>(null)
+  const [tickets, setTickets] = useState<any[]>([])
+  const [ticketsPagination, setTicketsPagination] = useState<PaginationInfo>({
+    page: 1,
+    pageSize: 10,
+    total: 0,
+    totalPages: 1
+  })
+  const [ticketsPage, setTicketsPage] = useState<number>(1)
+  const [ticketsPageSize, setTicketsPageSize] = useState<number>(10)
+  const [ticketsSearch, setTicketsSearch] = useState<string>("")
+  const [ticketsStatusFilter, setTicketsStatusFilter] = useState<"active" | "all">("active")
+  const [ticketsColumnFilters, setTicketsColumnFilters] = useState<ColumnFilter[]>([])
+  const [selectedTicketIds, setSelectedTicketIds] = useState<string[]>([])
+  const [ticketsColumnChooserOpen, setTicketsColumnChooserOpen] = useState<boolean>(false)
+  const [ticketCreateModalOpen, setTicketCreateModalOpen] = useState<boolean>(false)
+  const ticketsSearchDebounceRef = useRef<NodeJS.Timeout | null>(null)
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      openTicketCreateModal: () => setTicketCreateModalOpen(true)
+    }),
+    []
+  )
+
   const RS_ACTIVITY_FILTER_COLUMNS: Array<{ id: string; label: string }> = useMemo(() => [
     { id: "activityDate", label: "Activity Date" },
     { id: "activityType", label: "Activity Type" },
@@ -152,7 +198,18 @@ export function RevenueScheduleSupportingDetails({ schedule }: { schedule: Reven
     { id: "createdBy", label: "Created By" }
   ], [])
 
-  // Format date to YYYY/MM/DD to match other detail tables
+  const RS_TICKET_FILTER_COLUMNS: Array<{ id: string; label: string }> = useMemo(
+    () => [
+      { id: "ticketNumber", label: "Ticket Number" },
+      { id: "issue", label: "Issue" },
+      { id: "distributorName", label: "Distributor Name" },
+      { id: "vendorName", label: "Vendor Name" },
+      { id: "opportunityName", label: "Opportunity Name" }
+    ],
+    []
+  )
+
+  // Format date to YYYY-MM-DD to match other detail tables
   const formatDate = useCallback((value?: string | Date | null): string => {
     if (!value) return "--"
     const date = value instanceof Date ? value : new Date(value)
@@ -160,7 +217,7 @@ export function RevenueScheduleSupportingDetails({ schedule }: { schedule: Reven
     const y = date.getFullYear()
     const m = String(date.getMonth() + 1).padStart(2, "0")
     const d = String(date.getDate()).padStart(2, "0")
-    return `${y}/${m}/${d}`
+    return `${y}-${m}-${d}`
   }, [])
 
   // Persisted column preferences (reuse Opportunity activities columns for parity)
@@ -216,6 +273,211 @@ export function RevenueScheduleSupportingDetails({ schedule }: { schedule: Reven
     }
   }, [])
 
+  const RS_TICKET_BASE_COLUMNS: Column[] = useMemo(
+    () => [
+      {
+        id: "multi-action",
+        label: "Select All",
+        width: 160,
+        minWidth: 130,
+        maxWidth: 220,
+        type: "multi-action",
+        hideable: false
+      },
+      {
+        id: "ticketNumber",
+        label: "Ticket Number",
+        width: 150,
+        minWidth: 130,
+        maxWidth: 220,
+        sortable: true,
+        accessor: "ticketNumber"
+      },
+      {
+        id: "issue",
+        label: "Issue",
+        width: 230,
+        minWidth: 180,
+        maxWidth: 360,
+        sortable: true,
+        accessor: "issue"
+      },
+      {
+        id: "distributorName",
+        label: "Distributor Name",
+        width: 180,
+        minWidth: 150,
+        maxWidth: 260,
+        sortable: true,
+        accessor: "distributorName"
+      },
+      {
+        id: "vendorName",
+        label: "Vendor Name",
+        width: 180,
+        minWidth: 150,
+        maxWidth: 260,
+        sortable: true,
+        accessor: "vendorName"
+      },
+      {
+        id: "opportunityName",
+        label: "Opportunity Name",
+        width: 220,
+        minWidth: 180,
+        maxWidth: 320,
+        sortable: true,
+        accessor: "opportunityName"
+      },
+      {
+        id: "status",
+        label: "Status",
+        width: 130,
+        minWidth: 110,
+        maxWidth: 180,
+        sortable: true,
+        accessor: "status"
+      }
+    ],
+    []
+  )
+
+  const {
+    columns: ticketPreferenceColumns,
+    handleColumnsChange: handleTicketColumnsChange
+  } = useTablePreferences("revenue-schedule:tickets", RS_TICKET_BASE_COLUMNS)
+
+  const ticketColumnsWithRender = useMemo<Column[]>(
+    () =>
+      ticketPreferenceColumns.map(column => {
+        if (column.id === "multi-action") {
+          return {
+            ...column,
+            render: (_: unknown, row: any) => {
+              const rowId = String(row.id)
+              const checked = selectedTicketIds.includes(rowId)
+              return (
+                <div className="flex items-center" data-disable-row-click="true">
+                  <label
+                    className="flex cursor-pointer items-center justify-center"
+                    onClick={event => event.stopPropagation()}
+                  >
+                    <input
+                      type="checkbox"
+                      className="sr-only"
+                      checked={checked}
+                      aria-label={`Select ticket ${rowId}`}
+                      onChange={() => {
+                        setSelectedTicketIds(previous =>
+                          checked ? previous.filter(id => id !== rowId) : Array.from(new Set([...previous, rowId]))
+                        )
+                      }}
+                    />
+                    <span
+                      className={
+                        checked
+                          ? "flex h-4 w-4 items-center justify-center rounded border border-primary-500 bg-primary-600 text-white"
+                          : "flex h-4 w-4 items-center justify-center rounded border border-gray-300 bg-white text-transparent"
+                      }
+                    >
+                      <span className="block h-3 w-3 rounded-sm bg-current" />
+                    </span>
+                  </label>
+                </div>
+              )
+            }
+          }
+        }
+
+        if (column.id === "status") {
+          return {
+            ...column,
+            render: (_: unknown, row: any) => (
+              <span
+                className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                  row.active ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"
+                }`}
+              >
+                {row.status ?? (row.active ? "Active" : "Inactive")}
+              </span>
+            )
+          }
+        }
+
+          return column
+        }),
+      [selectedTicketIds, ticketPreferenceColumns]
+  )
+
+  const mapApiRowToTicket = useCallback((row: any) => {
+    const active = row?.active !== false
+    return {
+      id: String(row?.id ?? ""),
+      distributorName: row?.distributorName ?? "",
+      vendorName: row?.vendorName ?? "",
+      issue: row?.issue ?? "",
+      revenueScheduleId: row?.revenueScheduleId ?? "",
+      revenueSchedule: row?.revenueSchedule ?? "",
+      opportunityName: row?.opportunityName ?? "",
+      ticketNumber: row?.ticketNumber ?? "",
+      status: active ? "Active" : "Inactive",
+      active
+    }
+  }, [])
+
+  const fetchTickets = useCallback(async () => {
+    if (!schedule?.id) {
+      setTickets([])
+      setTicketsPagination({ page: 1, pageSize: ticketsPageSize, total: 0, totalPages: 1 })
+      return
+    }
+
+    setTicketsLoading(true)
+    setTicketsError(null)
+
+    try {
+      const params = new URLSearchParams({
+        page: String(ticketsPage),
+        pageSize: String(ticketsPageSize),
+        sortBy: "ticketNumber",
+        sortDir: "asc",
+        status: ticketsStatusFilter === "active" ? "active" : "all",
+        revenueScheduleId: String(schedule.id)
+      })
+
+      if (ticketsSearch.trim()) {
+        params.set("q", ticketsSearch.trim())
+      }
+
+      const response = await fetch(`/api/tickets?${params.toString()}`, { cache: "no-store" })
+      const payload = await response.json().catch(() => null)
+
+      if (!response.ok) {
+        throw new Error(payload?.error ?? "Failed to load tickets")
+      }
+
+      const data: any[] = Array.isArray(payload?.data) ? payload.data : []
+      const pagination: PaginationInfo = payload?.pagination ?? {
+        page: ticketsPage,
+        pageSize: ticketsPageSize,
+        total: data.length,
+        totalPages: 1
+      }
+
+      const mapped = data.map(mapApiRowToTicket)
+      setTickets(mapped)
+      setTicketsPagination(pagination)
+      setSelectedTicketIds(prev => prev.filter(id => mapped.some(row => row.id === id)))
+    } catch (error) {
+      console.error("Failed to load schedule tickets", error)
+      setTickets([])
+      setTicketsPagination({ page: 1, pageSize: ticketsPageSize, total: 0, totalPages: 1 })
+      setTicketsError(error instanceof Error ? error.message : "Unable to load tickets")
+    } finally {
+      setTicketsLoading(false)
+    }
+  }, [schedule?.id, ticketsPage, ticketsPageSize, ticketsSearch, ticketsStatusFilter, mapApiRowToTicket])
+
   const fetchActivities = useCallback(async () => {
     if (!schedule?.id) {
       setActivities([])
@@ -267,6 +529,10 @@ export function RevenueScheduleSupportingDetails({ schedule }: { schedule: Reven
     void fetchActivities()
   }, [fetchActivities])
 
+  useEffect(() => {
+    void fetchTickets()
+  }, [fetchTickets])
+
   const handleSearch = useCallback((query: string) => {
     setActivitiesSearch(query)
     setActivitiesPage(1)
@@ -305,14 +571,51 @@ export function RevenueScheduleSupportingDetails({ schedule }: { schedule: Reven
 
   const filteredActivities = useMemo(() => applySimpleFilters(activities, activitiesColumnFilters), [activities, activitiesColumnFilters])
 
-  const financialSplits = useMemo<FinancialSplitDefinition[]>(() => {
-    const commissionActual = schedule.actualCommission ?? "$0.00"
-    const commissionDifference = schedule.commissionDifference ?? "$0.00"
-    const expectedNet = schedule.expectedCommissionNet ?? "$0.00"
+  const handleTicketStatusFilter = useCallback((filter: string) => {
+    const normalized: "active" | "all" = filter === "active" ? "active" : "all"
+    setTicketsStatusFilter(normalized)
+    setTicketsPage(1)
+  }, [])
 
-    const houseSplit = schedule.houseSplitPercent ?? "20.00%"
-    const houseRepSplit = schedule.houseRepSplitPercent ?? "30.00%"
-    const subagentSplit = schedule.subagentSplitPercent ?? "50.00%"
+  const handleTicketsPageChange = useCallback((page: number) => {
+    setTicketsPage(page)
+  }, [])
+
+  const handleTicketsPageSizeChange = useCallback((size: number) => {
+    setTicketsPageSize(size)
+    setTicketsPage(1)
+  }, [])
+
+  const handleTicketItemSelect = useCallback((itemId: string, selected: boolean) => {
+    setSelectedTicketIds(previous =>
+      selected ? Array.from(new Set([...previous, itemId])) : previous.filter(id => id !== itemId)
+    )
+  }, [])
+
+  const handleSelectAllTickets = useCallback(
+    (selected: boolean) => {
+      if (selected) {
+        setSelectedTicketIds(tickets.map(row => String(row.id)))
+      } else {
+        setSelectedTicketIds([])
+      }
+    },
+    [tickets]
+  )
+
+  const filteredTickets = useMemo(
+    () => applySimpleFilters(tickets, ticketsColumnFilters),
+    [tickets, ticketsColumnFilters]
+  )
+
+  const financialSplits = useMemo<FinancialSplitDefinition[]>(() => {
+    const commissionActual = schedule?.actualCommission ?? "$0.00"
+    const commissionDifference = schedule?.commissionDifference ?? "$0.00"
+    const expectedNet = schedule?.expectedCommissionNet ?? "$0.00"
+
+    const houseSplit = schedule?.houseSplitPercent ?? "20.00%"
+    const houseRepSplit = schedule?.houseRepSplitPercent ?? "30.00%"
+    const subagentSplit = schedule?.subagentSplitPercent ?? "50.00%"
 
     return [
       {
@@ -364,14 +667,7 @@ export function RevenueScheduleSupportingDetails({ schedule }: { schedule: Reven
         ]
       }
     ]
-  }, [
-    schedule.actualCommission,
-    schedule.commissionDifference,
-    schedule.expectedCommissionNet,
-    schedule.houseRepSplitPercent,
-    schedule.houseSplitPercent,
-    schedule.subagentSplitPercent
-  ])
+  }, [schedule])
 
   const [activeSplitId, setActiveSplitId] = useState<string>(financialSplits[0]?.id ?? "")
 
@@ -390,9 +686,9 @@ export function RevenueScheduleSupportingDetails({ schedule }: { schedule: Reven
 
   const opportunityColumns = useMemo<DetailLineProps[][]>(() => {
     const columnA: DetailLineProps[] = [
-      { label: "Account ID - House", value: schedule.accountName ?? "A0000000000008867" },
-      { label: "Account ID - Vendor", value: schedule.vendorName ?? "0008" },
-      { label: "Account ID - Distributor", value: schedule.distributorName ?? "0002" },
+      { label: "Account ID - House", value: schedule?.accountName ?? "A0000000000008867" },
+      { label: "Account ID - Vendor", value: schedule?.vendorName ?? "0008" },
+      { label: "Account ID - Distributor", value: schedule?.distributorName ?? "0002" },
       { label: "Customer ID - House", value: "0012" },
       { label: "Customer ID - Vendor", value: "0013" },
       { label: "Customer ID - Distributor", value: "0014" }
@@ -400,26 +696,26 @@ export function RevenueScheduleSupportingDetails({ schedule }: { schedule: Reven
 
     const columnB: DetailLineProps[] = [
       { label: "Location ID", value: "0015" },
-      { label: "Opportunity ID", value: schedule.opportunityId ?? "1" },
-      { label: "Opportunity Owner", value: schedule.opportunityName ?? "4" },
+      { label: "Opportunity ID", value: schedule?.opportunityId ?? "1" },
+      { label: "Opportunity Owner", value: schedule?.opportunityName ?? "4" },
       { label: "Order ID - House", value: "001231" },
       { label: "Order ID - Vendor", value: "0016" },
       { label: "Order ID - Distributor", value: "0017" }
     ]
 
     return [columnA, columnB]
-  }, [schedule.accountName, schedule.distributorName, schedule.opportunityId, schedule.opportunityName, schedule.vendorName])
+  }, [schedule])
 
   const productColumns = useMemo<DetailLineProps[][]>(() => {
-    const shippingAddress = schedule.shippingAddress ?? "23, ABC Street"
+    const shippingAddress = schedule?.shippingAddress ?? "23, ABC Street"
     const city = shippingAddress.split(",").slice(-2, -1)[0]?.trim() ?? "Rio Linda"
-    const stateMatch = schedule.shippingAddress?.match(/\b[A-Z]{2}\b/)?.[0] ?? "CA"
+    const stateMatch = schedule?.shippingAddress?.match(/\b[A-Z]{2}\b/)?.[0] ?? "CA"
 
     const fields: DetailLineProps[] = [
-      { label: "Service ID", value: schedule.revenueSchedule ?? "12355234" },
+      { label: "Service ID", value: schedule?.revenueSchedule ?? "12355234" },
       {
         label: "USOC",
-        value: getRevenueTypeLabel(schedule.productRevenueType) ?? schedule.productRevenueType ?? "AA3251"
+        value: getRevenueTypeLabel(schedule?.productRevenueType) ?? schedule?.productRevenueType ?? "AA3251"
       },
       { label: "Service Address", value: shippingAddress },
       { label: "Service City", value: city },
@@ -428,30 +724,30 @@ export function RevenueScheduleSupportingDetails({ schedule }: { schedule: Reven
     ]
 
     return [fields.slice(0, 3), fields.slice(3)]
-  }, [schedule.productRevenueType, schedule.revenueSchedule, schedule.shippingAddress])
+  }, [schedule])
 
   const reconciledDeposits = useMemo(
     () => [
       {
         item: "1",
         depositDate: "2025-04-01",
-        payee: schedule.vendorName ?? "Telarus",
-        product: schedule.productNameVendor ?? "UCaaS Seat - 1 User",
-        usageActual: schedule.actualUsage ?? "$12.00",
-        commissionActual: schedule.actualCommission ?? "$1.20",
+        payee: schedule?.vendorName ?? "Telarus",
+        product: schedule?.productNameVendor ?? "UCaaS Seat - 1 User",
+        usageActual: schedule?.actualUsage ?? "$12.00",
+        commissionActual: schedule?.actualCommission ?? "$1.20",
         paymentMethod: "Bank Transfer",
         paymentReference: "RS-1234-PYMT"
       }
     ],
-    [schedule.actualCommission, schedule.actualUsage, schedule.productNameVendor, schedule.vendorName]
+    [schedule]
   )
 
   const depositTotals = useMemo(
     () => ({
       usageActual: "$120.00",
-      commissionActual: schedule.actualCommission ?? "$120.00"
+      commissionActual: schedule?.actualCommission ?? "$120.00"
     }),
-    [schedule.actualCommission]
+    [schedule]
   )
 
   const paymentsMade = useMemo(
@@ -459,8 +755,8 @@ export function RevenueScheduleSupportingDetails({ schedule }: { schedule: Reven
       {
         item: "1",
         paymentDate: "2025-04-07",
-        payee: schedule.subagentName ?? "Subagent Team",
-        split: schedule.subagentSplitPercent ?? "50.00%",
+        payee: schedule?.subagentName ?? "Subagent Team",
+        split: schedule?.subagentSplitPercent ?? "50.00%",
         amount: "$60.00",
         method: "ACH",
         reference: "PMT-10024"
@@ -469,13 +765,13 @@ export function RevenueScheduleSupportingDetails({ schedule }: { schedule: Reven
         item: "2",
         paymentDate: "2025-04-10",
         payee: "House Rep Team",
-        split: schedule.houseRepSplitPercent ?? "30.00%",
+        split: schedule?.houseRepSplitPercent ?? "30.00%",
         amount: "$36.00",
         method: "Check",
         reference: "PMT-10025"
       }
     ],
-    [schedule.houseRepSplitPercent, schedule.subagentName, schedule.subagentSplitPercent]
+    [schedule]
   )
 
   const renderFinancialSummary = () => {
@@ -720,6 +1016,78 @@ export function RevenueScheduleSupportingDetails({ schedule }: { schedule: Reven
     </div>
   )
 
+  const renderTickets = () => (
+    <div className="space-y-2">
+      <ListHeader
+        inTab
+        compact
+        searchPlaceholder="Search tickets"
+        onSearch={query => {
+          setTicketsSearch(query)
+          setTicketsPage(1)
+          if (ticketsSearchDebounceRef.current) {
+            clearTimeout(ticketsSearchDebounceRef.current)
+          }
+          ticketsSearchDebounceRef.current = setTimeout(() => {
+            void fetchTickets()
+          }, 250)
+        }}
+        onFilterChange={handleTicketStatusFilter}
+        filterColumns={RS_TICKET_FILTER_COLUMNS}
+        columnFilters={ticketsColumnFilters}
+        onColumnFiltersChange={setTicketsColumnFilters}
+        onSettingsClick={() => setTicketsColumnChooserOpen(true)}
+        showCreateButton={canCreateTickets}
+        onCreateClick={() => setTicketCreateModalOpen(true)}
+      />
+
+      <DynamicTable
+        columns={ticketColumnsWithRender}
+        data={filteredTickets}
+        loading={ticketsLoading}
+        emptyMessage={ticketsError ?? "No data available in table"}
+        onColumnsChange={handleTicketColumnsChange}
+        pagination={ticketsPagination}
+        onPageChange={handleTicketsPageChange}
+        onPageSizeChange={handleTicketsPageSizeChange}
+        selectedItems={selectedTicketIds}
+        onItemSelect={(id, selected) => handleTicketItemSelect(id, selected)}
+        onSelectAll={handleSelectAllTickets}
+        alwaysShowPagination={true}
+        fillContainerWidth={true}
+        autoSizeColumns={true}
+        maxBodyHeight={300}
+        hideSelectAllLabel={false}
+        selectHeaderLabel="Select All"
+      />
+
+      <ColumnChooserModal
+        isOpen={ticketsColumnChooserOpen}
+        columns={ticketColumnsWithRender}
+        onApply={handleTicketColumnsChange}
+        onClose={() => setTicketsColumnChooserOpen(false)}
+      />
+
+      <TicketCreateModal
+        isOpen={ticketCreateModalOpen}
+        onClose={() => setTicketCreateModalOpen(false)}
+        onSuccess={() => {
+          setTicketCreateModalOpen(false)
+          void fetchTickets()
+        }}
+        defaultRevenueScheduleId={schedule?.id}
+        defaultRevenueScheduleName={schedule?.revenueScheduleName ?? schedule?.revenueSchedule ?? ""}
+        defaultOpportunityId={schedule?.opportunityId ? String(schedule.opportunityId) : ""}
+        defaultOpportunityName={schedule?.opportunityName ?? ""}
+        defaultDistributorAccountId={schedule?.distributorId ?? ""}
+        defaultDistributorName={schedule?.distributorName ?? ""}
+        defaultVendorAccountId={schedule?.vendorId ?? ""}
+        defaultVendorName={schedule?.vendorName ?? ""}
+        defaultProductNameVendor={schedule?.productNameVendor ?? ""}
+      />
+    </div>
+  )
+
   let sectionContent: React.ReactNode
 
   switch (activeSectionId) {
@@ -740,6 +1108,9 @@ export function RevenueScheduleSupportingDetails({ schedule }: { schedule: Reven
       break
     case "activities-notes":
       sectionContent = renderActivitiesNotes()
+      break
+    case "tickets":
+      sectionContent = renderTickets()
       break
     default:
       sectionContent = null
@@ -785,4 +1156,4 @@ export function RevenueScheduleSupportingDetails({ schedule }: { schedule: Reven
       </div>
     </section>
   )
-}
+})
