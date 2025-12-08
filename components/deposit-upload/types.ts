@@ -1,7 +1,5 @@
 export interface DepositUploadFormState {
   depositName: string
-  customerAccountId: string
-  customerLabel: string
   depositReceivedDate: string
   commissionPeriod: string
   createdByContactId: string
@@ -10,8 +8,6 @@ export interface DepositUploadFormState {
   distributorLabel: string
   vendorAccountId: string
   vendorLabel: string
-  templateId: string
-  templateLabel: string
 }
 
 export interface TemplateResponse {

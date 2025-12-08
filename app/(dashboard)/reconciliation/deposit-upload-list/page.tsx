@@ -8,7 +8,7 @@ import { CreateTemplateStep } from '@/components/deposit-upload/create-template-
 import { MapFieldsStep } from '@/components/deposit-upload/map-fields-step'
 import { ReviewStep } from '@/components/deposit-upload/review-step'
 import { ConfirmStep } from '@/components/deposit-upload/confirm-step'
-import type { DepositUploadFormState, TemplateDetail } from '@/components/deposit-upload/types'
+import type { DepositUploadFormState } from '@/components/deposit-upload/types'
 import { parseSpreadsheetFile } from '@/lib/deposit-import/parse-file'
 import { depositFieldDefinitions, requiredDepositFieldIds } from '@/lib/deposit-import/fields'
 
@@ -23,8 +23,6 @@ const steps = [
 
 const initialFormState: DepositUploadFormState = {
   depositName: '',
-  customerAccountId: '',
-  customerLabel: '',
   depositReceivedDate: '',
   commissionPeriod: '',
   createdByContactId: '',
@@ -33,8 +31,6 @@ const initialFormState: DepositUploadFormState = {
   distributorLabel: '',
   vendorAccountId: '',
   vendorLabel: '',
-  templateId: '',
-  templateLabel: '',
 }
 
 export default function DepositUploadListPage() {
@@ -44,9 +40,6 @@ export default function DepositUploadListPage() {
   const [activeStep, setActiveStep] = useState<WizardStep>('create-template')
   const [formState, setFormState] = useState<DepositUploadFormState>(initialFormState)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
-  const [templateDetails, setTemplateDetails] = useState<TemplateDetail | null>(null)
-  const [templateDetailsLoading, setTemplateDetailsLoading] = useState(false)
-  const [templateDetailsError, setTemplateDetailsError] = useState<string | null>(null)
 
   const [csvHeaders, setCsvHeaders] = useState<string[]>([])
   const [sampleRows, setSampleRows] = useState<string[][]>([])
@@ -73,60 +66,6 @@ export default function DepositUploadListPage() {
   const updateFormState = useCallback((updates: Partial<DepositUploadFormState>) => {
     setFormState(previous => ({ ...previous, ...updates }))
   }, [])
-
-  useEffect(() => {
-    if (!formState.templateId) {
-      setTemplateDetails(null)
-      setTemplateDetailsLoading(false)
-      setTemplateDetailsError(null)
-      return
-    }
-
-    let cancelled = false
-    const controller = new AbortController()
-
-    const loadTemplateDetails = async () => {
-      setTemplateDetailsLoading(true)
-      setTemplateDetailsError(null)
-      try {
-        const response = await fetch(`/api/reconciliation/templates/${formState.templateId}`, {
-          cache: 'no-store',
-          signal: controller.signal,
-        })
-        const payload = await response.json().catch(() => null)
-        if (!response.ok) {
-          throw new Error(payload?.error || 'Failed to load template details')
-        }
-        if (!payload?.data || cancelled) return
-        setTemplateDetails(payload.data as TemplateDetail)
-      } catch (error) {
-        if (cancelled) return
-        console.error('Unable to load reconciliation template details', error)
-        setTemplateDetails(null)
-        setTemplateDetailsError(error instanceof Error ? error.message : 'Unable to load template details')
-      } finally {
-        if (!cancelled) {
-          setTemplateDetailsLoading(false)
-        }
-      }
-    }
-
-    void loadTemplateDetails()
-
-    return () => {
-      cancelled = true
-      controller.abort()
-    }
-  }, [formState.templateId])
-
-  // Auto-apply mapping from template config when available
-  useEffect(() => {
-    const config = templateDetails?.config as Record<string, any> | null | undefined
-    const savedMapping = config?.depositMapping?.line
-    if (savedMapping && typeof savedMapping === 'object' && Object.keys(fieldMapping).length === 0) {
-      setFieldMapping(savedMapping as Record<string, string>)
-    }
-  }, [templateDetails, fieldMapping])
 
   const handleFileChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0] ?? null
@@ -250,10 +189,8 @@ export default function DepositUploadListPage() {
       formData.append('depositName', formState.depositName)
       formData.append('paymentDate', formState.depositReceivedDate)
       formData.append('commissionPeriod', formState.commissionPeriod)
-      formData.append('customerAccountId', formState.customerAccountId)
       formData.append('distributorAccountId', formState.distributorAccountId)
       formData.append('vendorAccountId', formState.vendorAccountId)
-      formData.append('templateId', formState.templateId)
       formData.append('createdByContactId', formState.createdByContactId)
       formData.append('mapping', JSON.stringify(fieldMapping))
 
@@ -306,9 +243,6 @@ export default function DepositUploadListPage() {
             onFileChange={handleFileChange}
             onProceed={goToMapFields}
             onFormStateChange={updateFormState}
-            templateDetails={templateDetails}
-            templateDetailsLoading={templateDetailsLoading}
-            templateDetailsError={templateDetailsError}
           />
         ) : null}
 
@@ -318,9 +252,6 @@ export default function DepositUploadListPage() {
             csvHeaders={csvHeaders}
             sampleRows={sampleRows}
             fieldMapping={fieldMapping}
-            templateDetails={templateDetails}
-            templateDetailsLoading={templateDetailsLoading}
-            templateDetailsError={templateDetailsError}
             parsingError={parsingError}
             onFieldMappingChange={handleFieldMappingChange}
             canProceed={requiredFieldsComplete && Boolean(csvHeaders.length) && !parsingError}

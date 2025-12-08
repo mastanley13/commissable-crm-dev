@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db"
 import { withAuth, withPermissions } from "@/lib/api-auth"
 import { mapRevenueScheduleToDetail, type RevenueScheduleWithRelations } from "../helpers"
 import { isRevenueTypeCode } from "@/lib/revenue-types"
+import { Activity, Ticket } from "@prisma/client"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -286,6 +287,99 @@ export async function PATCH(request: NextRequest, { params }: { params: { revenu
     } catch (error) {
       console.error("Failed to update revenue schedule", error)
       return NextResponse.json({ error: "Failed to update revenue schedule" }, { status: 500 })
+    }
+  })
+}
+
+export async function DELETE(request: NextRequest, { params }: { params: { revenueScheduleId: string } }) {
+  return withAuth(request, async (req) => {
+    try {
+      const { revenueScheduleId } = params
+      if (!revenueScheduleId) {
+        return NextResponse.json({ error: "Revenue schedule id is required" }, { status: 400 })
+      }
+
+      const roleCode = (req.user.role?.code ?? "").toLowerCase()
+      const isAdmin = roleCode === "admin"
+      const isAccounting = roleCode === "accounting"
+
+      if (!isAdmin && !isAccounting) {
+        return NextResponse.json({ error: "Only Admin or Accounting roles can delete revenue schedules" }, { status: 403 })
+      }
+
+      const tenantId = req.user.tenantId
+
+      const schedule = await prisma.revenueSchedule.findFirst({
+        where: { id: revenueScheduleId, tenantId },
+        select: {
+          id: true,
+          scheduleNumber: true,
+          actualUsage: true,
+          actualUsageAdjustment: true,
+          actualCommission: true,
+          actualCommissionAdjustment: true,
+        }
+      })
+
+      if (!schedule) {
+        return NextResponse.json({ error: "Revenue schedule not found" }, { status: 404 })
+      }
+
+      const usageFields = [
+        schedule.actualUsage,
+        schedule.actualUsageAdjustment,
+        schedule.actualCommission,
+        schedule.actualCommissionAdjustment
+      ]
+      const hasAppliedMonies = usageFields.some((val) => {
+        if (val === null || val === undefined) return false
+        const n = Number(val)
+        return Number.isFinite(n) && Math.abs(n) > 0.0001
+      })
+
+      const [matchCount, reconCount, primaryDepositCount] = await Promise.all([
+        prisma.depositLineMatch.count({ where: { tenantId, revenueScheduleId } }),
+        prisma.reconciliationItem.count({ where: { tenantId, revenueScheduleId } }),
+        prisma.depositLineItem.count({ where: { tenantId, primaryRevenueScheduleId: revenueScheduleId } })
+      ])
+
+      if (hasAppliedMonies || matchCount > 0 || reconCount > 0 || primaryDepositCount > 0) {
+        const label = schedule.scheduleNumber ?? schedule.id
+        const reason = hasAppliedMonies
+          ? "has usage or commission applied"
+          : matchCount > 0
+            ? "has deposit matches"
+            : reconCount > 0
+              ? "is in reconciliation"
+              : "is linked to deposit lines"
+
+        return NextResponse.json(
+          { error: `Cannot delete revenue schedule ${label} because it ${reason}.` },
+          { status: 409 }
+        )
+      }
+
+      await prisma.$transaction(async (tx) => {
+        // Remove non-monetary dependents to satisfy FKs
+        await tx.activity.deleteMany({ where: { tenantId, revenueScheduleId } })
+        await tx.ticket.deleteMany({ where: { tenantId, revenueScheduleId } })
+        await tx.depositLineMatch.deleteMany({ where: { tenantId, revenueScheduleId } })
+        await tx.reconciliationItem.deleteMany({ where: { tenantId, revenueScheduleId } })
+        await tx.depositLineItem.updateMany({
+          where: { tenantId, primaryRevenueScheduleId: revenueScheduleId },
+          data: { primaryRevenueScheduleId: null }
+        })
+
+        await tx.revenueSchedule.delete({ where: { id: revenueScheduleId } })
+      })
+
+      return NextResponse.json({ success: true })
+    } catch (error) {
+      console.error("Failed to delete revenue schedule", error)
+      return NextResponse.json(
+        { error: "Failed to delete revenue schedule" },
+        { status: 500 }
+      )
     }
   })
 }

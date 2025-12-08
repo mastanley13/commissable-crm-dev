@@ -1,7 +1,12 @@
 import { AuditAction } from "@prisma/client"
 import { logAudit, getClientIP, getUserAgent } from "@/lib/audit"
 
-type MatchingMetricEvent = "manual_match" | "auto_match" | "finalize" | "unfinalize"
+type MatchingMetricEvent =
+  | "manual_match"
+  | "auto_match"
+  | "finalize"
+  | "unfinalize"
+  | "delete_deposit"
 
 interface MatchingMetricParams {
   tenantId: string

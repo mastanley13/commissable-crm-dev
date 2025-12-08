@@ -7,6 +7,7 @@ import { hasAnyPermission } from "@/lib/auth"
 import { dedupeColumnFilters } from "@/lib/filter-utils"
 import { mapProductToRow } from "./helpers"
 import { logProductAudit } from "@/lib/audit"
+import { ensureNoneDirectDistributorAccount } from "@/lib/none-direct-distributor"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -280,8 +281,13 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Validation failed", errors }, { status: 400 })
       }
 
-      const distributorAccountId = getOptionalString((payload as any).distributorAccountId)
+      let distributorAccountId = getOptionalString((payload as any).distributorAccountId)
       const vendorAccountId = getOptionalString((payload as any).vendorAccountId)
+
+      if (!distributorAccountId && vendorAccountId) {
+        const noneDirect = await ensureNoneDirectDistributorAccount(req.user.tenantId)
+        distributorAccountId = noneDirect.id
+      }
 
       const created = await prisma.product.create({
         data: {

@@ -1,7 +1,6 @@
 "use client"
 
 import { FileSpreadsheet, AlertTriangle } from "lucide-react"
-import type { TemplateDetail } from "@/components/deposit-upload/types"
 import { depositFieldDefinitions, requiredDepositFieldIds } from "@/lib/deposit-import/fields"
 
 interface MapFieldsStepProps {
@@ -9,9 +8,6 @@ interface MapFieldsStepProps {
   csvHeaders: string[]
   sampleRows: string[][]
   fieldMapping: Record<string, string>
-  templateDetails: TemplateDetail | null
-  templateDetailsLoading: boolean
-  templateDetailsError: string | null
   parsingError: string | null
   onFieldMappingChange: (fieldId: string, columnName: string | null) => void
   canProceed: boolean
@@ -24,9 +20,6 @@ export function MapFieldsStep({
   csvHeaders,
   sampleRows,
   fieldMapping,
-  templateDetails,
-  templateDetailsLoading,
-  templateDetailsError,
   parsingError,
   onFieldMappingChange,
   canProceed,
@@ -66,30 +59,17 @@ export function MapFieldsStep({
               ) : null}
             </div>
           ) : (
-            <p className="mt-2 text-gray-500">No file selected. Return to Create Template to attach a file.</p>
+            <p className="mt-2 text-gray-500">No file selected. Return to Create Deposit to attach a file.</p>
           )}
         </div>
 
         <div className="rounded-xl border border-gray-100 bg-gray-50 p-4 text-sm text-gray-700">
-          <p className="font-semibold text-gray-900">Loaded Template</p>
-          {templateDetailsLoading ? (
-            <p className="mt-2 text-sm text-gray-500">Fetching template configuration...</p>
-          ) : templateDetails ? (
-            <div className="mt-2 space-y-1">
-              <p>
-                {templateDetails.name} - {templateDetails.distributorName} / {templateDetails.vendorName}
-              </p>
-              {templateDetails.config && Object.keys(templateDetails.config).length > 0 ? (
-                <pre className="max-h-32 overflow-auto rounded bg-white/60 p-2 text-[11px] text-gray-700">
-                  {JSON.stringify(templateDetails.config, null, 2)}
-                </pre>
-              ) : (
-                <p className="text-xs text-gray-500">No saved mapping yet. Changes will be saved on import.</p>
-              )}
-            </div>
-          ) : (
-            <p className="mt-2 text-sm text-gray-500">{templateDetailsError || "Select a template to preload saved mapping settings."}</p>
-          )}
+          <p className="font-semibold text-gray-900">Mapping guidance</p>
+          <p className="mt-2 text-xs text-gray-600">
+            Map required fields like Usage and Commission to columns from your uploaded file. Optional fields can be left
+            unmapped. These mappings apply to this upload only; template-based mappings are not used in this version of
+            the wizard.
+          </p>
         </div>
       </div>
 
@@ -170,7 +150,7 @@ export function MapFieldsStep({
           onClick={onBack}
           className="inline-flex items-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
         >
-          Back to Template
+          Back to Create Deposit
         </button>
         <button
           type="button"

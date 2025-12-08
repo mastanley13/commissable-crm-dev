@@ -7,6 +7,7 @@ import { mapOpportunityProductToDetail } from "../../helpers"
 import { revalidateOpportunityPaths } from "../../revalidate"
 import { recalculateOpportunityStage } from "@/lib/opportunities/stage"
 import { generateRevenueScheduleName } from "@/lib/revenue-schedule-number"
+import { ensureNoneDirectDistributorAccount } from "@/lib/none-direct-distributor"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -155,6 +156,15 @@ export async function POST(
         return NextResponse.json({ error: "Product not found" }, { status: 404 })
       }
 
+      let resolvedDistributorAccountId = product.distributorAccountId ?? null
+      let resolvedDistributorName = product.distributor?.accountName ?? null
+
+      if (!resolvedDistributorAccountId && product.vendorAccountId) {
+        const noneDirect = await ensureNoneDirectDistributorAccount(tenantId)
+        resolvedDistributorAccountId = noneDirect.id
+        resolvedDistributorName = noneDirect.accountName
+      }
+
       let statusValue: OpportunityProductStatus | undefined
       if ("status" in payload) {
         if (!isValidProductStatus(payload.status)) {
@@ -185,6 +195,16 @@ export async function POST(
 
       // perform in a transaction so schedules and line item are in sync
       const lineItem = await prisma.$transaction(async (tx) => {
+        if (!product.distributorAccountId && resolvedDistributorAccountId) {
+          await tx.product.update({
+            where: { id: product.id },
+            data: {
+              distributorAccountId: resolvedDistributorAccountId,
+              updatedById: req.user.id ?? undefined
+            }
+          })
+        }
+
         const created = await tx.opportunityProduct.create({
           data: {
             tenantId,
@@ -196,7 +216,7 @@ export async function POST(
             revenueTypeSnapshot: product.revenueType,
             priceEachSnapshot: product.priceEach,
             commissionPercentSnapshot: product.commissionPercent,
-            distributorNameSnapshot: product.distributor?.accountName ?? null,
+            distributorNameSnapshot: resolvedDistributorName ?? null,
             vendorNameSnapshot: product.vendor?.accountName ?? null,
             quantity: decimalFromNumber(quantityNumber),
             unitPrice: decimalFromNumber(unitPriceNumber),
@@ -253,7 +273,7 @@ export async function POST(
                 opportunityProductId: created.id,
                 accountId: existingOpportunity.accountId!,
                 productId: product.id,
-                distributorAccountId: product.distributorAccountId ?? null,
+                distributorAccountId: resolvedDistributorAccountId ?? null,
                 vendorAccountId: product.vendorAccountId ?? null,
                 scheduleDate: date,
                 expectedUsage: decimalFromNumber(perPeriodExpectedUsage),

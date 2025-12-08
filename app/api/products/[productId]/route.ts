@@ -4,6 +4,7 @@ import { RevenueType, AuditAction } from "@prisma/client"
 import { withAuth } from "@/lib/api-auth"
 import { hasAnyPermission } from "@/lib/auth"
 import { logProductAudit } from "@/lib/audit"
+import { ensureNoneDirectDistributorAccount } from "@/lib/none-direct-distributor"
 
 const PRODUCT_MUTATION_PERMISSIONS = [
   "products.update",
@@ -221,6 +222,8 @@ export async function PATCH(request: NextRequest, { params }: { params: { produc
           productNameHouse: true,
           productNameVendor: true,
           isActive: true,
+          vendorAccountId: true,
+          distributorAccountId: true,
         }
       })
 
@@ -352,26 +355,40 @@ export async function PATCH(request: NextRequest, { params }: { params: { produc
         }
       }
 
-      // Vendor/Distributor account assignments
+      let nextVendorAccountId = existing.vendorAccountId ?? null
+      let nextDistributorAccountId = existing.distributorAccountId ?? null
+
       if ("vendorAccountId" in payload) {
         const raw = payload.vendorAccountId
         if (raw === null || raw === "") {
-          ;(data as any).vendorAccountId = null
-          hasChanges = true
+          nextVendorAccountId = null
         } else if (typeof raw === "string") {
-          ;(data as any).vendorAccountId = raw
-          hasChanges = true
+          nextVendorAccountId = raw.trim()
         }
       }
+
       if ("distributorAccountId" in payload) {
         const raw = payload.distributorAccountId
         if (raw === null || raw === "") {
-          ;(data as any).distributorAccountId = null
-          hasChanges = true
+          nextDistributorAccountId = null
         } else if (typeof raw === "string") {
-          ;(data as any).distributorAccountId = raw
-          hasChanges = true
+          nextDistributorAccountId = raw.trim()
         }
+      }
+
+      if (nextVendorAccountId && !nextDistributorAccountId) {
+        const noneDirect = await ensureNoneDirectDistributorAccount(tenantId)
+        nextDistributorAccountId = noneDirect.id
+      }
+
+      if (nextVendorAccountId !== existing.vendorAccountId) {
+        ;(data as any).vendorAccountId = nextVendorAccountId
+        hasChanges = true
+      }
+
+      if (nextDistributorAccountId !== existing.distributorAccountId) {
+        ;(data as any).distributorAccountId = nextDistributorAccountId
+        hasChanges = true
       }
 
       if (!hasChanges) {
@@ -455,82 +472,24 @@ export async function DELETE(request: NextRequest, { params }: { params: { produ
         return NextResponse.json({ error: "Product not found" }, { status: 404 })
       }
 
-      // Hard-delete product only if related revenue schedules (direct or via opportunity line items) have no monies applied
-      const relatedSchedules = await prisma.revenueSchedule.findMany({
-        where: { tenantId, productId },
-        select: {
-          id: true,
-          scheduleNumber: true,
-          actualUsage: true,
-          actualCommission: true
-        }
+      // Block deletion if any revenue schedules exist for this product (past or future)
+      const scheduleCount = await prisma.revenueSchedule.count({
+        where: { tenantId, productId }
       })
+
+      if (scheduleCount > 0) {
+        return NextResponse.json(
+          { error: "Cannot delete product because it has revenue schedules. Inactivate the product instead." },
+          { status: 409 }
+        )
+      }
 
       const relatedLineItems = await prisma.opportunityProduct.findMany({
         where: { tenantId, productId },
         select: { id: true }
       })
 
-      let scheduleIds = relatedSchedules.map(s => s.id)
-
-      if (relatedLineItems.length > 0) {
-        const lineItemScheduleRows = await prisma.revenueSchedule.findMany({
-          where: { tenantId, opportunityProductId: { in: relatedLineItems.map(li => li.id) } },
-          select: {
-            id: true,
-            scheduleNumber: true,
-            actualUsage: true,
-            actualCommission: true
-          }
-        })
-        scheduleIds = [...scheduleIds, ...lineItemScheduleRows.map(s => s.id)]
-        relatedSchedules.push(...lineItemScheduleRows)
-      }
-
-      if (scheduleIds.length > 0) {
-        const [matchCount, reconCount, primaryDepositCount] = await Promise.all([
-          prisma.depositLineMatch.count({ where: { tenantId, revenueScheduleId: { in: scheduleIds } } }),
-          prisma.reconciliationItem.count({ where: { tenantId, revenueScheduleId: { in: scheduleIds } } }),
-          prisma.depositLineItem.count({ where: { tenantId, primaryRevenueScheduleId: { in: scheduleIds } } })
-        ])
-
-        const blockingSchedule = relatedSchedules.find(schedule => {
-          const usage = Number(schedule.actualUsage ?? 0)
-          const commission = Number(schedule.actualCommission ?? 0)
-          const hasAppliedMonies =
-            (Number.isFinite(usage) && Math.abs(usage) > 0.0001) ||
-            (Number.isFinite(commission) && Math.abs(commission) > 0.0001)
-          return hasAppliedMonies
-        })
-
-        if (blockingSchedule || matchCount > 0 || reconCount > 0 || primaryDepositCount > 0) {
-          const label = blockingSchedule?.scheduleNumber ?? blockingSchedule?.id ?? relatedSchedules[0]?.scheduleNumber ?? relatedSchedules[0]?.id
-          const reason =
-            blockingSchedule && (Number(blockingSchedule.actualUsage ?? 0) !== 0 || Number(blockingSchedule.actualCommission ?? 0) !== 0)
-              ? "has applied monies"
-              : matchCount > 0
-                ? "has deposit matches"
-                : reconCount > 0
-                  ? "has reconciliation items"
-                  : "has linked deposit lines"
-          return NextResponse.json(
-            { error: `Cannot delete product because revenue schedule ${label} ${reason}.` },
-            { status: 409 }
-          )
-        }
-      }
-
       await prisma.$transaction(async tx => {
-        if (scheduleIds.length > 0) {
-          // Remove non-monetary dependents to satisfy FKs
-          await tx.activity.deleteMany({ where: { tenantId, revenueScheduleId: { in: scheduleIds } } })
-          await tx.ticket.deleteMany({ where: { tenantId, revenueScheduleId: { in: scheduleIds } } })
-
-          await tx.revenueSchedule.deleteMany({
-            where: { tenantId, id: { in: scheduleIds } }
-          })
-        }
-
         if (relatedLineItems.length > 0) {
           await tx.opportunityProduct.deleteMany({
             where: { tenantId, productId }

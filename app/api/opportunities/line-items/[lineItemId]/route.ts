@@ -336,7 +336,9 @@ export async function DELETE(
           id: true,
           scheduleNumber: true,
           actualUsage: true,
-          actualCommission: true
+          actualUsageAdjustment: true,
+          actualCommission: true,
+          actualCommissionAdjustment: true
         }
       })
 
@@ -351,10 +353,14 @@ export async function DELETE(
 
         const blockingSchedule = relatedSchedules.find(schedule => {
           const usage = Number(schedule.actualUsage ?? 0)
+          const usageAdj = Number(schedule.actualUsageAdjustment ?? 0)
           const commission = Number(schedule.actualCommission ?? 0)
+          const commissionAdj = Number(schedule.actualCommissionAdjustment ?? 0)
           const hasAppliedMonies =
             (Number.isFinite(usage) && Math.abs(usage) > 0.0001) ||
-            (Number.isFinite(commission) && Math.abs(commission) > 0.0001)
+            (Number.isFinite(usageAdj) && Math.abs(usageAdj) > 0.0001) ||
+            (Number.isFinite(commission) && Math.abs(commission) > 0.0001) ||
+            (Number.isFinite(commissionAdj) && Math.abs(commissionAdj) > 0.0001)
           return hasAppliedMonies
         })
 
@@ -380,6 +386,12 @@ export async function DELETE(
           // Remove non-monetary dependents to satisfy FKs
           await tx.activity.deleteMany({ where: { tenantId, revenueScheduleId: { in: scheduleIds } } })
           await tx.ticket.deleteMany({ where: { tenantId, revenueScheduleId: { in: scheduleIds } } })
+          await tx.depositLineMatch.deleteMany({ where: { tenantId, revenueScheduleId: { in: scheduleIds } } })
+          await tx.reconciliationItem.deleteMany({ where: { tenantId, revenueScheduleId: { in: scheduleIds } } })
+          await tx.depositLineItem.updateMany({
+            where: { tenantId, primaryRevenueScheduleId: { in: scheduleIds } },
+            data: { primaryRevenueScheduleId: null }
+          })
 
           await tx.revenueSchedule.deleteMany({
             where: { tenantId, id: { in: scheduleIds } }

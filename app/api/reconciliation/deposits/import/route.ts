@@ -73,15 +73,16 @@ export async function POST(request: NextRequest) {
 
     const depositName = (formData.get("depositName") as string | null) ?? ""
     const paymentDateInput = (formData.get("paymentDate") as string | null) ?? ""
-    const customerAccountId = ((formData.get("customerAccountId") as string | null) ?? "").trim()
-    const distributorAccountId = ((formData.get("distributorAccountId") as string | null) ?? "").trim() || null
-    const vendorAccountId = ((formData.get("vendorAccountId") as string | null) ?? "").trim() || null
-    const templateId = ((formData.get("templateId") as string | null) ?? "").trim() || null
+    const distributorAccountIdRaw = ((formData.get("distributorAccountId") as string | null) ?? "").trim()
+    const vendorAccountIdRaw = ((formData.get("vendorAccountId") as string | null) ?? "").trim()
     const createdByContactId = ((formData.get("createdByContactId") as string | null) ?? "").trim() || null
 
-    if (!customerAccountId) {
-      return createErrorResponse("Customer is required", 400)
+    if (!distributorAccountIdRaw || !vendorAccountIdRaw) {
+      return createErrorResponse("Distributor and vendor are required", 400)
     }
+
+    const distributorAccountId = distributorAccountIdRaw
+    const vendorAccountId = vendorAccountIdRaw
 
     const commissionPeriodInput = (formData.get("commissionPeriod") as string | null) ?? ""
     const mappingRaw = formData.get("mapping")
@@ -126,7 +127,7 @@ const result = await prisma.$transaction(async tx => {
       const deposit = await tx.deposit.create({
         data: {
           tenantId,
-          accountId: customerAccountId,
+          accountId: distributorAccountId,
           month: commissionPeriodDate ?? startOfMonth(depositDate),
           depositName: depositName || null,
           paymentDate: depositDate,
@@ -216,34 +217,13 @@ const result = await prisma.$transaction(async tx => {
           startedAt: new Date(),
           completedAt: new Date(),
           filters: {
-            templateId,
+            distributorAccountId,
+            vendorAccountId,
             mapping,
             commissionPeriod: commissionPeriodInput || null,
           },
         },
       })
-
-      if (templateId) {
-        const template = await tx.reconciliationTemplate.findFirst({
-          where: { id: templateId, tenantId },
-          select: { config: true },
-        })
-        if (template) {
-          const previousConfig = (template.config as Record<string, any> | null) ?? {}
-          await tx.reconciliationTemplate.update({
-            where: { id: templateId },
-            data: {
-              config: {
-                ...previousConfig,
-                depositMapping: {
-                  ...(previousConfig.depositMapping ?? {}),
-                  line: mapping,
-                },
-              },
-            },
-          })
-        }
-      }
 
       return {
         depositId: deposit.id,

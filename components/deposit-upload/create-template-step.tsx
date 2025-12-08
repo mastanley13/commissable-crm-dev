@@ -1,9 +1,9 @@
 'use client'
 
 import { useState, useEffect, useCallback, ChangeEvent, ReactNode } from 'react'
-import { Upload, Plus, Loader2 } from 'lucide-react'
+import { Upload } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
-import type { DepositUploadFormState, TemplateDetail, TemplateResponse } from '@/components/deposit-upload/types'
+import type { DepositUploadFormState } from '@/components/deposit-upload/types'
 
 interface ContactOption {
   value: string
@@ -17,18 +17,6 @@ interface AccountOption {
   detail?: string
 }
 
-interface TemplateOption {
-  value: string
-  label: string
-  helper: string
-}
-
-const formatTemplateOption = (template: TemplateResponse): TemplateOption => ({
-  value: template.id,
-  label: template.name,
-  helper: `${template.distributorName || 'Distributor'} / ${template.vendorName || 'Vendor'}`,
-})
-
 const underlineInputClass =
   "w-full border-0 border-b border-slate-200 bg-transparent px-0 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-primary-500 focus:outline-none focus:ring-0 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400"
 
@@ -38,9 +26,6 @@ interface CreateTemplateStepProps {
   onFileChange: (event: ChangeEvent<HTMLInputElement>) => void
   onProceed: () => void
   onFormStateChange: (updates: Partial<DepositUploadFormState>) => void
-  templateDetails: TemplateDetail | null
-  templateDetailsLoading: boolean
-  templateDetailsError: string | null
 }
 
 export function CreateTemplateStep({
@@ -49,9 +34,6 @@ export function CreateTemplateStep({
   onFileChange,
   onProceed,
   onFormStateChange,
-  templateDetails,
-  templateDetailsLoading,
-  templateDetailsError,
 }: CreateTemplateStepProps) {
   const { user } = useAuth()
   const [createdByQuery, setCreatedByQuery] = useState(formState.createdByLabel)
@@ -59,10 +41,6 @@ export function CreateTemplateStep({
   const [createdByLoading, setCreatedByLoading] = useState(false)
   const [showCreatedByDropdown, setShowCreatedByDropdown] = useState(false)
   const [shouldAutoFillCreatedBy, setShouldAutoFillCreatedBy] = useState(true)
-  const [customerQuery, setCustomerQuery] = useState(formState.customerLabel)
-  const [customerOptions, setCustomerOptions] = useState<AccountOption[]>([])
-  const [customerLoading, setCustomerLoading] = useState(false)
-  const [showCustomerDropdown, setShowCustomerDropdown] = useState(false)
   const [distributorQuery, setDistributorQuery] = useState(formState.distributorLabel)
   const [distributorOptions, setDistributorOptions] = useState<AccountOption[]>([])
   const [distributorLoading, setDistributorLoading] = useState(false)
@@ -71,11 +49,6 @@ export function CreateTemplateStep({
   const [vendorOptions, setVendorOptions] = useState<AccountOption[]>([])
   const [vendorLoading, setVendorLoading] = useState(false)
   const [showVendorDropdown, setShowVendorDropdown] = useState(false)
-  const [templateQuery, setTemplateQuery] = useState('')
-  const [templateOptions, setTemplateOptions] = useState<TemplateOption[]>([])
-  const [templateLoading, setTemplateLoading] = useState(false)
-  const [showTemplateDropdown, setShowTemplateDropdown] = useState(false)
-  const [templateModalOpen, setTemplateModalOpen] = useState(false)
 
   useEffect(() => {
     if (!shouldAutoFillCreatedBy) {
@@ -91,37 +64,10 @@ export function CreateTemplateStep({
   const canProceed = Boolean(
     formState.depositReceivedDate &&
       formState.commissionPeriod &&
-      formState.customerAccountId &&
-      formState.createdByContactId &&
-      selectedFile &&
-      !templateDetailsLoading,
+      formState.distributorAccountId &&
+      formState.vendorAccountId &&
+      selectedFile,
   )
-
-  const accountsSelected = Boolean(formState.distributorAccountId && formState.vendorAccountId)
-  const canCreateTemplate = accountsSelected && Boolean(formState.createdByContactId)
-  const templateInputValue = templateQuery.length > 0 ? templateQuery : formState.templateLabel
-
-  const clearTemplateSelection = useCallback(
-    (resetQuery: boolean = true) => {
-      if (resetQuery) {
-        setTemplateQuery('')
-      }
-      onFormStateChange({ templateId: '', templateLabel: '' })
-    },
-    [onFormStateChange],
-  )
-
-  const handleTemplateCreated = (template: TemplateResponse) => {
-    const option = formatTemplateOption(template)
-    setTemplateOptions(previous => {
-      const next = [...previous.filter(item => item.value !== option.value), option]
-      return next.sort((a, b) => a.label.localeCompare(b.label))
-    })
-    setTemplateQuery(option.label)
-    onFormStateChange({ templateId: option.value, templateLabel: option.label })
-    setShowTemplateDropdown(false)
-    setTemplateModalOpen(false)
-  }
 
   const handleCreatedBySelect = (option: ContactOption) => {
     setCreatedByQuery(option.label)
@@ -130,25 +76,13 @@ export function CreateTemplateStep({
     setShouldAutoFillCreatedBy(false)
   }
 
-  const handleCustomerSelect = (option: AccountOption) => {
-    setCustomerQuery(option.label)
-    onFormStateChange({
-      customerAccountId: option.value,
-      customerLabel: option.label,
-    })
-    setShowCustomerDropdown(false)
-  }
-
   const handleDistributorSelect = (option: AccountOption) => {
     setDistributorQuery(option.label)
     onFormStateChange({
       distributorAccountId: option.value,
       distributorLabel: option.label,
-      templateId: '',
-      templateLabel: '',
     })
     setShowDistributorDropdown(false)
-    clearTemplateSelection()
   }
 
   const handleVendorSelect = (option: AccountOption) => {
@@ -156,17 +90,8 @@ export function CreateTemplateStep({
     onFormStateChange({
       vendorAccountId: option.value,
       vendorLabel: option.label,
-      templateId: '',
-      templateLabel: '',
     })
     setShowVendorDropdown(false)
-    clearTemplateSelection()
-  }
-
-  const handleTemplateSelect = (option: TemplateOption) => {
-    setTemplateQuery(option.label)
-    onFormStateChange({ templateId: option.value, templateLabel: option.label })
-    setShowTemplateDropdown(false)
   }
 
   useEffect(() => {
@@ -250,15 +175,14 @@ export function CreateTemplateStep({
       setOptions,
       setLoading,
     }: {
-      type: 'distributor' | 'vendor' | 'customer'
+      type: 'distributor' | 'vendor'
       query: string
       setOptions: (options: AccountOption[]) => void
       setLoading: (value: boolean) => void
     }) => {
       setLoading(true)
       try {
-        const accountType =
-          type === 'distributor' ? 'Distributor' : type === 'vendor' ? 'Vendor' : 'Customer'
+        const accountType = type === 'distributor' ? 'Distributor' : 'Vendor'
         const params = new URLSearchParams({ page: '1', pageSize: '25', accountType })
         if (query.trim().length > 0) {
           params.set('q', query.trim())
@@ -317,71 +241,6 @@ export function CreateTemplateStep({
     }
   }, [vendorQuery, fetchAccounts])
 
-  useEffect(() => {
-    const debounce = setTimeout(() => {
-      void fetchAccounts({
-        type: 'customer',
-        query: customerQuery,
-        setOptions: setCustomerOptions,
-        setLoading: setCustomerLoading,
-      })
-    }, 300)
-
-    return () => {
-      clearTimeout(debounce)
-    }
-  }, [customerQuery, fetchAccounts])
-
-  const fetchTemplates = useCallback(
-    async (query: string) => {
-      if (!formState.distributorAccountId || !formState.vendorAccountId) {
-        setTemplateOptions([])
-        return
-      }
-      setTemplateLoading(true)
-      try {
-        const params = new URLSearchParams({
-          pageSize: '50',
-          distributorAccountId: formState.distributorAccountId,
-          vendorAccountId: formState.vendorAccountId,
-        })
-        if (query.trim().length > 0) {
-          params.set('q', query.trim())
-        }
-        const response = await fetch(`/api/reconciliation/templates?${params.toString()}`, {
-          cache: 'no-store',
-        })
-        if (!response.ok) {
-          throw new Error('Failed to load templates')
-        }
-        const payload = await response.json().catch(() => null)
-        const rows: TemplateResponse[] = Array.isArray(payload?.data) ? payload.data : []
-        setTemplateOptions(rows.map(item => formatTemplateOption(item)))
-      } catch (error) {
-        console.error('Unable to load templates', error)
-        setTemplateOptions([])
-      } finally {
-        setTemplateLoading(false)
-      }
-    },
-    [formState.distributorAccountId, formState.vendorAccountId],
-  )
-
-  useEffect(() => {
-    if (!formState.distributorAccountId || !formState.vendorAccountId) {
-      setTemplateOptions([])
-      clearTemplateSelection(false)
-      return
-    }
-    const debounce = setTimeout(() => {
-      void fetchTemplates(templateQuery)
-    }, 300)
-
-    return () => {
-      clearTimeout(debounce)
-    }
-  }, [templateQuery, fetchTemplates, formState.distributorAccountId, formState.vendorAccountId, clearTemplateSelection])
-
   return (
     <div className="space-y-4">
       <div className="grid gap-4 md:grid-cols-2">
@@ -415,23 +274,45 @@ export function CreateTemplateStep({
           />
         </FormField>
 
-        <FormField label="Customer" required>
+        <FormField label="Distributor" required>
           <div className="relative">
             <input
               type="text"
-              value={customerQuery}
-              onChange={event => setCustomerQuery(event.target.value)}
-              onFocus={() => setShowCustomerDropdown(true)}
-              placeholder="Search customers"
+              value={distributorQuery}
+              onChange={event => setDistributorQuery(event.target.value)}
+              onFocus={() => setShowDistributorDropdown(true)}
+              placeholder="Search distributors"
               className={underlineInputClass}
             />
-            {showCustomerDropdown ? (
+            {showDistributorDropdown ? (
               <DropdownList
-                loading={customerLoading}
-                options={customerOptions}
-                emptyLabel="No customers found"
-                onSelect={option => handleCustomerSelect(option)}
-                onDismiss={() => setShowCustomerDropdown(false)}
+                loading={distributorLoading}
+                options={distributorOptions}
+                emptyLabel="No distributors found"
+                onSelect={option => handleDistributorSelect(option)}
+                onDismiss={() => setShowDistributorDropdown(false)}
+              />
+            ) : null}
+          </div>
+        </FormField>
+
+        <FormField label="Vendor" required>
+          <div className="relative">
+            <input
+              type="text"
+              value={vendorQuery}
+              onChange={event => setVendorQuery(event.target.value)}
+              onFocus={() => setShowVendorDropdown(true)}
+              placeholder="Search vendors"
+              className={underlineInputClass}
+            />
+            {showVendorDropdown ? (
+              <DropdownList
+                loading={vendorLoading}
+                options={vendorOptions}
+                emptyLabel="No vendors found"
+                onSelect={option => handleVendorSelect(option)}
+                onDismiss={() => setShowVendorDropdown(false)}
               />
             ) : null}
           </div>
@@ -457,7 +338,6 @@ export function CreateTemplateStep({
         </label>
       </div>
 
-      {/* Template selection & configuration section removed per updated UX; mapping is configured directly in Map Fields */}
       <div className="flex items-center justify-end gap-3 border-t border-gray-200 pt-4">
         <button
           type="button"
@@ -469,16 +349,6 @@ export function CreateTemplateStep({
         </button>
       </div>
 
-      {templateModalOpen ? (
-        <TemplateCreateModal
-          isOpen={templateModalOpen}
-          distributor={formState.distributorAccountId ? { id: formState.distributorAccountId, name: formState.distributorLabel } : null}
-          vendor={formState.vendorAccountId ? { id: formState.vendorAccountId, name: formState.vendorLabel } : null}
-          createdByContactId={formState.createdByContactId}
-          onClose={() => setTemplateModalOpen(false)}
-          onTemplateCreated={handleTemplateCreated}
-        />
-      ) : null}
     </div>
   )
 }
@@ -511,175 +381,6 @@ function DropdownList({ loading, options, emptyLabel, onSelect, onDismiss }: Dro
         ))
       )}
     </ul>
-  )
-}
-
-interface TemplateDropdownProps {
-  loading: boolean
-  options: TemplateOption[]
-  emptyLabel: string
-  onSelect: (option: TemplateOption) => void
-  onDismiss: () => void
-}
-
-function TemplateDropdown({ loading, options, emptyLabel, onSelect, onDismiss }: TemplateDropdownProps) {
-  return (
-    <ul className="absolute z-10 mt-1 max-h-52 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow" onMouseLeave={onDismiss}>
-      {loading ? (
-        <li className="px-3 py-2 text-sm text-gray-500">Loading...</li>
-      ) : options.length === 0 ? (
-        <li className="px-3 py-2 text-sm text-gray-500">{emptyLabel}</li>
-      ) : (
-        options.map(option => (
-          <li
-            key={option.value}
-            className="cursor-pointer px-3 py-2 text-sm hover:bg-gray-100"
-            onClick={() => onSelect(option)}
-          >
-            <p className="font-medium text-gray-900">{option.label}</p>
-            <p className="text-xs text-gray-500">{option.helper}</p>
-          </li>
-        ))
-      )}
-    </ul>
-  )
-}
-
-interface TemplateCreateModalProps {
-  isOpen: boolean
-  distributor: { id: string; name: string } | null
-  vendor: { id: string; name: string } | null
-  createdByContactId?: string
-  onClose: () => void
-  onTemplateCreated: (template: TemplateResponse) => void
-}
-
-function TemplateCreateModal({ isOpen, distributor, vendor, createdByContactId, onClose, onTemplateCreated }: TemplateCreateModalProps) {
-  const [templateName, setTemplateName] = useState('')
-  const [description, setDescription] = useState('')
-  const [submitting, setSubmitting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (!isOpen) return
-    const defaultName = distributor?.name && vendor?.name ? `${distributor.name}-${vendor.name}` : ''
-    setTemplateName(defaultName)
-    setDescription('')
-    setError(null)
-  }, [isOpen, distributor?.name, vendor?.name])
-
-  if (!isOpen) {
-    return null
-  }
-
-  const canSubmit = Boolean(templateName.trim() && distributor?.id && vendor?.id && createdByContactId && !submitting)
-
-  const handleSubmit = async () => {
-    if (!canSubmit) {
-      setError('Template name, distributor, vendor, and Created By are required.')
-      return
-    }
-
-    setSubmitting(true)
-    setError(null)
-
-    try {
-      const response = await fetch('/api/reconciliation/templates', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: templateName.trim(),
-          description: description.trim() || undefined,
-          distributorAccountId: distributor!.id,
-          vendorAccountId: vendor!.id,
-          createdByContactId,
-        }),
-      })
-
-      const payload = await response.json().catch(() => null)
-      if (!response.ok) {
-        throw new Error(payload?.error || 'Failed to create template')
-      }
-
-      const template: TemplateResponse | undefined = payload?.data
-      if (!template) {
-        throw new Error('Template response missing data')
-      }
-
-      onTemplateCreated(template)
-    } catch (error: any) {
-      setError(error?.message || 'Unable to create template')
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 px-4" onClick={onClose}>
-      <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl" onClick={event => event.stopPropagation()}>
-        <div className="mb-4">
-          <h3 className="text-lg font-semibold text-gray-900">Create Template</h3>
-          <p className="text-sm text-gray-600">Save a template for this distributor and vendor combination.</p>
-        </div>
-
-        <div className="space-y-3">
-          <div className="rounded-lg bg-gray-50 p-3 text-sm text-gray-700">
-            <p>
-              <span className="font-medium text-gray-900">Distributor:</span> {distributor?.name || 'Not selected'}
-            </p>
-            <p>
-              <span className="font-medium text-gray-900">Vendor:</span> {vendor?.name || 'Not selected'}
-            </p>
-          </div>
-
-          <label className="text-sm font-medium text-gray-700">
-            Template Name
-            <input
-              type="text"
-              value={templateName}
-              onChange={event => setTemplateName(event.target.value)}
-              className={`mt-1 ${underlineInputClass}`}
-              placeholder="e.g., Telarus-Lingo"
-            />
-          </label>
-
-          <label className="text-sm font-medium text-gray-700">
-            Description (optional)
-            <textarea
-              value={description}
-              onChange={event => setDescription(event.target.value)}
-              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none"
-              rows={3}
-              placeholder="Add notes about this template's mapping or usage."
-            />
-          </label>
-
-          {error ? (
-            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
-          ) : null}
-        </div>
-
-        <div className="mt-6 flex items-center justify-end gap-3 border-t border-gray-200 pt-4">
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-            disabled={submitting}
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={handleSubmit}
-            disabled={!canSubmit}
-            className="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-gray-300"
-          >
-            {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-            Save Template
-          </button>
-        </div>
-      </div>
-    </div>
   )
 }
 

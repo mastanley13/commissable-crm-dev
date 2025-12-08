@@ -1,14 +1,12 @@
 'use client'
 
-import { useState, useCallback, useMemo, useLayoutEffect, useRef, useEffect, ChangeEvent } from 'react'
+import { useState, useCallback, useMemo, useLayoutEffect, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { ListHeader, FilterColumnOption, ColumnFilter } from '@/components/list-header'
 import { DynamicTable, Column, PaginationInfo } from '@/components/dynamic-table'
 import { ColumnChooserModal } from '@/components/column-chooser-modal'
 import { useTablePreferences } from '@/hooks/useTablePreferences'
-import { depositSummaryMock } from '@/lib/mock-data'
-import { Check, X, CalendarRange, TrendingUp, Wallet, BellRing, Download, Trash2 } from 'lucide-react'
-import type { LucideIcon } from 'lucide-react'
+import { Check, X, Download, Trash2 } from 'lucide-react'
 import { calculateMinWidth } from '@/lib/column-width-utils'
 import { cn } from '@/lib/utils'
 import { useToasts } from '@/components/toast'
@@ -27,6 +25,21 @@ const RECONCILIATION_DEFAULT_VISIBLE_COLUMN_IDS = new Set<string>([
   'totalCommissions',
   'status'
 ])
+
+const MONTHS = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+]
 
 // Helper function to format dates as YYYY-MM-DD
 const formatDateYYYYMMDD = (value: string | Date | null | undefined): string => {
@@ -391,12 +404,6 @@ const filterOptions: FilterColumnOption[] = [
   { id: 'orderIdVendor', label: 'Order ID - Vendor' }
 ]
 
-type DepositSummary = {
-  totalUsageYtd: number
-  totalCommissionsYtd: number
-  totalPastDueSchedules: number
-}
-
 type DepositRow = {
   id: string
   accountId: string
@@ -433,37 +440,12 @@ type DepositRow = {
   active?: boolean
 }
 
-type DateRangePreset = 'ytd' | 'last6Months' | 'custom'
-
-type CustomDateRange = {
-  from: string | null
-  to: string | null
-}
-
-type MetricCardProps = {
-  icon: LucideIcon
-  label: string
-  value: string
-  loading: boolean
-}
-
-const MetricCard = ({ icon: Icon, label, value, loading }: MetricCardProps) => (
-  <div className="bg-transparent p-1.5">
-    <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-      <span className="flex h-6 w-6 items-center justify-center text-primary-600">
-        <Icon className="h-4 w-4" aria-hidden="true" />
-      </span>
-      {label}
-    </div>
-    <div className="mt-1 text-lg font-semibold text-slate-900">
-      {loading ? <span className="block h-7 w-24 animate-pulse rounded bg-slate-200" /> : value}
-    </div>
-  </div>
-)
-
 export default function ReconciliationPage() {
   const { showSuccess, showError, ToastContainer } = useToasts()
   const router = useRouter()
+  const [selectedMonth, setSelectedMonth] = useState<Date>(
+    () => new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+  )
   const [reconciliation, setReconciliation] = useState<DepositRow[]>([])
   const [loading, setLoading] = useState(false)
   const [showColumnSettings, setShowColumnSettings] = useState(false)
@@ -484,53 +466,10 @@ export default function ReconciliationPage() {
     }
     return reconciliation.filter(row => selectedReconciliations.includes(String(row.id)))
   }, [reconciliation, selectedReconciliations])
-  const [summaryMetrics, setSummaryMetrics] = useState<DepositSummary>(depositSummaryMock)
-  const [summaryLoading, setSummaryLoading] = useState<boolean>(false)
-  const [summaryError, setSummaryError] = useState<string | null>(null)
-  const [dateRangePreset, setDateRangePreset] = useState<DateRangePreset>('ytd')
-  const [customDateRange, setCustomDateRange] = useState<CustomDateRange>({ from: null, to: null })
   const currencyFormatter = useMemo(
     () => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }),
     []
   )
-  const numberFormatter = useMemo(() => new Intl.NumberFormat('en-US'), [])
-  const metricsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const simulateSummaryFetch = useCallback((preset: DateRangePreset) => {
-    setSummaryLoading(true)
-    setSummaryError(null)
-
-    if (metricsTimeoutRef.current) {
-      clearTimeout(metricsTimeoutRef.current)
-    }
-
-    const multiplierMap: Record<DateRangePreset, number> = {
-      ytd: 1,
-      last6Months: 0.62,
-      custom: 0.78
-    }
-
-    const usageMultiplier = multiplierMap[preset] ?? 1
-    const pastDueMultiplier = preset === 'last6Months' ? 0.85 : preset === 'custom' ? 0.9 : 1
-
-    metricsTimeoutRef.current = setTimeout(() => {
-      setSummaryMetrics({
-        totalUsageYtd: Math.round(depositSummaryMock.totalUsageYtd * usageMultiplier),
-        totalCommissionsYtd: Math.round(depositSummaryMock.totalCommissionsYtd * usageMultiplier * 100) / 100,
-        totalPastDueSchedules: Math.max(0, Math.round(depositSummaryMock.totalPastDueSchedules * pastDueMultiplier))
-      })
-      setSummaryLoading(false)
-      metricsTimeoutRef.current = null
-    }, 350)
-  }, [])
-
-  useEffect(() => {
-    simulateSummaryFetch('ytd')
-    return () => {
-      if (metricsTimeoutRef.current) {
-        clearTimeout(metricsTimeoutRef.current)
-      }
-    }
-  }, [simulateSummaryFetch])
 
   // Load deposits from API
   useEffect(() => {
@@ -538,9 +477,22 @@ export default function ReconciliationPage() {
     const controller = new AbortController()
 
     const loadDeposits = async () => {
+      const baseYear = selectedMonth.getFullYear()
+      const baseMonth = selectedMonth.getMonth()
+      const monthStart = new Date(baseYear, baseMonth, 1)
+      const monthEnd = new Date(baseYear, baseMonth + 1, 0)
+      const from = formatDateYYYYMMDD(monthStart)
+      const to = formatDateYYYYMMDD(monthEnd)
+
       setLoading(true)
       try {
-        const response = await fetch('/api/reconciliation/deposits', {
+        const params = new URLSearchParams({
+          from,
+          to,
+          pageSize: '500',
+        })
+
+        const response = await fetch(`/api/reconciliation/deposits?${params.toString()}`, {
           method: 'GET',
           cache: 'no-store',
           signal: controller.signal
@@ -581,110 +533,7 @@ export default function ReconciliationPage() {
       cancelled = true
       controller.abort()
     }
-  }, [])
-
-  const handlePresetChange = useCallback(
-    (event: ChangeEvent<HTMLSelectElement>) => {
-      const nextPreset = event.target.value as DateRangePreset
-      setSummaryError(null)
-      setDateRangePreset(nextPreset)
-
-      if (nextPreset !== 'custom') {
-        setCustomDateRange({ from: null, to: null })
-        simulateSummaryFetch(nextPreset)
-      }
-    },
-    [simulateSummaryFetch]
-  )
-
-  const handleCustomDateChange = useCallback((field: keyof CustomDateRange) => {
-    return (event: ChangeEvent<HTMLInputElement>) => {
-      const value = event.target.value.trim()
-      // Allow empty value or validate YYYY-MM-DD format
-      if (!value) {
-        setCustomDateRange(prev => ({ ...prev, [field]: null }))
-        return
-      }
-      // Basic validation: check if it matches YYYY-MM-DD pattern
-      const datePattern = /^\d{4}-\d{2}-\d{2}$/
-      if (datePattern.test(value)) {
-        // Verify it's a valid date
-        const date = new Date(value)
-        if (!Number.isNaN(date.getTime())) {
-          setCustomDateRange(prev => ({ ...prev, [field]: value }))
-          return
-        }
-      }
-      // For invalid dates, still update but validation will catch it
-      setCustomDateRange(prev => ({ ...prev, [field]: value }))
-    }
-  }, [])
-
-  const handleApplyCustomDateRange = useCallback(() => {
-    if (!customDateRange.from || !customDateRange.to) {
-      setSummaryError('Please select both a start date and end date.')
-      return
-    }
-
-    // Validate date format
-    const datePattern = /^\d{4}-\d{2}-\d{2}$/
-    if (!datePattern.test(customDateRange.from) || !datePattern.test(customDateRange.to)) {
-      setSummaryError('Please enter dates in YYYY-MM-DD format.')
-      return
-    }
-
-    // Validate dates are valid
-    const fromDate = new Date(customDateRange.from)
-    const toDate = new Date(customDateRange.to)
-    if (Number.isNaN(fromDate.getTime()) || Number.isNaN(toDate.getTime())) {
-      setSummaryError('Please enter valid dates.')
-      return
-    }
-
-    // Validate from date is before to date
-    if (fromDate > toDate) {
-      setSummaryError('Start date must be before end date.')
-      return
-    }
-
-    setSummaryError(null)
-    setDateRangePreset('custom')
-    simulateSummaryFetch('custom')
-  }, [customDateRange.from, customDateRange.to, simulateSummaryFetch])
-
-  const isApplyDisabled =
-    dateRangePreset !== 'custom' ||
-    !customDateRange.from ||
-    !customDateRange.to ||
-    summaryLoading
-
-  // Compute the actual date range to display based on preset
-  const displayDateRange = useMemo(() => {
-    if (dateRangePreset === 'custom') {
-      return {
-        from: customDateRange.from || '',
-        to: customDateRange.to || ''
-      }
-    }
-
-    const today = new Date()
-    let fromDate: Date
-    const toDate = today
-
-    if (dateRangePreset === 'ytd') {
-      // Year to Date: January 1 of current year to today
-      fromDate = new Date(today.getFullYear(), 0, 1)
-    } else {
-      // Last 6 Months: 6 months ago to today
-      fromDate = new Date(today)
-      fromDate.setMonth(today.getMonth() - 6)
-    }
-
-    return {
-      from: formatDateYYYYMMDD(fromDate),
-      to: formatDateYYYYMMDD(toDate)
-    }
-  }, [dateRangePreset, customDateRange.from, customDateRange.to])
+  }, [selectedMonth])
 
   const {
     columns: preferenceColumns,
@@ -959,6 +808,31 @@ export default function ReconciliationPage() {
     setCurrentPage(1) // Reset to first page when page size changes
   }, [])
 
+  const handleMonthClick = useCallback((monthIndex: number) => {
+    setSelectedMonth(previous => {
+      const year = previous.getFullYear()
+      const month = previous.getMonth()
+      if (month === monthIndex) {
+        return previous
+      }
+      return new Date(year, monthIndex, 1)
+    })
+    setCurrentPage(1)
+  }, [])
+
+  const handleMonthStep = useCallback(
+    (direction: 'prev' | 'next') => {
+      setSelectedMonth(previous => {
+        const year = previous.getFullYear()
+        const month = previous.getMonth()
+        const offset = direction === 'next' ? 1 : -1
+        return new Date(year, month + offset, 1)
+      })
+      setCurrentPage(1)
+    },
+    [],
+  )
+
   // Apply all filters (search, status, column filters) and sorting
   const filteredData = useMemo(() => {
     let filtered = [...reconciliation]
@@ -1203,80 +1077,58 @@ export default function ReconciliationPage() {
     ],
   }), [handleBulkDeleteReconciliations, handleBulkExportReconciliations, selectedReconciliations.length])
 
+  const selectedYear = selectedMonth.getFullYear()
+  const selectedMonthIndex = selectedMonth.getMonth()
+
   return (
     <div className="dashboard-page-container">
-      <section className="px-4 pb-0">
-        <div className="bg-slate-50/80 px-3 pt-2 shadow-sm">
-          <div className="grid gap-2 md:grid-cols-3">
-            <MetricCard
-              icon={TrendingUp}
-              label="Total Usage YTD"
-              value={currencyFormatter.format(summaryMetrics.totalUsageYtd)}
-              loading={summaryLoading}
-            />
-            <MetricCard
-              icon={Wallet}
-              label="Total Commissions YTD"
-              value={currencyFormatter.format(summaryMetrics.totalCommissionsYtd)}
-              loading={summaryLoading}
-            />
-            <MetricCard
-              icon={BellRing}
-              label="Total Past Due Schedules"
-              value={numberFormatter.format(summaryMetrics.totalPastDueSchedules)}
-              loading={summaryLoading}
-            />
-          </div>
-
-          <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-slate-600">
-            <span className="flex items-center gap-1 font-semibold uppercase tracking-wide text-[11px] text-slate-500">
-              <CalendarRange className="h-4 w-4 text-primary-600" />
-              Date Range
-            </span>
-            <select
-              value={dateRangePreset}
-              onChange={handlePresetChange}
-              className="border border-slate-300 bg-white px-3 py-1 text-sm font-medium text-slate-700 focus:border-primary-500 focus:outline-none"
-            >
-              <option value="ytd">Year to Date</option>
-              <option value="last6Months">Last 6 Months</option>
-              <option value="custom">Custom</option>
-            </select>
-            <input
-              type="text"
-              value={displayDateRange.from}
-              onChange={handleCustomDateChange('from')}
-              disabled={dateRangePreset !== 'custom'}
-              readOnly={dateRangePreset !== 'custom'}
-              placeholder="YYYY-MM-DD"
-              className="border border-slate-300 bg-white px-3 py-1 text-sm focus:border-primary-500 focus:outline-none disabled:bg-slate-100 disabled:cursor-not-allowed"
-            />
-            <span className="text-xs font-medium text-slate-500">to</span>
-            <input
-              type="text"
-              value={displayDateRange.to}
-              onChange={handleCustomDateChange('to')}
-              disabled={dateRangePreset !== 'custom'}
-              readOnly={dateRangePreset !== 'custom'}
-              placeholder="YYYY-MM-DD"
-              className="border border-slate-300 bg-white px-3 py-1 text-sm focus:border-primary-500 focus:outline-none disabled:bg-slate-100 disabled:cursor-not-allowed"
-            />
+      <div className="px-4 pt-3">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={handleApplyCustomDateRange}
-              disabled={isApplyDisabled}
-              className="bg-primary-600 px-4 py-1 text-sm font-semibold text-white transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-primary-300"
+              onClick={() => handleMonthStep('prev')}
+              className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-600 shadow-sm hover:bg-slate-50"
+              aria-label="Previous month"
             >
-              Apply Range
+              <span className="sr-only">Previous month</span>
+              <span aria-hidden="true">{'<'}</span>
+            </button>
+            <span className="text-sm font-semibold text-slate-900">
+              {MONTHS[selectedMonthIndex]} {selectedYear}
+            </span>
+            <button
+              type="button"
+              onClick={() => handleMonthStep('next')}
+              className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-600 shadow-sm hover:bg-slate-50"
+              aria-label="Next month"
+            >
+              <span className="sr-only">Next month</span>
+              <span aria-hidden="true">{'>'}</span>
             </button>
           </div>
-
-          {summaryError && (
-            <div className="mt-3 text-sm text-red-600">{summaryError}</div>
-          )}
+          <div className="flex flex-wrap gap-1">
+            {MONTHS.map((monthName, index) => {
+              const isSelected = index === selectedMonthIndex
+              return (
+                <button
+                  key={monthName}
+                  type="button"
+                  onClick={() => handleMonthClick(index)}
+                  className={cn(
+                    'px-2 py-1 text-xs rounded-full border transition-colors',
+                    isSelected
+                      ? 'border-primary-600 bg-primary-50 text-primary-700 font-semibold'
+                      : 'border-slate-200 bg-white text-slate-600 hover:border-primary-300 hover:text-primary-700',
+                  )}
+                >
+                  {monthName.slice(0, 3)}
+                </button>
+              )
+            })}
+          </div>
         </div>
-        <div className="h-[2px] w-full bg-primary-700" />
-      </section>
+      </div>
 
       <div className="px-4 pt-0">
         <ListHeader

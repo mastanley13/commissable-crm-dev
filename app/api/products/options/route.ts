@@ -3,6 +3,7 @@ import { AccountStatus } from "@prisma/client"
 import { prisma } from "@/lib/db"
 import { resolveTenantId } from "@/lib/server-utils"
 import { REVENUE_TYPE_OPTIONS } from "@/lib/revenue-types"
+import { ensureNoneDirectDistributorAccount } from "@/lib/none-direct-distributor"
 
 export const dynamic = "force-dynamic"
 
@@ -10,6 +11,8 @@ export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams
     const tenantId = await resolveTenantId(searchParams.get("tenantId"))
+
+    await ensureNoneDirectDistributorAccount(tenantId)
 
     const accounts = await prisma.account.findMany({
       where: {

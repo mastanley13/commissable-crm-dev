@@ -1413,7 +1413,7 @@ function EditableOpportunityHeader({
           </FieldRow>
 
           {/* Manually render Subagent % */}
-          <FieldRow label="Subagent %" lastEdited={fieldHistory['subagentPercent']} layout="auto" compact>
+          <FieldRow label="Subagent %" lastEdited={fieldHistory['subagentPercent']} compact>
             <div className="flex flex-col gap-1 w-full max-w-[260px]">
               <EditableField.Input
                 className="w-full pr-6"
@@ -1433,7 +1433,7 @@ function EditableOpportunityHeader({
           </FieldRow>
 
           {/* Manually render House Rep % */}
-          <FieldRow label="House Rep %" lastEdited={fieldHistory['houseRepPercent']} layout="auto" compact>
+          <FieldRow label="House Rep %" lastEdited={fieldHistory['houseRepPercent']} compact>
             <div className="flex flex-col gap-1 w-full max-w-[260px]">
               <EditableField.Input
                 className="w-full pr-6"
@@ -1453,7 +1453,7 @@ function EditableOpportunityHeader({
           </FieldRow>
 
           {/* Manually render House Split % */}
-          <FieldRow label="House Split %" lastEdited={fieldHistory['houseSplitPercent']} layout="auto" compact>
+          <FieldRow label="House Split %" lastEdited={fieldHistory['houseSplitPercent']} compact>
             <div className="flex flex-col gap-1 w-full max-w-[260px]">
               <EditableField.Input
                 className="w-full pr-6"
