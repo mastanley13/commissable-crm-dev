@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
-import { ReconciliationStatus } from "@prisma/client"
+import { DepositLineMatchStatus, ReconciliationStatus } from "@prisma/client"
 import { withPermissions, createErrorResponse } from "@/lib/api-auth"
 import { prisma } from "@/lib/db"
 import { getTenantMatchingPreferences } from "@/lib/matching/settings"
 import { logMatchingMetric } from "@/lib/matching/metrics"
+import { recomputeRevenueSchedules } from "@/lib/matching/revenue-schedule-status"
 
 export async function POST(request: NextRequest, { params }: { params: { depositId: string } }) {
   return withPermissions(request, ["reconciliation.manage", "reconciliation.view"], async req => {
@@ -48,6 +49,22 @@ export async function POST(request: NextRequest, { params }: { params: { deposit
           reconciledAt: null,
         },
       })
+
+      const matchedSchedules = await tx.depositLineMatch.findMany({
+        where: {
+          tenantId,
+          depositLineItem: { depositId },
+          status: DepositLineMatchStatus.Applied,
+        },
+        select: { revenueScheduleId: true },
+      })
+
+      const scheduleIds = Array.from(new Set(matchedSchedules.map(m => m.revenueScheduleId).filter(Boolean)))
+      if (scheduleIds.length > 0) {
+        await recomputeRevenueSchedules(tx, scheduleIds, tenantId, {
+          varianceTolerance: prefs.varianceTolerance,
+        })
+      }
 
       // Unmark deposit
       return await tx.deposit.update({

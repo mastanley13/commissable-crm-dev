@@ -59,6 +59,7 @@ interface ListHeaderProps {
   onExport?: () => void;
   canImport?: boolean;
   canExport?: boolean;
+  preSearchAccessory?: ReactNode;
   leftAccessory?: ReactNode;
   hasUnsavedTableChanges?: boolean;
   isSavingTableChanges?: boolean;
@@ -105,6 +106,7 @@ export function ListHeader({
   onExport,
   canImport = false,
   canExport = false,
+  preSearchAccessory,
   leftAccessory,
   hasUnsavedTableChanges = false,
   isSavingTableChanges = false,
@@ -319,6 +321,7 @@ export function ListHeader({
           )}
 
           <div className={`flex flex-wrap items-center ${gap}`}>
+            {preSearchAccessory}
             <div className="relative">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
               <input
@@ -394,7 +397,7 @@ export function ListHeader({
                   <select
                     value={selectedColumn}
                     onChange={(event) => setSelectedColumn(event.target.value)}
-                    className={`appearance-none rounded border border-gray-300 bg-white px-3 ${inputYPadding} pr-8 text-sm outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500`}
+                    className={`w-44 appearance-none rounded border border-gray-300 bg-white px-3 ${inputYPadding} pr-8 text-sm outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500`}
                   >
                     <option value="">Filter By Column</option>
                     {columnOptions.map(option => (

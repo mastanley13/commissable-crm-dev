@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
-import { ClipboardCheck, Eye, FileDown, Link2, Trash2 } from "lucide-react"
+import { ClipboardCheck, Eye, FileDown, Link2, Sparkles, Trash2 } from "lucide-react"
 import { DynamicTable, type Column } from "./dynamic-table"
 import { ListHeader, type ColumnFilter } from "./list-header"
 import type { BulkActionsGridProps } from "./bulk-actions-grid"
@@ -262,7 +262,9 @@ interface DepositReconciliationDetailViewProps {
   finalizeLoading?: boolean
   onUnfinalizeDeposit?: () => void
   unfinalizeLoading?: boolean
-  onOpenSettings?: () => void
+  includeFutureSchedules?: boolean
+  onIncludeFutureSchedulesChange?: (checked: boolean) => void
+  onDepositDeleted?: () => void
   onBackToReconciliation?: () => void
 }
 
@@ -308,7 +310,9 @@ export function DepositReconciliationDetailView({
   finalizeLoading = false,
   onUnfinalizeDeposit,
   unfinalizeLoading = false,
-  onOpenSettings,
+  includeFutureSchedules = false,
+  onIncludeFutureSchedulesChange,
+  onDepositDeleted,
   onBackToReconciliation,
 }: DepositReconciliationDetailViewProps) {
   const { showSuccess, showError, ToastContainer } = useToasts()
@@ -326,6 +330,9 @@ export function DepositReconciliationDetailView({
   const [showScheduleColumnSettings, setShowScheduleColumnSettings] = useState(false)
   const [showFinalizePreview, setShowFinalizePreview] = useState(false)
   const [showUnreconcilePreview, setShowUnreconcilePreview] = useState(false)
+  const [lineSortConfig, setLineSortConfig] = useState<{ key: string; direction: "asc" | "desc" } | null>(null)
+  const [scheduleSortConfig, setScheduleSortConfig] = useState<{ key: string; direction: "asc" | "desc" } | null>(null)
+  const [deleteLoading, setDeleteLoading] = useState(false)
   const {
     refCallback: lineTableAreaRefCallback,
     maxBodyHeight: lineTableBodyHeight,
@@ -388,7 +395,10 @@ export function DepositReconciliationDetailView({
   )
 
   const matchedSchedules = useMemo(
-    () => scheduleRows.filter(schedule => schedule.status === "Reconciled"),
+    () =>
+      scheduleRows.filter(
+        schedule => schedule.status === "Matched" || schedule.status === "Reconciled",
+      ),
     [scheduleRows],
   )
 
@@ -679,6 +689,74 @@ export function DepositReconciliationDetailView({
     [currencyFormatter, percentFormatter, dateFormatter]
   )
 
+  const getLineSortValue = useCallback((row: DepositLineItemRow, columnId: string) => {
+    switch (columnId) {
+      case "lineItem":
+        return Number(row.lineItem ?? 0)
+      case "paymentDate":
+        return Date.parse(row.paymentDate ?? "") || 0
+      case "usage":
+        return Number(row.usage ?? 0)
+      case "usageAllocated":
+        return Number(row.usageAllocated ?? 0)
+      case "usageUnallocated":
+        return Number(row.usageUnallocated ?? 0)
+      case "commission":
+        return Number(row.commission ?? 0)
+      case "commissionAllocated":
+        return Number(row.commissionAllocated ?? 0)
+      case "commissionUnallocated":
+        return Number(row.commissionUnallocated ?? 0)
+      default:
+        return (row as any)[columnId] ?? ""
+    }
+  }, [])
+
+  const getScheduleSortValue = useCallback((row: SuggestedMatchScheduleRow, columnId: string) => {
+    switch (columnId) {
+      case "lineItem":
+        return Number(row.lineItem ?? 0)
+      case "matchConfidence":
+        return Number(row.matchConfidence ?? 0)
+      case "revenueScheduleDate":
+        return Date.parse(row.revenueScheduleDate ?? "") || 0
+      case "quantity":
+        return Number(row.quantity ?? 0)
+      case "priceEach":
+        return Number(row.priceEach ?? 0)
+      case "expectedUsageGross":
+        return Number(row.expectedUsageGross ?? 0)
+      case "expectedUsageAdjustment":
+        return Number(row.expectedUsageAdjustment ?? 0)
+      case "expectedUsageNet":
+        return Number(row.expectedUsageNet ?? 0)
+      case "actualUsage":
+        return Number(row.actualUsage ?? 0)
+      case "usageBalance":
+        return Number(row.usageBalance ?? 0)
+      case "paymentDate":
+        return Date.parse(row.paymentDate ?? "") || 0
+      case "expectedCommissionGross":
+        return Number(row.expectedCommissionGross ?? 0)
+      case "expectedCommissionAdjustment":
+        return Number(row.expectedCommissionAdjustment ?? 0)
+      case "expectedCommissionNet":
+        return Number(row.expectedCommissionNet ?? 0)
+      case "actualCommission":
+        return Number(row.actualCommission ?? 0)
+      case "commissionDifference":
+        return Number(row.commissionDifference ?? 0)
+      case "expectedCommissionRatePercent":
+        return Number(row.expectedCommissionRatePercent ?? 0)
+      case "actualCommissionRatePercent":
+        return Number(row.actualCommissionRatePercent ?? 0)
+      case "commissionRateDifference":
+        return Number(row.commissionRateDifference ?? 0)
+      default:
+        return (row as any)[columnId] ?? ""
+    }
+  }, [])
+
   const filteredLineItems = useMemo(() => {
     return lineItemRows.filter(item => {
       const isMatched =
@@ -725,6 +803,23 @@ export function DepositReconciliationDetailView({
     })
   }, [lineItemRows, lineTab, lineSearchValue, normalizedLineFilters, getLineFilterValue])
 
+  const sortedLineItems = useMemo(() => {
+    if (!lineSortConfig) return filteredLineItems
+    const rows = [...filteredLineItems]
+    const { key, direction } = lineSortConfig
+    rows.sort((a, b) => {
+      const av = getLineSortValue(a, key)
+      const bv = getLineSortValue(b, key)
+      if (typeof av === "number" && typeof bv === "number") {
+        return direction === "asc" ? av - bv : bv - av
+      }
+      return direction === "asc"
+        ? String(av ?? "").localeCompare(String(bv ?? ""))
+        : String(bv ?? "").localeCompare(String(av ?? ""))
+    })
+    return rows
+  }, [filteredLineItems, lineSortConfig, getLineSortValue])
+
   const filteredSchedules = useMemo(() => {
     return scheduleRows.filter(schedule => {
       const scheduleIsReconciled = schedule.status === "Reconciled"
@@ -765,6 +860,44 @@ export function DepositReconciliationDetailView({
     })
   }, [scheduleRows, scheduleTab, scheduleSearchValue, normalizedScheduleFilters, getScheduleFilterValue])
 
+  const sortedSchedules = useMemo(() => {
+    const rows = [...filteredSchedules]
+    if (scheduleSortConfig) {
+      const { key, direction } = scheduleSortConfig
+      rows.sort((a, b) => {
+        const av = getScheduleSortValue(a, key)
+        const bv = getScheduleSortValue(b, key)
+        if (typeof av === "number" && typeof bv === "number") {
+          return direction === "asc" ? av - bv : bv - av
+        }
+        return direction === "asc"
+          ? String(av ?? "").localeCompare(String(bv ?? ""))
+          : String(bv ?? "").localeCompare(String(av ?? ""))
+      })
+      return rows
+    }
+
+    rows.sort((a, b) => {
+      const productA = (a.productNameVendor ?? "").toLowerCase()
+      const productB = (b.productNameVendor ?? "").toLowerCase()
+      if (productA && productB && productA !== productB) {
+        return productA.localeCompare(productB)
+      }
+
+      const dateA = Date.parse(a.revenueScheduleDate)
+      const dateB = Date.parse(b.revenueScheduleDate)
+
+      const hasDateA = !Number.isNaN(dateA)
+      const hasDateB = !Number.isNaN(dateB)
+
+      if (hasDateA && hasDateB) return dateA - dateB
+      if (hasDateA) return -1
+      if (hasDateB) return 1
+      return 0
+    })
+    return rows
+  }, [filteredSchedules, scheduleSortConfig, getScheduleSortValue])
+
   const baseLineColumns = useMemo<Column[]>(() => {
     const minTextWidth = (label: string) => calculateMinWidth({ label, type: "text", sortable: false })
     return [
@@ -801,19 +934,22 @@ export function DepositReconciliationDetailView({
         id: "accountId",
         label: depositFieldLabels.accountId,
         width: 220,
-        minWidth: minTextWidth(depositFieldLabels.accountId)
+        minWidth: minTextWidth(depositFieldLabels.accountId),
+        sortable: true
       },
       {
         id: "lineItem",
         label: depositFieldLabels.lineItem,
         width: 100,
-        minWidth: 70
+        minWidth: 70,
+        sortable: true
       },
       {
         id: "status",
         label: depositFieldLabels.status,
         width: 200,
         minWidth: minTextWidth(depositFieldLabels.status),
+        sortable: true,
         render: (_value: DepositLineItemRow["status"], row: DepositLineItemRow) => {
           const displayStatus = row.reconciled ? "Reconciled" : row.status
           const toneClass = lineStatusStyles[displayStatus as keyof typeof lineStatusStyles] ?? "bg-slate-100 text-slate-700 border border-slate-200"
@@ -829,6 +965,7 @@ export function DepositReconciliationDetailView({
         label: depositFieldLabels.paymentDate,
         width: 180,
         minWidth: minTextWidth(depositFieldLabels.paymentDate),
+        sortable: true,
         render: (value: string) => {
           const parsed = new Date(value)
           return Number.isNaN(parsed.getTime()) ? value : dateFormatter.format(parsed)
@@ -838,25 +975,29 @@ export function DepositReconciliationDetailView({
         id: "accountName",
         label: depositFieldLabels.accountName,
         width: 220,
-        minWidth: minTextWidth(depositFieldLabels.accountName)
+        minWidth: minTextWidth(depositFieldLabels.accountName),
+        sortable: true
       },
       {
         id: "vendorName",
         label: depositFieldLabels.vendorName,
         width: 200,
-        minWidth: minTextWidth(depositFieldLabels.vendorName)
+        minWidth: minTextWidth(depositFieldLabels.vendorName),
+        sortable: true
       },
       {
         id: "productName",
         label: depositFieldLabels.productName,
         width: 240,
-        minWidth: minTextWidth(depositFieldLabels.productName)
+        minWidth: minTextWidth(depositFieldLabels.productName),
+        sortable: true
       },
       {
         id: "usage",
         label: depositFieldLabels.usage,
         width: 140,
         minWidth: 140,
+        sortable: true,
         render: (value: number) => currencyFormatter.format(value)
       },
       {
@@ -864,6 +1005,7 @@ export function DepositReconciliationDetailView({
         label: depositFieldLabels.usageAllocated,
         width: 180,
         minWidth: 160,
+        sortable: true,
         render: (value: number) => currencyFormatter.format(value)
       },
       {
@@ -871,6 +1013,7 @@ export function DepositReconciliationDetailView({
         label: depositFieldLabels.usageUnallocated,
         width: 200,
         minWidth: 180,
+        sortable: true,
         render: (value: number) => currencyFormatter.format(value)
       },
       {
@@ -878,6 +1021,7 @@ export function DepositReconciliationDetailView({
         label: depositFieldLabels.commissionRate,
         width: 200,
         minWidth: 170,
+        sortable: true,
         render: (value: number) => percentFormatter.format(value)
       },
       {
@@ -885,6 +1029,7 @@ export function DepositReconciliationDetailView({
         label: depositFieldLabels.commission,
         width: 160,
         minWidth: 140,
+        sortable: true,
         render: (value: number) => currencyFormatter.format(value)
       },
       {
@@ -892,6 +1037,7 @@ export function DepositReconciliationDetailView({
         label: depositFieldLabels.commissionAllocated,
         width: 200,
         minWidth: 180,
+        sortable: true,
         render: (value: number) => currencyFormatter.format(value)
       },
       {
@@ -899,25 +1045,29 @@ export function DepositReconciliationDetailView({
         label: depositFieldLabels.commissionUnallocated,
         width: 210,
         minWidth: 190,
+        sortable: true,
         render: (value: number) => currencyFormatter.format(value)
       },
       {
         id: "customerIdVendor",
         label: depositFieldLabels.customerIdVendor,
         width: 200,
-        minWidth: minTextWidth(depositFieldLabels.customerIdVendor)
+        minWidth: minTextWidth(depositFieldLabels.customerIdVendor),
+        sortable: true
       },
       {
         id: "orderIdVendor",
         label: depositFieldLabels.orderIdVendor,
         width: 200,
-        minWidth: minTextWidth(depositFieldLabels.orderIdVendor)
+        minWidth: minTextWidth(depositFieldLabels.orderIdVendor),
+        sortable: true
       },
       {
         id: "distributorName",
         label: depositFieldLabels.distributorName,
         width: 220,
-        minWidth: minTextWidth(depositFieldLabels.distributorName)
+        minWidth: minTextWidth(depositFieldLabels.distributorName),
+        sortable: true
       }
     ]
   }, [currencyFormatter, percentFormatter, dateFormatter, handleRowMatchClick])
@@ -937,13 +1087,15 @@ export function DepositReconciliationDetailView({
         id: "lineItem",
         label: scheduleFieldLabels.lineItem,
         width: 100,
-        minWidth: 70
+        minWidth: 70,
+        sortable: true
       },
       {
         id: "matchConfidence",
         label: scheduleFieldLabels.matchConfidence,
         width: 180,
         minWidth: minTextWidth(scheduleFieldLabels.matchConfidence),
+        sortable: true,
         render: (value: number) => percentFormatter.format(value)
       },
       {
@@ -1003,25 +1155,29 @@ export function DepositReconciliationDetailView({
         id: "vendorName",
         label: scheduleFieldLabels.vendorName,
         width: 200,
-        minWidth: minTextWidth(scheduleFieldLabels.vendorName)
+        minWidth: minTextWidth(scheduleFieldLabels.vendorName),
+        sortable: true
       },
       {
         id: "legalName",
         label: scheduleFieldLabels.legalName,
         width: 220,
-        minWidth: minTextWidth(scheduleFieldLabels.legalName)
+        minWidth: minTextWidth(scheduleFieldLabels.legalName),
+        sortable: true
       },
       {
         id: "productNameVendor",
         label: scheduleFieldLabels.productNameVendor,
         width: 240,
-        minWidth: minTextWidth(scheduleFieldLabels.productNameVendor)
+        minWidth: minTextWidth(scheduleFieldLabels.productNameVendor),
+        sortable: true
       },
       {
         id: "revenueScheduleDate",
         label: scheduleFieldLabels.revenueScheduleDate,
         width: 180,
         minWidth: minTextWidth(scheduleFieldLabels.revenueScheduleDate),
+        sortable: true,
         render: (value: string) => {
           const parsed = new Date(value)
           return Number.isNaN(parsed.getTime()) ? value : dateFormatter.format(parsed)
@@ -1031,19 +1187,22 @@ export function DepositReconciliationDetailView({
         id: "revenueScheduleName",
         label: scheduleFieldLabels.revenueScheduleName,
         width: 200,
-        minWidth: minTextWidth(scheduleFieldLabels.revenueScheduleName)
+        minWidth: minTextWidth(scheduleFieldLabels.revenueScheduleName),
+        sortable: true
       },
       {
         id: "quantity",
         label: scheduleFieldLabels.quantity,
         width: 120,
-        minWidth: minTextWidth(scheduleFieldLabels.quantity)
+        minWidth: minTextWidth(scheduleFieldLabels.quantity),
+        sortable: true
       },
       {
         id: "priceEach",
         label: scheduleFieldLabels.priceEach,
         width: 140,
         minWidth: minTextWidth(scheduleFieldLabels.priceEach),
+        sortable: true,
         render: (value: number) => currencyFormatter.format(value)
       },
       {
@@ -1051,6 +1210,7 @@ export function DepositReconciliationDetailView({
         label: scheduleFieldLabels.expectedUsageGross,
         width: 200,
         minWidth: minTextWidth(scheduleFieldLabels.expectedUsageGross),
+        sortable: true,
         render: (value: number) => currencyFormatter.format(value)
       },
       {
@@ -1058,6 +1218,7 @@ export function DepositReconciliationDetailView({
         label: scheduleFieldLabels.expectedUsageAdjustment,
         width: 220,
         minWidth: minTextWidth(scheduleFieldLabels.expectedUsageAdjustment),
+        sortable: true,
         render: (value: number) => currencyFormatter.format(value)
       },
       {
@@ -1065,6 +1226,7 @@ export function DepositReconciliationDetailView({
         label: scheduleFieldLabels.expectedUsageNet,
         width: 200,
         minWidth: minTextWidth(scheduleFieldLabels.expectedUsageNet),
+        sortable: true,
         render: (value: number) => currencyFormatter.format(value)
       },
       {
@@ -1072,6 +1234,7 @@ export function DepositReconciliationDetailView({
         label: scheduleFieldLabels.actualUsage,
         width: 200,
         minWidth: minTextWidth(scheduleFieldLabels.actualUsage),
+        sortable: true,
         render: (value: number) => currencyFormatter.format(value)
       },
       {
@@ -1079,6 +1242,7 @@ export function DepositReconciliationDetailView({
         label: scheduleFieldLabels.usageBalance,
         width: 200,
         minWidth: minTextWidth(scheduleFieldLabels.usageBalance),
+        sortable: true,
         render: (value: number) => currencyFormatter.format(value)
       },
       {
@@ -1086,6 +1250,7 @@ export function DepositReconciliationDetailView({
         label: scheduleFieldLabels.paymentDate,
         width: 180,
         minWidth: minTextWidth(scheduleFieldLabels.paymentDate),
+        sortable: true,
         render: (value: string) => {
           const parsed = new Date(value)
           return Number.isNaN(parsed.getTime()) ? value : dateFormatter.format(parsed)
@@ -1096,6 +1261,7 @@ export function DepositReconciliationDetailView({
         label: scheduleFieldLabels.expectedCommissionGross,
         width: 220,
         minWidth: minTextWidth(scheduleFieldLabels.expectedCommissionGross),
+        sortable: true,
         render: (value: number) => currencyFormatter.format(value)
       },
       {
@@ -1103,6 +1269,7 @@ export function DepositReconciliationDetailView({
         label: scheduleFieldLabels.expectedCommissionAdjustment,
         width: 240,
         minWidth: minTextWidth(scheduleFieldLabels.expectedCommissionAdjustment),
+        sortable: true,
         render: (value: number) => currencyFormatter.format(value)
       },
       {
@@ -1110,6 +1277,7 @@ export function DepositReconciliationDetailView({
         label: scheduleFieldLabels.expectedCommissionNet,
         width: 200,
         minWidth: minTextWidth(scheduleFieldLabels.expectedCommissionNet),
+        sortable: true,
         render: (value: number) => currencyFormatter.format(value)
       },
       {
@@ -1117,6 +1285,7 @@ export function DepositReconciliationDetailView({
         label: scheduleFieldLabels.actualCommission,
         width: 200,
         minWidth: minTextWidth(scheduleFieldLabels.actualCommission),
+        sortable: true,
         render: (value: number) => currencyFormatter.format(value)
       },
       {
@@ -1124,6 +1293,7 @@ export function DepositReconciliationDetailView({
         label: scheduleFieldLabels.commissionDifference,
         width: 220,
         minWidth: minTextWidth(scheduleFieldLabels.commissionDifference),
+        sortable: true,
         render: (value: number) => currencyFormatter.format(value)
       },
       {
@@ -1131,6 +1301,7 @@ export function DepositReconciliationDetailView({
         label: scheduleFieldLabels.expectedCommissionRatePercent,
         width: 240,
         minWidth: minTextWidth(scheduleFieldLabels.expectedCommissionRatePercent),
+        sortable: true,
         render: (value: number) => percentFormatter.format(value)
       },
       {
@@ -1138,6 +1309,7 @@ export function DepositReconciliationDetailView({
         label: scheduleFieldLabels.actualCommissionRatePercent,
         width: 240,
         minWidth: minTextWidth(scheduleFieldLabels.actualCommissionRatePercent),
+        sortable: true,
         render: (value: number) => percentFormatter.format(value)
       },
       {
@@ -1145,6 +1317,7 @@ export function DepositReconciliationDetailView({
         label: scheduleFieldLabels.commissionRateDifference,
         width: 240,
         minWidth: minTextWidth(scheduleFieldLabels.commissionRateDifference),
+        sortable: true,
         render: (value: number) => percentFormatter.format(value)
       },
       {
@@ -1152,6 +1325,7 @@ export function DepositReconciliationDetailView({
         label: "Status",
         width: 160,
         minWidth: minTextWidth("Status"),
+        sortable: true,
         render: (value: SuggestedMatchScheduleRow["status"]) => (
           <span className={cn("inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold", scheduleStatusStyles[value])}>
             {value}
@@ -1213,8 +1387,8 @@ export function DepositReconciliationDetailView({
   const handleLineItemSelectAll = useCallback(
     (selected: boolean) => {
       if (selected) {
-        if (filteredLineItems.length > 0) {
-          const firstId = filteredLineItems[0]!.id
+        if (sortedLineItems.length > 0) {
+          const firstId = sortedLineItems[0]!.id
           setSelectedLineItems([firstId])
           onLineSelectionChange?.(firstId)
         } else {
@@ -1226,7 +1400,7 @@ export function DepositReconciliationDetailView({
       setSelectedLineItems([])
       onLineSelectionChange?.(null)
     },
-    [filteredLineItems, onLineSelectionChange]
+    [sortedLineItems, onLineSelectionChange]
   )
 
   const handleScheduleSelect = useCallback((scheduleId: string, selected: boolean) => {
@@ -1242,12 +1416,12 @@ export function DepositReconciliationDetailView({
   const handleScheduleSelectAll = useCallback(
     (selected: boolean) => {
       if (selected) {
-        setSelectedSchedules(filteredSchedules.map(schedule => schedule.id))
+        setSelectedSchedules(sortedSchedules.map(schedule => schedule.id))
         return
       }
       setSelectedSchedules([])
     },
-    [filteredSchedules]
+    [sortedSchedules]
   )
 
   const handleBulkLineMatch = useCallback(async () => {
@@ -1522,6 +1696,42 @@ export function DepositReconciliationDetailView({
     )
   }, [scheduleRows, selectedSchedules, showError, showSuccess])
 
+  const handleDeleteDeposit = useCallback(async () => {
+    if (!metadata?.id) {
+      showError("Delete failed", "Deposit id is missing.")
+      return
+    }
+    if (deleteLoading) return
+
+    const confirmed = window.confirm(
+      "Delete this deposit? This will unmatch and remove its line items. This action cannot be undone."
+    )
+    if (!confirmed) return
+
+    setDeleteLoading(true)
+    try {
+      const response = await fetch(`/api/reconciliation/deposits/${encodeURIComponent(metadata.id)}`, {
+        method: "DELETE",
+        cache: "no-store",
+      })
+      const payload = await response.json().catch(() => null)
+      if (!response.ok) {
+        throw new Error(payload?.error || "Unable to delete deposit")
+      }
+      showSuccess("Deposit deleted", "The deposit and its matches were removed.")
+      if (onDepositDeleted) {
+        onDepositDeleted()
+      } else if (onBackToReconciliation) {
+        onBackToReconciliation()
+      }
+    } catch (err) {
+      console.error("Delete deposit failed", err)
+      showError("Delete failed", err instanceof Error ? err.message : "Unable to delete deposit")
+    } finally {
+      setDeleteLoading(false)
+    }
+  }, [deleteLoading, metadata?.id, onBackToReconciliation, onDepositDeleted, showError, showSuccess])
+
   const lineBulkActions = useMemo<BulkActionsGridProps>(
     () => ({
       selectedCount: selectedLineItems.length,
@@ -1551,42 +1761,6 @@ export function DepositReconciliationDetailView({
       ]
     }),
     [handleBulkLineExport, handleBulkLineMatch, handleBulkLineUnmatch, selectedLineItems.length]
-  )
-
-  const scheduleBulkActions = useMemo<BulkActionsGridProps>(
-    () => ({
-      selectedCount: selectedSchedules.length,
-      entityName: "schedules",
-      actions: [
-        {
-          key: "link",
-          label: "Link",
-          icon: Link2,
-          tone: "primary",
-          onClick: handleBulkScheduleLink
-        },
-        {
-          key: "reconcile",
-          label: "Mark Reconciled",
-          icon: ClipboardCheck,
-          tone: "neutral",
-          onClick: handleBulkScheduleReconcile
-        },
-        {
-          key: "export",
-          label: "Export CSV",
-          icon: FileDown,
-          tone: "info",
-          onClick: handleBulkScheduleExport
-        }
-      ]
-    }),
-    [
-      handleBulkScheduleExport,
-      handleBulkScheduleLink,
-      handleBulkScheduleReconcile,
-      selectedSchedules.length
-    ]
   )
 
   const formattedDate = useMemo(() => {
@@ -1621,15 +1795,6 @@ export function DepositReconciliationDetailView({
                 className="inline-flex items-center rounded border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
               >
                 ← Back
-              </button>
-            ) : null}
-            {onOpenSettings ? (
-              <button
-                type="button"
-                onClick={onOpenSettings}
-                className="rounded border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
-              >
-                Settings
               </button>
             ) : null}
             {devMatchingControls && devMatchingControls.includeFutureSchedules !== undefined ? (
@@ -1673,19 +1838,6 @@ export function DepositReconciliationDetailView({
                 )}
               >
                 {finalizeLoading ? "Reconciling…" : "Reconcile Matches"}
-              </button>
-            ) : null}
-            {onRunAutoMatch ? (
-              <button
-                type="button"
-                onClick={onRunAutoMatch}
-                disabled={autoMatchLoading}
-                className={cn(
-                  "inline-flex items-center justify-center rounded border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50",
-                  autoMatchLoading ? "cursor-not-allowed opacity-60" : "",
-                )}
-              >
-                {autoMatchLoading ? "Loading…" : "AI Matching"}
               </button>
             ) : null}
           </div>
@@ -1964,9 +2116,39 @@ export function DepositReconciliationDetailView({
             onColumnFiltersChange={handleLineColumnFiltersChange}
             onSettingsClick={() => setShowLineColumnSettings(true)}
             bulkActions={lineBulkActions}
+            preSearchAccessory={
+              onRunAutoMatch ? (
+                <button
+                  type="button"
+                  onClick={onRunAutoMatch}
+                  disabled={autoMatchLoading}
+                  className={cn(
+                    "inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-primary-600 shadow-sm transition hover:bg-primary-50",
+                    autoMatchLoading ? "cursor-not-allowed opacity-60" : "",
+                  )}
+                  aria-label="Run AI Matching"
+                  title="Run AI Matching"
+                >
+                  <Sparkles className="h-4 w-4" />
+                </button>
+              ) : null
+            }
             leftAccessory={
               <div className="flex items-center gap-2">
                 <DepositLineStatusFilterDropdown value={lineTab} onChange={setLineTab} size="compact" />
+                <button
+                  type="button"
+                  onClick={handleDeleteDeposit}
+                  disabled={deleteLoading}
+                  className={cn(
+                    "inline-flex h-9 w-9 items-center justify-center rounded-full border border-red-200 bg-white text-red-600 shadow-sm transition hover:bg-red-50",
+                    deleteLoading ? "cursor-not-allowed opacity-60" : "",
+                  )}
+                  aria-label="Delete Deposit"
+                  title="Delete Deposit"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
               </div>
             }
           />
@@ -1976,7 +2158,8 @@ export function DepositReconciliationDetailView({
             <DynamicTable
               className="flex flex-col"
               columns={lineTableColumns}
-              data={filteredLineItems}
+              data={sortedLineItems}
+              onSort={(column, direction) => setLineSortConfig({ key: column, direction })}
               loading={loading || linePreferenceLoading}
               emptyMessage="No deposit line items found"
               fillContainerWidth={false}
@@ -2006,14 +2189,25 @@ export function DepositReconciliationDetailView({
             columnFilters={scheduleColumnFilters}
             onColumnFiltersChange={handleScheduleColumnFiltersChange}
             onSettingsClick={() => setShowScheduleColumnSettings(true)}
-            bulkActions={scheduleBulkActions}
             leftAccessory={
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3">
                 <ReconciliationScheduleStatusFilterDropdown
                   value={scheduleTab}
                   onChange={setScheduleTab}
                   size="compact"
                 />
+                {onIncludeFutureSchedulesChange ? (
+                  <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-slate-700">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 rounded border-slate-400 text-primary-600 accent-primary-600"
+                      checked={includeFutureSchedules}
+                      onChange={event => onIncludeFutureSchedulesChange(event.target.checked)}
+                      aria-label="Include Future-Dated Schedules"
+                    />
+                    <span>Include Future-Dated Schedules</span>
+                  </label>
+                ) : null}
               </div>
             }
           />
@@ -2023,7 +2217,8 @@ export function DepositReconciliationDetailView({
             <DynamicTable
               className="flex flex-col"
               columns={scheduleTableColumns}
-              data={filteredSchedules}
+              data={sortedSchedules}
+              onSort={(column, direction) => setScheduleSortConfig({ key: column, direction })}
               loading={scheduleLoading || loading || schedulePreferenceLoading}
               emptyMessage="No suggested schedules found"
               fillContainerWidth

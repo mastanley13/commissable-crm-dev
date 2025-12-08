@@ -3,25 +3,9 @@
 import { useEffect, useMemo, useState, useCallback } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { CopyProtectionWrapper } from "@/components/copy-protection"
-import {
-  DepositReconciliationDetailView,
-  type DepositReconciliationMetadata,
-  type AutoMatchSummary,
-} from "@/components/deposit-reconciliation-detail-view"
-import {
-  depositDetailMetadataMock,
-  type DepositLineItemRow,
-  type SuggestedMatchScheduleRow,
-} from "@/lib/mock-data"
+import { DepositReconciliationDetailView, type DepositReconciliationMetadata } from "@/components/deposit-reconciliation-detail-view"
+import { depositDetailMetadataMock, type DepositLineItemRow, type SuggestedMatchScheduleRow } from "@/lib/mock-data"
 import { useBreadcrumbs } from "@/lib/breadcrumb-context"
-import {
-  AutoMatchPreviewModal,
-  type AutoMatchPreviewSummary,
-} from "@/components/auto-match-preview-modal"
-import { useReconciliationSettings } from "@/hooks/useReconciliationSettings"
-
-type EngineMode = "env" | "legacy" | "hierarchical"
-
 interface DepositDetailResponse {
   metadata: DepositReconciliationMetadata
   lineItems: DepositLineItemRow[]
@@ -49,40 +33,10 @@ export default function DepositReconciliationDetailPage() {
   const [candidatesError, setCandidatesError] = useState<string | null>(null)
   const [detailRefresh, setDetailRefresh] = useState(0)
   const [candidatesRefresh, setCandidatesRefresh] = useState(0)
-  const [autoMatchLoading, setAutoMatchLoading] = useState(false)
-  const [autoMatchSummary, setAutoMatchSummary] = useState<AutoMatchSummary | null>(null)
-  const [autoMatchError, setAutoMatchError] = useState<string | null>(null)
-  const [autoMatchPreviewOpen, setAutoMatchPreviewOpen] = useState(false)
-  const [autoMatchPreviewLoading, setAutoMatchPreviewLoading] = useState(false)
-  const [autoMatchPreview, setAutoMatchPreview] = useState<AutoMatchPreviewSummary | null>(null)
-  const [autoMatchPreviewError, setAutoMatchPreviewError] = useState<string | null>(null)
   const [finalizeLoading, setFinalizeLoading] = useState(false)
   const [unfinalizeLoading, setUnfinalizeLoading] = useState(false)
   const [finalizeError, setFinalizeError] = useState<string | null>(null)
-  const {
-    settings: reconciliationSettings,
-    loading: reconciliationSettingsLoading,
-    error: reconciliationSettingsError,
-    refresh: refreshReconciliationSettings,
-    save: saveReconciliationSettings,
-  } = useReconciliationSettings()
   const [includeFutureSchedules, setIncludeFutureSchedules] = useState(false)
-  const [engineModeSetting, setEngineModeSetting] = useState<EngineMode>("hierarchical")
-  const [varianceToleranceSetting, setVarianceToleranceSetting] = useState<number>(0)
-  const [settingsMessage, setSettingsMessage] = useState<string | null>(null)
-  const [settingsSaving, setSettingsSaving] = useState(false)
-  const [settingsModalOpen, setSettingsModalOpen] = useState(false)
-  const [engineMode, setEngineMode] = useState<EngineMode>("hierarchical")
-
-  useEffect(() => {
-    if (!reconciliationSettings) return
-    setIncludeFutureSchedules(reconciliationSettings.includeFutureSchedulesDefault ?? false)
-    setEngineModeSetting(reconciliationSettings.engineMode ?? "env")
-    setVarianceToleranceSetting(reconciliationSettings.varianceTolerance ?? 0)
-    const preferredEngineMode: EngineMode =
-      reconciliationSettings.engineMode === "legacy" ? "legacy" : "hierarchical"
-    setEngineMode(preferredEngineMode)
-  }, [reconciliationSettings])
 
   useEffect(() => {
     if (!depositParam) return
@@ -171,11 +125,8 @@ export default function DepositReconciliationDetailPage() {
         if (includeFutureSchedules) {
           searchParams.set("includeFutureSchedules", "true")
         }
-        if (engineMode === "legacy") {
-          searchParams.set("useHierarchicalMatching", "false")
-        } else if (engineMode === "hierarchical") {
-          searchParams.set("useHierarchicalMatching", "true")
-        }
+        // Force hierarchical matching as the only engine
+        searchParams.set("useHierarchicalMatching", "true")
         const query = searchParams.toString()
         const response = await fetch(
           `/api/reconciliation/deposits/${encodeURIComponent(
@@ -215,7 +166,6 @@ export default function DepositReconciliationDetailPage() {
     depositParam,
     selectedLineId,
     candidatesRefresh,
-    engineMode,
     includeFutureSchedules,
   ])
 
@@ -223,83 +173,15 @@ export default function DepositReconciliationDetailPage() {
     setSelectedLineId(lineId)
   }, [])
 
+  const handleIncludeFutureSchedulesChange = useCallback((checked: boolean) => {
+    setIncludeFutureSchedules(checked)
+    setCandidatesRefresh(previous => previous + 1)
+  }, [])
+
   const handleMatchMutation = useCallback(() => {
     setDetailRefresh(previous => previous + 1)
     setCandidatesRefresh(previous => previous + 1)
   }, [])
-
-  const handleRequestAutoMatchPreview = useCallback(async () => {
-    if (!depositParam) return
-    setAutoMatchPreviewOpen(true)
-    setAutoMatchPreviewLoading(true)
-    setAutoMatchPreviewError(null)
-    setAutoMatchPreview(null)
-    try {
-      const response = await fetch(
-        `/api/reconciliation/deposits/${encodeURIComponent(depositParam)}/auto-match/preview`,
-        {
-          method: "POST",
-          cache: "no-store",
-        },
-      )
-      const payload = await response.json().catch(() => null)
-      if (!response.ok) {
-        throw new Error(payload?.error || "Unable to load AI matching preview")
-      }
-      const summary = (payload?.data ?? null) as AutoMatchPreviewSummary | null
-      setAutoMatchPreview(summary)
-    } catch (err) {
-      console.error("AI Matching preview failed", err)
-      setAutoMatchPreviewError(err instanceof Error ? err.message : "Unable to load AI matching preview")
-    } finally {
-      setAutoMatchPreviewLoading(false)
-    }
-  }, [depositParam])
-
-  const executeAutoMatch = useCallback(async () => {
-    if (!depositParam) return false
-    setAutoMatchLoading(true)
-    setAutoMatchSummary(null)
-    setAutoMatchError(null)
-    try {
-      const response = await fetch(
-        `/api/reconciliation/deposits/${encodeURIComponent(depositParam)}/auto-match`,
-        {
-          method: "POST",
-          cache: "no-store",
-        },
-      )
-      const payload = await response.json().catch(() => null)
-      if (!response.ok) {
-        throw new Error(payload?.error || "Unable to run AI matching")
-      }
-      const summary = (payload?.data ?? null) as AutoMatchSummary | null
-      setAutoMatchSummary(summary)
-      setDetailRefresh(previous => previous + 1)
-      setCandidatesRefresh(previous => previous + 1)
-      return true
-    } catch (err) {
-      console.error("Run AI Matching failed", err)
-      setAutoMatchError(err instanceof Error ? err.message : "Unable to run AI matching")
-      return false
-    } finally {
-      setAutoMatchLoading(false)
-    }
-  }, [depositParam])
-
-  const handleConfirmAutoMatch = useCallback(async () => {
-    const success = await executeAutoMatch()
-    if (success) {
-      setAutoMatchPreviewOpen(false)
-      setAutoMatchPreview(null)
-    }
-  }, [executeAutoMatch])
-
-  const handleCancelAutoMatchPreview = useCallback(() => {
-    if (autoMatchLoading) return
-    setAutoMatchPreviewOpen(false)
-    setAutoMatchPreviewError(null)
-  }, [autoMatchLoading])
 
   const handleFinalizeDeposit = useCallback(async () => {
     if (!depositParam) return
@@ -351,32 +233,6 @@ export default function DepositReconciliationDetailPage() {
     }
   }, [depositParam])
 
-  const handleSaveReconciliationSettings = useCallback(async () => {
-    setSettingsMessage(null)
-    setSettingsSaving(true)
-    try {
-      await saveReconciliationSettings({
-        includeFutureSchedulesDefault: includeFutureSchedules,
-        varianceTolerance: varianceToleranceSetting,
-        engineMode: engineModeSetting,
-      })
-      setSettingsMessage("Reconciliation settings saved")
-      setCandidatesRefresh(previous => previous + 1)
-      void refreshReconciliationSettings()
-      setSettingsModalOpen(false)
-    } catch (err) {
-      setSettingsMessage(err instanceof Error ? err.message : "Failed to save settings")
-    } finally {
-      setSettingsSaving(false)
-    }
-  }, [
-    saveReconciliationSettings,
-    includeFutureSchedules,
-    varianceToleranceSetting,
-    engineModeSetting,
-    refreshReconciliationSettings,
-  ])
-
   return (
     <CopyProtectionWrapper className="min-h-screen bg-slate-50">
       {error ? (
@@ -385,14 +241,8 @@ export default function DepositReconciliationDetailPage() {
       {candidatesError ? (
         <div className="px-4 text-xs text-amber-600">{candidatesError}</div>
       ) : null}
-      {autoMatchError ? (
-        <div className="px-4 text-xs text-red-500">{autoMatchError}</div>
-      ) : null}
       {finalizeError ? (
         <div className="px-4 text-xs text-red-500">{finalizeError}</div>
-      ) : null}
-      {reconciliationSettingsError ? (
-        <div className="px-4 text-xs text-amber-600">{reconciliationSettingsError}</div>
       ) : null}
       <DepositReconciliationDetailView
         metadata={resolvedMetadata}
@@ -404,143 +254,17 @@ export default function DepositReconciliationDetailPage() {
         onLineSelectionChange={handleLineSelect}
         onMatchApplied={handleMatchMutation}
         onUnmatchApplied={handleMatchMutation}
-        onOpenSettings={() => setSettingsModalOpen(true)}
-        onRunAutoMatch={handleRequestAutoMatchPreview}
-        autoMatchLoading={autoMatchLoading || autoMatchPreviewLoading}
-        autoMatchSummary={autoMatchSummary}
+        onRunAutoMatch={
+          depositParam ? () => router.push(`/reconciliation/${depositParam}/ai-matching`) : undefined
+        }
         onFinalizeDeposit={handleFinalizeDeposit}
         finalizeLoading={finalizeLoading}
         onUnfinalizeDeposit={handleUnfinalizeDeposit}
         unfinalizeLoading={unfinalizeLoading}
+        includeFutureSchedules={includeFutureSchedules}
+        onIncludeFutureSchedulesChange={handleIncludeFutureSchedulesChange}
         onBackToReconciliation={() => router.push('/reconciliation')}
       />
-      <AutoMatchPreviewModal
-        isOpen={autoMatchPreviewOpen}
-        loading={autoMatchPreviewLoading}
-        preview={autoMatchPreview}
-        error={autoMatchPreviewError}
-        onConfirm={handleConfirmAutoMatch}
-        onCancel={handleCancelAutoMatchPreview}
-        confirmLoading={autoMatchLoading}
-      />
-
-      {settingsModalOpen ? (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50"
-          onClick={() => setSettingsModalOpen(false)}
-        >
-          <div
-            className="w-full max-w-xl rounded-2xl bg-white shadow-xl"
-            onClick={event => event.stopPropagation()}
-          >
-            <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
-              <div>
-                <h2 className="text-lg font-semibold text-slate-900">Reconciliation Settings</h2>
-                <p className="text-xs text-slate-500">Tenant defaults and session overrides.</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setSettingsModalOpen(false)}
-                className="text-sm text-slate-500 hover:text-slate-700"
-              >
-                Close
-              </button>
-            </div>
-            <div className="space-y-4 px-6 py-5">
-              <label className="flex items-center justify-between gap-3 text-sm font-medium text-slate-800">
-                <span>Include future-dated schedules</span>
-                <input
-                  type="checkbox"
-                  className="h-4 w-4 rounded border-slate-300 text-primary-600"
-                  checked={includeFutureSchedules}
-                  onChange={event => setIncludeFutureSchedules(event.target.checked)}
-                />
-              </label>
-
-              <div className="space-y-1">
-                <label className="text-sm font-medium text-slate-800">Variance tolerance (percent)</label>
-                <div className="flex items-center gap-3">
-                  <input
-                    type="number"
-                    min={0}
-                    max={30}
-                    step={0.1}
-                    value={Number((varianceToleranceSetting * 100).toFixed(2))}
-                    onChange={event => {
-                      const raw = Number(event.target.value)
-                      if (Number.isFinite(raw)) {
-                        setVarianceToleranceSetting(Math.max(0, Math.min(30, raw)) / 100)
-                      }
-                    }}
-                    className="w-24 rounded border border-slate-300 px-2 py-1 text-sm"
-                  />
-                  <span className="text-xs text-slate-500">
-                    Stored per tenant. Used by Pass A and auto-match.
-                  </span>
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-sm font-medium text-slate-800">Engine mode default</label>
-                <select
-                  value={engineModeSetting}
-                  onChange={event => setEngineModeSetting(event.target.value as EngineMode)}
-                  className="w-full rounded border border-slate-300 px-2 py-1 text-sm"
-                >
-                  <option value="env">Use environment default</option>
-                  <option value="hierarchical">Hierarchical (Pass A/B)</option>
-                  <option value="legacy">Legacy (single-pass)</option>
-                </select>
-              </div>
-
-              <div className="space-y-2 rounded-lg border border-dashed border-slate-200 p-3">
-                <div className="text-sm font-semibold text-slate-800">Matching dev controls (session)</div>
-                <div className="text-xs text-slate-500">Applies only to this page session.</div>
-                <div className="flex flex-wrap gap-2">
-                  {(["env", "legacy", "hierarchical"] as EngineMode[]).map(mode => (
-                    <button
-                      key={mode}
-                      type="button"
-                      onClick={() => setEngineMode(mode)}
-                      className={
-                        mode === engineMode
-                          ? "rounded-full bg-primary-600 px-3 py-1 text-xs font-semibold text-white"
-                          : "rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                      }
-                    >
-                      {mode === "env" ? "Env default" : mode === "legacy" ? "Legacy" : "Hierarchical"}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {settingsMessage ? (
-                <div className="rounded border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
-                  {settingsMessage}
-                </div>
-              ) : null}
-            </div>
-            <div className="flex items-center justify-end gap-3 border-t border-slate-200 px-6 py-4">
-              <button
-                type="button"
-                onClick={() => setSettingsModalOpen(false)}
-                className="rounded border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                disabled={settingsSaving || reconciliationSettingsLoading}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleSaveReconciliationSettings()}
-                disabled={settingsSaving || reconciliationSettingsLoading}
-                className="rounded bg-primary-600 px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {settingsSaving ? "Saving..." : "Save settings"}
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
     </CopyProtectionWrapper>
   )
 }

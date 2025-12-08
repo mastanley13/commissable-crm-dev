@@ -8,7 +8,9 @@ import { EditableSwitch } from "./editable-field"
 type SelectOption = { value: string; label: string }
 
 interface ProductOptionsPayload {
-  accounts: SelectOption[]
+  accounts?: SelectOption[]
+  distributorAccounts?: SelectOption[]
+  vendorAccounts?: SelectOption[]
   revenueTypes: SelectOption[]
 }
 
@@ -75,7 +77,8 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(false)
   const [optionsLoading, setOptionsLoading] = useState(false)
-  const [accounts, setAccounts] = useState<SelectOption[]>([])
+  const [distributorAccounts, setDistributorAccounts] = useState<SelectOption[]>([])
+  const [vendorAccounts, setVendorAccounts] = useState<SelectOption[]>([])
   const [revenueTypes, setRevenueTypes] = useState<SelectOption[]>([])
   const { showError, showSuccess } = useToasts()
 
@@ -90,10 +93,43 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
     setOptionsLoading(true)
     fetch("/api/products/options", { cache: "no-store" })
       .then(async (res) => {
-        const payload = (await res.json().catch(() => null)) as ProductOptionsPayload | null
+        const payload = (await res.json().catch(() => null)) as
+          | ProductOptionsPayload
+          | { data?: ProductOptionsPayload; error?: string }
+          | null
         if (!res.ok) throw new Error((payload as any)?.error ?? "Failed to load options")
-        setAccounts(Array.isArray(payload?.accounts) ? payload!.accounts : [])
-        setRevenueTypes(Array.isArray(payload?.revenueTypes) ? payload!.revenueTypes : [])
+
+        const distributorOptions =
+          Array.isArray((payload as any)?.distributorAccounts) && (payload as any)?.distributorAccounts.length > 0
+            ? (payload as any).distributorAccounts
+            : Array.isArray((payload as any)?.data?.distributorAccounts)
+              ? (payload as any).data.distributorAccounts
+              : []
+
+        const vendorOptions =
+          Array.isArray((payload as any)?.vendorAccounts) && (payload as any)?.vendorAccounts.length > 0
+            ? (payload as any).vendorAccounts
+            : Array.isArray((payload as any)?.data?.vendorAccounts)
+              ? (payload as any).data.vendorAccounts
+              : []
+
+        const fallbackAccounts =
+          Array.isArray((payload as any)?.accounts)
+            ? (payload as any).accounts
+            : Array.isArray((payload as any)?.data?.accounts)
+              ? (payload as any).data.accounts
+              : []
+
+        setDistributorAccounts(distributorOptions.length > 0 ? distributorOptions : fallbackAccounts)
+        setVendorAccounts(vendorOptions.length > 0 ? vendorOptions : fallbackAccounts)
+
+        const revenueTypeOptions =
+          Array.isArray((payload as any)?.revenueTypes)
+            ? (payload as any).revenueTypes
+            : Array.isArray((payload as any)?.data?.revenueTypes)
+              ? (payload as any).data.revenueTypes
+              : []
+        setRevenueTypes(revenueTypeOptions)
       })
       .catch((err) => {
         showError("Unable to load options", err instanceof Error ? err.message : String(err))
@@ -226,7 +262,7 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
                   <label className={labelCls}>Distributor Name</label>
                   <select className={selectCls} value={form.distributorAccountId} onChange={handleChange("distributorAccountId")}>
                     <option value="">-- Select Distributor --</option>
-                    {accounts.map((opt) => (
+                    {distributorAccounts.map((opt) => (
                       <option key={opt.value} value={opt.value}>{opt.label}</option>
                     ))}
                   </select>
@@ -236,7 +272,7 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
                   <label className={labelCls}>Vendor Name</label>
                   <select className={selectCls} value={form.vendorAccountId} onChange={handleChange("vendorAccountId")}>
                     <option value="">-- Select Vendor --</option>
-                    {accounts.map((opt) => (
+                    {vendorAccounts.map((opt) => (
                       <option key={opt.value} value={opt.value}>{opt.label}</option>
                     ))}
                   </select>

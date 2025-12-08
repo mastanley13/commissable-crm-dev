@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { Settings, User, Bell, Shield, Mail, Globe, Database, Palette } from 'lucide-react'
+import { Settings, User, Bell, Shield, Mail, Globe, Database, Palette, BarChart3 } from 'lucide-react'
+import { ReconciliationSettingsForm } from '@/components/reconciliation-settings-form'
 
 type SettingsSection = {
   id: string
@@ -40,6 +41,12 @@ const settingsSections: SettingsSection[] = [
     title: 'General Settings',
     icon: Settings,
     description: 'Application-wide settings and preferences'
+  },
+  {
+    id: 'reconciliation',
+    title: 'Reconciliation Settings',
+    icon: BarChart3,
+    description: 'Configure reconciliation matching and processing defaults'
   },
   {
     id: 'localization',
@@ -146,6 +153,8 @@ export default function SettingsPage() {
             </div>
           </div>
         )
+      case 'reconciliation':
+        return <ReconciliationSettingsForm />
       default:
         return (
           <div className="text-center py-12">
