@@ -334,8 +334,8 @@ export async function POST(request: NextRequest) {
           updatedById: req.user.id ?? null,
         } as any,
         include: {
-          distributor: { select: { accountName: true } },
-          vendor: { select: { accountName: true } },
+          distributor: { select: { id: true, accountName: true } },
+          vendor: { select: { id: true, accountName: true } },
         }
       })
 

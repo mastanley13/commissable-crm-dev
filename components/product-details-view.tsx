@@ -371,6 +371,18 @@ function ProductHeader({ product, onEdit, activeTab, onTabSelect }: ProductHeade
   const commissionRate = formatPercent(product.commissionPercent)
   const revenueTypeLabel = getRevenueTypeLabel(product.revenueType) ?? product.revenueType
   const productDescriptionHouse = product.productDescriptionHouse ?? product.description ?? null
+  const statusBadge = (
+    <span
+      className={cn(
+        "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold border",
+        product.isActive
+          ? "bg-green-50 text-green-700 border-green-200"
+          : "bg-gray-100 text-gray-600 border-gray-300"
+      )}
+    >
+      {product.isActive ? "Active" : "Inactive"}
+    </span>
+  )
 
   return (
     <div className="flex flex-col gap-0">

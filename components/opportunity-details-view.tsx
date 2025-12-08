@@ -2276,7 +2276,7 @@ export function OpportunityDetailsView({
     return filteredProductRows.filter(row => selectedLineItems.includes(row.id))
   }, [filteredProductRows, selectedLineItems])
 
-  const revenueRows = useMemo(() => {
+  const revenueRows = useMemo<OpportunityRevenueScheduleRecord[]>(() => {
     if (!opportunity?.revenueSchedules || opportunity.revenueSchedules.length === 0) {
       return []
     }

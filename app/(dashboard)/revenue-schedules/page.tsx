@@ -307,6 +307,33 @@ const filterOptions: { id: FilterableColumnKey; label: string }[] = [
 const TABLE_BOTTOM_RESERVE = 110
 const TABLE_MIN_BODY_HEIGHT = 320
 
+const parseCurrency = (value: unknown): number => {
+  if (typeof value !== 'string') return 0
+  const trimmed = value.trim()
+  if (!trimmed) return 0
+  const negative = trimmed.startsWith('(') && trimmed.endsWith(')')
+  const numeric = trimmed.replace(/[$,()\s]/g, '')
+  const n = Number(numeric || '0')
+  return negative ? -n : n
+}
+
+const formatCurrency = (n: number): string => {
+  try {
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(n)
+  } catch {
+    return `$${n.toFixed(2)}`
+  }
+}
+
+const formatPercent = (f: number | null): string => {
+  if (f === null || !Number.isFinite(f)) return '-'
+  try {
+    return new Intl.NumberFormat('en-US', { style: 'percent', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(f)
+  } catch {
+    return `${(f * 100).toFixed(2)}%`
+  }
+}
+
 export default function RevenueSchedulesPage() {
   const { showSuccess, showError, ToastContainer } = useToasts()
   const router = useRouter()
@@ -533,18 +560,6 @@ export default function RevenueSchedulesPage() {
     setSortConfig({ columnId, direction })
     setCurrentPage(1)
   }, [])
-
-  const handleRowClick = useCallback((schedule: any) => {
-    const oppId = schedule?.opportunityId
-    if (oppId) {
-      router.push(`/opportunities/${oppId}`)
-      return
-    }
-    const id = schedule?.id
-    if (id) {
-      router.push(`/revenue-schedules/${id}`)
-    }
-  }, [router])
 
   const handleCreateSchedule = () => {
     console.log('Create new revenue schedule')
@@ -822,32 +837,6 @@ export default function RevenueSchedulesPage() {
     setCurrentPage(1) // Reset to first page when page size changes
   }, [])
 
-  // Utility: parse/format currency for computed columns
-  const parseCurrency = (value: unknown): number => {
-    if (typeof value !== 'string') return 0
-    const trimmed = value.trim()
-    if (!trimmed) return 0
-    const negative = trimmed.startsWith('(') && trimmed.endsWith(')')
-    const numeric = trimmed.replace(/[$,()\s]/g, '')
-    const n = Number(numeric || '0')
-    return negative ? -n : n
-  }
-  const formatCurrency = (n: number): string => {
-    try {
-      return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(n)
-    } catch {
-      return `$${n.toFixed(2)}`
-    }
-  }
-  const formatPercent = (f: number | null): string => {
-    if (f === null || !Number.isFinite(f)) return '-'
-    try {
-      return new Intl.NumberFormat('en-US', { style: 'percent', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(f)
-    } catch {
-      return `${(f * 100).toFixed(2)}%`
-    }
-  }
-
   const revenueEditableColumnsMeta = useMemo(
     () =>
       ({
@@ -1066,7 +1055,6 @@ export default function RevenueSchedulesPage() {
     endDate,
     filteredRevenueSchedules,
     normalizeSortValue,
-    parseCurrency,
     sortConfig,
     startDate,
     statusQuickFilter,
@@ -1569,7 +1557,6 @@ export default function RevenueSchedulesPage() {
             columns={tableColumns}
             data={schedulesWithSelection}
             onSort={handleSort}
-            onRowClick={handleRowClick}
             loading={tableLoading}
             emptyMessage="No revenue schedules found"
             onColumnsChange={handleColumnsChange}
