@@ -18,6 +18,7 @@ type BulkUpdatePatch = {
 type BulkUpdateBody = {
   ids: string[]
   patch: BulkUpdatePatch
+  effectiveDate?: string
 }
 
 const isFiniteNumber = (value: unknown): value is number =>

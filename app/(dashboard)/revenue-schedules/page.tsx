@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ListHeader } from '@/components/list-header'
@@ -18,6 +19,7 @@ import {
   type CloneParameters,
   type SourceScheduleData,
 } from '@/components/revenue-schedule-clone-modal'
+import { RevenueBulkApplyPanel } from '@/components/revenue-bulk-apply-panel'
 
 // Local UUID v1-v5 matcher used to detect schedule IDs vs. human codes
 const UUID_REGEX = /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i
@@ -56,6 +58,24 @@ const revenueScheduleColumns: Column[] = [
         {value}
       </span>
     ),
+  },
+  {
+    id: 'accountName',
+    label: 'Account Name',
+    width: 200,
+    minWidth: calculateMinWidth({ label: 'Account Name', type: 'text', sortable: true }),
+    maxWidth: 300,
+    sortable: true,
+    type: 'text',
+  },
+  {
+    id: 'opportunityName',
+    label: 'Opportunity Name',
+    width: 220,
+    minWidth: calculateMinWidth({ label: 'Opportunity Name', type: 'text', sortable: true }),
+    maxWidth: 320,
+    sortable: true,
+    type: 'text',
   },
   {
     id: 'productNameVendor', // 04.00.003
@@ -237,6 +257,8 @@ const revenueScheduleColumns: Column[] = [
 type FilterableColumnKey =
   | 'vendorName'
   | 'distributorName'
+  | 'accountName'
+  | 'opportunityName'
   | 'productNameVendor'
   | 'revenueScheduleName'
   | 'revenueScheduleDate'
@@ -260,6 +282,8 @@ type RevenueFillDownPrompt = {
 const RS_DEFAULT_VISIBLE_COLUMN_IDS = new Set<string>([
   'distributorName',
   'vendorName',
+  'accountName',
+  'opportunityName',
   'productNameVendor',
   'revenueScheduleDate',
   'revenueScheduleName',
@@ -272,6 +296,8 @@ const RS_DEFAULT_VISIBLE_COLUMN_IDS = new Set<string>([
 const filterOptions: { id: FilterableColumnKey; label: string }[] = [
   { id: 'vendorName', label: 'Vendor Name' },
   { id: 'distributorName', label: 'Distributor Name' },
+  { id: 'accountName', label: 'Account Name' },
+  { id: 'opportunityName', label: 'Opportunity Name' },
   { id: 'productNameVendor', label: 'Product Name - Vendor' },
   { id: 'revenueScheduleName', label: 'Revenue Schedule' },
   { id: 'revenueScheduleDate', label: 'Schedule Date' },
@@ -286,6 +312,7 @@ export default function RevenueSchedulesPage() {
   const router = useRouter()
   const [revenueSchedules, setRevenueSchedules] = useState<any[]>([])
   const [filteredRevenueSchedules, setFilteredRevenueSchedules] = useState<any[]>([])
+  const [sortConfig, setSortConfig] = useState<{ columnId: string; direction: 'asc' | 'desc' } | null>(null)
   const [loading, setLoading] = useState<boolean>(true)
   const [selectedSchedules, setSelectedSchedules] = useState<string[]>([])
   const [bulkActionBusy, setBulkActionBusy] = useState(false)
@@ -305,6 +332,7 @@ export default function RevenueSchedulesPage() {
   const tableAreaNodeRef = useRef<HTMLDivElement | null>(null)
   const [revenueBulkPrompt, setRevenueBulkPrompt] = useState<RevenueFillDownPrompt | null>(null)
   const [revenueBulkApplying, setRevenueBulkApplying] = useState(false)
+
   const selectedScheduleRows = useMemo(() => {
     if (selectedSchedules.length === 0) {
       return []
@@ -329,6 +357,20 @@ export default function RevenueSchedulesPage() {
     }
     return parsed
   }, [])
+
+  const normalizeSortValue = useCallback((value: unknown) => {
+    const numeric = parseDisplayNumber(value)
+    if (numeric !== null) {
+      return { type: 'number' as const, value: numeric }
+    }
+
+    if (value === null || value === undefined) {
+      return { type: 'string' as const, value: '' }
+    }
+
+    const asString = String(value).trim()
+    return { type: 'string' as const, value: asString.toLowerCase() }
+  }, [parseDisplayNumber])
 
   const fetchRevenueSchedules = useCallback(async () => {
     setLoading(true)
@@ -468,12 +510,14 @@ export default function RevenueSchedulesPage() {
   ])
 
   const handleSearch = (query: string) => {
-    if (!query.trim()) {
+    const trimmed = query.trim()
+    setCurrentPage(1)
+    if (!trimmed) {
       setFilteredRevenueSchedules(revenueSchedules)
       return
     }
 
-    const q = query.toLowerCase()
+    const q = trimmed.toLowerCase()
     const filtered = revenueSchedules.filter(schedule =>
       Object.values(schedule).some((value) => {
         let s = ''
@@ -485,20 +529,10 @@ export default function RevenueSchedulesPage() {
     setFilteredRevenueSchedules(filtered)
   }
 
-  const handleSort = (columnId: string, direction: 'asc' | 'desc') => {
-    const sorted = [...filteredRevenueSchedules].sort((a, b) => {
-      const aRaw = a[columnId as keyof typeof a]
-      const bRaw = b[columnId as keyof typeof b]
-      const aValue = typeof aRaw === 'number' ? aRaw : String(aRaw ?? '')
-      const bValue = typeof bRaw === 'number' ? bRaw : String(bRaw ?? '')
-
-      if (aValue < bValue) return direction === 'asc' ? -1 : 1
-      if (aValue > bValue) return direction === 'asc' ? 1 : -1
-      return 0
-    })
-
-    setFilteredRevenueSchedules(sorted)
-  }
+  const handleSort = useCallback((columnId: string, direction: 'asc' | 'desc') => {
+    setSortConfig({ columnId, direction })
+    setCurrentPage(1)
+  }, [])
 
   const handleRowClick = useCallback((schedule: any) => {
     const oppId = schedule?.opportunityId
@@ -547,7 +581,7 @@ export default function RevenueSchedulesPage() {
 
   const handleSelectAll = (selected: boolean) => {
     if (selected) {
-      setSelectedSchedules(filteredRevenueSchedules.map(schedule => String(schedule.id)))
+      setSelectedSchedules(filteredByStatusAndColumns.map(schedule => String(schedule.id)))
     } else {
       setSelectedSchedules([])
     }
@@ -577,6 +611,8 @@ export default function RevenueSchedulesPage() {
     const headers = [
       'Distributor Name',
       'Vendor Name',
+      'Account Name',
+      'Opportunity Name',
       'Product Name - Vendor',
       'Schedule Date',
       'Revenue Schedule',
@@ -632,6 +668,8 @@ export default function RevenueSchedulesPage() {
         return [
           row.distributorName,
           row.vendorName,
+          row.accountName,
+          row.opportunityName,
           row.productNameVendor,
           row.revenueScheduleDate,
           row.revenueScheduleName ?? row.revenueSchedule,
@@ -885,7 +923,7 @@ export default function RevenueSchedulesPage() {
         return
       }
 
-      if (selectedSchedules.length > 1 && selectedSchedules.includes(rowId) && rect) {
+      if (selectedSchedules.length >= 1 && selectedSchedules.includes(rowId) && rect) {
         setRevenueBulkPrompt({
           columnId,
           label: revenueEditableColumnsMeta[columnId].label,
@@ -904,56 +942,60 @@ export default function RevenueSchedulesPage() {
     [normalizeRevenueEditValue, revenueEditableColumnsMeta, selectedSchedules],
   )
 
-  const handleRevenueApplyFillDown = useCallback(async () => {
-    if (!revenueBulkPrompt || selectedSchedules.length <= 1) {
-      return
-    }
+    const handleRevenueApplyFillDown = useCallback(
+      async (effectiveDate: string) => {
+        if (!revenueBulkPrompt || selectedSchedules.length < 1) {
+          return
+        }
+  
+        const columnId = revenueBulkPrompt.columnId
+        const payload: Record<string, number> = {}
+      if (columnId === 'quantity') payload.quantity = revenueBulkPrompt.value
+      if (columnId === 'priceEach') payload.priceEach = revenueBulkPrompt.value
+      if (columnId === 'expectedUsageAdjustment') payload.expectedUsageAdjustment = revenueBulkPrompt.value
+      if (columnId === 'expectedCommissionRatePercent') payload.expectedCommissionRatePercent = revenueBulkPrompt.value
 
-    const columnId = revenueBulkPrompt.columnId
-    const payload: Record<string, number> = {}
-    if (columnId === 'quantity') payload.quantity = revenueBulkPrompt.value
-    if (columnId === 'priceEach') payload.priceEach = revenueBulkPrompt.value
-    if (columnId === 'expectedUsageAdjustment') payload.expectedUsageAdjustment = revenueBulkPrompt.value
-    if (columnId === 'expectedCommissionRatePercent') payload.expectedCommissionRatePercent = revenueBulkPrompt.value
-
-    if (Object.keys(payload).length === 0) {
-      return
-    }
-
-    setRevenueBulkApplying(true)
-    try {
-      const response = await fetch('/api/revenue-schedules/bulk-update', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ids: selectedSchedules,
-          patch: payload,
-        }),
-      })
-      const body = await response.json().catch(() => null)
-      if (!response.ok) {
-        const message = body?.error ?? 'Unable to apply bulk update'
-        throw new Error(message)
+      if (Object.keys(payload).length === 0) {
+        return
       }
-      const updatedCount: number = body?.updated ?? selectedSchedules.length
-      showSuccess(
-        `Applied to ${updatedCount} schedule${updatedCount === 1 ? '' : 's'}`,
-        `${revenueBulkPrompt.label} updated across the selected schedules.`,
-      )
-      setRevenueBulkPrompt(null)
-      await fetchRevenueSchedules()
-    } catch (error) {
-      console.error('Failed to apply bulk update for revenue schedules', error)
-      const message = error instanceof Error ? error.message : 'Unable to apply bulk update'
-      showError('Bulk update failed', message)
-    } finally {
-      setRevenueBulkApplying(false)
-    }
-  }, [fetchRevenueSchedules, revenueBulkPrompt, selectedSchedules, showError, showSuccess])
 
-  // Apply status and column filters
+      setRevenueBulkApplying(true)
+      try {
+        const response = await fetch('/api/revenue-schedules/bulk-update', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ids: selectedSchedules,
+            patch: payload,
+            effectiveDate,
+          }),
+        })
+        const body = await response.json().catch(() => null)
+        if (!response.ok) {
+          const message = body?.error ?? 'Unable to apply bulk update'
+          throw new Error(message)
+        }
+        const updatedCount: number = body?.updated ?? selectedSchedules.length
+        showSuccess(
+          `Applied to ${updatedCount} schedule${updatedCount === 1 ? '' : 's'}`,
+          `${revenueBulkPrompt.label} updated across the selected schedules.`,
+        )
+        setRevenueBulkPrompt(null)
+        await fetchRevenueSchedules()
+      } catch (error) {
+        console.error('Failed to apply bulk update for revenue schedules', error)
+        const message = error instanceof Error ? error.message : 'Unable to apply bulk update'
+        showError('Bulk update failed', message)
+      } finally {
+        setRevenueBulkApplying(false)
+      }
+    },
+    [fetchRevenueSchedules, revenueBulkPrompt, selectedSchedules, showError, showSuccess],
+  )
+
+  // Apply search, status, column filters, then sort
   const filteredByStatusAndColumns = useMemo(() => {
-    let next = activeFilter === 'active' ? revenueSchedules.filter(r => r.active) : [...revenueSchedules]
+    let next = activeFilter === 'active' ? filteredRevenueSchedules.filter(r => r.active) : [...filteredRevenueSchedules]
 
     if (statusQuickFilter !== 'all') {
       next = next.filter(row => {
@@ -998,8 +1040,37 @@ export default function RevenueSchedulesPage() {
         })
       })
     }
+
+    if (sortConfig) {
+      const { columnId, direction } = sortConfig
+      const factor = direction === 'asc' ? 1 : -1
+      next = [...next].sort((a, b) => {
+        const aNormalized = normalizeSortValue((a as any)?.[columnId])
+        const bNormalized = normalizeSortValue((b as any)?.[columnId])
+
+        if (aNormalized.type === 'number' && bNormalized.type === 'number') {
+          if (aNormalized.value === bNormalized.value) return 0
+          return aNormalized.value < bNormalized.value ? -1 * factor : 1 * factor
+        }
+
+        const aValue = String(aNormalized.value ?? '')
+        const bValue = String(bNormalized.value ?? '')
+        return aValue.localeCompare(bValue) * factor
+      })
+    }
+
     return next
-  }, [revenueSchedules, activeFilter, columnFilters, statusQuickFilter, startDate, endDate])
+  }, [
+    activeFilter,
+    columnFilters,
+    endDate,
+    filteredRevenueSchedules,
+    normalizeSortValue,
+    parseCurrency,
+    sortConfig,
+    startDate,
+    statusQuickFilter,
+  ])
 
   // Add computed columns (Expected Usage Net, Usage Balance, Commission Difference)
   const withComputed = useMemo(() => {
@@ -1125,15 +1196,34 @@ export default function RevenueSchedulesPage() {
 
         return (
           <span
-            ref={(node) => {
+            ref={node => {
               spanRef = node
             }}
             contentEditable
             suppressContentEditableWarning
             data-disable-row-click="true"
             className="block min-w-0 truncate text-sm text-gray-900 focus:outline-none"
+            onFocus={() => {
+              if (!spanRef) return
+              const rowId = String(row.id)
+              if (selectedSchedules.length >= 1 && selectedSchedules.includes(rowId)) {
+                setRevenueBulkPrompt({
+                  columnId,
+                  label,
+                  value: displayValue,
+                  rowId,
+                  selectedCount: selectedSchedules.length,
+                  anchor: {
+                    top: spanRef.getBoundingClientRect().bottom + 8,
+                    left: spanRef.getBoundingClientRect().right + 12,
+                  },
+                })
+              } else {
+                setRevenueBulkPrompt(null)
+              }
+            }}
             onBlur={commit}
-            onKeyDown={(event) => {
+            onKeyDown={event => {
               if (event.key === 'Enter') {
                 event.preventDefault()
                 commit()
@@ -1222,6 +1312,102 @@ export default function RevenueSchedulesPage() {
         }
       }
 
+      if (column.id === 'distributorName') {
+        return {
+          ...column,
+          render: (value: unknown, row: any) => {
+            const displayValue =
+              value === null || value === undefined ? '--' : typeof value === 'string' ? value : String(value)
+
+            if (row.distributorId) {
+              return (
+                <Link
+                  href={`/accounts/${row.distributorId}`}
+                  className="text-primary-700 hover:text-primary-800 hover:underline"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {displayValue}
+                </Link>
+              )
+            }
+
+            return <span>{displayValue}</span>
+          },
+        }
+      }
+
+      if (column.id === 'vendorName') {
+        return {
+          ...column,
+          render: (value: unknown, row: any) => {
+            const displayValue =
+              value === null || value === undefined ? '--' : typeof value === 'string' ? value : String(value)
+
+            if (row.vendorId) {
+              return (
+                <Link
+                  href={`/accounts/${row.vendorId}`}
+                  className="text-primary-700 hover:text-primary-800 hover:underline"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {displayValue}
+                </Link>
+              )
+            }
+
+            return <span>{displayValue}</span>
+          },
+        }
+      }
+
+      if (column.id === 'accountName') {
+        return {
+          ...column,
+          render: (value: unknown, row: any) => {
+            const displayValue =
+              value === null || value === undefined ? '--' : typeof value === 'string' ? value : String(value)
+
+            if (row.accountId) {
+              return (
+                <Link
+                  href={`/accounts/${row.accountId}`}
+                  className="text-primary-700 hover:text-primary-800 hover:underline"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {displayValue}
+                </Link>
+              )
+            }
+
+            return <span>{displayValue}</span>
+          },
+        }
+      }
+
+      if (column.id === 'opportunityName') {
+        return {
+          ...column,
+          render: (value: unknown, row: any) => {
+            const displayValue =
+              value === null || value === undefined ? '--' : typeof value === 'string' ? value : String(value)
+
+            if (row.opportunityId) {
+              return (
+                <Link
+                  href={`/opportunities/${row.opportunityId}`}
+                  className="text-primary-700 hover:text-primary-800 hover:underline"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {displayValue}
+                </Link>
+              )
+            }
+
+            return <span>{displayValue}</span>
+          },
+        }
+      }
+
       if (
         column.id === 'quantity' ||
         column.id === 'priceEach' ||
@@ -1245,7 +1431,34 @@ export default function RevenueSchedulesPage() {
     revenueEditableColumnsMeta,
     router,
     selectedSchedules,
+    setRevenueBulkPrompt,
   ])
+
+  const revenueBulkDefaultEffectiveDate = useMemo(() => {
+    const now = new Date()
+    const year = now.getFullYear()
+    const month = String(now.getMonth() + 1).padStart(2, '0')
+    const day = String(now.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }, [])
+
+  const revenueBulkPromptValueLabel = useMemo(() => {
+    if (!revenueBulkPrompt) {
+      return ''
+    }
+    const meta = revenueEditableColumnsMeta[revenueBulkPrompt.columnId]
+    const value = revenueBulkPrompt.value
+    if (meta.type === 'currency') {
+      return formatCurrency(value)
+    }
+    if (meta.type === 'percent') {
+      return formatPercent(value / 100)
+    }
+    return value.toLocaleString(undefined, {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: meta.decimals,
+    })
+  }, [revenueBulkPrompt, revenueEditableColumnsMeta])
   
   // Update schedules data to include selection state
   const schedulesWithSelection = paginatedRevenueSchedules.map(schedule => ({
@@ -1306,9 +1519,31 @@ export default function RevenueSchedulesPage() {
             />
             <div className="flex items-center gap-1 text-sm">
               <span className="text-gray-600">Start</span>
-              <input type="date" value={startDate} onChange={e => { setStartDate(e.target.value); setCurrentPage(1) }} className="rounded border border-gray-300 px-2 py-1" />
+              <div className="relative inline-block">
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={e => { setStartDate(e.target.value); setCurrentPage(1) }}
+                  className="rounded border border-gray-300 px-2 py-1 text-sm [color-scheme:light] [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-2 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-datetime-edit]:opacity-0"
+                  style={{ colorScheme: 'light' }}
+                />
+                <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-xs text-gray-900">
+                  {startDate || <span className="text-gray-400">YYYY-MM-DD</span>}
+                </span>
+              </div>
               <span className="text-gray-600">End</span>
-              <input type="date" value={endDate} onChange={e => { setEndDate(e.target.value); setCurrentPage(1) }} className="rounded border border-gray-300 px-2 py-1" />
+              <div className="relative inline-block">
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={e => { setEndDate(e.target.value); setCurrentPage(1) }}
+                  className="rounded border border-gray-300 px-2 py-1 text-sm [color-scheme:light] [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-2 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-datetime-edit]:opacity-0"
+                  style={{ colorScheme: 'light' }}
+                />
+                <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-xs text-gray-900">
+                  {endDate || <span className="text-gray-400">YYYY-MM-DD</span>}
+                </span>
+              </div>
             </div>
           </div>
         )}
@@ -1361,19 +1596,23 @@ export default function RevenueSchedulesPage() {
         }}
       />
 
-      {revenueBulkPrompt ? (
-        <button
-          type="button"
-          className="fixed z-40 rounded-full border border-primary-200 bg-white px-4 py-2 text-sm font-semibold text-primary-700 shadow-lg transition hover:bg-primary-50 disabled:opacity-60"
-          style={{ top: revenueBulkPrompt.anchor.top, left: revenueBulkPrompt.anchor.left }}
-          onClick={handleRevenueApplyFillDown}
-          disabled={revenueBulkApplying}
-        >
-          {revenueBulkApplying
-            ? 'Applying...'
-            : `Apply to ${selectedSchedules.length} selected`}
-        </button>
-      ) : null}
+      <RevenueBulkApplyPanel
+        isOpen={Boolean(revenueBulkPrompt)}
+        selectedCount={selectedSchedules.length}
+        fieldLabel={revenueBulkPrompt?.label ?? ''}
+        valueLabel={revenueBulkPromptValueLabel}
+        initialEffectiveDate={revenueBulkDefaultEffectiveDate}
+        onClose={() => setRevenueBulkPrompt(null)}
+        onSubmit={handleRevenueApplyFillDown}
+        onBeforeSubmit={() => {
+          if (typeof document !== 'undefined' && document.activeElement instanceof HTMLElement) {
+            document.activeElement.blur()
+          }
+        }}
+        isSubmitting={revenueBulkApplying}
+        entityLabelSingular="revenue schedule"
+        entityLabelPlural="revenue schedules"
+      />
 
       <ToastContainer />
       <RevenueScheduleCloneModal

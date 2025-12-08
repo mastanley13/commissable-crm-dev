@@ -155,9 +155,8 @@ export default function DepositUploadListPage() {
   }, [depositReceivedDate, commissionPeriod])
 
   useEffect(() => {
-    const datePart = depositReceivedDate ? new Date(depositReceivedDate) : null
-    const formattedDate = datePart && !Number.isNaN(datePart.getTime()) ? datePart.toISOString().slice(0, 10) : ""
-    const generated = [formattedDate, distributorLabel, vendorLabel].filter(Boolean).join(" - ")
+    const normalizedDate = depositReceivedDate?.trim() ?? ""
+    const generated = [vendorLabel, distributorLabel, normalizedDate].filter(Boolean).join(" - ")
     setFormState(previous => (previous.depositName === generated ? previous : { ...previous, depositName: generated }))
   }, [depositReceivedDate, distributorLabel, vendorLabel])
 
@@ -225,62 +224,66 @@ export default function DepositUploadListPage() {
   const requiredFieldsComplete = requiredDepositFieldIds.every(fieldId => Boolean(fieldMapping[fieldId]))
 
   return (
-    <div className="dashboard-page-container bg-gray-50 min-h-screen">
-      <div className="p-4 space-y-4 pb-28 md:p-6 md:space-y-5">
-        <div>
-          <h1 className="text-2xl font-semibold text-gray-900">Deposit Reconciliation</h1>
-          <p className="text-sm text-gray-600 mt-1">Upload deposit files, map fields, and confirm reconciliation in four guided steps.</p>
+    <div className="dashboard-page-container bg-gray-50">
+      <div className="flex-1 min-h-0 overflow-y-auto">
+        <div className="p-4 space-y-4 pb-28 md:p-6 md:space-y-5">
+          <div>
+            <h1 className="text-2xl font-semibold text-gray-900">Deposit Reconciliation</h1>
+            <p className="text-sm text-gray-600 mt-1">
+              Upload deposit files, map fields, and confirm reconciliation in four guided steps.
+            </p>
+          </div>
+
+          <div className="pb-2">
+            <Stepper steps={steps} activeStepId={activeStep} />
+          </div>
+
+          {activeStep === 'create-template' ? (
+            <CreateTemplateStep
+              formState={formState}
+              selectedFile={selectedFile}
+              onFileChange={handleFileChange}
+              onProceed={goToMapFields}
+              onFormStateChange={updateFormState}
+            />
+          ) : null}
+
+          {activeStep === 'map-fields' ? (
+            <MapFieldsStep
+              file={selectedFile}
+              csvHeaders={csvHeaders}
+              sampleRows={sampleRows}
+              fieldMapping={fieldMapping}
+              parsingError={parsingError}
+              onFieldMappingChange={handleFieldMappingChange}
+              canProceed={requiredFieldsComplete && Boolean(csvHeaders.length) && !parsingError}
+              onBack={goToCreateTemplate}
+              onProceed={goToReview}
+            />
+          ) : null}
+
+          {activeStep === 'review' ? (
+            <ReviewStep
+              csvHeaders={csvHeaders}
+              sampleRows={sampleRows}
+              fieldMapping={fieldMapping}
+              validationIssues={validationIssues}
+              onBack={() => setActiveStep('map-fields')}
+              onProceed={handleProceedFromReview}
+            />
+          ) : null}
+
+          {activeStep === 'confirm' ? (
+            <ConfirmStep
+              importSummary={importSummary}
+              submitting={importSubmitting}
+              error={importError}
+              result={importResult}
+              onBack={handleBackToReview}
+              onSubmit={handleConfirmSubmit}
+            />
+          ) : null}
         </div>
-
-        <div className="pb-2">
-          <Stepper steps={steps} activeStepId={activeStep} />
-        </div>
-
-        {activeStep === 'create-template' ? (
-          <CreateTemplateStep
-            formState={formState}
-            selectedFile={selectedFile}
-            onFileChange={handleFileChange}
-            onProceed={goToMapFields}
-            onFormStateChange={updateFormState}
-          />
-        ) : null}
-
-        {activeStep === 'map-fields' ? (
-          <MapFieldsStep
-            file={selectedFile}
-            csvHeaders={csvHeaders}
-            sampleRows={sampleRows}
-            fieldMapping={fieldMapping}
-            parsingError={parsingError}
-            onFieldMappingChange={handleFieldMappingChange}
-            canProceed={requiredFieldsComplete && Boolean(csvHeaders.length) && !parsingError}
-            onBack={goToCreateTemplate}
-            onProceed={goToReview}
-          />
-        ) : null}
-
-        {activeStep === 'review' ? (
-          <ReviewStep
-            csvHeaders={csvHeaders}
-            sampleRows={sampleRows}
-            fieldMapping={fieldMapping}
-            validationIssues={validationIssues}
-            onBack={() => setActiveStep('map-fields')}
-            onProceed={handleProceedFromReview}
-          />
-        ) : null}
-
-        {activeStep === 'confirm' ? (
-          <ConfirmStep
-            importSummary={importSummary}
-            submitting={importSubmitting}
-            error={importError}
-            result={importResult}
-            onBack={handleBackToReview}
-            onSubmit={handleConfirmSubmit}
-          />
-        ) : null}
       </div>
     </div>
   )

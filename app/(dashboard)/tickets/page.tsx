@@ -626,6 +626,27 @@ export default function TicketsPage() {
         }
       }
 
+      if (column.id === 'ticketNumber') {
+        return {
+          ...column,
+          render: (value: any, row: TicketRow) => {
+            const ticketId = row.id
+            if (!ticketId) {
+              return <span>{value}</span>
+            }
+            const display = value || row.ticketNumber || ticketId
+            return (
+              <a
+                href={`/tickets/${ticketId}`}
+                className="text-blue-600 hover:text-blue-800 font-medium"
+              >
+                {display}
+              </a>
+            )
+          }
+        }
+      }
+
       if (column.id === 'status') {
         return {
           ...column,

@@ -17,6 +17,7 @@ import { cn } from '@/lib/utils'
 import { useAuth } from '@/lib/auth-context'
 import { getRevenueTypeLabel } from '@/lib/revenue-types'
 import type { BulkActionsGridProps } from '@/components/bulk-actions-grid'
+import { RevenueBulkApplyPanel } from '@/components/revenue-bulk-apply-panel'
 
 const PRODUCT_FILTER_OPTIONS = [
   { id: 'productNameVendor', label: 'Product Name - Vendor' },
@@ -28,6 +29,7 @@ const PRODUCT_FILTER_OPTIONS = [
   { id: 'partNumberVendor', label: 'Part Number - Vendor' },
   { id: 'revenueType', label: 'Revenue Type' },
   { id: 'active', label: 'Active (Y/N)' },
+  { id: 'hasRevenueSchedules', label: 'Has Revenue Schedules (Y/N)' },
 ]
 
 const BASE_COLUMNS: Column[] = [
@@ -191,7 +193,9 @@ interface ProductRow {
   id: string
   select?: boolean
   active: boolean
+  distributorId?: string | null
   distributorName: string
+  vendorId?: string | null
   vendorName: string
   productFamilyVendor: string
   productSubtypeVendor: string
@@ -1052,32 +1056,32 @@ export default function ProductsPage() {
   ])
 
   const handleProductInlineChange = useCallback(
-    async (row: ProductRow, columnId: ProductEditableColumnId, nextValue: number, rect: DOMRect | null) => {
+      async (row: ProductRow, columnId: ProductEditableColumnId, nextValue: number, rect: DOMRect | null) => {
       if (!canEditProducts) {
         requireAdminForEdit()
         return
       }
 
-      const normalised = normaliseProductEditValue(columnId, nextValue)
-      if (normalised === null) {
-        return
-      }
-
-      const payload: Record<string, unknown> = {}
-      if (columnId === 'priceEach') {
-        payload.priceEach = normalised
-      }
-      if (columnId === 'commissionPercent') {
-        const fraction = normalised === 0 ? 0 : normalised > 1 ? normalised / 100 : normalised
-        payload.commissionPercent = fraction
-      }
-
-      try {
-        const response = await fetch(`/api/products/${row.id}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        })
+        const normalised = normaliseProductEditValue(columnId, nextValue)
+        if (normalised === null) {
+          return
+        }
+  
+        const payload: Record<string, unknown> = {}
+        if (columnId === 'priceEach') {
+          payload.priceEach = normalised
+        }
+        if (columnId === 'commissionPercent') {
+          const fraction = normalised === 0 ? 0 : normalised > 1 ? normalised / 100 : normalised
+          payload.commissionPercent = fraction
+        }
+  
+        try {
+          const response = await fetch(`/api/products/${row.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          })
 
         if (!response.ok) {
           const body = await response.json().catch(() => null)
@@ -1104,7 +1108,7 @@ export default function ProductsPage() {
           ),
         )
 
-        if (selectedProducts.length > 1 && rect && selectedProducts.includes(row.id)) {
+          if (selectedProducts.length >= 1 && rect && selectedProducts.includes(row.id)) {
           setProductBulkPrompt({
             columnId,
             label: columnId === 'priceEach' ? 'Price Each' : 'Expected Commission Rate %',
@@ -1128,11 +1132,98 @@ export default function ProductsPage() {
         const message = err instanceof Error ? err.message : 'Failed to update product'
         showError('Unable to update product', message)
       }
-    },
-    [canEditProducts, reloadProducts, requireAdminForEdit, selectedProducts, showError],
-  )
+      },
+      [canEditProducts, reloadProducts, requireAdminForEdit, selectedProducts, showError],
+    )
 
-  const tableColumns = useMemo(() => {
+    const productBulkDefaultEffectiveDate = useMemo(() => {
+      const now = new Date()
+      const year = now.getFullYear()
+      const month = String(now.getMonth() + 1).padStart(2, '0')
+      const day = String(now.getDate()).padStart(2, '0')
+      return `${year}-${month}-${day}`
+    }, [])
+
+    const productBulkPromptValueLabel = useMemo(() => {
+      if (!productBulkPrompt) {
+        return ''
+      }
+      const { columnId, value } = productBulkPrompt
+      if (columnId === 'priceEach') {
+        return formatCurrency(value)
+      }
+      if (columnId === 'commissionPercent') {
+        return formatPercent(value)
+      }
+      return value.toLocaleString(undefined, {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 2,
+      })
+    }, [productBulkPrompt])
+
+      const handleProductApplyFillDown = useCallback(
+        async (effectiveDate: string) => {
+          if (!canEditProducts || !productBulkPrompt || selectedProducts.length < 1) {
+            return
+          }
+
+        const columnId = productBulkPrompt.columnId
+        const patch: Record<string, number> = {}
+
+        if (columnId === 'priceEach') {
+          patch.priceEach = productBulkPrompt.value
+        }
+        if (columnId === 'commissionPercent') {
+          const fraction =
+            productBulkPrompt.value === 0
+              ? 0
+              : productBulkPrompt.value > 1
+                ? productBulkPrompt.value / 100
+                : productBulkPrompt.value
+          patch.commissionPercent = fraction
+        }
+
+        if (Object.keys(patch).length === 0) {
+          return
+        }
+
+        setProductBulkApplying(true)
+        try {
+          const response = await fetch('/api/products/bulk-update', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              ids: selectedProducts,
+              patch,
+              effectiveDate,
+            }),
+          })
+
+          const body = await response.json().catch(() => null)
+          if (!response.ok) {
+            const message = body?.error ?? 'Unable to apply bulk update'
+            throw new Error(message)
+          }
+
+          const updatedCount: number = body?.updated ?? selectedProducts.length
+          showSuccess(
+            `Applied to ${updatedCount} product${updatedCount === 1 ? '' : 's'}`,
+            `${productBulkPrompt.label} updated across the selected products.`,
+          )
+          setProductBulkPrompt(null)
+          await reloadProducts()
+        } catch (error) {
+          console.error('Failed to apply bulk update for products', error)
+          const message = error instanceof Error ? error.message : 'Unable to apply bulk update'
+          showError('Bulk update failed', message)
+        } finally {
+          setProductBulkApplying(false)
+        }
+      },
+      [canEditProducts, productBulkPrompt, reloadProducts, selectedProducts, showError, showSuccess],
+    )
+  
+    const tableColumns = useMemo(() => {
     return normalizedPreferenceColumns.map((column) => {
       if (column.id === 'multi-action') {
         return {
@@ -1234,37 +1325,59 @@ export default function ProductsPage() {
       }
 
       if (column.id === 'priceEach') {
-        if (canEditProducts) {
-          return {
-            ...column,
-            render: (_value: unknown, row: ProductRow) => {
-              let spanRef: HTMLSpanElement | null = null
-              const displayValue = getEditableDisplayValue('priceEach', row.priceEach)
+          if (canEditProducts) {
+            return {
+              ...column,
+              render: (_value: unknown, row: ProductRow) => {
+                let spanRef: HTMLSpanElement | null = null
+                const displayValue = getEditableDisplayValue('priceEach', row.priceEach)
 
               const commit = () => {
                 if (!spanRef) return
                 const rawText = spanRef.innerText.trim()
                 if (!rawText) return
                 const sanitised = rawText.replace(/[^0-9.\-]/g, '')
-                const parsed = sanitised === '' ? NaN : Number(sanitised)
-                if (Number.isNaN(parsed)) return
-                handleProductInlineChange(row, 'priceEach', parsed, spanRef.getBoundingClientRect())
-              }
-
-              return (
-                <span
-                  ref={(node) => {
-                    spanRef = node
-                  }}
-                  contentEditable
-                  suppressContentEditableWarning
-                  data-disable-row-click="true"
-                  className="block min-w-0 truncate text-sm text-gray-900 focus:outline-none"
-                  onBlur={commit}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter') {
-                      event.preventDefault()
-                      commit()
+                  const parsed = sanitised === '' ? NaN : Number(sanitised)
+                  if (Number.isNaN(parsed)) return
+                  handleProductInlineChange(row, 'priceEach', parsed, spanRef.getBoundingClientRect())
+                }
+  
+                return (
+                  <span
+                    ref={(node) => {
+                      spanRef = node
+                    }}
+                    contentEditable
+                    suppressContentEditableWarning
+                    data-disable-row-click="true"
+                    className="block min-w-0 truncate text-sm text-gray-900 focus:outline-none"
+                    onFocus={() => {
+                      if (!spanRef) return
+                      if (!canEditProducts) {
+                        requireAdminForEdit()
+                        return
+                      }
+                      if (selectedProducts.length >= 1 && selectedProducts.includes(row.id)) {
+                        setProductBulkPrompt({
+                          columnId: 'priceEach',
+                          label: 'Price Each',
+                          value: displayValue,
+                          rowId: row.id,
+                          selectedCount: selectedProducts.length,
+                          anchor: {
+                            top: spanRef.getBoundingClientRect().bottom + 8,
+                            left: spanRef.getBoundingClientRect().right + 12,
+                          },
+                        })
+                      } else {
+                        setProductBulkPrompt(null)
+                      }
+                    }}
+                    onBlur={commit}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') {
+                        event.preventDefault()
+                        commit()
                     }
                   }}
                   aria-label="Edit Price Each"
@@ -1281,45 +1394,67 @@ export default function ProductsPage() {
         }
       }
 
-      if (column.id === 'commissionPercent') {
-        if (canEditProducts) {
-          return {
-            ...column,
-            render: (_value: unknown, row: ProductRow) => {
-              let spanRef: HTMLSpanElement | null = null
-              const displayValue = getEditableDisplayValue('commissionPercent', row.commissionPercent)
+        if (column.id === 'commissionPercent') {
+          if (canEditProducts) {
+            return {
+              ...column,
+              render: (_value: unknown, row: ProductRow) => {
+                let spanRef: HTMLSpanElement | null = null
+                const displayValue = getEditableDisplayValue('commissionPercent', row.commissionPercent)
 
               const commit = () => {
                 if (!spanRef) return
                 const rawText = spanRef.innerText.trim()
                 if (!rawText) return
                 const sanitised = rawText.replace(/[^0-9.\-]/g, '')
-                const parsed = sanitised === '' ? NaN : Number(sanitised)
-                if (Number.isNaN(parsed)) return
-                handleProductInlineChange(row, 'commissionPercent', parsed, spanRef.getBoundingClientRect())
-              }
-
-              const normalized = displayValue > 1 ? displayValue / 100 : displayValue
+                  const parsed = sanitised === '' ? NaN : Number(sanitised)
+                  if (Number.isNaN(parsed)) return
+                  handleProductInlineChange(row, 'commissionPercent', parsed, spanRef.getBoundingClientRect())
+                }
+  
+                const normalized = displayValue > 1 ? displayValue / 100 : displayValue
               const formatted = normalized.toLocaleString('en-US', {
                 style: 'percent',
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 2,
               })
 
-              return (
-                <span
-                  ref={(node) => {
-                    spanRef = node
-                  }}
-                  contentEditable
-                  suppressContentEditableWarning
-                  data-disable-row-click="true"
-                  className="block min-w-0 truncate text-sm text-gray-900 focus:outline-none"
-                  onBlur={commit}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter') {
-                      event.preventDefault()
-                      commit()
+                return (
+                  <span
+                    ref={(node) => {
+                      spanRef = node
+                    }}
+                    contentEditable
+                    suppressContentEditableWarning
+                    data-disable-row-click="true"
+                    className="block min-w-0 truncate text-sm text-gray-900 focus:outline-none"
+                    onFocus={() => {
+                      if (!spanRef) return
+                      if (!canEditProducts) {
+                        requireAdminForEdit()
+                        return
+                      }
+                      if (selectedProducts.length >= 1 && selectedProducts.includes(row.id)) {
+                        setProductBulkPrompt({
+                          columnId: 'commissionPercent',
+                          label: 'Expected Commission Rate %',
+                          value: displayValue,
+                          rowId: row.id,
+                          selectedCount: selectedProducts.length,
+                          anchor: {
+                            top: spanRef.getBoundingClientRect().bottom + 8,
+                            left: spanRef.getBoundingClientRect().right + 12,
+                          },
+                        })
+                      } else {
+                        setProductBulkPrompt(null)
+                      }
+                    }}
+                    onBlur={commit}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') {
+                        event.preventDefault()
+                        commit()
                     }
                   }}
                   aria-label="Edit Expected Commission Rate %"
@@ -1347,6 +1482,54 @@ export default function ProductsPage() {
         return {
           ...column,
           render: (value: unknown) => (value ? 'Yes' : 'No'),
+        }
+      }
+
+      if (column.id === 'distributorName') {
+        return {
+          ...column,
+          render: (value: unknown, row: ProductRow) => {
+            const displayValue =
+              value === null || value === undefined ? '--' : typeof value === 'string' ? value : String(value)
+
+            if (row.distributorId) {
+              return (
+                <Link
+                  href={`/accounts/${row.distributorId}`}
+                  className="text-primary-700 hover:text-primary-800 hover:underline"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {displayValue}
+                </Link>
+              )
+            }
+
+            return <span>{displayValue}</span>
+          },
+        }
+      }
+
+      if (column.id === 'vendorName') {
+        return {
+          ...column,
+          render: (value: unknown, row: ProductRow) => {
+            const displayValue =
+              value === null || value === undefined ? '--' : typeof value === 'string' ? value : String(value)
+
+            if (row.vendorId) {
+              return (
+                <Link
+                  href={`/accounts/${row.vendorId}`}
+                  className="text-primary-700 hover:text-primary-800 hover:underline"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {displayValue}
+                </Link>
+              )
+            }
+
+            return <span>{displayValue}</span>
+          },
         }
       }
 
@@ -1397,10 +1580,12 @@ export default function ProductsPage() {
     handleProductToggleActive,
     handleSelectProduct,
     normalizedPreferenceColumns,
-    requestProductDelete,
-    selectedProducts,
-    handleProductInlineChange,
-  ])
+      requestProductDelete,
+      selectedProducts,
+      handleProductInlineChange,
+      requireAdminForEdit,
+      setProductBulkPrompt,
+    ])
 
   return (
     <CopyProtectionWrapper className="dashboard-page-container">
@@ -1414,20 +1599,20 @@ export default function ProductsPage() {
         onSettingsClick={() => setShowColumnSettings(true)}
         filterColumns={PRODUCT_FILTER_OPTIONS}
         columnFilters={columnFilters}
-      onColumnFiltersChange={handleColumnFiltersChange}
-      statusFilter={statusFilter}
-      hasUnsavedTableChanges={hasUnsavedChanges}
-      isSavingTableChanges={preferenceSaving}
-      lastTableSaved={lastSaved || undefined}
-      onSaveTableChanges={saveChanges}
-      bulkActions={productBulkActions}
-    />
+        onColumnFiltersChange={handleColumnFiltersChange}
+        statusFilter={statusFilter}
+        hasUnsavedTableChanges={hasUnsavedChanges}
+        isSavingTableChanges={preferenceSaving}
+        lastTableSaved={lastSaved || undefined}
+        onSaveTableChanges={saveChanges}
+        bulkActions={productBulkActions}
+      />
 
       {(error || preferenceError) && (
-      <div className="px-4 text-sm text-red-600">{error || preferenceError}</div>
-    )}
+        <div className="px-4 text-sm text-red-600">{error || preferenceError}</div>
+      )}
 
-    <div className="flex-1 min-h-0 p-4 pt-0 flex flex-col gap-4">
+      <div className="flex-1 min-h-0 p-4 pt-0 flex flex-col gap-4">
         <div ref={tableAreaRef} className="flex-1 min-h-0">
           <DynamicTable
             columns={tableColumns}
@@ -1635,74 +1820,23 @@ export default function ProductsPage() {
 
       <ToastContainer />
 
-      {productBulkPrompt ? (
-        <button
-          type="button"
-          className="fixed z-40 rounded-full border border-primary-200 bg-white px-4 py-2 text-sm font-semibold text-primary-700 shadow-lg transition hover:bg-primary-50 disabled:opacity-60"
-          style={{ top: productBulkPrompt.anchor.top, left: productBulkPrompt.anchor.left }}
-          onClick={async () => {
-            if (!canEditProducts || !productBulkPrompt || selectedProducts.length <= 1) {
-              return
-            }
-
-            const columnId = productBulkPrompt.columnId
-            const patch: Record<string, number> = {}
-
-            if (columnId === 'priceEach') {
-              patch.priceEach = productBulkPrompt.value
-            }
-            if (columnId === 'commissionPercent') {
-              const fraction = productBulkPrompt.value === 0
-                ? 0
-                : productBulkPrompt.value > 1
-                  ? productBulkPrompt.value / 100
-                  : productBulkPrompt.value
-              patch.commissionPercent = fraction
-            }
-
-            if (Object.keys(patch).length === 0) {
-              return
-            }
-
-            setProductBulkApplying(true)
-            try {
-              const response = await fetch('/api/products/bulk-update', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  ids: selectedProducts,
-                  patch,
-                }),
-              })
-
-              const body = await response.json().catch(() => null)
-              if (!response.ok) {
-                const message = body?.error ?? 'Unable to apply bulk update'
-                throw new Error(message)
-              }
-
-              const updatedCount: number = body?.updated ?? selectedProducts.length
-              showSuccess(
-                `Applied to ${updatedCount} product${updatedCount === 1 ? '' : 's'}`,
-                `${productBulkPrompt.label} updated across the selected products.`,
-              )
-              setProductBulkPrompt(null)
-              await reloadProducts()
-            } catch (error) {
-              console.error('Failed to apply bulk update for products', error)
-              const message = error instanceof Error ? error.message : 'Unable to apply bulk update'
-              showError('Bulk update failed', message)
-            } finally {
-              setProductBulkApplying(false)
-            }
-          }}
-          disabled={productBulkApplying}
-        >
-          {productBulkApplying
-            ? 'Applying...'
-            : `Apply to ${selectedProducts.length} selected`}
-        </button>
-      ) : null}
+      <RevenueBulkApplyPanel
+        isOpen={Boolean(productBulkPrompt)}
+        selectedCount={selectedProducts.length}
+        fieldLabel={productBulkPrompt?.label ?? ''}
+        valueLabel={productBulkPromptValueLabel}
+        initialEffectiveDate={productBulkDefaultEffectiveDate}
+        onClose={() => setProductBulkPrompt(null)}
+        onSubmit={handleProductApplyFillDown}
+        onBeforeSubmit={() => {
+          if (typeof document !== 'undefined' && document.activeElement instanceof HTMLElement) {
+            document.activeElement.blur()
+          }
+        }}
+        isSubmitting={productBulkApplying}
+        entityLabelSingular="product"
+        entityLabelPlural="products"
+      />
     </CopyProtectionWrapper>
   )
 }

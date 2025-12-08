@@ -412,6 +412,11 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
 
   const labelCls = 'mb-0.5 block text-[11px] font-semibold uppercase tracking-wide text-gray-500'
   const inputCls = 'w-full border-b-2 border-gray-300 bg-transparent px-0 py-1.5 text-xs focus:outline-none focus:border-primary-500 disabled:cursor-not-allowed disabled:opacity-60'
+  const badge = (n: number) => (
+    <span className="mr-2 inline-flex h-4 w-4 items-center justify-center rounded-full bg-primary-100 text-[9px] font-bold text-primary-700">
+      {n}
+    </span>
+  )
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 px-4">
@@ -462,7 +467,7 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
               {/* Left column: catalog filters + product lookup */}
               <div className="space-y-4">
                 <div className="relative">
-                  <label className={labelCls}>Distributor Name</label>
+                  <label className={labelCls}>{badge(1)}Distributor Name</label>
                   <input
                     value={distributorInput}
                     onChange={e=>{ setDistributorInput(e.target.value); setSelectedDistributorId(""); setShowDistributorDropdown(true) }}
@@ -483,7 +488,7 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
                 </div>
 
                 <div className="relative">
-                  <label className={labelCls}>Vendor Name</label>
+                  <label className={labelCls}>{badge(2)}Vendor Name</label>
                   <input
                     value={vendorInput}
                     onChange={e=>{ setVendorInput(e.target.value); setSelectedVendorId(""); setShowVendorDropdown(true) }}
@@ -504,7 +509,7 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
                 </div>
 
                 <div className="relative">
-                  <label className={labelCls}>Product Family</label>
+                  <label className={labelCls}>{badge(3)}Product Family</label>
                   <input
                     value={catalogFamilyInput}
                     onChange={e=>{
@@ -545,7 +550,7 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
                 </div>
 
                 <div className="relative">
-                  <label className={labelCls}>Product Subtype</label>
+                  <label className={labelCls}>{badge(4)}Product Subtype</label>
                   <input
                     value={catalogSubtypeInput}
                     onChange={e=>{
@@ -582,7 +587,9 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
                   )}
                 </div>
                 <div>
-                  <label className={labelCls}>Select Product<span className="ml-1 text-red-500">*</span></label>
+                  <label className={labelCls}>
+                    {badge(5)}Select Product<span className="ml-1 text-red-500">*</span>
+                  </label>
                   <div className="relative">
                     <input
                       value={productInput}
@@ -766,7 +773,7 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
               {/* Left column: product context */}
               <div className="space-y-4">
                 <div className="relative">
-                  <label className={labelCls}>Distributor Name</label>
+                  <label className={labelCls}>{badge(1)}Distributor Name</label>
                   <input
                     value={distributorInput}
                     onChange={e=>{ setDistributorInput(e.target.value); setSelectedDistributorId(""); setShowDistributorDropdown(true) }}
@@ -787,7 +794,7 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
                 </div>
 
                 <div className="relative">
-                  <label className={labelCls}>Vendor Name</label>
+                  <label className={labelCls}>{badge(2)}Vendor Name</label>
                   <input
                     value={vendorInput}
                     onChange={e=>{ setVendorInput(e.target.value); setSelectedVendorId(""); setShowVendorDropdown(true) }}
@@ -808,7 +815,9 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
                 </div>
 
                 <div className="relative">
-                  <label className={labelCls}>Product Family<span className="ml-1 text-red-500">*</span></label>
+                  <label className={labelCls}>
+                    {badge(3)}Product Family<span className="ml-1 text-red-500">*</span>
+                  </label>
                   <input
                     value={productFamilyVendorInput}
                     onChange={e=>{ setProductFamilyVendorInput(e.target.value); setShowFamilyDropdown(true) }}
@@ -830,7 +839,7 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
                 </div>
 
                 <div className="relative">
-                  <label className={labelCls}>Product Subtype</label>
+                  <label className={labelCls}>{badge(4)}Product Subtype</label>
                   <input
                     value={productSubtypeVendor}
                     onChange={e => { setProductSubtypeVendor(e.target.value); setShowSubtypeDropdown(true) }}
@@ -852,7 +861,7 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
                 </div>
 
                 <div className="relative">
-                  <label className={labelCls}>Product Name</label>
+                  <label className={labelCls}>{badge(5)}Product Name</label>
                   <input
                     value={productNameVendor}
                     onChange={e=> { setProductNameVendor(e.target.value); setShowProductNameDropdown(true) }}

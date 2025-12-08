@@ -4,8 +4,8 @@ import { getRevenueTypeLabel } from "@/lib/revenue-types"
 type ProductWithRelations = Product & {
   productSubtypeHouse?: string | null
   distributorProductSubtype?: string | null
-  distributor?: Pick<Account, "accountName"> | null
-  vendor?: Pick<Account, "accountName"> | null
+  distributor?: Pick<Account, "id" | "accountName"> | null
+  vendor?: Pick<Account, "id" | "accountName"> | null
   _count?: {
     revenueSchedules?: number
   }
@@ -15,8 +15,10 @@ export interface ProductListRow {
   id: string
   select: boolean
   active: boolean
+  distributorId?: string | null
   productNameHouse: string
   distributorName: string
+  vendorId?: string | null
   vendorName: string
   productFamilyHouse: string | null
   productFamilyVendor: string | null
@@ -78,8 +80,10 @@ export function mapProductToRow(product: ProductWithRelations): ProductListRow {
     id: product.id,
     select: false,
     active: Boolean(product.isActive),
+    distributorId: product.distributor?.id ?? null,
     productNameHouse: product.productNameHouse ?? "",
     distributorName: product.distributor?.accountName ?? "",
+    vendorId: product.vendor?.id ?? null,
     vendorName: product.vendor?.accountName ?? "",
     productFamilyHouse: product.productFamilyHouse ?? null,
     productFamilyVendor: product.productFamilyVendor ?? null,

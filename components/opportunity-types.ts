@@ -99,9 +99,16 @@ export interface OpportunityIdentifiers {
 
 export interface OpportunityRevenueScheduleRecord {
   id: string
+  productId?: string | null
   opportunityProductId?: string | null
+  distributorId?: string | null
   distributorName?: string | null
+  vendorId?: string | null
   vendorName?: string | null
+  accountId?: string | null
+  accountName?: string | null
+  opportunityId?: string | null
+  opportunityName?: string | null
   scheduleNumber?: string | null
   scheduleDate?: string | null
   status: string | null

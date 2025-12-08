@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect, useCallback, ChangeEvent, ReactNode } from 'react'
-import { Upload } from 'lucide-react'
+import { useState, useEffect, useCallback, ChangeEvent, ReactNode, useRef } from 'react'
+import { Upload, Calendar } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
 import type { DepositUploadFormState } from '@/components/deposit-upload/types'
 
@@ -49,6 +49,8 @@ export function CreateTemplateStep({
   const [vendorOptions, setVendorOptions] = useState<AccountOption[]>([])
   const [vendorLoading, setVendorLoading] = useState(false)
   const [showVendorDropdown, setShowVendorDropdown] = useState(false)
+  const depositDateNativeRef = useRef<HTMLInputElement | null>(null)
+  const commissionPeriodNativeRef = useRef<HTMLInputElement | null>(null)
 
   useEffect(() => {
     if (!shouldAutoFillCreatedBy) {
@@ -211,6 +213,28 @@ export function CreateTemplateStep({
     [],
   )
 
+  const openDepositDateCalendar = useCallback(() => {
+    const el = depositDateNativeRef.current as any
+    if (!el) return
+    if (typeof el.showPicker === 'function') {
+      el.showPicker()
+    } else {
+      el.focus()
+      el.click()
+    }
+  }, [])
+
+  const openCommissionPeriodCalendar = useCallback(() => {
+    const el = commissionPeriodNativeRef.current as any
+    if (!el) return
+    if (typeof el.showPicker === 'function') {
+      el.showPicker()
+    } else {
+      el.focus()
+      el.click()
+    }
+  }, [])
+
   useEffect(() => {
     const debounce = setTimeout(() => {
       void fetchAccounts({
@@ -244,34 +268,26 @@ export function CreateTemplateStep({
   return (
     <div className="space-y-4">
       <div className="grid gap-4 md:grid-cols-2">
-        <FormField label="Deposit Name">
-          <input
-            type="text"
-            value={formState.depositName}
-            readOnly
-            className={`${underlineInputClass} font-semibold`}
-          />
-          <p className="text-xs text-slate-500">
-            {formState.depositName ? "Auto-generated from date + distributor + vendor." : "Provide date, distributor, and vendor to generate a name."}
-          </p>
-        </FormField>
-
-        <FormField label="Deposit Received Date" required>
-          <input
-            type="date"
-            value={formState.depositReceivedDate}
-            onChange={event => onFormStateChange({ depositReceivedDate: event.target.value })}
-            className={underlineInputClass}
-          />
-        </FormField>
-
-        <FormField label="Commission Period (Month/Year)" required>
-          <input
-            type="month"
-            value={formState.commissionPeriod}
-            onChange={event => onFormStateChange({ commissionPeriod: event.target.value })}
-            className={underlineInputClass}
-          />
+        <FormField label="Vendor" required>
+          <div className="relative">
+            <input
+              type="text"
+              value={vendorQuery}
+              onChange={event => setVendorQuery(event.target.value)}
+              onFocus={() => setShowVendorDropdown(true)}
+              placeholder="Search vendors"
+              className={underlineInputClass}
+            />
+            {showVendorDropdown ? (
+              <DropdownList
+                loading={vendorLoading}
+                options={vendorOptions}
+                emptyLabel="No vendors found"
+                onSelect={option => handleVendorSelect(option)}
+                onDismiss={() => setShowVendorDropdown(false)}
+              />
+            ) : null}
+          </div>
         </FormField>
 
         <FormField label="Distributor" required>
@@ -296,26 +312,84 @@ export function CreateTemplateStep({
           </div>
         </FormField>
 
-        <FormField label="Vendor" required>
+        <FormField label="Commission Period (YYYY-MM)" required>
           <div className="relative">
             <input
               type="text"
-              value={vendorQuery}
-              onChange={event => setVendorQuery(event.target.value)}
-              onFocus={() => setShowVendorDropdown(true)}
-              placeholder="Search vendors"
-              className={underlineInputClass}
+              inputMode="numeric"
+              placeholder="YYYY-MM"
+              pattern="\d{4}-\d{2}"
+              value={formState.commissionPeriod}
+              onChange={event => onFormStateChange({ commissionPeriod: event.target.value })}
+              className={`${underlineInputClass} pr-8`}
             />
-            {showVendorDropdown ? (
-              <DropdownList
-                loading={vendorLoading}
-                options={vendorOptions}
-                emptyLabel="No vendors found"
-                onSelect={option => handleVendorSelect(option)}
-                onDismiss={() => setShowVendorDropdown(false)}
-              />
-            ) : null}
+            <button
+              type="button"
+              className="absolute right-0 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+              onClick={openCommissionPeriodCalendar}
+              aria-label="Open month picker"
+              title="Open month picker"
+            >
+              <Calendar className="h-4 w-4" />
+            </button>
+            <input
+              ref={commissionPeriodNativeRef}
+              type="month"
+              className="sr-only"
+              value={formState.commissionPeriod || ''}
+              onChange={event => {
+                const value = event.target.value // YYYY-MM
+                onFormStateChange({ commissionPeriod: value })
+              }}
+            />
           </div>
+        </FormField>
+
+        <FormField label="Deposit Received Date (YYYY-MM-DD)" required>
+          <div className="relative">
+            <input
+              type="text"
+              inputMode="numeric"
+              placeholder="YYYY-MM-DD"
+              pattern="\d{4}-\d{2}-\d{2}"
+              value={formState.depositReceivedDate}
+              onChange={event => onFormStateChange({ depositReceivedDate: event.target.value })}
+              className={`${underlineInputClass} pr-8`}
+            />
+            <button
+              type="button"
+              className="absolute right-0 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+              onClick={openDepositDateCalendar}
+              aria-label="Open date picker"
+              title="Open date picker"
+            >
+              <Calendar className="h-4 w-4" />
+            </button>
+            <input
+              ref={depositDateNativeRef}
+              type="date"
+              className="sr-only"
+              value={formState.depositReceivedDate || ''}
+              onChange={event => {
+                const value = event.target.value // YYYY-MM-DD
+                onFormStateChange({ depositReceivedDate: value })
+              }}
+            />
+          </div>
+        </FormField>
+
+        <FormField label="Deposit Name">
+          <input
+            type="text"
+            value={formState.depositName}
+            readOnly
+            className={`${underlineInputClass} font-semibold`}
+          />
+          <p className="text-xs text-slate-500">
+            {formState.depositName
+              ? "Auto-generated from vendor + distributor + date."
+              : "Provide vendor, distributor, and date to generate a name."}
+          </p>
         </FormField>
 
         <FormField label="Created By" required>

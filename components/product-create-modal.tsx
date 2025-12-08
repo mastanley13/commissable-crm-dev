@@ -10,6 +10,7 @@ type SelectOption = { value: string; label: string }
 type CatalogProductOption = {
   id: string
   name: string
+  productNameHouse?: string | null
   distributorName?: string | null
   vendorName?: string | null
   distributorId?: string | null
@@ -94,6 +95,7 @@ const selectCls =
   "w-full border-b-2 border-gray-300 bg-transparent px-0 py-1.5 text-xs focus:border-primary-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
 const textAreaCls =
   "min-h-[60px] w-full resize-y border-b-2 border-gray-300 bg-transparent px-0 py-1.5 text-xs leading-5 focus:border-primary-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+const columnCls = "space-y-1.5 max-w-[420px] w-full mx-auto"
 
 const normalizeDecimalInput = (value: string) => {
   const cleaned = value.replace(/[^0-9.]/g, "")
@@ -131,6 +133,14 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
   const [familyOptions, setFamilyOptions] = useState<string[]>([])
   const [subtypeOptions, setSubtypeOptions] = useState<string[]>([])
   const [productOptions, setProductOptions] = useState<CatalogProductOption[]>([])
+  const [houseFamilyOptions, setHouseFamilyOptions] = useState<string[]>([])
+  const [houseSubtypeOptions, setHouseSubtypeOptions] = useState<string[]>([])
+  const [houseProductNameOptions, setHouseProductNameOptions] = useState<string[]>([])
+  const [showHouseFamilyDropdown, setShowHouseFamilyDropdown] = useState(false)
+  const [showHouseSubtypeDropdown, setShowHouseSubtypeDropdown] = useState(false)
+  const [showHouseProductDropdown, setShowHouseProductDropdown] = useState(false)
+  const [dedupeExactMatch, setDedupeExactMatch] = useState<CatalogProductOption | null>(null)
+  const [dedupeLikelyMatches, setDedupeLikelyMatches] = useState<CatalogProductOption[]>([])
   const { showError, showSuccess } = useToasts()
 
 
@@ -146,11 +156,19 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
     setFamilyOptions([])
     setSubtypeOptions([])
     setProductOptions([])
+    setHouseFamilyOptions([])
+    setHouseSubtypeOptions([])
+    setHouseProductNameOptions([])
     setShowDistributorDropdown(false)
     setShowVendorDropdown(false)
     setShowFamilyDropdown(false)
     setShowSubtypeDropdown(false)
     setShowProductDropdown(false)
+    setShowHouseFamilyDropdown(false)
+    setShowHouseSubtypeDropdown(false)
+    setShowHouseProductDropdown(false)
+    setDedupeExactMatch(null)
+    setDedupeLikelyMatches([])
   }, [isOpen])
 
   useEffect(() => {
@@ -276,30 +294,89 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
     }
     const payload = await res.json().catch(() => null)
     const items = Array.isArray(payload?.data) ? payload.data : []
-      const mapped: CatalogProductOption[] = items.map((it: any) => ({
-        id: it.id,
-        name: it.productNameHouse || it.productNameVendor || "Product",
-        distributorName: it.distributorName ?? null,
-        vendorName: it.vendorName ?? null,
-        distributorId: it.distributorId ?? it.distributorAccountId ?? null,
-        vendorId: it.vendorId ?? it.vendorAccountId ?? null,
-        productNameVendor: it.productNameVendor ?? null,
-        productFamilyVendor: it.productFamilyVendor ?? null,
-        productSubtypeVendor: it.productSubtypeVendor ?? null,
-        productFamilyHouse: it.productFamilyHouse ?? null,
-        productSubtypeHouse: it.productSubtypeHouse ?? null,
-        distributorProductSubtype: it.distributorProductSubtype ?? null,
-        productCode: it.partNumberVendor ?? it.productCode ?? null,
-        revenueType: it.revenueType ?? null,
-        priceEach: typeof it.priceEach === "number" ? it.priceEach : null,
-        commissionPercent: typeof it.commissionPercent === "number" ? it.commissionPercent : null,
-      }))
+    const houseFamilies = Array.from(
+      new Set(items.map((it: any) => it.productFamilyHouse).filter((v: any) => typeof v === "string" && v.trim().length > 0))
+    ) as string[]
+    const houseSubtypes = Array.from(
+      new Set(items.map((it: any) => it.productSubtypeHouse).filter((v: any) => typeof v === "string" && v.trim().length > 0))
+    ) as string[]
+    const houseNames = Array.from(
+      new Set(
+        items
+          .map((it: any) => (it.productNameHouse || it.productNameVendor || "") as string)
+          .filter((v: string) => v && v.trim().length > 0)
+      )
+    ) as string[]
+    setHouseFamilyOptions(houseFamilies)
+    setHouseSubtypeOptions(houseSubtypes)
+    setHouseProductNameOptions(houseNames)
+    const mapped: CatalogProductOption[] = items.map((it: any) => ({
+      id: it.id,
+      name: it.productNameHouse || it.productNameVendor || "Product",
+      productNameHouse: it.productNameHouse ?? null,
+      distributorName: it.distributorName ?? null,
+      vendorName: it.vendorName ?? null,
+      distributorId: it.distributorId ?? it.distributorAccountId ?? null,
+      vendorId: it.vendorId ?? it.vendorAccountId ?? null,
+      productNameVendor: it.productNameVendor ?? null,
+      productFamilyVendor: it.productFamilyVendor ?? null,
+      productSubtypeVendor: it.productSubtypeVendor ?? null,
+      productFamilyHouse: it.productFamilyHouse ?? null,
+      productSubtypeHouse: it.productSubtypeHouse ?? null,
+      distributorProductSubtype: it.distributorProductSubtype ?? null,
+      productCode: it.partNumberVendor ?? it.productCode ?? null,
+      revenueType: it.revenueType ?? null,
+      priceEach: typeof it.priceEach === "number" ? it.priceEach : null,
+      commissionPercent: typeof it.commissionPercent === "number" ? it.commissionPercent : null,
+    }))
     setProductOptions(mapped)
     const fams = Array.from(new Set(mapped.map((p) => p.productFamilyVendor).filter(Boolean))) as string[]
     const subs = Array.from(new Set(mapped.map((p) => p.productSubtypeVendor).filter(Boolean))) as string[]
     setFamilyOptions(fams)
     setSubtypeOptions(subs)
   }, [form.distributorAccountId, form.vendorAccountId, productFamilyInput, productSubtypeInput, productSearchInput])
+
+  const runProductDedupe = useCallback(async (): Promise<{ exact: CatalogProductOption | null; likely: CatalogProductOption[] }> => {
+    const params = new URLSearchParams({ page: "1", pageSize: "25" })
+    const filters: Array<{ columnId: string; value: string }> = []
+    if (form.vendorAccountId) filters.push({ columnId: "vendorId", value: form.vendorAccountId })
+    if (form.distributorAccountId) filters.push({ columnId: "distributorId", value: form.distributorAccountId })
+    if (form.productCode.trim()) filters.push({ columnId: "partNumberVendor", value: form.productCode.trim() })
+    if (form.productNameVendor.trim()) filters.push({ columnId: "productNameVendor", value: form.productNameVendor.trim() })
+    if (filters.length > 0) params.set("filters", JSON.stringify(filters))
+    const res = await fetch(`/api/products?${params.toString()}`, { cache: "no-store" })
+    if (!res.ok) return { exact: null, likely: [] }
+    const payload = await res.json().catch(() => null)
+    const items = Array.isArray(payload?.data) ? payload.data : []
+    const mapped: CatalogProductOption[] = items.map((it: any) => ({
+      id: it.id,
+      name: it.productNameHouse || it.productNameVendor || "Product",
+      productNameHouse: it.productNameHouse ?? null,
+      distributorName: it.distributorName ?? null,
+      vendorName: it.vendorName ?? null,
+      distributorId: it.distributorId ?? it.distributorAccountId ?? null,
+      vendorId: it.vendorId ?? it.vendorAccountId ?? null,
+      productNameVendor: it.productNameVendor ?? null,
+      productFamilyVendor: it.productFamilyVendor ?? null,
+      productSubtypeVendor: it.productSubtypeVendor ?? null,
+      productFamilyHouse: it.productFamilyHouse ?? null,
+      productSubtypeHouse: it.productSubtypeHouse ?? null,
+      distributorProductSubtype: it.distributorProductSubtype ?? null,
+      productCode: it.partNumberVendor ?? it.productCode ?? null,
+      revenueType: it.revenueType ?? null,
+      priceEach: typeof it.priceEach === "number" ? it.priceEach : null,
+      commissionPercent: typeof it.commissionPercent === "number" ? it.commissionPercent : null,
+    }))
+    const normalizedCode = form.productCode.trim().toLowerCase()
+    const normalizedName = form.productNameVendor.trim().toLowerCase()
+    const exact = mapped.find(p => {
+      const codeMatch = normalizedCode && p.productCode && p.productCode.toLowerCase() === normalizedCode
+      const nameMatch = normalizedName && p.productNameVendor && p.productNameVendor.toLowerCase() === normalizedName
+      return Boolean(codeMatch || nameMatch)
+    }) ?? null
+    const likely = mapped.filter(p => p.id !== exact?.id)
+    return { exact, likely }
+  }, [form.distributorAccountId, form.vendorAccountId, form.productCode, form.productNameVendor])
 
   const ensureProductsLoaded = useCallback(() => {
     if (productOptions.length === 0) {
@@ -366,6 +443,22 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
       setLoading(true)
       setErrors({})
 
+      try {
+        const { exact, likely } = await runProductDedupe()
+        setDedupeExactMatch(exact)
+        setDedupeLikelyMatches(likely)
+
+        if (exact) {
+          showError("Existing product found", "Use the existing product instead to avoid duplicates.")
+          setLoading(false)
+          return
+        }
+        if (likely.length > 0) {
+          showError("Possible duplicates found", "Review the matches below or proceed anyway.")
+          setLoading(false)
+          return
+        }
+
         const payload = {
           isActive: Boolean(form.isActive),
         distributorAccountId: form.distributorAccountId || null,
@@ -390,7 +483,6 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
         productDescriptionDistributor: form.productDescriptionDistributor.trim() || null,
       }
 
-      try {
         const response = await fetch("/api/products", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -413,14 +505,14 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
         setLoading(false)
       }
     },
-    [canSubmit, form, onClose, onSuccess, showError, showSuccess]
+    [canSubmit, form, onClose, onSuccess, runProductDedupe, showError, showSuccess]
   )
 
   if (!isOpen) return null
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 px-4 backdrop-blur-sm">
-      <div className="w-full max-w-6xl max-h-[98vh] flex flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+      <div className="w-full max-w-5xl max-h-[98vh] flex flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
         <div className="flex items-center justify-between border-b border-gray-200 px-6 py-2">
           <div>
             <h2 className="text-lg font-semibold text-gray-900">Create New Product</h2>
@@ -438,11 +530,75 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
 
         <form id="product-create-form" onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-6 py-3">
           <div className="space-y-3">
+            {dedupeExactMatch && (
+              <div className="mb-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-xs text-amber-800">
+                <div className="font-semibold text-amber-900">Existing product found</div>
+                <div className="mt-1">
+                  A product with the same vendor name or part number already exists. Review in the catalog before creating another.
+                </div>
+                <div className="mt-2">
+                  <div className="font-medium text-gray-900">{dedupeExactMatch.name}</div>
+                  <div className="text-gray-700">
+                    {[dedupeExactMatch.productCode, dedupeExactMatch.vendorName, dedupeExactMatch.productFamilyVendor]
+                      .filter(Boolean)
+                      .join(" • ")}
+                  </div>
+                </div>
+                <div className="mt-2 flex gap-2">
+                  <button
+                    type="button"
+                    className="rounded-md border border-amber-300 px-3 py-1.5 font-semibold text-amber-800 hover:bg-amber-100"
+                    onClick={() => { setDedupeExactMatch(null); setDedupeLikelyMatches([]) }}
+                    disabled={loading}
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {dedupeLikelyMatches.length > 0 && (
+              <div className="mb-3 rounded-md border border-yellow-200 bg-yellow-50 p-3 text-xs text-yellow-800">
+                <div className="font-semibold text-yellow-900">Possible duplicates</div>
+                <div className="mt-1">We found similar products in the catalog. Review them before creating a new one.</div>
+                <div className="mt-2 space-y-2">
+                  {dedupeLikelyMatches.map((match) => (
+                    <div key={match.id} className="rounded-md border border-yellow-100 bg-white/70 px-3 py-2">
+                      <div className="font-semibold text-gray-900">{match.name}</div>
+                      <div className="text-gray-700">
+                        {[match.productCode, match.vendorName, match.productFamilyVendor].filter(Boolean).join(" • ")}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-3 flex gap-2">
+                  <button
+                    type="submit"
+                    className="rounded-md bg-primary-600 px-3 py-1.5 font-semibold text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-primary-300"
+                    disabled={loading}
+                  >
+                    Proceed anyway
+                  </button>
+                  <button
+                    type="button"
+                    className="rounded-md border border-yellow-300 px-3 py-1.5 font-semibold text-yellow-800 hover:bg-yellow-100"
+                    onClick={() => setDedupeLikelyMatches([])}
+                    disabled={loading}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div className="grid gap-3 lg:grid-cols-2">
               {/* Left Column (House + Account assignments) */}
-              <div className="space-y-1.5">
+              <div className={columnCls}>
                 <div className="space-y-1">
-                  <label className={labelCls}>Distributor Name</label>
+                  <div className="relative">
+                    <span className="absolute -left-6 top-0 inline-flex h-4 w-4 items-center justify-center rounded-full bg-primary-100 text-[9px] font-bold text-primary-700">1</span>
+                    <label className={labelCls}>Distributor Name</label>
+                  </div>
                   <div className="relative">
                     <input
                       value={distributorInput}
@@ -480,7 +636,10 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
                 </div>
 
                 <div className="space-y-1">
-                  <label className={labelCls}>Vendor Name</label>
+                  <div className="relative">
+                    <span className="absolute -left-6 top-0 inline-flex h-4 w-4 items-center justify-center rounded-full bg-primary-100 text-[9px] font-bold text-primary-700">2</span>
+                    <label className={labelCls}>Vendor Name</label>
+                  </div>
                   <div className="relative">
                     <input
                       value={vendorInput}
@@ -518,29 +677,165 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
                 </div>
 
                 <div className="space-y-1">
-                  <label className={labelCls}>Product Family - House</label>
-                  <input className={inputCls} value={form.productFamilyHouse} onChange={handleChange("productFamilyHouse")} placeholder="Enter house family" />
+                  <div className="relative">
+                    <span className="absolute -left-6 top-0 inline-flex h-4 w-4 items-center justify-center rounded-full bg-primary-100 text-[9px] font-bold text-primary-700">3</span>
+                    <label className={labelCls}>House - Product Family</label>
+                  </div>
+                  <div className="relative">
+                    <input
+                      className={inputCls}
+                      value={form.productFamilyHouse}
+                      onChange={(e) => {
+                        handleChange("productFamilyHouse")(e)
+                        setShowHouseFamilyDropdown(true)
+                      }}
+                      onFocus={() => {
+                        setShowHouseFamilyDropdown(true)
+                        ensureProductsLoaded()
+                      }}
+                      onBlur={() => setTimeout(() => setShowHouseFamilyDropdown(false), 200)}
+                      placeholder="Enter house family"
+                      disabled={!form.distributorAccountId || !form.vendorAccountId}
+                    />
+                    {showHouseFamilyDropdown && (
+                      <div className="absolute z-10 mt-1 max-h-52 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
+                        {houseFamilyOptions
+                          .filter((fam) => fam.toLowerCase().includes((form.productFamilyHouse || "").toLowerCase()))
+                          .map((fam) => (
+                            <button
+                              key={fam}
+                              type="button"
+                              className="w-full px-3 py-2 text-left text-sm hover:bg-primary-50"
+                              onClick={() => {
+                                setForm((prev) => ({
+                                  ...prev,
+                                  productFamilyHouse: fam,
+                                  productSubtypeHouse: "",
+                                }))
+                                setShowHouseFamilyDropdown(false)
+                              }}
+                            >
+                              <div className="font-medium text-gray-900">{fam}</div>
+                            </button>
+                          ))}
+                        {houseFamilyOptions.length === 0 && (
+                          <div className="px-3 py-2 text-sm text-gray-500">No house families yet. Keep typing to add one.</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <div className="space-y-1">
-                  <label className={labelCls}>House - Product Subtype</label>
-                  <input className={inputCls} value={form.productSubtypeHouse} onChange={handleChange("productSubtypeHouse")} placeholder="Enter house subtype" />
+                  <div className="relative">
+                    <span className="absolute -left-6 top-0 inline-flex h-4 w-4 items-center justify-center rounded-full bg-primary-100 text-[9px] font-bold text-primary-700">4</span>
+                    <label className={labelCls}>House - Product Subtype</label>
+                  </div>
+                  <div className="relative">
+                    <input
+                      className={inputCls}
+                      value={form.productSubtypeHouse}
+                      onChange={(e) => {
+                        handleChange("productSubtypeHouse")(e)
+                        setShowHouseSubtypeDropdown(true)
+                      }}
+                      onFocus={() => {
+                        setShowHouseSubtypeDropdown(true)
+                        ensureProductsLoaded()
+                      }}
+                      onBlur={() => setTimeout(() => setShowHouseSubtypeDropdown(false), 200)}
+                      placeholder="Enter house subtype"
+                      disabled={!form.productFamilyHouse.trim()}
+                    />
+                    {showHouseSubtypeDropdown && form.productFamilyHouse.trim() && (
+                      <div className="absolute z-10 mt-1 max-h-52 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
+                        {houseSubtypeOptions
+                          .filter((sub) => sub.toLowerCase().includes((form.productSubtypeHouse || "").toLowerCase()))
+                          .map((sub) => (
+                            <button
+                              key={sub}
+                              type="button"
+                              className="w-full px-3 py-2 text-left text-sm hover:bg-primary-50"
+                              onClick={() => {
+                                setForm((prev) => ({ ...prev, productSubtypeHouse: sub }))
+                                setShowHouseSubtypeDropdown(false)
+                              }}
+                            >
+                              <div className="font-medium text-gray-900">{sub}</div>
+                            </button>
+                          ))}
+                        {houseSubtypeOptions.length === 0 && (
+                          <div className="px-3 py-2 text-sm text-gray-500">No house subtypes yet. Keep typing to add one.</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <div className="space-y-1">
-                  <label className={labelCls}>Product Name - House</label>
-                  <input className={inputCls} value={form.productNameHouse} onChange={handleChange("productNameHouse")} placeholder="Enter product name" />
+                  <div className="relative">
+                    <span className="absolute -left-6 top-0 inline-flex h-4 w-4 items-center justify-center rounded-full bg-primary-100 text-[9px] font-bold text-primary-700">5</span>
+                    <label className={labelCls}>House - Product Name</label>
+                  </div>
+                  <div className="relative">
+                    <input
+                      className={inputCls}
+                      value={form.productNameHouse}
+                      onChange={(e) => {
+                        handleChange("productNameHouse")(e)
+                        setShowHouseProductDropdown(true)
+                      }}
+                      onFocus={() => {
+                        setShowHouseProductDropdown(true)
+                        ensureProductsLoaded()
+                      }}
+                      onBlur={() => setTimeout(() => setShowHouseProductDropdown(false), 200)}
+                      placeholder="Enter product name"
+                      disabled={!form.productFamilyHouse.trim()}
+                    />
+                    {showHouseProductDropdown && form.productFamilyHouse.trim() && (
+                      <div className="absolute z-10 mt-1 max-h-52 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
+                        {houseProductNameOptions
+                          .filter((name) => name.toLowerCase().includes((form.productNameHouse || "").toLowerCase()))
+                          .map((name) => (
+                            <button
+                              key={name}
+                              type="button"
+                              className="w-full px-3 py-2 text-left text-sm hover:bg-primary-50"
+                              onClick={() => {
+                                setForm((prev) => ({ ...prev, productNameHouse: name }))
+                                const lower = name.toLowerCase()
+                                const matched = productOptions.find((opt) => {
+                                  const houseName = (opt.productNameHouse || "").toLowerCase()
+                                  const displayName = (opt.name || "").toLowerCase()
+                                  return houseName === lower || displayName === lower
+                                })
+                                if (matched) {
+                                  applyProductOption(matched)
+                                }
+                                setShowHouseProductDropdown(false)
+                              }}
+                            >
+                              <div className="font-medium text-gray-900">{name}</div>
+                            </button>
+                          ))}
+                        {houseProductNameOptions.length === 0 && (
+                          <div className="px-3 py-2 text-sm text-gray-500">No house product names yet. Keep typing to add one.</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                   {errors.productNameHouse ? <p className="text-[11px] text-rose-600">{errors.productNameHouse}</p> : null}
                 </div>
 
                 <div className="space-y-1">
-                  <label className={labelCls}>Part Number - House</label>
+                  <label className={labelCls}>House - Part Number</label>
                   <input className={inputCls} value={form.partNumberHouse} onChange={handleChange("partNumberHouse")} placeholder="Enter house part #" />
                 </div>
               </div>
 
               {/* Right Column (Financial + Status) */}
-              <div className="space-y-1.5">
+              <div className={columnCls}>
                 <div className="space-y-1">
                   <label className={labelCls}>Price Each</label>
                   <div className="flex items-center border-b-2 border-gray-300 bg-transparent px-0 py-1.5 text-xs focus-within:border-primary-500">
@@ -604,7 +899,7 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
 
             <div className="grid gap-3 lg:grid-cols-2">
               {/* Distributor column */}
-              <div className="space-y-1.5">
+              <div className={columnCls}>
                 <div className="space-y-1">
                   <label className={labelCls}>Distributor - Product Name</label>
                   <input className={inputCls} value={form.productNameDistributor} onChange={handleChange("productNameDistributor")} placeholder="Enter distributor product name" />
@@ -637,7 +932,7 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
               </div>
 
               {/* Vendor column */}
-              <div className="space-y-1.5">
+              <div className={columnCls}>
                 <div className="space-y-1">
                   <label className={labelCls}>Vendor - Product Name</label>
                   <div className="relative">

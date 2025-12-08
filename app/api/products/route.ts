@@ -61,6 +61,7 @@ export async function GET(request: NextRequest) {
       const query = searchParams.get("q")?.trim() ?? ""
       const statusParam = (searchParams.get("status") ?? "active").toLowerCase()
       const createdById = searchParams.get("createdById")?.trim() ?? ""
+      const hasRevenueSchedulesParamRaw = searchParams.get("hasRevenueSchedules")
       const sortColumn = searchParams.get("sort") ?? "productNameHouse"
       const sortDirection: "asc" | "desc" = searchParams.get("direction") === "asc" ? "asc" : "desc"
 
@@ -160,6 +161,15 @@ export async function GET(request: NextRequest) {
               }
               break
             }
+            case "hasRevenueSchedules": {
+              const valueLower = rawValue.toLowerCase()
+              if (["yes", "y", "true", "with"].includes(valueLower)) {
+                andConditions.push({ revenueSchedules: { some: {} } })
+              } else if (["no", "n", "false", "without"].includes(valueLower)) {
+                andConditions.push({ revenueSchedules: { none: {} } })
+              }
+              break
+            }
             case "active":
               if (rawValue.toLowerCase() === "yes" || rawValue.toLowerCase() === "true") {
                 andConditions.push({ isActive: true })
@@ -171,6 +181,15 @@ export async function GET(request: NextRequest) {
               break
           }
         })
+      }
+
+      if (hasRevenueSchedulesParamRaw) {
+        const valueLower = hasRevenueSchedulesParamRaw.trim().toLowerCase()
+        if (["true", "1", "yes", "y", "with"].includes(valueLower)) {
+          andConditions.push({ revenueSchedules: { some: {} } })
+        } else if (["false", "0", "no", "n", "without"].includes(valueLower)) {
+          andConditions.push({ revenueSchedules: { none: {} } })
+        }
       }
 
       if (andConditions.length > 0) {
@@ -188,8 +207,8 @@ export async function GET(request: NextRequest) {
         prisma.product.findMany({
           where,
           include: {
-            distributor: { select: { accountName: true } },
-            vendor: { select: { accountName: true } },
+            distributor: { select: { id: true, accountName: true } },
+            vendor: { select: { id: true, accountName: true } },
             _count: { select: { revenueSchedules: true } },
           },
           orderBy,

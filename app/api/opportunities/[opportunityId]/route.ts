@@ -153,15 +153,20 @@ export async function GET(request: NextRequest, { params }: { params: { opportun
             include: {
               product: {
                 select: {
+                id: true,
                   productNameVendor: true,
                   commissionPercent: true,
                   priceEach: true
                 }
               },
-              distributor: { select: { accountName: true } },
-              vendor: { select: { accountName: true } },
+            distributor: { select: { id: true, accountName: true } },
+            vendor: { select: { id: true, accountName: true } },
+              account: { select: { id: true, accountName: true } },
+              opportunity: { select: { id: true, name: true } },
               opportunityProduct: {
                 select: {
+                id: true,
+                productId: true,
                   quantity: true,
                   unitPrice: true
                 }

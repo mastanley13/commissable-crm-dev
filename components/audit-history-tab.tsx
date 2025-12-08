@@ -7,7 +7,14 @@ import { ListHeader, type ColumnFilter } from "./list-header"
 import { calculateMinWidth } from "@/lib/column-width-utils"
 import { HistoryRow } from "./opportunity-types"
 
-type SupportedEntities = "Account" | "Contact" | "Opportunity" | "Product" | "RevenueSchedule"
+type SupportedEntities =
+  | "Account"
+  | "Contact"
+  | "Opportunity"
+  | "Product"
+  | "RevenueSchedule"
+  | "Group"
+  | "Ticket"
 
 interface AuditHistoryTabProps {
   entityName: SupportedEntities

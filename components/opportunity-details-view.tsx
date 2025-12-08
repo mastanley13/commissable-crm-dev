@@ -43,6 +43,7 @@ import { AuditHistoryTab } from "./audit-history-tab"
 import { buildStandardBulkActions } from "@/components/standard-bulk-actions"
 import type { BulkActionsGridProps } from "@/components/bulk-actions-grid"
 import { RevenueScheduleCloneModal, type SourceScheduleData } from "@/components/revenue-schedule-clone-modal"
+import { RevenueBulkApplyPanel } from "@/components/revenue-bulk-apply-panel"
 
 // Helper function to parse currency values
 const parseCurrency = (val: any): number => {
@@ -255,7 +256,9 @@ const REVENUE_FILTER_COLUMNS: Array<{ id: string; label: string }> = [
   { id: "scheduleDate", label: "Schedule Date" },
   { id: "status", label: "Status" },
   { id: "vendorName", label: "Vendor" },
-  { id: "distributorName", label: "Distributor" }
+  { id: "distributorName", label: "Distributor" },
+  { id: "accountName", label: "Account Name" },
+  { id: "opportunityName", label: "Opportunity Name" }
 ]
 
 export const REVENUE_TABLE_BASE_COLUMNS: Column[] = [
@@ -271,6 +274,8 @@ export const REVENUE_TABLE_BASE_COLUMNS: Column[] = [
   { id: "productNameVendor", label: "Product Name - Vendor", width: 220, minWidth: calculateMinWidth({ label: "Product Name - Vendor", type: "text", sortable: true }), accessor: "productNameVendor", sortable: true },
   { id: "vendorName", label: "Vendor Name", width: 200, minWidth: calculateMinWidth({ label: "Vendor Name", type: "text", sortable: true }), accessor: "vendorName", sortable: true },
   { id: "distributorName", label: "Distributor Name", width: 200, minWidth: calculateMinWidth({ label: "Distributor Name", type: "text", sortable: true }), accessor: "distributorName", sortable: true },
+  { id: "accountName", label: "Account Name", width: 220, minWidth: calculateMinWidth({ label: "Account Name", type: "text", sortable: true }), accessor: "accountName", sortable: true },
+  { id: "opportunityName", label: "Opportunity Name", width: 220, minWidth: calculateMinWidth({ label: "Opportunity Name", type: "text", sortable: true }), accessor: "opportunityName", sortable: true },
   { id: "scheduleNumber", label: "Revenue Schedule", width: 180, minWidth: calculateMinWidth({ label: "Revenue Schedule", type: "text", sortable: true }), accessor: "scheduleNumber", sortable: true },
   { id: "scheduleDate", label: "Schedule Date", width: 160, minWidth: calculateMinWidth({ label: "Schedule Date", type: "text", sortable: true }), accessor: "scheduleDate", sortable: true },
   { id: "status", label: "Status", width: 120, minWidth: 110, accessor: "status", sortable: true },
@@ -2182,7 +2187,9 @@ export function OpportunityDetailsView({
         expectedUsage: item.expectedUsage,
         revenueStartDate: item.revenueStartDate,
         revenueEndDate: item.revenueEndDate,
+        distributorId: item.distributorId ?? null,
         distributorName: item.distributorName ?? "",
+        vendorId: item.vendorId ?? null,
         vendorName: item.vendorName ?? "",
         createdAt: item.createdAt,
         updatedAt: item.updatedAt,
@@ -2274,9 +2281,13 @@ export function OpportunityDetailsView({
       return []
     }
     return opportunity.revenueSchedules.map(schedule => ({
-      ...schedule
+      ...schedule,
+      accountId: schedule.accountId ?? opportunity.account?.id ?? null,
+      accountName: schedule.accountName ?? opportunity.account?.accountName ?? null,
+      opportunityId: schedule.opportunityId ?? opportunity.id ?? null,
+      opportunityName: schedule.opportunityName ?? opportunity.name ?? null
     }))
-  }, [opportunity?.revenueSchedules])
+  }, [opportunity])
 
   const filteredRevenueRows = useMemo(() => {
     let rows = [...revenueRows]
@@ -2305,6 +2316,8 @@ export function OpportunityDetailsView({
           row.scheduleNumber,
           row.vendorName,
           row.distributorName,
+          row.accountName,
+          row.opportunityName,
           row.status
         ]
           .filter(Boolean)
@@ -2606,7 +2619,7 @@ export function OpportunityDetailsView({
         return
       }
 
-      if (selectedRevenueSchedules.length > 1 && selectedRevenueSchedules.includes(rowId) && rect) {
+      if (selectedRevenueSchedules.length >= 1 && selectedRevenueSchedules.includes(rowId) && rect) {
         setRevenueBulkPrompt({
           columnId,
           label: revenueEditableColumnsMeta[columnId].label,
@@ -2625,51 +2638,55 @@ export function OpportunityDetailsView({
     [normalizeRevenueEditValue, revenueEditableColumnsMeta, selectedRevenueSchedules]
   )
 
-  const handleRevenueApplyFillDown = useCallback(async () => {
-    if (!revenueBulkPrompt || selectedRevenueSchedules.length <= 1) {
-      return
-    }
-    const columnId = revenueBulkPrompt.columnId
-    const payload: Record<string, number> = {}
-    if (columnId === "quantity") payload.quantity = revenueBulkPrompt.value
-    if (columnId === "unitPrice") payload.priceEach = revenueBulkPrompt.value
-    if (columnId === "expectedUsageAdjustment") payload.expectedUsageAdjustment = revenueBulkPrompt.value
-    if (columnId === "expectedCommissionRatePercent") payload.expectedCommissionRatePercent = revenueBulkPrompt.value
-
-    if (Object.keys(payload).length === 0) {
-      return
-    }
-
-    setRevenueBulkApplying(true)
-    try {
-      const response = await fetch("/api/revenue-schedules/bulk-update", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ids: selectedRevenueSchedules,
-          patch: payload
-        })
-      })
-      const body = await response.json().catch(() => null)
-      if (!response.ok) {
-        const message = body?.error ?? "Unable to apply bulk update"
-        throw new Error(message)
+  const handleRevenueApplyFillDown = useCallback(
+    async (effectiveDate: string) => {
+      if (!revenueBulkPrompt || selectedRevenueSchedules.length < 1) {
+        return
       }
-      const updatedCount: number = body?.updated ?? selectedRevenueSchedules.length
-      showSuccess(
-        `Applied to ${updatedCount} schedule${updatedCount === 1 ? "" : "s"}`,
-        `${revenueBulkPrompt.label} updated across the selected schedules.`
-      )
-      setRevenueBulkPrompt(null)
-      await onRefresh?.()
-    } catch (error) {
-      console.error("Failed to apply bulk update for revenue schedules", error)
-      const message = error instanceof Error ? error.message : "Unable to apply bulk update"
-      showError("Bulk update failed", message)
-    } finally {
-      setRevenueBulkApplying(false)
-    }
-  }, [onRefresh, revenueBulkPrompt, selectedRevenueSchedules, showError, showSuccess])
+      const columnId = revenueBulkPrompt.columnId
+      const payload: Record<string, number> = {}
+      if (columnId === "quantity") payload.quantity = revenueBulkPrompt.value
+      if (columnId === "unitPrice") payload.priceEach = revenueBulkPrompt.value
+      if (columnId === "expectedUsageAdjustment") payload.expectedUsageAdjustment = revenueBulkPrompt.value
+      if (columnId === "expectedCommissionRatePercent") payload.expectedCommissionRatePercent = revenueBulkPrompt.value
+
+      if (Object.keys(payload).length === 0) {
+        return
+      }
+
+      setRevenueBulkApplying(true)
+      try {
+        const response = await fetch("/api/revenue-schedules/bulk-update", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ids: selectedRevenueSchedules,
+            patch: payload,
+            effectiveDate
+          })
+        })
+        const body = await response.json().catch(() => null)
+        if (!response.ok) {
+          const message = body?.error ?? "Unable to apply bulk update"
+          throw new Error(message)
+        }
+        const updatedCount: number = body?.updated ?? selectedRevenueSchedules.length
+        showSuccess(
+          `Applied to ${updatedCount} schedule${updatedCount === 1 ? "" : "s"}`,
+          `${revenueBulkPrompt.label} updated across the selected schedules.`
+        )
+        setRevenueBulkPrompt(null)
+        await onRefresh?.()
+      } catch (error) {
+        console.error("Failed to apply bulk update for revenue schedules", error)
+        const message = error instanceof Error ? error.message : "Unable to apply bulk update"
+        showError("Bulk update failed", message)
+      } finally {
+        setRevenueBulkApplying(false)
+      }
+    },
+    [onRefresh, revenueBulkPrompt, selectedRevenueSchedules, showError, showSuccess],
+  )
 
   const selectedRevenueRows = useMemo(() => {
     if (selectedRevenueSchedules.length === 0) {
@@ -2677,6 +2694,29 @@ export function OpportunityDetailsView({
     }
     return filteredRevenueRows.filter(row => selectedRevenueSchedules.includes(row.id))
   }, [filteredRevenueRows, selectedRevenueSchedules])
+
+  const revenueBulkDefaultEffectiveDate = useMemo(() => {
+    const now = new Date()
+    const year = now.getFullYear()
+    const month = String(now.getMonth() + 1).padStart(2, "0")
+    const day = String(now.getDate()).padStart(2, "0")
+    return `${year}-${month}-${day}`
+  }, [])
+
+  const revenueBulkPromptValueLabel = useMemo(() => {
+    if (!revenueBulkPrompt) {
+      return ""
+    }
+    const meta = revenueEditableColumnsMeta[revenueBulkPrompt.columnId]
+    const value = revenueBulkPrompt.value
+    if (meta.type === "currency") {
+      return formatCurrency(value)
+    }
+    if (meta.type === "percent") {
+      return formatPercent(value)
+    }
+    return formatNumber(value)
+  }, [revenueBulkPrompt, revenueEditableColumnsMeta])
 
   const revenueTableColumns = useMemo(() => {
     const renderEditableCell = (columnId: RevenueEditableColumnId, label: string) => {
@@ -2736,6 +2776,24 @@ export function OpportunityDetailsView({
             suppressContentEditableWarning
             data-disable-row-click="true"
             className="block min-w-0 truncate text-sm text-gray-900 focus:outline-none"
+            onFocus={() => {
+              if (!spanRef) return
+              if (selectedRevenueSchedules.length >= 1 && selectedRevenueSchedules.includes(row.id)) {
+                setRevenueBulkPrompt({
+                  columnId,
+                  label,
+                  value: displayValue,
+                  rowId: row.id,
+                  selectedCount: selectedRevenueSchedules.length,
+                  anchor: {
+                    top: spanRef.getBoundingClientRect().bottom + 8,
+                    left: spanRef.getBoundingClientRect().right + 12
+                  }
+                })
+              } else {
+                setRevenueBulkPrompt(null)
+              }
+            }}
             onBlur={commit}
             onKeyDown={event => {
               if (event.key === "Enter") {
@@ -2835,6 +2893,119 @@ export function OpportunityDetailsView({
         }
       }
 
+      if (column.id === "productNameVendor") {
+        return {
+          ...column,
+          render: (value: unknown, row: OpportunityRevenueScheduleRecord) => {
+            const label = String(value ?? "")
+            const productId = row.productId
+
+            if (!productId || !label) {
+              return <span className="text-gray-900">{label || "--"}</span>
+            }
+
+            return (
+              <Link
+                href={`/products/${productId}`}
+                className="cursor-pointer text-blue-600 hover:text-blue-800"
+                onClick={event => event.stopPropagation()}
+                prefetch={false}
+              >
+                {label}
+              </Link>
+            )
+          }
+        }
+      }
+
+      if (column.id === "vendorName") {
+        return {
+          ...column,
+          render: (value: unknown, row: OpportunityRevenueScheduleRecord) => {
+            const displayValue = value === null || value === undefined ? "--" : String(value)
+            if (row.vendorId) {
+              return (
+                <Link
+                  href={`/accounts/${row.vendorId}`}
+                  className="text-primary-700 hover:text-primary-800 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"
+                  onClick={event => event.stopPropagation()}
+                  prefetch={false}
+                >
+                  {displayValue}
+                </Link>
+              )
+            }
+            return <span>{displayValue}</span>
+          }
+        }
+      }
+
+      if (column.id === "distributorName") {
+        return {
+          ...column,
+          render: (value: unknown, row: OpportunityRevenueScheduleRecord) => {
+            const displayValue = value === null || value === undefined ? "--" : String(value)
+            if (row.distributorId) {
+              return (
+                <Link
+                  href={`/accounts/${row.distributorId}`}
+                  className="text-primary-700 hover:text-primary-800 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"
+                  onClick={event => event.stopPropagation()}
+                  prefetch={false}
+                >
+                  {displayValue}
+                </Link>
+              )
+            }
+            return <span>{displayValue}</span>
+          }
+        }
+      }
+
+      if (column.id === "accountName") {
+        return {
+          ...column,
+          render: (value: unknown, row: OpportunityRevenueScheduleRecord) => {
+            const displayValue = value === null || value === undefined ? "--" : String(value)
+            if (row.accountId) {
+              return (
+                <Link
+                  href={`/accounts/${row.accountId}`}
+                  className="text-primary-700 hover:text-primary-800 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"
+                  onClick={event => event.stopPropagation()}
+                  prefetch={false}
+                >
+                  {displayValue}
+                </Link>
+              )
+            }
+            return <span>{displayValue}</span>
+          }
+        }
+      }
+
+      if (column.id === "opportunityName") {
+        return {
+          ...column,
+          render: (value: unknown, row: OpportunityRevenueScheduleRecord) => {
+            const displayValue = value === null || value === undefined ? "--" : String(value)
+            if (row.opportunityId) {
+              return (
+                <Link
+                  href={`/opportunities/${row.opportunityId}`}
+                  className="text-primary-700 hover:text-primary-800 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"
+                  onClick={event => event.stopPropagation()}
+                  prefetch={false}
+                >
+                  {displayValue}
+                </Link>
+              )
+            }
+            return <span>{displayValue}</span>
+          }
+        }
+      }
+
       if (isRevenueEditableColumn(column.id)) {
         return {
           ...column,
@@ -2893,6 +3064,8 @@ export function OpportunityDetailsView({
       "Product Name - Vendor",
       "Vendor Name",
       "Distributor Name",
+      "Account Name",
+      "Opportunity Name",
       "Revenue Schedule",
       "Schedule Date",
       "Status",
@@ -2938,6 +3111,8 @@ export function OpportunityDetailsView({
         row.productNameVendor ?? "",
         row.vendorName ?? "",
         row.distributorName ?? "",
+        row.accountName ?? "",
+        row.opportunityName ?? "",
         row.scheduleNumber ?? "",
         formatDateValue(row.scheduleDate),
         row.status ? humanizeLabel(row.status) : "",
@@ -4160,7 +4335,9 @@ export function OpportunityDetailsView({
               return (
                 <Link
                   href={`/accounts/${row.distributorId}`}
-                  className="text-primary-700 hover:text-primary-800 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"
+                  className="cursor-pointer text-blue-600 hover:text-blue-800 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"
+                  onClick={event => event.stopPropagation()}
+                  prefetch={false}
                 >
                   {displayValue}
                 </Link>
@@ -4180,7 +4357,9 @@ export function OpportunityDetailsView({
               return (
                 <Link
                   href={`/accounts/${row.vendorId}`}
-                  className="text-primary-700 hover:text-primary-800 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"
+                  className="cursor-pointer text-blue-600 hover:text-blue-800 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"
+                  onClick={event => event.stopPropagation()}
+                  prefetch={false}
                 >
                   {displayValue}
                 </Link>
@@ -4749,19 +4928,23 @@ export function OpportunityDetailsView({
       </div>
       </div>
 
-      {revenueBulkPrompt ? (
-        <button
-          type="button"
-          className="fixed z-40 rounded-full border border-primary-200 bg-white px-4 py-2 text-sm font-semibold text-primary-700 shadow-lg transition hover:bg-primary-50 disabled:opacity-60"
-          style={{ top: revenueBulkPrompt.anchor.top, left: revenueBulkPrompt.anchor.left }}
-          onClick={handleRevenueApplyFillDown}
-          disabled={revenueBulkApplying}
-        >
-          {revenueBulkApplying
-            ? "Applying..."
-            : `Apply to ${selectedRevenueSchedules.length} selected`}
-        </button>
-      ) : null}
+      <RevenueBulkApplyPanel
+        isOpen={Boolean(revenueBulkPrompt)}
+        selectedCount={selectedRevenueSchedules.length}
+        fieldLabel={revenueBulkPrompt?.label ?? ""}
+        valueLabel={revenueBulkPromptValueLabel}
+        initialEffectiveDate={revenueBulkDefaultEffectiveDate}
+        onClose={() => setRevenueBulkPrompt(null)}
+        onSubmit={handleRevenueApplyFillDown}
+        onBeforeSubmit={() => {
+          if (typeof document !== "undefined" && document.activeElement instanceof HTMLElement) {
+            document.activeElement.blur()
+          }
+        }}
+        isSubmitting={revenueBulkApplying}
+        entityLabelSingular="revenue schedule"
+        entityLabelPlural="revenue schedules"
+      />
 
       {opportunity && (
         <ActivityNoteCreateModal

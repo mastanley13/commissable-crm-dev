@@ -184,7 +184,10 @@ export const RevenueScheduleSupportingDetails = forwardRef<
   useImperativeHandle(
     ref,
     () => ({
-      openTicketCreateModal: () => setTicketCreateModalOpen(true)
+      openTicketCreateModal: () => {
+        setActiveSectionId("tickets")
+        setTicketCreateModalOpen(true)
+      }
     }),
     []
   )
@@ -384,6 +387,27 @@ export const RevenueScheduleSupportingDetails = forwardRef<
                     </span>
                   </label>
                 </div>
+              )
+            }
+          }
+        }
+
+        if (column.id === "ticketNumber") {
+          return {
+            ...column,
+            render: (value: unknown, row: any) => {
+              const ticketId = String(row.id ?? "")
+              if (!ticketId) {
+                return <span>{value as string}</span>
+              }
+              const display = (value as string) || row.ticketNumber || ticketId
+              return (
+                <a
+                  href={`/tickets/${ticketId}`}
+                  className="text-blue-600 hover:text-blue-800 font-medium"
+                >
+                  {display}
+                </a>
               )
             }
           }
@@ -1067,24 +1091,6 @@ export const RevenueScheduleSupportingDetails = forwardRef<
         onApply={handleTicketColumnsChange}
         onClose={() => setTicketsColumnChooserOpen(false)}
       />
-
-      <TicketCreateModal
-        isOpen={ticketCreateModalOpen}
-        onClose={() => setTicketCreateModalOpen(false)}
-        onSuccess={() => {
-          setTicketCreateModalOpen(false)
-          void fetchTickets()
-        }}
-        defaultRevenueScheduleId={schedule?.id}
-        defaultRevenueScheduleName={schedule?.revenueScheduleName ?? schedule?.revenueSchedule ?? ""}
-        defaultOpportunityId={schedule?.opportunityId ? String(schedule.opportunityId) : ""}
-        defaultOpportunityName={schedule?.opportunityName ?? ""}
-        defaultDistributorAccountId={schedule?.distributorId ?? ""}
-        defaultDistributorName={schedule?.distributorName ?? ""}
-        defaultVendorAccountId={schedule?.vendorId ?? ""}
-        defaultVendorName={schedule?.vendorName ?? ""}
-        defaultProductNameVendor={schedule?.productNameVendor ?? ""}
-      />
     </div>
   )
 
@@ -1117,43 +1123,63 @@ export const RevenueScheduleSupportingDetails = forwardRef<
   }
 
   return (
-    <section>
-      <div className="grid gap-2 xl:grid-cols-[260px,1fr] items-start">
-        <nav className="flex flex-col gap-0 rounded-3xl border border-slate-300 bg-white p-0 overflow-hidden divide-y divide-blue-200 self-start h-fit">
-          {SECTION_ITEMS.map(item => {
-            const Icon = item.icon
-            const isActive = item.id === activeSectionId
-            return (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => setActiveSectionId(item.id)}
-                className={`flex w-full items-start gap-2 px-3 py-2 text-left transition shadow-sm ${
-                  isActive
-                    ? "rounded-none bg-primary-700 text-white hover:bg-primary-800"
-                    : "rounded-none bg-gradient-to-b from-blue-100 to-blue-200 text-primary-800 hover:from-blue-200 hover:to-blue-300"
-                }`}
-              >
-                <span
-                  className={`flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full border ${
-                    isActive ? "border-white bg-white text-primary-700" : "border-blue-200 bg-white text-primary-700"
+    <>
+      <section>
+        <div className="grid gap-2 xl:grid-cols-[260px,1fr] items-start">
+          <nav className="flex flex-col gap-0 rounded-3xl border border-slate-300 bg-white p-0 overflow-hidden divide-y divide-blue-200 self-start h-fit">
+            {SECTION_ITEMS.map(item => {
+              const Icon = item.icon
+              const isActive = item.id === activeSectionId
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setActiveSectionId(item.id)}
+                  className={`flex w-full items-start gap-2 px-3 py-2 text-left transition shadow-sm ${
+                    isActive
+                      ? "rounded-none bg-primary-700 text-white hover:bg-primary-800"
+                      : "rounded-none bg-gradient-to-b from-blue-100 to-blue-200 text-primary-800 hover:from-blue-200 hover:to-blue-300"
                   }`}
                 >
-                  <Icon className="h-4 w-4" />
-                </span>
-                <span className="space-y-0.5">
-                  <span className={`block text-[11px] font-semibold ${isActive ? "text-white" : "text-primary-800"}`}>{item.label}</span>
-                  <span className={`block text-[11px] leading-tight ${isActive ? "text-blue-100" : "text-primary-700/70"}`}>{item.description}</span>
-                </span>
-              </button>
-            )
-          })}
-        </nav>
+                  <span
+                    className={`flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full border ${
+                      isActive ? "border-white bg-white text-primary-700" : "border-blue-200 bg-white text-primary-700"
+                    }`}
+                  >
+                    <Icon className="h-4 w-4" />
+                  </span>
+                  <span className="space-y-0.5">
+                    <span className={`block text-[11px] font-semibold ${isActive ? "text-white" : "text-primary-800"}`}>{item.label}</span>
+                    <span className={`block text-[11px] leading-tight ${isActive ? "text-blue-100" : "text-primary-700/70"}`}>{item.description}</span>
+                  </span>
+                </button>
+              )
+            })}
+          </nav>
 
-        <div className="p-3">
-          {sectionContent ?? <p className="text-[11px] text-slate-500">Select a section to view its details.</p>}
+          <div className="p-3">
+            {sectionContent ?? <p className="text-[11px] text-slate-500">Select a section to view its details.</p>}
+          </div>
         </div>
-      </div>
-    </section>
+      </section>
+
+      <TicketCreateModal
+        isOpen={ticketCreateModalOpen}
+        onClose={() => setTicketCreateModalOpen(false)}
+        onSuccess={() => {
+          setTicketCreateModalOpen(false)
+          void fetchTickets()
+        }}
+        defaultRevenueScheduleId={schedule?.id}
+        defaultRevenueScheduleName={schedule?.revenueScheduleName ?? schedule?.revenueSchedule ?? ""}
+        defaultOpportunityId={schedule?.opportunityId ? String(schedule.opportunityId) : ""}
+        defaultOpportunityName={schedule?.opportunityName ?? ""}
+        defaultDistributorAccountId={schedule?.distributorId ?? ""}
+        defaultDistributorName={schedule?.distributorName ?? ""}
+        defaultVendorAccountId={schedule?.vendorId ?? ""}
+        defaultVendorName={schedule?.vendorName ?? ""}
+        defaultProductNameVendor={schedule?.productNameVendor ?? ""}
+      />
+    </>
   )
 })

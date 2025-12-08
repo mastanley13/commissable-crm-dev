@@ -116,6 +116,19 @@ export function DynamicTable({
   const selectAllRef = useRef<HTMLInputElement | null>(null)
   const lastInteractedIndexRef = useRef<number | null>(null)
   const lastSelectionActionRef = useRef<boolean>(true)
+  const selectedCountOnPage = useMemo(() => {
+    if (!Array.isArray(data) || data.length === 0) return 0
+    const selectedSet = new Set(selectedItems)
+    return data.reduce((count, row) => {
+      const rowId = getRowId(row)
+      if (!rowId) return count
+      return selectedSet.has(rowId) ? count + 1 : count
+    }, 0)
+  }, [data, selectedItems])
+  const allPageRowsSelected = useMemo(
+    () => data.length > 0 && selectedCountOnPage === data.length,
+    [data.length, selectedCountOnPage]
+  )
 
   useEffect(() => {
     if (!selectAllRef.current) return
@@ -125,9 +138,8 @@ export function DynamicTable({
       return
     }
 
-    const selectedCount = selectedItems.length
-    selectAllRef.current.indeterminate = selectedCount > 0 && selectedCount < data.length
-  }, [data.length, selectedItems.length])
+    selectAllRef.current.indeterminate = selectedCountOnPage > 0 && selectedCountOnPage < data.length
+  }, [data.length, selectedCountOnPage])
 
   useEffect(() => {
     if (selectedItems.length === 0) {
@@ -951,7 +963,7 @@ export function DynamicTable({
                             ref={selectAllRef}
                             type="checkbox"
                             className="w-[11px] h-[11px] text-primary-600 bg-gray-100 border-gray-300 rounded focus:ring-primary-500 flex-shrink-0"
-                            checked={data.length > 0 && selectedItems.length === data.length}
+                            checked={allPageRowsSelected}
                             onClick={event => event.stopPropagation()}
                             onChange={event => {
                               event.stopPropagation()
@@ -972,7 +984,7 @@ export function DynamicTable({
                             ref={selectAllRef}
                             type="checkbox"
                             className="w-[11px] h-[11px] text-primary-600 bg-gray-100 border-gray-300 rounded focus:ring-primary-500 flex-shrink-0"
-                            checked={data.length > 0 && selectedItems.length === data.length}
+                            checked={allPageRowsSelected}
                             onClick={event => event.stopPropagation()}
                             onChange={event => {
                               event.stopPropagation()

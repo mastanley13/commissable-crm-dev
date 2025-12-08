@@ -68,15 +68,25 @@ type RevenueScheduleWithRelations = {
   actualCommissionAdjustment?: unknown
   createdAt?: string | Date | null
   updatedAt?: string | Date | null
-  distributor?: { accountName?: string | null } | null
-  vendor?: { accountName?: string | null } | null
+  distributor?: { id?: string; accountName?: string | null } | null
+  vendor?: { id?: string; accountName?: string | null } | null
   product?: {
+    id?: string
     productNameVendor?: string | null
     commissionPercent?: unknown
     priceEach?: unknown
   } | null
+  account?: {
+    id?: string
+    accountName?: string | null
+  } | null
+  opportunity?: {
+    id?: string
+    name?: string | null
+  } | null
   opportunityProduct?: {
     id?: string
+    productId?: string | null
     quantity?: unknown
     unitPrice?: unknown
   } | null
@@ -135,6 +145,8 @@ type OpportunityWithRelations = {
 type OpportunityProductWithRelations = {
   id: string
   productId: string
+  distributorId?: string | null
+  vendorId?: string | null
   productCodeSnapshot?: string | null
   productNameHouseSnapshot?: string | null
   productNameVendorSnapshot?: string | null
@@ -309,9 +321,16 @@ export type OpportunityDetailSummary = {
 
 export type OpportunityRevenueScheduleDetail = {
   id: string
+  productId: string | null
   opportunityProductId?: string | null
+  distributorId: string | null
   distributorName: string | null
+  vendorId: string | null
   vendorName: string | null
+  accountId: string | null
+  accountName: string | null
+  opportunityId: string | null
+  opportunityName: string | null
   scheduleNumber: string | null
   scheduleDate: string | null
   status: string | null
@@ -542,8 +561,8 @@ export function mapOpportunityProductToDetail(item: OpportunityProductWithRelati
   const revenueTypeSnapshot = item.revenueTypeSnapshot
   const distributorNameSnapshot = item.distributorNameSnapshot
   const vendorNameSnapshot = item.vendorNameSnapshot
-  const distributorId = item.product?.distributor?.id ?? null
-  const vendorId = item.product?.vendor?.id ?? null
+  const distributorId = item.distributorId ?? item.product?.distributor?.id ?? null
+  const vendorId = item.vendorId ?? item.product?.vendor?.id ?? null
 
   return {
     id: item.id,
@@ -605,11 +624,18 @@ function mapRevenueStatus(status: string | null | undefined, usageBalance: numbe
 }
 
 function mapRevenueScheduleToDetail(schedule: RevenueScheduleWithRelations): OpportunityRevenueScheduleDetail {
+  const distributorId = schedule.distributor?.id ?? null
   const distributorName = schedule.distributor?.accountName ?? null
+  const vendorId = schedule.vendor?.id ?? null
   const vendorName = schedule.vendor?.accountName ?? null
+  const accountId = schedule.account?.id ?? null
+  const accountName = schedule.account?.accountName ?? null
+  const opportunityId = schedule.opportunity?.id ?? null
+  const opportunityName = schedule.opportunity?.name ?? null
   const scheduleNumber = schedule.scheduleNumber ?? null
   const scheduleDate = formatDateValue(schedule.scheduleDate)
   const status = schedule.status ?? null
+  const productId = schedule.product?.id ?? schedule.opportunityProduct?.productId ?? null
   const productNameVendor = schedule.product?.productNameVendor ?? null
 
   const quantity = toNumber(schedule.opportunityProduct?.quantity)
@@ -655,9 +681,16 @@ function mapRevenueScheduleToDetail(schedule: RevenueScheduleWithRelations): Opp
 
   return {
     id: schedule.id,
+    productId,
     opportunityProductId: schedule.opportunityProduct?.id ?? null,
+    distributorId,
     distributorName,
+    vendorId,
     vendorName,
+    accountId,
+    accountName,
+    opportunityId,
+    opportunityName,
     scheduleNumber,
     scheduleDate,
     status,

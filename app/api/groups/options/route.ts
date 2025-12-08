@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
 import { withPermissions } from "@/lib/api-auth"
+import { GroupType, GroupVisibility } from "@prisma/client"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
 // GET /api/groups/options
-// Returns a lightweight list of groups for selects
+// Returns options for group forms and a list of groups for selects
 export async function GET(request: NextRequest) {
   return withPermissions(
     request,
@@ -31,22 +32,38 @@ export async function GET(request: NextRequest) {
         where.name = { contains: search, mode: "insensitive" }
       }
 
-      const groups = await prisma.group.findMany({
-        where,
-        orderBy: { name: "asc" },
-        take: limit,
-        select: {
-          id: true,
-          name: true,
-          isActive: true,
-          groupType: true,
-        }
-      })
+      const [groups, owners] = await Promise.all([
+        prisma.group.findMany({
+          where,
+          orderBy: { name: "asc" },
+          take: limit,
+          select: {
+            id: true,
+            name: true,
+            isActive: true,
+            groupType: true,
+          }
+        }),
+        prisma.user.findMany({
+          where: { tenantId: req.user.tenantId, status: "Active" },
+          orderBy: { fullName: "asc" },
+          select: { id: true, fullName: true }
+        })
+      ])
+
+      // GroupType enum values
+      const groupTypes = Object.values(GroupType).map(type => ({ value: type, label: type }))
+
+      // GroupVisibility enum values
+      const visibilityOptions = Object.values(GroupVisibility).map(vis => ({ value: vis, label: vis }))
 
       return NextResponse.json({
         data: {
           groups: groups.map((g) => ({ value: g.id, label: g.name, isActive: g.isActive, groupType: g.groupType }))
-        }
+        },
+        owners: owners.map((o) => ({ value: o.id, label: o.fullName })),
+        groupTypes,
+        visibilityOptions
       })
     }
   )

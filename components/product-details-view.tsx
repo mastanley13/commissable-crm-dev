@@ -367,16 +367,6 @@ interface ProductHeaderProps {
 
 function ProductHeader({ product, onEdit, activeTab, onTabSelect }: ProductHeaderProps) {
   const productName = product.productNameHouse || product.productNameVendor || "Product"
-  const statusBadge = (
-    <span
-      className={cn(
-        "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold",
-        product.isActive ? "bg-emerald-100 text-emerald-700" : "bg-gray-200 text-gray-600"
-      )}
-    >
-      {product.isActive ? "Active" : "Inactive"}
-    </span>
-  )
   const priceEach = formatCurrency(product.priceEach)
   const commissionRate = formatPercent(product.commissionPercent)
   const revenueTypeLabel = getRevenueTypeLabel(product.revenueType) ?? product.revenueType
@@ -391,7 +381,6 @@ function ProductHeader({ product, onEdit, activeTab, onTabSelect }: ProductHeade
             <p className="text-[13px] font-semibold uppercase tracking-wide text-primary-600">Product Detail</p>
             <div className="flex items-center gap-2">
               <h1 className="text-lg font-semibold text-gray-900">{productName}</h1>
-              {statusBadge}
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -657,17 +646,6 @@ interface EditableProductHeaderProps {
   const productName = (nameField.value as string) || product.productNameVendor || "Product"
   const disableSave = editor.saving || !editor.isDirty
 
-  const statusBadge = (
-    <span
-      className={cn(
-        "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold",
-        isActive ? "bg-emerald-100 text-emerald-700" : "bg-gray-200 text-gray-600"
-      )}
-    >
-      {isActive ? "Active" : "Inactive"}
-    </span>
-  )
-
   const renderRow = (label: string, control: ReactNode, error?: string) => (
     <FieldRow label={label}>
       <div className="flex w-full max-w-md flex-col gap-1">
@@ -686,7 +664,6 @@ interface EditableProductHeaderProps {
             <p className="text-[13px] font-semibold uppercase tracking-wide text-primary-600">Product Detail</p>
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-lg font-semibold text-gray-900">{productName}</h1>
-              {statusBadge}
               {editor.isDirty ? (
                 <span className="text-xs font-semibold text-amber-600">Unsaved changes</span>
               ) : null}
@@ -829,11 +806,11 @@ interface EditableProductHeaderProps {
               "Status",
               <div className="flex min-h-[28px] items-center gap-3">
                 <EditableField.Switch
-                  checked={Boolean(activeField.value)}
+                  checked={isActive}
                   onChange={activeField.onChange}
                   onBlur={activeField.onBlur}
                 />
-                <span className="text-xs font-semibold text-gray-700">{Boolean(activeField.value) ? "Active" : "Inactive"}</span>
+                <span className="text-xs font-semibold text-gray-700">{isActive ? "Active" : "Inactive"}</span>
               </div>
             )}
 
