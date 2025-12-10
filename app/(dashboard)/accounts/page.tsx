@@ -376,6 +376,10 @@ type ColumnFilterState = {
 
 const TABLE_BOTTOM_RESERVE = 110
 const TABLE_MIN_BODY_HEIGHT = 320
+const normalizePageSize = (value: number): number => {
+  if (!Number.isFinite(value)) return 100
+  return Math.min(100, Math.max(1, Math.floor(value)))
+}
 
 export default function AccountsPage() {
   const router = useRouter();
@@ -396,7 +400,7 @@ export default function AccountsPage() {
   const [columnFilters, setColumnFilters] = useState<ColumnFilterState[]>([]);
   const [sortConfig, setSortConfig] = useState<{ columnId: keyof AccountRow; direction: 'asc' | 'desc' } | null>(null);
   const [page, setPage] = useState<number>(1);
-  const [pageSize, setPageSize] = useState<number>(25);
+  const [pageSize, setPageSize] = useState<number>(100);
   const [updatingAccountIds, setUpdatingAccountIds] = useState<Set<string>>(new Set());
   const [accountToDelete, setAccountToDelete] = useState<AccountRow | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState<boolean>(false);
@@ -415,6 +419,8 @@ export default function AccountsPage() {
     hasUnsavedChanges,
     lastSaved,
     handleColumnsChange,
+    pageSize: preferencePageSize,
+    handlePageSizeChange: persistPageSizePreference,
     saveChanges,
     saveChangesOnModalClose,
   } = useTablePreferences('accounts:list', accountColumns);
@@ -625,9 +631,22 @@ export default function AccountsPage() {
   };
 
   const handlePageSizeChange = (nextPageSize: number) => {
-    setPageSize(nextPageSize);
+    const normalized = normalizePageSize(nextPageSize);
+    setPageSize(normalized);
     setPage(1);
+    void persistPageSizePreference(normalized);
   };
+
+  useEffect(() => {
+    if (!preferencePageSize) {
+      return;
+    }
+    const normalized = normalizePageSize(preferencePageSize);
+    if (normalized !== pageSize) {
+      setPageSize(normalized);
+      setPage(1);
+    }
+  }, [pageSize, preferencePageSize]);
 
   const handleRowClick = useCallback(
     (account: AccountRow) => {

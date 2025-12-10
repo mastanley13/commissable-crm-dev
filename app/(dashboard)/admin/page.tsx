@@ -33,6 +33,13 @@ const adminSections = [
     color: 'bg-gray-500'
   },
   {
+    title: 'Data Settings',
+    description: 'Manage master data and allowed values',
+    href: '/admin/data-settings',
+    icon: Database,
+    color: 'bg-green-500'
+  },
+  {
     title: 'Security Settings',
     description: 'Manage authentication and security policies',
     href: '#',

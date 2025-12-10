@@ -20,13 +20,13 @@ import type { BulkActionsGridProps } from '@/components/bulk-actions-grid'
 import { RevenueBulkApplyPanel } from '@/components/revenue-bulk-apply-panel'
 
 const PRODUCT_FILTER_OPTIONS = [
-  { id: 'productNameVendor', label: 'Product Name - Vendor' },
-  { id: 'productNameHouse', label: 'Product Name - House' },
+  { id: 'productNameVendor', label: 'Vendor - Product Name' },
+  { id: 'productNameHouse', label: 'House - Product Name' },
   { id: 'distributorName', label: 'Distributor Name' },
   { id: 'vendorName', label: 'Vendor Name' },
-  { id: 'productFamilyVendor', label: 'Product Family - Vendor' },
-  { id: 'productSubtypeVendor', label: 'Product Subtype - Vendor' },
-  { id: 'partNumberVendor', label: 'Part Number - Vendor' },
+  { id: 'productFamilyVendor', label: 'Vendor - Product Family' },
+  { id: 'productSubtypeVendor', label: 'Vendor - Product Subtype' },
+  { id: 'partNumberVendor', label: 'Vendor - Part Number' },
   { id: 'revenueType', label: 'Revenue Type' },
   { id: 'active', label: 'Active (Y/N)' },
   { id: 'hasRevenueSchedules', label: 'Has Revenue Schedules (Y/N)' },
@@ -61,63 +61,63 @@ const BASE_COLUMNS: Column[] = [
   },
   {
     id: 'productFamilyVendor',
-    label: 'Product Family - Vendor',
+    label: 'Vendor - Product Family',
     width: 220,
-    minWidth: calculateMinWidth({ label: 'Product Family - Vendor', type: 'text', sortable: false }),
+    minWidth: calculateMinWidth({ label: 'Vendor - Product Family', type: 'text', sortable: false }),
     maxWidth: 320,
     accessor: 'productFamilyVendor',
     hidden: true,
   },
   {
     id: 'productSubtypeVendor',
-    label: 'Product Subtype - Vendor',
+    label: 'Vendor - Product Subtype',
     width: 220,
-    minWidth: calculateMinWidth({ label: 'Product Subtype - Vendor', type: 'text', sortable: false }),
+    minWidth: calculateMinWidth({ label: 'Vendor - Product Subtype', type: 'text', sortable: false }),
     maxWidth: 320,
     accessor: 'productSubtypeVendor',
     hidden: true,
   },
   {
     id: 'productNameVendor',
-    label: 'Product Name - Vendor',
+    label: 'Vendor - Product Name',
     width: 240,
-    minWidth: calculateMinWidth({ label: 'Product Name - Vendor', type: 'text', sortable: true }),
+    minWidth: calculateMinWidth({ label: 'Vendor - Product Name', type: 'text', sortable: true }),
     maxWidth: 360,
     sortable: true,
     accessor: 'productNameVendor',
   },
   {
     id: 'partNumberVendor',
-    label: 'Part Number - Vendor',
+    label: 'Vendor - Part Number',
     width: 200,
-    minWidth: calculateMinWidth({ label: 'Part Number - Vendor', type: 'text', sortable: false }),
+    minWidth: calculateMinWidth({ label: 'Vendor - Part Number', type: 'text', sortable: false }),
     maxWidth: 280,
     accessor: 'partNumberVendor',
     hidden: true,
   },
   {
     id: 'productNameHouse',
-    label: 'Product Name - House',
+    label: 'House - Product Name',
     width: 240,
-    minWidth: calculateMinWidth({ label: 'Product Name - House', type: 'text', sortable: true }),
+    minWidth: calculateMinWidth({ label: 'House - Product Name', type: 'text', sortable: true }),
     maxWidth: 360,
     sortable: true,
     accessor: 'productNameHouse',
   },
   {
     id: 'productDescriptionHouse',
-    label: 'Product Description - House',
+    label: 'House - Product Description',
     width: 260,
-    minWidth: calculateMinWidth({ label: 'Product Description - House', type: 'text', sortable: false }),
+    minWidth: calculateMinWidth({ label: 'House - Product Description', type: 'text', sortable: false }),
     maxWidth: 400,
     accessor: 'productDescriptionHouse',
     hidden: true,
   },
   {
     id: 'productDescriptionVendor',
-    label: 'Product Description - Vendor',
+    label: 'Vendor - Product Description',
     width: 260,
-    minWidth: calculateMinWidth({ label: 'Product Description - Vendor', type: 'text', sortable: false }),
+    minWidth: calculateMinWidth({ label: 'Vendor - Product Description', type: 'text', sortable: false }),
     maxWidth: 400,
     accessor: 'productDescriptionVendor',
     hidden: true,
@@ -225,7 +225,7 @@ interface ProductListResponse {
 
 const DEFAULT_PAGINATION: PaginationInfo = {
   page: 1,
-  pageSize: 25,
+  pageSize: 100,
   total: 0,
   totalPages: 1,
 }
@@ -281,6 +281,11 @@ function normaliseProductEditValue(columnId: ProductEditableColumnId, value: num
     default:
       return null
   }
+}
+
+const normalizePageSize = (value: number): number => {
+  if (!Number.isFinite(value)) return 100
+  return Math.min(100, Math.max(1, Math.floor(value)))
 }
 
 function formatIsoDate(value?: string | null) {
@@ -346,9 +351,11 @@ export default function ProductsPage() {
     loading: preferenceLoading,
     error: preferenceError,
     saving: preferenceSaving,
+    pageSize: preferencePageSize,
     hasUnsavedChanges,
     lastSaved,
     handleColumnsChange,
+    handlePageSizeChange: persistPageSizePreference,
     saveChanges,
     saveChangesOnModalClose,
   } = useTablePreferences('products:list', BASE_COLUMNS)
@@ -530,10 +537,21 @@ export default function ProductsPage() {
     setCurrentPage(page)
   }, [])
 
+  useEffect(() => {
+    if (!preferencePageSize) return
+    const normalized = normalizePageSize(preferencePageSize)
+    if (normalized !== pageSize) {
+      setPageSize(normalized)
+      setCurrentPage(1)
+    }
+  }, [preferencePageSize, pageSize])
+
   const handlePageSizeChange = useCallback((size: number) => {
-    setPageSize(size)
+    const normalized = normalizePageSize(size)
+    setPageSize(normalized)
     setCurrentPage(1)
-  }, [])
+    void persistPageSizePreference(normalized)
+  }, [persistPageSizePreference])
 
   const handleSort = useCallback((columnId: string, direction: 'asc' | 'desc') => {
     if (columnId === 'multi-action') {
@@ -948,11 +966,11 @@ export default function ProductsPage() {
     const header = [
       'Distributor Name',
       'Vendor Name',
-      'Product Family - Vendor',
-      'Product Subtype - Vendor',
-      'Product Name - Vendor',
-      'Product Name - House',
-      'Part Number - Vendor',
+      'Vendor - Product Family',
+      'Vendor - Product Subtype',
+      'Vendor - Product Name',
+      'House - Product Name',
+      'Vendor - Part Number',
       'Quantity',
       'Price Each',
       'Expected Commission Rate %',

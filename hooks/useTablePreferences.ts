@@ -9,6 +9,11 @@ interface TablePreferencePayload {
   hiddenColumns?: string[]
   sortState?: unknown
   filters?: unknown
+  pageSize?: number | null
+}
+
+interface UseTablePreferencesOptions {
+  defaultPageSize?: number
 }
 
 function cloneColumns(columns: Column[]): Column[] {
@@ -60,11 +65,19 @@ function applyPreferences(columns: Column[], preference: TablePreferencePayload 
   return orderedColumns
 }
 
+function normalizePageSize(value: unknown, fallback: number): number {
+  const num = Number(value)
+  if (!Number.isFinite(num)) return fallback
+  const clamped = Math.min(100, Math.max(1, Math.floor(num)))
+  return clamped
+}
+
 export interface UseTablePreferencesResult {
   columns: Column[]
   loading: boolean
   saving: boolean
   error: string | null
+  pageSize: number
   /**
    * True when a persisted preference row exists for this pageKey.
    * Used by callers to apply "default visibility" only on first load.
@@ -74,6 +87,7 @@ export interface UseTablePreferencesResult {
   lastSaved: Date | null
   handleColumnsChange: (columns: Column[]) => void
   handleHiddenColumnsChange: (hiddenColumns: string[]) => void
+  handlePageSizeChange: (pageSize: number) => Promise<void>
   saveChanges: () => Promise<void>
   saveChangesOnModalClose: () => Promise<void>
   refresh: () => Promise<void>
@@ -81,8 +95,10 @@ export interface UseTablePreferencesResult {
 
 export function useTablePreferences(
   pageKey: string,
-  baseColumns: Column[]
+  baseColumns: Column[],
+  options?: UseTablePreferencesOptions
 ): UseTablePreferencesResult {
+  const normalizedDefaultPageSize = normalizePageSize(options?.defaultPageSize ?? 100, 100)
   const [columns, setColumns] = useState<Column[]>(() => cloneColumns(baseColumns))
   const [loading, setLoading] = useState<boolean>(true)
   const [saving, setSaving] = useState<boolean>(false)
@@ -91,10 +107,12 @@ export function useTablePreferences(
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState<boolean>(false)
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
   const [savedColumns, setSavedColumns] = useState<Column[]>(() => cloneColumns(baseColumns))
+  const [pageSize, setPageSize] = useState<number>(normalizedDefaultPageSize)
 
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const baseColumnsKey = useMemo(() => JSON.stringify(baseColumns), [baseColumns])
   const baseColumnsRef = useRef(baseColumns)
+  const pageSizeRef = useRef<number>(normalizedDefaultPageSize)
 
   useEffect(() => {
     baseColumnsRef.current = baseColumns
@@ -143,6 +161,9 @@ export function useTablePreferences(
       const newColumns = applyPreferences(base, payload)
       setColumns(newColumns)
       setSavedColumns(newColumns.map(col => ({ ...col })))
+      const nextPageSize = normalizePageSize(payload?.pageSize ?? normalizedDefaultPageSize, normalizedDefaultPageSize)
+      setPageSize(nextPageSize)
+      pageSizeRef.current = nextPageSize
       setHasUnsavedChanges(false)
       setError(null)
     } catch (err) {
@@ -152,11 +173,13 @@ export function useTablePreferences(
       setSavedColumns(fallbackColumns.map(col => ({ ...col })))
       setHasUnsavedChanges(false)
       setHasServerPreferences(false)
+      setPageSize(normalizedDefaultPageSize)
+      pageSizeRef.current = normalizedDefaultPageSize
       setError(err instanceof Error ? err.message : "Unable to load table preferences")
     } finally {
       setLoading(false)
     }
-  }, [pageKey, baseColumnsKey])
+  }, [pageKey, baseColumnsKey, normalizedDefaultPageSize])
 
   useEffect(() => {
     fetchPreferences()
@@ -168,7 +191,9 @@ export function useTablePreferences(
     }
   }, [fetchPreferences])
 
-  const persistPreferences = useCallback(async (updatedColumns: Column[]) => {
+  const persistPreferences = useCallback(async (updatedColumns: Column[], nextPageSize?: number) => {
+    const finalPageSize = normalizePageSize(nextPageSize ?? pageSizeRef.current, normalizedDefaultPageSize)
+    pageSizeRef.current = finalPageSize
     try {
       setSaving(true)
       const response = await fetch(`/api/table-preferences/${encodeURIComponent(pageKey)}` , {
@@ -183,7 +208,8 @@ export function useTablePreferences(
             acc[column.id] = Math.round(column.width)
             return acc
           }, {}),
-          hiddenColumns: updatedColumns.filter(column => column.hidden).map(column => column.id)
+          hiddenColumns: updatedColumns.filter(column => column.hidden).map(column => column.id),
+          pageSize: finalPageSize
         })
       })
 
@@ -193,6 +219,7 @@ export function useTablePreferences(
 
       // Update saved state after successful save
       setSavedColumns(updatedColumns.map(col => ({ ...col })))
+      setPageSize(finalPageSize)
       setHasUnsavedChanges(false)
       setLastSaved(new Date())
     } catch (err) {
@@ -201,14 +228,14 @@ export function useTablePreferences(
     } finally {
       setSaving(false)
     }
-  }, [pageKey])
+  }, [pageKey, normalizedDefaultPageSize])
 
   // Manual save function for explicit saves
   const saveChanges = useCallback(async () => {
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current)
     }
-    await persistPreferences(columns)
+    await persistPreferences(columns, pageSizeRef.current)
   }, [columns, persistPreferences])
 
   // Auto-save when modal closes (if there are changes)
@@ -230,7 +257,7 @@ export function useTablePreferences(
     // Auto-save with debounce (150ms delay)
     if (hasChanges) {
       saveTimeoutRef.current = setTimeout(() => {
-        persistPreferences(updated)
+        persistPreferences(updated, pageSizeRef.current)
       }, 150)
     }
   }, [columnsHaveChanged, savedColumns, persistPreferences])
@@ -252,6 +279,16 @@ export function useTablePreferences(
     })
   }, [schedulePersist])
 
+  const handlePageSizeChange = useCallback(
+    async (next: number) => {
+      const normalized = normalizePageSize(next, normalizedDefaultPageSize)
+      setPageSize(normalized)
+      pageSizeRef.current = normalized
+      await persistPreferences(columns, normalized)
+    },
+    [columns, normalizedDefaultPageSize, persistPreferences]
+  )
+
   const refresh = useCallback(async () => {
     await fetchPreferences()
   }, [fetchPreferences])
@@ -261,11 +298,13 @@ export function useTablePreferences(
     loading,
     saving,
     error,
+    pageSize,
     hasServerPreferences,
     hasUnsavedChanges,
     lastSaved,
     handleColumnsChange,
     handleHiddenColumnsChange,
+    handlePageSizeChange,
     saveChanges,
     saveChangesOnModalClose,
     refresh

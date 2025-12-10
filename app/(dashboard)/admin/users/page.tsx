@@ -10,6 +10,11 @@ import { PermissionGate } from '@/components/auth/permission-gate'
 import { Edit, Trash2, User, Shield } from 'lucide-react'
 import { isRowInactive } from '@/lib/row-state'
 
+const normalizePageSize = (value: number): number => {
+  if (!Number.isFinite(value)) return 100
+  return Math.min(100, Math.max(1, Math.floor(value)))
+}
+
 const userColumns: Column[] = [
   {
     id: 'active',
@@ -147,13 +152,15 @@ export default function AdminUsersPage() {
   const [showColumnSettings, setShowColumnSettings] = useState(false)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [currentPage, setCurrentPage] = useState<number>(1)
-  const [pageSize, setPageSize] = useState<number>(25)
+  const [pageSize, setPageSize] = useState<number>(100)
   const [updatingUserIds, setUpdatingUserIds] = useState<Set<string>>(new Set())
 
   const {
     columns: preferenceColumns,
     loading: preferenceLoading,
     error: preferenceError,
+    pageSize: preferencePageSize,
+    handlePageSizeChange: persistPageSizePreference,
     handleColumnsChange,
     saveChangesOnModalClose,
   } = useTablePreferences("admin:users", userColumns)
@@ -290,9 +297,20 @@ export default function AdminUsersPage() {
   }, [])
 
   const handlePageSizeChange = useCallback((newPageSize: number) => {
-    setPageSize(newPageSize)
+    const normalized = normalizePageSize(newPageSize)
+    setPageSize(normalized)
     setCurrentPage(1) // Reset to first page when page size changes
-  }, [])
+    void persistPageSizePreference(normalized)
+  }, [persistPageSizePreference])
+
+  useEffect(() => {
+    if (!preferencePageSize) return
+    const normalized = normalizePageSize(preferencePageSize)
+    if (normalized !== pageSize) {
+      setPageSize(normalized)
+      setCurrentPage(1)
+    }
+  }, [pageSize, preferencePageSize])
 
   // Calculate paginated data
   const paginatedUsers = useMemo(() => {

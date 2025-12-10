@@ -82,9 +82,9 @@ const OPPORTUNITY_FILTER_OPTIONS = [
   { id: 'stage', label: 'Opportunity Stage' },
   { id: 'owner', label: 'Owner' },
   { id: 'accountLegalName', label: 'Account Legal Name' },
-  { id: 'orderIdHouse', label: 'Order ID - House' },
-  { id: 'accountIdVendor', label: 'Account ID - Vendor' },
-  { id: 'customerIdVendor', label: 'Customer ID - Vendor' },
+  { id: 'orderIdHouse', label: 'House - Order ID' },
+  { id: 'accountIdVendor', label: 'Vendor - Account ID' },
+  { id: 'customerIdVendor', label: 'Vendor - Customer ID' },
   { id: 'locationId', label: 'Location ID' },
   { id: 'opportunityId', label: 'Opportunity ID' },
   { id: 'referredBy', label: 'Lead Source' },
@@ -237,9 +237,9 @@ const BASE_COLUMNS: Column[] = [
   },
   {
     id: 'orderIdHouse',
-    label: 'Order ID - House',
+    label: 'House - Order ID',
     width: 150,
-    minWidth: calculateMinWidth({ label: 'Order ID - House', type: 'text', sortable: true }),
+    minWidth: calculateMinWidth({ label: 'House - Order ID', type: 'text', sortable: true }),
     maxWidth: 200,
     sortable: true,
     accessor: 'orderIdHouse',
@@ -283,18 +283,18 @@ const BASE_COLUMNS: Column[] = [
   },
   {
     id: 'accountIdVendor',
-    label: 'Account ID - Vendor',
+    label: 'Vendor - Account ID',
     width: 180,
-    minWidth: calculateMinWidth({ label: 'Account ID - Vendor', type: 'text', sortable: false }),
+    minWidth: calculateMinWidth({ label: 'Vendor - Account ID', type: 'text', sortable: false }),
     maxWidth: 260,
     accessor: 'accountIdVendor',
     hidden: true,
   },
   {
     id: 'customerIdVendor',
-    label: 'Customer ID - Vendor',
+    label: 'Vendor - Customer ID',
     width: 180,
-    minWidth: calculateMinWidth({ label: 'Customer ID - Vendor', type: 'text', sortable: false }),
+    minWidth: calculateMinWidth({ label: 'Vendor - Customer ID', type: 'text', sortable: false }),
     maxWidth: 260,
     accessor: 'customerIdVendor',
     hidden: true,
@@ -365,9 +365,14 @@ interface OpportunityListResponse {
 
 const DEFAULT_PAGINATION: PaginationInfo = {
   page: 1,
-  pageSize: 25,
+  pageSize: 100,
   total: 0,
   totalPages: 1,
+}
+
+const normalizePageSize = (value: number): number => {
+  if (!Number.isFinite(value)) return 100
+  return Math.min(100, Math.max(1, Math.floor(value)))
 }
 
 const TABLE_BOTTOM_RESERVE = 110
@@ -410,6 +415,8 @@ export default function OpportunitiesPage() {
     loading: preferenceLoading,
     error: preferenceError,
     saving: preferenceSaving,
+    pageSize: preferencePageSize,
+    handlePageSizeChange: persistPageSizePreference,
     hasUnsavedChanges,
     lastSaved,
     handleColumnsChange,
@@ -623,9 +630,20 @@ export default function OpportunitiesPage() {
   }, [])
 
   const handlePageSizeChange = useCallback((size: number) => {
-    setPageSize(size)
+    const normalized = normalizePageSize(size)
+    setPageSize(normalized)
     setCurrentPage(1)
-  }, [])
+    void persistPageSizePreference(normalized)
+  }, [persistPageSizePreference])
+
+  useEffect(() => {
+    if (!preferencePageSize) return
+    const normalized = normalizePageSize(preferencePageSize)
+    if (normalized !== pageSize) {
+      setPageSize(normalized)
+      setCurrentPage(1)
+    }
+  }, [pageSize, preferencePageSize])
 
   const handleSort = useCallback((columnId: string, direction: 'asc' | 'desc') => {
     if (columnId === 'multi-action') {
@@ -727,9 +745,9 @@ export default function OpportunitiesPage() {
       'Account Legal Name',
       'Opportunity Name',
       'Stage',
-      'Order ID - House',
-      'Account ID - Vendor',
-      'Customer ID - Vendor',
+      'House - Order ID',
+      'Vendor - Account ID',
+      'Vendor - Customer ID',
       'Location ID',
       'Opportunity ID',
       'Owner',

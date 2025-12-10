@@ -130,6 +130,10 @@ const REQUEST_ANIMATION_FRAME =
 const TABLE_BOTTOM_RESERVE = 110
 const TABLE_MIN_BODY_HEIGHT = 320
 const DEFAULT_SORT: SortConfig = { columnId: 'activityDate', direction: 'desc' }
+const normalizePageSize = (value: number): number => {
+  if (!Number.isFinite(value)) return 100
+  return Math.min(100, Math.max(1, Math.floor(value)))
+}
 
 function transformActivityForTable(activity: ActivityListItem): ActivityRow {
   const sourceDate = activity.dueDate ?? activity.createdAt
@@ -182,8 +186,8 @@ export default function ActivitiesPage() {
   const [statusSubmitting, setStatusSubmitting] = useState(false)
   const [sortConfig, setSortConfig] = useState<SortConfig>(DEFAULT_SORT)
   const [page, setPage] = useState<number>(1)
-  const [pageSize, setPageSize] = useState<number>(25)
-  const [pagination, setPagination] = useState<PaginationInfo>({ page: 1, pageSize: 25, total: 0, totalPages: 1 })
+  const [pageSize, setPageSize] = useState<number>(100)
+  const [pagination, setPagination] = useState<PaginationInfo>({ page: 1, pageSize: 100, total: 0, totalPages: 1 })
   const [tableBodyHeight, setTableBodyHeight] = useState<number>()
   const tableAreaNodeRef = useRef<HTMLDivElement | null>(null)
   const { showError, showSuccess } = useToasts()
@@ -193,6 +197,8 @@ export default function ActivitiesPage() {
     loading: preferenceLoading,
     error: preferenceError,
     handleColumnsChange,
+    pageSize: preferencePageSize,
+    handlePageSizeChange: persistPageSizePreference,
     saveChangesOnModalClose
   } = useTablePreferences("activities:list", ACTIVITY_COLUMNS)
 
@@ -367,9 +373,20 @@ export default function ActivitiesPage() {
   }, [])
 
   const handlePageSizeChange = useCallback((nextPageSize: number) => {
-    setPageSize(nextPageSize)
+    const normalized = normalizePageSize(nextPageSize)
+    setPageSize(normalized)
     setPage(1)
-  }, [])
+    void persistPageSizePreference(normalized)
+  }, [persistPageSizePreference])
+
+  useEffect(() => {
+    if (!preferencePageSize) return
+    const normalized = normalizePageSize(preferencePageSize)
+    if (normalized !== pageSize) {
+      setPageSize(normalized)
+      setPage(1)
+    }
+  }, [pageSize, preferencePageSize])
 
   const handleSelectActivity = useCallback((id: string, selected: boolean) => {
     setSelectedActivities(prev => selected ? (prev.includes(id) ? prev : [...prev, id]) : prev.filter(x => x !== id))

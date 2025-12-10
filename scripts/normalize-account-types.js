@@ -61,7 +61,9 @@ async function ensureCanonicalAccountTypesForTenant(tenantId) {
           code: entry.code,
           name: entry.name,
           displayOrder: entry.displayOrder,
-          isAssignableToContacts: true
+          isAssignableToContacts: true,
+          isActive: true,
+          isSystem: true
         }
       })
     } else {
@@ -69,7 +71,8 @@ async function ensureCanonicalAccountTypesForTenant(tenantId) {
         primary.code !== entry.code ||
         primary.name !== entry.name ||
         primary.displayOrder !== entry.displayOrder ||
-        primary.isAssignableToContacts !== true
+        primary.isAssignableToContacts !== true ||
+        primary.isSystem !== true
 
       primaryRecord = needsUpdate
         ? await prisma.accountType.update({
@@ -78,7 +81,8 @@ async function ensureCanonicalAccountTypesForTenant(tenantId) {
               code: entry.code,
               name: entry.name,
               displayOrder: entry.displayOrder,
-              isAssignableToContacts: true
+              isAssignableToContacts: true,
+              isSystem: true
             }
           })
         : primary
@@ -99,32 +103,7 @@ async function ensureCanonicalAccountTypesForTenant(tenantId) {
     canonicalRecords.set(normalized, primaryRecord)
   }
 
-  const fallbackRecord = canonicalRecords.get(FALLBACK_NORMALIZED_CODE)
-
-  const remaining = await prisma.accountType.findMany({
-    where: { tenantId },
-    select: { id: true, code: true }
-  })
-
-  for (const accountType of remaining) {
-    const normalized = normalizeAccountTypeCode(accountType.code)
-    if (CANONICAL_NORMALIZED_CODES.has(normalized)) {
-      continue
-    }
-
-    if (fallbackRecord && accountType.id !== fallbackRecord.id) {
-      await prisma.account.updateMany({
-        where: { accountTypeId: accountType.id },
-        data: { accountTypeId: fallbackRecord.id }
-      })
-      await prisma.contact.updateMany({
-        where: { accountTypeId: accountType.id },
-        data: { accountTypeId: fallbackRecord.id }
-      })
-    }
-
-    await prisma.accountType.delete({ where: { id: accountType.id } })
-  }
+  // Non-canonical account types are now preserved and managed via the Admin Data Settings UI.
 }
 
 async function main() {

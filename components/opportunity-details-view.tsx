@@ -38,6 +38,11 @@ import { useToasts } from "@/components/toast"
 import { OpportunityRoleCreateModal } from "./opportunity-role-create-modal"
 import { getOpportunityStageLabel, getOpportunityStageOptions, isOpportunityStageAutoManaged, isOpportunityStageValue, type OpportunityStageOption } from "@/lib/opportunity-stage"
 import { getRevenueTypeLabel } from "@/lib/revenue-types"
+
+const normalizePageSize = (value: number): number => {
+  if (!Number.isFinite(value)) return 100
+  return Math.min(100, Math.max(1, Math.floor(value)))
+}
 import { StatusFilterDropdown } from "@/components/status-filter-dropdown"
 import { AuditHistoryTab } from "./audit-history-tab"
 import { buildStandardBulkActions } from "@/components/standard-bulk-actions"
@@ -224,8 +229,17 @@ export const PRODUCT_TABLE_BASE_COLUMNS: Column[] = [
     type: "multi-action",
     hideable: false
   },
-  { id: "productNameHouse", label: "Product Name - House", width: 240, minWidth: calculateMinWidth({ label: "Product Name - House", type: "text", sortable: true }), accessor: "productNameHouse", sortable: true },
-  { id: "productNameVendor", label: "Product Name - Vendor", width: 240, minWidth: calculateMinWidth({ label: "Product Name - Vendor", type: "text", sortable: true }), accessor: "productNameVendor", sortable: true },
+  { id: "productNameHouse", label: "House - Product Name", width: 240, minWidth: calculateMinWidth({ label: "House - Product Name", type: "text", sortable: true }), accessor: "productNameHouse", sortable: true },
+  { id: "productNameVendor", label: "Vendor - Product Name", width: 240, minWidth: calculateMinWidth({ label: "Vendor - Product Name", type: "text", sortable: true }), accessor: "productNameVendor", sortable: true },
+  {
+    id: "partNumberVendor",
+    label: "Vendor - Part Number",
+    width: 200,
+    minWidth: calculateMinWidth({ label: "Vendor - Part Number", type: "text", sortable: true }),
+    accessor: "productCode",
+    sortable: true,
+    hidden: true
+  },
   { id: "productCode", label: "Product Code", width: 160, minWidth: calculateMinWidth({ label: "Product Code", type: "text", sortable: true }), accessor: "productCode", sortable: true },
   {
     id: "revenueType",
@@ -271,7 +285,7 @@ export const REVENUE_TABLE_BASE_COLUMNS: Column[] = [
     type: "multi-action",
     hideable: false
   },
-  { id: "productNameVendor", label: "Product Name - Vendor", width: 220, minWidth: calculateMinWidth({ label: "Product Name - Vendor", type: "text", sortable: true }), accessor: "productNameVendor", sortable: true },
+  { id: "productNameVendor", label: "Vendor - Product Name", width: 220, minWidth: calculateMinWidth({ label: "Vendor - Product Name", type: "text", sortable: true }), accessor: "productNameVendor", sortable: true },
   { id: "vendorName", label: "Vendor Name", width: 200, minWidth: calculateMinWidth({ label: "Vendor Name", type: "text", sortable: true }), accessor: "vendorName", sortable: true },
   { id: "distributorName", label: "Distributor Name", width: 200, minWidth: calculateMinWidth({ label: "Distributor Name", type: "text", sortable: true }), accessor: "distributorName", sortable: true },
   { id: "accountName", label: "Account Name", width: 220, minWidth: calculateMinWidth({ label: "Account Name", type: "text", sortable: true }), accessor: "accountName", sortable: true },
@@ -651,16 +665,16 @@ function SummaryTab({ opportunity }: { opportunity: OpportunityDetailRecord }) {
 function DetailsIdentifiersTab({ opportunity }: { opportunity: OpportunityDetailRecord }) {
   const identifiers = opportunity.identifiers ?? {}
   const fields = [
-    { label: "Account ID - House", value: identifiers.accountIdHouse },
-    { label: "Account ID - Vendor", value: identifiers.accountIdVendor },
-    { label: "Account ID - Distributor", value: identifiers.accountIdDistributor },
-    { label: "Customer ID - House", value: identifiers.customerIdHouse },
-    { label: "Customer ID - Vendor", value: identifiers.customerIdVendor },
-    { label: "Customer ID - Distributor", value: identifiers.customerIdDistributor },
+    { label: "House - Account ID", value: identifiers.accountIdHouse },
+    { label: "Vendor - Account ID", value: identifiers.accountIdVendor },
+    { label: "Distributor - Account ID", value: identifiers.accountIdDistributor },
+    { label: "House - Customer ID", value: identifiers.customerIdHouse },
+    { label: "Vendor - Customer ID", value: identifiers.customerIdVendor },
+    { label: "Distributor - Customer ID", value: identifiers.customerIdDistributor },
     { label: "Location ID", value: identifiers.locationId },
-    { label: "Order ID - House", value: identifiers.orderIdHouse },
-    { label: "Order ID - Vendor", value: identifiers.orderIdVendor },
-    { label: "Order ID - Distributor", value: identifiers.orderIdDistributor },
+    { label: "House - Order ID", value: identifiers.orderIdHouse },
+    { label: "Vendor - Order ID", value: identifiers.orderIdVendor },
+    { label: "Distributor - Order ID", value: identifiers.orderIdDistributor },
     { label: "Customer PO #", value: identifiers.customerPurchaseOrder }
   ]
 
@@ -1735,7 +1749,7 @@ export function OpportunityDetailsView({
   const [roleColumnFilters, setRoleColumnFilters] = useState<ColumnFilter[]>([])
   const [roleStatusFilter, setRoleStatusFilter] = useState<"active" | "inactive">("active")
   const [roleCurrentPage, setRoleCurrentPage] = useState(1)
-  const [rolePageSize, setRolePageSize] = useState(10)
+  const [rolePageSize, setRolePageSize] = useState(100)
   const [selectedRoles, setSelectedRoles] = useState<string[]>([])
   const [showRoleColumnSettings, setShowRoleColumnSettings] = useState(false)
   const [showCreateRoleModal, setShowCreateRoleModal] = useState(false)
@@ -1744,6 +1758,8 @@ export function OpportunityDetailsView({
     columns: rolePreferenceColumns,
     loading: rolePreferencesLoading,
     saving: rolePreferencesSaving,
+    pageSize: rolePreferencePageSize,
+    handlePageSizeChange: persistRolePageSize,
     hasUnsavedChanges: roleHasUnsavedChanges,
     lastSaved: roleLastSaved,
     handleColumnsChange: handleRoleColumnsChange,
@@ -1756,7 +1772,7 @@ export function OpportunityDetailsView({
   const [productColumnFilters, setProductColumnFilters] = useState<ColumnFilter[]>([])
   const [productStatusFilter, setProductStatusFilter] = useState<"active" | "inactive">("active")
   const [productCurrentPage, setProductCurrentPage] = useState(1)
-  const [productPageSize, setProductPageSize] = useState(10)
+  const [productPageSize, setProductPageSize] = useState(100)
   const [showProductColumnSettings, setShowProductColumnSettings] = useState(false)
   const [showCreateLineItemModal, setShowCreateLineItemModal] = useState(false)
   const [editingLineItem, setEditingLineItem] = useState<OpportunityLineItemRecord | null>(null)
@@ -1773,6 +1789,8 @@ export function OpportunityDetailsView({
     columns: productPreferenceColumns,
     loading: productPreferencesLoading,
     saving: productPreferencesSaving,
+    pageSize: productPreferencePageSize,
+    handlePageSizeChange: persistProductPageSize,
     hasUnsavedChanges: productHasUnsavedChanges,
     lastSaved: productLastSaved,
     handleColumnsChange: handleProductTableColumnsChange,
@@ -1785,7 +1803,7 @@ export function OpportunityDetailsView({
   const [revenueColumnFilters, setRevenueColumnFilters] = useState<ColumnFilter[]>([])
   const [revenueStatusFilter, setRevenueStatusFilter] = useState<'all' | 'open' | 'reconciled' | 'in_dispute'>('all')
   const [revenueCurrentPage, setRevenueCurrentPage] = useState(1)
-  const [revenuePageSize, setRevenuePageSize] = useState(10)
+  const [revenuePageSize, setRevenuePageSize] = useState(100)
   const [selectedRevenueSchedules, setSelectedRevenueSchedules] = useState<string[]>([])
   const [showRevenueColumnSettings, setShowRevenueColumnSettings] = useState(false)
   const [showRevenueCreateModal, setShowRevenueCreateModal] = useState(false)
@@ -1802,6 +1820,8 @@ export function OpportunityDetailsView({
     columns: revenuePreferenceColumns,
     loading: revenuePreferencesLoading,
     saving: revenuePreferencesSaving,
+    pageSize: revenuePreferencePageSize,
+    handlePageSizeChange: persistRevenuePageSize,
     hasUnsavedChanges: revenueHasUnsavedChanges,
     lastSaved: revenueLastSaved,
     handleColumnsChange: handleRevenueColumnsChange,
@@ -1814,7 +1834,7 @@ export function OpportunityDetailsView({
   const [activitiesColumnFilters, setActivitiesColumnFilters] = useState<ColumnFilter[]>([])
   const [activityStatusFilter, setActivityStatusFilter] = useState<"active" | "inactive">("active")
   const [activitiesCurrentPage, setActivitiesCurrentPage] = useState(1)
-  const [activitiesPageSize, setActivitiesPageSize] = useState(10)
+  const [activitiesPageSize, setActivitiesPageSize] = useState(100)
   const [selectedActivities, setSelectedActivities] = useState<string[]>([])
   const [activityModalOpen, setActivityModalOpen] = useState(false)
   const [activityBulkActionLoading, setActivityBulkActionLoading] = useState(false)
@@ -1828,6 +1848,8 @@ export function OpportunityDetailsView({
     columns: activityPreferenceColumns,
     loading: activityPreferencesLoading,
     saving: activityPreferencesSaving,
+    pageSize: activityPreferencePageSize,
+    handlePageSizeChange: persistActivityPageSize,
     hasUnsavedChanges: activityHasUnsavedChanges,
     lastSaved: activityLastSaved,
     handleColumnsChange: handleActivityTableColumnsChange,
@@ -1985,6 +2007,15 @@ export function OpportunityDetailsView({
     }
   }, [filteredRoleRows.length, roleCurrentPage, rolePageSize])
 
+useEffect(() => {
+  if (!rolePreferencePageSize) return
+  const normalized = normalizePageSize(rolePreferencePageSize)
+  if (normalized !== rolePageSize) {
+    setRolePageSize(normalized)
+    setRoleCurrentPage(1)
+  }
+}, [rolePreferencePageSize, rolePageSize])
+
   useEffect(() => {
     const maxPage = Math.max(Math.ceil(filteredRoleRows.length / rolePageSize), 1)
     if (roleCurrentPage > maxPage) {
@@ -2037,9 +2068,11 @@ export function OpportunityDetailsView({
   }, [])
 
   const handleRolePageSizeChange = useCallback((size: number) => {
-    setRolePageSize(size)
-    setRoleCurrentPage(1)
-  }, [])
+  const normalized = normalizePageSize(size)
+  setRolePageSize(normalized)
+  setRoleCurrentPage(1)
+  void persistRolePageSize(normalized)
+}, [persistRolePageSize])
 
   const roleTableColumns = useMemo(() => {
     return rolePreferenceColumns.map(column => {
@@ -2459,6 +2492,15 @@ export function OpportunityDetailsView({
     return { page: activitiesCurrentPage, pageSize: activitiesPageSize, total, totalPages }
   }, [filteredActivities.length, activitiesCurrentPage, activitiesPageSize])
 
+useEffect(() => {
+  if (!activityPreferencePageSize) return
+  const normalized = normalizePageSize(activityPreferencePageSize)
+  if (normalized !== activitiesPageSize) {
+    setActivitiesPageSize(normalized)
+    setActivitiesCurrentPage(1)
+  }
+}, [activityPreferencePageSize, activitiesPageSize])
+
   useEffect(() => {
     const maxPage = Math.max(Math.ceil(filteredActivities.length / activitiesPageSize), 1)
     if (activitiesCurrentPage > maxPage) {
@@ -2488,9 +2530,11 @@ export function OpportunityDetailsView({
   }, [])
 
   const handleActivitiesPageSizeChange = useCallback((size: number) => {
-    setActivitiesPageSize(size)
-    setActivitiesCurrentPage(1)
-  }, [])
+  const normalized = normalizePageSize(size)
+  setActivitiesPageSize(normalized)
+  setActivitiesCurrentPage(1)
+  void persistActivityPageSize(normalized)
+}, [persistActivityPageSize])
 
   const handleActivitySelect = useCallback((activityId: string, selected: boolean) => {
     setSelectedActivities(previous => {
@@ -2525,6 +2569,15 @@ export function OpportunityDetailsView({
       totalPages
     }
   }, [filteredRevenueRows.length, revenueCurrentPage, revenuePageSize])
+
+useEffect(() => {
+  if (!revenuePreferencePageSize) return
+  const normalized = normalizePageSize(revenuePreferencePageSize)
+  if (normalized !== revenuePageSize) {
+    setRevenuePageSize(normalized)
+    setRevenueCurrentPage(1)
+  }
+}, [revenuePreferencePageSize, revenuePageSize])
 
   useEffect(() => {
     const maxPage = Math.max(Math.ceil(filteredRevenueRows.length / revenuePageSize), 1)
@@ -2574,9 +2627,11 @@ export function OpportunityDetailsView({
   }, [])
 
   const handleRevenuePageSizeChange = useCallback((size: number) => {
-    setRevenuePageSize(size)
-    setRevenueCurrentPage(1)
-  }, [])
+  const normalized = normalizePageSize(size)
+  setRevenuePageSize(normalized)
+  setRevenueCurrentPage(1)
+  void persistRevenuePageSize(normalized)
+}, [persistRevenuePageSize])
 
   const handleRevenueSort = useCallback((columnId: string, direction: "asc" | "desc") => {
     setRevenueSort({ columnId, direction })
@@ -3061,7 +3116,7 @@ export function OpportunityDetailsView({
     }
 
     const headers = [
-      "Product Name - Vendor",
+      "Vendor - Product Name",
       "Vendor Name",
       "Distributor Name",
       "Account Name",
@@ -4135,6 +4190,15 @@ export function OpportunityDetailsView({
     }
   }, [filteredProductRows.length, productCurrentPage, productPageSize])
 
+useEffect(() => {
+  if (!productPreferencePageSize) return
+  const normalized = normalizePageSize(productPreferencePageSize)
+  if (normalized !== productPageSize) {
+    setProductPageSize(normalized)
+    setProductCurrentPage(1)
+  }
+}, [productPreferencePageSize, productPageSize])
+
   useEffect(() => {
     const maxPage = Math.max(Math.ceil(filteredProductRows.length / productPageSize), 1)
     if (productCurrentPage > maxPage) {
@@ -4147,9 +4211,11 @@ export function OpportunityDetailsView({
   }, [])
 
   const handleProductPageSizeChange = useCallback((pageSize: number) => {
-    setProductPageSize(pageSize)
-    setProductCurrentPage(1)
-  }, [])
+  const normalized = normalizePageSize(pageSize)
+  setProductPageSize(normalized)
+  setProductCurrentPage(1)
+  void persistProductPageSize(normalized)
+}, [persistProductPageSize])
 
   useEffect(() => {
     setSelectedLineItems(previous =>

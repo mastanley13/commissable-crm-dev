@@ -40,6 +40,11 @@ const DERIVED_PERMISSION_MAP: Record<string, string[]> = {
   "revenue-schedules.manage": [
     "accounts.manage",
     "opportunities.manage"
+  ],
+  // Mirror server-side derived permissions so the client can treat
+  // system settings admins as Data Settings admins.
+  "admin.data_settings.manage": [
+    "system.settings.write"
   ]
 }
 

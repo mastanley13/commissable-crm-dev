@@ -4,6 +4,15 @@ import { withAuth } from "@/lib/api-auth"
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic';
 
+function normalizePageSize(value: unknown): number | null {
+  const num = Number(value)
+  if (!Number.isFinite(num)) {
+    return null
+  }
+  const clamped = Math.min(100, Math.max(1, Math.floor(num)))
+  return clamped
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: { pageKey: string } }
@@ -33,6 +42,7 @@ export async function GET(
         hiddenColumns: preference.hiddenColumns ?? null,
         sortState: preference.sortState ?? null,
         filters: preference.filters ?? null,
+        pageSize: preference.pageSize ?? null,
         meta: {
           tenantId,
           userId
@@ -65,6 +75,8 @@ export async function POST(
       const columnOrder = Array.isArray(body.columnOrder) ? body.columnOrder : null
       const columnWidths = body.columnWidths && typeof body.columnWidths === "object" ? body.columnWidths : null
       const hiddenColumns = Array.isArray(body.hiddenColumns) ? body.hiddenColumns : null
+      const hasPageSize = Object.prototype.hasOwnProperty.call(body, "pageSize")
+      const pageSize = hasPageSize ? normalizePageSize(body.pageSize) : undefined
 
       await prisma.tablePreference.upsert({
         where: {
@@ -79,7 +91,8 @@ export async function POST(
           columnWidths,
           hiddenColumns,
           sortState: body.sortState ?? null,
-          filters: body.filters ?? null
+          filters: body.filters ?? null,
+          ...(hasPageSize ? { pageSize } : {})
         },
         create: {
           tenantId,
@@ -89,7 +102,8 @@ export async function POST(
           columnWidths,
           hiddenColumns,
           sortState: body.sortState ?? null,
-          filters: body.filters ?? null
+          filters: body.filters ?? null,
+          ...(hasPageSize ? { pageSize } : {})
         }
       })
 

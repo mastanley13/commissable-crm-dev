@@ -79,9 +79,9 @@ const revenueScheduleColumns: Column[] = [
   },
   {
     id: 'productNameVendor', // 04.00.003
-    label: 'Product Name - Vendor',
+    label: 'Vendor - Product Name',
     width: 200,
-    minWidth: calculateMinWidth({ label: 'Product Name - Vendor', type: 'text', sortable: true }),
+    minWidth: calculateMinWidth({ label: 'Vendor - Product Name', type: 'text', sortable: true }),
     maxWidth: 320,
     sortable: true,
     type: 'text',
@@ -218,6 +218,46 @@ const revenueScheduleColumns: Column[] = [
     type: 'text',
   },
   {
+    id: 'customerIdVendor', // 04.00.016
+    label: 'Vendor - Customer ID',
+    width: 210,
+    minWidth: calculateMinWidth({ label: 'Vendor - Customer ID', type: 'text', sortable: true }),
+    maxWidth: 280,
+    sortable: true,
+    type: 'text',
+    hidden: true,
+  },
+  {
+    id: 'orderIdVendor', // 04.00.017
+    label: 'Vendor - Order ID',
+    width: 190,
+    minWidth: calculateMinWidth({ label: 'Vendor - Order ID', type: 'text', sortable: true }),
+    maxWidth: 260,
+    sortable: true,
+    type: 'text',
+    hidden: true,
+  },
+  {
+    id: 'customerIdDistributor', // 04.00.020
+    label: 'Distributor - Customer ID',
+    width: 210,
+    minWidth: calculateMinWidth({ label: 'Distributor - Customer ID', type: 'text', sortable: true }),
+    maxWidth: 280,
+    sortable: true,
+    type: 'text',
+    hidden: true,
+  },
+  {
+    id: 'orderIdDistributor', // 04.00.021
+    label: 'Distributor - Order ID',
+    width: 190,
+    minWidth: calculateMinWidth({ label: 'Distributor - Order ID', type: 'text', sortable: true }),
+    maxWidth: 260,
+    sortable: true,
+    type: 'text',
+    hidden: true,
+  },
+  {
     id: 'scheduleStatus', // 04.00.022
     label: 'Status',
     width: 160,
@@ -263,6 +303,10 @@ type FilterableColumnKey =
   | 'revenueScheduleName'
   | 'revenueScheduleDate'
   | 'scheduleStatus'
+  | 'customerIdVendor'
+  | 'orderIdVendor'
+  | 'customerIdDistributor'
+  | 'orderIdDistributor'
 
 type RevenueEditableColumnId =
   | 'quantity'
@@ -298,10 +342,14 @@ const filterOptions: { id: FilterableColumnKey; label: string }[] = [
   { id: 'distributorName', label: 'Distributor Name' },
   { id: 'accountName', label: 'Account Name' },
   { id: 'opportunityName', label: 'Opportunity Name' },
-  { id: 'productNameVendor', label: 'Product Name - Vendor' },
+  { id: 'productNameVendor', label: 'Vendor - Product Name' },
   { id: 'revenueScheduleName', label: 'Revenue Schedule' },
   { id: 'revenueScheduleDate', label: 'Schedule Date' },
   { id: 'scheduleStatus', label: 'Status' },
+   { id: 'customerIdVendor', label: 'Vendor - Customer ID' },
+   { id: 'orderIdVendor', label: 'Vendor - Order ID' },
+   { id: 'customerIdDistributor', label: 'Distributor - Customer ID' },
+   { id: 'orderIdDistributor', label: 'Distributor - Order ID' },
 ]
 
 const TABLE_BOTTOM_RESERVE = 110
@@ -334,6 +382,11 @@ const formatPercent = (f: number | null): string => {
   }
 }
 
+const normalizePageSize = (value: number): number => {
+  if (!Number.isFinite(value)) return 100
+  return Math.min(100, Math.max(1, Math.floor(value)))
+}
+
 export default function RevenueSchedulesPage() {
   const { showSuccess, showError, ToastContainer } = useToasts()
   const router = useRouter()
@@ -349,7 +402,7 @@ export default function RevenueSchedulesPage() {
   const [cloneSourceSchedule, setCloneSourceSchedule] = useState<SourceScheduleData | undefined>(undefined)
   const [showColumnSettings, setShowColumnSettings] = useState(false)
   const [currentPage, setCurrentPage] = useState<number>(1)
-  const [pageSize, setPageSize] = useState<number>(25)
+  const [pageSize, setPageSize] = useState<number>(100)
   const [statusQuickFilter, setStatusQuickFilter] = useState<'all' | 'open' | 'reconciled' | 'in_dispute'>('all')
   const [startDate, setStartDate] = useState<string>('')
   const [endDate, setEndDate] = useState<string>('')
@@ -442,10 +495,12 @@ export default function RevenueSchedulesPage() {
     loading: preferenceLoading,
     error: preferenceError,
     saving: preferenceSaving,
+    pageSize: preferencePageSize,
     hasServerPreferences,
     hasUnsavedChanges,
     lastSaved,
     handleColumnsChange,
+    handlePageSizeChange: persistPageSizePreference,
     saveChanges,
     saveChangesOnModalClose,
   } = useTablePreferences('revenue-schedules:list', revenueScheduleColumns)
@@ -628,7 +683,7 @@ export default function RevenueSchedulesPage() {
       'Vendor Name',
       'Account Name',
       'Opportunity Name',
-      'Product Name - Vendor',
+      'Vendor - Product Name',
       'Schedule Date',
       'Revenue Schedule',
       'Quantity',
@@ -832,10 +887,21 @@ export default function RevenueSchedulesPage() {
     setCurrentPage(page)
   }, [])
 
+  useEffect(() => {
+    if (!preferencePageSize) return
+    const normalized = normalizePageSize(preferencePageSize)
+    if (normalized !== pageSize) {
+      setPageSize(normalized)
+      setCurrentPage(1)
+    }
+  }, [preferencePageSize, pageSize])
+
   const handlePageSizeChange = useCallback((newPageSize: number) => {
-    setPageSize(newPageSize)
+    const normalized = normalizePageSize(newPageSize)
+    setPageSize(normalized)
     setCurrentPage(1) // Reset to first page when page size changes
-  }, [])
+    void persistPageSizePreference(normalized)
+  }, [persistPageSizePreference])
 
   const revenueEditableColumnsMeta = useMemo(
     () =>

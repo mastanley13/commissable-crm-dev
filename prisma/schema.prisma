@@ -34,6 +34,8 @@ model Tenant {
   groupMembers            GroupMember[]
   importJobs              ImportJob[]
   industries              Industry[]
+  productFamilies         ProductFamily[]
+  productSubtypes         ProductSubtype[]
   opportunities           Opportunity[]
   opportunityProducts     OpportunityProduct[]
   opportunityRoles        OpportunityRole[]
@@ -193,6 +195,8 @@ model AccountType {
   name                   String
   description            String?
   isAssignableToContacts Boolean   @default(true)
+  isActive               Boolean   @default(true)
+  isSystem               Boolean   @default(false)
   displayOrder           Int       @default(0)
   createdAt              DateTime  @default(now())
   updatedAt              DateTime  @updatedAt
@@ -214,6 +218,43 @@ model Industry {
   accounts     Account[]
   tenant       Tenant    @relation(fields: [tenantId], references: [id])
 
+  @@unique([tenantId, name])
+}
+
+model ProductFamily {
+  id           String           @id @default(uuid()) @db.Uuid
+  tenantId     String           @db.Uuid
+  code         String
+  name         String
+  description  String?
+  isActive     Boolean          @default(true)
+  isSystem     Boolean          @default(false)
+  displayOrder Int              @default(0)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  tenant       Tenant           @relation(fields: [tenantId], references: [id])
+  subtypes     ProductSubtype[]
+
+  @@unique([tenantId, code])
+  @@unique([tenantId, name])
+}
+
+model ProductSubtype {
+  id              String         @id @default(uuid()) @db.Uuid
+  tenantId        String         @db.Uuid
+  productFamilyId String?        @db.Uuid
+  code            String
+  name            String
+  description     String?
+  isActive        Boolean        @default(true)
+  isSystem        Boolean        @default(false)
+  displayOrder    Int            @default(0)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  tenant          Tenant         @relation(fields: [tenantId], references: [id])
+  family          ProductFamily? @relation(fields: [productFamilyId], references: [id])
+
+  @@unique([tenantId, code])
   @@unique([tenantId, name])
 }
 
@@ -972,6 +1013,7 @@ model TablePreference {
   hiddenColumns Json?
   sortState     Json?
   filters       Json?
+  pageSize      Int?
   viewMode      TableViewMode @default(Grid)
   persistedAt   DateTime      @default(now())
   updatedAt     DateTime      @updatedAt

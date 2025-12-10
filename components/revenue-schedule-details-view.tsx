@@ -352,7 +352,7 @@ export function RevenueScheduleDetailsView({
     { fieldId: "04.01.001", label: "Revenue Schedule Date", value: scheduleDate },
     {
       fieldId: "04.01.002",
-      label: "Product Name - Vendor",
+      label: "Vendor - Product Name",
       value:
         schedule.productId &&
         schedule.productNameVendor &&
@@ -367,7 +367,7 @@ export function RevenueScheduleDetailsView({
           schedule.productNameVendor
         )
     },
-    { fieldId: "04.01.003", label: "Product Description - Vendor", value: schedule.productDescriptionVendor },
+    { fieldId: "04.01.003", label: "Vendor - Product Description", value: schedule.productDescriptionVendor },
     { fieldId: "04.01.004", label: "Product Revenue Type", value: productRevenueTypeDisplay },
     {
       fieldId: "04.01.005",
@@ -599,7 +599,7 @@ export function RevenueScheduleDetailsView({
                   return (
                     <EditRow
                       key={`${field.fieldId}-${field.label}`}
-                      label="Product Name - Vendor"
+                      label="Vendor - Product Name"
                       control={
                         <EditableField.Input
                           value={(productNameField.value as string) ?? ""}
@@ -615,7 +615,7 @@ export function RevenueScheduleDetailsView({
                   return (
                     <EditRow
                       key={`${field.fieldId}-${field.label}`}
-                      label="Product Description - Vendor"
+                      label="Vendor - Product Description"
                       control={
                         <EditableField.Input
                           value={(productDescField.value as string) ?? ""}

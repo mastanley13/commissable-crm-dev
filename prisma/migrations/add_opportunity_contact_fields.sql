@@ -7,7 +7,7 @@ ADD COLUMN IF NOT EXISTS "referredBy" TEXT,
 ADD COLUMN IF NOT EXISTS "closeDate" TIMESTAMP(3);
 
 -- Add comment for documentation
-COMMENT ON COLUMN "Opportunity"."orderIdHouse" IS 'Order ID - House (Field 01.07.001)';
+COMMENT ON COLUMN "Opportunity"."orderIdHouse" IS 'House - Order ID (Field 01.07.001)';
 COMMENT ON COLUMN "Opportunity"."distributorName" IS 'Distributor Name (Field 01.07.004)';
 COMMENT ON COLUMN "Opportunity"."vendorName" IS 'Vendor Name (Field 01.07.005)';
 COMMENT ON COLUMN "Opportunity"."referredBy" IS 'Referred By (Field 01.07.006)';

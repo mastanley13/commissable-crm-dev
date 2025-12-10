@@ -8,6 +8,7 @@ import { revalidateOpportunityPaths } from "../../revalidate"
 import { recalculateOpportunityStage } from "@/lib/opportunities/stage"
 import { generateRevenueScheduleName } from "@/lib/revenue-schedule-number"
 import { ensureNoneDirectDistributorAccount } from "@/lib/none-direct-distributor"
+import { assertVendorDistributorConsistentForOpportunity } from "@/lib/opportunities/vendor-distributor"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -165,6 +166,18 @@ export async function POST(
         resolvedDistributorName = noneDirect.accountName
       }
 
+      // Enforce single Distributor/Vendor per Opportunity.
+      const newPair = {
+        distributorAccountId: resolvedDistributorAccountId,
+        vendorAccountId: product.vendorAccountId ?? null
+      }
+      await assertVendorDistributorConsistentForOpportunity(
+        prisma,
+        tenantId,
+        existingOpportunity.id,
+        newPair
+      )
+
       let statusValue: OpportunityProductStatus | undefined
       if ("status" in payload) {
         if (!isValidProductStatus(payload.status)) {
@@ -307,7 +320,18 @@ export async function POST(
       }
 
       return NextResponse.json({ data: mapOpportunityProductToDetail(lineItem) }, { status: 201 })
-    } catch (error) {
+    } catch (error: any) {
+      if (
+        error &&
+        typeof error === "object" &&
+        (error as any).code === "OPPORTUNITY_VENDOR_DISTRIBUTOR_MISMATCH"
+      ) {
+        return NextResponse.json(
+          { error: "Cannot have more than one Distributor/Vendor on the same Opportunity." },
+          { status: 400 }
+        )
+      }
+
       console.error("Failed to create opportunity line item", error)
       return NextResponse.json(
         { error: "Failed to create opportunity line item" },

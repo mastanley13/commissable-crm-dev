@@ -6,6 +6,7 @@ import { hasAnyPermission } from "@/lib/auth"
 import { mapOpportunityProductToDetail } from "../../helpers"
 import { revalidateOpportunityPaths } from "../../revalidate"
 import { recalculateOpportunityStage } from "@/lib/opportunities/stage"
+import { assertVendorDistributorConsistentForOpportunity } from "@/lib/opportunities/vendor-distributor"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -86,11 +87,11 @@ export async function PATCH(
         return NextResponse.json({ error: "Invalid request payload" }, { status: 400 })
       }
 
-      const existingLineItem = await prisma.opportunityProduct.findFirst({
-        where: { id: lineItemId, tenantId },
-        include: {
-          opportunity: { select: { id: true, accountId: true, ownerId: true } },
-          product: {
+    const existingLineItem = await prisma.opportunityProduct.findFirst({
+      where: { id: lineItemId, tenantId },
+      include: {
+        opportunity: { select: { id: true, accountId: true, ownerId: true } },
+        product: {
             select: {
               id: true,
               productNameHouse: true,
@@ -146,6 +147,8 @@ export async function PATCH(
             revenueType: true,
             priceEach: true,
             commissionPercent: true,
+            distributorAccountId: true,
+            vendorAccountId: true,
             distributor: { select: { id: true, accountName: true } },
             vendor: { select: { id: true, accountName: true } }
           }
@@ -153,6 +156,21 @@ export async function PATCH(
 
         if (!product) {
           return NextResponse.json({ error: "Product not found" }, { status: 404 })
+        }
+
+        // Enforce single Distributor/Vendor per Opportunity when changing product.
+        const newPair = {
+          distributorAccountId: product.distributorAccountId ?? null,
+          vendorAccountId: product.vendorAccountId ?? null
+        }
+
+        if (existingLineItem.opportunity) {
+          await assertVendorDistributorConsistentForOpportunity(
+            prisma,
+            tenantId,
+            existingLineItem.opportunity.id,
+            newPair
+          )
         }
 
         updateData.product = { connect: { id: product.id } }
@@ -280,7 +298,18 @@ export async function PATCH(
       }
 
       return NextResponse.json({ data: mapOpportunityProductToDetail(updatedLineItem) })
-    } catch (error) {
+    } catch (error: any) {
+      if (
+        error &&
+        typeof error === "object" &&
+        (error as any).code === "OPPORTUNITY_VENDOR_DISTRIBUTOR_MISMATCH"
+      ) {
+        return NextResponse.json(
+          { error: "Cannot have more than one Distributor/Vendor on the same Opportunity." },
+          { status: 400 }
+        )
+      }
+
       console.error("Failed to update opportunity line item", error)
       return NextResponse.json(
         { error: "Failed to update opportunity line item" },

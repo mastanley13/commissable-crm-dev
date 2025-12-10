@@ -7,6 +7,11 @@ import { ListHeader, type ColumnFilter } from "./list-header"
 import { calculateMinWidth } from "@/lib/column-width-utils"
 import { HistoryRow } from "./opportunity-types"
 
+const normalizePageSize = (value: number): number => {
+  if (!Number.isFinite(value)) return 100
+  return Math.min(100, Math.max(1, Math.floor(value)))
+}
+
 type SupportedEntities =
   | "Account"
   | "Contact"
@@ -159,7 +164,7 @@ export function AuditHistoryTab({
   const [historyColumnFilters, setHistoryColumnFilters] = useState<ColumnFilter[]>([])
   const [searchQuery, setSearchQuery] = useState("")
   const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(25)
+  const [pageSize, setPageSize] = useState(100)
   const [fetchedHistoryRows, setFetchedHistoryRows] = useState<HistoryRow[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -286,7 +291,8 @@ export function AuditHistoryTab({
                 pagination={pagination}
                 onPageChange={setPage}
                 onPageSizeChange={size => {
-                  setPageSize(size)
+                  const normalized = normalizePageSize(size)
+                  setPageSize(normalized)
                   setPage(1)
                 }}
                 onColumnsChange={setHistoryTableColumns}

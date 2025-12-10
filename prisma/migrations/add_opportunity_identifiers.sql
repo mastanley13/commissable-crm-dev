@@ -11,13 +11,13 @@ ADD COLUMN IF NOT EXISTS "customerIdDistributor" TEXT,
 ADD COLUMN IF NOT EXISTS "locationId" TEXT,
 ADD COLUMN IF NOT EXISTS "customerPurchaseOrder" TEXT;
 
-COMMENT ON COLUMN "Opportunity"."orderIdVendor" IS 'Order ID - Vendor (Field 01.07.002)';
-COMMENT ON COLUMN "Opportunity"."orderIdDistributor" IS 'Order ID - Distributor (Field 01.07.003)';
-COMMENT ON COLUMN "Opportunity"."accountIdHouse" IS 'Account ID - House (Field 01.07.010)';
-COMMENT ON COLUMN "Opportunity"."accountIdVendor" IS 'Account ID - Vendor (Field 01.07.011)';
-COMMENT ON COLUMN "Opportunity"."accountIdDistributor" IS 'Account ID - Distributor (Field 01.07.012)';
-COMMENT ON COLUMN "Opportunity"."customerIdHouse" IS 'Customer ID - House (Field 01.07.013)';
-COMMENT ON COLUMN "Opportunity"."customerIdVendor" IS 'Customer ID - Vendor (Field 01.07.014)';
-COMMENT ON COLUMN "Opportunity"."customerIdDistributor" IS 'Customer ID - Distributor (Field 01.07.015)';
+COMMENT ON COLUMN "Opportunity"."orderIdVendor" IS 'Vendor - Order ID (Field 01.07.002)';
+COMMENT ON COLUMN "Opportunity"."orderIdDistributor" IS 'Distributor - Order ID (Field 01.07.003)';
+COMMENT ON COLUMN "Opportunity"."accountIdHouse" IS 'House - Account ID (Field 01.07.010)';
+COMMENT ON COLUMN "Opportunity"."accountIdVendor" IS 'Vendor - Account ID (Field 01.07.011)';
+COMMENT ON COLUMN "Opportunity"."accountIdDistributor" IS 'Distributor - Account ID (Field 01.07.012)';
+COMMENT ON COLUMN "Opportunity"."customerIdHouse" IS 'House - Customer ID (Field 01.07.013)';
+COMMENT ON COLUMN "Opportunity"."customerIdVendor" IS 'Vendor - Customer ID (Field 01.07.014)';
+COMMENT ON COLUMN "Opportunity"."customerIdDistributor" IS 'Distributor - Customer ID (Field 01.07.015)';
 COMMENT ON COLUMN "Opportunity"."locationId" IS 'Location ID (Vendor) (Field 01.07.016)';
 COMMENT ON COLUMN "Opportunity"."customerPurchaseOrder" IS 'Customer PO Number (Field 01.07.017)';

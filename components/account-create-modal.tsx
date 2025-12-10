@@ -404,7 +404,7 @@ export function AccountCreateModal({ isOpen, onClose, onSubmit }: AccountCreateM
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 backdrop-blur-sm">
       <div
-        className="w-full max-w-5xl rounded-xl bg-white shadow-xl"
+        className="w-full max-w-5xl h-[900px] flex flex-col rounded-xl bg-white shadow-xl"
       >
         <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
           <div>

@@ -1,0 +1,71 @@
+Field Number,Page Name,Current Field Label,New Field Label,Field Name,Dev Reviewed Checklist
+01.07.001,Accounts - 1-7-Detail Page - Opportunities Tab (List at bottom columns),Order ID - House,House - Order ID,Order_ID_House,FALSE
+02.06.003,Contacts - 2-6-Contact Detail Page - Opportunities Tab,Order ID - House,House - Order ID,Order_ID_House,FALSE
+02.06.006,Contacts - 2-6-Contact Detail Page - Opportunities Tab,Account ID - Vendor,Vendor - Account ID,Account_ID_Vendor,FALSE
+02.06.007,Contacts - 2-6-Contact Detail Page - Opportunities Tab,Customer ID - Vendor,Vendor - Customer ID,Customer_ID_Vendor,FALSE
+02.06.009,Contacts - 2-6-Contact Detail Page - Opportunities Tab,Order ID - Vendor,Vendor - Order ID,Order_ID_Vendor,FALSE
+03.01.004,Opportunities-3-1-Detail Page - List of Opportunities,Order ID - House,House - Order ID,Order_ID_House,FALSE
+03.01.005,Opportunities-3-1-Detail Page - List of Opportunities,Account ID - Vendor,Vendor - Account ID,Account_ID_Vendor,FALSE
+03.01.006,Opportunities-3-1-Detail Page - List of Opportunities,Customer ID - Vendor,Vendor - Customer ID,Customer_ID_Vendor,FALSE
+03.03.001,Opportunities-3-3-Opportunity - Detail Page - Tab - Products,Product Name - Vendor,Vendor - Product Name,Product_Name_Vendor,FALSE
+03.03.002,Opportunities-3-3-Opportunity - Detail Page - Tab - Products,Part Number - Vendor,Vendor - Part Number,Part_Number_Vendor,FALSE
+03.03.003,Opportunities-3-3-Opportunity - Detail Page - Tab - Products,Product Name - House,House - Product Name,Product_Name_House,FALSE
+03.04.002,Opportunities-3-4-Opportunity - Detail Page - Tab - Products - Add Existing Product to Opp Page,Product Family - Vendor,Vendor - Product Family,Product_Family_Vendor,FALSE
+03.04.003,Opportunities-3-4-Opportunity - Detail Page - Tab - Products - Add Existing Product to Opp Page,Product Name - Vendor,Vendor - Product Name,Product_Name_Vendor,FALSE
+03.04.112,Opportunities-3-4.1-Opportunity - Detail Page - Tab - Products - Add New Product to Catalog + Opp Page,Product Family - Vendor,Vendor - Product Family,Product_Family_Vendor,FALSE
+03.04.113,Opportunities-3-4.1-Opportunity - Detail Page - Tab - Products - Add New Product to Catalog + Opp Page,Product Subtype - Vendor,Vendor - Product Subtype,Vendor_Product_Subtype,FALSE
+03.04.114,Opportunities-3-4.1-Opportunity - Detail Page - Tab - Products - Add New Product to Catalog + Opp Page,Product Name - Vendor,Vendor - Product Name,Product_Name_Vendor,FALSE
+03.04.115,Opportunities-3-4.1-Opportunity - Detail Page - Tab - Products - Add New Product to Catalog + Opp Page,Product Description - Vendor,Vendor - Product Description,Product_Description_Vendor,FALSE
+03.05.005,Opportunities-3-5-Opportunity - Detail Page - Tab - Revenue Schedules,Product Name - Vendor,Vendor - Product Name,Product_Name_Vendor,FALSE
+03.06.002,Opportunities-3-6-Main Page-Create New Revenue Schedule  (Left Column),Product Family - Vendor,Vendor - Product Family,Product_Family_Vendor,FALSE
+03.06.003,Opportunities-3-6-Main Page-Create New Revenue Schedule  (Left Column),Product Subtype - Vendor,Vendor - Product Subtype,Product_Subtype_Vendor,FALSE
+03.06.004,Opportunities-3-6-Main Page-Create New Revenue Schedule  (Left Column),Product Name - Vendor,Vendor - Product Name,Product_Name_Vendor,FALSE
+03.13.004,Opportunities-3-14-Opportunity Details Page - Top Section ,Account ID - House,House - Account ID,Account_ID_House,FALSE
+04.00.003,Revenue Schedules-4.0-List View - All Schedules,Product Name - Vendor,Vendor - Product Name,Product_Name_Vendor,FALSE
+04.00.016,Revenue Schedules-4.0-List View - All Schedules,Customer ID - Vendor,Vendor - Customer ID,Customer_ID_Vendor,FALSE
+04.00.017,Revenue Schedules-4.0-List View - All Schedules,Order ID - Vendor,Vendor - Order ID,Order_ID_Vendor,FALSE
+04.00.020,Revenue Schedules-4.0-List View - All Schedules,Customer ID - Distributor,Distributor - Customer ID,Customer_ID_Distributor,FALSE
+04.00.021,Revenue Schedules-4.0-List View - All Schedules,Order ID - Distributor,Distributor - Order ID,Order_ID_Distributor,FALSE
+04.01.002,Revenue Schedules-4.1-Details (Default View) - Common Top Section,Product Name - Vendor,Vendor - Product Name,Product_Name_Vendor,FALSE
+04.01.003,Revenue Schedules-4.1-Details (Default View) - Common Top Section,Product Description - Vendor,Vendor - Product Description,Product_Description_Vendor,FALSE
+04.05.000,Revenue Schedules-4.5-Details (Opportunity Details),Account ID - House,House - Account ID,Account_ID_House,FALSE
+04.05.001,Revenue Schedules-4.5-Details (Opportunity Details),Account ID - Vendor,Vendor - Account ID,Account_ID_Vendor,FALSE
+04.05.002,Revenue Schedules-4.5-Details (Opportunity Details),Account ID - Vendor,Vendor - Account ID,Account_ID_Vendor,FALSE
+04.05.003,Revenue Schedules-4.5-Details (Opportunity Details),Customer ID - House,House - Customer ID,Customer_ID_House,FALSE
+04.05.004,Revenue Schedules-4.5-Details (Opportunity Details),Customer ID - Vendor,Vendor - Customer ID,Customer_ID_Vendor,FALSE
+04.05.005,Revenue Schedules-4.5-Details (Opportunity Details),Customer ID - Distributor,Distributor - Customer ID,Customer_ID_Distributor,FALSE
+04.05.006,Revenue Schedules-4.5-Details (Opportunity Details),Order ID - House,House - Order ID,Order_ID_House,FALSE
+04.05.007,Revenue Schedules-4.5-Details (Opportunity Details),Order ID - Vendor,Vendor - Order ID,Order_ID_Vendor,FALSE
+04.05.008,Revenue Schedules-4.5-Details (Opportunity Details),Order ID - Distributor,Distributor - Order ID,Order_ID_Distributor,FALSE
+04.06.106,Revenue Schedules-4.6-Tickets-9-2-Create New Ticket,Product Name - Vendor,Vendor - Product Name,Product_Name_Vendor,FALSE
+05.00.003,Products - 5-0-Main List of Products Page,Product Family - Vendor,Vendor - Product Family,Product_Family_Vendor,FALSE
+05.00.004,Products - 5-0-Main List of Products Page,Product Subtype - Vendor,Vendor - Product Subtype,Product_Subtype_Vendor,FALSE
+05.00.005,Products - 5-0-Main List of Products Page,Product Name - Vendor,Vendor - Product Name,Product_Name_Vendor,FALSE
+05.01.003,Products - 5-1-Create New Product Popup,Product Family - Vendor,Vendor - Product Family,Product_Family_Vendor,FALSE
+05.01.004,Products - 5-1-Create New Product Popup,Product Subtype - Vendor,Vendor - Product Subtype,Product_Subtype_Vendor,FALSE
+05.01.005,Products - 5-1-Create New Product Popup,Product Name - Vendor,Vendor - Product Name,Product_Name_Vendor,FALSE
+05.01.006,Products - 5-1-Create New Product Popup,Part Number - Vendor,Vendor - Part Number,Part_Number_Vendor,FALSE
+05.01.007,Products - 5-1-Create New Product Popup,Product Description - Vendor,Vendor - Product Description,Product_Description_Vendor,FALSE
+05.01.011,Products - 5-1-Create New Product Popup,Product Name - House,House - Product Name,Product_Name_House,FALSE
+05.01.012,Products - 5-1-Create New Product Popup,Part Number - House,House - Part Number,Part_Number_House,FALSE
+05.01.013,Products - 5-1-Create New Product Popup,Product Description - House,House - Product Description,Product_Description_House,FALSE
+05.04.003,Products - 5-2-Product Detail Page,Product Family - Vendor,Vendor - Product Family,Product_Family_Vendor,FALSE
+05.04.004,Products - 5-2-Product Detail Page,Product Subtype - Vendor,Vendor - Product Subtype,Product_Subtype_Vendor,FALSE
+05.04.005,Products - 5-2-Product Detail Page,Product Name - Vendor,Vendor - Product Name,Product_Name_Vendor,FALSE
+05.04.006,Products - 5-2-Product Detail Page,Part Number - Vendor,Vendor - Part Number,Part_Number_Vendor,FALSE
+05.04.007,Products - 5-2-Product Detail Page,Product Description - Vendor,Vendor - Product Description,Product_Description_Vendor,FALSE
+05.04.012,Products - 5-2-Product Detail Page,Product Name - House,House - Product Name,Product_Name_House,FALSE
+05.04.013,Products - 5-2-Product Detail Page,Part Number - House,House - Part Number,Part_Number_House,FALSE
+05.04.014,Products - 5-2-Product Detail Page,Product Description - House,House - Product Description,Product_Description_House,FALSE
+06.04.000,Reconciliation-6-4-Step 2 - Deposit Line Items Section - Step2 (Middle),Account ID - Vendor,Vendor - Account ID,Account_ID_Vendor,FALSE
+06.04.006,Reconciliation-6-4-Step 2 - Deposit Line Items Section - Step2 (Middle),Product Name - Vendor,Vendor - Product Name,Product_Name_Vendor,FALSE
+06.04.014,Reconciliation-6-4-Step 2 - Deposit Line Items Section - Step2 (Middle),Customer ID - Vendor,Vendor - Customer ID,Customer_ID_Vendor,FALSE
+06.04.015,Reconciliation-6-4-Step 2 - Deposit Line Items Section - Step2 (Middle),Order ID - Vendor,Vendor - Order ID,Order_ID_Vendor,FALSE
+06.05.004,Reconciliation-6-5-Step 2-Revenue Schedule Suggested  (Bottom),Product Name - Vendor,Vendor - Product Name,Product_Name_Vendor,FALSE
+06.06.004,Reconciliation-6-6-Create a Flex Product Popup Page,Product Name - Vendor,Vendor - Product Name,Product_Name_Vendor,FALSE
+06.07.017,Reports-8-4-Sample Report-Individual Deposit Detail Page - Summary (BOTTOM),Product Name - Vendor,Vendor - Product Name,Product_Name_Vendor,FALSE
+09.01.005,Tickets-9-1-Main Page-List of Tickets,Product Name - Vendor,Vendor - Product Name,Product_Name_Vendor,FALSE
+09.01.006,Tickets-9-1-Main Page-List of Tickets,Account ID - Vendor,Vendor - Account ID,Account_ID_Vendor,FALSE
+09.01.007,Tickets-9-1-Main Page-List of Tickets,Customer ID - Vendor,Vendor - Customer ID,Customer_ID_Vendor,FALSE
+09.01.010,Tickets-9-1-Main Page-List of Tickets,Order ID - Vendor,Vendor - Order ID,Order_ID_Vendor,FALSE
+,,,,,

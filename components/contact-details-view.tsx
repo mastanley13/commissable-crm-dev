@@ -480,9 +480,9 @@ export const CONTACT_OPPORTUNITY_TABLE_BASE_COLUMNS: Column[] = [
   },
   {
     id: "orderIdHouse",
-    label: "Order ID - House",
+    label: "House - Order ID",
     width: 170,
-    minWidth: calculateMinWidth({ label: "Order ID - House", type: "text", sortable: true }),
+    minWidth: calculateMinWidth({ label: "House - Order ID", type: "text", sortable: true }),
     maxWidth: 220,
     sortable: true,
     accessor: "orderIdHouse"
@@ -507,18 +507,18 @@ export const CONTACT_OPPORTUNITY_TABLE_BASE_COLUMNS: Column[] = [
   },
   {
     id: "accountIdVendor",
-    label: "Account ID - Vendor",
+    label: "Vendor - Account ID",
     width: 200,
-    minWidth: calculateMinWidth({ label: "Account ID - Vendor", type: "text", sortable: true }),
+    minWidth: calculateMinWidth({ label: "Vendor - Account ID", type: "text", sortable: true }),
     maxWidth: 260,
     sortable: true,
     accessor: "accountIdVendor"
   },
   {
     id: "customerIdVendor",
-    label: "Customer ID - Vendor",
+    label: "Vendor - Customer ID",
     width: 200,
-    minWidth: calculateMinWidth({ label: "Customer ID - Vendor", type: "text", sortable: true }),
+    minWidth: calculateMinWidth({ label: "Vendor - Customer ID", type: "text", sortable: true }),
     maxWidth: 260,
     sortable: true,
     accessor: "customerIdVendor"
@@ -534,9 +534,9 @@ export const CONTACT_OPPORTUNITY_TABLE_BASE_COLUMNS: Column[] = [
   },
   {
     id: "orderIdVendor",
-    label: "Order ID - Vendor",
+    label: "Vendor - Order ID",
     width: 180,
-    minWidth: calculateMinWidth({ label: "Order ID - Vendor", type: "text", sortable: true }),
+    minWidth: calculateMinWidth({ label: "Vendor - Order ID", type: "text", sortable: true }),
     maxWidth: 240,
     sortable: true,
     accessor: "orderIdVendor"
@@ -979,6 +979,10 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
   const TABLE_CONTAINER_PADDING = 16
   const TABLE_BODY_FOOTER_RESERVE = 96
   const TABLE_BODY_MIN_HEIGHT = 160
+const normalizePageSize = (value: number): number => {
+  if (!Number.isFinite(value)) return 100
+  return Math.min(100, Math.max(1, Math.floor(value)))
+}
 
   const measureTableAreaHeight = useCallback(() => {
     const container = tableAreaRef.current
@@ -1031,11 +1035,11 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
   const [refreshing, setRefreshing] = useState(false)
   const [activeFilter, setActiveFilter] = useState<"active" | "inactive">("active")
   const [activitiesCurrentPage, setActivitiesCurrentPage] = useState(1)
-  const [activitiesPageSize, setActivitiesPageSize] = useState(10)
+const [activitiesPageSize, setActivitiesPageSize] = useState(100)
   const [opportunitiesCurrentPage, setOpportunitiesCurrentPage] = useState(1)
-  const [opportunitiesPageSize, setOpportunitiesPageSize] = useState(10)
+const [opportunitiesPageSize, setOpportunitiesPageSize] = useState(100)
   const [groupsCurrentPage, setGroupsCurrentPage] = useState(1)
-  const [groupsPageSize, setGroupsPageSize] = useState(10)
+const [groupsPageSize, setGroupsPageSize] = useState(100)
   const [activitiesSearchQuery, setActivitiesSearchQuery] = useState("")
   const [activitiesColumnFilters, setActivitiesColumnFilters] = useState<ColumnFilter[]>([])
   const [opportunitiesSearchQuery, setOpportunitiesSearchQuery] = useState("")
@@ -1739,13 +1743,13 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
       "Close Date",
       "Opportunity Name",
       "Opportunity Stage",
-      "Order ID - House",
+      "House - Order ID",
       "Owner",
       "Subagent",
-      "Account ID - Vendor",
-      "Customer ID - Vendor",
+      "Vendor - Account ID",
+      "Vendor - Customer ID",
       "Location ID",
-      "Order ID - Vendor"
+      "Vendor - Order ID"
     ]
 
     const escapeCsv = (value: string | null | undefined) => {
@@ -2422,13 +2426,13 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
     { id: "opportunityName", label: "Opportunity Name" },
     { id: "stage", label: "Opportunity Stage" },
     { id: "status", label: "Status" },
-    { id: "orderIdHouse", label: "Order ID - House" },
+    { id: "orderIdHouse", label: "House - Order ID" },
     { id: "owner", label: "Owner" },
     { id: "subAgent", label: "Subagent" },
-    { id: "accountIdVendor", label: "Account ID - Vendor" },
-    { id: "customerIdVendor", label: "Customer ID - Vendor" },
+    { id: "accountIdVendor", label: "Vendor - Account ID" },
+    { id: "customerIdVendor", label: "Vendor - Customer ID" },
     { id: "locationId", label: "Location ID" },
-    { id: "orderIdVendor", label: "Order ID - Vendor" },
+    { id: "orderIdVendor", label: "Vendor - Order ID" },
   ], [])
 
   const groupsFilterColumns = useMemo(() => [
@@ -2442,6 +2446,8 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
     columns: activityPreferenceColumns,
     loading: activityPreferencesLoading,
     saving: activityPreferencesSaving,
+    pageSize: activityPreferencePageSize,
+    handlePageSizeChange: persistActivityPageSize,
     hasUnsavedChanges: activityHasUnsavedChanges,
     lastSaved: activityLastSaved,
     handleColumnsChange: handleActivityTableColumnsChange,
@@ -2453,6 +2459,8 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
     columns: contactOpportunityPreferenceColumns,
     loading: contactOpportunityPreferencesLoading,
     saving: contactOpportunityPreferencesSaving,
+    pageSize: opportunityPreferencePageSize,
+    handlePageSizeChange: persistOpportunityPageSize,
     hasUnsavedChanges: contactOpportunityHasUnsavedChanges,
     lastSaved: contactOpportunityLastSaved,
     handleColumnsChange: handleContactOpportunityTableColumnsChange,
@@ -2464,6 +2472,8 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
     columns: contactGroupPreferenceColumns,
     loading: contactGroupPreferencesLoading,
     saving: contactGroupPreferencesSaving,
+    pageSize: groupPreferencePageSize,
+    handlePageSizeChange: persistGroupPageSize,
     hasUnsavedChanges: contactGroupHasUnsavedChanges,
     lastSaved: contactGroupLastSaved,
     handleColumnsChange: handleContactGroupTableColumnsChange,
@@ -3078,6 +3088,15 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
     }
   }, [filteredActivities.length, activitiesCurrentPage, activitiesPageSize])
 
+useEffect(() => {
+  if (!activityPreferencePageSize) return
+  const normalized = normalizePageSize(activityPreferencePageSize)
+  if (normalized !== activitiesPageSize) {
+    setActivitiesPageSize(normalized)
+    setActivitiesCurrentPage(1)
+  }
+}, [activityPreferencePageSize, activitiesPageSize])
+
   const opportunitiesPagination: PaginationInfo = useMemo(() => {
     const total = filteredOpportunities.length
     const totalPages = Math.max(Math.ceil(total / opportunitiesPageSize), 1)
@@ -3089,6 +3108,15 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
     }
   }, [filteredOpportunities.length, opportunitiesCurrentPage, opportunitiesPageSize])
 
+useEffect(() => {
+  if (!opportunityPreferencePageSize) return
+  const normalized = normalizePageSize(opportunityPreferencePageSize)
+  if (normalized !== opportunitiesPageSize) {
+    setOpportunitiesPageSize(normalized)
+    setOpportunitiesCurrentPage(1)
+  }
+}, [opportunityPreferencePageSize, opportunitiesPageSize])
+
   const groupsPagination: PaginationInfo = useMemo(() => {
     const total = filteredGroups.length
     const totalPages = Math.max(Math.ceil(total / groupsPageSize), 1)
@@ -3099,6 +3127,15 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
       totalPages
     }
   }, [filteredGroups.length, groupsCurrentPage, groupsPageSize])
+
+useEffect(() => {
+  if (!groupPreferencePageSize) return
+  const normalized = normalizePageSize(groupPreferencePageSize)
+  if (normalized !== groupsPageSize) {
+    setGroupsPageSize(normalized)
+    setGroupsCurrentPage(1)
+  }
+}, [groupPreferencePageSize, groupsPageSize])
 
   useEffect(() => {
     const maxPage = Math.max(Math.ceil(filteredActivities.length / activitiesPageSize), 1)
@@ -3126,8 +3163,10 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
   }
 
   const handleActivitiesPageSizeChange = (size: number) => {
-    setActivitiesPageSize(size)
-    setActivitiesCurrentPage(1)
+  const normalized = normalizePageSize(size)
+  setActivitiesPageSize(normalized)
+  setActivitiesCurrentPage(1)
+  void persistActivityPageSize(normalized)
   }
 
   const handleSelectAllActivities = useCallback((selected: boolean) => {
@@ -3143,8 +3182,10 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
   }
 
   const handleOpportunitiesPageSizeChange = (size: number) => {
-    setOpportunitiesPageSize(size)
-    setOpportunitiesCurrentPage(1)
+  const normalized = normalizePageSize(size)
+  setOpportunitiesPageSize(normalized)
+  setOpportunitiesCurrentPage(1)
+  void persistOpportunityPageSize(normalized)
   }
 
   const handleSelectAllOpportunities = useCallback((selected: boolean) => {
@@ -3160,8 +3201,10 @@ export function ContactDetailsView({ contact, loading = false, error, onEdit, on
   }
 
   const handleGroupsPageSizeChange = (size: number) => {
-    setGroupsPageSize(size)
-    setGroupsCurrentPage(1)
+  const normalized = normalizePageSize(size)
+  setGroupsPageSize(normalized)
+  setGroupsCurrentPage(1)
+  void persistGroupPageSize(normalized)
   }
 
   const handleBulkOpportunityOwnerUpdate = useCallback(async (ownerId: string | null) => {

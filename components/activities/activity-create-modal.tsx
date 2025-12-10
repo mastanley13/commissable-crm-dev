@@ -238,15 +238,15 @@ export function ActivityCreateModal({ isOpen, onClose, onCreated, defaultAccount
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-      <div className="w-full max-w-3xl rounded-xl bg-white shadow-lg">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div className="w-full max-w-5xl h-[900px] flex flex-col rounded-xl bg-white shadow-xl">
         <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
           <h2 className="text-lg font-semibold text-gray-900">Create Activity</h2>
           <button type="button" className="rounded p-1 text-gray-500 hover:text-gray-700" onClick={() => { resetForm(); onClose() }}>
             <X className="h-5 w-5" />
           </button>
         </div>
-        <form onSubmit={handleSubmit} className="max-h-[80vh] overflow-y-auto px-6 py-4">
+        <form onSubmit={handleSubmit} className="flex-1 px-6 py-4">
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="col-span-1">
               <label className="block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Subject<span className="ml-1 text-red-500">*</span></label>

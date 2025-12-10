@@ -708,7 +708,7 @@ export function OpportunityCreateModal({
               </div>
 
               <div>
-                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Order ID - Vendor</label>
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Vendor - Order ID</label>
                 <input
                   type="text"
                   value={form.orderIdVendor}
@@ -719,7 +719,7 @@ export function OpportunityCreateModal({
               </div>
 
               <div>
-                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Order ID - Distributor</label>
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Distributor - Order ID</label>
                 <input
                   type="text"
                   value={form.orderIdDistributor}
@@ -778,7 +778,7 @@ export function OpportunityCreateModal({
               </div>
 
               <div>
-                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Order ID - House</label>
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">House - Order ID</label>
                 <input
                   type="text"
                   value={form.orderIdHouse}
@@ -954,7 +954,7 @@ export function OpportunityCreateModal({
               </div>
 
               <div>
-                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Account ID - House</label>
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">House - Account ID</label>
                 <input
                   type="text"
                   value={form.accountIdHouse}
@@ -965,7 +965,7 @@ export function OpportunityCreateModal({
               </div>
 
               <div>
-                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Account ID - Vendor</label>
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Vendor - Account ID</label>
                 <input
                   type="text"
                   value={form.accountIdVendor}
@@ -976,7 +976,7 @@ export function OpportunityCreateModal({
               </div>
 
               <div>
-                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Account ID - Distributor</label>
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Distributor - Account ID</label>
                 <input
                   type="text"
                   value={form.accountIdDistributor}
@@ -987,7 +987,7 @@ export function OpportunityCreateModal({
               </div>
 
               <div>
-                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Customer ID - House</label>
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">House - Customer ID</label>
                 <input
                   type="text"
                   value={form.customerIdHouse}
@@ -998,7 +998,7 @@ export function OpportunityCreateModal({
               </div>
 
               <div>
-                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Customer ID - Vendor</label>
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Vendor - Customer ID</label>
                 <input
                   type="text"
                   value={form.customerIdVendor}
@@ -1009,7 +1009,7 @@ export function OpportunityCreateModal({
               </div>
 
               <div>
-                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Customer ID - Distributor</label>
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Distributor - Customer ID</label>
                 <input
                   type="text"
                   value={form.customerIdDistributor}

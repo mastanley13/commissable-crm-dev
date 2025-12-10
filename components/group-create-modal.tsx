@@ -170,8 +170,8 @@ export function GroupCreateModal({ isOpen, onClose, onCreated }: GroupCreateModa
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-      <div className="w-full max-w-2xl rounded-xl bg-white shadow-xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div className="w-full max-w-5xl h-[900px] flex flex-col rounded-xl bg-white shadow-xl">
         <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
           <div>
             <p className="text-xs font-semibold uppercase text-primary-600">Create Group</p>
@@ -182,7 +182,7 @@ export function GroupCreateModal({ isOpen, onClose, onCreated }: GroupCreateModa
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="max-h-[80vh] overflow-y-auto px-6 py-5">
+        <form onSubmit={handleSubmit} className="flex-1 px-6 py-5">
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="md:col-span-2">
               <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Group Name<span className="ml-1 text-red-500">*</span></label>

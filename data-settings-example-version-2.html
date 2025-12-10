@@ -1,0 +1,1168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Data Dictionary – Admin</title>
+  <style>
+    :root {
+      --bg-page: #f3f4f6;
+      --bg-surface: #ffffff;
+      --bg-subtle: #f9fafb;
+      --border-subtle: #e5e7eb;
+      --border-strong: #d1d5db;
+      --text-main: #111827;
+      --text-muted: #6b7280;
+      --primary: #2563eb;
+      --primary-soft: #eff6ff;
+      --danger: #dc2626;
+      --radius-sm: 4px;
+      --radius-md: 6px;
+      --radius-lg: 8px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 24px 32px;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg-page);
+      color: var(--text-main);
+    }
+
+    @media (max-width: 960px) {
+      body {
+        padding: 16px;
+      }
+    }
+
+    .dd-shell {
+      max-width: 1240px;
+      margin: 0 auto;
+    }
+
+    .dd-card {
+      background: var(--bg-surface);
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border-subtle);
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+      padding: 20px 24px 24px;
+    }
+
+    .dd-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .dd-header-title {
+      font-size: 20px;
+      font-weight: 600;
+      margin: 0;
+    }
+
+    .dd-header-subtitle {
+      margin: 4px 0 0;
+      font-size: 14px;
+      color: var(--text-muted);
+    }
+
+    .dd-header-actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      font: inherit;
+      border-radius: 999px;
+      padding: 6px 14px;
+      font-size: 14px;
+      border: 1px solid transparent;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: transparent;
+      white-space: nowrap;
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: #fff;
+      border-color: var(--primary);
+    }
+
+    .btn-outline {
+      background: transparent;
+      color: var(--text-main);
+      border-color: var(--border-strong);
+    }
+
+    .btn-ghost {
+      background: transparent;
+      color: var(--primary);
+      border-color: transparent;
+      padding-left: 0;
+    }
+
+    .dd-unsaved {
+      font-size: 12px;
+      padding: 3px 9px;
+      border-radius: 999px;
+      background: #fef3c7;
+      color: #92400e;
+      border: 1px solid #facc15;
+    }
+
+    .dd-main {
+      display: grid;
+      grid-template-columns: minmax(260px, 340px) minmax(0, 1fr);
+      gap: 24px;
+      min-height: 520px;
+    }
+
+    @media (max-width: 960px) {
+      .dd-main {
+        grid-template-columns: minmax(0, 1fr);
+      }
+    }
+
+    /* LEFT: Field list */
+
+    .dd-fields {
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-subtle);
+      background: var(--bg-subtle);
+      display: flex;
+      flex-direction: column;
+      padding: 12px 12px 10px;
+      min-height: 0;
+    }
+
+    .dd-fields-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .dd-fields-title {
+      font-size: 13px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--text-muted);
+      margin: 0 0 4px;
+    }
+
+    .dd-fields-text {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin: 0;
+    }
+
+    .dd-fields-search {
+      position: relative;
+      min-width: 0;
+    }
+
+    .dd-fields-search input {
+      border-radius: 999px;
+      border: 1px solid var(--border-strong);
+      padding: 5px 8px 5px 26px;
+      font-size: 12px;
+      width: 150px;
+      background: #fff;
+    }
+
+    .dd-fields-search-icon {
+      position: absolute;
+      left: 8px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .dd-fields-groups {
+      flex: 1;
+      overflow: auto;
+      padding-right: 4px;
+      margin-top: 8px;
+    }
+
+    .dd-fields-group {
+      margin-bottom: 8px;
+    }
+
+    .dd-fields-group-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+      padding: 2px 4px;
+    }
+
+    .dd-field-item {
+      width: 100%;
+      border-radius: var(--radius-md);
+      border: 1px solid transparent;
+      background: transparent;
+      padding: 7px 8px;
+      font-size: 13px;
+      text-align: left;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      cursor: pointer;
+      position: relative;
+    }
+
+    .dd-field-item + .dd-field-item {
+      margin-top: 3px;
+    }
+
+    .dd-field-item-name {
+      font-weight: 500;
+    }
+
+    .dd-field-item-meta {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .dd-field-item-active {
+      background: #eff6ff;
+      border-color: #bfdbfe;
+    }
+
+    .dd-field-item-active::before {
+      content: "";
+      position: absolute;
+      left: -5px;
+      top: 6px;
+      bottom: 6px;
+      width: 3px;
+      border-radius: 999px;
+      background: var(--primary);
+    }
+
+    .dd-pill {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      border: 1px solid var(--border-subtle);
+      padding: 2px 7px;
+      font-size: 11px;
+      color: var(--text-muted);
+      background: rgba(255,255,255,0.9);
+      margin-top: 4px;
+    }
+
+    .dd-pill-muted {
+      background: transparent;
+    }
+
+    .dd-fields-footer {
+      border-top: 1px dashed var(--border-subtle);
+      margin-top: 8px;
+      padding-top: 6px;
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    /* RIGHT: Detail panel */
+
+    .dd-detail {
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-subtle);
+      background: #fff;
+      padding: 14px 16px 14px;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+
+    .dd-detail_header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 10px;
+    }
+
+    .dd-detail-path {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-bottom: 3px;
+    }
+
+    .dd-detail-title {
+      font-size: 18px;
+      font-weight: 600;
+      margin: 0;
+    }
+
+    .dd-detail-subtitle {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin: 4px 0 0;
+    }
+
+    .dd-detail-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    .dd-detail-controls {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      align-items: flex-end;
+      font-size: 12px;
+    }
+
+    .dd-detail-toggles {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      justify-content: flex-end;
+    }
+
+    .dd-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .dd-toggle input {
+      margin: 0;
+    }
+
+    .dd-used-on {
+      color: var(--text-muted);
+      font-size: 12px;
+    }
+
+    .dd-divider {
+      border-bottom: 1px solid var(--border-subtle);
+      margin: 4px -16px 10px;
+    }
+
+    .dd-panel {
+      display: none;
+      flex: 1;
+      min-height: 0;
+      overflow: auto;
+      padding-right: 4px;
+    }
+
+    .dd-panel-active {
+      display: block;
+    }
+
+    /* Table styles */
+
+    .dd-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      margin-bottom: 12px;
+    }
+
+    .dd-table thead {
+      background: var(--bg-subtle);
+    }
+
+    .dd-table th,
+    .dd-table td {
+      padding: 6px 8px;
+      text-align: left;
+      vertical-align: top;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .dd-table th {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    .dd-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    .dd-table td:first-child,
+    .dd-table th:first-child {
+      width: 60px;
+    }
+
+    .dd-tag {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      border: 1px solid var(--border-subtle);
+      padding: 2px 7px;
+      font-size: 11px;
+      color: var(--text-muted);
+      background: #f9fafb;
+    }
+
+    .dd-tag-system {
+      border-color: #a7f3d0;
+      background: #ecfdf5;
+      color: #047857;
+    }
+
+    .dd-tag-mrc {
+      border-color: #bfdbfe;
+      background: #eff6ff;
+      color: #1d4ed8;
+    }
+
+    .dd-tag-nrc {
+      border-color: #fcd34d;
+      background: #fffbeb;
+      color: #92400e;
+    }
+
+    .dd-inline-input {
+      width: 100%;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border-strong);
+      padding: 3px 6px;
+      font-size: 12px;
+      background: #fff;
+    }
+
+    .dd-panel-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      flex-wrap: wrap;
+      font-size: 12px;
+      color: var(--text-muted);
+      padding-bottom: 4px;
+    }
+
+    .dd-section-title {
+      font-size: 14px;
+      font-weight: 600;
+      margin: 10px 0 2px;
+    }
+
+    .dd-section-hint {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin: 0 0 6px;
+    }
+
+    .dd-note-danger {
+      color: var(--danger);
+      font-weight: 500;
+    }
+  </style>
+</head>
+<body>
+  <div class="dd-shell">
+    <div class="dd-card">
+      <header class="dd-header">
+        <div>
+          <h1 class="dd-header-title">Data Dictionary</h1>
+          <p class="dd-header-subtitle">
+            Central place to manage the allowed values for global picklists used across Accounts, Opportunities, and Products.
+          </p>
+        </div>
+        <div class="dd-header-actions">
+          <span class="dd-unsaved">3 unsaved changes</span>
+          <button class="btn btn-outline">Discard changes</button>
+          <button class="btn btn-primary">Save changes</button>
+        </div>
+      </header>
+
+      <div class="dd-main">
+        <!-- LEFT: Field list -->
+        <aside class="dd-fields">
+          <div class="dd-fields-header">
+            <div>
+              <h2 class="dd-fields-title">Fields</h2>
+              <p class="dd-fields-text">Select a field to manage its allowed values.</p>
+            </div>
+            <div class="dd-fields-search">
+              <span class="dd-fields-search-icon">🔍</span>
+              <input type="search" placeholder="Search fields" aria-label="Search fields (UI only)">
+            </div>
+          </div>
+
+          <div class="dd-fields-groups">
+            <div class="dd-fields-group">
+              <div class="dd-fields-group-label">Accounts</div>
+              <button type="button"
+                      class="dd-field-item dd-field-item-active"
+                      data-panel="account-type">
+                <div class="dd-field-item-name">Account Type</div>
+                <div class="dd-field-item-meta">Global picklist · 7 values</div>
+                <div class="dd-pill">Used on: Accounts</div>
+              </button>
+              <button type="button"
+                      class="dd-field-item"
+                      data-panel="account-status">
+                <div class="dd-field-item-name">Account Status</div>
+                <div class="dd-field-item-meta">Example placeholder</div>
+                <div class="dd-pill dd-pill-muted">Not configured</div>
+              </button>
+            </div>
+
+            <div class="dd-fields-group">
+              <div class="dd-fields-group-label">Opportunities</div>
+              <button type="button"
+                      class="dd-field-item"
+                      data-panel="revenue-type">
+                <div class="dd-field-item-name">Revenue Type</div>
+                <div class="dd-field-item-meta">Global picklist · MRC &amp; NRC</div>
+                <div class="dd-pill">Used on: Opportunities, Revenue schedules</div>
+              </button>
+            </div>
+
+            <div class="dd-fields-group">
+              <div class="dd-fields-group-label">Products</div>
+              <button type="button"
+                      class="dd-field-item"
+                      data-panel="product-family">
+                <div class="dd-field-item-name">Product Family</div>
+                <div class="dd-field-item-meta">Top-level grouping</div>
+                <div class="dd-pill">Used on: Products, Opportunities</div>
+              </button>
+              <button type="button"
+                      class="dd-field-item"
+                      data-panel="product-subtype">
+                <div class="dd-field-item-name">Product Subtype</div>
+                <div class="dd-field-item-meta">Rolls up into Product Family</div>
+                <div class="dd-pill">Used on: Products, Reporting</div>
+              </button>
+            </div>
+          </div>
+
+          <div class="dd-fields-footer">
+            Changes here affect dropdown options across the app. Historical data is preserved even if values are disabled.
+          </div>
+        </aside>
+
+        <!-- RIGHT: Detail -->
+        <main class="dd-detail">
+          <div class="dd-detail_header">
+            <div>
+              <div class="dd-detail-path" id="dd-path">
+                Account · Field
+              </div>
+              <h2 class="dd-detail-title" id="dd-title">
+                Account Type
+              </h2>
+              <p class="dd-detail-subtitle" id="dd-subtitle">
+                Choose which account types users see in the <strong>Account Type</strong> dropdown. At least one value must remain enabled.
+              </p>
+              <div class="dd-detail-meta" id="dd-meta">
+                <span class="dd-tag dd-tag-system">Global picklist</span>
+                <span class="dd-tag">Preserves historical values</span>
+              </div>
+            </div>
+            <div class="dd-detail-controls">
+              <div class="dd-detail-toggles">
+                <label class="dd-toggle">
+                  <input type="checkbox" checked>
+                  Show disabled values
+                </label>
+                <button class="btn btn-ghost">Restore defaults</button>
+              </div>
+              <div class="dd-used-on">
+                Used on: <strong>Account forms</strong>, filters, and imports.
+              </div>
+            </div>
+          </div>
+
+          <div class="dd-divider"></div>
+
+          <!-- Panels -->
+          <section class="dd-panel dd-panel-active" data-panel="account-type">
+            <table class="dd-table">
+              <thead>
+                <tr>
+                  <th>Enabled</th>
+                  <th>Account type</th>
+                  <th>Usage</th>
+                  <th>Description</th>
+                  <th>Default</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><input type="checkbox" checked></td>
+                  <td>House Account</td>
+                  <td><span class="dd-tag dd-tag-system">Internal agency</span></td>
+                  <td>Represents the host agency using the program.</td>
+                  <td><input type="radio" name="account-default" checked></td>
+                </tr>
+                <tr>
+                  <td><input type="checkbox" checked></td>
+                  <td>Vendor Account</td>
+                  <td><span class="dd-tag">Supplier / vendor</span></td>
+                  <td>Organizations that manufacture goods or provide services.</td>
+                  <td><input type="radio" name="account-default"></td>
+                </tr>
+                <tr>
+                  <td><input type="checkbox" checked></td>
+                  <td>Distributor Account</td>
+                  <td><span class="dd-tag">Channel partner</span></td>
+                  <td>Companies that provide a central pathway to order from multiple vendors.</td>
+                  <td><input type="radio" name="account-default"></td>
+                </tr>
+                <tr>
+                  <td><input type="checkbox" checked></td>
+                  <td>Prospect Account</td>
+                  <td><span class="dd-tag">Pre‑sales</span></td>
+                  <td>Accounts that have not yet transacted with the House Agency.</td>
+                  <td><input type="radio" name="account-default"></td>
+                </tr>
+                <tr>
+                  <td><input type="checkbox" checked></td>
+                  <td>Customer Account</td>
+                  <td><span class="dd-tag">Active customer</span></td>
+                  <td>Accounts that have successfully contracted with the House Agency.</td>
+                  <td><input type="radio" name="account-default"></td>
+                </tr>
+                <tr>
+                  <td><input type="checkbox" checked></td>
+                  <td>Subagent Account</td>
+                  <td><span class="dd-tag">Partner (1099)</span></td>
+                  <td>Independent partners who provide leads and services in exchange for a portion of profits or commissions.</td>
+                  <td><input type="radio" name="account-default"></td>
+                </tr>
+                <tr>
+                  <td><input type="checkbox" checked></td>
+                  <td>House Rep Account</td>
+                  <td><span class="dd-tag">Employee rep</span></td>
+                  <td>Employees working on behalf of the House Agency who derive profit or commission from their activities.</td>
+                  <td><input type="radio" name="account-default"></td>
+                </tr>
+                <!-- New custom -->
+                <tr>
+                  <td><input type="checkbox"></td>
+                  <td><input class="dd-inline-input" type="text" placeholder="New account type"></td>
+                  <td><input class="dd-inline-input" type="text" placeholder="Category (optional)"></td>
+                  <td><input class="dd-inline-input" type="text" placeholder="Describe how this should be used"></td>
+                  <td><input type="radio" name="account-default"></td>
+                </tr>
+              </tbody>
+            </table>
+
+            <div class="dd-panel-footer">
+              <span>Need something else? Add a custom account type in the last row and enable it.</span>
+              <button class="btn btn-ghost">+ Add another account type</button>
+            </div>
+          </section>
+
+          <section class="dd-panel" data-panel="revenue-type">
+            <div>
+              <h3 class="dd-section-title">Monthly Recurring Charges (MRC)</h3>
+              <p class="dd-section-hint">
+                Used for ongoing services where commissions are expected on a periodic basis.
+              </p>
+              <table class="dd-table">
+                <thead>
+                  <tr>
+                    <th>Enabled</th>
+                    <th>Revenue type</th>
+                    <th>Category</th>
+                    <th>Description</th>
+                    <th>Default</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><input type="checkbox" checked></td>
+                    <td>MRC – 3rd Party</td>
+                    <td><span class="dd-tag dd-tag-mrc">3rd‑party billed</span></td>
+                    <td>
+                      Product billed directly to the client by a third‑party vendor (e.g., AT&amp;T, Verizon).
+                      Agency tracks expected usage and commission received.
+                    </td>
+                    <td><input type="radio" name="mrc-default"></td>
+                  </tr>
+                  <tr>
+                    <td><input type="checkbox" checked></td>
+                    <td>MRC – Agency</td>
+                    <td><span class="dd-tag dd-tag-mrc">Agency billed</span></td>
+                    <td>
+                      Agency bills the client directly. System tracks full revenue amount (billing) and profit/commission.
+                    </td>
+                    <td><input type="radio" name="mrc-default" checked></td>
+                  </tr>
+                  <tr>
+                    <td><input type="checkbox" checked></td>
+                    <td>MRC – M2M (Month‑to‑Month)</td>
+                    <td><span class="dd-tag dd-tag-mrc">No term</span></td>
+                    <td>
+                      Agreements with no fixed term. System auto‑creates a new revenue schedule monthly until status is set to “Billing Ended”.
+                    </td>
+                    <td><input type="radio" name="mrc-default"></td>
+                  </tr>
+                  <!-- Custom -->
+                  <tr>
+                    <td><input type="checkbox"></td>
+                    <td><input class="dd-inline-input" type="text" placeholder="Custom MRC type"></td>
+                    <td><input class="dd-inline-input" type="text" placeholder="Category (optional)"></td>
+                    <td><input class="dd-inline-input" type="text" placeholder="Describe how this should be used"></td>
+                    <td><input type="radio" name="mrc-default"></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div>
+              <h3 class="dd-section-title">Non‑Recurring Charges (NRC)</h3>
+              <p class="dd-section-hint">
+                Used for one‑time payments, bonuses, or resale transactions.
+              </p>
+              <table class="dd-table">
+                <thead>
+                  <tr>
+                    <th>Enabled</th>
+                    <th>Revenue type</th>
+                    <th>Category</th>
+                    <th>Description</th>
+                    <th>Default</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><input type="checkbox" checked></td>
+                    <td>NRC – SPIFF – Per Item</td>
+                    <td><span class="dd-tag dd-tag-nrc">SPIFF</span></td>
+                    <td>
+                      One‑time payment per item sold (e.g., $50 per handset). Can be split over multiple payment periods.
+                    </td>
+                    <td><input type="radio" name="nrc-default"></td>
+                  </tr>
+                  <tr>
+                    <td><input type="checkbox" checked></td>
+                    <td>NRC – SPIFF – % of Usage</td>
+                    <td><span class="dd-tag dd-tag-nrc">SPIFF</span></td>
+                    <td>
+                      One‑time incentive based on monthly recurring billing (e.g., 200% of a $100 bill = $200 commission).
+                    </td>
+                    <td><input type="radio" name="nrc-default"></td>
+                  </tr>
+                  <tr>
+                    <td><input type="checkbox" checked></td>
+                    <td>NRC – SPIFF – Flat Fee</td>
+                    <td><span class="dd-tag dd-tag-nrc">SPIFF</span></td>
+                    <td>
+                      Fixed bonus amount unrelated to usage or quantity. Can be staged over multiple payments.
+                    </td>
+                    <td><input type="radio" name="nrc-default"></td>
+                  </tr>
+                  <tr>
+                    <td><input type="checkbox" checked></td>
+                    <td>NRC – Resale (Buy/Sell)</td>
+                    <td><span class="dd-tag dd-tag-nrc">Resale</span></td>
+                    <td>
+                      Goods or services bought and resold by the agency. Profit = sales price − COGS.
+                      Requires corresponding Purchase Order for reconciliation.
+                    </td>
+                    <td><input type="radio" name="nrc-default"></td>
+                  </tr>
+                  <tr>
+                    <td><input type="checkbox" checked></td>
+                    <td>NRC – Flat Fee</td>
+                    <td><span class="dd-tag dd-tag-nrc">One‑time fee</span></td>
+                    <td>
+                      General one‑time charges (installation, setup, activation). Often 0% commission but tracked for billing accuracy.
+                    </td>
+                    <td><input type="radio" name="nrc-default" checked></td>
+                  </tr>
+                  <!-- Custom -->
+                  <tr>
+                    <td><input type="checkbox"></td>
+                    <td><input class="dd-inline-input" type="text" placeholder="Custom NRC type"></td>
+                    <td><input class="dd-inline-input" type="text" placeholder="Category (optional)"></td>
+                    <td><input class="dd-inline-input" type="text" placeholder="Describe how this should be used"></td>
+                    <td><input type="radio" name="nrc-default"></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="dd-panel-footer">
+              <span>
+                <span class="dd-note-danger">Heads up:</span> Revenue type changes can impact commission calculations. Coordinate with Finance before editing.
+              </span>
+              <button class="btn btn-ghost">+ Add another revenue type</button>
+            </div>
+          </section>
+
+          <section class="dd-panel" data-panel="product-family">
+            <table class="dd-table">
+              <thead>
+                <tr>
+                  <th>Enabled</th>
+                  <th>Product family</th>
+                  <th>Description</th>
+                  <th>Default</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><input type="checkbox" checked></td>
+                  <td>AI Services</td>
+                  <td>Consulting, deployment, or managed AI solutions.</td>
+                  <td><input type="radio" name="family-default"></td>
+                </tr>
+                <tr>
+                  <td><input type="checkbox" checked></td>
+                  <td>Internet &amp; Voice Connectivity</td>
+                  <td>Internet access, voice, and related connectivity services.</td>
+                  <td><input type="radio" name="family-default" checked></td>
+                </tr>
+                <tr>
+                  <td><input type="checkbox" checked></td>
+                  <td>Cybersecurity Services</td>
+                  <td>Security assessments, monitoring, and protection services.</td>
+                  <td><input type="radio" name="family-default"></td>
+                </tr>
+                <tr>
+                  <td><input type="checkbox" checked></td>
+                  <td>Data Protection</td>
+                  <td>Backup, disaster recovery, and data resilience offerings.</td>
+                  <td><input type="radio" name="family-default"></td>
+                </tr>
+                <tr>
+                  <td><input type="checkbox" checked></td>
+                  <td>Hardware Products</td>
+                  <td>Physical devices such as servers, endpoints, and network gear.</td>
+                  <td><input type="radio" name="family-default"></td>
+                </tr>
+                <tr>
+                  <td><input type="checkbox" checked></td>
+                  <td>Installation Services</td>
+                  <td>Professional services related to installation and deployment.</td>
+                  <td><input type="radio" name="family-default"></td>
+                </tr>
+                <tr>
+                  <td><input type="checkbox" checked></td>
+                  <td>Maintenance Products</td>
+                  <td>Support contracts and maintenance add‑ons.</td>
+                  <td><input type="radio" name="family-default"></td>
+                </tr>
+                <tr>
+                  <td><input type="checkbox" checked></td>
+                  <td>Software Products</td>
+                  <td>Licensed or subscription‑based software.</td>
+                  <td><input type="radio" name="family-default"></td>
+                </tr>
+                <!-- Custom -->
+                <tr>
+                  <td><input type="checkbox"></td>
+                  <td><input class="dd-inline-input" type="text" placeholder="New product family"></td>
+                  <td><input class="dd-inline-input" type="text" placeholder="Describe this family"></td>
+                  <td><input type="radio" name="family-default"></td>
+                </tr>
+              </tbody>
+            </table>
+
+            <div class="dd-panel-footer">
+              <span>These families appear on product records and can be used as filters in reports and price books.</span>
+              <button class="btn btn-ghost">+ Add another product family</button>
+            </div>
+          </section>
+
+          <section class="dd-panel" data-panel="product-subtype">
+            <div class="dd-detail-toggles" style="margin-bottom: 8px;">
+              <label class="dd-toggle">
+                Filter by family:
+                <select style="font-size:12px; padding:3px 6px; border-radius:4px; border:1px solid var(--border-strong);">
+                  <option>All families (UI only)</option>
+                  <option>Internet &amp; Voice Connectivity</option>
+                  <option>Data Protection</option>
+                  <option>Hardware Products</option>
+                  <option>Cybersecurity Services</option>
+                </select>
+              </label>
+            </div>
+
+            <table class="dd-table">
+              <thead>
+                <tr>
+                  <th>Enabled</th>
+                  <th>Subtype</th>
+                  <th>Product family</th>
+                  <th>Description</th>
+                  <th>Default</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><input type="checkbox" checked></td>
+                  <td>Backup Services</td>
+                  <td>Data Protection</td>
+                  <td>Managed or self‑service backup offerings.</td>
+                  <td><input type="radio" name="subtype-default"></td>
+                </tr>
+                <tr>
+                  <td><input type="checkbox" checked></td>
+                  <td>Cable</td>
+                  <td>Internet &amp; Voice Connectivity</td>
+                  <td>Cable‑based internet connectivity services.</td>
+                  <td><input type="radio" name="subtype-default"></td>
+                </tr>
+                <tr>
+                  <td><input type="checkbox" checked></td>
+                  <td>CCaaS (Call Center as a Service)</td>
+                  <td>AI Services</td>
+                  <td>Cloud‑based contact center and call routing platforms.</td>
+                  <td><input type="radio" name="subtype-default"></td>
+                </tr>
+                <tr>
+                  <td><input type="checkbox" checked></td>
+                  <td>Ethernet</td>
+                  <td>Internet &amp; Voice Connectivity</td>
+                  <td>Point‑to‑point and multi‑point Ethernet services.</td>
+                  <td><input type="radio" name="subtype-default"></td>
+                </tr>
+                <tr>
+                  <td><input type="checkbox" checked></td>
+                  <td>Fiber</td>
+                  <td>Internet &amp; Voice Connectivity</td>
+                  <td>Fiber‑based connectivity solutions.</td>
+                  <td><input type="radio" name="subtype-default" checked></td>
+                </tr>
+                <tr>
+                  <td><input type="checkbox" checked></td>
+                  <td>Maintenance Services</td>
+                  <td>Maintenance Products</td>
+                  <td>Ongoing hardware or software maintenance services.</td>
+                  <td><input type="radio" name="subtype-default"></td>
+                </tr>
+                <tr>
+                  <td><input type="checkbox" checked></td>
+                  <td>Managed Services</td>
+                  <td>Cybersecurity Services</td>
+                  <td>Managed security and infrastructure services.</td>
+                  <td><input type="radio" name="subtype-default"></td>
+                </tr>
+                <tr>
+                  <td><input type="checkbox" checked></td>
+                  <td>Networking</td>
+                  <td>Hardware Products</td>
+                  <td>Routing, switching, and wireless networking hardware.</td>
+                  <td><input type="radio" name="subtype-default"></td>
+                </tr>
+                <tr>
+                  <td><input type="checkbox" checked></td>
+                  <td>POTS (Plain Old Telephone Service)</td>
+                  <td>Internet &amp; Voice Connectivity</td>
+                  <td>Traditional analog phone line services.</td>
+                  <td><input type="radio" name="subtype-default"></td>
+                </tr>
+                <tr>
+                  <td><input type="checkbox" checked></td>
+                  <td>Satellite</td>
+                  <td>Internet &amp; Voice Connectivity</td>
+                  <td>Satellite‑based connectivity solutions.</td>
+                  <td><input type="radio" name="subtype-default"></td>
+                </tr>
+                <tr>
+                  <td><input type="checkbox" checked></td>
+                  <td>Servers &amp; Storage</td>
+                  <td>Hardware Products</td>
+                  <td>Physical or virtualized server and storage products.</td>
+                  <td><input type="radio" name="subtype-default"></td>
+                </tr>
+                <tr>
+                  <td><input type="checkbox" checked></td>
+                  <td>UCaaS (Unified Communications as a Service)</td>
+                  <td>Internet &amp; Voice Connectivity</td>
+                  <td>Cloud‑based unified communications platforms.</td>
+                  <td><input type="radio" name="subtype-default"></td>
+                </tr>
+                <tr>
+                  <td><input type="checkbox" checked></td>
+                  <td>WiFi</td>
+                  <td>Hardware Products</td>
+                  <td>Wireless access points, controllers, and related services.</td>
+                  <td><input type="radio" name="subtype-default"></td>
+                </tr>
+                <!-- Custom -->
+                <tr>
+                  <td><input type="checkbox"></td>
+                  <td><input class="dd-inline-input" type="text" placeholder="New subtype"></td>
+                  <td><input class="dd-inline-input" type="text" placeholder="Product family"></td>
+                  <td><input class="dd-inline-input" type="text" placeholder="Describe this subtype"></td>
+                  <td><input type="radio" name="subtype-default"></td>
+                </tr>
+              </tbody>
+            </table>
+
+            <div class="dd-panel-footer">
+              <span>Subtypes roll up into product families and are available as filters on opportunity and revenue reports.</span>
+              <button class="btn btn-ghost">+ Add another product subtype</button>
+            </div>
+          </section>
+
+          <!-- Placeholder panel for example "Account Status" -->
+          <section class="dd-panel" data-panel="account-status">
+            <p style="font-size:13px; color:var(--text-muted);">
+              This is a placeholder example to show how other fields would appear in the Data Dictionary.
+              You could configure status values such as <strong>Active</strong>, <strong>On Hold</strong>, <strong>Inactive</strong>, etc.
+            </p>
+            <table class="dd-table">
+              <thead>
+                <tr>
+                  <th>Enabled</th>
+                  <th>Status value</th>
+                  <th>Description</th>
+                  <th>Default</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><input type="checkbox" checked></td>
+                  <td>Active</td>
+                  <td>Account is active and in good standing.</td>
+                  <td><input type="radio" name="status-default" checked></td>
+                </tr>
+                <tr>
+                  <td><input type="checkbox" checked></td>
+                  <td>On Hold</td>
+                  <td>Temporarily paused due to billing, support, or other issues.</td>
+                  <td><input type="radio" name="status-default"></td>
+                </tr>
+                <tr>
+                  <td><input type="checkbox" checked></td>
+                  <td>Inactive</td>
+                  <td>No longer an active account, kept for history.</td>
+                  <td><input type="radio" name="status-default"></td>
+                </tr>
+                <!-- Custom -->
+                <tr>
+                  <td><input type="checkbox"></td>
+                  <td><input class="dd-inline-input" type="text" placeholder="New status"></td>
+                  <td><input class="dd-inline-input" type="text" placeholder="Describe this status"></td>
+                  <td><input type="radio" name="status-default"></td>
+                </tr>
+              </tbody>
+            </table>
+          </section>
+        </main>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Simple drill‑down behavior for the Data Dictionary
+    document.addEventListener('DOMContentLoaded', function () {
+      const fieldButtons = document.querySelectorAll('.dd-field-item');
+      const panels = document.querySelectorAll('.dd-panel');
+
+      const fieldMeta = {
+        'account-type': {
+          path: 'Account · Field',
+          title: 'Account Type',
+          subtitle: 'Choose which account types users see in the Account Type dropdown. At least one value must remain enabled.',
+          usedOn: 'Used on: Account forms, filters, and imports.',
+          metaTags: ['Global picklist', 'Preserves historical values']
+        },
+        'account-status': {
+          path: 'Account · Field',
+          title: 'Account Status',
+          subtitle: 'Control the statuses available for Accounts. Disable values instead of deleting them to preserve reporting history.',
+          usedOn: 'Used on: Account forms and reporting.',
+          metaTags: ['Example field', 'Safe to experiment']
+        },
+        'revenue-type': {
+          path: 'Opportunity · Field',
+          title: 'Revenue Type',
+          subtitle: 'Configure which revenue structures are available when users add revenue schedules to opportunities.',
+          usedOn: 'Used on: Opportunities and revenue schedules.',
+          metaTags: ['Impacts commissions', 'Coordinate with Finance']
+        },
+        'product-family': {
+          path: 'Product · Field',
+          title: 'Product Family',
+          subtitle: 'Define top‑level product groupings to keep your catalog organized and reporting consistent.',
+          usedOn: 'Used on: Products and opportunity line items.',
+          metaTags: ['Rollup field', 'Visible in reports']
+        },
+        'product-subtype': {
+          path: 'Product · Field',
+          title: 'Product Subtype',
+          subtitle: 'Create finer‑grained product categories that roll up into Product Families.',
+          usedOn: 'Used on: Products and advanced reporting filters.',
+          metaTags: ['Child of Product Family', 'Optional but recommended']
+        }
+      };
+
+      function updateHeader(panelKey) {
+        const meta = fieldMeta[panelKey];
+        if (!meta) return;
+
+        const pathEl = document.getElementById('dd-path');
+        const titleEl = document.getElementById('dd-title');
+        const subtitleEl = document.getElementById('dd-subtitle');
+        const usedOnEl = document.querySelector('.dd-used-on');
+        const metaContainer = document.getElementById('dd-meta');
+
+        pathEl.textContent = meta.path;
+        titleEl.textContent = meta.title;
+        subtitleEl.innerHTML = meta.subtitle;
+        usedOnEl.innerHTML = meta.usedOn;
+
+        metaContainer.innerHTML = '';
+        meta.metaTags.forEach(text => {
+          const span = document.createElement('span');
+          span.className = 'dd-tag dd-tag-system';
+          span.textContent = text;
+          metaContainer.appendChild(span);
+        });
+      }
+
+      fieldButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+          const key = btn.dataset.panel;
+
+          fieldButtons.forEach(b => b.classList.remove('dd-field-item-active'));
+          btn.classList.add('dd-field-item-active');
+
+          panels.forEach(p => {
+            if (p.dataset.panel === key) {
+              p.classList.add('dd-panel-active');
+            } else {
+              p.classList.remove('dd-panel-active');
+            }
+          });
+
+          updateHeader(key);
+        });
+      });
+
+      // Initialize header for default panel
+      updateHeader('account-type');
+    });
+  </script>
+</body>
+</html>

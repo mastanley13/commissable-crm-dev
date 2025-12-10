@@ -239,6 +239,10 @@ const contactFilterOptions = [
 
 const TABLE_BOTTOM_RESERVE = 110
 const TABLE_MIN_BODY_HEIGHT = 320
+const normalizePageSize = (value: number): number => {
+  if (!Number.isFinite(value)) return 100
+  return Math.min(100, Math.max(1, Math.floor(value)))
+}
 
 export default function ContactsPage() {
   const [contacts, setContacts] = useState<ContactRow[]>([])
@@ -247,7 +251,7 @@ export default function ContactsPage() {
   const [options, setOptions] = useState<ContactOptions | null>(null)
   const [pagination, setPagination] = useState<PaginationInfo>({
     page: 1,
-    pageSize: 25,
+    pageSize: 100,
     total: 0,
     totalPages: 0
   })
@@ -280,6 +284,8 @@ export default function ContactsPage() {
     loading: preferenceLoading,
     error: preferenceError,
     saving: preferenceSaving,
+    pageSize: preferencePageSize,
+    handlePageSizeChange: persistPageSizePreference,
     hasServerPreferences,
     hasUnsavedChanges,
     lastSaved,
@@ -489,8 +495,18 @@ export default function ContactsPage() {
   }
 
   const handlePageSizeChange = (pageSize: number) => {
-    setPagination(prev => ({ ...prev, pageSize, page: 1 }))
+    const normalized = normalizePageSize(pageSize)
+    setPagination(prev => ({ ...prev, pageSize: normalized, page: 1 }))
+    void persistPageSizePreference(normalized)
   }
+
+  useEffect(() => {
+    if (!preferencePageSize) return
+    const normalized = normalizePageSize(preferencePageSize)
+    if (normalized !== pagination.pageSize) {
+      setPagination(prev => ({ ...prev, pageSize: normalized, page: 1 }))
+    }
+  }, [pagination.pageSize, preferencePageSize])
 
   const handleRowClick = useCallback((contact: ContactRow) => {
     router.push(`/contacts/${contact.id}`)

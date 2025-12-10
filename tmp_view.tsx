@@ -247,7 +247,7 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
 
             {/* Row 3 */}
             <div className="relative">
-              <label className={labelCls}>Product Family - Vendor</label>
+              <label className={labelCls}>Vendor - Product Family</label>
               <input value={familyInput} onChange={e=>setFamilyInput(e.target.value)} placeholder="e.g., UCaaS" className={inputCls} />
               {familyInput && familyOptions.length > 0 && (
                 <div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
@@ -266,7 +266,7 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
 
             {/* Row 4 */}
             <div>
-              <label className={labelCls}>Product Name - Vendor</label>
+              <label className={labelCls}>Vendor - Product Name</label>
               <div className="relative">
                 <input value={productInput} onChange={e=>{ setProductInput(e.target.value); setShowProductDropdown(true) }} onFocus={()=>setShowProductDropdown(true)} onBlur={()=>setTimeout(()=>setShowProductDropdown(false),200)} placeholder="Select a product..." className={inputCls} required />
                 {showProductDropdown && (
@@ -294,7 +294,7 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
 
             {/* Row 5 */}
             <div>
-              <label className={labelCls}>Order ID - House</label>
+              <label className={labelCls}>House - Order ID</label>
               <input value={orderIdHouse ?? ''} readOnly className={`${inputCls} text-gray-700`} />
             </div>
             <div>

@@ -66,7 +66,9 @@ async function ensureCanonicalAccountTypes(tenantId: string) {
           code: entry.code,
           name: entry.name,
           displayOrder: entry.displayOrder,
-          isAssignableToContacts: true
+          isAssignableToContacts: true,
+          isActive: true,
+          isSystem: true
         }
       })
     } else {
@@ -74,7 +76,8 @@ async function ensureCanonicalAccountTypes(tenantId: string) {
         primary.code !== entry.code ||
         primary.name !== entry.name ||
         primary.displayOrder !== entry.displayOrder ||
-        primary.isAssignableToContacts !== true
+        primary.isAssignableToContacts !== true ||
+        primary.isSystem !== true
 
       primaryRecord = needsUpdate
         ? await prisma.accountType.update({
@@ -83,7 +86,8 @@ async function ensureCanonicalAccountTypes(tenantId: string) {
               code: entry.code,
               name: entry.name,
               displayOrder: entry.displayOrder,
-              isAssignableToContacts: true
+              isAssignableToContacts: true,
+              isSystem: true
             }
           })
         : primary
@@ -104,32 +108,8 @@ async function ensureCanonicalAccountTypes(tenantId: string) {
     canonicalRecords.set(normalizedCode, primaryRecord)
   }
 
-  const fallbackRecord = canonicalRecords.get(FALLBACK_NORMALIZED_CODE)
-
-  const postCanonicalList = await prisma.accountType.findMany({
-    where: { tenantId },
-    select: { id: true, code: true }
-  })
-
-  for (const accountType of postCanonicalList) {
-    const normalizedCode = normalizeAccountTypeCode(accountType.code)
-    if (CANONICAL_NORMALIZED_CODES.has(normalizedCode)) {
-      continue
-    }
-
-    if (fallbackRecord && accountType.id !== fallbackRecord.id) {
-      await prisma.account.updateMany({
-        where: { accountTypeId: accountType.id },
-        data: { accountTypeId: fallbackRecord.id }
-      })
-      await prisma.contact.updateMany({
-        where: { accountTypeId: accountType.id },
-        data: { accountTypeId: fallbackRecord.id }
-      })
-    }
-
-    await prisma.accountType.delete({ where: { id: accountType.id } })
-  }
+  // Note: non-canonical account types are no longer deleted here.
+  // They are managed via the Data Settings admin UI.
 }
 
 export async function GET(request: NextRequest) {
@@ -140,7 +120,7 @@ export async function GET(request: NextRequest) {
 
     const [accountTypes, industries, parentAccounts, owners] = await Promise.all([
       prisma.accountType.findMany({
-        where: { tenantId },
+        where: { tenantId, isActive: true },
         orderBy: { displayOrder: "asc" },
         select: { id: true, name: true }
       }),
@@ -172,4 +152,3 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Failed to load account options" }, { status: 500 })
   }
 }
-

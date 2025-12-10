@@ -397,7 +397,7 @@ export function ActivityNoteCreateModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-      <div className="w-full max-w-4xl rounded-2xl bg-white shadow-xl flex flex-col max-h-[90vh]">
+      <div className="w-full max-w-5xl h-[900px] rounded-2xl bg-white shadow-xl flex flex-col">
         <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4 flex-shrink-0">
           <div>
             <p className="text-xs font-semibold uppercase text-primary-600">{activeTab === "activity" ? "Create Activity" : "Create Note"}</p>

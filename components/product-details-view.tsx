@@ -411,12 +411,12 @@ function ProductHeader({ product, onEdit, activeTab, onTabSelect }: ProductHeade
 
         <div className="grid gap-6 lg:grid-cols-2">
           <div className="space-y-1.5">
-            <FieldRow label="Product Name - House">
+            <FieldRow label="House - Product Name">
               <div className={fieldBoxClass}>
                 {product.productNameHouse || <span className="text-gray-500">--</span>}
               </div>
             </FieldRow>
-            <FieldRow label="Part Number - House">
+            <FieldRow label="House - Part Number">
               <div className={fieldBoxClass}>
                 {product.productCode || <span className="text-gray-500">--</span>}
               </div>
@@ -457,7 +457,7 @@ function ProductHeader({ product, onEdit, activeTab, onTabSelect }: ProductHeade
                 </div>
               )}
             </FieldRow>
-            <FieldRow label="Product Family - House">
+            <FieldRow label="House - Product Family">
               <div className={fieldBoxClass}>
                 {product.productFamilyHouse || <span className="text-gray-500">--</span>}
               </div>
@@ -697,7 +697,7 @@ interface EditableProductHeaderProps {
         <div className="grid gap-6 lg:grid-cols-2">
           <div className="space-y-1.5">
             {renderRow(
-              "Product Name - House",
+              "House - Product Name",
               <EditableField.Input
                 value={(nameField.value as string) ?? ""}
                 onChange={nameField.onChange}
@@ -708,7 +708,7 @@ interface EditableProductHeaderProps {
             )}
 
             {renderRow(
-              "Part Number - House",
+              "House - Part Number",
               <EditableField.Input
                 value={(codeField.value as string) ?? ""}
                 onChange={codeField.onChange}
@@ -747,7 +747,7 @@ interface EditableProductHeaderProps {
             )}
 
             {renderRow(
-              "Product Family - House",
+              "House - Product Family",
               <EditableField.Input
                 value={(familyHouseField?.value as string) ?? ""}
                 onChange={familyHouseField.onChange}

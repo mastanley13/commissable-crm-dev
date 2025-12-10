@@ -319,7 +319,7 @@ export async function POST(request: NextRequest) {
         notesParts.push(`Type: ${ticketType}`)
       }
       if (productNameVendorInput) {
-        notesParts.push(`Product Name - Vendor: ${productNameVendorInput}`)
+        notesParts.push(`Vendor - Product Name: ${productNameVendorInput}`)
       }
       if (descriptionInput) {
         notesParts.push(descriptionInput)

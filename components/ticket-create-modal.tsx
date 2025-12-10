@@ -628,7 +628,7 @@ export function TicketCreateModal({
             </div>
 
             <div>
-              <label className={labelCls}>Product Name - Vendor</label>
+              <label className={labelCls}>Vendor - Product Name</label>
               <input
                 type="text"
                 value={form.productNameVendor}

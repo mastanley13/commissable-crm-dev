@@ -1016,7 +1016,14 @@ export function DynamicTable({
                           resizing?.columnId === column.id && "resizing"
                         )}
                         onMouseDown={event => handleMouseDown(event, column.id)}
-                        onDoubleClick={() => handleDoubleClick(column.id)}
+                        onClick={event => {
+                          event.stopPropagation()
+                        }}
+                        onDoubleClick={event => {
+                          event.preventDefault()
+                          event.stopPropagation()
+                          handleDoubleClick(column.id)
+                        }}
                         title="Drag to resize, double-click to auto-fit"
                       />
                     )}

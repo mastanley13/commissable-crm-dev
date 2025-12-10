@@ -140,6 +140,7 @@ async function seed() {
     prisma.permission.create({ data: { code: "admin.users.create", name: "Create Users", category: "Admin" } }),
     prisma.permission.create({ data: { code: "admin.users.update", name: "Update Users", category: "Admin" } }),
     prisma.permission.create({ data: { code: "admin.users.delete", name: "Delete Users", category: "Admin" } }),
+    prisma.permission.create({ data: { code: "admin.data_settings.manage", name: "Manage Data Settings", category: "Admin" } }),
 
     // Activities (granular)
     prisma.permission.create({ data: { code: "activities.read", name: "Read Activities", category: "Activities" } }),
@@ -169,6 +170,7 @@ async function seed() {
         "admin.roles.read", "admin.roles.create", "admin.roles.update", "admin.roles.delete",
         "admin.permissions.read",
         "admin.users.read", "admin.users.create", "admin.users.update", "admin.users.delete",
+        "admin.data_settings.manage",
       ]
     },
     {
@@ -286,17 +288,71 @@ async function seed() {
         tenantId: tenant.id,
         code: "CUSTOMER",
         name: "Customer",
-        description: "Direct customers",
-        displayOrder: 1,
+        description: "Customer Account: Accounts that have successfully contracted with the House Agency.",
+        isAssignableToContacts: true,
+        isActive: true,
+        isSystem: true,
+        displayOrder: 10,
       },
     }),
     prisma.accountType.create({
       data: {
         tenantId: tenant.id,
-        code: "HOUSE",
+        code: "DISTRIBUTOR",
+        name: "Distributor",
+        description: "Distributor Account: Companies that provide a central pathway to order from multiple vendors.",
+        isAssignableToContacts: true,
+        isActive: true,
+        isSystem: true,
+        displayOrder: 20,
+      },
+    }),
+    prisma.accountType.create({
+      data: {
+        tenantId: tenant.id,
+        code: "HOUSE_REP",
         name: "House",
-        description: "House accounts",
-        displayOrder: 2,
+        description: "House Rep Account: Employees working on behalf of the House Agency who earn profit or commission.",
+        isAssignableToContacts: true,
+        isActive: true,
+        isSystem: true,
+        displayOrder: 30,
+      },
+    }),
+    prisma.accountType.create({
+      data: {
+        tenantId: tenant.id,
+        code: "OTHER",
+        name: "Other",
+        description: "Other Account: For records that do not fit a defined account type.",
+        isAssignableToContacts: true,
+        isActive: true,
+        isSystem: true,
+        displayOrder: 40,
+      },
+    }),
+    prisma.accountType.create({
+      data: {
+        tenantId: tenant.id,
+        code: "PROSPECT",
+        name: "Prospect",
+        description: "Prospect Account: Accounts that have not yet transacted with the House Agency.",
+        isAssignableToContacts: true,
+        isActive: true,
+        isSystem: true,
+        displayOrder: 50,
+      },
+    }),
+    prisma.accountType.create({
+      data: {
+        tenantId: tenant.id,
+        code: "SUBAGENT",
+        name: "Subagent",
+        description: "Subagent Account: Independent partners (1099) that provide leads and services for a share of profits or commissions.",
+        isAssignableToContacts: true,
+        isActive: true,
+        isSystem: true,
+        displayOrder: 60,
       },
     }),
     prisma.accountType.create({
@@ -304,8 +360,11 @@ async function seed() {
         tenantId: tenant.id,
         code: "VENDOR",
         name: "Vendor",
-        description: "Vendors and suppliers",
-        displayOrder: 3,
+        description: "Vendor Account: Organizations that manufacture goods or deliver services.",
+        isAssignableToContacts: true,
+        isActive: true,
+        isSystem: true,
+        displayOrder: 70,
       },
     }),
   ])
@@ -319,8 +378,247 @@ async function seed() {
     }),
   ])
 
-  const [customerType, houseType] = accountTypes
+  const [customerType, distributorType, houseRepType] = accountTypes
   const [techIndustry] = industries
+
+  // Seed master data for product families
+  await prisma.$transaction([
+    prisma.productFamily.create({
+      data: {
+        tenantId: tenant.id,
+        code: "AI_SERVICES",
+        name: "AI Services",
+        description: "AI-based services such as automation, assistants, and intelligent analytics.",
+        isActive: true,
+        isSystem: true,
+        displayOrder: 10,
+      },
+    }),
+    prisma.productFamily.create({
+      data: {
+        tenantId: tenant.id,
+        code: "INTERNET_VOICE",
+        name: "Internet & Voice Connectivity",
+        description: "Core internet, voice, and connectivity services.",
+        isActive: true,
+        isSystem: true,
+        displayOrder: 20,
+      },
+    }),
+    prisma.productFamily.create({
+      data: {
+        tenantId: tenant.id,
+        code: "CYBERSECURITY",
+        name: "Cybersecurity Services",
+        description: "Security offerings including threat protection and monitoring.",
+        isActive: true,
+        isSystem: true,
+        displayOrder: 30,
+      },
+    }),
+    prisma.productFamily.create({
+      data: {
+        tenantId: tenant.id,
+        code: "DATA_PROTECTION",
+        name: "Data Protection",
+        description: "Backup, archiving, and data protection solutions.",
+        isActive: true,
+        isSystem: true,
+        displayOrder: 40,
+      },
+    }),
+    prisma.productFamily.create({
+      data: {
+        tenantId: tenant.id,
+        code: "HARDWARE",
+        name: "Hardware Products",
+        description: "Physical devices, infrastructure, and related equipment.",
+        isActive: true,
+        isSystem: true,
+        displayOrder: 50,
+      },
+    }),
+    prisma.productFamily.create({
+      data: {
+        tenantId: tenant.id,
+        code: "INSTALLATION",
+        name: "Installation Services",
+        description: "Implementation, installation, and turn-up services.",
+        isActive: true,
+        isSystem: true,
+        displayOrder: 60,
+      },
+    }),
+    prisma.productFamily.create({
+      data: {
+        tenantId: tenant.id,
+        code: "MAINTENANCE",
+        name: "Maintenance Products",
+        description: "Maintenance contracts and support entitlements.",
+        isActive: true,
+        isSystem: true,
+        displayOrder: 70,
+      },
+    }),
+    prisma.productFamily.create({
+      data: {
+        tenantId: tenant.id,
+        code: "SOFTWARE",
+        name: "Software Products",
+        description: "Software licenses, subscriptions, and SaaS products.",
+        isActive: true,
+        isSystem: true,
+        displayOrder: 80,
+      },
+    }),
+  ])
+
+  // Seed master data for product subtypes (not yet wired to specific families)
+  await prisma.$transaction([
+    prisma.productSubtype.create({
+      data: {
+        tenantId: tenant.id,
+        code: "BACKUP_SERVICES",
+        name: "Backup Services",
+        description: "Backup services for data protection and recovery.",
+        isActive: true,
+        isSystem: true,
+        displayOrder: 10,
+      },
+    }),
+    prisma.productSubtype.create({
+      data: {
+        tenantId: tenant.id,
+        code: "CABLE",
+        name: "Cable",
+        description: "Cable-based connectivity services.",
+        isActive: true,
+        isSystem: true,
+        displayOrder: 20,
+      },
+    }),
+    prisma.productSubtype.create({
+      data: {
+        tenantId: tenant.id,
+        code: "CCAAS",
+        name: "CCaaS (Call Center as a Service)",
+        description: "Hosted contact center and CCaaS offerings.",
+        isActive: true,
+        isSystem: true,
+        displayOrder: 30,
+      },
+    }),
+    prisma.productSubtype.create({
+      data: {
+        tenantId: tenant.id,
+        code: "ETHERNET",
+        name: "Ethernet",
+        description: "Layer 2 ethernet transport services.",
+        isActive: true,
+        isSystem: true,
+        displayOrder: 40,
+      },
+    }),
+    prisma.productSubtype.create({
+      data: {
+        tenantId: tenant.id,
+        code: "FIBER",
+        name: "Fiber",
+        description: "Fiber-based connectivity services.",
+        isActive: true,
+        isSystem: true,
+        displayOrder: 50,
+      },
+    }),
+    prisma.productSubtype.create({
+      data: {
+        tenantId: tenant.id,
+        code: "MAINTENANCE_SERVICES",
+        name: "Maintenance Services",
+        description: "Service and maintenance engagements.",
+        isActive: true,
+        isSystem: true,
+        displayOrder: 60,
+      },
+    }),
+    prisma.productSubtype.create({
+      data: {
+        tenantId: tenant.id,
+        code: "MANAGED_SERVICES",
+        name: "Managed Services",
+        description: "Managed services and ongoing support.",
+        isActive: true,
+        isSystem: true,
+        displayOrder: 70,
+      },
+    }),
+    prisma.productSubtype.create({
+      data: {
+        tenantId: tenant.id,
+        code: "NETWORKING",
+        name: "Networking",
+        description: "Networking infrastructure and services.",
+        isActive: true,
+        isSystem: true,
+        displayOrder: 80,
+      },
+    }),
+    prisma.productSubtype.create({
+      data: {
+        tenantId: tenant.id,
+        code: "POTS",
+        name: "POTS (Plain Old Telephone Service)",
+        description: "Traditional POTS voice lines.",
+        isActive: true,
+        isSystem: true,
+        displayOrder: 90,
+      },
+    }),
+    prisma.productSubtype.create({
+      data: {
+        tenantId: tenant.id,
+        code: "SATELLITE",
+        name: "Satellite",
+        description: "Satellite connectivity services.",
+        isActive: true,
+        isSystem: true,
+        displayOrder: 100,
+      },
+    }),
+    prisma.productSubtype.create({
+      data: {
+        tenantId: tenant.id,
+        code: "SERVERS_STORAGE",
+        name: "Servers & Storage",
+        description: "Server and storage infrastructure offerings.",
+        isActive: true,
+        isSystem: true,
+        displayOrder: 110,
+      },
+    }),
+    prisma.productSubtype.create({
+      data: {
+        tenantId: tenant.id,
+        code: "UCAAS",
+        name: "UCaaS (Unified Communications as a Service)",
+        description: "Hosted UCaaS platforms and services.",
+        isActive: true,
+        isSystem: true,
+        displayOrder: 120,
+      },
+    }),
+    prisma.productSubtype.create({
+      data: {
+        tenantId: tenant.id,
+        code: "WIFI",
+        name: "WiFi",
+        description: "Wireless networking and WiFi services.",
+        isActive: true,
+        isSystem: true,
+        displayOrder: 130,
+      },
+    }),
+  ])
 
   const shippingAddress = await prisma.address.create({
     data: {
@@ -348,7 +646,7 @@ async function seed() {
   const agencyAccount = await prisma.account.create({
     data: {
       tenantId: tenant.id,
-      accountTypeId: houseType.id,
+      accountTypeId: houseRepType.id,
       industryId: techIndustry.id,
       ownerId: managerUser.id,
       createdById: adminUser.id,
@@ -543,7 +841,7 @@ async function seed() {
     data: {
       tenantId: tenant.id,
       accountId: agencyAccount.id,
-      accountTypeId: houseType.id,
+      accountTypeId: houseRepType.id,
       ownerId: managerUser.id,
       createdById: adminUser.id,
       updatedById: adminUser.id,
@@ -900,6 +1198,19 @@ async function seed() {
         tenantId: tenant.id,
         key: "ui.defaultTimezone",
         value: { timezone: "America/New_York" },
+      },
+      {
+        tenantId: tenant.id,
+        key: "revenueTypes.enabledCodes",
+        value: [
+          "NRC_PerItem",
+          "NRC_Percent",
+          "NRC_FlatFee",
+          "NRC_Resale",
+          "MRC_ThirdParty",
+          "MRC_House",
+        ],
+        description: "List of revenue type codes that are enabled for selection.",
       },
     ],
   })

@@ -15,6 +15,11 @@ import type { BulkActionsGridProps } from '@/components/bulk-actions-grid'
 const TABLE_BOTTOM_RESERVE = 110
 const TABLE_MIN_BODY_HEIGHT = 320
 
+const normalizePageSize = (value: number): number => {
+  if (!Number.isFinite(value)) return 100
+  return Math.min(100, Math.max(1, Math.floor(value)))
+}
+
 const RECONCILIATION_DEFAULT_VISIBLE_COLUMN_IDS = new Set<string>([
   'accountName',
   'depositName',
@@ -316,9 +321,9 @@ const reconciliationColumns: Column[] = [
   },
   {
     id: 'productNameVendor',
-    label: 'Product Name - Vendor',
+    label: 'Vendor - Product Name',
     width: 220,
-    minWidth: calculateMinWidth({ label: 'Product Name - Vendor', type: 'text', sortable: true }),
+    minWidth: calculateMinWidth({ label: 'Vendor - Product Name', type: 'text', sortable: true }),
     maxWidth: 320,
     sortable: true,
     type: 'text',
@@ -356,9 +361,9 @@ const reconciliationColumns: Column[] = [
   },
   {
     id: 'customerIdVendor',
-    label: 'Customer ID - Vendor',
+    label: 'Vendor - Customer ID',
     width: 210,
-    minWidth: calculateMinWidth({ label: 'Customer ID - Vendor', type: 'text', sortable: true }),
+    minWidth: calculateMinWidth({ label: 'Vendor - Customer ID', type: 'text', sortable: true }),
     maxWidth: 280,
     sortable: true,
     type: 'text',
@@ -366,9 +371,9 @@ const reconciliationColumns: Column[] = [
   },
   {
     id: 'orderIdVendor',
-    label: 'Order ID - Vendor',
+    label: 'Vendor - Order ID',
     width: 190,
-    minWidth: calculateMinWidth({ label: 'Order ID - Vendor', type: 'text', sortable: true }),
+    minWidth: calculateMinWidth({ label: 'Vendor - Order ID', type: 'text', sortable: true }),
     maxWidth: 260,
     sortable: true,
     type: 'text',
@@ -396,12 +401,12 @@ const filterOptions: FilterColumnOption[] = [
   { id: 'paymentType', label: 'Payment Type' },
   { id: 'accountIdVendor', label: 'Account ID Vendor' },
   { id: 'lineItem', label: 'Line Item' },
-  { id: 'productNameVendor', label: 'Product Name - Vendor' },
+  { id: 'productNameVendor', label: 'Vendor - Product Name' },
   { id: 'usage', label: 'Usage' },
   { id: 'actualCommissionRatePercent', label: 'Actual Commission Rate %' },
   { id: 'actualCommission', label: 'Actual Commission' },
-  { id: 'customerIdVendor', label: 'Customer ID - Vendor' },
-  { id: 'orderIdVendor', label: 'Order ID - Vendor' }
+  { id: 'customerIdVendor', label: 'Vendor - Customer ID' },
+  { id: 'orderIdVendor', label: 'Vendor - Order ID' }
 ]
 
 type DepositRow = {
@@ -450,7 +455,7 @@ export default function ReconciliationPage() {
   const [loading, setLoading] = useState(false)
   const [showColumnSettings, setShowColumnSettings] = useState(false)
   const [currentPage, setCurrentPage] = useState<number>(1)
-  const [pageSize, setPageSize] = useState<number>(25)
+  const [pageSize, setPageSize] = useState<number>(100)
   const [columnFilters, setColumnFilters] = useState<ColumnFilter[]>([])
   const [activeFilter, setActiveFilter] = useState<'active' | 'inactive' | 'all'>('all')
   const [searchQuery, setSearchQuery] = useState<string>('')
@@ -540,6 +545,8 @@ export default function ReconciliationPage() {
     loading: preferenceLoading,
     error: preferenceError,
     saving: preferenceSaving,
+    pageSize: preferencePageSize,
+    handlePageSizeChange: persistPageSizePreference,
     hasServerPreferences,
     hasUnsavedChanges,
     lastSaved,
@@ -811,9 +818,20 @@ export default function ReconciliationPage() {
   }, [])
 
   const handlePageSizeChange = useCallback((newPageSize: number) => {
-    setPageSize(newPageSize)
-    setCurrentPage(1) // Reset to first page when page size changes
-  }, [])
+  const normalized = normalizePageSize(newPageSize)
+  setPageSize(normalized)
+  setCurrentPage(1) // Reset to first page when page size changes
+  void persistPageSizePreference(normalized)
+}, [persistPageSizePreference])
+
+useEffect(() => {
+  if (!preferencePageSize) return
+  const normalized = normalizePageSize(preferencePageSize)
+  if (normalized !== pageSize) {
+    setPageSize(normalized)
+    setCurrentPage(1)
+  }
+}, [preferencePageSize, pageSize])
 
   const handleMonthClick = useCallback((monthIndex: number) => {
     setSelectedMonth(previous => {

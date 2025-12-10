@@ -431,7 +431,7 @@ export const productsData = [
     vendorName: 'Vendor Account',
     productNameVendor: 'Test Product Vendor',
     revenueType: 'NRC - Quantity',
-    productDescriptionHouse: 'Product Description - House',
+    productDescriptionHouse: 'House - Product Description',
     commissionPercent: '2.00%',
     priceEachPercent: '$1.00'
   },

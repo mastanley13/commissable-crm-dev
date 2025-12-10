@@ -47,6 +47,10 @@ const DERIVED_PERMISSION_MAP: Record<string, string[]> = {
   "revenue-schedules.manage": [
     "accounts.manage",
     "opportunities.manage"
+  ],
+  // Grant Data Settings access to roles that already have full system settings control
+  "admin.data_settings.manage": [
+    "system.settings.write"
   ]
 }
 
