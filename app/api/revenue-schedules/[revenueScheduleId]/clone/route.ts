@@ -152,13 +152,17 @@ export async function POST(request: NextRequest, { params }: { params: { revenue
       const rawMode = typeof parsed?.mode === "string" ? parsed.mode : null
       const mode: "clone" | "copyExtend" = rawMode === "copyExtend" ? "copyExtend" : "clone"
 
-      // Parse effectiveDate
-      let effectiveDate: Date | null = source.scheduleDate ?? null
+      // Helper: normalize any date to the 1st of its month in UTC
+      const getMonthStartUtc = (date: Date): Date =>
+        new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1))
+
+      // Parse effectiveDate and normalize to month start
+      let effectiveDate: Date | null = source.scheduleDate ? getMonthStartUtc(new Date(source.scheduleDate)) : null
       const dateInput = typeof parsed?.effectiveDate === "string" ? parsed.effectiveDate.trim() : ""
       if (dateInput) {
         const candidate = new Date(dateInput)
         if (!Number.isNaN(candidate.getTime())) {
-          effectiveDate = candidate
+          effectiveDate = getMonthStartUtc(candidate)
         }
       }
 
@@ -231,7 +235,7 @@ export async function POST(request: NextRequest, { params }: { params: { revenue
       }
 
       if (!effectiveDate) {
-        effectiveDate = source.scheduleDate ?? new Date()
+        effectiveDate = source.scheduleDate ? getMonthStartUtc(new Date(source.scheduleDate)) : getMonthStartUtc(new Date())
       }
 
       if (!Number.isFinite(months) || months < 1) {
@@ -342,16 +346,13 @@ export async function POST(request: NextRequest, { params }: { params: { revenue
         }
 
         for (let i = 0; i < months; i++) {
-          const scheduleDate =
-            i === 0
-              ? effectiveDate
-              : new Date(
-                  Date.UTC(
-                    effectiveDate.getUTCFullYear(),
-                    effectiveDate.getUTCMonth() + i,
-                    effectiveDate.getUTCDate(),
-                  ),
-                )
+          const scheduleDate = new Date(
+            Date.UTC(
+              effectiveDate.getUTCFullYear(),
+              effectiveDate.getUTCMonth() + i,
+              1,
+            ),
+          )
 
           const created = await tx.revenueSchedule.create({
             data: {

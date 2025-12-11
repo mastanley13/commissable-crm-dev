@@ -105,10 +105,12 @@ export function DynamicTable({
     )
   }, [])
   const [columns, setColumnsState] = useState<Column[]>(() => initialColumns.map(column => ({ ...column })))
+  const columnsRef = useRef<Column[]>(initialColumns.map(column => ({ ...column })))
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: "asc" | "desc" } | null>(null)
   const [draggedColumn, setDraggedColumn] = useState<string | null>(null)
   const [resizing, setResizing] = useState<{ columnId: string; startX: number; startWidth: number } | null>(null)
   const [isManuallyResized, setIsManuallyResized] = useState(false) // Track manual resize state
+  const [didResize, setDidResize] = useState(false) // Track if a drag actually changed width
   const [measuredContainerWidth, setMeasuredContainerWidth] = useState<number | null>(null)
 
   const tableRef = useRef<HTMLDivElement>(null)
@@ -140,6 +142,10 @@ export function DynamicTable({
 
     selectAllRef.current.indeterminate = selectedCountOnPage > 0 && selectedCountOnPage < data.length
   }, [data.length, selectedCountOnPage])
+
+  useEffect(() => {
+    columnsRef.current = columns
+  }, [columns])
 
   useEffect(() => {
     if (selectedItems.length === 0) {
@@ -337,7 +343,13 @@ export function DynamicTable({
   const columnCount = Math.max(visibleColumns.length, 1)
 
   // Calculate optimal widths and distribute/shrink to fit container width
+  const useSpacerMode = useMemo(
+    () => fillContainerWidth && !preferOverflowHorizontalScroll,
+    [fillContainerWidth, preferOverflowHorizontalScroll]
+  )
+
   const { gridTemplate, totalTableWidth, shouldUseFullWidth } = useMemo(() => {
+    const overflowPreference = preferOverflowHorizontalScroll || Boolean(resizing)
     if (visibleColumns.length === 0) {
       return { gridTemplate: "1fr", totalTableWidth: 0, shouldUseFullWidth: true }
     }
@@ -364,20 +376,51 @@ export function DynamicTable({
     const containerWidth = computedWidth
     const totalFixedWidth = visibleColumns.reduce((total, col) => total + col.width, 0)
 
+    // Spacer mode: avoid redistributing widths; add trailing flexible spacer to absorb blank space.
+    if (useSpacerMode) {
+      const spacerTrack = "minmax(24px, 1fr)"
+      const tracks = [
+        ...visibleColumns.map(col => `${Math.max(1, Math.round(col.width))}px`),
+        spacerTrack
+      ]
+
+      return {
+        gridTemplate: tracks.join(" "),
+        totalTableWidth: containerWidth,
+        shouldUseFullWidth: true
+      }
+    }
+
     // Decide when we want to allow horizontal overflow with scrollbars.
     // - By default, we only allow overflow after the user manually resizes columns.
-    // - When preferOverflowHorizontalScroll is true (e.g., detail tabs),
+    // - When preferOverflowHorizontalScroll is true (e.g., detail tabs) or while actively resizing,
     //   we allow overflow as soon as the table is wider than the container.
     const enableOverflowMode =
-      fillContainerWidth && (isManuallyResized || preferOverflowHorizontalScroll)
+      fillContainerWidth && (isManuallyResized || overflowPreference)
 
     // Use fill mode only when overflow mode is not enabled.
     const useFillMode = fillContainerWidth && !enableOverflowMode
 
-    // Hybrid mode for preferOverflowHorizontalScroll:
+    // When a resize is in progress or the user has manually resized,
+    // keep widths stable and avoid redistributing space.
+    const lockWidths = Boolean(resizing || isManuallyResized)
+
+    // Hybrid mode for preferOverflowHorizontalScroll (and during resize):
     // - When content exceeds container: use explicit pixel widths and allow horizontal scrolling
     // - When content fits in container: use fill mode to expand columns (even after manual resize)
-    if (preferOverflowHorizontalScroll) {
+    if (overflowPreference) {
+      if (lockWidths) {
+        const gridTemplate = visibleColumns
+          .map(col => `${Math.max(1, Math.round(col.width))}px`)
+          .join(" ")
+
+        return {
+          gridTemplate,
+          totalTableWidth: totalFixedWidth,
+          shouldUseFullWidth: false,
+        }
+      }
+
       if (totalFixedWidth > containerWidth) {
         // Content exceeds container - use scroll mode
         const gridTemplate = visibleColumns
@@ -606,7 +649,7 @@ export function DynamicTable({
       totalTableWidth: containerWidth,
       shouldUseFullWidth: true
     }
-  }, [visibleColumns, isManuallyResized, fillContainerWidth, measuredContainerWidth, preferOverflowHorizontalScroll])
+  }, [visibleColumns, isManuallyResized, fillContainerWidth, measuredContainerWidth, preferOverflowHorizontalScroll, resizing])
 
   const gridStyles = useMemo(() => ({
     gridTemplateColumns: gridTemplate,
@@ -637,6 +680,7 @@ export function DynamicTable({
 
     // Mark that user is manually resizing to prevent auto-sizing conflicts
     setIsManuallyResized(true)
+    setDidResize(false)
 
     setResizing({
       columnId,
@@ -648,26 +692,41 @@ export function DynamicTable({
   const handleMouseMove = useCallback((event: MouseEvent) => {
     if (!resizing) return
 
-    const column = columns.find(col => col.id === resizing.columnId)
-    if (!column) return
+    setColumnsState(previous => {
+      const column = previous.find(col => col.id === resizing.columnId)
+      if (!column) return previous
 
-    const deltaX = event.clientX - resizing.startX
-    const minWidth = column.minWidth ?? 100
-    const maxWidth = column.maxWidth ?? 600
-    const rawWidth = resizing.startWidth + deltaX
-    const clampedWidth = Math.round(Math.max(minWidth, Math.min(rawWidth, maxWidth)))
+      const deltaX = event.clientX - resizing.startX
+      const minWidth = column.minWidth ?? 100
+      const maxWidth = column.maxWidth ?? 600
+      const rawWidth = resizing.startWidth + deltaX
+      const clampedWidth = Math.round(Math.max(minWidth, Math.min(rawWidth, maxWidth)))
 
-    updateColumns(previous =>
-      previous.map(col => (
+      const next = previous.map(col => (
         col.id === resizing.columnId ? { ...col, width: clampedWidth } : col
       ))
-    )
-  }, [columns, resizing, updateColumns])
+      columnsRef.current = next
+      setDidResize(true)
+      return next
+    })
+  }, [resizing])
 
   const handleMouseUp = useCallback(() => {
+    if (!resizing) {
+      return
+    }
+
     setResizing(null)
+
+    if (didResize && onColumnsChange) {
+      const latest = columnsRef.current ?? columns
+      const snapshot = latest.map(column => ({ ...column }))
+      onColumnsChange(snapshot)
+    }
+    setDidResize(false)
+
     // Keep isManuallyResized as true to prevent auto-sizing from overriding manual changes
-  }, [])
+  }, [columns, didResize, onColumnsChange, resizing])
 
 
   const handleDoubleClick = useCallback((columnId: string) => {
@@ -1029,6 +1088,9 @@ export function DynamicTable({
                     )}
                   </div>
                 ))}
+                {useSpacerMode && (
+                  <div className="table-cell table-spacer" aria-hidden="true" />
+                )}
               </div>
             </div>
           )}
@@ -1087,6 +1149,9 @@ export function DynamicTable({
                     {renderCell(column, row[column.accessor || column.id], row, rowIndex)}
                   </div>
                 ))}
+                {useSpacerMode && (
+                  <div className="table-cell table-spacer" aria-hidden="true" />
+                )}
               </div>
             )
           })

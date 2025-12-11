@@ -3,13 +3,17 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react"
 import { X } from "lucide-react"
 import { useToasts } from "@/components/toast"
+import { formatCurrencyDisplay, formatDecimalToFixed, formatPercentDisplay, normalizeDecimalInput } from "@/lib/number-format"
 
 interface ProductOption {
   id: string
   name: string
+  productNameHouse?: string | null
   productNameVendor?: string | null
   vendorName?: string | null
   distributorName?: string | null
+  vendorId?: string | null
+  distributorId?: string | null
   productCode?: string | null
   revenueType?: string | null
   priceEach?: number | null
@@ -98,6 +102,8 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
   const [productActive, setProductActive] = useState(true)
   const [dedupeExactMatch, setDedupeExactMatch] = useState<ProductOption | null>(null)
   const [dedupeLikelyMatches, setDedupeLikelyMatches] = useState<ProductOption[]>([])
+  const [unitPriceFocused, setUnitPriceFocused] = useState(false)
+  const [commissionPercentFocused, setCommissionPercentFocused] = useState(false)
 
   const { showError, showSuccess } = useToasts()
 
@@ -133,6 +139,8 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
       name: it.productNameHouse || it.productNameVendor || 'Product',
       vendorName: it.vendorName,
       distributorName: it.distributorName,
+      vendorId: it.vendorId ?? null,
+      distributorId: it.distributorId ?? null,
       productCode: it.partNumberVendor,
       revenueType: it.revenueType,
       priceEach: typeof it.priceEach === 'number' ? it.priceEach : null,
@@ -140,6 +148,7 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
       productFamilyVendor: it.productFamilyVendor ?? null,
       productSubtypeVendor: it.productSubtypeVendor ?? null,
       productNameVendor: it.productNameVendor ?? null,
+      productNameHouse: it.productNameHouse ?? null,
       productFamilyHouse: it.productFamilyHouse ?? null,
       productSubtypeHouse: it.productSubtypeHouse ?? null
     }))
@@ -157,13 +166,19 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
   }, [])
 
   const runProductDedupe = useCallback(async (): Promise<{ exact: ProductOption | null; likely: ProductOption[] }> => {
+    // Use the same effective House name that will be stored on the Product.
+    // If the user hasn't entered a House name, fall back to the vendor name,
+    // but do NOT dedupe on the generic "New Product" placeholder.
+    const rawName = (productNameHouse.trim() || productNameVendor.trim()).slice(0, 120)
+    const name = rawName.trim()
+    if (!name) {
+      return { exact: null, likely: [] }
+    }
+
     const params = new URLSearchParams({ page: '1', pageSize: '25' })
-    const filters: Array<{ columnId: string; value: string }> = []
-    if (selectedVendorId) filters.push({ columnId: 'vendorId', value: selectedVendorId })
-    if (selectedDistributorId) filters.push({ columnId: 'distributorId', value: selectedDistributorId })
-    if (productCode.trim()) filters.push({ columnId: 'partNumberVendor', value: productCode.trim() })
-    if (productNameVendor.trim()) filters.push({ columnId: 'productNameVendor', value: productNameVendor.trim() })
-    if (filters.length > 0) params.set('filters', JSON.stringify(filters))
+    const filters: Array<{ columnId: string; value: string }> = [{ columnId: 'productNameHouse', value: name }]
+    params.set('filters', JSON.stringify(filters))
+
     const res = await fetch(`/api/products?${params.toString()}`, { cache: 'no-store' })
     if (!res.ok) return { exact: null, likely: [] }
     const payload = await res.json().catch(() => null)
@@ -173,6 +188,8 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
       name: it.productNameHouse || it.productNameVendor || 'Product',
       vendorName: it.vendorName,
       distributorName: it.distributorName,
+      vendorId: it.vendorId ?? null,
+      distributorId: it.distributorId ?? null,
       productCode: it.partNumberVendor,
       revenueType: it.revenueType,
       priceEach: typeof it.priceEach === 'number' ? it.priceEach : null,
@@ -180,23 +197,31 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
       productFamilyVendor: it.productFamilyVendor ?? null,
       productSubtypeVendor: it.productSubtypeVendor ?? null,
       productNameVendor: it.productNameVendor ?? null,
+      productNameHouse: it.productNameHouse ?? null,
       productFamilyHouse: it.productFamilyHouse ?? null,
       productSubtypeHouse: it.productSubtypeHouse ?? null
     }))
-    const exact = mapped.find(p => {
-      const codeMatch = productCode.trim() && p.productCode && p.productCode.toLowerCase() === productCode.trim().toLowerCase()
-      const nameMatch = productNameVendor.trim() && p.productNameVendor && p.productNameVendor.toLowerCase() === productNameVendor.trim().toLowerCase()
-      return Boolean(codeMatch || nameMatch)
-    }) ?? null
+
+    const normalizedName = name.toLowerCase()
+    const exact = mapped.find(p => p.productNameHouse && p.productNameHouse.toLowerCase() === normalizedName) ?? null
     const likely = mapped.filter(p => p.id !== exact?.id)
     return { exact, likely }
-  }, [selectedVendorId, selectedDistributorId, productCode, productNameVendor])
+  }, [productNameHouse, productNameVendor])
 
   const switchToCatalogWithProduct = useCallback((product: ProductOption) => {
     ensureProductInOptions(product)
     const now = new Date()
     const firstDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString().slice(0,10)
     setActiveTab("add")
+    // Prefill left-side catalog filters based on the chosen product
+    setDistributorInput(product.distributorName ?? "")
+    setVendorInput(product.vendorName ?? "")
+    setSelectedDistributorId(product.distributorId ?? "")
+    setSelectedVendorId(product.vendorId ?? "")
+    setCatalogFamilyInput(product.productFamilyVendor ?? "")
+    setCatalogFamilyFilter(product.productFamilyVendor ?? "")
+    setCatalogSubtypeInput(product.productSubtypeVendor ?? "")
+    setCatalogSubtypeFilter(product.productSubtypeVendor ?? "")
     setProductInput(product.name)
     setForm(prev => ({
       ...prev,
@@ -207,6 +232,32 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
       commissionStartDate: firstDate,
       schedulePeriods: "1"
     }))
+
+    // As a fallback, fetch full product detail to ensure
+    // we have the latest price and commission percent.
+    void (async () => {
+      try {
+        const res = await fetch(`/api/products/${product.id}`, { cache: "no-store" })
+        if (!res.ok) return
+        const payload = await res.json().catch(() => null)
+        const detail = (payload as any)?.data ?? payload
+        if (!detail) return
+        const priceRaw = (detail as any).priceEach
+        const commissionRaw = (detail as any).commissionPercent
+        const price =
+          typeof priceRaw === "number" ? priceRaw : priceRaw != null ? Number(priceRaw) : null
+        const commission =
+          typeof commissionRaw === "number" ? commissionRaw : commissionRaw != null ? Number(commissionRaw) : null
+        setForm(prev => ({
+          ...prev,
+          unitPrice: price != null ? Number(price).toFixed(2) : prev.unitPrice,
+          commissionPercent: commission != null ? Number(commission).toFixed(2) : prev.commissionPercent,
+        }))
+      } catch {
+        // Silent failure – keep whatever values we already have
+      }
+    })()
+
     setDedupeExactMatch(null)
     setDedupeLikelyMatches([])
   }, [ensureProductInOptions])
@@ -246,6 +297,8 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
     setForm(prev => ({ ...prev, commissionStartDate: first.toISOString().slice(0,10) }))
     // Default to Add Product from Catalog when modal opens
     setActiveTab("add")
+    setUnitPriceFocused(false)
+    setCommissionPercentFocused(false)
   }, [isOpen])
 
   // Load product options (revenue types) once when modal opens
@@ -408,8 +461,6 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
     } finally { setLoading(false) }
   }
 
-  if (!isOpen) return null
-
   const labelCls = 'mb-0.5 block text-[11px] font-semibold uppercase tracking-wide text-gray-500'
   const inputCls = 'w-full border-b-2 border-gray-300 bg-transparent px-0 py-1.5 text-xs focus:outline-none focus:border-primary-500 disabled:cursor-not-allowed disabled:opacity-60'
   const badge = (n: number) => (
@@ -417,6 +468,41 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
       {n}
     </span>
   )
+
+  const handleDecimalChange = (field: keyof LineItemFormState) => (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const normalized = normalizeDecimalInput(event.target.value)
+    setForm(prev => ({ ...prev, [field]: normalized }))
+  }
+
+  const handleDecimalBlur = (field: keyof LineItemFormState) => () => {
+    setForm(prev => ({ ...prev, [field]: formatDecimalToFixed(String(prev[field] ?? "")) }))
+  }
+
+  const displayUnitPrice = useMemo(() => {
+    const raw = form.unitPrice.trim()
+    if (!raw) return ""
+
+    if (unitPriceFocused) {
+      return formatCurrencyDisplay(raw, { alwaysSymbol: true })
+    }
+
+    return formatCurrencyDisplay(raw, { alwaysSymbol: true })
+  }, [form.unitPrice, unitPriceFocused])
+
+  const displayCommissionPercent = useMemo(() => {
+    const raw = form.commissionPercent.trim()
+    if (!raw) return ""
+
+    if (commissionPercentFocused) {
+      return formatPercentDisplay(raw, { alwaysSymbol: true })
+    }
+
+    return formatPercentDisplay(raw, { alwaysSymbol: true })
+  }, [form.commissionPercent, commissionPercentFocused])
+
+  if (!isOpen) return null
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 px-4">
@@ -655,35 +741,35 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
                 </div>
                 <div>
                   <label className={labelCls}>Price Each</label>
-                  <div className="relative">
-                    <span className="absolute left-0 top-1/2 -translate-y-1/2 text-xs text-gray-900">$</span>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={form.unitPrice}
-                      onChange={e=>setForm(prev=>({...prev, unitPrice: e.target.value }))}
-                      onBlur={e=>{ const n = Number(e.target.value); if (Number.isFinite(n)) setForm(prev=>({...prev, unitPrice: n.toFixed(2)})) }}
-                      className={`${inputCls} pl-3`}
-                    />
-                  </div>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={displayUnitPrice}
+                    onChange={handleDecimalChange("unitPrice")}
+                    onFocus={() => setUnitPriceFocused(true)}
+                    onBlur={() => {
+                      setUnitPriceFocused(false)
+                      handleDecimalBlur("unitPrice")()
+                    }}
+                    className={inputCls}
+                    placeholder="$0.00"
+                  />
                 </div>
                 <div>
                   <label className={labelCls}>Expected Commission Rate %</label>
-                  <div className="relative">
-                    <input
-                      type="number"
-                      min="0"
-                      max="100"
-                      step="0.01"
-                      value={form.commissionPercent}
-                      onChange={e=>setForm(prev=>({...prev, commissionPercent: e.target.value }))}
-                      onBlur={e=>{ const n = Number(e.target.value); if (Number.isFinite(n)) setForm(prev=>({...prev, commissionPercent: n.toFixed(2)})) }}
-                      className={`${inputCls} pr-4`}
-                      placeholder="e.g., 10.00"
-                    />
-                    <span className="absolute right-0 top-1/2 -translate-y-1/2 text-xs text-gray-900">%</span>
-                  </div>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={displayCommissionPercent}
+                    onChange={handleDecimalChange("commissionPercent")}
+                    onFocus={() => setCommissionPercentFocused(true)}
+                    onBlur={() => {
+                      setCommissionPercentFocused(false)
+                      handleDecimalBlur("commissionPercent")()
+                    }}
+                    className={inputCls}
+                    placeholder="e.g., 10.00%"
+                  />
                 </div>
                 <div>
                   <label className={labelCls}>Expected Commission Start Date</label>
@@ -729,7 +815,7 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
             {dedupeExactMatch && (
               <div className="mb-4 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800">
                 <div className="font-semibold">Existing product found</div>
-                <div className="mt-1">We found a product with the same name/code. Use the existing product instead to avoid duplicates.</div>
+                <div className="mt-1">We found a product with the same House name. Use the existing product instead to avoid duplicates.</div>
                 <div className="mt-2 flex gap-2">
                   <button type="button" className="rounded-md bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-700" onClick={()=>switchToCatalogWithProduct(dedupeExactMatch)} disabled={loading}>
                     Use existing product
@@ -892,18 +978,36 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
 
                 <div>
                   <label className={labelCls}>Price Each</label>
-                  <div className="relative">
-                    <span className="absolute left-0 top-1/2 -translate-y-1/2 text-xs text-gray-900">$</span>
-                    <input type="number" min="0" step="0.01" value={form.unitPrice} onChange={e=>setForm(prev=>({...prev, unitPrice: e.target.value}))} onBlur={e=>{ const n = Number(e.target.value); if (Number.isFinite(n)) setForm(prev=>({...prev, unitPrice: n.toFixed(2)})) }} className={`${inputCls} pl-3`} />
-                  </div>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={displayUnitPrice}
+                    onChange={handleDecimalChange("unitPrice")}
+                    onFocus={() => setUnitPriceFocused(true)}
+                    onBlur={() => {
+                      setUnitPriceFocused(false)
+                      handleDecimalBlur("unitPrice")()
+                    }}
+                    className={inputCls}
+                    placeholder="$0.00"
+                  />
                 </div>
 
                 <div>
                   <label className={labelCls}>Expected Commission Rate %</label>
-                  <div className="relative">
-                    <input type="number" min="0" max="100" step="0.01" value={form.commissionPercent} onChange={e=>setForm(prev=>({...prev, commissionPercent: e.target.value}))} onBlur={e=>{ const n = Number(e.target.value); if (Number.isFinite(n)) setForm(prev=>({...prev, commissionPercent: n.toFixed(2)})) }} className={`${inputCls} pr-4`} placeholder="e.g., 10.00" />
-                    <span className="absolute right-0 top-1/2 -translate-y-1/2 text-xs text-gray-900">%</span>
-                  </div>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={displayCommissionPercent}
+                    onChange={handleDecimalChange("commissionPercent")}
+                    onFocus={() => setCommissionPercentFocused(true)}
+                    onBlur={() => {
+                      setCommissionPercentFocused(false)
+                      handleDecimalBlur("commissionPercent")()
+                    }}
+                    className={inputCls}
+                    placeholder="e.g., 10.00%"
+                  />
                 </div>
 
                 <div>

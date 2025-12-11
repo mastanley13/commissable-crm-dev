@@ -1554,19 +1554,11 @@ export default function ProductsPage() {
       if (column.id === 'productNameVendor') {
         return {
           ...column,
-          render: (value: unknown, row: ProductRow) => {
+          render: (value: unknown, _row: ProductRow) => {
             const displayValue =
               value === null || value === undefined ? '--' : typeof value === 'string' ? value : String(value)
 
-            return (
-              <Link
-                href={`/products/${row.id}`}
-                className="font-medium text-primary-700 hover:text-primary-800 hover:underline"
-                onClick={(e) => e.stopPropagation()}
-              >
-                {displayValue}
-              </Link>
-            )
+            return <span className="font-medium text-gray-900">{displayValue}</span>
           },
         }
       }

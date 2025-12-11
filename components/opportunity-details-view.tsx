@@ -39,6 +39,21 @@ import { OpportunityRoleCreateModal } from "./opportunity-role-create-modal"
 import { getOpportunityStageLabel, getOpportunityStageOptions, isOpportunityStageAutoManaged, isOpportunityStageValue, type OpportunityStageOption } from "@/lib/opportunity-stage"
 import { getRevenueTypeLabel } from "@/lib/revenue-types"
 
+const currencyFormatter = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2
+})
+
+const percentFormatter = new Intl.NumberFormat("en-US", {
+  style: "percent",
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2
+})
+
+const numberFormatter = new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 })
+
 const normalizePageSize = (value: number): number => {
   if (!Number.isFinite(value)) return 100
   return Math.min(100, Math.max(1, Math.floor(value)))
@@ -701,17 +716,11 @@ function formatCurrency(value: number | null | undefined): string {
   if (value === null || value === undefined || Number.isNaN(value)) {
     return "--"
   }
-  try {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    }).format(value)
-  } catch {
-    const numeric = Number(value) || 0
-    return `$${numeric.toFixed(2)}`
+  const numeric = Number(value)
+  if (!Number.isFinite(numeric)) {
+    return "--"
   }
+  return currencyFormatter.format(numeric)
 }
 
 function normalisePercentValue(value: number | null | undefined): number | null {
@@ -726,35 +735,38 @@ function formatPercent(value: number | null | undefined): string {
   if (normalised === null) {
     return "--"
   }
-  try {
-    return new Intl.NumberFormat("en-US", {
-      style: "percent",
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    }).format(normalised)
-  } catch {
-    return `${(normalised * 100).toFixed(2)}%`
-  }
+  return percentFormatter.format(normalised)
 }
 
 function formatNumber(value: number | null | undefined): string {
   if (value === null || value === undefined || Number.isNaN(value)) {
     return "--"
   }
-  return new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(value)
+  const numeric = Number(value)
+  if (!Number.isFinite(numeric)) {
+    return "--"
+  }
+  return numberFormatter.format(numeric)
 }
 
 function formatDate(value: string | null | undefined): string {
   if (!value) {
     return "--"
   }
+
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) {
     return "--"
   }
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, "0")
-  const day = String(date.getDate()).padStart(2, "0")
+
+  // Treat all incoming timestamps as UTC-backed "calendar dates" so
+  // that 2025-12-01T00:00:00.000Z always renders as 2025-12-01,
+  // regardless of the user's local timezone. This avoids the
+  // off‑by‑one‑day behavior (showing 2025-11-30, 2025-12-31, etc.).
+  const year = date.getUTCFullYear()
+  const month = String(date.getUTCMonth() + 1).padStart(2, "0")
+  const day = String(date.getUTCDate()).padStart(2, "0")
+
   return `${year}-${month}-${day}`
 }
 
@@ -2425,6 +2437,21 @@ useEffect(() => {
     [revenueEditableColumnsMeta]
   )
 
+  const revenueCurrencyRenderer = useCallback((value: unknown) => {
+    const numeric = typeof value === "number" ? value : Number(value) || 0
+    return formatCurrency(numeric)
+  }, [])
+
+  const revenuePercentRenderer = useCallback((value: unknown) => {
+    const numeric = typeof value === "number" ? value : Number(value) || 0
+    return formatPercent(numeric)
+  }, [])
+
+  const revenueNumberRenderer = useCallback((value: unknown) => {
+    const numeric = typeof value === "number" ? value : Number(value) || 0
+    return formatNumber(numeric)
+  }, [])
+
   const activityRows = useMemo<OpportunityActivityRow[]>(() => {
     if (!opportunity?.activities || opportunity.activities.length === 0) {
       return []
@@ -3071,21 +3098,21 @@ useEffect(() => {
       if (REVENUE_CURRENCY_COLUMN_IDS.has(column.id)) {
         return {
           ...column,
-          render: (value: unknown) => formatCurrency(typeof value === "number" ? value : Number(value) || 0)
+          render: revenueCurrencyRenderer
         }
       }
 
       if (REVENUE_PERCENT_COLUMN_IDS.has(column.id)) {
         return {
           ...column,
-          render: (value: unknown) => formatPercent(typeof value === "number" ? value : Number(value) || 0)
+          render: revenuePercentRenderer
         }
       }
 
       if (REVENUE_NUMBER_COLUMN_IDS.has(column.id)) {
         return {
           ...column,
-          render: (value: unknown) => formatNumber(typeof value === "number" ? value : Number(value) || 0)
+          render: revenueNumberRenderer
         }
       }
 
@@ -3101,7 +3128,10 @@ useEffect(() => {
     getEditableDisplayValue,
     handleRevenueInlineChange,
     revenueEditableColumnsMeta,
-    isRevenueEditableColumn
+    isRevenueEditableColumn,
+    revenueCurrencyRenderer,
+    revenuePercentRenderer,
+    revenueNumberRenderer
   ])
 
   const handleRevenueExportCsv = useCallback(() => {

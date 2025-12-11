@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { Loader2, X } from "lucide-react"
 import { useToasts } from "./toast"
 import { EditableSwitch } from "./editable-field"
+import { formatCurrencyDisplay, formatDecimalToFixed, formatPercentDisplay, normalizeDecimalInput } from "@/lib/number-format"
 
 type SelectOption = { value: string; label: string }
 
@@ -97,26 +98,13 @@ const textAreaCls =
   "min-h-[60px] w-full resize-y border-b-2 border-gray-300 bg-transparent px-0 py-1.5 text-xs leading-5 focus:border-primary-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
 const columnCls = "space-y-1.5 max-w-[420px] w-full mx-auto"
 
-const normalizeDecimalInput = (value: string) => {
-  const cleaned = value.replace(/[^0-9.]/g, "")
-  const [intPart, ...rest] = cleaned.split(".")
-  const fractional = rest.join("")
-  return rest.length ? `${intPart}.${fractional}` : intPart
-}
-
-const formatDecimalToFixed = (value: string) => {
-  const trimmed = value.trim()
-  if (!trimmed) return ""
-  const num = Number(trimmed)
-  if (!Number.isFinite(num)) return trimmed
-  return num.toFixed(2)
-}
-
 export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreateModalProps) {
   const [form, setForm] = useState<ProductFormState>(INITIAL_FORM)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(false)
   const [optionsLoading, setOptionsLoading] = useState(false)
+  const [priceEachFocused, setPriceEachFocused] = useState(false)
+  const [commissionPercentFocused, setCommissionPercentFocused] = useState(false)
   const [distributorAccounts, setDistributorAccounts] = useState<SelectOption[]>([])
   const [vendorAccounts, setVendorAccounts] = useState<SelectOption[]>([])
   const [revenueTypes, setRevenueTypes] = useState<SelectOption[]>([])
@@ -258,6 +246,28 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
     onClose()
   }, [loading, onClose])
 
+  const displayPriceEach = useMemo(() => {
+    const raw = form.priceEach.trim()
+    if (!raw) return ""
+
+    if (priceEachFocused) {
+      return formatCurrencyDisplay(raw, { alwaysSymbol: true })
+    }
+
+    return formatCurrencyDisplay(raw, { alwaysSymbol: true })
+  }, [form.priceEach, priceEachFocused])
+
+  const displayCommissionPercent = useMemo(() => {
+    const raw = form.commissionPercent.trim()
+    if (!raw) return ""
+
+    if (commissionPercentFocused) {
+      return formatPercentDisplay(raw, { alwaysSymbol: true })
+    }
+
+    return formatPercentDisplay(raw, { alwaysSymbol: true })
+  }, [form.commissionPercent, commissionPercentFocused])
+
   const fetchAccounts = useCallback(
     async (type: "Distributor" | "Vendor", query: string) => {
       const params = new URLSearchParams({ page: "1", pageSize: "25", accountType: type })
@@ -337,13 +347,15 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
   }, [form.distributorAccountId, form.vendorAccountId, productFamilyInput, productSubtypeInput, productSearchInput])
 
   const runProductDedupe = useCallback(async (): Promise<{ exact: CatalogProductOption | null; likely: CatalogProductOption[] }> => {
+    const houseName = form.productNameHouse.trim()
+    if (!houseName) {
+      return { exact: null, likely: [] }
+    }
+
     const params = new URLSearchParams({ page: "1", pageSize: "25" })
-    const filters: Array<{ columnId: string; value: string }> = []
-    if (form.vendorAccountId) filters.push({ columnId: "vendorId", value: form.vendorAccountId })
-    if (form.distributorAccountId) filters.push({ columnId: "distributorId", value: form.distributorAccountId })
-    if (form.productCode.trim()) filters.push({ columnId: "partNumberVendor", value: form.productCode.trim() })
-    if (form.productNameVendor.trim()) filters.push({ columnId: "productNameVendor", value: form.productNameVendor.trim() })
-    if (filters.length > 0) params.set("filters", JSON.stringify(filters))
+    const filters: Array<{ columnId: string; value: string }> = [{ columnId: "productNameHouse", value: houseName }]
+    params.set("filters", JSON.stringify(filters))
+
     const res = await fetch(`/api/products?${params.toString()}`, { cache: "no-store" })
     if (!res.ok) return { exact: null, likely: [] }
     const payload = await res.json().catch(() => null)
@@ -367,16 +379,12 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
       priceEach: typeof it.priceEach === "number" ? it.priceEach : null,
       commissionPercent: typeof it.commissionPercent === "number" ? it.commissionPercent : null,
     }))
-    const normalizedCode = form.productCode.trim().toLowerCase()
-    const normalizedName = form.productNameVendor.trim().toLowerCase()
-    const exact = mapped.find(p => {
-      const codeMatch = normalizedCode && p.productCode && p.productCode.toLowerCase() === normalizedCode
-      const nameMatch = normalizedName && p.productNameVendor && p.productNameVendor.toLowerCase() === normalizedName
-      return Boolean(codeMatch || nameMatch)
-    }) ?? null
+
+    const normalizedHouseName = houseName.toLowerCase()
+    const exact = mapped.find(p => p.productNameHouse && p.productNameHouse.toLowerCase() === normalizedHouseName) ?? null
     const likely = mapped.filter(p => p.id !== exact?.id)
     return { exact, likely }
-  }, [form.distributorAccountId, form.vendorAccountId, form.productCode, form.productNameVendor])
+  }, [form.productNameHouse])
 
   const ensureProductsLoaded = useCallback(() => {
     if (productOptions.length === 0) {
@@ -459,29 +467,41 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
           return
         }
 
+        const rawPriceEach = form.priceEach.trim()
+        const priceEachValue = rawPriceEach ? Number(rawPriceEach) : null
+
+        const rawCommission = form.commissionPercent.trim()
+        let commissionPercentValue: number | null = null
+        if (rawCommission) {
+          const parsed = Number(rawCommission)
+          if (Number.isFinite(parsed)) {
+            commissionPercentValue = parsed === 0 ? 0 : parsed > 1 ? parsed / 100 : parsed
+          }
+        }
+
         const payload = {
           isActive: Boolean(form.isActive),
-        distributorAccountId: form.distributorAccountId || null,
-        vendorAccountId: form.vendorAccountId || null,
-        productNameDistributor: form.productNameDistributor.trim() || null,
-        productFamilyVendor: form.productFamilyVendor.trim() || null,
-        productSubtypeVendor: form.productSubtypeVendor.trim() || null,
-        productNameVendor: form.productNameVendor.trim() || null,
-        productCode: form.productCode.trim(),
-        productDescriptionVendor: form.productDescriptionVendor.trim() || null,
-        revenueType: form.revenueType,
-        priceEach: form.priceEach.trim() ? Number(form.priceEach.trim()) : null,
-        commissionPercent: form.commissionPercent.trim() ? Number(form.commissionPercent.trim()) : null,
-        productNameHouse: form.productNameHouse.trim(),
-        partNumberHouse: form.partNumberHouse.trim() || null,
-        productFamilyHouse: form.productFamilyHouse.trim() || null,
-        productSubtypeHouse: form.productSubtypeHouse.trim() || null,
-        description: form.description.trim() || null,
-        partNumberDistributor: form.partNumberDistributor.trim() || null,
-        distributorProductFamily: form.distributorProductFamily.trim() || null,
-        distributorProductSubtype: form.distributorProductSubtype.trim() || null,
-        productDescriptionDistributor: form.productDescriptionDistributor.trim() || null,
-      }
+          distributorAccountId: form.distributorAccountId || null,
+          vendorAccountId: form.vendorAccountId || null,
+          productNameDistributor: form.productNameDistributor.trim() || null,
+          productFamilyVendor: form.productFamilyVendor.trim() || null,
+          productSubtypeVendor: form.productSubtypeVendor.trim() || null,
+          productNameVendor: form.productNameVendor.trim() || null,
+          productCode: form.productCode.trim(),
+          productDescriptionVendor: form.productDescriptionVendor.trim() || null,
+          revenueType: form.revenueType,
+          priceEach: priceEachValue,
+          commissionPercent: commissionPercentValue,
+          productNameHouse: form.productNameHouse.trim(),
+          partNumberHouse: form.partNumberHouse.trim() || null,
+          productFamilyHouse: form.productFamilyHouse.trim() || null,
+          productSubtypeHouse: form.productSubtypeHouse.trim() || null,
+          description: form.description.trim() || null,
+          partNumberDistributor: form.partNumberDistributor.trim() || null,
+          distributorProductFamily: form.distributorProductFamily.trim() || null,
+          distributorProductSubtype: form.distributorProductSubtype.trim() || null,
+          productDescriptionDistributor: form.productDescriptionDistributor.trim() || null,
+        }
 
         const response = await fetch("/api/products", {
           method: "POST",
@@ -534,7 +554,7 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
               <div className="mb-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-xs text-amber-800">
                 <div className="font-semibold text-amber-900">Existing product found</div>
                 <div className="mt-1">
-                  A product with the same vendor name or part number already exists. Review in the catalog before creating another.
+                  A product with the same House name already exists. Review it in the catalog before creating another.
                 </div>
                 <div className="mt-2">
                   <div className="font-medium text-gray-900">{dedupeExactMatch.name}</div>
@@ -838,35 +858,37 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
               <div className={columnCls}>
                 <div className="space-y-1">
                   <label className={labelCls}>Price Each</label>
-                  <div className="flex items-center border-b-2 border-gray-300 bg-transparent px-0 py-1.5 text-xs focus-within:border-primary-500">
-                    <span className="pointer-events-none mr-2 text-[11px] text-gray-500">$</span>
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      className="w-full bg-transparent text-xs focus:outline-none"
-                      value={form.priceEach}
-                      onChange={handleDecimalChange("priceEach")}
-                      onBlur={handleDecimalBlur("priceEach")}
-                      placeholder="$0.00"
-                    />
-                  </div>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    className={inputCls}
+                    value={displayPriceEach}
+                    onChange={handleDecimalChange("priceEach")}
+                    onFocus={() => setPriceEachFocused(true)}
+                    onBlur={() => {
+                      setPriceEachFocused(false)
+                      handleDecimalBlur("priceEach")()
+                    }}
+                    placeholder="$0.00"
+                  />
                   {errors.priceEach ? <p className="text-[11px] text-rose-600">{errors.priceEach}</p> : null}
                 </div>
 
                 <div className="space-y-1">
-                  <label className={labelCls}>Commission %</label>
-                  <div className="flex items-center border-b-2 border-gray-300 bg-transparent px-0 py-1.5 text-xs focus-within:border-primary-500">
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      className="w-full bg-transparent text-xs focus:outline-none"
-                      value={form.commissionPercent}
-                      onChange={handleDecimalChange("commissionPercent")}
-                      onBlur={handleDecimalBlur("commissionPercent")}
-                      placeholder="0.00%"
-                    />
-                    <span className="pointer-events-none ml-2 text-[11px] text-gray-500">%</span>
-                  </div>
+                  <label className={labelCls}>Expected Commission Rate %</label>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    className={inputCls}
+                    value={displayCommissionPercent}
+                    onChange={handleDecimalChange("commissionPercent")}
+                    onFocus={() => setCommissionPercentFocused(true)}
+                    onBlur={() => {
+                      setCommissionPercentFocused(false)
+                      handleDecimalBlur("commissionPercent")()
+                    }}
+                    placeholder="e.g., 10.00%"
+                  />
                   {errors.commissionPercent ? <p className="text-[11px] text-rose-600">{errors.commissionPercent}</p> : null}
                 </div>
 
@@ -1112,5 +1134,3 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
     </div>
   )
 }
-
-

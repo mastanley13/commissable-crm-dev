@@ -5,6 +5,7 @@ import { Loader2, X } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { useToasts } from "@/components/toast"
+import { formatCurrencyDisplay, formatDecimalToFixed, formatPercentDisplay, normalizeDecimalInput } from "@/lib/number-format"
 
 import type {
   OpportunityLineItemRecord,
@@ -152,6 +153,12 @@ export function RevenueScheduleCreateModal({
   const [depositSelection, setDepositSelection] = useState<string[]>([])
   const [depositLoading, setDepositLoading] = useState(false)
   const [depositError, setDepositError] = useState<string | null>(null)
+  const [priceEachFocused, setPriceEachFocused] = useState(false)
+  const [manualAmountFocused, setManualAmountFocused] = useState(false)
+  const [commissionRateFocused, setCommissionRateFocused] = useState(false)
+  const [splitHouseFocused, setSplitHouseFocused] = useState(false)
+  const [splitHouseRepFocused, setSplitHouseRepFocused] = useState(false)
+  const [splitSubagentFocused, setSplitSubagentFocused] = useState(false)
 
   const productOptions = useMemo(() => {
     return lineItems.map(item => ({
@@ -172,6 +179,83 @@ export function RevenueScheduleCreateModal({
       commissionRate: schedule.expectedCommissionRatePercent ?? 0
     }))
   }, [schedules])
+
+  const handleDecimalChangeCreate = (field: keyof typeof createForm) => (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const normalized = normalizeDecimalInput(event.target.value)
+    setCreateForm(prev => ({ ...prev, [field]: normalized }))
+  }
+
+  const handleDecimalBlurCreate = (field: keyof typeof createForm) => () => {
+    setCreateForm(prev => ({ ...prev, [field]: formatDecimalToFixed(String(prev[field] ?? "")) }))
+  }
+
+  const displayPriceEach = useMemo(() => {
+    const raw = createForm.priceEach.trim()
+    if (!raw) return ""
+
+    if (priceEachFocused) {
+      return formatCurrencyDisplay(raw, { alwaysSymbol: true })
+    }
+
+    return formatCurrencyDisplay(raw, { alwaysSymbol: true })
+  }, [createForm.priceEach, priceEachFocused])
+
+  const displayManualAmount = useMemo(() => {
+    const raw = createForm.manualAmount.trim()
+    if (!raw) return ""
+
+    if (manualAmountFocused) {
+      return formatCurrencyDisplay(raw, { alwaysSymbol: true })
+    }
+
+    return formatCurrencyDisplay(raw, { alwaysSymbol: true })
+  }, [createForm.manualAmount, manualAmountFocused])
+
+  const displayCommissionRate = useMemo(() => {
+    const raw = createForm.commissionRate.trim()
+    if (!raw) return ""
+
+    if (commissionRateFocused) {
+      return formatPercentDisplay(raw, { alwaysSymbol: true })
+    }
+
+    return formatPercentDisplay(raw, { alwaysSymbol: true })
+  }, [createForm.commissionRate, commissionRateFocused])
+
+  const displaySplitHouse = useMemo(() => {
+    const raw = createForm.splitHouse.trim()
+    if (!raw) return ""
+
+    if (splitHouseFocused) {
+      return formatPercentDisplay(raw, { alwaysSymbol: true })
+    }
+
+    return formatPercentDisplay(raw, { alwaysSymbol: true })
+  }, [createForm.splitHouse, splitHouseFocused])
+
+  const displaySplitHouseRep = useMemo(() => {
+    const raw = createForm.splitHouseRep.trim()
+    if (!raw) return ""
+
+    if (splitHouseRepFocused) {
+      return formatPercentDisplay(raw, { alwaysSymbol: true })
+    }
+
+    return formatPercentDisplay(raw, { alwaysSymbol: true })
+  }, [createForm.splitHouseRep, splitHouseRepFocused])
+
+  const displaySplitSubagent = useMemo(() => {
+    const raw = createForm.splitSubagent.trim()
+    if (!raw) return ""
+
+    if (splitSubagentFocused) {
+      return formatPercentDisplay(raw, { alwaysSymbol: true })
+    }
+
+    return formatPercentDisplay(raw, { alwaysSymbol: true })
+  }, [createForm.splitSubagent, splitSubagentFocused])
 
   useEffect(() => {
     if (!isOpen) return
@@ -750,12 +834,17 @@ export function RevenueScheduleCreateModal({
                     <div>
                       <label className={labelCls}>Price Each</label>
                       <input
-                        type="number"
-                        step="0.01"
-                        value={createForm.priceEach}
-                        onChange={event => setCreateForm(prev => ({ ...prev, priceEach: event.target.value }))}
+                        type="text"
+                        inputMode="decimal"
+                        value={displayPriceEach}
+                        onChange={handleDecimalChangeCreate("priceEach")}
+                        onFocus={() => setPriceEachFocused(true)}
+                        onBlur={() => {
+                          setPriceEachFocused(false)
+                          handleDecimalBlurCreate("priceEach")()
+                        }}
                         className={inputCls}
-                        placeholder="100.00"
+                        placeholder="$100.00"
                       />
                     </div>
                   </div>
@@ -784,12 +873,17 @@ export function RevenueScheduleCreateModal({
                     </div>
                     {createForm.amountMode === "manual" ? (
                       <input
-                        type="number"
-                        step="0.01"
-                        value={createForm.manualAmount}
-                        onChange={event => setCreateForm(prev => ({ ...prev, manualAmount: event.target.value }))}
+                        type="text"
+                        inputMode="decimal"
+                        value={displayManualAmount}
+                        onChange={handleDecimalChangeCreate("manualAmount")}
+                        onFocus={() => setManualAmountFocused(true)}
+                        onBlur={() => {
+                          setManualAmountFocused(false)
+                          handleDecimalBlurCreate("manualAmount")()
+                        }}
                         className={inputCls}
-                        placeholder="Enter amount"
+                        placeholder="$0.00"
                       />
                     ) : (
                       <div className="rounded-md border border-dashed border-gray-300 bg-gray-50 px-3 py-2 text-xs text-gray-600">
@@ -808,14 +902,17 @@ export function RevenueScheduleCreateModal({
                     <div>
                       <label className={labelCls}>Commission Rate %<span className="ml-1 text-red-500">*</span></label>
                       <input
-                        type="number"
-                        min="0"
-                        max="100"
-                        step="0.01"
-                        value={createForm.commissionRate}
-                        onChange={event => setCreateForm(prev => ({ ...prev, commissionRate: event.target.value }))}
+                        type="text"
+                        inputMode="decimal"
+                        value={displayCommissionRate}
+                        onChange={handleDecimalChangeCreate("commissionRate")}
+                        onFocus={() => setCommissionRateFocused(true)}
+                        onBlur={() => {
+                          setCommissionRateFocused(false)
+                          handleDecimalBlurCreate("commissionRate")()
+                        }}
                         className={inputCls}
-                        placeholder="10.00"
+                        placeholder="10.00%"
                       />
                       {!commissionRateValid ? (
                         <p className="mt-1 text-[11px] text-rose-600">Enter a value between 0 and 100.</p>
@@ -824,40 +921,49 @@ export function RevenueScheduleCreateModal({
                     <div>
                       <label className={labelCls}>House %</label>
                       <input
-                        type="number"
-                        min="0"
-                        max="100"
-                        step="0.01"
-                        value={createForm.splitHouse}
-                        onChange={event => setCreateForm(prev => ({ ...prev, splitHouse: event.target.value }))}
+                        type="text"
+                        inputMode="decimal"
+                        value={displaySplitHouse}
+                        onChange={handleDecimalChangeCreate("splitHouse")}
+                        onFocus={() => setSplitHouseFocused(true)}
+                        onBlur={() => {
+                          setSplitHouseFocused(false)
+                          handleDecimalBlurCreate("splitHouse")()
+                        }}
                         className={inputCls}
-                        placeholder="20.00"
+                        placeholder="20.00%"
                       />
                     </div>
                     <div>
                       <label className={labelCls}>House Rep %</label>
                       <input
-                        type="number"
-                        min="0"
-                        max="100"
-                        step="0.01"
-                        value={createForm.splitHouseRep}
-                        onChange={event => setCreateForm(prev => ({ ...prev, splitHouseRep: event.target.value }))}
+                        type="text"
+                        inputMode="decimal"
+                        value={displaySplitHouseRep}
+                        onChange={handleDecimalChangeCreate("splitHouseRep")}
+                        onFocus={() => setSplitHouseRepFocused(true)}
+                        onBlur={() => {
+                          setSplitHouseRepFocused(false)
+                          handleDecimalBlurCreate("splitHouseRep")()
+                        }}
                         className={inputCls}
-                        placeholder="30.00"
+                        placeholder="30.00%"
                       />
                     </div>
                     <div>
                       <label className={labelCls}>Subagent %</label>
                       <input
-                        type="number"
-                        min="0"
-                        max="100"
-                        step="0.01"
-                        value={createForm.splitSubagent}
-                        onChange={event => setCreateForm(prev => ({ ...prev, splitSubagent: event.target.value }))}
+                        type="text"
+                        inputMode="decimal"
+                        value={displaySplitSubagent}
+                        onChange={handleDecimalChangeCreate("splitSubagent")}
+                        onFocus={() => setSplitSubagentFocused(true)}
+                        onBlur={() => {
+                          setSplitSubagentFocused(false)
+                          handleDecimalBlurCreate("splitSubagent")()
+                        }}
                         className={inputCls}
-                        placeholder="50.00"
+                        placeholder="50.00%"
                       />
                     </div>
                   </div>

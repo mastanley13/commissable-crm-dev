@@ -151,10 +151,10 @@ html, body {
 /* Resizable columns */
 .column-resizer {
   position: absolute;
-  right: 0;
+  right: -4px;
   top: 0;
   bottom: 0;
-  width: 4px;
+  width: 12px;
   z-index: 1;
   cursor: col-resize;
   background: transparent;
@@ -166,6 +166,12 @@ html, body {
 
 .column-resizer.resizing {
   background: #3b82f6;
+}
+
+.table-spacer {
+  padding: 0;
+  border: none;
+  background: transparent;
 }
 
 /* Focus states for accessibility */
