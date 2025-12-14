@@ -5,6 +5,7 @@ import { Loader2, Search, X } from "lucide-react"
 import { useToasts } from "@/components/toast"
 import { OpportunityLineItemRecord } from "./opportunity-types"
 import { getRevenueTypeLabel } from "@/lib/revenue-types"
+import { formatCurrencyDisplay, formatDecimalToFixed, normalizeDecimalInput } from "@/lib/number-format"
 
 interface ProductOption {
   id: string
@@ -60,6 +61,7 @@ export function OpportunityLineItemEditModal({
   const [productOptions, setProductOptions] = useState<ProductOption[]>([])
   const [productLoading, setProductLoading] = useState(false)
   const { showError, showSuccess } = useToasts()
+  const [unitPriceFocused, setUnitPriceFocused] = useState(false)
 
   const fetchProducts = useCallback(
     async (query?: string) => {
@@ -180,6 +182,35 @@ export function OpportunityLineItemEditModal({
     () => productOptions.find(option => option.id === form.productId) ?? null,
     [form.productId, productOptions]
   )
+
+  const handleDecimalChange = (field: keyof LineItemFormState) => (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const normalized = normalizeDecimalInput(event.target.value)
+    setForm(prev => ({ ...prev, [field]: normalized }))
+  }
+
+  const handleDecimalBlur = (field: keyof LineItemFormState) => () => {
+    setForm(prev => ({ ...prev, [field]: formatDecimalToFixed(String(prev[field] ?? "")) }))
+  }
+
+  const displayUnitPrice = useMemo(() => {
+    const raw = form.unitPrice.trim()
+    if (!raw) return ""
+    return formatCurrencyDisplay(raw, { alwaysSymbol: true })
+  }, [form.unitPrice])
+
+  const displayExpectedRevenue = useMemo(() => {
+    const raw = form.expectedRevenue.trim()
+    if (!raw) return ""
+    return formatCurrencyDisplay(raw, { alwaysSymbol: true })
+  }, [form.expectedRevenue])
+
+  const displayExpectedCommission = useMemo(() => {
+    const raw = form.expectedCommission.trim()
+    if (!raw) return ""
+    return formatCurrencyDisplay(raw, { alwaysSymbol: true })
+  }, [form.expectedCommission])
 
   const handleSearch = async () => {
     await fetchProducts(productQuery)
@@ -401,16 +432,15 @@ export function OpportunityLineItemEditModal({
               <div>
                 <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Unit Price</label>
                 <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={form.unitPrice}
-                  onChange={event =>
-                    setForm(current => ({
-                      ...current,
-                      unitPrice: event.target.value
-                    }))
-                  }
+                  type="text"
+                  inputMode="decimal"
+                  value={displayUnitPrice}
+                  onChange={handleDecimalChange("unitPrice")}
+                  onFocus={() => setUnitPriceFocused(true)}
+                  onBlur={() => {
+                    setUnitPriceFocused(false)
+                    handleDecimalBlur("unitPrice")()
+                  }}
                   className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
                 />
               </div>
@@ -433,16 +463,15 @@ export function OpportunityLineItemEditModal({
               <div>
                 <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Expected Revenue</label>
                 <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={form.expectedRevenue}
+                  type="text"
+                  inputMode="decimal"
+                  value={displayExpectedRevenue}
                   onChange={event => {
                     setExpectedRevenueDirty(true)
-                    setForm(current => ({
-                      ...current,
-                      expectedRevenue: event.target.value
-                    }))
+                    handleDecimalChange("expectedRevenue")(event)
+                  }}
+                  onBlur={() => {
+                    handleDecimalBlur("expectedRevenue")()
                   }}
                   className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
                 />
@@ -450,16 +479,11 @@ export function OpportunityLineItemEditModal({
               <div>
                 <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Expected Commission</label>
                 <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={form.expectedCommission}
-                  onChange={event =>
-                    setForm(current => ({
-                      ...current,
-                      expectedCommission: event.target.value
-                    }))
-                  }
+                  type="text"
+                  inputMode="decimal"
+                  value={displayExpectedCommission}
+                  onChange={handleDecimalChange("expectedCommission")}
+                  onBlur={handleDecimalBlur("expectedCommission")}
                   className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
                 />
               </div>

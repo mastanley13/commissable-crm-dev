@@ -5,6 +5,7 @@ import { LeadSource, OpportunityStage } from "@prisma/client"
 import { ChevronDown, Loader2, X } from "lucide-react"
 import { getOpportunityStageOptions, type OpportunityStageOption } from "@/lib/opportunity-stage"
 import { useToasts } from "@/components/toast"
+import { formatDecimalToFixed, formatPercentDisplay, normalizeDecimalInput } from "@/lib/number-format"
 
 interface SelectOption {
   value: string
@@ -140,6 +141,8 @@ export function OpportunityCreateModal({
   const [showReferredByDropdown, setShowReferredByDropdown] = useState(false)
   const [referredByLoading, setReferredByLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const [subagentPercentFocused, setSubagentPercentFocused] = useState(false)
+  const [houseRepPercentFocused, setHouseRepPercentFocused] = useState(false)
 
   const { showError, showSuccess } = useToasts()
   const inputClass =
@@ -352,6 +355,29 @@ export function OpportunityCreateModal({
     const computed = Math.max(0, 100 - (safeSubagent + safeHouseRep))
     return computed.toFixed(2)
   }, [form.houseRepPercent, form.subagentPercent])
+
+  const handlePercentChange = (field: "subagentPercent" | "houseRepPercent") => (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const normalized = normalizeDecimalInput(event.target.value)
+    setForm(prev => ({ ...prev, [field]: normalized }))
+  }
+
+  const handlePercentBlur = (field: "subagentPercent" | "houseRepPercent") => () => {
+    setForm(prev => ({ ...prev, [field]: formatDecimalToFixed(String(prev[field] ?? "")) }))
+  }
+
+  const displaySubagentPercent = useMemo(() => {
+    const raw = form.subagentPercent.trim()
+    if (!raw) return ""
+    return formatPercentDisplay(raw, { alwaysSymbol: true })
+  }, [form.subagentPercent])
+
+  const displayHouseRepPercent = useMemo(() => {
+    const raw = form.houseRepPercent.trim()
+    if (!raw) return ""
+    return formatPercentDisplay(raw, { alwaysSymbol: true })
+  }, [form.houseRepPercent])
 
   const handleClose = useCallback(() => {
     setForm(buildInitialForm(defaultAccountId))
@@ -920,12 +946,15 @@ export function OpportunityCreateModal({
               <div>
                 <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Subagent %</label>
                 <input
-                  type="number"
-                  min="0"
-                  max="100"
-                  step="0.01"
-                  value={form.subagentPercent}
-                  onChange={event => setForm(previous => ({ ...previous, subagentPercent: event.target.value }))}
+                  type="text"
+                  inputMode="decimal"
+                  value={displaySubagentPercent}
+                  onChange={handlePercentChange("subagentPercent")}
+                  onFocus={() => setSubagentPercentFocused(true)}
+                  onBlur={() => {
+                    setSubagentPercentFocused(false)
+                    handlePercentBlur("subagentPercent")()
+                  }}
                   className={inputClass}
                 />
               </div>
@@ -933,12 +962,15 @@ export function OpportunityCreateModal({
               <div>
                 <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">House Rep %</label>
                 <input
-                  type="number"
-                  min="0"
-                  max="100"
-                  step="0.01"
-                  value={form.houseRepPercent}
-                  onChange={event => setForm(previous => ({ ...previous, houseRepPercent: event.target.value }))}
+                  type="text"
+                  inputMode="decimal"
+                  value={displayHouseRepPercent}
+                  onChange={handlePercentChange("houseRepPercent")}
+                  onFocus={() => setHouseRepPercentFocused(true)}
+                  onBlur={() => {
+                    setHouseRepPercentFocused(false)
+                    handlePercentBlur("houseRepPercent")()
+                  }}
                   className={inputClass}
                 />
               </div>
@@ -1083,8 +1115,6 @@ export function OpportunityCreateModal({
     </div>
   )
 }
-
-
 
 
 

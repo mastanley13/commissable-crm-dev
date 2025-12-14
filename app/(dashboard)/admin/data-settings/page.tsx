@@ -189,7 +189,7 @@ export default function DataSettingsPage() {
     <div className="flex h-full flex-col">
       <div className="flex flex-1">
         {/* Left navigation (mirrors Settings layout) */}
-        <aside className="w-72 border-r border-gray-200 bg-white p-4">
+        <aside className="w-72 border-r border-gray-200 bg-white p-3">
           <div className="mb-4 flex items-center space-x-2">
             <Settings2 className="h-5 w-5 text-blue-600" />
             <h2 className="text-lg font-semibold text-gray-900">Data Settings</h2>
@@ -221,8 +221,8 @@ export default function DataSettingsPage() {
         </aside>
 
         {/* Section content */}
-        <main className="flex-1 p-6">
-          <div className="rounded-lg border border-gray-200 bg-white p-6">
+        <main className="flex-1 p-4">
+          <div className="rounded-lg border border-gray-200 bg-white p-4">
             {renderSection()}
           </div>
         </main>
@@ -346,7 +346,7 @@ function ProductSubtypeSettings() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {error && (
         <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
           {error}
@@ -522,10 +522,10 @@ function ManageFieldsSection() {
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold text-gray-900">Manage Fields</h1>
-        <p className="text-sm text-gray-600">
+    <div className="space-y-4">
+      <div className="space-y-1">
+        <h1 className="text-lg font-semibold text-gray-900">Manage Fields</h1>
+        <p className="text-xs text-gray-600">
           Choose a field below to manage its allowed values. Changes here affect
           the dropdown options users see across Accounts, Products, and Revenue
           Schedules.
@@ -533,13 +533,13 @@ function ManageFieldsSection() {
       </div>
 
       {/* Field directory grouped by category in a 3-column grid */}
-      <div className="space-y-3 rounded-md border border-gray-200 bg-gray-50 p-4">
+      <div className="space-y-2 rounded-md border border-gray-200 bg-gray-50 p-3">
         <div className="flex items-center justify-between">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-600">
               Fields
             </p>
-            <p className="text-xs text-gray-500">
+            <p className="text-[11px] text-gray-500">
               Select a field below to manage its allowed values.
             </p>
           </div>
@@ -556,13 +556,13 @@ function ManageFieldsSection() {
             return (
               <div
                 key={category.id}
-                className="space-y-2 rounded-md border border-gray-200 bg-white p-3"
+                className="space-y-1.5 rounded-md border border-gray-200 bg-white p-3"
               >
                 <div>
                   <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-600">
                     {category.label}
                   </div>
-                  <p className="mt-1 text-[11px] text-gray-500">
+                  <p className="mt-0.5 text-[11px] text-gray-500">
                     {category.description}
                   </p>
                 </div>
@@ -640,19 +640,19 @@ interface FieldHeaderProps {
 
 function FieldHeader({ definition }: FieldHeaderProps) {
   return (
-    <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+    <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
       <div>
-        <p className="text-xs text-gray-500">{definition.entityLabel}</p>
-        <h2 className="mt-1 text-lg font-semibold text-gray-900">
+        <p className="text-[11px] text-gray-500">{definition.entityLabel}</p>
+        <h2 className="mt-0.5 text-base font-semibold text-gray-900">
           {definition.label}
         </h2>
-        <p className="mt-2 text-sm text-gray-600">{definition.helperText}</p>
+        <p className="mt-1 text-xs text-gray-600">{definition.helperText}</p>
         {definition.badges && definition.badges.length > 0 && (
-          <div className="mt-3 flex flex-wrap gap-2">
+          <div className="mt-2 flex flex-wrap gap-1.5">
             {definition.badges.map(badge => (
               <span
                 key={badge}
-                className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700"
+                className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700"
               >
                 {badge}
               </span>
@@ -660,7 +660,7 @@ function FieldHeader({ definition }: FieldHeaderProps) {
           </div>
         )}
       </div>
-      <div className="text-xs text-gray-500 md:text-right">
+      <div className="text-[11px] text-gray-500 md:text-right">
         <div className="font-medium">Used on</div>
         <div>{definition.usedOn}</div>
       </div>
@@ -770,9 +770,9 @@ function ProductFamilySettings() {
 
       <form
         onSubmit={handleCreate}
-        className="space-y-3 rounded-md border border-gray-200 bg-gray-50 p-3"
+        className="space-y-2.5 rounded-md border border-gray-200 bg-gray-50 p-3"
       >
-        <div className="text-sm font-medium text-gray-900">
+        <div className="text-xs font-semibold text-gray-900">
           Add Product Family Type
         </div>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">

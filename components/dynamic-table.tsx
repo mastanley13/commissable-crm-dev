@@ -807,13 +807,15 @@ export function DynamicTable({
     setDraggedColumn(null)
   }
 
-  const handleCheckboxClick = useCallback((
-    event: React.MouseEvent<HTMLInputElement>,
+  // Checkbox selection handler used by the built-in "checkbox" column type.
+  // We drive selection from the checkbox's checked state via onChange instead
+  // of relying on click + preventDefault, to avoid focus/scroll quirks when
+  // checkboxes are visually hidden and nested inside scroll containers.
+  const handleCheckboxChange = useCallback((
+    event: React.ChangeEvent<HTMLInputElement>,
     row: any,
-    rowIndex: number,
-    currentlyChecked: boolean
+    rowIndex: number
   ) => {
-    event.preventDefault()
     event.stopPropagation()
 
     if (!onItemSelect) {
@@ -825,7 +827,13 @@ export function DynamicTable({
       return
     }
 
-    const { shiftKey, metaKey, ctrlKey } = event
+    const currentlyChecked = event.target.checked
+
+    const { shiftKey, metaKey, ctrlKey } = event as React.ChangeEvent<HTMLInputElement> & {
+      shiftKey: boolean
+      metaKey: boolean
+      ctrlKey: boolean
+    }
     const hasModifier = shiftKey || metaKey || ctrlKey
     const selectedSet = new Set(selectedItems)
 
@@ -877,6 +885,12 @@ export function DynamicTable({
 
     lastInteractedIndexRef.current = rowIndex
     lastSelectionActionRef.current = desiredState
+
+    // Remove focus from the sr-only checkbox to prevent browsers from
+    // auto-scrolling the nearest scroll container to "reveal" the input,
+    // which can create a jarring jump when selecting rows that were not
+    // initially visible.
+    event.target.blur()
   }, [data, onItemSelect, selectedItems])
   const renderCell = useCallback((column: Column, value: any, row: any, index: number) => {
     if (column.render) {
@@ -933,8 +947,7 @@ export function DynamicTable({
               className="sr-only"
               checked={checked}
               aria-label={rowId ? `Select row ${rowId}` : `Select row ${index + 1}`}
-              onClick={event => handleCheckboxClick(event, row, index, checked)}
-              onChange={() => {}}
+              onChange={event => handleCheckboxChange(event, row, index)}
             />
             <span
               className={cn(
@@ -964,7 +977,7 @@ export function DynamicTable({
       default:
         return <span className="block truncate min-w-0 flex-1">{value}</span>
     }
-  }, [handleCheckboxClick, selectedItems, onToggle])
+  }, [handleCheckboxChange, selectedItems, onToggle])
 
   const shouldRenderPagination = Boolean(pagination && (alwaysShowPagination || data.length > 0))
   const paginationStart = pagination
@@ -989,10 +1002,21 @@ export function DynamicTable({
   return (
     <div className={cn("bg-white border-2 border-gray-400 min-w-0 w-full max-w-full", maxBodyHeight ? "flex flex-col" : "flex flex-col flex-1", className)}>
       {/* Table container */}
-      <div className="relative overflow-hidden min-w-0 w-full max-w-full" style={maxBodyHeight ? { flex: '0 1 auto', minHeight: 0 } : { flex: '1 1 0%', minHeight: 0 }}>
+      <div
+        className="relative overflow-hidden min-w-0 w-full max-w-full"
+        style={maxBodyHeight ? { flex: "0 1 auto", minHeight: 0 } : { flex: "1 1 0%", minHeight: 0 }}
+      >
         <div
           className="table-scroll-container overflow-x-auto overflow-y-auto min-w-0"
-          style={maxBodyHeight ? { minHeight: `${maxBodyHeight}px`, maxHeight: `${maxBodyHeight}px`, height: `${maxBodyHeight}px` } : undefined}
+          // Let the scroll container grow with content up to maxBodyHeight,
+          // but avoid forcing an exact height. This prevents the grid from
+          // being visually clipped when row selection or styling changes
+          // slightly affect row height near the bottom of the viewport.
+          style={
+            maxBodyHeight
+              ? { minHeight: `${maxBodyHeight}px`, maxHeight: `${maxBodyHeight}px` }
+              : undefined
+          }
           role="table"
           aria-label="Data table"
         >
@@ -1246,11 +1270,6 @@ export function DynamicTable({
     </div>
   )
 }
-
-
-
-
-
 
 
 

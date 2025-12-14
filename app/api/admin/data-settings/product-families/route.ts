@@ -60,29 +60,31 @@ function normalizeCode(value: string): string {
 }
 
 async function ensureDefaultProductFamilies(tenantId: string) {
-  // Use upsert so calls are idempotent and safe under concurrency.
-  await prisma.$transaction(
-    DEFAULT_PRODUCT_FAMILIES.map((def, index) =>
-      prisma.productFamily.upsert({
-        where: {
-          tenantId_code: {
-            tenantId,
-            code: def.code
-          }
-        },
-        update: {},
-        create: {
+  // Use individual upserts so the logic stays simple and works cleanly
+  // with the lazy Prisma proxy used in the app. This is still idempotent
+  // and safe under concurrency for our small, static seed set.
+  for (let index = 0; index < DEFAULT_PRODUCT_FAMILIES.length; index += 1) {
+    const def = DEFAULT_PRODUCT_FAMILIES[index]
+    // eslint-disable-next-line no-await-in-loop
+    await prisma.productFamily.upsert({
+      where: {
+        tenantId_code: {
           tenantId,
-          code: def.code,
-          name: def.name,
-          description: def.description,
-          isActive: true,
-          isSystem: true,
-          displayOrder: (index + 1) * 10
+          code: def.code
         }
-      })
-    )
-  )
+      },
+      update: {},
+      create: {
+        tenantId,
+        code: def.code,
+        name: def.name,
+        description: def.description,
+        isActive: true,
+        isSystem: true,
+        displayOrder: (index + 1) * 10
+      }
+    })
+  }
 }
 
 export async function GET(request: NextRequest) {

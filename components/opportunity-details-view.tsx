@@ -2106,7 +2106,11 @@ useEffect(() => {
                     className="sr-only"
                     checked={checked}
                     aria-label={`Select ${labelSource || "role"}`}
-                    onChange={() => handleRoleSelect(row.id, !checked)}
+                    onChange={event => {
+                      event.stopPropagation()
+                      handleRoleSelect(row.id, event.target.checked)
+                      event.target.blur()
+                    }}
                   />
                   <span
                     className={cn(
@@ -2909,7 +2913,11 @@ useEffect(() => {
                     className="sr-only"
                     checked={checked}
                     aria-label={`Select revenue schedule ${row.scheduleNumber ?? row.productNameVendor ?? row.id}`}
-                    onChange={() => handleRevenueSelect(row.id, !checked)}
+                    onChange={event => {
+                      event.stopPropagation()
+                      handleRevenueSelect(row.id, event.target.checked)
+                      event.target.blur()
+                    }}
                   />
                   <span
                     className={cn(
@@ -3754,7 +3762,11 @@ useEffect(() => {
                     className="sr-only"
                     checked={checked}
                     aria-label={`Select activity ${row.id}`}
-                    onChange={() => handleActivitySelect(row.id, !checked)}
+                    onChange={event => {
+                      event.stopPropagation()
+                      handleActivitySelect(row.id, event.target.checked)
+                      event.target.blur()
+                    }}
                   />
                   <span
                     className={cn(
@@ -4279,7 +4291,11 @@ useEffect(() => {
                     className="sr-only"
                     checked={checked}
                     aria-label={`Select product line item ${row.productName}`}
-                    onChange={() => handleLineItemSelect(row.id, !checked)}
+                    onChange={event => {
+                      event.stopPropagation()
+                      handleLineItemSelect(row.id, event.target.checked)
+                      event.target.blur()
+                    }}
                   />
                   <span
                     className={cn(
@@ -5095,6 +5111,7 @@ useEffect(() => {
         opportunityName={opportunity.name}
         lineItems={opportunity.lineItems ?? []}
         schedules={opportunity.revenueSchedules ?? []}
+        initialStatusSelection={selectedRevenueSchedules}
         defaultCommissionSplits={{
           house: opportunity.houseSplitPercent ?? null,
           houseRep: opportunity.houseRepPercent ?? null,

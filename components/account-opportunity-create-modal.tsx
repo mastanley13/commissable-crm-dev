@@ -5,6 +5,7 @@ import { Loader2, X } from "lucide-react"
 import { LeadSource, OpportunityStage } from "@prisma/client"
 import { getOpportunityStageOptions, type OpportunityStageOption } from "@/lib/opportunity-stage"
 import { useToasts } from "@/components/toast"
+import { formatDecimalToFixed, formatPercentDisplay, normalizeDecimalInput } from "@/lib/number-format"
 
 interface SelectOption {
   value: string
@@ -71,6 +72,8 @@ export function OpportunityCreateModal({ isOpen, accountId, accountName, onClose
   const [loading, setLoading] = useState(false)
   const [optionsLoading, setOptionsLoading] = useState(false)
   const { showError, showSuccess } = useToasts()
+  const [houseRepFocused, setHouseRepFocused] = useState(false)
+  const [subagentPercentFocused, setSubagentPercentFocused] = useState(false)
 
   useEffect(() => {
     if (!isOpen) {
@@ -298,6 +301,29 @@ export function OpportunityCreateModal({ isOpen, accountId, accountName, onClose
       form.description.trim()
     )
   }, [accountId, form])
+
+  const handlePercentChange = (
+    field: "houseRepPercent" | "subagentPercent",
+  ) => (event: React.ChangeEvent<HTMLInputElement>) => {
+    const normalized = normalizeDecimalInput(event.target.value)
+    setForm(prev => ({ ...prev, [field]: normalized }))
+  }
+
+  const handlePercentBlur = (field: "houseRepPercent" | "subagentPercent") => () => {
+    setForm(prev => ({ ...prev, [field]: formatDecimalToFixed(String(prev[field] ?? "")) }))
+  }
+
+  const displayHouseRepPercent = useMemo(() => {
+    const raw = form.houseRepPercent.trim()
+    if (!raw) return ""
+    return formatPercentDisplay(raw, { alwaysSymbol: true })
+  }, [form.houseRepPercent])
+
+  const displaySubagentPercent = useMemo(() => {
+    const raw = form.subagentPercent.trim()
+    if (!raw) return ""
+    return formatPercentDisplay(raw, { alwaysSymbol: true })
+  }, [form.subagentPercent])
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -563,14 +589,17 @@ export function OpportunityCreateModal({ isOpen, accountId, accountName, onClose
             <div>
               <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">House Rep %<span className="ml-1 text-red-500">*</span></label>
               <input
-                type="number"
-                step="0.01"
-                min="0"
-                max="100"
-                value={form.houseRepPercent}
-                onChange={event => setForm(prev => ({ ...prev, houseRepPercent: event.target.value }))}
+                type="text"
+                inputMode="decimal"
+                value={displayHouseRepPercent}
+                onChange={handlePercentChange("houseRepPercent")}
+                onFocus={() => setHouseRepFocused(true)}
+                onBlur={() => {
+                  setHouseRepFocused(false)
+                  handlePercentBlur("houseRepPercent")()
+                }}
                 className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
-                placeholder="0.00"
+                placeholder="0.00%"
                 required
               />
             </div>
@@ -578,14 +607,17 @@ export function OpportunityCreateModal({ isOpen, accountId, accountName, onClose
             <div>
               <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Subagent %<span className="ml-1 text-red-500">*</span></label>
               <input
-                type="number"
-                step="0.01"
-                min="0"
-                max="100"
-                value={form.subagentPercent}
-                onChange={event => setForm(prev => ({ ...prev, subagentPercent: event.target.value }))}
+                type="text"
+                inputMode="decimal"
+                value={displaySubagentPercent}
+                onChange={handlePercentChange("subagentPercent")}
+                onFocus={() => setSubagentPercentFocused(true)}
+                onBlur={() => {
+                  setSubagentPercentFocused(false)
+                  handlePercentBlur("subagentPercent")()
+                }}
                 className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
-                placeholder="0.00"
+                placeholder="0.00%"
                 required
               />
             </div>

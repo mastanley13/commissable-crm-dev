@@ -60,6 +60,18 @@ const INITIAL_FORM_STATE: LineItemFormState = {
   commissionStartDate: ""
 }
 
+interface ProductFamilyOption {
+  id: string
+  name: string
+}
+
+interface ProductSubtypeOption {
+  id: string
+  name: string
+  productFamilyId: string | null
+  familyName: string | null
+}
+
 export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdHouse, onClose, onSuccess }: OpportunityLineItemCreateModalProps) {
   const [form, setForm] = useState<LineItemFormState>(INITIAL_FORM_STATE)
   const [loading, setLoading] = useState(false)
@@ -104,6 +116,8 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
   const [dedupeLikelyMatches, setDedupeLikelyMatches] = useState<ProductOption[]>([])
   const [unitPriceFocused, setUnitPriceFocused] = useState(false)
   const [commissionPercentFocused, setCommissionPercentFocused] = useState(false)
+  const [masterFamilies, setMasterFamilies] = useState<ProductFamilyOption[]>([])
+  const [masterSubtypes, setMasterSubtypes] = useState<ProductSubtypeOption[]>([])
 
   const { showError, showSuccess } = useToasts()
 
@@ -153,13 +167,27 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
       productSubtypeHouse: it.productSubtypeHouse ?? null
     }))
     setProductOptions(mapped)
-    const fams = Array.from(new Set(mapped.map(p => p.productFamilyVendor).filter(Boolean))) as string[]
-    setFamilyOptions(fams)
-    const subs = Array.from(new Set(mapped.map(p => p.productSubtypeVendor).filter(Boolean))) as string[]
-    setSubtypeOptions(subs)
+    if (masterFamilies.length === 0) {
+      const fams = Array.from(new Set(mapped.map(p => p.productFamilyVendor).filter(Boolean))) as string[]
+      setFamilyOptions(fams)
+    }
+    if (masterSubtypes.length === 0) {
+      const subs = Array.from(new Set(mapped.map(p => p.productSubtypeVendor).filter(Boolean))) as string[]
+      setSubtypeOptions(subs)
+    }
     const names = Array.from(new Set(mapped.map(p => p.productNameVendor || p.name).filter(Boolean))) as string[]
     setProductNameOptions(names)
-  }, [distributorInput, vendorInput, catalogFamilyFilter, catalogSubtypeFilter, productInput, selectedDistributorId, selectedVendorId])
+  }, [
+    distributorInput,
+    vendorInput,
+    catalogFamilyFilter,
+    catalogSubtypeFilter,
+    productInput,
+    selectedDistributorId,
+    selectedVendorId,
+    masterFamilies.length,
+    masterSubtypes.length,
+  ])
 
   const ensureProductInOptions = useCallback((product: ProductOption) => {
     setProductOptions(prev => prev.some(p => p.id === product.id) ? prev : [product, ...prev])
@@ -293,6 +321,7 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
     setSelectedDistributorId(""); setSelectedVendorId("")
     setProductNameHouse(""); setProductNameVendor(""); setProductFamilyVendorInput(""); setProductSubtypeVendor(""); setProductCode(""); setRevenueType(""); setProductActive(true)
     setDedupeExactMatch(null); setDedupeLikelyMatches([])
+    setMasterFamilies([]); setMasterSubtypes([])
     const now = new Date(); const first = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1))
     setForm(prev => ({ ...prev, commissionStartDate: first.toISOString().slice(0,10) }))
     // Default to Add Product from Catalog when modal opens
@@ -318,6 +347,48 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
       })
       .catch(() => { /* ignore */ })
     return () => { cancelled = true }
+  }, [isOpen])
+
+  useEffect(() => {
+    if (!isOpen) return
+    let cancelled = false
+    fetch("/api/products/master-data", { cache: "no-store" })
+      .then(res => (res.ok ? res.json() : Promise.reject()))
+      .then(payload => {
+        if (cancelled) return
+        const families: ProductFamilyOption[] = Array.isArray(payload?.families)
+          ? payload.families
+              .map((f: any): ProductFamilyOption => ({
+                id: String(f.id),
+                name: String(f.name ?? ""),
+              }))
+              .filter((f: ProductFamilyOption) => f.name.trim().length > 0)
+          : []
+        const subtypes: ProductSubtypeOption[] = Array.isArray(payload?.subtypes)
+          ? payload.subtypes
+              .map((s: any): ProductSubtypeOption => ({
+                id: String(s.id),
+                name: String(s.name ?? ""),
+                productFamilyId: s.productFamilyId ? String(s.productFamilyId) : null,
+                familyName: s.familyName ? String(s.familyName) : null,
+              }))
+              .filter((s: ProductSubtypeOption) => s.name.trim().length > 0)
+          : []
+        setMasterFamilies(families)
+        setMasterSubtypes(subtypes)
+
+        const vendorFamilies = families.map(f => f.name)
+        const vendorSubtypes = subtypes.map(s => s.name)
+        setFamilyOptions(vendorFamilies)
+        setSubtypeOptions(vendorSubtypes)
+      })
+      .catch(() => {
+        // Silent failure; fallback to existing behavior (values derived from products)
+      })
+
+    return () => {
+      cancelled = true
+    }
   }, [isOpen])
 
   // Expected revenue auto-calc when quantity/price change

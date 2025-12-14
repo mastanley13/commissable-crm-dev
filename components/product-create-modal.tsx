@@ -65,6 +65,18 @@ interface ProductFormState {
   productDescriptionDistributor: string
 }
 
+interface ProductFamilyOption {
+  id: string
+  name: string
+}
+
+interface ProductSubtypeOption {
+  id: string
+  name: string
+  productFamilyId: string | null
+  familyName: string | null
+}
+
 const INITIAL_FORM: ProductFormState = {
   isActive: true,
   distributorAccountId: "",
@@ -130,6 +142,8 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
   const [dedupeExactMatch, setDedupeExactMatch] = useState<CatalogProductOption | null>(null)
   const [dedupeLikelyMatches, setDedupeLikelyMatches] = useState<CatalogProductOption[]>([])
   const { showError, showSuccess } = useToasts()
+  const [masterFamilies, setMasterFamilies] = useState<ProductFamilyOption[]>([])
+  const [masterSubtypes, setMasterSubtypes] = useState<ProductSubtypeOption[]>([])
 
 
   useEffect(() => {
@@ -157,6 +171,8 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
     setShowHouseProductDropdown(false)
     setDedupeExactMatch(null)
     setDedupeLikelyMatches([])
+    setMasterFamilies([])
+    setMasterSubtypes([])
   }, [isOpen])
 
   useEffect(() => {
@@ -207,6 +223,53 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
       })
       .finally(() => setOptionsLoading(false))
   }, [isOpen, showError])
+
+  useEffect(() => {
+    if (!isOpen) return
+    let cancelled = false
+    fetch("/api/products/master-data", { cache: "no-store" })
+      .then(res => (res.ok ? res.json() : Promise.reject()))
+      .then(payload => {
+        if (cancelled) return
+        const families: ProductFamilyOption[] = Array.isArray(payload?.families)
+          ? payload.families
+              .map((f: any): ProductFamilyOption => ({
+                id: String(f.id),
+                name: String(f.name ?? ""),
+              }))
+              .filter((f: ProductFamilyOption) => f.name.trim().length > 0)
+          : []
+        const subtypes: ProductSubtypeOption[] = Array.isArray(payload?.subtypes)
+          ? payload.subtypes
+              .map((s: any): ProductSubtypeOption => ({
+                id: String(s.id),
+                name: String(s.name ?? ""),
+                productFamilyId: s.productFamilyId ? String(s.productFamilyId) : null,
+                familyName: s.familyName ? String(s.familyName) : null,
+              }))
+              .filter((s: ProductSubtypeOption) => s.name.trim().length > 0)
+          : []
+        setMasterFamilies(families)
+        setMasterSubtypes(subtypes)
+
+        const vendorFamilies = families.map(f => f.name)
+        const vendorSubtypes = subtypes.map(s => s.name)
+        setFamilyOptions(vendorFamilies)
+        setSubtypeOptions(vendorSubtypes)
+
+        const houseFamilies = families.map(f => f.name)
+        const houseSubtypes = subtypes.map(s => s.name)
+        setHouseFamilyOptions(houseFamilies)
+        setHouseSubtypeOptions(houseSubtypes)
+      })
+      .catch(() => {
+        // Silent failure; fallback to existing behavior (values derived from products)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [isOpen])
 
   const canSubmit = useMemo(() => {
     if (!form.productNameHouse.trim()) return false

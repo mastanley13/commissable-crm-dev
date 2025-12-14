@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { X } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { formatCurrencyDisplay, formatDecimalToFixed, normalizeDecimalInput } from "@/lib/number-format"
 
 export interface SourceScheduleData {
   scheduleNumber: string | null
@@ -49,6 +50,7 @@ export function RevenueScheduleCloneModal({
   const [scheduleNumber, setScheduleNumber] = useState("")
   const [quantity, setQuantity] = useState("")
   const [unitPrice, setUnitPrice] = useState("")
+  const [unitPriceFocused, setUnitPriceFocused] = useState(false)
 
   useEffect(() => {
     if (!isOpen) return
@@ -227,21 +229,24 @@ export function RevenueScheduleCloneModal({
                 Price Per Unit
               </label>
               <div className="relative">
-                <span className="absolute left-0 top-1/2 -translate-y-1/2 text-xs text-gray-500">$</span>
                 <input
                   id="clone-unit-price"
-                  type="number"
-                  step="0.01"
-                  min="0"
+                  type="text"
+                  inputMode="decimal"
                   className={cn(
                     inputUnderlineCls,
-                    "pl-4",
                     !unitPriceValid && "border-rose-500 focus:border-rose-500",
                   )}
-                  value={unitPrice}
-                  onChange={event => setUnitPrice(event.target.value)}
+                  value={unitPrice ? formatCurrencyDisplay(unitPrice, { alwaysSymbol: true }) : ""}
+                  onChange={event => {
+                    const normalized = normalizeDecimalInput(event.target.value)
+                    setUnitPrice(normalized)
+                  }}
+                  onBlur={() => {
+                    setUnitPrice(prev => formatDecimalToFixed(prev))
+                  }}
                   disabled={submitting}
-                  placeholder="0.00"
+                  placeholder="$0.00"
                 />
               </div>
               {!unitPriceValid && <p className={errorTextCls}>Price cannot be negative</p>}

@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Loader2, X } from "lucide-react"
+import { Info, Loader2, X } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { useToasts } from "@/components/toast"
@@ -11,6 +11,7 @@ import type {
   OpportunityLineItemRecord,
   OpportunityRevenueScheduleRecord
 } from "./opportunity-types"
+import { ConfirmDialog } from "./confirm-dialog"
 
 type ModalTab = "create" | "rates" | "split" | "status" | "undo"
 type ManageScope = "selection" | "series"
@@ -39,6 +40,11 @@ interface RevenueScheduleCreateModalProps {
   lineItems: OpportunityLineItemRecord[]
   schedules: OpportunityRevenueScheduleRecord[]
   defaultCommissionSplits?: CommissionSplitDefaults
+  /**
+   * Optional initial selection of schedule ids for the Deactivate/Delete tab.
+   * When provided, the Status tab will pre-select these schedules on first open.
+   */
+  initialStatusSelection?: string[]
   onClose: () => void
   onSuccess?: () => void | Promise<void>
 }
@@ -97,6 +103,7 @@ export function RevenueScheduleCreateModal({
   lineItems,
   schedules,
   defaultCommissionSplits,
+  initialStatusSelection,
   onClose,
   onSuccess
 }: RevenueScheduleCreateModalProps) {
@@ -145,9 +152,9 @@ export function RevenueScheduleCreateModal({
     selectedIds: [] as string[],
     scope: "selection" as ManageScope,
     action: "deactivate" as "deactivate" | "delete",
-    fromDate: "",
     reason: ""
   })
+  const [statusPrefillApplied, setStatusPrefillApplied] = useState(false)
 
   const [depositMatches, setDepositMatches] = useState<DepositMatchRecord[]>([])
   const [depositSelection, setDepositSelection] = useState<string[]>([])
@@ -159,6 +166,12 @@ export function RevenueScheduleCreateModal({
   const [splitHouseFocused, setSplitHouseFocused] = useState(false)
   const [splitHouseRepFocused, setSplitHouseRepFocused] = useState(false)
   const [splitSubagentFocused, setSplitSubagentFocused] = useState(false)
+  const [ratePercentFocused, setRatePercentFocused] = useState(false)
+  const [splitFormHouseFocused, setSplitFormHouseFocused] = useState(false)
+  const [splitFormHouseRepFocused, setSplitFormHouseRepFocused] = useState(false)
+  const [splitFormSubagentFocused, setSplitFormSubagentFocused] = useState(false)
+  const [showStatusConfirm, setShowStatusConfirm] = useState(false)
+  const [ineligibleReasons, setIneligibleReasons] = useState<Record<string, string>>({})
 
   const productOptions = useMemo(() => {
     return lineItems.map(item => ({
@@ -175,10 +188,115 @@ export function RevenueScheduleCreateModal({
     return schedules.map(schedule => ({
       id: schedule.id,
       label: schedule.scheduleNumber || schedule.productNameVendor || `Schedule ${schedule.id.slice(0, 6)}`,
-      scheduleDate: schedule.scheduleDate,
-      commissionRate: schedule.expectedCommissionRatePercent ?? 0
+      scheduleDate: schedule.scheduleDate ? schedule.scheduleDate.slice(0, 10) : null,
+      commissionRate: schedule.expectedCommissionRatePercent ?? 0,
+      productNameVendor: schedule.productNameVendor ?? null,
+      distributorName: schedule.distributorName ?? null,
+      vendorName: schedule.vendorName ?? null,
+      opportunityName: schedule.opportunityName ?? null
     }))
   }, [schedules])
+
+  const handleDecimalChangeRate = (field: keyof typeof rateForm) => (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const normalized = normalizeDecimalInput(event.target.value)
+    setRateForm(prev => ({ ...prev, [field]: normalized }))
+  }
+
+  const handleDecimalBlurRate = (field: keyof typeof rateForm) => () => {
+    setRateForm(prev => ({ ...prev, [field]: formatDecimalToFixed(String(prev[field] ?? "")) }))
+  }
+
+  const handleDecimalChangeSplit = (field: keyof typeof splitForm) => (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const normalized = normalizeDecimalInput(event.target.value)
+    setSplitForm(prev => ({ ...prev, [field]: normalized }))
+  }
+
+  const handleDecimalBlurSplit = (field: keyof typeof splitForm) => () => {
+    setSplitForm(prev => ({ ...prev, [field]: formatDecimalToFixed(String(prev[field] ?? "")) }))
+  }
+
+  const displayRatePercent = useMemo(() => {
+    const raw = rateForm.ratePercent.trim()
+    if (!raw) return ""
+
+    if (ratePercentFocused) {
+      return formatPercentDisplay(raw, { alwaysSymbol: true })
+    }
+
+    return formatPercentDisplay(raw, { alwaysSymbol: true })
+  }, [rateForm.ratePercent, ratePercentFocused])
+
+  const displaySplitFormHouse = useMemo(() => {
+    const raw = splitForm.house.trim()
+    if (!raw) return ""
+
+    if (splitFormHouseFocused) {
+      return formatPercentDisplay(raw, { alwaysSymbol: true })
+    }
+
+    return formatPercentDisplay(raw, { alwaysSymbol: true })
+  }, [splitForm.house, splitFormHouseFocused])
+
+  const displaySplitFormHouseRep = useMemo(() => {
+    const raw = splitForm.houseRep.trim()
+    if (!raw) return ""
+
+    if (splitFormHouseRepFocused) {
+      return formatPercentDisplay(raw, { alwaysSymbol: true })
+    }
+
+    return formatPercentDisplay(raw, { alwaysSymbol: true })
+  }, [splitForm.houseRep, splitFormHouseRepFocused])
+
+  const displaySplitFormSubagent = useMemo(() => {
+    const raw = splitForm.subagent.trim()
+    if (!raw) return ""
+
+    if (splitFormSubagentFocused) {
+      return formatPercentDisplay(raw, { alwaysSymbol: true })
+    }
+
+    return formatPercentDisplay(raw, { alwaysSymbol: true })
+  }, [splitForm.subagent, splitFormSubagentFocused])
+
+  const eligibleStatusIds = useMemo(() => {
+    const ids = new Set<string>()
+    schedules.forEach(schedule => {
+      const actualUsage = typeof schedule.actualUsage === "number" ? schedule.actualUsage : 0
+      const actualCommission = typeof schedule.actualCommission === "number" ? schedule.actualCommission : 0
+      const hasUsage = Math.abs(actualUsage) > 0.0001
+      const hasCommission = Math.abs(actualCommission) > 0.0001
+      if (!hasUsage && !hasCommission) {
+        ids.add(schedule.id)
+      }
+    })
+    return ids
+  }, [schedules])
+
+  const getIneligibilityReason = useCallback(
+    (id: string): string | undefined => {
+      if (ineligibleReasons[id]) {
+        return ineligibleReasons[id]
+      }
+      if (!eligibleStatusIds.has(id)) {
+        return "Cannot deactivate or delete this schedule because it has usage or commission applied."
+      }
+      return undefined
+    },
+    [eligibleStatusIds, ineligibleReasons]
+  )
+
+  const statusScheduleOptions = useMemo(() => {
+    if (!statusForm.selectedIds.length) {
+      return []
+    }
+    const selectedSet = new Set(statusForm.selectedIds)
+    return scheduleOptions.filter(option => selectedSet.has(option.id))
+  }, [scheduleOptions, statusForm.selectedIds])
 
   const handleDecimalChangeCreate = (field: keyof typeof createForm) => (
     event: React.ChangeEvent<HTMLInputElement>
@@ -299,7 +417,7 @@ export function RevenueScheduleCreateModal({
       houseRep: formatNumber(defaultHouseRep, 2),
       subagent: formatNumber(defaultSubagent, 2)
     })
-    setStatusForm({ selectedIds: [], scope: "selection", action: "deactivate", fromDate: "", reason: "" })
+    setStatusForm({ selectedIds: [], scope: "selection", action: "deactivate", reason: "" })
     setDepositSelection([])
     setDepositError(null)
 
@@ -424,13 +542,42 @@ export function RevenueScheduleCreateModal({
     Math.abs(splitFormTotals.total - 100) < 0.01
   )
 
+  const eligibleSelectedCount = useMemo(
+    () =>
+      statusForm.selectedIds.filter(id => !getIneligibilityReason(id)).length,
+    [getIneligibilityReason, statusForm.selectedIds]
+  )
+
+  const ineligibleSelectedCount = statusForm.selectedIds.length - eligibleSelectedCount
+
   const canSubmitStatus = Boolean(
-    statusForm.selectedIds.length > 0 &&
-    statusForm.reason.trim().length > 0 &&
-    (statusForm.scope === "selection" || Boolean(statusForm.fromDate) || statusForm.action === "delete")
+    eligibleSelectedCount > 0 &&
+    statusForm.reason.trim().length > 0
   )
 
   const canSubmitUndo = depositSelection.length > 0
+  // When opening the modal from the Opportunity Revenue Schedules tab,
+  // seed the Status tab selection from any pre-selected schedules.
+  useEffect(() => {
+    if (!isOpen) {
+      setStatusPrefillApplied(false)
+      return
+    }
+
+    if (statusPrefillApplied) {
+      return
+    }
+
+    if (!initialStatusSelection || initialStatusSelection.length === 0) {
+      return
+    }
+
+    setStatusForm(prev => ({
+      ...prev,
+      selectedIds: Array.from(new Set([...prev.selectedIds, ...initialStatusSelection]))
+    }))
+    setStatusPrefillApplied(true)
+  }, [initialStatusSelection, isOpen, statusPrefillApplied])
 
   const primaryLabel = activeTab === "create"
     ? "Create"
@@ -439,7 +586,7 @@ export function RevenueScheduleCreateModal({
       : activeTab === "split"
         ? "Update Split"
         : activeTab === "status"
-          ? (statusForm.action === "delete" ? "Delete" : "Apply")
+          ? "Apply"
           : "Undo Match"
 
   const primaryDisabled = submitting || (
@@ -593,38 +740,131 @@ export function RevenueScheduleCreateModal({
   const handleStatusSubmit = useCallback(async () => {
     if (!canSubmitStatus) return
 
-    const endpoint = statusForm.action === "delete"
-      ? "/api/revenue-schedules/bulk/delete"
-      : "/api/revenue-schedules/bulk/deactivate"
-
-    const payload = {
-      scheduleIds: statusForm.selectedIds,
-      scope: statusForm.scope,
-      fromDate: statusForm.fromDate || null,
-      reason: statusForm.reason.trim() || null
+    const ids = statusForm.selectedIds.filter(id => !getIneligibilityReason(id))
+    if (!ids || ids.length === 0) {
+      const message = "No eligible schedules selected to update."
+      setError(message)
+      showError("Schedule update failed", message)
+      return
     }
 
     setSubmitting(true)
     setError(null)
     try {
-      const response = await fetch(endpoint, {
-        method: statusForm.action === "delete" ? "DELETE" : "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      })
+      if (statusForm.action === "delete") {
+        const results = await Promise.allSettled(
+          ids.map(async id => {
+            const response = await fetch(`/api/revenue-schedules/${encodeURIComponent(id)}`, {
+              method: "DELETE"
+            })
 
-      if (!response.ok) {
+            if (!response.ok) {
+              const body = await response.json().catch(() => null)
+              const message = body?.error ?? "Unable to delete revenue schedule"
+              throw new Error(message)
+            }
+
+            return id
+          })
+        )
+
+        const successfulIds: string[] = []
+        const failedResults: Array<{ id: string; error: string }> = []
+
+        results.forEach((result, index) => {
+          const id = ids[index]
+          if (result.status === "fulfilled") {
+            successfulIds.push(result.value)
+          } else {
+            const errorMessage =
+              result.reason instanceof Error ? result.reason.message : String(result.reason)
+            failedResults.push({ id, error: errorMessage })
+          }
+        })
+
+        const deletedCount = successfulIds.length
+        const failedCount = failedResults.length
+
+        if (deletedCount > 0) {
+          showSuccess(
+            `Deleted ${deletedCount} schedule${deletedCount === 1 ? "" : "s"}`,
+            "Selected schedules were removed."
+          )
+        }
+
+        if (failedCount > 0) {
+          const nextReasons: Record<string, string> = {}
+          failedResults.forEach(({ id, error }) => {
+            nextReasons[id] = error
+          })
+          setIneligibleReasons(prev => ({ ...prev, ...nextReasons }))
+
+          const detailMessages = failedResults.map(result => result.error).join("; ")
+          const summary =
+            deletedCount > 0
+              ? `${deletedCount} schedule${deletedCount === 1 ? "" : "s"} deleted; ${failedCount} could not be deleted.`
+              : `${failedCount} schedule${failedCount === 1 ? "" : "s"} could not be deleted.`
+
+          const combinedDetail = detailMessages ? `${summary} ${detailMessages}` : summary
+
+          setError(combinedDetail)
+          showError("Some schedules could not be deleted", combinedDetail)
+
+          if (deletedCount === 0) {
+            // Nothing succeeded; keep modal open for review
+            return
+          }
+        }
+
+        await onSuccess?.()
+        onClose()
+      } else {
+        const response = await fetch("/api/revenue-schedules/bulk/deactivate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            scheduleIds: ids,
+            reason: statusForm.reason.trim() || null,
+            scope: statusForm.scope
+          })
+        })
+
         const body = await response.json().catch(() => null)
-        const message = body?.error ?? "Unable to update schedules"
-        throw new Error(message)
-      }
+        if (!response.ok) {
+          const message = body?.error ?? "Unable to deactivate schedules"
+          throw new Error(message)
+        }
 
-      showSuccess(
-        statusForm.action === "delete" ? "Schedules deleted" : "Schedules updated",
-        statusForm.action === "delete" ? "Selected schedules were removed." : "Selected schedules were marked inactive."
-      )
-      await onSuccess?.()
-      onClose()
+        const updatedCount: number = typeof body?.updated === "number" ? body.updated : ids.length
+        const failed: string[] = Array.isArray(body?.failed) ? body.failed : []
+
+        if (updatedCount > 0) {
+          showSuccess(
+            `Deactivated ${updatedCount} schedule${updatedCount === 1 ? "" : "s"}`,
+            "Selected schedules were marked inactive."
+          )
+        }
+
+        if (failed.length > 0) {
+          const errors = body?.errors as Record<string, string> | undefined
+          if (errors && typeof errors === "object") {
+            setIneligibleReasons(prev => ({ ...prev, ...errors }))
+          }
+          const detail = failed
+            .map(id => errors?.[id])
+            .filter(Boolean)
+            .join("; ")
+          if (detail) {
+            setError(detail)
+            showError("Some schedules could not be deactivated", detail)
+          }
+        }
+
+        if (updatedCount > 0) {
+          await onSuccess?.()
+          onClose()
+        }
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unable to update schedules"
       setError(message)
@@ -632,7 +872,18 @@ export function RevenueScheduleCreateModal({
     } finally {
       setSubmitting(false)
     }
-  }, [canSubmitStatus, onClose, onSuccess, showError, showSuccess, statusForm.action, statusForm.fromDate, statusForm.reason, statusForm.scope, statusForm.selectedIds])
+  }, [
+    canSubmitStatus,
+    getIneligibilityReason,
+    onClose,
+    onSuccess,
+    showError,
+    showSuccess,
+    statusForm.action,
+    statusForm.selectedIds,
+    statusForm.reason,
+    statusForm.scope
+  ])
 
   const handleUndoSubmit = useCallback(async () => {
     if (!canSubmitUndo) return
@@ -676,11 +927,24 @@ export function RevenueScheduleCreateModal({
     } else if (activeTab === "split") {
       handleSplitSubmit()
     } else if (activeTab === "status") {
-      handleStatusSubmit()
+      if (!canSubmitStatus) return
+      setShowStatusConfirm(true)
     } else {
       handleUndoSubmit()
     }
-  }, [activeTab, handleCreateSubmit, handleRateSubmit, handleSplitSubmit, handleStatusSubmit, handleUndoSubmit])
+  }, [activeTab, canSubmitStatus, handleCreateSubmit, handleRateSubmit, handleSplitSubmit, handleUndoSubmit])
+
+  const handleStatusConfirm = useCallback(() => {
+    setShowStatusConfirm(false)
+    void handleStatusSubmit()
+  }, [handleStatusSubmit])
+
+  const handleStatusCancel = useCallback(() => {
+    if (submitting) {
+      return
+    }
+    setShowStatusConfirm(false)
+  }, [submitting])
 
   if (!isOpen) {
     return null
@@ -1097,14 +1361,17 @@ export function RevenueScheduleCreateModal({
                 <div>
                   <label className={labelCls}>New Commission Rate %<span className="ml-1 text-red-500">*</span></label>
                   <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    max="100"
-                    value={rateForm.ratePercent}
-                    onChange={event => setRateForm(prev => ({ ...prev, ratePercent: event.target.value }))}
+                    type="text"
+                    inputMode="decimal"
+                    value={displayRatePercent}
+                    onChange={handleDecimalChangeRate("ratePercent")}
+                    onFocus={() => setRatePercentFocused(true)}
+                    onBlur={() => {
+                      setRatePercentFocused(false)
+                      handleDecimalBlurRate("ratePercent")()
+                    }}
                     className={inputCls}
-                    placeholder="10.00"
+                    placeholder="10.00%"
                   />
                 </div>
               </div>
@@ -1213,40 +1480,49 @@ export function RevenueScheduleCreateModal({
                 <div>
                   <label className={labelCls}>House %</label>
                   <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    step="0.01"
-                    value={splitForm.house}
-                    onChange={event => setSplitForm(prev => ({ ...prev, house: event.target.value }))}
+                    type="text"
+                    inputMode="decimal"
+                    value={displaySplitFormHouse}
+                    onChange={handleDecimalChangeSplit("house")}
+                    onFocus={() => setSplitFormHouseFocused(true)}
+                    onBlur={() => {
+                      setSplitFormHouseFocused(false)
+                      handleDecimalBlurSplit("house")()
+                    }}
                     className={inputCls}
-                    placeholder="20.00"
+                    placeholder="20.00%"
                   />
                 </div>
                 <div>
                   <label className={labelCls}>House Rep %</label>
                   <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    step="0.01"
-                    value={splitForm.houseRep}
-                    onChange={event => setSplitForm(prev => ({ ...prev, houseRep: event.target.value }))}
+                    type="text"
+                    inputMode="decimal"
+                    value={displaySplitFormHouseRep}
+                    onChange={handleDecimalChangeSplit("houseRep")}
+                    onFocus={() => setSplitFormHouseRepFocused(true)}
+                    onBlur={() => {
+                      setSplitFormHouseRepFocused(false)
+                      handleDecimalBlurSplit("houseRep")()
+                    }}
                     className={inputCls}
-                    placeholder="30.00"
+                    placeholder="30.00%"
                   />
                 </div>
                 <div>
                   <label className={labelCls}>Subagent %</label>
                   <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    step="0.01"
-                    value={splitForm.subagent}
-                    onChange={event => setSplitForm(prev => ({ ...prev, subagent: event.target.value }))}
+                    type="text"
+                    inputMode="decimal"
+                    value={displaySplitFormSubagent}
+                    onChange={handleDecimalChangeSplit("subagent")}
+                    onFocus={() => setSplitFormSubagentFocused(true)}
+                    onBlur={() => {
+                      setSplitFormSubagentFocused(false)
+                      handleDecimalBlurSplit("subagent")()
+                    }}
                     className={inputCls}
-                    placeholder="50.00"
+                    placeholder="50.00%"
                   />
                 </div>
               </div>
@@ -1261,39 +1537,91 @@ export function RevenueScheduleCreateModal({
             <div className="space-y-5">
               <div>
                 <h3 className="text-sm font-semibold text-gray-900">Select schedules</h3>
-                {!scheduleOptions.length ? (
+                {!statusScheduleOptions.length ? (
                   <p className="mt-2 text-xs text-gray-600">No schedules available yet.</p>
                 ) : (
-                  <div className="mt-3 grid max-h-56 grid-cols-1 gap-2 overflow-y-auto rounded-lg border border-gray-200 p-3">
-                    {scheduleOptions.map(option => (
-                      <label key={option.id} className="flex items-center justify-between gap-3 rounded-md border border-gray-200 bg-white px-3 py-2 text-xs text-gray-700 shadow-sm">
-                        <span className="font-semibold text-gray-900">{option.label}</span>
-                        <input
-                          type="checkbox"
-                          checked={statusForm.selectedIds.includes(option.id)}
-                          onChange={event => {
-                            const checked = event.target.checked
-                            setStatusForm(prev => ({
-                              ...prev,
-                              selectedIds: checked
-                                ? [...prev.selectedIds, option.id]
-                                : prev.selectedIds.filter(id => id !== option.id)
-                            }))
-                          }}
-                        />
-                      </label>
-                    ))}
+                  <div className="mt-3 h-56 overflow-y-auto rounded-lg border border-gray-200">
+                    <div className="min-w-[880px]">
+                      <div className="grid grid-cols-[auto_minmax(0,2.1fr)_minmax(0,2.1fr)_minmax(0,1.6fr)_minmax(0,1.6fr)_minmax(0,2.2fr)_minmax(0,1.4fr)] border-b bg-gray-50 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                        <div className="text-center">Selected</div>
+                        <div>Revenue Schedule</div>
+                        <div>Vendor - Product Name</div>
+                        <div>Distributor</div>
+                        <div>Vendor</div>
+                        <div>Opportunity</div>
+                        <div>Schedule Date</div>
+                      </div>
+                      {statusScheduleOptions.map(option => {
+                        const ineligibilityReason = getIneligibilityReason(option.id)
+                        const isEligible = !ineligibilityReason
+                        const checked = statusForm.selectedIds.includes(option.id)
+
+                        return (
+                          <label
+                            key={option.id}
+                            title={ineligibilityReason}
+                            className={cn(
+                              "grid grid-cols-[auto_minmax(0,2.1fr)_minmax(0,2.1fr)_minmax(0,1.6fr)_minmax(0,1.6fr)_minmax(0,2.2fr)_minmax(0,1.4fr)] items-center border-b px-3 py-2 text-xs last:border-b-0",
+                              isEligible ? "text-gray-700" : "cursor-not-allowed bg-gray-50 text-gray-400"
+                            )}
+                          >
+                            <div className="flex items-center justify-center gap-2 pr-2">
+                              <input
+                                type="checkbox"
+                                className="h-4 w-4 rounded border-slate-400 text-primary-600 accent-primary-600 disabled:opacity-60"
+                                checked={checked}
+                                disabled={!isEligible}
+                                onChange={event => {
+                                  if (!isEligible) return
+                                  const checkedInput = event.target.checked
+                                  setStatusForm(prev => ({
+                                    ...prev,
+                                    selectedIds: checkedInput
+                                      ? [...prev.selectedIds, option.id]
+                                      : prev.selectedIds.filter(id => id !== option.id)
+                                  }))
+                                }}
+                              />
+                              {ineligibilityReason ? (
+                                <span
+                                  className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-gray-300 bg-white text-[10px] text-gray-500"
+                                  title={ineligibilityReason}
+                                >
+                                  <Info className="h-3 w-3" aria-hidden="true" />
+                                </span>
+                              ) : null}
+                            </div>
+                            <div className="truncate font-semibold text-gray-900">{option.label}</div>
+                            <div className="truncate">{option.productNameVendor || "--"}</div>
+                            <div className="truncate">{option.distributorName || "--"}</div>
+                            <div className="truncate">{option.vendorName || "--"}</div>
+                            <div className="truncate">{option.opportunityName || "Opportunity"}</div>
+                            <div className="truncate">{option.scheduleDate || "--"}</div>
+                          </label>
+                        )
+                      })}
+                    </div>
                   </div>
                 )}
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
+                  <label className={labelCls}>Reason<span className="ml-1 text-red-500">*</span></label>
+                  <textarea
+                    value={statusForm.reason}
+                    onChange={event => setStatusForm(prev => ({ ...prev, reason: event.target.value }))}
+                    className={textAreaCls}
+                    placeholder="Provide the reason for this change"
+                  />
+                </div>
+                <div>
                   <label className={labelCls}>Action</label>
-                  <div className="flex flex-wrap gap-4 text-xs text-gray-600">
+                  <div className="mt-1 flex flex-wrap gap-4 text-xs text-gray-600">
                     <label className="inline-flex items-center gap-2">
                       <input
                         type="radio"
+                        className="h-4 w-4 text-primary-600 accent-primary-600"
                         name="status-action"
                         checked={statusForm.action === "deactivate"}
                         onChange={() => setStatusForm(prev => ({ ...prev, action: "deactivate" }))}
@@ -1303,6 +1631,7 @@ export function RevenueScheduleCreateModal({
                     <label className="inline-flex items-center gap-2">
                       <input
                         type="radio"
+                        className="h-4 w-4 text-primary-600 accent-primary-600"
                         name="status-action"
                         checked={statusForm.action === "delete"}
                         onChange={() => setStatusForm(prev => ({ ...prev, action: "delete" }))}
@@ -1310,62 +1639,6 @@ export function RevenueScheduleCreateModal({
                       Delete
                     </label>
                   </div>
-                  {statusForm.action === "delete" ? (
-                    <p className="mt-2 text-[11px] text-rose-600">Deleting removes schedules permanently. Matched or paid schedules are blocked by the API.</p>
-                  ) : (
-                    <p className="mt-2 text-[11px] text-gray-500">Deactivate to stop billing while preserving history.</p>
-                  )}
-                </div>
-                <div>
-                  <label className={labelCls}>Apply To</label>
-                  <div className="flex flex-wrap gap-4 text-xs text-gray-600">
-                    <label className="inline-flex items-center gap-2">
-                      <input
-                        type="radio"
-                        name="status-scope"
-                        checked={statusForm.scope === "selection"}
-                        onChange={() => setStatusForm(prev => ({ ...prev, scope: "selection" }))}
-                      />
-                      Selected schedules only
-                    </label>
-                    <label className="inline-flex items-center gap-2">
-                      <input
-                        type="radio"
-                        name="status-scope"
-                        checked={statusForm.scope === "series"}
-                        onChange={() => setStatusForm(prev => ({ ...prev, scope: "series" }))}
-                      />
-                      Entire series from date forward
-                    </label>
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label className={labelCls}>From Date</label>
-                  <div className="relative">
-                    <input
-                      type="date"
-                      value={statusForm.fromDate}
-                      onChange={event => setStatusForm(prev => ({ ...prev, fromDate: event.target.value }))}
-                      className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1.5 text-xs focus:outline-none focus:border-primary-500 [color-scheme:light] [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-2 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-datetime-edit]:opacity-0"
-                      style={{ colorScheme: "light" }}
-                    />
-                    <span className="pointer-events-none absolute left-0 top-1/2 -translate-y-1/2 text-xs text-gray-900">
-                      {statusForm.fromDate || <span className="text-gray-400">YYYY-MM-DD</span>}
-                    </span>
-                  </div>
-                  <p className="mt-2 text-[11px] text-gray-500">Leave blank to apply to all future schedules.</p>
-                </div>
-                <div>
-                  <label className={labelCls}>Reason<span className="ml-1 text-red-500">*</span></label>
-                  <textarea
-                    value={statusForm.reason}
-                    onChange={event => setStatusForm(prev => ({ ...prev, reason: event.target.value }))}
-                    className={textAreaCls}
-                    placeholder="Provide the reason for this change"
-                  />
                 </div>
               </div>
             </div>
@@ -1460,6 +1733,22 @@ export function RevenueScheduleCreateModal({
           </button>
         </div>
       </div>
+
+      <ConfirmDialog
+        isOpen={showStatusConfirm}
+        title={statusForm.action === "delete" ? "Delete revenue schedules" : "Deactivate revenue schedules"}
+        description={
+          statusForm.action === "delete"
+            ? `Delete ${eligibleSelectedCount} schedule${eligibleSelectedCount === 1 ? "" : "s"}? This action cannot be undone.${ineligibleSelectedCount > 0 ? ` ${ineligibleSelectedCount} selected schedule${ineligibleSelectedCount === 1 ? " is" : "s are"} ineligible and will be skipped.` : ""}`
+            : `Deactivate ${eligibleSelectedCount} schedule${eligibleSelectedCount === 1 ? "" : "s"}? Deactivated schedules stop billing but remain in history.${ineligibleSelectedCount > 0 ? ` ${ineligibleSelectedCount} selected schedule${ineligibleSelectedCount === 1 ? " is" : "s are"} ineligible and will be skipped.` : ""}`
+        }
+        confirmLabel={statusForm.action === "delete" ? "Delete" : "Deactivate"}
+        cancelLabel="Cancel"
+        onConfirm={handleStatusConfirm}
+        onCancel={handleStatusCancel}
+        loading={submitting}
+        error={null}
+      />
     </div>
   )
 }
