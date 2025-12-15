@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { Loader2, AlertCircle } from "lucide-react"
-import { useCallback, useMemo, useRef, type ReactNode } from "react"
+import { useCallback, useMemo, useRef, useState, type ReactNode } from "react"
 
 import { cn } from "@/lib/utils"
 import { RevenueScheduleSupportingDetails, type RevenueScheduleSupportingDetailsHandle } from "./revenue-schedule-supporting-details"
@@ -69,6 +69,9 @@ export interface RevenueScheduleDetailRecord {
   expectedCommissionNet?: string | null
   actualCommission?: string | null
   commissionDifference?: string | null
+  paymentType?: string | null
+  comments?: string | null
+  houseRepName?: string | null
 }
 
 interface RevenueScheduleDetailsViewProps {
@@ -77,6 +80,9 @@ interface RevenueScheduleDetailsViewProps {
   error?: string | null
   scheduleKey?: string
   onRefresh?: () => void
+  // When true, shows the V2 Financial Summary section and passes the redesign
+  // flag down to supporting details for horizontal tabs, etc.
+  supportingDetailsV2?: boolean
 }
 
 const placeholder = <span className="text-gray-400">--</span>
@@ -146,13 +152,15 @@ function MetricTile({ fieldId, label, value }: MetricDefinition) {
 interface RevenueScheduleInlineForm {
   revenueScheduleName: string
   revenueScheduleDate: string
+  comments: string
 }
 
 function mapDetailToInline(detail: RevenueScheduleDetailRecord | null): RevenueScheduleInlineForm {
   const name = detail?.revenueScheduleName ?? detail?.revenueSchedule ?? ""
   return {
     revenueScheduleName: name || "",
-    revenueScheduleDate: detail?.revenueScheduleDate ?? ""
+    revenueScheduleDate: detail?.revenueScheduleDate ?? "",
+    comments: detail?.comments ?? ""
   }
 }
 
@@ -168,12 +176,327 @@ function EditRow({ label, control, error }: { label: string; control: ReactNode;
   )
 }
 
+interface FinancialSummarySectionProps {
+  schedule: RevenueScheduleDetailRecord
+  onOpenSection?: (sectionId: string) => void
+}
+
+function FinancialSummarySection({ schedule, onOpenSection }: FinancialSummarySectionProps) {
+  const [collapsed, setCollapsed] = useState(false)
+  const [splitMode, setSplitMode] = useState<"percent" | "amount">("percent")
+
+  const parseCurrency = (value?: string | null): number => {
+    if (!value) return 0
+    const cleaned = value.replace(/[^0-9.-]/g, "")
+    const numeric = Number(cleaned)
+    return Number.isFinite(numeric) ? numeric : 0
+  }
+
+  const parsePercent = (value?: string | null): number => {
+    if (!value) return 0
+    const cleaned = value.replace(/[^0-9.-]/g, "")
+    const numeric = Number(cleaned)
+    if (!Number.isFinite(numeric)) return 0
+    return numeric / 100
+  }
+
+  const formatMoney = (value: number): string =>
+    new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2 }).format(value)
+
+  const expectedUsageGross = schedule.expectedUsageGross ?? schedule.expectedUsage ?? null
+  const expectedUsageNet = schedule.expectedUsageNet ?? expectedUsageGross
+  const usageActualNumber = parseCurrency(schedule.actualUsage)
+  const usageExpectedNumber = parseCurrency(expectedUsageNet)
+  const usageDifference = usageActualNumber - usageExpectedNumber
+
+  const commissionExpected = schedule.expectedCommissionGross ?? schedule.expectedCommissionNet ?? null
+  const commissionNet = schedule.expectedCommissionNet ?? commissionExpected
+  const commissionActualNumber = parseCurrency(schedule.actualCommission ?? commissionNet ?? null)
+  const commissionExpectedNumber = parseCurrency(commissionNet ?? null)
+  const commissionDifferenceNumber = commissionActualNumber - commissionExpectedNumber
+
+  const commissionRateExpectedNumber = parsePercent(schedule.expectedCommissionRatePercent)
+  const commissionRateActualNumber = parsePercent(schedule.actualCommissionRatePercent)
+  const commissionRateDifferenceNumber = commissionRateActualNumber - commissionRateExpectedNumber
+
+  const splitsDisplay = (() => {
+    const housePercent = schedule.houseSplitPercent ?? "20.00%"
+    const houseRepPercent = schedule.houseRepSplitPercent ?? "30.00%"
+    const subagentPercent = schedule.subagentSplitPercent ?? "50.00%"
+
+    if (splitMode === "percent") {
+      const totalPercent = [housePercent, houseRepPercent, subagentPercent]
+        .map(parsePercent)
+        .reduce((sum, value) => sum + value, 0)
+      const formattedTotal = `${(totalPercent * 100).toFixed(2)}%`
+      return {
+        house: housePercent,
+        houseRep: houseRepPercent,
+        subagent: subagentPercent,
+        total: formattedTotal
+      }
+    }
+
+    const totalCommission = commissionActualNumber || commissionExpectedNumber
+    if (!totalCommission) {
+      return {
+        house: schedule.houseSplitPercent ?? "--",
+        houseRep: schedule.houseRepSplitPercent ?? "--",
+        subagent: schedule.subagentSplitPercent ?? "--",
+        total: formatMoney(0)
+      }
+    }
+
+    const houseAmount = totalCommission * parsePercent(schedule.houseSplitPercent)
+    const houseRepAmount = totalCommission * parsePercent(schedule.houseRepSplitPercent)
+    const subagentAmount = totalCommission * parsePercent(schedule.subagentSplitPercent)
+
+    const totalAmount = houseAmount + houseRepAmount + subagentAmount
+
+    return {
+      house: formatMoney(houseAmount),
+      houseRep: formatMoney(houseRepAmount),
+      subagent: formatMoney(subagentAmount),
+      total: formatMoney(totalAmount)
+    }
+  })()
+
+  const formatDiff = (value: number): string => {
+    if (!Number.isFinite(value) || value === 0) return "$0.00"
+    const formatted = formatMoney(Math.abs(value))
+    return value > 0 ? `+${formatted}` : `-${formatted}`
+  }
+
+  const formatPercentDiff = (value: number): string => {
+    if (!Number.isFinite(value) || value === 0) return "0.00%"
+    const formatter = new Intl.NumberFormat("en-US", {
+      style: "percent",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    })
+    const formatted = formatter.format(Math.abs(value))
+    return value > 0 ? `+${formatted}` : `-${formatted}`
+  }
+
+  const usageDiffClass =
+    usageDifference === 0 ? "text-gray-800" : usageDifference > 0 ? "text-green-700" : "text-red-700"
+  const commissionDiffClass =
+    commissionDifferenceNumber === 0
+      ? "text-gray-800"
+      : commissionDifferenceNumber > 0
+        ? "text-green-700"
+        : "text-red-700"
+  const commissionRateDiffClass =
+    commissionRateDifferenceNumber === 0
+      ? "text-gray-800"
+      : commissionRateDifferenceNumber > 0
+        ? "text-green-700"
+        : "text-red-700"
+
+  return (
+    <section className="rounded-2xl border border-gray-200 bg-white shadow-sm">
+      <button
+        type="button"
+        onClick={() => setCollapsed(previous => !previous)}
+        className="flex w-full items-center justify-between px-3 py-1.5"
+      >
+        <div className="flex items-center gap-2">
+          <span
+            className={cn(
+              "inline-flex h-4 w-4 items-center justify-center rounded border border-blue-800 text-[10px] font-bold text-blue-800",
+              collapsed ? "bg-transparent" : "bg-blue-50"
+            )}
+          >
+            ▾
+          </span>
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-blue-800">
+            Financial Summary
+          </span>
+        </div>
+        <span className="text-[10px] font-medium text-gray-500">
+          {collapsed ? "Expand" : "Collapse"}
+        </span>
+      </button>
+      {!collapsed ? (
+        <div className="grid grid-cols-1 gap-3 border-t border-gray-200 p-2 md:grid-cols-3">
+          {/* Usage Summary */}
+          <div className="rounded-lg border border-gray-200 bg-gray-50 p-2 text-[11px] text-gray-900">
+            <h3 className="mb-1 border-b border-gray-300 pb-1 text-[11px] font-semibold text-blue-900">
+              Usage Summary
+            </h3>
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-gray-600">Quantity</span>
+                <span className="font-medium text-gray-900">{renderValue(schedule.quantity)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-gray-600">Price Per</span>
+                <span className="font-medium text-gray-900">
+                  x {renderValue(schedule.priceEach)}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-gray-600">Expected Usage Gross</span>
+                <span className="font-medium text-gray-900">
+                  = {renderValue(expectedUsageGross)}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-gray-600">Expected Usage Adjustment</span>
+                <span className="font-medium text-gray-900 underline">
+                  + {renderValue(schedule.expectedUsageAdjustment)}
+                </span>
+              </div>
+              <div className="flex items-center justify-between rounded bg-gray-100 px-1 py-0.5">
+                <span className="font-bold text-gray-700">Expected Usage Net</span>
+                <span className="font-bold text-gray-900">
+                  = {renderValue(expectedUsageNet)}
+                </span>
+              </div>
+              <div className="mt-1 flex items-center justify-between border-t border-gray-300 pt-1">
+                <span className="text-blue-600">Actual Usage</span>
+                <button
+                  type="button"
+                  onClick={() => onOpenSection?.("transactions")}
+                  className="font-medium text-blue-600 underline"
+                >
+                  {renderValue(schedule.actualUsage)}
+                </button>
+              </div>
+              <div className="mt-1 flex items-center justify-between rounded bg-gray-100 px-1 py-0.5 pt-1 border-t border-gray-300">
+                <span className="font-bold text-gray-700">Usage Difference (+/-)</span>
+                <span className={cn("font-bold", usageDiffClass)}>
+                  = {formatDiff(usageDifference)}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Commission Summary */}
+          <div className="rounded-lg border border-gray-200 bg-gray-50 p-2 text-[11px] text-gray-900">
+            <h3 className="mb-1 border-b border-gray-300 pb-1 text-[11px] font-semibold text-blue-900">
+              Commission Summary
+            </h3>
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-gray-600">Expected Commission</span>
+                <span className="font-medium text-gray-900">{renderValue(commissionExpected)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-gray-600">Expected Commission Adjustment</span>
+                <span className="font-medium text-gray-900 underline">
+                  + {renderValue(schedule.expectedCommissionAdjustment)}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-gray-600">Expected Commission Net</span>
+                <span className="font-medium text-blue-600">{renderValue(commissionNet)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-gray-600">Actual Commission</span>
+                <span className="font-medium text-gray-900 underline">
+                  {renderValue(schedule.actualCommission)}
+                </span>
+              </div>
+              <div className="h-4" />
+              <div className="mt-1 flex items-center justify-between rounded bg-gray-100 px-1 py-0.5 pt-1 border-t border-gray-300">
+                <span className="font-bold text-gray-700">Commission Difference</span>
+                <span className={cn("font-bold", commissionDiffClass)}>
+                  = {renderValue(schedule.commissionDifference)}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Splits */}
+          <div className="rounded-lg border border-gray-200 bg-gray-50 p-2 text-[11px] text-gray-900">
+            <div className="mb-1 flex items-center justify-between border-b border-gray-300 pb-1">
+              <h3 className="text-[11px] font-semibold text-blue-900">Splits</h3>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setSplitMode("percent")}
+                  className={cn(
+                    "rounded px-2 py-0.5 text-[11px]",
+                    splitMode === "percent"
+                      ? "bg-blue-600 text-white font-medium"
+                      : "text-blue-600 hover:bg-blue-100 underline"
+                  )}
+                >
+                  %
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSplitMode("amount")}
+                  className={cn(
+                    "rounded px-2 py-0.5 text-[11px]",
+                    splitMode === "amount"
+                      ? "bg-blue-600 text-white font-medium"
+                      : "text-blue-600 hover:bg-blue-100 underline"
+                  )}
+                >
+                  $
+                </button>
+              </div>
+            </div>
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-gray-600">{splitMode === "percent" ? "House Split %" : "House Split"}</span>
+                <span className="font-medium text-gray-900">{renderValue(splitsDisplay.house)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-gray-600">{splitMode === "percent" ? "House Rep Split %" : "House Rep Split"}</span>
+                <span className="font-medium text-gray-900 underline">
+                  + {renderValue(splitsDisplay.houseRep)}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-gray-600">{splitMode === "percent" ? "Subagent Split %" : "Subagent Split"}</span>
+                <span className="font-medium text-gray-900">
+                  + {renderValue(splitsDisplay.subagent)}
+                </span>
+              </div>
+              <div className="flex items-center justify-between rounded bg-gray-100 px-1 py-0.5">
+                <span className="font-bold text-gray-700">{splitMode === "percent" ? "Total Split %" : "Total Split"}</span>
+                <span className="font-bold text-gray-900">
+                  = {renderValue(splitsDisplay.total)}
+                </span>
+              </div>
+              <div className="mt-1 flex items-center justify-between border-t border-gray-300 pt-1">
+                <span className="text-gray-600">Expected Rate %</span>
+                <span className="font-medium text-gray-900">{renderValue(schedule.expectedCommissionRatePercent)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-blue-600">Actual Rate %</span>
+                <button
+                  type="button"
+                  onClick={() => onOpenSection?.("transactions")}
+                  className="font-medium text-blue-600 underline"
+                >
+                  {renderValue(schedule.actualCommissionRatePercent)}
+                </button>
+              </div>
+              <div className="mt-1 flex items-center justify-between rounded bg-gray-100 px-1 py-0.5 pt-1 border-t border-gray-300">
+                <span className="font-bold text-gray-700">Commission Rate Difference</span>
+                <span className={cn("font-bold", commissionRateDiffClass)}>
+                  = {formatPercentDiff(commissionRateDifferenceNumber)}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </section>
+  )
+}
+
 export function RevenueScheduleDetailsView({
   schedule,
   loading = false,
   error,
   scheduleKey,
-  onRefresh
+  onRefresh,
+  supportingDetailsV2 = false
 }: RevenueScheduleDetailsViewProps) {
   const { hasPermission } = useAuth()
   const { showSuccess, showError } = useToasts()
@@ -216,7 +539,8 @@ export function RevenueScheduleDetailsView({
         expectedCommissionRatePercent: (draft as any).expectedCommissionRatePercent?.trim?.(),
         houseSplitPercent: (draft as any).houseSplitPercent?.trim?.(),
         houseRepSplitPercent: (draft as any).houseRepSplitPercent?.trim?.(),
-        subagentSplitPercent: (draft as any).subagentSplitPercent?.trim?.()
+        subagentSplitPercent: (draft as any).subagentSplitPercent?.trim?.(),
+        comments: draft.comments?.trim()
       }
       const response = await fetch(`/api/revenue-schedules/${schedule.id}`, {
         method: "PATCH",
@@ -257,6 +581,7 @@ export function RevenueScheduleDetailsView({
   const houseSplitField = enableInlineEditing ? editor.register("houseSplitPercent" as any) : null
   const houseRepSplitField = enableInlineEditing ? editor.register("houseRepSplitPercent" as any) : null
   const subagentSplitField = enableInlineEditing ? editor.register("subagentSplitPercent" as any) : null
+  const commentsField = enableInlineEditing ? editor.register("comments") : null
   // derive display values from editor when enabled
   const baseScheduleName = schedule ? (schedule.revenueScheduleName ?? schedule.revenueSchedule ?? `Schedule #${schedule.id}`) : ""
   const scheduleName =
@@ -403,6 +728,16 @@ export function RevenueScheduleDetailsView({
         )
     },
     {
+      fieldId: "04.01.020",
+      label: "Subagent",
+      value: schedule.subagentName
+    },
+    {
+      fieldId: "04.01.021",
+      label: "House Rep",
+      value: schedule.houseRepName
+    },
+    {
       fieldId: "04.01.008",
       label: "Distributor Name",
       value:
@@ -441,6 +776,20 @@ export function RevenueScheduleDetailsView({
         )
     },
     {
+      fieldId: "04.01.034",
+      label: "Payment Type",
+      value: schedule.paymentType
+    },
+    {
+      fieldId: "comments",
+      label: "Comments",
+      value: schedule.comments,
+      fullWidth: true
+    }
+  ]
+
+  const columnThree: FieldDefinition[] = [
+    {
       fieldId: "04.01.010",
       label: "Account Name",
       value:
@@ -459,7 +808,7 @@ export function RevenueScheduleDetailsView({
           schedule.accountName
         )
     },
-    { fieldId: "04.01.011", label: "Legal Name", value: schedule.legalName ?? schedule.accountName },
+    { fieldId: "04.01.011", label: "Account Legal Name", value: schedule.legalName ?? schedule.accountName },
     {
       fieldId: "04.01.012",
       label: "Shipping Address",
@@ -479,17 +828,13 @@ export function RevenueScheduleDetailsView({
         </span>
       ) : undefined,
       fullWidth: true
-    }
-  ]
-
-  const columnThree: FieldDefinition[] = [
+    },
     { fieldId: "04.01.014", label: "Commission Rate Expected", value: schedule.expectedCommissionRatePercent },
     { fieldId: "04.01.015", label: "Commission Rate Actual", value: schedule.actualCommissionRatePercent },
     { fieldId: "04.01.016", label: "Commission Rate Difference", value: schedule.commissionRateDifference },
     { fieldId: "04.01.017", label: "House Split %", value: schedule.houseSplitPercent },
     { fieldId: "04.01.018", label: "House Rep Split %", value: schedule.houseRepSplitPercent },
-    { fieldId: "04.01.019", label: "Subagent Split %", value: schedule.subagentSplitPercent },
-    { fieldId: "04.01.020", label: "Subagent", value: schedule.subagentName }
+    { fieldId: "04.01.019", label: "Subagent Split %", value: schedule.subagentSplitPercent }
   ]
 
   const topColumns = [columnOne, columnTwo, columnThree]
@@ -512,6 +857,10 @@ export function RevenueScheduleDetailsView({
     { fieldId: "N/A", label: "Commission (Actual)", value: schedule.actualCommission },
     { fieldId: "N/A", label: "Commission Variance", value: schedule.commissionDifference }
   ]
+
+  const handleOpenSection = (sectionId: string) => {
+    supportingDetailsRef.current?.openSection(sectionId)
+  }
 
   return (
     <div className="space-y-3 p-2">
@@ -713,6 +1062,23 @@ export function RevenueScheduleDetailsView({
                     />
                   )
                 }
+                if (enableInlineEditing && field.fieldId === "comments" && commentsField) {
+                  return (
+                    <EditRow
+                      key={`${field.fieldId}-${field.label}`}
+                      label="Comments"
+                      control={
+                        <EditableField.Textarea
+                          value={(commentsField.value as string) ?? ""}
+                          onChange={commentsField.onChange}
+                          onBlur={commentsField.onBlur}
+                          placeholder="Enter comments..."
+                        />
+                      }
+                      error={editor.errors.comments}
+                    />
+                  )
+                }
                 return <FieldRow key={`${field.fieldId}-${field.label}`} {...field} />
               })}
             </div>
@@ -720,16 +1086,26 @@ export function RevenueScheduleDetailsView({
         </div>
       </div>
 
-      <div className="border-y-2 border-blue-900 bg-blue-100 px-3 py-1.5">
-        <h2 className="text-[11px] font-semibold uppercase tracking-wide text-gray-600 mb-1.5">Schedule Summary</h2>
-        <div className="flex flex-wrap gap-2">
-          {summaryMetrics.map(metric => (
-            <MetricTile key={`${metric.fieldId}-${metric.label}`} {...metric} />
-          ))}
+      {supportingDetailsV2 ? (
+        <FinancialSummarySection schedule={schedule} onOpenSection={handleOpenSection} />
+      ) : (
+        <div className="border-y-2 border-blue-900 bg-blue-100 px-3 py-1.5">
+          <h2 className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-gray-600">
+            Schedule Summary
+          </h2>
+          <div className="flex flex-wrap gap-2">
+            {summaryMetrics.map(metric => (
+              <MetricTile key={`${metric.fieldId}-${metric.label}`} {...metric} />
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
-      <RevenueScheduleSupportingDetails ref={supportingDetailsRef} schedule={schedule} />
+      <RevenueScheduleSupportingDetails
+        ref={supportingDetailsRef}
+        schedule={schedule}
+        enableRedesign={supportingDetailsV2}
+      />
     </div>
   )
 }

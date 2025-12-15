@@ -143,7 +143,7 @@ const FIELD_CATEGORIES: { id: FieldCategoryId; label: string; description: strin
     }
   ]
 
-const FIELD_TABLE_MAX_BODY_HEIGHT = 420
+const FIELD_TABLE_MAX_BODY_HEIGHT = 470
 const FIELD_TABLE_PAGE_SIZE = 10
 
 export default function DataSettingsPage() {
@@ -225,9 +225,7 @@ export default function DataSettingsPage() {
 
         {/* Section content */}
         <main className="flex-1 p-4">
-          <div className="rounded-lg border border-gray-200 bg-white p-4">
-            {renderSection()}
-          </div>
+          {renderSection()}
         </main>
       </div>
     </div>
@@ -349,7 +347,7 @@ function ProductSubtypeSettings() {
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       {error && (
         <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
           {error}
@@ -360,7 +358,7 @@ function ProductSubtypeSettings() {
         onSubmit={handleCreate}
         className="space-y-3 rounded-md border border-gray-200 bg-gray-50 p-3"
       >
-        <div className="text-sm font-medium text-gray-900">Add Product Subtype</div>
+        <div className="text-xs font-medium text-gray-900">Add Product Subtype</div>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr,1fr,auto]">
           <div>
             <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">
@@ -376,7 +374,7 @@ function ProductSubtypeSettings() {
           </div>
           <div>
             <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">
-              Description (optional)
+              Description
             </label>
             <input
               type="text"
@@ -399,7 +397,10 @@ function ProductSubtypeSettings() {
       <div className="overflow-hidden rounded-md border border-gray-200 bg-white">
         <div
           className="overflow-y-auto"
-          style={{ maxHeight: FIELD_TABLE_MAX_BODY_HEIGHT }}
+          style={{
+            maxHeight: FIELD_TABLE_MAX_BODY_HEIGHT,
+            minHeight: FIELD_TABLE_MAX_BODY_HEIGHT
+          }}
         >
           <table className="min-w-full divide-y divide-gray-200 text-sm">
             <thead className="bg-gray-50">
@@ -544,65 +545,40 @@ function ManageFieldsSection() {
 
   return (
     <div className="space-y-4">
-      <div className="space-y-1">
-        <h1 className="text-lg font-semibold text-gray-900">Manage Fields</h1>
-        <p className="text-xs text-gray-600">
-          Choose a field below to manage its allowed values. Changes here affect
-          the dropdown options users see across Accounts, Products, and Revenue
-          Schedules.
-        </p>
-      </div>
+      <h1 className="text-lg font-semibold text-gray-900">Manage Fields</h1>
 
       {/* Field directory grouped by category in a 3-column grid */}
-      <div className="space-y-2 rounded-md border border-gray-200 bg-gray-50 p-3">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-600">
-              Fields
-            </p>
-            <p className="text-[11px] text-gray-500">
-              Select a field below to manage its allowed values.
-            </p>
-          </div>
-        </div>
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+        {FIELD_CATEGORIES.map(category => {
+          const fieldsInCategory = FIELD_DEFINITIONS.filter(
+            field => field.category === category.id
+          )
 
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-          {FIELD_CATEGORIES.map(category => {
-            const fieldsInCategory = FIELD_DEFINITIONS.filter(
-              field => field.category === category.id
-            )
+          if (fieldsInCategory.length === 0) return null
 
-            if (fieldsInCategory.length === 0) return null
-
-            return (
-              <div
-                key={category.id}
-                className="space-y-1.5 rounded-md border border-gray-200 bg-white p-3"
-              >
-                <div>
-                  <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-600">
-                    {category.label}
-                  </div>
-                  <p className="mt-0.5 text-[11px] text-gray-500">
-                    {category.description}
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {fieldsInCategory.map(field => (
-                    <FieldTab
-                      key={field.id}
-                      id={field.id}
-                      activeField={activeField}
-                      setActiveField={setActiveField}
-                      label={field.label}
-                      icon={getFieldIcon(field.id)}
-                    />
-                  ))}
-                </div>
+          return (
+            <div
+              key={category.id}
+              className="space-y-2 rounded-md border border-gray-200 bg-white p-3"
+            >
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-600">
+                {category.label}
               </div>
-            )
-          })}
-        </div>
+              <div className="flex flex-wrap gap-2">
+                {fieldsInCategory.map(field => (
+                  <FieldTab
+                    key={field.id}
+                    id={field.id}
+                    activeField={activeField}
+                    setActiveField={setActiveField}
+                    label={field.label}
+                    icon={getFieldIcon(field.id)}
+                  />
+                ))}
+              </div>
+            </div>
+          )
+        })}
       </div>
 
       {/* Standardized header for the selected field */}
@@ -661,31 +637,9 @@ interface FieldHeaderProps {
 
 function FieldHeader({ definition }: FieldHeaderProps) {
   return (
-    <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-      <div>
-        <p className="text-[11px] text-gray-500">{definition.entityLabel}</p>
-        <h2 className="mt-0.5 text-base font-semibold text-gray-900">
-          {definition.label}
-        </h2>
-        <p className="mt-1 text-xs text-gray-600">{definition.helperText}</p>
-        {definition.badges && definition.badges.length > 0 && (
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {definition.badges.map(badge => (
-              <span
-                key={badge}
-                className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700"
-              >
-                {badge}
-              </span>
-            ))}
-          </div>
-        )}
-      </div>
-      <div className="text-[11px] text-gray-500 md:text-right">
-        <div className="font-medium">Used on</div>
-        <div>{definition.usedOn}</div>
-      </div>
-    </div>
+    <h2 className="text-base font-semibold text-gray-900">
+      {definition.label}
+    </h2>
   )
 }
 
@@ -807,12 +761,12 @@ function ProductFamilySettings() {
 
       <form
         onSubmit={handleCreate}
-        className="space-y-2.5 rounded-md border border-gray-200 bg-gray-50 p-3"
+        className="space-y-3 rounded-md border border-gray-200 bg-gray-50 p-3"
       >
-        <div className="text-xs font-semibold text-gray-900">
+        <div className="text-xs font-medium text-gray-900">
           Add Product Family Type
         </div>
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr,1fr,auto]">
           <div>
             <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">
               Name
@@ -827,7 +781,7 @@ function ProductFamilySettings() {
           </div>
           <div>
             <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">
-              Description (optional)
+              Description
             </label>
             <input
               type="text"
@@ -837,12 +791,10 @@ function ProductFamilySettings() {
               placeholder="Short explanation of when to use this family"
             />
           </div>
-        </div>
-        <div className="flex justify-end">
           <button
             type="submit"
             disabled={creating}
-            className="inline-flex items-center rounded-md bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
+            className="inline-flex items-center justify-center self-end rounded-md bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50 md:w-auto"
           >
             {creating ? "Adding..." : "Add Product Family Type"}
           </button>
@@ -852,7 +804,10 @@ function ProductFamilySettings() {
       <div className="overflow-hidden rounded-md border border-gray-200 bg-white">
         <div
           className="overflow-y-auto"
-          style={{ maxHeight: FIELD_TABLE_MAX_BODY_HEIGHT }}
+          style={{
+            maxHeight: FIELD_TABLE_MAX_BODY_HEIGHT,
+            minHeight: FIELD_TABLE_MAX_BODY_HEIGHT
+          }}
         >
           <table className="min-w-full divide-y divide-gray-200 text-sm">
             <thead className="bg-gray-50">
@@ -1090,12 +1045,12 @@ function AccountTypeSettings() {
 
       <form
         onSubmit={handleCreate}
-        className="space-y-2 rounded-md border border-gray-200 bg-gray-50 p-2.5"
+        className="space-y-3 rounded-md border border-gray-200 bg-gray-50 p-3"
       >
         <div className="text-xs font-medium text-gray-900">
           Add Account Type
         </div>
-        <div className="grid grid-cols-1 gap-2 md:grid-cols-[1fr,1fr,auto]">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr,1fr,auto]">
           <div>
             <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">
               Name
@@ -1110,7 +1065,7 @@ function AccountTypeSettings() {
           </div>
           <div>
             <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">
-              Description (optional)
+              Description
             </label>
             <input
               type="text"
@@ -1133,7 +1088,10 @@ function AccountTypeSettings() {
       <div className="overflow-hidden rounded-md border border-gray-200 bg-white">
         <div
           className="overflow-y-auto"
-          style={{ maxHeight: FIELD_TABLE_MAX_BODY_HEIGHT }}
+          style={{
+            maxHeight: FIELD_TABLE_MAX_BODY_HEIGHT,
+            minHeight: FIELD_TABLE_MAX_BODY_HEIGHT
+          }}
         >
           <table className="min-w-full divide-y divide-gray-200 text-sm">
             <thead className="bg-gray-50">
@@ -1259,6 +1217,9 @@ function RevenueTypeSettings() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [savingCode, setSavingCode] = useState<string | null>(null)
+  const [creating, setCreating] = useState(false)
+  const [newLabel, setNewLabel] = useState("")
+  const [newDescription, setNewDescription] = useState("")
   const [page, setPage] = useState(1)
 
   const pageSize = FIELD_TABLE_PAGE_SIZE
@@ -1292,16 +1253,57 @@ function RevenueTypeSettings() {
     }
   }, [page, totalPages])
 
-  const visibleItems = useMemo(() => {
-    const start = (page - 1) * pageSize
-    return items.slice(start, start + pageSize)
-  }, [page, pageSize, items])
+    const visibleItems = useMemo(() => {
+      const start = (page - 1) * pageSize
+      return items.slice(start, start + pageSize)
+    }, [page, pageSize, items])
 
-  const handleToggle = async (item: RevenueTypeSetting) => {
+  const handleCreate = async (event: FormEvent) => {
+    event.preventDefault()
+    const label = newLabel.trim()
+    if (!label) {
+      setError("Label is required to add a revenue type.")
+      return
+    }
+
+    const upperLabel = label.toUpperCase()
+    const category: "NRC" | "MRC" =
+      upperLabel.startsWith("MRC") ? "MRC" : "NRC"
+
     try {
-      setSavingCode(item.code)
+      setCreating(true)
       setError(null)
-      const nextEnabled = items
+      const res = await fetch("/api/admin/data-settings/revenue-types", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          label,
+          description: newDescription.trim(),
+          category
+        })
+      })
+      if (!res.ok) throw new Error("Failed to create revenue type")
+      const json = await res.json()
+      const created: RevenueTypeSetting = json.data
+      setItems(prev => [...prev, created])
+      setNewLabel("")
+      setNewDescription("")
+      setPage(1)
+    } catch (err) {
+      console.error(err)
+      setError(
+        err instanceof Error ? err.message : "Failed to create revenue type"
+      )
+    } finally {
+      setCreating(false)
+    }
+  }
+
+    const handleToggle = async (item: RevenueTypeSetting) => {
+      try {
+        setSavingCode(item.code)
+        setError(null)
+        const nextEnabled = items
         .map(it =>
           it.code === item.code ? { ...it, isEnabled: !it.isEnabled } : it
         )
@@ -1326,18 +1328,63 @@ function RevenueTypeSettings() {
     }
   }
 
-  return (
-    <div className="space-y-4">
-      {error && (
-        <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
-          {error}
-        </div>
-      )}
+    return (
+      <div className="space-y-4">
+        {error && (
+          <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+            {error}
+          </div>
+        )}
 
-      <div className="overflow-hidden rounded-md border border-gray-200 bg-white">
-        <div
-          className="overflow-y-auto"
-          style={{ maxHeight: FIELD_TABLE_MAX_BODY_HEIGHT }}
+        <form
+          onSubmit={handleCreate}
+          className="space-y-3 rounded-md border border-gray-200 bg-gray-50 p-3"
+        >
+          <div className="text-xs font-medium text-gray-900">
+            Add Revenue Type
+          </div>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr,1fr,auto]">
+            <div>
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                Label
+              </label>
+              <input
+                type="text"
+                value={newLabel}
+                onChange={e => setNewLabel(e.target.value)}
+                className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
+                placeholder="e.g. NRC - Setup Fee"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                Description
+              </label>
+              <input
+                type="text"
+                value={newDescription}
+                onChange={e => setNewDescription(e.target.value)}
+                className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
+                placeholder="Short explanation of when to use this type"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={creating}
+              className="inline-flex items-center justify-center self-end rounded-md bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50 md:w-auto"
+            >
+              {creating ? "Adding..." : "Add Revenue Type"}
+            </button>
+          </div>
+        </form>
+
+        <div className="overflow-hidden rounded-md border border-gray-200 bg-white">
+          <div
+            className="overflow-y-auto"
+            style={{
+              maxHeight: FIELD_TABLE_MAX_BODY_HEIGHT,
+              minHeight: FIELD_TABLE_MAX_BODY_HEIGHT
+            }}
         >
           <table className="min-w-full divide-y divide-gray-200 text-sm">
             <thead className="bg-gray-50">
@@ -1347,9 +1394,6 @@ function RevenueTypeSettings() {
                 </th>
                 <th className="px-4 py-2 text-left font-medium text-gray-700">
                   Code
-                </th>
-                <th className="px-4 py-2 text-left font-medium text-gray-700">
-                  Category
                 </th>
                 <th className="px-4 py-2 text-left font-medium text-gray-700">
                   Description
@@ -1362,14 +1406,14 @@ function RevenueTypeSettings() {
             <tbody className="divide-y divide-gray-200">
               {loading && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-4 text-center text-gray-500">
+                  <td colSpan={4} className="px-4 py-4 text-center text-gray-500">
                     Loading revenue types...
                   </td>
                 </tr>
               )}
               {!loading && items.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-4 text-center text-gray-500">
+                  <td colSpan={4} className="px-4 py-4 text-center text-gray-500">
                     No revenue types found.
                   </td>
                 </tr>
@@ -1384,11 +1428,6 @@ function RevenueTypeSettings() {
                     </td>
                     <td className="px-4 py-2 align-top text-xs text-gray-600">
                       {item.code}
-                    </td>
-                    <td className="px-4 py-2 align-top text-xs text-gray-600">
-                      <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700">
-                        {item.category}
-                      </span>
                     </td>
                     <td className="px-4 py-2 align-top text-xs text-gray-600">
                       {item.description}

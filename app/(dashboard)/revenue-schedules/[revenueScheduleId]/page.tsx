@@ -1,15 +1,17 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { useParams, useRouter } from "next/navigation"
+import { useParams, useRouter, useSearchParams } from "next/navigation"
 import { CopyProtectionWrapper } from "@/components/copy-protection"
 import { useBreadcrumbs } from "@/lib/breadcrumb-context"
 import { RevenueScheduleDetailsView, type RevenueScheduleDetailRecord } from "@/components/revenue-schedule-details-view"
 import { useToasts } from "@/components/toast"
+import { isRevenueScheduleDetailRedesignEnabled } from "@/lib/feature-flags"
 
 export default function RevenueScheduleDetailPage() {
   const params = useParams()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { setBreadcrumbs } = useBreadcrumbs()
   const { showError } = useToasts()
 
@@ -23,6 +25,12 @@ export default function RevenueScheduleDetailPage() {
   const [schedule, setSchedule] = useState<RevenueScheduleDetailRecord | null>(null)
   const [loading, setLoading] = useState<boolean>(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Feature flag: redesigned Revenue Schedule Detail layout (Financial Summary + horizontal tabs).
+  const enableRedesign = useMemo(
+    () => isRevenueScheduleDetailRedesignEnabled(searchParams),
+    [searchParams]
+  )
 
   useEffect(() => {
     if (!scheduleParam) {
@@ -106,6 +114,7 @@ export default function RevenueScheduleDetailPage() {
         error={error}
         scheduleKey={scheduleParam}
         onRefresh={fetchSchedule}
+        supportingDetailsV2={enableRedesign}
       />
     </CopyProtectionWrapper>
   )

@@ -11,6 +11,15 @@ import { ConfirmStep } from '@/components/deposit-upload/confirm-step'
 import type { DepositUploadFormState } from '@/components/deposit-upload/types'
 import { parseSpreadsheetFile } from '@/lib/deposit-import/parse-file'
 import { depositFieldDefinitions, requiredDepositFieldIds } from '@/lib/deposit-import/fields'
+import {
+  createEmptyDepositMapping,
+  seedDepositMapping,
+  setColumnSelection,
+  createCustomFieldForColumn,
+  type DepositMappingConfigV1,
+  type DepositColumnSelection,
+  type DepositCustomFieldSection,
+} from '@/lib/deposit-import/template-mapping'
 
 type WizardStep = 'create-template' | 'map-fields' | 'review' | 'confirm'
 
@@ -45,7 +54,7 @@ export default function DepositUploadListPage() {
   const [sampleRows, setSampleRows] = useState<string[][]>([])
   const [parsedRowCount, setParsedRowCount] = useState(0)
   const [parsingError, setParsingError] = useState<string | null>(null)
-  const [fieldMapping, setFieldMapping] = useState<Record<string, string>>({})
+  const [mapping, setMapping] = useState<DepositMappingConfigV1>(() => createEmptyDepositMapping())
   const [validationIssues, setValidationIssues] = useState<string[]>([])
   const [importSummary, setImportSummary] = useState<{ totalRows: number; mappedFields: number } | null>(null)
   const [importSubmitting, setImportSubmitting] = useState(false)
@@ -70,7 +79,7 @@ export default function DepositUploadListPage() {
   const handleFileChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0] ?? null
     setSelectedFile(file)
-    setFieldMapping({})
+    setMapping(createEmptyDepositMapping())
     setCsvHeaders([])
     setSampleRows([])
     setParsedRowCount(0)
@@ -90,6 +99,7 @@ export default function DepositUploadListPage() {
         setCsvHeaders(parsed.headers)
         setSampleRows(parsed.rows.slice(0, 5))
         setParsedRowCount(parsed.rows.length)
+        setMapping(previous => seedDepositMapping({ headers: parsed.headers, templateMapping: previous }))
       } catch (error) {
         if (cancelled) return
         console.error('Unable to parse file', error)
@@ -97,6 +107,7 @@ export default function DepositUploadListPage() {
         setSampleRows([])
         setParsedRowCount(0)
         setParsingError(error instanceof Error ? error.message : 'Unable to read file')
+        setMapping(createEmptyDepositMapping())
       }
     }
     void parse()
@@ -106,9 +117,19 @@ export default function DepositUploadListPage() {
   }, [selectedFile])
 
   useEffect(() => {
+    const canonicalFieldMapping: Record<string, string> = Object.entries(mapping.line ?? {}).reduce(
+      (acc, [fieldId, columnName]) => {
+        if (typeof columnName === 'string' && columnName.trim()) {
+          acc[fieldId] = columnName
+        }
+        return acc
+      },
+      {} as Record<string, string>,
+    )
+
     const issues: string[] = []
     requiredDepositFieldIds.forEach(fieldId => {
-      if (!fieldMapping[fieldId]) {
+      if (!canonicalFieldMapping[fieldId]) {
         const label = depositFieldDefinitions.find(field => field.id === fieldId)?.label ?? fieldId
         issues.push(`Map the "${label}" field`)
       }
@@ -123,18 +144,18 @@ export default function DepositUploadListPage() {
       issues.push('No data rows were detected in the uploaded file.')
     }
     setValidationIssues(issues)
-  }, [fieldMapping, selectedFile, parsingError, parsedRowCount])
+  }, [mapping, selectedFile, parsingError, parsedRowCount])
 
-  const handleFieldMappingChange = useCallback((fieldId: string, columnName: string | null) => {
-    setFieldMapping(previous => {
-      if (!columnName) {
-        const copy = { ...previous }
-        delete copy[fieldId]
-        return copy
-      }
-      return { ...previous, [fieldId]: columnName }
-    })
+  const handleColumnSelectionChange = useCallback((columnName: string, selection: DepositColumnSelection) => {
+    setMapping(previous => setColumnSelection(previous, columnName, selection))
   }, [])
+
+  const handleCreateCustomFieldForColumn = useCallback(
+    (columnName: string, input: { label: string; section: DepositCustomFieldSection }) => {
+      setMapping(previous => createCustomFieldForColumn(previous, columnName, input).nextMapping)
+    },
+    [],
+  )
 
   const goToMapFields = () => setActiveStep('map-fields')
   const goToReview = () => setActiveStep('review')
@@ -160,10 +181,20 @@ export default function DepositUploadListPage() {
     setFormState(previous => (previous.depositName === generated ? previous : { ...previous, depositName: generated }))
   }, [depositReceivedDate, distributorLabel, vendorLabel])
 
+  const canonicalFieldMapping: Record<string, string> = Object.entries(mapping.line ?? {}).reduce(
+    (acc, [fieldId, columnName]) => {
+      if (typeof columnName === 'string' && columnName.trim()) {
+        acc[fieldId] = columnName
+      }
+      return acc
+    },
+    {} as Record<string, string>,
+  )
+
   const handleProceedFromReview = () => {
     setImportSummary({
       totalRows: parsedRowCount,
-      mappedFields: Object.keys(fieldMapping).length,
+      mappedFields: Object.keys(canonicalFieldMapping).length,
     })
     goToConfirm()
   }
@@ -191,7 +222,7 @@ export default function DepositUploadListPage() {
       formData.append('distributorAccountId', formState.distributorAccountId)
       formData.append('vendorAccountId', formState.vendorAccountId)
       formData.append('createdByContactId', formState.createdByContactId)
-      formData.append('mapping', JSON.stringify(fieldMapping))
+      formData.append('mapping', JSON.stringify(mapping))
 
       const response = await fetch('/api/reconciliation/deposits/import', {
         method: 'POST',
@@ -221,7 +252,7 @@ export default function DepositUploadListPage() {
     setActiveStep('review')
   }
 
-  const requiredFieldsComplete = requiredDepositFieldIds.every(fieldId => Boolean(fieldMapping[fieldId]))
+  const requiredFieldsComplete = requiredDepositFieldIds.every(fieldId => Boolean(canonicalFieldMapping[fieldId]))
 
   return (
     <div className="dashboard-page-container bg-gray-50">
@@ -253,9 +284,10 @@ export default function DepositUploadListPage() {
               file={selectedFile}
               csvHeaders={csvHeaders}
               sampleRows={sampleRows}
-              fieldMapping={fieldMapping}
+              mapping={mapping}
               parsingError={parsingError}
-              onFieldMappingChange={handleFieldMappingChange}
+              onColumnSelectionChange={handleColumnSelectionChange}
+              onCreateCustomField={handleCreateCustomFieldForColumn}
               canProceed={requiredFieldsComplete && Boolean(csvHeaders.length) && !parsingError}
               onBack={goToCreateTemplate}
               onProceed={goToReview}
@@ -266,7 +298,7 @@ export default function DepositUploadListPage() {
             <ReviewStep
               csvHeaders={csvHeaders}
               sampleRows={sampleRows}
-              fieldMapping={fieldMapping}
+              fieldMapping={canonicalFieldMapping}
               validationIssues={validationIssues}
               onBack={() => setActiveStep('map-fields')}
               onProceed={handleProceedFromReview}

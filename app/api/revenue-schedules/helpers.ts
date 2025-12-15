@@ -145,6 +145,9 @@ export interface RevenueScheduleDetail extends RevenueScheduleListItem {
   houseRepSplitPercent: string | null
   subagentSplitPercent: string | null
   subagentName: string | null
+   paymentType: string | null
+   // "Comments" in the UI map to the existing `notes` column on RevenueSchedule.
+   comments: string | null
 }
 
 const currencyFormatter = new Intl.NumberFormat("en-US", {
@@ -365,6 +368,9 @@ export function mapRevenueScheduleToDetail(schedule: RevenueScheduleWithRelation
     houseSplitPercent: formatPercentFromFraction(schedule.opportunity?.houseSplitPercent),
     houseRepSplitPercent: formatPercentFromFraction(schedule.opportunity?.houseRepPercent),
     subagentSplitPercent: formatPercentFromFraction(schedule.opportunity?.subagentPercent),
-    subagentName: extractSubagentName(schedule.opportunity?.description) ?? null
+    subagentName: extractSubagentName(schedule.opportunity?.description) ?? null,
+    // Payment type is derived from deposit matches in the API route.
+    paymentType: null,
+    comments: schedule.notes ?? null
   }
 }

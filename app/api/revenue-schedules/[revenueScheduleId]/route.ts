@@ -3,10 +3,62 @@ import { prisma } from "@/lib/db"
 import { withAuth, withPermissions } from "@/lib/api-auth"
 import { mapRevenueScheduleToDetail, type RevenueScheduleWithRelations } from "../helpers"
 import { isRevenueTypeCode } from "@/lib/revenue-types"
-import { Activity, Ticket } from "@prisma/client"
+import { Activity, Ticket, DepositLineMatchStatus, DepositPaymentType } from "@prisma/client"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
+
+function formatDepositPaymentType(value: DepositPaymentType | null | undefined): string | null {
+  if (!value) return null
+  // Field IDs: 06.02.003 / 06.07.003 (Payment Type)
+  switch (value) {
+    case DepositPaymentType.ACH:
+      return "Bank Transfer"
+    case DepositPaymentType.Wire:
+      return "Wire Transfer"
+    case DepositPaymentType.Check:
+      return "Check"
+    case DepositPaymentType.CreditCard:
+      return "Credit Card"
+    case DepositPaymentType.Other:
+      return "Other"
+    default:
+      return String(value)
+  }
+}
+
+async function getRevenueSchedulePaymentType(tenantId: string, revenueScheduleId: string): Promise<string | null> {
+  const matches = await prisma.depositLineMatch.findMany({
+    where: {
+      tenantId,
+      revenueScheduleId,
+      status: DepositLineMatchStatus.Applied
+    },
+    select: {
+      depositLineItem: {
+        select: {
+          deposit: {
+            select: {
+              paymentType: true
+            }
+          }
+        }
+      }
+    }
+  })
+
+  const values = matches
+    .map(match => match.depositLineItem?.deposit?.paymentType ?? null)
+    .filter((value): value is DepositPaymentType => Boolean(value))
+
+  const unique = Array.from(new Set(values))
+    .map(formatDepositPaymentType)
+    .filter((value): value is string => Boolean(value))
+
+  if (unique.length === 0) return null
+  if (unique.length === 1) return unique[0]
+  return unique.join(", ")
+}
 
 export async function GET(request: NextRequest, { params }: { params: { revenueScheduleId: string } }) {
   return withAuth(request, async (req) => {
@@ -112,6 +164,8 @@ export async function GET(request: NextRequest, { params }: { params: { revenueS
       }
 
       const detail = mapRevenueScheduleToDetail(schedule as RevenueScheduleWithRelations)
+      // Populate Payment Type from matched deposits, when available.
+      detail.paymentType = await getRevenueSchedulePaymentType(req.user.tenantId, revenueScheduleId)
 
       return NextResponse.json({ data: detail })
     } catch (error) {
@@ -165,6 +219,11 @@ export async function PATCH(request: NextRequest, { params }: { params: { revenu
           data.scheduleDate = null
           hasChanges = true
         }
+      }
+
+      if (typeof (payload as any)?.comments === "string") {
+        data.notes = (payload as any).comments.trim() || null
+        hasChanges = true
       }
 
       if (!hasChanges) {
@@ -283,6 +342,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { revenu
       }
 
       const detail = mapRevenueScheduleToDetail(updated as RevenueScheduleWithRelations)
+      detail.paymentType = await getRevenueSchedulePaymentType(tenantId, revenueScheduleId)
       return NextResponse.json({ data: detail })
     } catch (error) {
       console.error("Failed to update revenue schedule", error)

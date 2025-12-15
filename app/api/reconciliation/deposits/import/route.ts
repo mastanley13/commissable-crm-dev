@@ -4,6 +4,7 @@ import { withPermissions, createErrorResponse } from "@/lib/api-auth"
 import { prisma } from "@/lib/db"
 import { parseSpreadsheetFile } from "@/lib/deposit-import/parse-file"
 import { depositFieldDefinitions, requiredDepositFieldIds } from "@/lib/deposit-import/fields"
+import { extractDepositMappingFromTemplateConfig } from "@/lib/deposit-import/template-mapping"
 
 function startOfMonth(date: Date) {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1))
@@ -90,14 +91,43 @@ export async function POST(request: NextRequest) {
       return createErrorResponse("Field mapping is required", 400)
     }
 
-    let mapping: Record<string, string>
+    let mappingPayload: unknown
     try {
-      mapping = JSON.parse(mappingRaw) as Record<string, string>
+      mappingPayload = JSON.parse(mappingRaw) as unknown
     } catch {
       return createErrorResponse("Invalid mapping payload", 400)
     }
 
-    const missingMappings = requiredDepositFieldIds.filter(fieldId => !mapping[fieldId])
+    // Support both the original flat { fieldId: columnName } mapping and the richer
+    // DepositMappingConfigV1 shape used by the new UI.
+    let canonicalMapping: Record<string, string> = {}
+
+    if (mappingPayload && typeof mappingPayload === "object" && !Array.isArray(mappingPayload)) {
+      const candidate = mappingPayload as Record<string, unknown>
+      if (
+        typeof candidate["version"] === "number" &&
+        candidate["version"] === 1 &&
+        candidate["line"] &&
+        typeof candidate["line"] === "object"
+      ) {
+        const extracted = extractDepositMappingFromTemplateConfig({ depositMapping: mappingPayload })
+        canonicalMapping = Object.entries(extracted.line ?? {}).reduce((acc, [fieldId, columnName]) => {
+          if (typeof columnName === "string" && columnName.trim()) {
+            acc[fieldId] = columnName.trim()
+          }
+          return acc
+        }, {} as Record<string, string>)
+      } else {
+        canonicalMapping = Object.entries(candidate).reduce((acc, [fieldId, columnName]) => {
+          if (typeof columnName === "string" && columnName.trim()) {
+            acc[fieldId] = columnName.trim()
+          }
+          return acc
+        }, {} as Record<string, string>)
+      }
+    }
+
+    const missingMappings = requiredDepositFieldIds.filter(fieldId => !canonicalMapping[fieldId])
     if (missingMappings.length > 0) {
       const missingLabels = missingMappings
         .map(fieldId => depositFieldDefinitions.find(field => field.id === fieldId)?.label ?? fieldId)
@@ -118,7 +148,7 @@ export async function POST(request: NextRequest) {
 
     let columnIndex: Record<string, number>
     try {
-      columnIndex = buildColumnIndex(parsedFile.headers, mapping)
+      columnIndex = buildColumnIndex(parsedFile.headers, canonicalMapping)
     } catch (error) {
       return createErrorResponse(error instanceof Error ? error.message : "Mapping failed", 400)
     }
@@ -219,7 +249,7 @@ const result = await prisma.$transaction(async tx => {
           filters: {
             distributorAccountId,
             vendorAccountId,
-            mapping,
+            mapping: mappingPayload,
             commissionPeriod: commissionPeriodInput || null,
           },
         },
