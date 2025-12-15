@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
-import { RevenueType, AuditAction } from "@prisma/client"
+import { AuditAction } from "@prisma/client"
 import { withAuth } from "@/lib/api-auth"
 import { hasAnyPermission } from "@/lib/auth"
 import { logProductAudit } from "@/lib/audit"
 import { ensureNoneDirectDistributorAccount } from "@/lib/none-direct-distributor"
+import { isRevenueTypeCode } from "@/lib/revenue-types"
 
 const PRODUCT_MUTATION_PERMISSIONS = [
   "products.update",
@@ -224,6 +225,9 @@ export async function PATCH(request: NextRequest, { params }: { params: { produc
           productNameHouse: true,
           productNameVendor: true,
           isActive: true,
+          priceEach: true,
+          commissionPercent: true,
+          revenueType: true,
           vendorAccountId: true,
           distributorAccountId: true,
         }
@@ -271,7 +275,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { produc
       }
 
       if (typeof payload.revenueType === "string") {
-        if (!(Object.values(RevenueType) as string[]).includes(payload.revenueType)) {
+        if (!isRevenueTypeCode(payload.revenueType)) {
           return NextResponse.json({ error: "Invalid revenue type" }, { status: 400 })
         }
         data.revenueType = payload.revenueType
@@ -417,6 +421,9 @@ export async function PATCH(request: NextRequest, { params }: { params: { produc
         productNameHouse: existing.productNameHouse,
         productNameVendor: existing.productNameVendor,
         isActive: existing.isActive,
+        priceEach: existing.priceEach,
+        commissionPercent: existing.commissionPercent,
+        revenueType: existing.revenueType,
       }
 
       const newValues = {
@@ -424,6 +431,9 @@ export async function PATCH(request: NextRequest, { params }: { params: { produc
         productNameHouse: updated.productNameHouse,
         productNameVendor: updated.productNameVendor,
         isActive: updated.isActive,
+        priceEach: updated.priceEach,
+        commissionPercent: updated.commissionPercent,
+        revenueType: updated.revenueType,
       }
 
       await logProductAudit(
@@ -469,6 +479,8 @@ export async function DELETE(request: NextRequest, { params }: { params: { produ
           productNameHouse: true,
           productNameVendor: true,
           isActive: true,
+          priceEach: true,
+          commissionPercent: true,
         }
       })
 
@@ -515,6 +527,8 @@ export async function DELETE(request: NextRequest, { params }: { params: { produ
           productNameHouse: existing.productNameHouse,
           productNameVendor: existing.productNameVendor,
           isActive: existing.isActive,
+          priceEach: existing.priceEach,
+          commissionPercent: existing.commissionPercent,
         },
         undefined
       )

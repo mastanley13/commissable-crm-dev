@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server"
 
 import { prisma } from "@/lib/db"
 import { withPermissions } from "@/lib/api-auth"
+import { AuditAction } from "@prisma/client"
+import { logProductAudit } from "@/lib/audit"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -92,7 +94,9 @@ export async function POST(request: NextRequest) {
           tenantId
         },
         select: {
-          id: true
+          id: true,
+          priceEach: true,
+          commissionPercent: true
         }
       })
 
@@ -110,7 +114,12 @@ export async function POST(request: NextRequest) {
 
       for (const product of products) {
         try {
-          await prisma.product.update({
+          const previousValues = {
+            priceEach: product.priceEach,
+            commissionPercent: product.commissionPercent
+          }
+
+          const updatedProduct = await prisma.product.update({
             where: { id: product.id },
             data: {
               ...updates,
@@ -118,6 +127,21 @@ export async function POST(request: NextRequest) {
             }
           })
           updated += 1
+
+          const newValues = {
+            priceEach: updatedProduct.priceEach,
+            commissionPercent: updatedProduct.commissionPercent
+          }
+
+          await logProductAudit(
+            AuditAction.Update,
+            product.id,
+            req.user.id,
+            tenantId,
+            request,
+            previousValues,
+            newValues
+          )
         } catch (error) {
           errors[product.id] =
             error instanceof Error ? error.message : "Failed to update product"
@@ -132,4 +156,3 @@ export async function POST(request: NextRequest) {
     }
   })
 }
-

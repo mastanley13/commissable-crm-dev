@@ -28,7 +28,7 @@ export function useFieldHistory(entityName: string, entityId: string, fieldLabel
       setIsLoading(true)
       try {
         const response = await fetch(
-          `/api/audit-logs?entityName=${entityName}&entityId=${entityId}&pageSize=50`
+          `/api/audit-logs?entityName=${entityName}&entityId=${entityId}&pageSize=50&summaryOnly=true`
         )
 
         if (!response.ok) {

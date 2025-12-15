@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 
-import { Prisma, RevenueType, AuditAction } from "@prisma/client"
+import { Prisma, AuditAction } from "@prisma/client"
 import { prisma } from "@/lib/db"
 import { withAuth } from "@/lib/api-auth"
 import { hasAnyPermission } from "@/lib/auth"
@@ -8,6 +8,7 @@ import { dedupeColumnFilters } from "@/lib/filter-utils"
 import { mapProductToRow } from "./helpers"
 import { logProductAudit } from "@/lib/audit"
 import { ensureNoneDirectDistributorAccount } from "@/lib/none-direct-distributor"
+import { REVENUE_TYPE_DEFINITIONS, isRevenueTypeCode } from "@/lib/revenue-types"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -153,11 +154,11 @@ export async function GET(request: NextRequest) {
               break
             case "revenueType": {
               const valueLower = rawValue.toLowerCase()
-              const matches = (Object.values(RevenueType) as string[]).filter((rt) =>
-                rt.toLowerCase().includes(valueLower)
-              )
+              const matches = REVENUE_TYPE_DEFINITIONS
+                .map(def => def.code)
+                .filter(code => code.toLowerCase().includes(valueLower))
               if (matches.length > 0) {
-                andConditions.push({ revenueType: { in: matches as RevenueType[] } })
+                andConditions.push({ revenueType: { in: matches as any[] } })
               }
               break
             }
@@ -280,7 +281,7 @@ export async function POST(request: NextRequest) {
       const revenueTypeValue = getString((payload as any).revenueType)
       if (!revenueTypeValue) {
         errors.revenueType = "Revenue type is required"
-      } else if (!(Object.values(RevenueType) as string[]).includes(revenueTypeValue)) {
+      } else if (!isRevenueTypeCode(revenueTypeValue)) {
         errors.revenueType = "Invalid revenue type"
       }
 
@@ -324,7 +325,7 @@ export async function POST(request: NextRequest) {
           partNumberHouse: getOptionalString((payload as any).partNumberHouse),
           productDescriptionVendor: getOptionalString((payload as any).productDescriptionVendor),
           description: getOptionalString((payload as any).description),
-          revenueType: revenueTypeValue as RevenueType,
+          revenueType: revenueTypeValue as any,
           priceEach,
           commissionPercent,
           isActive: Boolean((payload as any).isActive),
@@ -352,6 +353,9 @@ export async function POST(request: NextRequest) {
           productNameHouse: created.productNameHouse,
           productNameVendor: created.productNameVendor,
           isActive: created.isActive,
+          priceEach: created.priceEach,
+          commissionPercent: created.commissionPercent,
+          revenueType: created.revenueType,
         }
       )
 

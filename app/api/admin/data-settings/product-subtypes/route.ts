@@ -7,12 +7,93 @@ export const dynamic = "force-dynamic"
 
 const MANAGE_PERMISSIONS = ["admin.data_settings.manage"]
 
+const DEFAULT_PRODUCT_SUBTYPES = [
+  {
+    code: "BACKUP_SERVICES",
+    name: "Backup Services"
+  },
+  {
+    code: "CABLE",
+    name: "Cable"
+  },
+  {
+    code: "CCAAS",
+    name: "CCaaS (Call Center as a Service)"
+  },
+  {
+    code: "ETHERNET",
+    name: "Ethernet"
+  },
+  {
+    code: "FIBER",
+    name: "Fiber"
+  },
+  {
+    code: "MAINTENANCE_SERVICES",
+    name: "Maintenance Services"
+  },
+  {
+    code: "MANAGED_SERVICES",
+    name: "Managed Services"
+  },
+  {
+    code: "NETWORKING",
+    name: "Networking"
+  },
+  {
+    code: "POTS",
+    name: "POTS (Plain Old Telephone Service)"
+  },
+  {
+    code: "SATELLITE",
+    name: "Satellite"
+  },
+  {
+    code: "SERVERS_STORAGE",
+    name: "Servers & Storage"
+  },
+  {
+    code: "UCAAS",
+    name: "UCaaS (Unified Communications as a Service)"
+  },
+  {
+    code: "WIFI",
+    name: "WiFi"
+  }
+] as const
+
 function normalizeCode(value: string): string {
   return value
     .trim()
     .replace(/[^a-z0-9]+/gi, "_")
     .replace(/^_+|_+$/g, "")
     .toUpperCase()
+}
+
+async function ensureDefaultProductSubtypes(tenantId: string) {
+  for (let index = 0; index < DEFAULT_PRODUCT_SUBTYPES.length; index += 1) {
+    const def = DEFAULT_PRODUCT_SUBTYPES[index]
+    // eslint-disable-next-line no-await-in-loop
+    await prisma.productSubtype.upsert({
+      where: {
+        tenantId_code: {
+          tenantId,
+          code: def.code
+        }
+      },
+      update: {},
+      create: {
+        tenantId,
+        code: def.code,
+        name: def.name,
+        description: null,
+        isActive: true,
+        isSystem: true,
+        displayOrder: (index + 1) * 10,
+        productFamilyId: null
+      }
+    })
+  }
 }
 
 export async function GET(request: NextRequest) {
@@ -25,6 +106,8 @@ export async function GET(request: NextRequest) {
       const includeInactive = url.searchParams.get("includeInactive") === "true"
 
       try {
+        await ensureDefaultProductSubtypes(tenantId)
+
         const subtypes = await prisma.productSubtype.findMany({
           where: {
             tenantId,
@@ -167,4 +250,3 @@ export async function PATCH(request: NextRequest) {
     }
   )
 }
-

@@ -1,0 +1,4174 @@
+diff --git a/app/(dashboard)/revenue-schedules/[revenueScheduleId]/page.tsx b/app/(dashboard)/revenue-schedules/[revenueScheduleId]/page.tsx
+index 7c90cb6..e29e93b 100644
+--- a/app/(dashboard)/revenue-schedules/[revenueScheduleId]/page.tsx
++++ b/app/(dashboard)/revenue-schedules/[revenueScheduleId]/page.tsx
+@@ -1,15 +1,17 @@
+ "use client"
+ 
+ import { useCallback, useEffect, useMemo, useState } from "react"
+-import { useParams, useRouter } from "next/navigation"
++import { useParams, useRouter, useSearchParams } from "next/navigation"
+ import { CopyProtectionWrapper } from "@/components/copy-protection"
+ import { useBreadcrumbs } from "@/lib/breadcrumb-context"
+ import { RevenueScheduleDetailsView, type RevenueScheduleDetailRecord } from "@/components/revenue-schedule-details-view"
+ import { useToasts } from "@/components/toast"
++import { isRevenueScheduleDetailRedesignEnabled } from "@/lib/feature-flags"
+ 
+ export default function RevenueScheduleDetailPage() {
+   const params = useParams()
+   const router = useRouter()
++  const searchParams = useSearchParams()
+   const { setBreadcrumbs } = useBreadcrumbs()
+   const { showError } = useToasts()
+ 
+@@ -24,6 +26,12 @@ export default function RevenueScheduleDetailPage() {
+   const [loading, setLoading] = useState<boolean>(false)
+   const [error, setError] = useState<string | null>(null)
+ 
++  // Feature flag: redesigned supporting details (bottom left-rail)
++  const enableSupportingDetailsRedesign = useMemo(
++    () => isRevenueScheduleDetailRedesignEnabled(searchParams),
++    [searchParams]
++  )
++
+   useEffect(() => {
+     if (!scheduleParam) {
+       router.replace("/revenue-schedules")
+@@ -106,6 +114,7 @@ export default function RevenueScheduleDetailPage() {
+         error={error}
+         scheduleKey={scheduleParam}
+         onRefresh={fetchSchedule}
++        supportingDetailsV2={enableSupportingDetailsRedesign}
+       />
+     </CopyProtectionWrapper>
+   )
+diff --git a/app/api/revenue-schedules/[revenueScheduleId]/matches/route.ts b/app/api/revenue-schedules/[revenueScheduleId]/matches/route.ts
+new file mode 100644
+index 0000000..d48e701
+--- /dev/null
++++ b/app/api/revenue-schedules/[revenueScheduleId]/matches/route.ts
+@@ -0,0 +1,98 @@
++import { NextRequest, NextResponse } from "next/server"
++import { DepositLineMatchStatus, DepositPaymentType } from "@prisma/client"
++
++import { prisma } from "@/lib/db"
++import { withAuth } from "@/lib/api-auth"
++
++export const runtime = "nodejs"
++export const dynamic = "force-dynamic"
++
++function formatDepositPaymentType(value: DepositPaymentType | null | undefined): string | null {
++  if (!value) return null
++  // Field IDs: 06.02.003 / 06.07.003 (Payment Type)
++  switch (value) {
++    case DepositPaymentType.ACH:
++      return "Bank Transfer"
++    case DepositPaymentType.Wire:
++      return "Wire Transfer"
++    case DepositPaymentType.Check:
++      return "Check"
++    case DepositPaymentType.CreditCard:
++      return "Credit Card"
++    case DepositPaymentType.Other:
++      return "Other"
++    default:
++      return String(value)
++  }
++}
++
++export async function GET(request: NextRequest, { params }: { params: { revenueScheduleId: string } }) {
++  return withAuth(request, async req => {
++    try {
++      const { revenueScheduleId } = params
++      if (!revenueScheduleId) {
++        return NextResponse.json({ error: "Revenue schedule id is required" }, { status: 400 })
++      }
++
++      const tenantId = req.user.tenantId
++
++      const matches = await prisma.depositLineMatch.findMany({
++        where: {
++          tenantId,
++          revenueScheduleId,
++          status: DepositLineMatchStatus.Applied
++        },
++        orderBy: [{ reconciledAt: "asc" }, { createdAt: "asc" }],
++        include: {
++          depositLineItem: {
++            select: {
++              id: true,
++              paymentDate: true,
++              usage: true,
++              commission: true,
++              metadata: true,
++              deposit: {
++                select: {
++                  id: true,
++                  depositName: true,
++                  paymentDate: true,
++                  paymentType: true
++                }
++              }
++            }
++          }
++        }
++      })
++
++      const data = matches.map(match => {
++        const line = match.depositLineItem
++        const deposit = line?.deposit
++
++        const parseNumber = (value: unknown): number | null => {
++          if (value === null || value === undefined) return null
++          const numeric = Number(value as number)
++          return Number.isFinite(numeric) ? numeric : null
++        }
++
++        return {
++          id: match.id,
++          depositLineItemId: line?.id ?? null,
++          depositId: deposit?.id ?? null,
++          depositName: deposit?.depositName ?? null,
++          depositPaymentDate: deposit?.paymentDate ? deposit.paymentDate.toISOString() : null,
++          depositPaymentType: formatDepositPaymentType(deposit?.paymentType ?? null),
++          linePaymentDate: line?.paymentDate ? line.paymentDate.toISOString() : null,
++          reconciledAt: match.reconciledAt ? match.reconciledAt.toISOString() : null,
++          usageAmount: parseNumber(line?.usage),
++          commissionAmount: parseNumber(line?.commission),
++          metadata: (line?.metadata as Record<string, unknown> | null) ?? null
++        }
++      })
++
++      return NextResponse.json({ data })
++    } catch (error) {
++      console.error("Failed to load revenue schedule matches", error)
++      return NextResponse.json({ error: "Failed to load revenue schedule matches" }, { status: 500 })
++    }
++  })
++}
+diff --git a/app/api/revenue-schedules/[revenueScheduleId]/route.ts b/app/api/revenue-schedules/[revenueScheduleId]/route.ts
+index d23ea0f..8a3f755 100644
+--- a/app/api/revenue-schedules/[revenueScheduleId]/route.ts
++++ b/app/api/revenue-schedules/[revenueScheduleId]/route.ts
+@@ -3,11 +3,60 @@ import { prisma } from "@/lib/db"
+ import { withAuth, withPermissions } from "@/lib/api-auth"
+ import { mapRevenueScheduleToDetail, type RevenueScheduleWithRelations } from "../helpers"
+ import { isRevenueTypeCode } from "@/lib/revenue-types"
+-import { Activity, Ticket } from "@prisma/client"
++import { Activity, Ticket, DepositLineMatchStatus, DepositPaymentType } from "@prisma/client"
+ 
+ export const runtime = "nodejs"
+ export const dynamic = "force-dynamic"
+ 
++function formatDepositPaymentType(value: DepositPaymentType | null | undefined): string | null {
++  if (!value) return null
++  // Field IDs: 06.02.003 / 06.07.003 (Payment Type)
++  switch (value) {
++    case DepositPaymentType.ACH:
++      return "Bank Transfer"
++    case DepositPaymentType.Wire:
++      return "Wire Transfer"
++    case DepositPaymentType.Check:
++      return "Check"
++    case DepositPaymentType.CreditCard:
++      return "Credit Card"
++    case DepositPaymentType.Other:
++      return "Other"
++    default:
++      return String(value)
++  }
++}
++
++async function getRevenueSchedulePaymentType(tenantId: string, revenueScheduleId: string): Promise<string | null> {
++  const matches = await prisma.depositLineMatch.findMany({
++    where: {
++      tenantId,
++      revenueScheduleId,
++      status: DepositLineMatchStatus.Applied
++    },
++    select: {
++      depositLineItem: {
++        select: {
++          deposit: {
++            select: {
++              paymentType: true
++            }
++          }
++        }
++      }
++    }
++  })
++
++  const values = matches
++    .map(match => match.depositLineItem?.deposit?.paymentType ?? null)
++    .filter((value): value is DepositPaymentType => Boolean(value))
++
++  const unique = Array.from(new Set(values)).map(formatDepositPaymentType).filter(Boolean) as string[]
++  if (unique.length === 0) return null
++  if (unique.length === 1) return unique[0]
++  return unique.join(", ")
++}
++
+ export async function GET(request: NextRequest, { params }: { params: { revenueScheduleId: string } }) {
+   return withAuth(request, async (req) => {
+     try {
+@@ -67,6 +116,7 @@ export async function GET(request: NextRequest, { params }: { params: { revenueS
+           product: {
+             select: {
+               id: true,
++              productNameHouse: true,
+               productNameVendor: true,
+               productDescriptionVendor: true,
+               revenueType: true,
+@@ -77,10 +127,12 @@ export async function GET(request: NextRequest, { params }: { params: { revenueS
+           opportunityProduct: {
+             select: {
+               id: true,
++              productNameHouseSnapshot: true,
+               quantity: true,
+               unitPrice: true,
+               expectedUsage: true,
+-              expectedCommission: true
++              expectedCommission: true,
++              revenueStartDate: true
+             }
+           },
+           opportunity: {
+@@ -101,7 +153,19 @@ export async function GET(request: NextRequest, { params }: { params: { revenueS
+               vendorName: true,
+               billingAddress: true,
+               shippingAddress: true,
+-              description: true
++              description: true,
++              owner: {
++                select: {
++                  fullName: true
++                }
++              },
++              roles: {
++                select: {
++                  role: true,
++                  fullName: true,
++                  active: true
++                }
++              }
+             }
+           }
+         }
+@@ -112,6 +176,7 @@ export async function GET(request: NextRequest, { params }: { params: { revenueS
+       }
+ 
+       const detail = mapRevenueScheduleToDetail(schedule as RevenueScheduleWithRelations)
++      detail.paymentType = await getRevenueSchedulePaymentType(req.user.tenantId, revenueScheduleId)
+ 
+       return NextResponse.json({ data: detail })
+     } catch (error) {
+@@ -167,6 +232,22 @@ export async function PATCH(request: NextRequest, { params }: { params: { revenu
+         }
+       }
+ 
++      const commentsPayload =
++        typeof (payload as any)?.comments === "string"
++          ? (payload as any).comments
++          : typeof (payload as any)?.notes === "string"
++            ? (payload as any).notes
++            : null
++
++      if (commentsPayload !== null) {
++        const text: string = commentsPayload.trim()
++        const value = text.length > 0 ? text : null
++        // Keep legacy `notes` in sync with the new `comments` field for now.
++        data.comments = value
++        data.notes = value
++        hasChanges = true
++      }
++
+       if (!hasChanges) {
+         // continue; we may still update related entities below
+       }
+@@ -272,9 +353,61 @@ export async function PATCH(request: NextRequest, { params }: { params: { revenu
+           },
+           distributor: { select: { id: true, accountName: true, accountNumber: true } },
+           vendor: { select: { id: true, accountName: true, accountNumber: true } },
+-          product: { select: { id: true, productNameVendor: true, productDescriptionVendor: true, revenueType: true, commissionPercent: true, priceEach: true } },
+-          opportunityProduct: { select: { id: true, quantity: true, unitPrice: true, expectedUsage: true, expectedCommission: true } },
+-          opportunity: { select: { id: true, name: true, orderIdHouse: true, orderIdVendor: true, orderIdDistributor: true, customerIdHouse: true, customerIdVendor: true, customerIdDistributor: true, locationId: true, houseSplitPercent: true, houseRepPercent: true, subagentPercent: true, distributorName: true, vendorName: true, billingAddress: true, shippingAddress: true, description: true } }
++          product: {
++            select: {
++              id: true,
++              productNameHouse: true,
++              productNameVendor: true,
++              productDescriptionVendor: true,
++              revenueType: true,
++              commissionPercent: true,
++              priceEach: true
++            }
++          },
++          opportunityProduct: {
++            select: {
++              id: true,
++              productNameHouseSnapshot: true,
++              quantity: true,
++              unitPrice: true,
++              expectedUsage: true,
++              expectedCommission: true,
++              revenueStartDate: true
++            }
++          },
++          opportunity: {
++            select: {
++              id: true,
++              name: true,
++              orderIdHouse: true,
++              orderIdVendor: true,
++              orderIdDistributor: true,
++              customerIdHouse: true,
++              customerIdVendor: true,
++              customerIdDistributor: true,
++              locationId: true,
++              houseSplitPercent: true,
++              houseRepPercent: true,
++              subagentPercent: true,
++              distributorName: true,
++              vendorName: true,
++              billingAddress: true,
++              shippingAddress: true,
++              description: true,
++              owner: {
++                select: {
++                  fullName: true
++                }
++              },
++              roles: {
++                select: {
++                  role: true,
++                  fullName: true,
++                  active: true
++                }
++              }
++            }
++          }
+         }
+       })
+ 
+@@ -283,6 +416,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { revenu
+       }
+ 
+       const detail = mapRevenueScheduleToDetail(updated as RevenueScheduleWithRelations)
++      detail.paymentType = await getRevenueSchedulePaymentType(tenantId, revenueScheduleId)
+       return NextResponse.json({ data: detail })
+     } catch (error) {
+       console.error("Failed to update revenue schedule", error)
+diff --git a/app/api/revenue-schedules/helpers.ts b/app/api/revenue-schedules/helpers.ts
+index a6c5094..0309b5e 100644
+--- a/app/api/revenue-schedules/helpers.ts
++++ b/app/api/revenue-schedules/helpers.ts
+@@ -48,6 +48,7 @@ export type RevenueScheduleWithRelations = Prisma.RevenueScheduleGetPayload<{
+     product: {
+       select: {
+         id: true
++        productNameHouse: true
+         productNameVendor: true
+         productDescriptionVendor: true
+         revenueType: true
+@@ -58,10 +59,12 @@ export type RevenueScheduleWithRelations = Prisma.RevenueScheduleGetPayload<{
+     opportunityProduct: {
+       select: {
+         id: true
++        productNameHouseSnapshot: true
+         quantity: true
+         unitPrice: true
+         expectedUsage: true
+         expectedCommission: true
++        revenueStartDate: true
+       }
+     }
+     opportunity: {
+@@ -83,6 +86,18 @@ export type RevenueScheduleWithRelations = Prisma.RevenueScheduleGetPayload<{
+         billingAddress: true
+         shippingAddress: true
+         description: true
++        owner: {
++          select: {
++            fullName: true
++          }
++        }
++        roles: {
++          select: {
++            role: true
++            fullName: true
++            active: true
++          }
++        }
+       }
+     }
+   }
+@@ -132,6 +147,12 @@ export interface RevenueScheduleListItem {
+ }
+ 
+ export interface RevenueScheduleDetail extends RevenueScheduleListItem {
++  // Header-specific fields
++  revenueMonth: string | null
++  productNameHouse: string | null
++  opportunityOwnerName: string | null
++  paymentType: string | null
++
+   productDescriptionVendor: string | null
+   productRevenueType: string | null
+   productRevenueTypeLabel: string | null
+@@ -144,7 +165,11 @@ export interface RevenueScheduleDetail extends RevenueScheduleListItem {
+   houseSplitPercent: string | null
+   houseRepSplitPercent: string | null
+   subagentSplitPercent: string | null
++  houseRepName: string | null
+   subagentName: string | null
++  comments: string | null
++  // Legacy alias (pre-comments field); kept for backward compatibility.
++  notes: string | null
+ }
+ 
+ const currencyFormatter = new Intl.NumberFormat("en-US", {
+@@ -305,13 +330,13 @@ export function mapRevenueScheduleToListItem(schedule: RevenueScheduleWithRelati
+     opportunityName: schedule.opportunity?.name ?? null,
+     scheduleStatus: statusInfo.status,
+     inDispute: statusInfo.inDispute,
+-      quantity: quantityValue,
+-      quantityRaw: quantityNumber,
+-      priceEach: formatCurrency(unitPriceNumber),
+-      unitPriceRaw: unitPriceNumber,
+-      expectedUsageGross: formatCurrency(expectedUsage),
+-      expectedUsageAdjustment: formatCurrency(usageAdjustment),
+-      usageAdjustmentRaw: usageAdjustment,
++    quantity: quantityValue,
++    quantityRaw: quantityNumber,
++    priceEach: formatCurrency(unitPriceNumber),
++    unitPriceRaw: unitPriceNumber,
++    expectedUsageGross: formatCurrency(expectedUsage),
++    expectedUsageAdjustment: formatCurrency(usageAdjustment),
++    usageAdjustmentRaw: usageAdjustment,
+     expectedUsage: formatCurrency(expectedUsage),
+     usageAdjustment: formatCurrency(usageAdjustment),
+     expectedUsageNet: formatCurrency(expectedUsageNet),
+@@ -351,8 +376,36 @@ export function mapRevenueScheduleToDetail(schedule: RevenueScheduleWithRelation
+       ? expectedCommissionRateFraction - actualCommissionRate
+       : null
+ 
++  const roles = schedule.opportunity?.roles ?? []
++  const normalizeRole = (value: string | null): string => (value ?? "").trim().toLowerCase()
++
++  const houseRepFromRoles =
++    roles.find(role => normalizeRole(role.role).includes("house rep"))?.fullName ?? null
++
++  const subagentFromRoles =
++    roles.find(role => normalizeRole(role.role).includes("subagent"))?.fullName ?? null
++
++  const subagentName =
++    subagentFromRoles ??
++    extractSubagentName(schedule.opportunity?.description) ??
++    null
++
++  const productNameHouse =
++    schedule.product?.productNameHouse ?? schedule.opportunityProduct?.productNameHouseSnapshot ?? null
++
++  const revenueMonthDate = schedule.opportunityProduct?.revenueStartDate ?? null
++  const revenueMonth = revenueMonthDate ? formatDate(revenueMonthDate)?.slice(0, 7) ?? null : null
++
++  const opportunityOwnerName = schedule.opportunity?.owner?.fullName ?? null
++
+   return {
+     ...listValues,
++    revenueMonth,
++    productNameHouse,
++    opportunityOwnerName,
++    // Payment type is sourced from deposits in reconciliation flows. For now,
++    // the detail header shows this as read-only metadata when available.
++    paymentType: null,
+     productDescriptionVendor: schedule.product?.productDescriptionVendor ?? null,
+     productRevenueType,
+     productRevenueTypeLabel: getRevenueTypeLabel(productRevenueType) ?? productRevenueType ?? null,
+@@ -365,6 +418,9 @@ export function mapRevenueScheduleToDetail(schedule: RevenueScheduleWithRelation
+     houseSplitPercent: formatPercentFromFraction(schedule.opportunity?.houseSplitPercent),
+     houseRepSplitPercent: formatPercentFromFraction(schedule.opportunity?.houseRepPercent),
+     subagentSplitPercent: formatPercentFromFraction(schedule.opportunity?.subagentPercent),
+-    subagentName: extractSubagentName(schedule.opportunity?.description) ?? null
++    houseRepName: houseRepFromRoles,
++    subagentName,
++    comments: schedule.comments ?? schedule.notes ?? null,
++    notes: schedule.notes ?? null
+   }
+ }
+diff --git a/components/revenue-schedule-details-view.tsx b/components/revenue-schedule-details-view.tsx
+index 207d4e2..afe8d62 100644
+--- a/components/revenue-schedule-details-view.tsx
++++ b/components/revenue-schedule-details-view.tsx
+@@ -1,735 +1,1151 @@
+-"use client"
+-
+-import Link from "next/link"
+-import { Loader2, AlertCircle } from "lucide-react"
+-import { useCallback, useMemo, useRef, type ReactNode } from "react"
+-
+-import { cn } from "@/lib/utils"
+-import { RevenueScheduleSupportingDetails, type RevenueScheduleSupportingDetailsHandle } from "./revenue-schedule-supporting-details"
+-import { useEntityEditor } from "@/hooks/useEntityEditor"
+-import { useUnsavedChangesPrompt } from "@/hooks/useUnsavedChangesPrompt"
+-import { useAuth } from "@/lib/auth-context"
+-import { EditableField } from "./editable-field"
+-import { useToasts } from "./toast"
+-import { getRevenueTypeLabel, REVENUE_TYPE_OPTIONS } from "@/lib/revenue-types"
+-
+-interface FieldDefinition {
+-  fieldId: string
+-  label: string
+-  value?: ReactNode
+-  fullWidth?: boolean
+-}
+-
+-interface MetricDefinition {
+-  fieldId: string
+-  label: string
+-  value?: ReactNode
+-}
+-
+-export interface RevenueScheduleDetailRecord {
+-  id: string
+-  revenueSchedule?: string
+-  revenueScheduleName?: string
+-  revenueScheduleDate?: string
+-  productNameVendor?: string
+-  productDescriptionVendor?: string
+-  productRevenueType?: string
+-  productRevenueTypeLabel?: string | null
+-  scheduleStatus?: string
+-  inDispute?: boolean
+-  opportunityId?: string | number | null
+-  opportunityName?: string | null
+-  distributorName?: string | null
+-  distributorId?: string | null
+-  vendorName?: string | null
+-  vendorId?: string | null
+-  accountName?: string | null
+-  accountId?: string | null
+-  productId?: string | null
+-  legalName?: string | null
+-  shippingAddress?: string | null
+-  billingAddress?: string | null
+-  expectedCommissionRatePercent?: string | null
+-  actualCommissionRatePercent?: string | null
+-  commissionRateDifference?: string | null
+-  houseSplitPercent?: string | null
+-  houseRepSplitPercent?: string | null
+-  subagentSplitPercent?: string | null
+-  subagentName?: string | null
+-  quantity?: string | null
+-  priceEach?: string | null
+-  expectedUsage?: string | null
+-  expectedUsageGross?: string | null
+-  expectedUsageAdjustment?: string | null
+-  expectedUsageNet?: string | null
+-  actualUsage?: string | null
+-  usageBalance?: string | null
+-  expectedCommissionGross?: string | null
+-  expectedCommissionAdjustment?: string | null
+-  expectedCommissionNet?: string | null
+-  actualCommission?: string | null
+-  commissionDifference?: string | null
+-}
+-
+-interface RevenueScheduleDetailsViewProps {
+-  schedule: RevenueScheduleDetailRecord | null
+-  loading?: boolean
+-  error?: string | null
+-  scheduleKey?: string
+-  onRefresh?: () => void
+-}
+-
+-const placeholder = <span className="text-gray-400">--</span>
+-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+-
+-const fieldLabelClass =
+-  "text-[11px] font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap flex items-center"
+-const baseFieldBoxClass =
+-  "flex min-h-[28px] w-full items-center justify-between border-b-2 border-gray-300 bg-transparent pl-[3px] pr-0 py-1 text-[11px] text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis"
+-
+-function renderValue(value?: ReactNode) {
+-  if (value === undefined || value === null) {
+-    return placeholder
+-  }
+-
+-  if (typeof value === "string") {
+-    const trimmed = value.trim()
+-    if (trimmed.length === 0) {
+-      return placeholder
+-    }
+-    return trimmed
+-  }
+-
+-  return value
+-}
+-
+-function FieldRow({ label, value, fullWidth }: FieldDefinition) {
+-  const resolvedValue = renderValue(value)
+-  const displayValue =
+-    typeof resolvedValue === "string" ? (
+-      <span className="block truncate" title={resolvedValue}>
+-        {resolvedValue}
+-      </span>
+-    ) : (
+-      resolvedValue
+-    )
+-
+-  const fieldBoxClass = `${baseFieldBoxClass} ${fullWidth ? "max-w-[18rem] whitespace-normal break-words" : "max-w-[18rem]"}`
+-
+-  return (
+-    <div className="grid items-center gap-3 sm:grid-cols-[180px,minmax(0,1fr)]">
+-      <span className={fieldLabelClass}>{label}</span>
+-      <div className={fieldBoxClass}>{displayValue}</div>
+-    </div>
+-  )
+-}
+-
+-function MetricTile({ fieldId, label, value }: MetricDefinition) {
+-  const resolvedValue = renderValue(value)
+-  const displayValue =
+-    typeof resolvedValue === "string" ? (
+-      <span className="block truncate" title={resolvedValue}>
+-        {resolvedValue}
+-      </span>
+-    ) : (
+-      resolvedValue
+-    )
+-
+-  return (
+-    <div className="flex min-w-[110px] flex-1 flex-col justify-between gap-0.5 border-2 border-gray-300 bg-white px-2 py-1.5 text-[11px] text-gray-900 shadow-sm">
+-      <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 whitespace-normal break-words leading-tight">{label}</span>
+-      <div className="text-left text-[11px] font-semibold text-gray-900 whitespace-nowrap">{displayValue}</div>
+-    </div>
+-  )
+-}
+-
+-interface RevenueScheduleInlineForm {
+-  revenueScheduleName: string
+-  revenueScheduleDate: string
+-}
+-
+-function mapDetailToInline(detail: RevenueScheduleDetailRecord | null): RevenueScheduleInlineForm {
+-  const name = detail?.revenueScheduleName ?? detail?.revenueSchedule ?? ""
+-  return {
+-    revenueScheduleName: name || "",
+-    revenueScheduleDate: detail?.revenueScheduleDate ?? ""
+-  }
+-}
+-
+-function EditRow({ label, control, error }: { label: string; control: ReactNode; error?: string }) {
+-  return (
+-    <div className="grid items-center gap-3 sm:grid-cols-[180px,minmax(0,1fr)]">
+-      <span className={fieldLabelClass}>{label}</span>
+-      <div className="max-w-[18rem] flex w-full flex-col gap-1">
+-        {control}
+-        {error ? <p className="text-[10px] text-red-600">{error}</p> : null}
+-      </div>
+-    </div>
+-  )
+-}
+-
+-export function RevenueScheduleDetailsView({
+-  schedule,
+-  loading = false,
+-  error,
+-  scheduleKey,
+-  onRefresh
+-}: RevenueScheduleDetailsViewProps) {
+-  const { hasPermission } = useAuth()
+-  const { showSuccess, showError } = useToasts()
+-  const supportingDetailsRef = useRef<RevenueScheduleSupportingDetailsHandle | null>(null)
+-  const enableInlineEditing = hasPermission("revenue-schedules.manage")
+-  const canCreateTickets = hasPermission("tickets.create")
+-
+-  const inlineInitial = useMemo(() => mapDetailToInline(schedule), [schedule])
+-  const validateInline = useCallback((draft: RevenueScheduleInlineForm) => {
+-    const errors: Record<string, string> = {}
+-    if (!draft.revenueScheduleName || draft.revenueScheduleName.trim().length === 0) {
+-      errors.revenueScheduleName = "Revenue schedule name is required."
+-    }
+-    if (draft.revenueScheduleDate) {
+-      const trimmed = draft.revenueScheduleDate.trim()
+-      const isoPattern = /^\d{4}-\d{2}-\d{2}$/
+-      if (!isoPattern.test(trimmed)) {
+-        errors.revenueScheduleDate = "Use YYYY-MM-DD format."
+-      } else {
+-        const parsed = new Date(trimmed)
+-        if (Number.isNaN(parsed.getTime())) {
+-          errors.revenueScheduleDate = "Invalid date."
+-        }
+-      }
+-    }
+-    return errors
+-  }, [])
+-
+-  const submitInline = useCallback(
+-    async (_patch: Partial<RevenueScheduleInlineForm>, draft: RevenueScheduleInlineForm) => {
+-      if (!schedule?.id) {
+-        throw new Error("Revenue schedule id is required")
+-      }
+-      const payload: any = {
+-        revenueScheduleName: draft.revenueScheduleName?.trim(),
+-        revenueScheduleDate: draft.revenueScheduleDate?.trim(),
+-        productNameVendor: (draft as any).productNameVendor?.trim?.(),
+-        productDescriptionVendor: (draft as any).productDescriptionVendor?.trim?.(),
+-        productRevenueType: (draft as any).productRevenueType?.trim?.(),
+-        expectedCommissionRatePercent: (draft as any).expectedCommissionRatePercent?.trim?.(),
+-        houseSplitPercent: (draft as any).houseSplitPercent?.trim?.(),
+-        houseRepSplitPercent: (draft as any).houseRepSplitPercent?.trim?.(),
+-        subagentSplitPercent: (draft as any).subagentSplitPercent?.trim?.()
+-      }
+-      const response = await fetch(`/api/revenue-schedules/${schedule.id}`, {
+-        method: "PATCH",
+-        headers: { "Content-Type": "application/json" },
+-        body: JSON.stringify(payload)
+-      })
+-      const body = await response.json().catch(() => null)
+-      if (!response.ok) {
+-        const message = body?.error ?? "Failed to update revenue schedule"
+-        const serverErrors = (body?.errors ?? {}) as Record<string, string>
+-        showError("Unable to update revenue schedule", message)
+-        const error = new Error(message) as Error & { serverErrors?: Record<string, string> }
+-        if (serverErrors && Object.keys(serverErrors).length > 0) {
+-          error.serverErrors = serverErrors
+-        }
+-        throw error
+-      }
+-      await onRefresh?.()
+-      return draft
+-    },
+-    [schedule?.id, onRefresh, showError]
+-  )
+-
+-  const editor = useEntityEditor<RevenueScheduleInlineForm>({
+-    initial: enableInlineEditing ? inlineInitial : null,
+-    validate: enableInlineEditing ? validateInline : undefined,
+-    onSubmit: enableInlineEditing ? submitInline : undefined
+-  })
+-
+-  useUnsavedChangesPrompt(enableInlineEditing && editor.isDirty)
+-
+-  const nameField = enableInlineEditing ? editor.register("revenueScheduleName") : null
+-  const dateField = enableInlineEditing ? editor.register("revenueScheduleDate") : null
+-  const productNameField = enableInlineEditing ? editor.register("productNameVendor" as any) : null
+-  const productDescField = enableInlineEditing ? editor.register("productDescriptionVendor" as any) : null
+-  const productTypeField = enableInlineEditing ? editor.register("productRevenueType" as any) : null
+-  const expectedRateField = enableInlineEditing ? editor.register("expectedCommissionRatePercent" as any) : null
+-  const houseSplitField = enableInlineEditing ? editor.register("houseSplitPercent" as any) : null
+-  const houseRepSplitField = enableInlineEditing ? editor.register("houseRepSplitPercent" as any) : null
+-  const subagentSplitField = enableInlineEditing ? editor.register("subagentSplitPercent" as any) : null
+-  // derive display values from editor when enabled
+-  const baseScheduleName = schedule ? (schedule.revenueScheduleName ?? schedule.revenueSchedule ?? `Schedule #${schedule.id}`) : ""
+-  const scheduleName =
+-    enableInlineEditing && typeof nameField?.value === "string" && (nameField.value as string).length > 0
+-      ? (nameField.value as string)
+-      : baseScheduleName
+-  const scheduleDate = enableInlineEditing && typeof dateField?.value === "string" ? (dateField.value as string) : schedule?.revenueScheduleDate ?? ""
+-
+-  const handleSave = useCallback(async () => {
+-    if (!enableInlineEditing) return
+-    try {
+-      const result = await editor.submit()
+-      if (result) {
+-        showSuccess("Revenue schedule updated", "Changes saved.")
+-        // Best-effort refresh
+-        try { onRefresh && (await onRefresh()) } catch {}
+-      }
+-    } catch (error) {
+-      if (error && typeof error === "object" && "serverErrors" in error) {
+-        editor.setErrors((error as { serverErrors?: Record<string, string> }).serverErrors ?? {})
+-      } else {
+-        showError("Unable to update revenue schedule", error instanceof Error ? error.message : "")
+-      }
+-    }
+-  }, [editor, enableInlineEditing, onRefresh, showError, showSuccess])
+-
+-  if (loading) {
+-    return (
+-      <div className="flex min-h-[400px] items-center justify-center">
+-        <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white px-6 py-4 shadow-sm">
+-          <Loader2 className="h-5 w-5 animate-spin text-primary-600" />
+-          <span className="text-sm font-medium text-gray-700">Loading revenue schedule...</span>
+-        </div>
+-      </div>
+-    )
+-  }
+-
+-  if (error) {
+-    return (
+-      <div className="flex min-h-[400px] items-center justify-center">
+-        <div className="flex max-w-lg items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-6 py-4 text-sm text-red-700 shadow-sm">
+-          <AlertCircle className="mt-0.5 h-5 w-5 flex-shrink-0" />
+-          <div>
+-            <p className="font-semibold">Unable to load revenue schedule</p>
+-            <p className="mt-1 text-red-600">{error}</p>
+-          </div>
+-        </div>
+-      </div>
+-    )
+-  }
+-
+-  if (!schedule) {
+-    return (
+-      <div className="flex min-h-[400px] items-center justify-center">
+-        <div className="flex flex-col items-center gap-4 rounded-xl border border-gray-200 bg-white px-8 py-10 text-center shadow-sm">
+-          <AlertCircle className="h-8 w-8 text-gray-400" />
+-          <div className="space-y-1">
+-            <p className="text-lg font-semibold text-gray-900">Revenue schedule not found</p>
+-            <p className="text-sm text-gray-600">
+-              <span>We could not locate a revenue schedule matching&nbsp;</span>
+-              <span className="font-semibold text-gray-800">{scheduleKey ?? "unknown"}</span>
+-              <span>. Return to the list to pick another record.</span>
+-            </p>
+-          </div>
+-          <Link
+-            href="/revenue-schedules"
+-            className="inline-flex items-center rounded-full bg-primary-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary-700"
+-          >
+-            Back to Revenue Schedules
+-          </Link>
+-        </div>
+-      </div>
+-    )
+-  }
+-
+-  // scheduleName derived above to reflect inline edits
+-  const statusPillClass =
+-    schedule.scheduleStatus?.toLowerCase() === "reconciled"
+-      ? "bg-emerald-100 text-emerald-700 border-emerald-200"
+-      : schedule.scheduleStatus?.toLowerCase() === "in dispute"
+-        ? "bg-amber-100 text-amber-700 border-amber-200"
+-        : "bg-blue-100 text-blue-700 border-blue-200"
+-
+-  const disputePillClass = schedule.inDispute ? "bg-rose-100 text-rose-700 border-rose-200" : "bg-emerald-100 text-emerald-700 border-emerald-200"
+-
+-  const productRevenueTypeDisplay =
+-    schedule.productRevenueTypeLabel ??
+-    getRevenueTypeLabel(schedule.productRevenueType) ??
+-    schedule.productRevenueType
+-
+-  const columnOne: FieldDefinition[] = [
+-    { fieldId: "04.01.000", label: "Revenue Schedule Name", value: scheduleName },
+-    { fieldId: "04.01.001", label: "Revenue Schedule Date", value: scheduleDate },
++"use client"
++
++import Link from "next/link"
++import { Loader2, AlertCircle, ChevronDown } from "lucide-react"
++import { useCallback, useMemo, useRef, useState, type ReactNode } from "react"
++
++import { cn } from "@/lib/utils"
++import { RevenueScheduleSupportingDetails, type RevenueScheduleSupportingDetailsHandle } from "./revenue-schedule-supporting-details"
++import { useEntityEditor } from "@/hooks/useEntityEditor"
++import { useUnsavedChangesPrompt } from "@/hooks/useUnsavedChangesPrompt"
++import { useAuth } from "@/lib/auth-context"
++import { EditableField } from "./editable-field"
++import { useToasts } from "./toast"
++import { getRevenueTypeLabel, REVENUE_TYPE_OPTIONS } from "@/lib/revenue-types"
++
++interface FieldDefinition {
++  fieldId: string
++  label: string
++  value?: ReactNode
++  fullWidth?: boolean
++}
++
++interface MetricDefinition {
++  fieldId: string
++  label: string
++  value?: ReactNode
++}
++
++export interface RevenueScheduleDetailRecord {
++  id: string
++  revenueSchedule?: string
++  revenueScheduleName?: string
++  revenueScheduleDate?: string
++  revenueMonth?: string | null
++  productNameVendor?: string
++  productDescriptionVendor?: string
++  productNameHouse?: string | null
++  productRevenueType?: string
++  productRevenueTypeLabel?: string | null
++  scheduleStatus?: string
++  inDispute?: boolean
++  opportunityId?: string | number | null
++  opportunityName?: string | null
++  distributorName?: string | null
++  distributorId?: string | null
++  vendorName?: string | null
++  vendorId?: string | null
++  accountName?: string | null
++  accountId?: string | null
++  opportunityOwnerName?: string | null
++  productId?: string | null
++  legalName?: string | null
++  shippingAddress?: string | null
++  billingAddress?: string | null
++  expectedCommissionRatePercent?: string | null
++  actualCommissionRatePercent?: string | null
++  commissionRateDifference?: string | null
++  houseSplitPercent?: string | null
++  houseRepSplitPercent?: string | null
++  subagentSplitPercent?: string | null
++  houseRepName?: string | null
++  subagentName?: string | null
++  paymentType?: string | null
++  comments?: string | null
++  // Legacy alias (pre-comments field); some APIs may still return `notes`.
++  notes?: string | null
++  quantity?: string | null
++  priceEach?: string | null
++  expectedUsage?: string | null
++  expectedUsageGross?: string | null
++  expectedUsageAdjustment?: string | null
++  expectedUsageNet?: string | null
++  actualUsage?: string | null
++  usageBalance?: string | null
++  expectedCommissionGross?: string | null
++  expectedCommissionAdjustment?: string | null
++  expectedCommissionNet?: string | null
++  actualCommission?: string | null
++  commissionDifference?: string | null
++}
++
++interface RevenueScheduleDetailsViewProps {
++  schedule: RevenueScheduleDetailRecord | null
++  loading?: boolean
++  error?: string | null
++  scheduleKey?: string
++  onRefresh?: () => void
++  /**
++   * When true, renders the redesigned supporting details (bottom
++   * left-rail sections) using shared section primitives. This is
++   * controlled by an env/query feature flag.
++   */
++  supportingDetailsV2?: boolean
++}
++
++const placeholder = <span className="text-gray-400">--</span>
++const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
++
++const fieldLabelClass =
++  "text-[11px] font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap flex items-center"
++const baseFieldBoxClass =
++  "flex min-h-[28px] w-full items-center justify-between border-b-2 border-gray-300 bg-transparent pl-[3px] pr-0 py-1 text-[11px] text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis"
++
++const moneyFormatter = new Intl.NumberFormat("en-US", {
++  style: "currency",
++  currency: "USD",
++  minimumFractionDigits: 2
++})
++
++function renderValue(value?: ReactNode) {
++  if (value === undefined || value === null) {
++    return placeholder
++  }
++
++  if (typeof value === "string") {
++    const trimmed = value.trim()
++    if (trimmed.length === 0) {
++      return placeholder
++    }
++    return trimmed
++  }
++
++  return value
++}
++
++function FieldRow({ label, value, fullWidth }: FieldDefinition) {
++  const resolvedValue = renderValue(value)
++  const displayValue =
++    typeof resolvedValue === "string" ? (
++      <span className="block truncate" title={resolvedValue}>
++        {resolvedValue}
++      </span>
++    ) : (
++      resolvedValue
++    )
++
++  const fieldBoxClass = `${baseFieldBoxClass} ${fullWidth ? "max-w-[18rem] whitespace-normal break-words" : "max-w-[18rem]"}`
++
++  return (
++    <div className="grid items-center gap-3 sm:grid-cols-[180px,minmax(0,1fr)]">
++      <span className={fieldLabelClass}>{label}</span>
++      <div className={fieldBoxClass}>{displayValue}</div>
++    </div>
++  )
++}
++
++function MetricTile({ fieldId, label, value }: MetricDefinition) {
++  const resolvedValue = renderValue(value)
++  const displayValue =
++    typeof resolvedValue === "string" ? (
++      <span className="block truncate" title={resolvedValue}>
++        {resolvedValue}
++      </span>
++    ) : (
++      resolvedValue
++    )
++
++  return (
++    <div className="flex min-w-[110px] flex-1 flex-col justify-between gap-0.5 border-2 border-gray-300 bg-white px-2 py-1.5 text-[11px] text-gray-900 shadow-sm">
++      <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 whitespace-normal break-words leading-tight">{label}</span>
++      <div className="text-left text-[11px] font-semibold text-gray-900 whitespace-nowrap">{displayValue}</div>
++    </div>
++  )
++}
++
++function parseCurrencyToNumber(value?: string | null): number {
++  if (!value) return 0
++  const cleaned = value.replace(/[^0-9.-]/g, "")
++  const numeric = Number(cleaned)
++  return Number.isFinite(numeric) ? numeric : 0
++}
++
++function parsePercentToFraction(value?: string | null): number {
++  if (!value) return 0
++  const cleaned = value.replace(/[^0-9.-]/g, "")
++  const numeric = Number(cleaned)
++  if (!Number.isFinite(numeric)) return 0
++  return numeric / 100
++}
++
++function parsePercentToNumber(value?: string | null): number {
++  if (!value) return 0
++  const cleaned = value.replace(/[^0-9.-]/g, "")
++  const numeric = Number(cleaned)
++  return Number.isFinite(numeric) ? numeric : 0
++}
++
++function formatMoney(value: number): string {
++  return moneyFormatter.format(value)
++}
++
++function deltaColorClass(value?: string | null): string {
++  const amount = parseCurrencyToNumber(value ?? null)
++  if (!Number.isFinite(amount) || amount === 0) return "text-slate-700"
++  return amount > 0 ? "text-emerald-600" : "text-rose-600"
++}
++
++interface RevenueScheduleInlineForm {
++  revenueScheduleName: string
++  revenueScheduleDate: string
++  comments: string
++}
++
++function mapDetailToInline(detail: RevenueScheduleDetailRecord | null): RevenueScheduleInlineForm {
++  const name = detail?.revenueScheduleName ?? detail?.revenueSchedule ?? ""
++  return {
++    revenueScheduleName: name || "",
++    revenueScheduleDate: detail?.revenueScheduleDate ?? "",
++    comments: detail?.comments ?? detail?.notes ?? ""
++  }
++}
++
++function EditRow({ label, control, error }: { label: string; control: ReactNode; error?: string }) {
++  return (
++    <div className="grid items-center gap-3 sm:grid-cols-[180px,minmax(0,1fr)]">
++      <span className={fieldLabelClass}>{label}</span>
++      <div className="max-w-[18rem] flex w-full flex-col gap-1">
++        {control}
++        {error ? <p className="text-[10px] text-red-600">{error}</p> : null}
++      </div>
++    </div>
++  )
++}
++
++function FinancialSummary({
++  schedule,
++  onOpenSection
++}: {
++  schedule: RevenueScheduleDetailRecord
++  onOpenSection?: (sectionId: string) => void
++}) {
++  const [collapsed, setCollapsed] = useState(false)
++  const [splitMode, setSplitMode] = useState<"percent" | "amount">("percent")
++
++  const revenueMonth = schedule.revenueMonth ?? (schedule.revenueScheduleDate ? schedule.revenueScheduleDate.slice(0, 7) : null)
++
++  const expectedUsageGross = schedule.expectedUsageGross ?? schedule.expectedUsage
++  const expectedUsageNet = schedule.expectedUsageNet ?? expectedUsageGross
++
++  const actualUsageNumber = parseCurrencyToNumber(schedule.actualUsage ?? null)
++  const expectedUsageNetNumber = parseCurrencyToNumber(expectedUsageNet ?? null)
++  const usageDifference = actualUsageNumber - expectedUsageNetNumber
++
++  const commissionExpected = schedule.expectedCommissionGross ?? schedule.expectedCommissionNet
++  const commissionNet = schedule.expectedCommissionNet ?? commissionExpected
++
++  const expectedCommissionNetNumber = parseCurrencyToNumber(commissionNet ?? null)
++  const actualCommissionNetNumber = parseCurrencyToNumber(schedule.actualCommission ?? null)
++  const houseFraction = parsePercentToFraction(schedule.houseSplitPercent ?? null)
++  const houseRepFraction = parsePercentToFraction(schedule.houseRepSplitPercent ?? null)
++  const subagentFraction = parsePercentToFraction(schedule.subagentSplitPercent ?? null)
++
++  const houseAmount = actualCommissionNetNumber * houseFraction
++  const houseRepAmount = actualCommissionNetNumber * houseRepFraction
++  const subagentAmount = actualCommissionNetNumber * subagentFraction
++  const totalSplitAmount = houseAmount + houseRepAmount + subagentAmount
++
++  const formatDiff = (value: number): string => {
++    const formatted = formatMoney(Math.abs(value))
++    if (value > 0) return `+${formatted}`
++    if (value < 0) return `-${formatted}`
++    return formatted
++  }
++
++  const formatPercent = (value: number): string => `${value.toFixed(2)}%`
++
++  const formatPercentDiff = (value: number): string => {
++    const formatted = `${Math.abs(value).toFixed(2)}%`
++    if (value > 0) return `+${formatted}`
++    if (value < 0) return `-${formatted}`
++    return formatted
++  }
++
++  const usageDiffClass =
++    usageDifference === 0 ? "text-gray-900" : usageDifference > 0 ? "text-green-600" : "text-red-600"
++
++  const commissionDifferenceNumber = parseCurrencyToNumber(schedule.commissionDifference ?? null)
++  const commissionDiffClass =
++    commissionDifferenceNumber === 0
++      ? "text-gray-900"
++      : commissionDifferenceNumber > 0
++        ? "text-green-600"
++        : "text-red-600"
++
++  const commissionRateDifferenceNumber = parsePercentToNumber(schedule.commissionRateDifference ?? null)
++  const commissionRateDiffClass =
++    commissionRateDifferenceNumber === 0
++      ? "text-gray-900"
++      : commissionRateDifferenceNumber > 0
++        ? "text-green-600"
++        : "text-red-600"
++
++  const houseSplitNumber = parsePercentToNumber(schedule.houseSplitPercent ?? null)
++  const houseRepSplitNumber = parsePercentToNumber(schedule.houseRepSplitPercent ?? null)
++  const subagentSplitNumber = parsePercentToNumber(schedule.subagentSplitPercent ?? null)
++
++  const splitsDisplay =
++    splitMode === "percent"
++      ? {
++          house: schedule.houseSplitPercent ?? placeholder,
++          houseRep: schedule.houseRepSplitPercent ?? placeholder,
++          subagent: schedule.subagentSplitPercent ?? placeholder,
++          total: formatPercent(houseSplitNumber + houseRepSplitNumber + subagentSplitNumber)
++        }
++      : {
++          house: actualCommissionNetNumber ? formatMoney(houseAmount) : placeholder,
++          houseRep: actualCommissionNetNumber ? formatMoney(houseRepAmount) : placeholder,
++          subagent: actualCommissionNetNumber ? formatMoney(subagentAmount) : placeholder,
++          total: actualCommissionNetNumber ? formatMoney(actualCommissionNetNumber) : placeholder
++        }
++
++  return (
++    <section className="border-y-2 border-blue-900 bg-white px-3 py-1">
++      <button
++        type="button"
++        onClick={() => setCollapsed(prev => !prev)}
++        className="flex w-full items-center justify-between text-left"
++      >
++        <div className="flex items-center gap-2">
++          <ChevronDown
++            className={cn(
++              "h-3 w-3 text-blue-800 transition-transform",
++              collapsed ? "-rotate-90" : "rotate-0"
++            )}
++          />
++          <span className="text-[11px] font-semibold uppercase tracking-wide text-blue-800">
++            Financial Summary
++          </span>
++        </div>
++        <span className="text-[10px] font-medium text-gray-500">
++          {collapsed ? "Expand" : "Collapse"}
++        </span>
++      </button>
++      {!collapsed ? (
++        <div className="grid grid-cols-1 gap-3 border-t-2 border-gray-300 pt-2 md:grid-cols-3">
++          {/* Usage Summary */}
++          <div className="rounded-lg border border-gray-200 bg-gray-50 p-2 text-[11px] text-gray-900">
++            <h3 className="mb-1 border-b border-gray-300 pb-1 text-[11px] font-semibold text-blue-900">
++              Usage Summary
++            </h3>
++            <div className="space-y-1">
++              <div className="flex items-center justify-between">
++                <span className="text-gray-600">Quantity</span>
++                <span className="font-medium text-gray-900">{renderValue(schedule.quantity)}</span>
++              </div>
++              <div className="flex items-center justify-between">
++                <span className="text-gray-600">Price Per</span>
++                <span className="font-medium text-gray-900">
++                  x {renderValue(schedule.priceEach)}
++                </span>
++              </div>
++              <div className="flex items-center justify-between">
++                <span className="text-gray-600">Expected Usage Gross</span>
++                <span className="font-medium text-gray-900">
++                  = {renderValue(expectedUsageGross)}
++                </span>
++              </div>
++              <div className="flex items-center justify-between">
++                <span className="text-gray-600">Expected Usage Adjustment</span>
++                <span className="font-medium text-gray-900 underline">
++                  + {renderValue(schedule.expectedUsageAdjustment)}
++                </span>
++              </div>
++              <div className="flex items-center justify-between rounded bg-gray-100 px-1 py-0.5">
++                <span className="font-bold text-gray-700">Expected Usage Net</span>
++                <span className="font-bold text-gray-900">
++                  = {renderValue(expectedUsageNet)}
++                </span>
++              </div>
++              <div className="mt-1 flex items-center justify-between border-t border-gray-300 pt-1">
++                <span className="text-blue-600">Actual Usage</span>
++                <button
++                  type="button"
++                  onClick={() => onOpenSection?.("transactions")}
++                  className="font-medium text-blue-600 underline"
++                >
++                  {renderValue(schedule.actualUsage)}
++                </button>
++              </div>
++              <div className="mt-1 flex items-center justify-between rounded bg-gray-100 px-1 py-0.5 pt-1 border-t border-gray-300">
++                <span className="font-bold text-gray-700">Usage Difference (+/-)</span>
++                <span className={cn("font-bold", usageDiffClass)}>
++                  = {formatDiff(usageDifference)}
++                </span>
++              </div>
++            </div>
++          </div>
++
++          {/* Commission Summary */}
++          <div className="rounded-lg border border-gray-200 bg-gray-50 p-2 text-[11px] text-gray-900">
++            <h3 className="mb-1 border-b border-gray-300 pb-1 text-[11px] font-semibold text-blue-900">
++              Commission Summary
++            </h3>
++            <div className="space-y-1">
++              <div className="flex items-center justify-between">
++                <span className="text-gray-600">Billing Month</span>
++                <span className="font-medium text-gray-900">{renderValue(revenueMonth ?? schedule.revenueScheduleDate ?? null)}</span>
++              </div>
++              <div className="mt-1 flex items-center justify-between border-t border-gray-300 pt-1">
++                <span className="text-gray-600">Expected Commission</span>
++                <span className="font-medium text-gray-900">{renderValue(commissionExpected)}</span>
++              </div>
++              <div className="flex items-center justify-between">
++                <span className="text-gray-600">Expected Commission Adjustment</span>
++                <span className="font-medium text-gray-900 underline">
++                  + {renderValue(schedule.expectedCommissionAdjustment)}
++                </span>
++              </div>
++              <div className="flex items-center justify-between">
++                <span className="font-bold text-gray-600">Expected Commission Net</span>
++                <span className="font-medium text-blue-600">{renderValue(commissionNet)}</span>
++              </div>
++              <div className="flex items-center justify-between">
++                <span className="font-bold text-gray-600">Actual Commission</span>
++                <span className="font-medium text-gray-900 underline">
++                  {renderValue(schedule.actualCommission)}
++                </span>
++              </div>
++              <div className="h-4" />
++              <div className="mt-1 flex items-center justify-between rounded bg-gray-100 px-1 py-0.5 pt-1 border-t border-gray-300">
++                <span className="font-bold text-gray-700">Commission Difference</span>
++                <span className={cn("font-bold", commissionDiffClass)}>
++                  = {renderValue(schedule.commissionDifference)}
++                </span>
++              </div>
++            </div>
++          </div>
++
++          {/* Splits */}
++          <div className="rounded-lg border border-gray-200 bg-gray-50 p-2 text-[11px] text-gray-900">
++            <div className="mb-1 flex items-center justify-between border-b border-gray-300 pb-1">
++              <h3 className="text-[11px] font-semibold text-blue-900">Splits</h3>
++              <div className="flex items-center gap-1">
++                <button
++                  type="button"
++                  onClick={() => setSplitMode("percent")}
++                  className={cn(
++                    "rounded px-2 py-0.5 text-[11px]",
++                    splitMode === "percent"
++                      ? "bg-blue-600 text-white font-medium"
++                      : "text-blue-600 hover:bg-blue-100 underline"
++                  )}
++                >
++                  %
++                </button>
++                <button
++                  type="button"
++                  onClick={() => setSplitMode("amount")}
++                  className={cn(
++                    "rounded px-2 py-0.5 text-[11px]",
++                    splitMode === "amount"
++                      ? "bg-blue-600 text-white font-medium"
++                      : "text-blue-600 hover:bg-blue-100 underline"
++                  )}
++                >
++                  $
++                </button>
++              </div>
++            </div>
++            <div className="space-y-1">
++              <div className="flex items-center justify-between">
++                <span className="text-gray-600">{splitMode === "percent" ? "House Split %" : "House Split"}</span>
++                <span className="font-medium text-gray-900">{renderValue(splitsDisplay.house)}</span>
++              </div>
++              <div className="flex items-center justify-between">
++                <span className="text-gray-600">{splitMode === "percent" ? "House Rep Split %" : "House Rep Split"}</span>
++                <span className="font-medium text-gray-900 underline">
++                  + {renderValue(splitsDisplay.houseRep)}
++                </span>
++              </div>
++              <div className="flex items-center justify-between">
++                <span className="text-gray-600">{splitMode === "percent" ? "Subagent Split %" : "Subagent Split"}</span>
++                <span className="font-medium text-gray-900">
++                  + {renderValue(splitsDisplay.subagent)}
++                </span>
++              </div>
++              <div className="flex items-center justify-between rounded bg-gray-100 px-1 py-0.5">
++                <span className="font-bold text-gray-700">{splitMode === "percent" ? "Total Split %" : "Total Split"}</span>
++                <span className="font-bold text-gray-900">
++                  = {renderValue(splitsDisplay.total)}
++                </span>
++              </div>
++              <div className="mt-1 flex items-center justify-between border-t border-gray-300 pt-1">
++                <span className="text-gray-600">Expected Rate %</span>
++                <span className="font-medium text-gray-900">{renderValue(schedule.expectedCommissionRatePercent)}</span>
++              </div>
++              <div className="flex items-center justify-between">
++                <span className="text-blue-600">Actual Rate %</span>
++                <button
++                  type="button"
++                  onClick={() => onOpenSection?.("transactions")}
++                  className="font-medium text-blue-600 underline"
++                >
++                  {renderValue(schedule.actualCommissionRatePercent)}
++                </button>
++              </div>
++              <div className="mt-1 flex items-center justify-between rounded bg-gray-100 px-1 py-0.5 pt-1 border-t border-gray-300">
++                <span className="font-bold text-gray-700">Commission Rate Difference</span>
++                <span className={cn("font-bold", commissionRateDiffClass)}>
++                  = {formatPercentDiff(commissionRateDifferenceNumber)}
++                </span>
++              </div>
++            </div>
++          </div>
++        </div>
++      ) : null}
++    </section>
++  )
++}
++
++export function RevenueScheduleDetailsView({
++  schedule,
++  loading = false,
++  error,
++  scheduleKey,
++  onRefresh,
++  supportingDetailsV2 = false
++}: RevenueScheduleDetailsViewProps) {
++  const { hasPermission } = useAuth()
++  const { showSuccess, showError } = useToasts()
++  const supportingDetailsRef = useRef<RevenueScheduleSupportingDetailsHandle | null>(null)
++  const enableInlineEditing = hasPermission("revenue-schedules.manage")
++  const canCreateTickets = hasPermission("tickets.create")
++
++  const inlineInitial = useMemo(() => mapDetailToInline(schedule), [schedule])
++  const validateInline = useCallback((draft: RevenueScheduleInlineForm) => {
++    const errors: Record<string, string> = {}
++    if (!draft.revenueScheduleName || draft.revenueScheduleName.trim().length === 0) {
++      errors.revenueScheduleName = "Revenue schedule name is required."
++    }
++    if (draft.revenueScheduleDate) {
++      const trimmed = draft.revenueScheduleDate.trim()
++      const isoPattern = /^\d{4}-\d{2}-\d{2}$/
++      if (!isoPattern.test(trimmed)) {
++        errors.revenueScheduleDate = "Use YYYY-MM-DD format."
++      } else {
++        const parsed = new Date(trimmed)
++        if (Number.isNaN(parsed.getTime())) {
++          errors.revenueScheduleDate = "Invalid date."
++        }
++      }
++    }
++    if (draft.comments && draft.comments.length > 2000) {
++      errors.comments = "Comments must be 2000 characters or fewer."
++    }
++    return errors
++  }, [])
++
++  const submitInline = useCallback(
++    async (_patch: Partial<RevenueScheduleInlineForm>, draft: RevenueScheduleInlineForm) => {
++      if (!schedule?.id) {
++        throw new Error("Revenue schedule id is required")
++      }
++      const payload: any = {
++        revenueScheduleName: draft.revenueScheduleName?.trim(),
++        revenueScheduleDate: draft.revenueScheduleDate?.trim(),
++        comments: draft.comments?.trim(),
++        productNameVendor: (draft as any).productNameVendor?.trim?.(),
++        productDescriptionVendor: (draft as any).productDescriptionVendor?.trim?.(),
++        productRevenueType: (draft as any).productRevenueType?.trim?.(),
++        expectedCommissionRatePercent: (draft as any).expectedCommissionRatePercent?.trim?.(),
++        houseSplitPercent: (draft as any).houseSplitPercent?.trim?.(),
++        houseRepSplitPercent: (draft as any).houseRepSplitPercent?.trim?.(),
++        subagentSplitPercent: (draft as any).subagentSplitPercent?.trim?.()
++      }
++      const response = await fetch(`/api/revenue-schedules/${schedule.id}`, {
++        method: "PATCH",
++        headers: { "Content-Type": "application/json" },
++        body: JSON.stringify(payload)
++      })
++      const body = await response.json().catch(() => null)
++      if (!response.ok) {
++        const message = body?.error ?? "Failed to update revenue schedule"
++        const serverErrors = (body?.errors ?? {}) as Record<string, string>
++        showError("Unable to update revenue schedule", message)
++        const error = new Error(message) as Error & { serverErrors?: Record<string, string> }
++        if (serverErrors && Object.keys(serverErrors).length > 0) {
++          error.serverErrors = serverErrors
++        }
++        throw error
++      }
++      await onRefresh?.()
++      return draft
++    },
++    [schedule?.id, onRefresh, showError]
++  )
++
++  const editor = useEntityEditor<RevenueScheduleInlineForm>({
++    initial: enableInlineEditing ? inlineInitial : null,
++    validate: enableInlineEditing ? validateInline : undefined,
++    onSubmit: enableInlineEditing ? submitInline : undefined
++  })
++
++  useUnsavedChangesPrompt(enableInlineEditing && editor.isDirty)
++
++  const nameField = enableInlineEditing ? editor.register("revenueScheduleName") : null
++  const dateField = enableInlineEditing ? editor.register("revenueScheduleDate") : null
++  const commentsField = enableInlineEditing ? editor.register("comments" as any) : null
++  const productNameField = enableInlineEditing ? editor.register("productNameVendor" as any) : null
++  const productDescField = enableInlineEditing ? editor.register("productDescriptionVendor" as any) : null
++  const productTypeField = enableInlineEditing ? editor.register("productRevenueType" as any) : null
++  const expectedRateField = enableInlineEditing ? editor.register("expectedCommissionRatePercent" as any) : null
++  const houseSplitField = enableInlineEditing ? editor.register("houseSplitPercent" as any) : null
++  const houseRepSplitField = enableInlineEditing ? editor.register("houseRepSplitPercent" as any) : null
++  const subagentSplitField = enableInlineEditing ? editor.register("subagentSplitPercent" as any) : null
++  // derive display values from editor when enabled
++  const baseScheduleName = schedule ? (schedule.revenueScheduleName ?? schedule.revenueSchedule ?? `Schedule #${schedule.id}`) : ""
++  const scheduleName =
++    enableInlineEditing && typeof nameField?.value === "string" && (nameField.value as string).length > 0
++      ? (nameField.value as string)
++      : baseScheduleName
++  const scheduleDate = enableInlineEditing && typeof dateField?.value === "string" ? (dateField.value as string) : schedule?.revenueScheduleDate ?? ""
++
++  const handleSave = useCallback(async () => {
++    if (!enableInlineEditing) return
++    try {
++      const result = await editor.submit()
++      if (result) {
++        showSuccess("Revenue schedule updated", "Changes saved.")
++        // Best-effort refresh
++        try { onRefresh && (await onRefresh()) } catch {}
++      }
++    } catch (error) {
++      if (error && typeof error === "object" && "serverErrors" in error) {
++        editor.setErrors((error as { serverErrors?: Record<string, string> }).serverErrors ?? {})
++      } else {
++        showError("Unable to update revenue schedule", error instanceof Error ? error.message : "")
++      }
++    }
++  }, [editor, enableInlineEditing, onRefresh, showError, showSuccess])
++
++  if (loading) {
++    return (
++      <div className="flex min-h-[400px] items-center justify-center">
++        <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white px-6 py-4 shadow-sm">
++          <Loader2 className="h-5 w-5 animate-spin text-primary-600" />
++          <span className="text-sm font-medium text-gray-700">Loading revenue schedule...</span>
++        </div>
++      </div>
++    )
++  }
++
++  if (error) {
++    return (
++      <div className="flex min-h-[400px] items-center justify-center">
++        <div className="flex max-w-lg items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-6 py-4 text-sm text-red-700 shadow-sm">
++          <AlertCircle className="mt-0.5 h-5 w-5 flex-shrink-0" />
++          <div>
++            <p className="font-semibold">Unable to load revenue schedule</p>
++            <p className="mt-1 text-red-600">{error}</p>
++          </div>
++        </div>
++      </div>
++    )
++  }
++
++  if (!schedule) {
++    return (
++      <div className="flex min-h-[400px] items-center justify-center">
++        <div className="flex flex-col items-center gap-4 rounded-xl border border-gray-200 bg-white px-8 py-10 text-center shadow-sm">
++          <AlertCircle className="h-8 w-8 text-gray-400" />
++          <div className="space-y-1">
++            <p className="text-lg font-semibold text-gray-900">Revenue schedule not found</p>
++            <p className="text-sm text-gray-600">
++              <span>We could not locate a revenue schedule matching&nbsp;</span>
++              <span className="font-semibold text-gray-800">{scheduleKey ?? "unknown"}</span>
++              <span>. Return to the list to pick another record.</span>
++            </p>
++          </div>
++          <Link
++            href="/revenue-schedules"
++            className="inline-flex items-center rounded-full bg-primary-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary-700"
++          >
++            Back to Revenue Schedules
++          </Link>
++        </div>
++      </div>
++    )
++  }
++
++  // scheduleName derived above to reflect inline edits
++  const statusPillClass =
++    schedule.scheduleStatus?.toLowerCase() === "reconciled"
++      ? "bg-emerald-100 text-emerald-700 border-emerald-200"
++      : schedule.scheduleStatus?.toLowerCase() === "in dispute"
++        ? "bg-amber-100 text-amber-700 border-amber-200"
++        : "bg-blue-100 text-blue-700 border-blue-200"
++
++  const disputePillClass = schedule.inDispute ? "bg-rose-100 text-rose-700 border-rose-200" : "bg-emerald-100 text-emerald-700 border-emerald-200"
++
++  const productRevenueTypeDisplay =
++    schedule.productRevenueTypeLabel ??
++    getRevenueTypeLabel(schedule.productRevenueType) ??
++    schedule.productRevenueType
++
++  // Column 1 ΓÇô Opportunity Overview
++  const columnOne: FieldDefinition[] = [
++    { fieldId: "04.01.000", label: "Revenue Schedule Name", value: scheduleName },
++    { fieldId: "04.01.001", label: "Revenue Schedule Date", value: scheduleDate },
+     {
+-      fieldId: "04.01.002",
+-      label: "Vendor - Product Name",
+-      value:
+-        schedule.productId &&
+-        schedule.productNameVendor &&
+-        UUID_REGEX.test(schedule.productId) ? (
+-          <Link
+-            href={`/products/${schedule.productId}`}
+-            className="block w-full min-w-0 truncate text-primary-700 hover:text-primary-800 focus:text-primary-800 focus:outline-none no-underline"
+-          >
+-            {schedule.productNameVendor}
+-          </Link>
+-        ) : (
+-          schedule.productNameVendor
+-        )
+-    },
+-    { fieldId: "04.01.003", label: "Vendor - Product Description", value: schedule.productDescriptionVendor },
+-    { fieldId: "04.01.004", label: "Product Revenue Type", value: productRevenueTypeDisplay },
+-    {
+-      fieldId: "04.01.005",
+-      label: "Status",
+-      value: schedule.scheduleStatus ?? "Unknown"
+-    },
+-    {
+-      fieldId: "04.01.006",
+-      label: "In Dispute",
+-      value: schedule.inDispute ? "Yes" : "No"
+-    }
+-  ]
+-
+-  const columnTwo: FieldDefinition[] = [
+-    {
+-      fieldId: "04.01.007",
+-      label: "Opportunity Name",
+-      value:
+-        schedule.opportunityId &&
+-        schedule.opportunityName &&
+-        typeof schedule.opportunityId === "string" &&
+-        UUID_REGEX.test(schedule.opportunityId) ? (
+-          <Link
+-            href={`/opportunities/${schedule.opportunityId}`}
+-            className="block w-full min-w-0 truncate text-primary-700 hover:text-primary-800 focus:text-primary-800 focus:outline-none no-underline"
+-          >
+-            <span className="block w-full truncate text-primary-700 hover:text-primary-800 focus:text-primary-800 focus:outline-none">
+-              {schedule.opportunityName}
+-            </span>
+-          </Link>
+-        ) : (
+-          schedule.opportunityName
+-        )
+-    },
+-    {
+-      fieldId: "04.01.008",
+-      label: "Distributor Name",
+-      value:
+-        schedule.distributorId &&
+-        schedule.distributorName &&
+-        UUID_REGEX.test(schedule.distributorId) ? (
+-          <Link
+-            href={`/accounts/${schedule.distributorId}`}
+-            className="block w-full min-w-0 truncate text-primary-700 hover:text-primary-800 focus:text-primary-800 focus:outline-none no-underline"
+-          >
+-            <span className="block w-full truncate text-primary-700 hover:text-primary-800 focus:text-primary-800 focus:outline-none">
+-              {schedule.distributorName}
+-            </span>
+-          </Link>
+-        ) : (
+-          schedule.distributorName
+-        )
+-    },
+-    {
+-      fieldId: "04.01.009",
+-      label: "Vendor Name",
+-      value:
+-        schedule.vendorId &&
+-        schedule.vendorName &&
+-        UUID_REGEX.test(schedule.vendorId) ? (
+-          <Link
+-            href={`/accounts/${schedule.vendorId}`}
+-            className="block w-full min-w-0 truncate text-primary-700 hover:text-primary-800 focus:text-primary-800 focus:outline-none no-underline"
+-          >
+-            <span className="block w-full truncate text-primary-700 hover:text-primary-800 focus:text-primary-800 focus:outline-none">
+-              {schedule.vendorName}
+-            </span>
+-          </Link>
+-        ) : (
+-          schedule.vendorName
+-        )
+-    },
+-    {
+-      fieldId: "04.01.010",
+-      label: "Account Name",
+-      value:
+-        schedule.accountId &&
+-        schedule.accountName &&
+-        UUID_REGEX.test(schedule.accountId) ? (
+-          <Link
+-            href={`/accounts/${schedule.accountId}`}
+-            className="block w-full min-w-0 truncate text-primary-700 hover:text-primary-800 focus:text-primary-800 focus:outline-none no-underline"
+-          >
+-            <span className="block w-full truncate text-primary-700 hover:text-primary-800 focus:text-primary-800 focus:outline-none">
+-              {schedule.accountName}
+-            </span>
+-          </Link>
+-        ) : (
+-          schedule.accountName
+-        )
+-    },
+-    { fieldId: "04.01.011", label: "Legal Name", value: schedule.legalName ?? schedule.accountName },
+-    {
+-      fieldId: "04.01.012",
+-      label: "Shipping Address",
+-      value: schedule.shippingAddress ? (
+-        <span className="block truncate" title={schedule.shippingAddress}>
+-          {schedule.shippingAddress}
+-        </span>
+-      ) : undefined,
+-      fullWidth: true
+-    },
+-    {
+-      fieldId: "04.01.013",
+-      label: "Billing Address",
+-      value: schedule.billingAddress ? (
+-        <span className="block truncate" title={schedule.billingAddress}>
+-          {schedule.billingAddress}
+-        </span>
+-      ) : undefined,
+-      fullWidth: true
+-    }
+-  ]
+-
+-  const columnThree: FieldDefinition[] = [
+-    { fieldId: "04.01.014", label: "Commission Rate Expected", value: schedule.expectedCommissionRatePercent },
+-    { fieldId: "04.01.015", label: "Commission Rate Actual", value: schedule.actualCommissionRatePercent },
+-    { fieldId: "04.01.016", label: "Commission Rate Difference", value: schedule.commissionRateDifference },
+-    { fieldId: "04.01.017", label: "House Split %", value: schedule.houseSplitPercent },
+-    { fieldId: "04.01.018", label: "House Rep Split %", value: schedule.houseRepSplitPercent },
+-    { fieldId: "04.01.019", label: "Subagent Split %", value: schedule.subagentSplitPercent },
+-    { fieldId: "04.01.020", label: "Subagent", value: schedule.subagentName }
+-  ]
+-
+-  const topColumns = [columnOne, columnTwo, columnThree]
+-
+-  const summaryMetrics: MetricDefinition[] = [
+-    { fieldId: "04.01.022", label: "Quantity", value: schedule.quantity },
+-    { fieldId: "04.01.023", label: "Price Each", value: schedule.priceEach },
+-    { fieldId: "N/A", label: "Usage Gross (Est.)", value: schedule.expectedUsageGross ?? schedule.expectedUsage },
+-    {
+-      fieldId: "04.01.024",
+-      label: "Usage Adjustment",
+-      value: schedule.expectedUsageAdjustment ?? schedule.expectedUsage
+-    },
+-    { fieldId: "04.01.025", label: "Usage Net (Est.)", value: schedule.expectedUsageNet },
+-    { fieldId: "04.01.026", label: "Usage (Actual)", value: schedule.actualUsage },
+-    { fieldId: "04.01.027", label: "Usage Balance", value: schedule.usageBalance },
+-    { fieldId: "04.01.028", label: "Commission Gross (Est.)", value: schedule.expectedCommissionGross },
+-    { fieldId: "04.01.029", label: "Commission Adjustment", value: schedule.expectedCommissionAdjustment },
+-    { fieldId: "04.01.030", label: "Commission Net (Est.)", value: schedule.expectedCommissionNet },
+-    { fieldId: "N/A", label: "Commission (Actual)", value: schedule.actualCommission },
+-    { fieldId: "N/A", label: "Commission Variance", value: schedule.commissionDifference }
+-  ]
+-
+-  return (
+-    <div className="space-y-3 p-2">
+-      <div className="rounded-2xl bg-gray-100 p-3 shadow-sm h-[300px] overflow-y-auto">
+-        <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
+-          <div className="flex items-center gap-3">
+-            <p className="text-[13px] font-semibold uppercase tracking-wide text-primary-600">Revenue Schedule Detail</p>
+-            {enableInlineEditing && editor.isDirty ? (
+-              <span className="text-[11px] font-semibold text-amber-600">Unsaved changes</span>
+-            ) : null}
+-          </div>
+-          <div className="flex items-center gap-2">
+-            {canCreateTickets ? (
+-              <button
+-                type="button"
+-                onClick={() => supportingDetailsRef.current?.openTicketCreateModal()}
+-                disabled={!schedule}
+-                className="flex items-center gap-2 rounded-md border border-primary-600 bg-white px-3 py-1.5 text-sm font-medium text-primary-700 transition hover:bg-primary-50 disabled:cursor-not-allowed disabled:opacity-60"
+-              >
+-                Create Ticket
+-              </button>
+-            ) : null}
+-            {enableInlineEditing ? (
+-              <button
+-                type="button"
+-                onClick={handleSave}
+-                disabled={editor.saving || !editor.isDirty}
+-                className="flex items-center gap-2 rounded-md bg-primary-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-60"
+-              >
+-                {editor.saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Update"}
+-              </button>
+-            ) : null}
+-          </div>
+-        </div>
+-
+-        <div className="grid gap-6 lg:grid-cols-3">
+-          {topColumns.map((column, index) => (
+-            <div key={`column-${index}`} className="space-y-1.5">
+-              {column.map(field => {
+-                if (enableInlineEditing && field.fieldId === "04.01.000" && nameField) {
+-                  return (
+-                    <EditRow
+-                      key={`${field.fieldId}-${field.label}`}
+-                      label="Revenue Schedule Name"
+-                      control={
+-                        <EditableField.Input
+-                          value={(nameField.value as string) ?? ""}
+-                          onChange={nameField.onChange}
+-                          onBlur={nameField.onBlur}
+-                          placeholder="RS-10001"
+-                        />
+-                      }
+-                      error={editor.errors.revenueScheduleName}
+-                    />
+-                  )
+-                }
+-                if (enableInlineEditing && field.fieldId === "04.01.001" && dateField) {
+-                  return (
+-                    <EditRow
+-                      key={`${field.fieldId}-${field.label}`}
+-                      label="Revenue Schedule Date"
+-                      control={
+-                        <div className="relative">
+-                          <EditableField.Input
+-                            type="date"
+-                            value={(dateField.value as string) ?? ""}
+-                            onChange={dateField.onChange}
+-                            onBlur={dateField.onBlur}
+-                            className="pr-6 [color-scheme:light] [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-0 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-datetime-edit]:opacity-0 [&::-webkit-datetime-edit]:focus:opacity-100"
+-                            style={{ colorScheme: 'light' } as React.CSSProperties}
+-                            onFocus={(e) => {
+-                              e.currentTarget.classList.add('date-input-focused')
+-                            }}
+-                          />
+-                          <span className="pointer-events-none absolute left-0 top-1/2 -translate-y-1/2 text-xs text-gray-900">
+-                            {(dateField.value as string) || <span className="text-gray-400">YYYY-MM-DD</span>}
+-                          </span>
+-                        </div>
+-                      }
+-                      error={editor.errors.revenueScheduleDate}
+-                    />
+-                  )
+-                }
++      fieldId: "04.01.007",
++      label: "Opportunity",
++      value:
++        schedule.opportunityId &&
++        schedule.opportunityName &&
++        typeof schedule.opportunityId === "string" &&
++        UUID_REGEX.test(schedule.opportunityId) ? (
++          <Link
++            href={`/opportunities/${schedule.opportunityId}`}
++            className="block w-full min-w-0 truncate text-primary-700 hover:text-primary-800 focus:text-primary-800 focus:outline-none no-underline"
++          >
++            <span className="block w-full truncate text-primary-700 hover:text-primary-800 focus:text-primary-800 focus:outline-none">
++              {schedule.opportunityName}
++            </span>
++          </Link>
++        ) : (
++          schedule.opportunityName
++        )
++    },
++    {
++      fieldId: "04.01.031",
++      label: "Revenue Month",
++      value: schedule.revenueMonth ?? (schedule.revenueScheduleDate ? schedule.revenueScheduleDate.slice(0, 7) : undefined)
++    },
++    {
++      fieldId: "04.01.032",
++      label: "Product Name - House",
++      value:
++        schedule.productId &&
++        schedule.productNameHouse &&
++        UUID_REGEX.test(schedule.productId) ? (
++          <Link
++            href={`/products/${schedule.productId}`}
++            className="block w-full min-w-0 truncate text-primary-700 hover:text-primary-800 focus:text-primary-800 focus:outline-none no-underline"
++          >
++            {schedule.productNameHouse}
++          </Link>
++        ) : (
++          schedule.productNameHouse ?? schedule.productNameVendor
++        )
++    },
++    {
++      fieldId: "04.01.033",
++      label: "Opportunity Owner",
++      value: schedule.opportunityOwnerName
++    },
++    ...(!supportingDetailsV2
++      ? ([
++          {
++            fieldId: "04.01.005",
++            label: "Status",
++            value: schedule.scheduleStatus ?? "Unknown"
++          },
++          {
++            fieldId: "04.01.006",
++            label: "In Dispute",
++            value: schedule.inDispute ? "Yes" : "No"
++          }
++        ] satisfies FieldDefinition[])
++      : [])
++  ]
++
++  // Column 2 ΓÇô Partner Information
++  const columnTwo: FieldDefinition[] = [
++    {
++      fieldId: "04.01.020",
++      label: "Subagent",
++      value: schedule.subagentName
++    },
++    {
++      fieldId: "04.01.021",
++      label: "House Rep",
++      value: schedule.houseRepName
++    },
++    {
++      fieldId: "04.01.008",
++      label: "Distributor",
++      value:
++        schedule.distributorId &&
++        schedule.distributorName &&
++        UUID_REGEX.test(schedule.distributorId) ? (
++          <Link
++            href={`/accounts/${schedule.distributorId}`}
++            className="block w-full min-w-0 truncate text-primary-700 hover:text-primary-800 focus:text-primary-800 focus:outline-none no-underline"
++          >
++            <span className="block w-full truncate text-primary-700 hover:text-primary-800 focus:text-primary-800 focus:outline-none">
++              {schedule.distributorName}
++            </span>
++          </Link>
++        ) : (
++          schedule.distributorName
++        )
++    },
++    {
++      fieldId: "04.01.009",
++      label: "Vendor",
++      value:
++        schedule.vendorId &&
++        schedule.vendorName &&
++        UUID_REGEX.test(schedule.vendorId) ? (
++          <Link
++            href={`/accounts/${schedule.vendorId}`}
++            className="block w-full min-w-0 truncate text-primary-700 hover:text-primary-800 focus:text-primary-800 focus:outline-none no-underline"
++          >
++            <span className="block w-full truncate text-primary-700 hover:text-primary-800 focus:text-primary-800 focus:outline-none">
++              {schedule.vendorName}
++            </span>
++          </Link>
++        ) : (
++          schedule.vendorName
++        )
++    },
++    {
++      fieldId: "04.01.034",
++      label: "Payment Type",
++      value: schedule.paymentType
++    },
++    {
++      fieldId: "comments",
++      label: "Comments",
++      value: schedule.comments ?? schedule.notes,
++      fullWidth: true
++    },
++  ]
++
++  // Column 3 ΓÇô Additional Details
++  const columnThree: FieldDefinition[] = [
++    {
++      fieldId: "04.01.010",
++      label: "Account Name",
++      value:
++        schedule.accountId &&
++        schedule.accountName &&
++        UUID_REGEX.test(schedule.accountId) ? (
++          <Link
++            href={`/accounts/${schedule.accountId}`}
++            className="block w-full min-w-0 truncate text-primary-700 hover:text-primary-800 focus:text-primary-800 focus:outline-none no-underline"
++          >
++            <span className="block w-full truncate text-primary-700 hover:text-primary-800 focus:text-primary-800 focus:outline-none">
++              {schedule.accountName}
++            </span>
++          </Link>
++        ) : (
++          schedule.accountName
++        )
++    },
++    { fieldId: "04.01.035", label: "Account Legal Name", value: schedule.legalName ?? schedule.accountName },
++    {
++      fieldId: "04.01.012",
++      label: "Shipping Address",
++      value: schedule.shippingAddress ? (
++        <span className="block truncate" title={schedule.shippingAddress}>
++          {schedule.shippingAddress}
++        </span>
++      ) : undefined,
++      fullWidth: true
++    },
++    {
++      fieldId: "04.01.013",
++      label: "Billing Address",
++      value: schedule.billingAddress ? (
++        <span className="block truncate" title={schedule.billingAddress}>
++          {schedule.billingAddress}
++        </span>
++      ) : undefined,
++      fullWidth: true
++    }
++  ]
++
++  const topColumns = [columnOne, columnTwo, columnThree]
++
++  const summaryMetrics: MetricDefinition[] = [
++    { fieldId: "04.01.022", label: "Quantity", value: schedule.quantity },
++    { fieldId: "04.01.023", label: "Price Each", value: schedule.priceEach },
++    { fieldId: "N/A", label: "Usage Gross (Est.)", value: schedule.expectedUsageGross ?? schedule.expectedUsage },
++    {
++      fieldId: "04.01.024",
++      label: "Usage Adjustment",
++      value: schedule.expectedUsageAdjustment ?? schedule.expectedUsage
++    },
++    { fieldId: "04.01.025", label: "Usage Net (Est.)", value: schedule.expectedUsageNet },
++    { fieldId: "04.01.026", label: "Usage (Actual)", value: schedule.actualUsage },
++    { fieldId: "04.01.027", label: "Usage Balance", value: schedule.usageBalance },
++    { fieldId: "04.01.028", label: "Commission Gross (Est.)", value: schedule.expectedCommissionGross },
++    { fieldId: "04.01.029", label: "Commission Adjustment", value: schedule.expectedCommissionAdjustment },
++    { fieldId: "04.01.030", label: "Commission Net (Est.)", value: schedule.expectedCommissionNet },
++    { fieldId: "N/A", label: "Commission (Actual)", value: schedule.actualCommission },
++    { fieldId: "N/A", label: "Commission Variance", value: schedule.commissionDifference }
++  ]
++
++  return (
++    <div className="space-y-3 p-2">
++      <div className={cn("rounded-2xl bg-gray-100 p-3 shadow-sm", !supportingDetailsV2 && "h-[300px] overflow-y-auto")}>
++        <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
++          <div className="flex flex-wrap items-center gap-3">
++            <p className="text-[13px] font-semibold uppercase tracking-wide text-primary-600">Revenue Schedule Detail</p>
++            {supportingDetailsV2 && schedule.scheduleStatus ? (
++              <span className={cn("rounded-full border px-2 py-0.5 text-[11px] font-semibold", statusPillClass)}>
++                {schedule.scheduleStatus}
++              </span>
++            ) : null}
++            {supportingDetailsV2 && schedule.inDispute ? (
++              <span className={cn("rounded-full border px-2 py-0.5 text-[11px] font-semibold", disputePillClass)}>
++                In Dispute
++              </span>
++            ) : null}
++            {enableInlineEditing && editor.isDirty ? (
++              <span className="text-[11px] font-semibold text-amber-600">Unsaved changes</span>
++            ) : null}
++          </div>
++          <div className="flex items-center gap-2">
++            {canCreateTickets ? (
++              <button
++                type="button"
++                onClick={() => supportingDetailsRef.current?.openTicketCreateModal()}
++                disabled={!schedule}
++                className="flex items-center gap-2 rounded-md border border-primary-600 bg-white px-3 py-1.5 text-sm font-medium text-primary-700 transition hover:bg-primary-50 disabled:cursor-not-allowed disabled:opacity-60"
++              >
++                Create Ticket
++              </button>
++            ) : null}
++            {enableInlineEditing ? (
++              <button
++                type="button"
++                onClick={handleSave}
++                disabled={editor.saving || !editor.isDirty}
++                className="flex items-center gap-2 rounded-md bg-primary-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-60"
++              >
++                {editor.saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Update"}
++              </button>
++            ) : null}
++          </div>
++        </div>
++
++        <div className="grid gap-6 lg:grid-cols-3">
++          {topColumns.map((column, index) => (
++            <div key={`column-${index}`} className="space-y-1.5">
++              {column.map(field => {
++                if (enableInlineEditing && field.fieldId === "04.01.000" && nameField) {
++                  return (
++                    <EditRow
++                      key={`${field.fieldId}-${field.label}`}
++                      label="Revenue Schedule Name"
++                      control={
++                        <EditableField.Input
++                          value={(nameField.value as string) ?? ""}
++                          onChange={nameField.onChange}
++                          onBlur={nameField.onBlur}
++                          placeholder="RS-10001"
++                        />
++                      }
++                      error={editor.errors.revenueScheduleName}
++                    />
++                  )
++                }
++                if (enableInlineEditing && field.fieldId === "04.01.001" && dateField) {
++                  return (
++                    <EditRow
++                      key={`${field.fieldId}-${field.label}`}
++                      label="Revenue Schedule Date"
++                      control={
++                        <div className="relative">
++                          <EditableField.Input
++                            type="date"
++                            value={(dateField.value as string) ?? ""}
++                            onChange={dateField.onChange}
++                            onBlur={dateField.onBlur}
++                            className="pr-6 [color-scheme:light] [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-0 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-datetime-edit]:opacity-0 [&::-webkit-datetime-edit]:focus:opacity-100"
++                            style={{ colorScheme: 'light' } as React.CSSProperties}
++                            onFocus={(e) => {
++                              e.currentTarget.classList.add('date-input-focused')
++                            }}
++                          />
++                          <span className="pointer-events-none absolute left-0 top-1/2 -translate-y-1/2 text-xs text-gray-900">
++                            {(dateField.value as string) || <span className="text-gray-400">YYYY-MM-DD</span>}
++                          </span>
++                        </div>
++                      }
++                      error={editor.errors.revenueScheduleDate}
++                    />
++                  )
++                }
+                 if (enableInlineEditing && field.fieldId === "04.01.002" && productNameField) {
+                   return (
+                     <EditRow
+                       key={`${field.fieldId}-${field.label}`}
+                       label="Vendor - Product Name"
+-                      control={
+-                        <EditableField.Input
+-                          value={(productNameField.value as string) ?? ""}
+-                          onChange={productNameField.onChange}
+-                          onBlur={productNameField.onBlur}
+-                          placeholder="Product name"
+-                        />
+-                      }
+-                    />
+-                  )
+-                }
++                      control={
++                        <EditableField.Input
++                          value={(productNameField.value as string) ?? ""}
++                          onChange={productNameField.onChange}
++                          onBlur={productNameField.onBlur}
++                          placeholder="Product name"
++                        />
++                      }
++                    />
++                  )
++                }
+                 if (enableInlineEditing && field.fieldId === "04.01.003" && productDescField) {
+                   return (
+                     <EditRow
+                       key={`${field.fieldId}-${field.label}`}
+                       label="Vendor - Product Description"
+-                      control={
+-                        <EditableField.Input
+-                          value={(productDescField.value as string) ?? ""}
+-                          onChange={productDescField.onChange}
+-                          onBlur={productDescField.onBlur}
+-                          placeholder="Description"
+-                        />
+-                      }
+-                    />
+-                  )
+-                }
+-                  if (enableInlineEditing && field.fieldId === "04.01.004" && productTypeField) {
+-                    return (
+-                      <EditRow
+-                        key={`${field.fieldId}-${field.label}`}
+-                        label="Product Revenue Type"
+-                        control={
+-                          <EditableField.Select
+-                            value={(productTypeField.value as string) ?? ""}
+-                            onChange={productTypeField.onChange}
+-                            onBlur={productTypeField.onBlur}
+-                          >
+-                            <option value="">Select revenue type</option>
+-                            {REVENUE_TYPE_OPTIONS.map(option => (
+-                              <option key={option.value} value={option.value}>
+-                                {option.label}
+-                              </option>
+-                            ))}
+-                          </EditableField.Select>
+-                        }
+-                      />
+-                    )
+-                  }
+-                if (enableInlineEditing && field.fieldId === "04.01.014" && expectedRateField) {
+-                  return (
+-                    <EditRow
+-                      key={`${field.fieldId}-${field.label}`}
+-                      label="Commission Rate Expected"
+-                      control={
+-                        <EditableField.Input
+-                          value={(expectedRateField.value as string) ?? ""}
+-                          onChange={expectedRateField.onChange}
+-                          onBlur={expectedRateField.onBlur}
+-                          placeholder="12.50%"
+-                        />
+-                      }
+-                    />
+-                  )
+-                }
+-                if (enableInlineEditing && field.fieldId === "04.01.017" && houseSplitField) {
+-                  return (
+-                    <EditRow
+-                      key={`${field.fieldId}-${field.label}`}
+-                      label="House Split %"
+-                      control={
+-                        <EditableField.Input
+-                          value={(houseSplitField.value as string) ?? ""}
+-                          onChange={houseSplitField.onChange}
+-                          onBlur={houseSplitField.onBlur}
+-                          placeholder="20%"
+-                        />
+-                      }
+-                    />
+-                  )
+-                }
+-                if (enableInlineEditing && field.fieldId === "04.01.018" && houseRepSplitField) {
+-                  return (
+-                    <EditRow
+-                      key={`${field.fieldId}-${field.label}`}
+-                      label="House Rep Split %"
+-                      control={
+-                        <EditableField.Input
+-                          value={(houseRepSplitField.value as string) ?? ""}
+-                          onChange={houseRepSplitField.onChange}
+-                          onBlur={houseRepSplitField.onBlur}
+-                          placeholder="30%"
+-                        />
+-                      }
+-                    />
+-                  )
+-                }
+-                if (enableInlineEditing && field.fieldId === "04.01.019" && subagentSplitField) {
+-                  return (
+-                    <EditRow
+-                      key={`${field.fieldId}-${field.label}`}
+-                      label="Subagent Split %"
+-                      control={
+-                        <EditableField.Input
+-                          value={(subagentSplitField.value as string) ?? ""}
+-                          onChange={subagentSplitField.onChange}
+-                          onBlur={subagentSplitField.onBlur}
+-                          placeholder="50%"
+-                        />
+-                      }
+-                    />
+-                  )
+-                }
+-                return <FieldRow key={`${field.fieldId}-${field.label}`} {...field} />
+-              })}
+-            </div>
+-          ))}
+-        </div>
+-      </div>
+-
+-      <div className="border-y-2 border-blue-900 bg-blue-100 px-3 py-1.5">
+-        <h2 className="text-[11px] font-semibold uppercase tracking-wide text-gray-600 mb-1.5">Schedule Summary</h2>
+-        <div className="flex flex-wrap gap-2">
+-          {summaryMetrics.map(metric => (
+-            <MetricTile key={`${metric.fieldId}-${metric.label}`} {...metric} />
+-          ))}
+-        </div>
+-      </div>
+-
+-      <RevenueScheduleSupportingDetails ref={supportingDetailsRef} schedule={schedule} />
+-    </div>
+-  )
+-}
++                      control={
++                        <EditableField.Input
++                          value={(productDescField.value as string) ?? ""}
++                          onChange={productDescField.onChange}
++                          onBlur={productDescField.onBlur}
++                          placeholder="Description"
++                        />
++                      }
++                    />
++                  )
++                }
++                  if (enableInlineEditing && field.fieldId === "04.01.004" && productTypeField) {
++                    return (
++                      <EditRow
++                        key={`${field.fieldId}-${field.label}`}
++                        label="Product Revenue Type"
++                        control={
++                          <EditableField.Select
++                            value={(productTypeField.value as string) ?? ""}
++                            onChange={productTypeField.onChange}
++                            onBlur={productTypeField.onBlur}
++                          >
++                            <option value="">Select revenue type</option>
++                            {REVENUE_TYPE_OPTIONS.map(option => (
++                              <option key={option.value} value={option.value}>
++                                {option.label}
++                              </option>
++                            ))}
++                          </EditableField.Select>
++                        }
++                      />
++                    )
++                  }
++                if (enableInlineEditing && field.fieldId === "04.01.014" && expectedRateField) {
++                  return (
++                    <EditRow
++                      key={`${field.fieldId}-${field.label}`}
++                      label="Commission Rate Expected"
++                      control={
++                        <EditableField.Input
++                          value={(expectedRateField.value as string) ?? ""}
++                          onChange={expectedRateField.onChange}
++                          onBlur={expectedRateField.onBlur}
++                          placeholder="12.50%"
++                        />
++                      }
++                    />
++                  )
++                }
++                if (enableInlineEditing && field.fieldId === "04.01.017" && houseSplitField) {
++                  return (
++                    <EditRow
++                      key={`${field.fieldId}-${field.label}`}
++                      label="House Split %"
++                      control={
++                        <EditableField.Input
++                          value={(houseSplitField.value as string) ?? ""}
++                          onChange={houseSplitField.onChange}
++                          onBlur={houseSplitField.onBlur}
++                          placeholder="20%"
++                        />
++                      }
++                    />
++                  )
++                }
++                if (enableInlineEditing && field.fieldId === "04.01.018" && houseRepSplitField) {
++                  return (
++                    <EditRow
++                      key={`${field.fieldId}-${field.label}`}
++                      label="House Rep Split %"
++                      control={
++                        <EditableField.Input
++                          value={(houseRepSplitField.value as string) ?? ""}
++                          onChange={houseRepSplitField.onChange}
++                          onBlur={houseRepSplitField.onBlur}
++                          placeholder="30%"
++                        />
++                      }
++                    />
++                  )
++                }
++                if (enableInlineEditing && field.fieldId === "04.01.019" && subagentSplitField) {
++                  return (
++                    <EditRow
++                      key={`${field.fieldId}-${field.label}`}
++                      label="Subagent Split %"
++                      control={
++                        <EditableField.Input
++                          value={(subagentSplitField.value as string) ?? ""}
++                          onChange={subagentSplitField.onChange}
++                          onBlur={subagentSplitField.onBlur}
++                          placeholder="50%"
++                        />
++                      }
++                    />
++                  )
++                }
++                if (enableInlineEditing && field.fieldId === "comments" && commentsField) {
++                  return (
++                    <EditRow
++                      key="comments"
++                      label="Comments"
++                      control={
++                        <EditableField.Textarea
++                          value={(commentsField.value as string) ?? ""}
++                          onChange={commentsField.onChange}
++                          onBlur={commentsField.onBlur}
++                          rows={2}
++                          placeholder="Add internal comments for this schedule"
++                        />
++                      }
++                      error={editor.errors.comments}
++                    />
++                  )
++                }
++                return <FieldRow key={`${field.fieldId}-${field.label}`} {...field} />
++              })}
++            </div>
++          ))}
++        </div>
++      </div>
++
++      {supportingDetailsV2 ? (
++        <FinancialSummary
++          schedule={schedule}
++          onOpenSection={(sectionId) => supportingDetailsRef.current?.openSection(sectionId)}
++        />
++      ) : (
++        <div className="border-y-2 border-blue-900 bg-blue-100 px-3 py-1.5">
++          <h2 className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-gray-600">
++            Schedule Summary
++          </h2>
++          <div className="flex flex-wrap gap-2">
++            {summaryMetrics.map(metric => (
++              <MetricTile key={`${metric.fieldId}-${metric.label}`} {...metric} />
++            ))}
++          </div>
++        </div>
++      )}
++
++      <RevenueScheduleSupportingDetails
++        ref={supportingDetailsRef}
++        schedule={schedule}
++        enableRedesign={supportingDetailsV2}
++      />
++    </div>
++  )
++}
+diff --git a/components/revenue-schedule-supporting-details.tsx b/components/revenue-schedule-supporting-details.tsx
+index 4b8660c..dfae3d3 100644
+--- a/components/revenue-schedule-supporting-details.tsx
++++ b/components/revenue-schedule-supporting-details.tsx
+@@ -13,6 +13,7 @@ import {
+ import type { LucideIcon } from "lucide-react"
+ 
+ import type { RevenueScheduleDetailRecord } from "./revenue-schedule-details-view"
++import { cn } from "@/lib/utils"
+ import { ListHeader, type ColumnFilter } from "@/components/list-header"
+ import { ColumnChooserModal } from "@/components/column-chooser-modal"
+ import { DynamicTable, type Column, type PaginationInfo } from "@/components/dynamic-table"
+@@ -23,6 +24,13 @@ import { ACTIVITY_TABLE_BASE_COLUMNS } from "@/components/opportunity-details-vi
+ import { ActivityNoteCreateModal } from "@/components/activity-note-create-modal"
+ import { TicketCreateModal } from "@/components/ticket-create-modal"
+ import { useAuth } from "@/lib/auth-context"
++import { SectionContainer } from "@/components/section/SectionContainer"
++import { KeyValueGrid, type KeyValueItem } from "@/components/section/KeyValueGrid"
++import { DataTableLite, type DataTableColumn } from "@/components/section/DataTableLite"
++import { PillTabs } from "@/components/section/PillTabs"
++import { EmptyState } from "@/components/section/EmptyState"
++import { ErrorBanner } from "@/components/section/ErrorBanner"
++import { LoadingState } from "@/components/section/LoadingState"
+ 
+ interface SectionNavigationItem {
+   id: string
+@@ -49,6 +57,41 @@ interface FinancialSplitDefinition {
+ 
+ const placeholder = <span className="text-slate-300">--</span>
+ 
++function isPlainObject(value: unknown): value is Record<string, unknown> {
++  return Boolean(value) && typeof value === "object" && !Array.isArray(value)
++}
++
++function normalizeMatchMetadata(metadata: Record<string, unknown> | null) {
++  if (!metadata) return []
++
++  const readSection = (section: unknown, prefix: string) => {
++    if (!isPlainObject(section)) return []
++    return Object.entries(section)
++      .map(([key, raw]) => {
++        if (isPlainObject(raw) && ("value" in raw || "label" in raw)) {
++          const label = typeof raw.label === "string" && raw.label.trim() ? raw.label.trim() : key
++          const value = typeof raw.value === "string" ? raw.value : String((raw as any).value ?? "")
++          return [`${prefix}${label}`, value.trim()] as const
++        }
++        const value = typeof raw === "string" ? raw : String(raw ?? "")
++        return [`${prefix}${key}`, value.trim()] as const
++      })
++      .filter(([, value]) => value.length > 0)
++  }
++
++  const hasStructured =
++    (isPlainObject(metadata.additional) && Object.keys(metadata.additional).length > 0) ||
++    (isPlainObject(metadata.product) && Object.keys(metadata.product).length > 0)
++
++  if (hasStructured) {
++    const additional = readSection(metadata.additional, "")
++    const product = readSection(metadata.product, "Product - ")
++    return [...additional, ...product]
++  }
++
++  return readSection(metadata, "")
++}
++
+ function renderValue(value?: React.ReactNode) {
+   if (value === undefined || value === null) {
+     return placeholder
+@@ -89,7 +132,7 @@ function DetailLine({ label, value, emphasize = false, underline = false }: Deta
+   )
+ }
+ 
+-const SECTION_ITEMS: SectionNavigationItem[] = [
++const LEGACY_SECTION_ITEMS: SectionNavigationItem[] = [
+   {
+     id: "financial-summary",
+     label: "Financial Summary",
+@@ -134,18 +177,370 @@ const SECTION_ITEMS: SectionNavigationItem[] = [
+   }
+ ]
+ 
++const REDESIGN_SECTION_ITEMS: SectionNavigationItem[] = [
++  {
++    id: "opportunity-details",
++    label: "Opportunity Details",
++    description: "Account, order, customer, and location IDs",
++    icon: BriefcaseBusiness
++  },
++  {
++    id: "additional-information",
++    label: "Additional Information",
++    description: "Vendor/distributor metadata from matched deposits",
++    icon: Package
++  },
++  {
++    id: "commission-splits",
++    label: "Commission Splits",
++    description: "Reconciled and receivables by partner",
++    icon: PiggyBank
++  },
++  {
++    id: "transactions",
++    label: "Transactions",
++    description: "Billing, deposits, and payments activity",
++    icon: Coins
++  },
++  {
++    id: "activities-notes",
++    label: "Activities",
++    description: "Tasks, notes, and attached files",
++    icon: NotebookPen
++  },
++  {
++    id: "tickets",
++    label: "Tickets",
++    description: "Support tickets for this schedule",
++    icon: Ticket
++  }
++]
++
+ export interface RevenueScheduleSupportingDetailsHandle {
+   openTicketCreateModal: () => void
++  openSection: (sectionId: string) => void
++}
++
++interface ScheduleMatchCard {
++  id: string
++  depositLineItemId: string | null
++  depositId: string | null
++  depositName: string | null
++  depositPaymentDate: string | null
++  depositPaymentType: string | null
++  linePaymentDate: string | null
++  reconciledAt: string | null
++  usageAmount: number | null
++  commissionAmount: number | null
++  metadata: Record<string, unknown> | null
++}
++
++interface TransactionsSectionProps {
++  schedule: RevenueScheduleDetailRecord | null
++  matches: ScheduleMatchCard[]
++  formatDate: (value?: string | Date | null) => string
++}
++
++function TransactionsSection({ schedule, matches, formatDate }: TransactionsSectionProps) {
++  const [transactionFilter, setTransactionFilter] = useState<"all" | "billings" | "deposits" | "payments">("all")
++  const [paymentSplitFilter, setPaymentSplitFilter] = useState<"all" | "subagent" | "houseRep">("all")
++
++  const parseCurrency = (value?: string | null): number => {
++    if (!value) return 0
++    const cleaned = value.replace(/[^0-9.-]/g, "")
++    const numeric = Number(cleaned)
++    return Number.isFinite(numeric) ? numeric : 0
++  }
++
++  const parsePercent = (value?: string | null): number => {
++    if (!value) return 0
++    const cleaned = value.replace(/[^0-9.-]/g, "")
++    const numeric = Number(cleaned)
++    if (!Number.isFinite(numeric)) return 0
++    return numeric / 100
++  }
++
++  const formatMoney = (value: number): string =>
++    new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2 }).format(value)
++
++  const allRows: Array<{
++    id: string
++    date: string
++    type: "Billing" | "Commission Deposit" | "Payment"
++    account: string
++    split: string | null
++    splitId: "subagent" | "houseRep" | null
++    refId: string
++    amount: number
++    commission: number
++    paid: number
++    total: number
++  }> = []
++
++  if (schedule) {
++    const amount = parseCurrency(
++      schedule.actualUsage ?? schedule.expectedUsageNet ?? schedule.expectedUsageGross ?? schedule.expectedUsage
++    )
++
++    if (amount !== 0) {
++      const date = schedule.revenueScheduleDate ?? null
++      allRows.push({
++        id: `billing-${schedule.id}`,
++        date: formatDate(date ?? undefined),
++        type: "Billing",
++        account: schedule.accountName ?? "Customer",
++        split: null,
++        splitId: null,
++        refId: schedule.revenueSchedule ?? schedule.revenueScheduleName ?? schedule.id,
++        amount,
++        commission: 0,
++        paid: 0,
++        total: 0
++      })
++    }
++  }
++
++  for (const match of matches) {
++    const commission = match.commissionAmount ?? 0
++    const date = match.depositPaymentDate ?? match.linePaymentDate ?? null
++    const refId = match.depositName ?? match.depositId ?? match.id
++
++    if (commission !== 0) {
++      allRows.push({
++        id: `deposit-${match.id}`,
++        date: formatDate(date ?? undefined),
++        type: "Commission Deposit",
++        account: schedule?.vendorName ?? schedule?.distributorName ?? "Vendor",
++        split: null,
++        splitId: null,
++        refId,
++        amount: 0,
++        commission,
++        paid: 0,
++        total: 0
++      })
++    }
++  }
++
++  if (schedule) {
++    const commissionActual = parseCurrency(
++      schedule.actualCommission ?? schedule.expectedCommissionNet ?? schedule.expectedCommissionGross ?? schedule.expectedCommission
++    )
++    const subagentSplit = parsePercent(schedule.subagentSplitPercent)
++    const houseRepSplit = parsePercent(schedule.houseRepSplitPercent)
++    const paymentDate = matches[0]?.depositPaymentDate ?? schedule.revenueScheduleDate ?? null
++
++    if (commissionActual !== 0 && subagentSplit > 0) {
++      allRows.push({
++        id: `payment-subagent-${schedule.id}`,
++        date: formatDate(paymentDate ?? undefined),
++        type: "Payment",
++        account: schedule.subagentName ?? "Subagent",
++        split: `Subagent ${schedule.subagentSplitPercent ?? `${(subagentSplit * 100).toFixed(2)}%`}`,
++        splitId: "subagent",
++        refId: `PAY-${schedule.id}-001`,
++        amount: 0,
++        commission: 0,
++        paid: -(commissionActual * subagentSplit),
++        total: 0
++      })
++    }
++
++    if (commissionActual !== 0 && houseRepSplit > 0) {
++      allRows.push({
++        id: `payment-house-rep-${schedule.id}`,
++        date: formatDate(paymentDate ?? undefined),
++        type: "Payment",
++        account: schedule.houseRepName ?? "House Rep",
++        split: `House Rep ${schedule.houseRepSplitPercent ?? `${(houseRepSplit * 100).toFixed(2)}%`}`,
++        splitId: "houseRep",
++        refId: `PAY-${schedule.id}-002`,
++        amount: 0,
++        commission: 0,
++        paid: -(commissionActual * houseRepSplit),
++        total: 0
++      })
++    }
++  }
++
++  const filteredRows = allRows.filter(row => {
++    switch (transactionFilter) {
++      case "billings":
++        return row.type === "Billing"
++      case "deposits":
++        return row.type === "Commission Deposit"
++      case "payments":
++        return row.type === "Payment" && (paymentSplitFilter === "all" || row.splitId === paymentSplitFilter)
++      default:
++        return true
++    }
++  })
++
++  const columns: DataTableColumn[] = [
++    { id: "date", header: "Date", widthClass: "w-[110px] min-w-[110px]" },
++    { id: "type", header: "Type", widthClass: "w-[140px] min-w-[140px]" },
++    { id: "account", header: "Account", widthClass: "w-[220px] min-w-[220px]" },
++    { id: "split", header: "Split", widthClass: "w-[140px] min-w-[140px]" },
++    { id: "refId", header: "ID", widthClass: "w-[180px] min-w-[180px]" },
++    { id: "amount", header: "Amount", align: "right", widthClass: "w-[120px] min-w-[120px]" },
++    { id: "commission", header: "Commission", align: "right", widthClass: "w-[120px] min-w-[120px]" },
++    { id: "paid", header: "Paid", align: "right", widthClass: "w-[120px] min-w-[120px]" },
++    { id: "total", header: "Total", align: "right", widthClass: "w-[120px] min-w-[120px]" }
++  ]
++
++  let amountTotal = 0
++  let commissionTotal = 0
++  let paidTotal = 0
++
++  for (const row of allRows) {
++    if (row.type === "Billing") {
++      amountTotal += row.amount
++    }
++    if (row.type === "Commission Deposit") {
++      commissionTotal += row.commission
++    }
++    if (row.type === "Payment") {
++      paidTotal += row.paid
++    }
++  }
++
++  if (commissionTotal === 0 && schedule) {
++    commissionTotal = parseCurrency(
++      schedule.actualCommission ?? schedule.expectedCommissionNet ?? schedule.expectedCommissionGross ?? schedule.expectedCommission
++    )
++  }
++
++  const totalProfit = commissionTotal + paidTotal
++
++  const totals = {
++    amount: formatMoney(amountTotal),
++    commission: formatMoney(commissionTotal),
++    paid: formatMoney(paidTotal),
++    total: formatMoney(totalProfit)
++  }
++
++  const handleTransactionFilterChange = (option: "all" | "billings" | "deposits" | "payments") => {
++    setTransactionFilter(option)
++    if (option !== "payments") {
++      setPaymentSplitFilter("all")
++    }
++    if (option === "all") {
++      setPaymentSplitFilter("all")
++    }
++  }
++
++  const renderTypeBadge = (type: "Billing" | "Commission Deposit" | "Payment") => {
++    const base = "inline-flex items-center rounded px-2 py-0.5 text-[10px] font-semibold"
++    if (type === "Billing") return <span className={`${base} bg-blue-100 text-blue-700`}>Billing</span>
++    if (type === "Commission Deposit") return <span className={`${base} bg-emerald-100 text-emerald-700`}>Commission Deposit</span>
++    return <span className={`${base} bg-red-100 text-red-700`}>Payment</span>
++  }
++
++  const renderSplitBadge = (row: (typeof allRows)[number]) => {
++    if (!row.split) return <span className="text-slate-300">ΓÇö</span>
++    const base = "inline-flex items-center rounded px-2 py-0.5 text-[10px] font-semibold"
++    if (row.splitId === "subagent") return <span className={`${base} bg-orange-100 text-orange-700`}>{row.split}</span>
++    if (row.splitId === "houseRep") return <span className={`${base} bg-purple-100 text-purple-700`}>{row.split}</span>
++    return <span className={`${base} bg-slate-100 text-slate-700`}>{row.split}</span>
++  }
++
++  const renderMoneyCell = (value: number, mode: "amount" | "commission" | "paid") => {
++    if (value === 0) return <span className="text-slate-300">ΓÇö</span>
++    const formatted = formatMoney(value)
++    if (mode === "paid") return <span className="font-medium text-red-600">{formatted}</span>
++    return <span className="font-medium text-green-600">+{formatted}</span>
++  }
++
++  const tableRows = filteredRows.map(row => ({
++    date: row.date,
++    type: renderTypeBadge(row.type),
++    account: row.account,
++    split: renderSplitBadge(row),
++    refId: <span className="text-blue-600">{row.refId}</span>,
++    amount: renderMoneyCell(row.amount, "amount"),
++    commission: renderMoneyCell(row.commission, "commission"),
++    paid: renderMoneyCell(row.paid, "paid"),
++    total: <span className="text-slate-300">ΓÇö</span>
++  }))
++
++  return (
++    <SectionContainer
++      title="Transaction Ledger"
++      description="Billing, commission deposits, and payments affecting this revenue schedule."
++      actions={(
++        <div className="flex flex-wrap items-center gap-2">
++          <div className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-800">
++            <span className="mr-1 italic text-blue-600">Choose one:</span>
++            {(["all", "billings", "deposits", "payments"] as const).map(option => (
++              <button
++                key={option}
++                type="button"
++                onClick={() => handleTransactionFilterChange(option)}
++                className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
++                  transactionFilter === option
++                    ? "bg-blue-600 text-white"
++                    : "bg-transparent text-blue-700 hover:bg-blue-100"
++                }`}
++              >
++                {option === "all"
++                  ? "All"
++                  : option === "billings"
++                    ? "Billings"
++                    : option === "deposits"
++                      ? "Commission Deposits"
++                      : "Payments"}
++              </button>
++            ))}
++            {transactionFilter === "payments" ? (
++              <select
++                value={paymentSplitFilter}
++                onChange={(event) => setPaymentSplitFilter(event.target.value as typeof paymentSplitFilter)}
++                className="ml-1 rounded-full bg-blue-600 px-2 py-0.5 text-[10px] font-semibold text-white outline-none focus:ring-2 focus:ring-white/60"
++              >
++                <option value="all">All Splits</option>
++                <option value="subagent">Subagent</option>
++                <option value="houseRep">House Rep</option>
++              </select>
++            ) : null}
++          </div>
++          <span className="text-[10px] font-semibold text-blue-700">{filteredRows.length} transactions</span>
++        </div>
++      )}
++    >
++      <DataTableLite
++        columns={columns}
++        rows={tableRows}
++        totalsRow={{
++          amount: <span className="font-bold text-blue-600">{totals.amount}</span>,
++          commission: <span className="font-bold text-green-600">{totals.commission}</span>,
++          paid: <span className="font-bold text-red-600">{totals.paid}</span>,
++          total: <span className="font-bold text-blue-900">{totals.total}</span>
++        }}
++        emptyMessage="No transactions to display for this filter."
++      />
++    </SectionContainer>
++  )
+ }
+ 
+ export const RevenueScheduleSupportingDetails = forwardRef<
+   RevenueScheduleSupportingDetailsHandle,
+-  { schedule: RevenueScheduleDetailRecord | null }
+->(function RevenueScheduleSupportingDetails({ schedule }, ref) {
++  { schedule: RevenueScheduleDetailRecord | null; enableRedesign?: boolean }
++>(function RevenueScheduleSupportingDetails({ schedule, enableRedesign = false }, ref) {
+   const { hasPermission } = useAuth()
+   const canCreateTickets = hasPermission ? hasPermission("tickets.create") : true
+ 
+-  const [activeSectionId, setActiveSectionId] = useState<string>(SECTION_ITEMS[0].id)
++  const initialSection = enableRedesign ? REDESIGN_SECTION_ITEMS[0].id : LEGACY_SECTION_ITEMS[0].id
++
++  const [activeSectionId, setActiveSectionId] = useState<string>(initialSection)
++  const containerRef = useRef<HTMLElement | null>(null)
++
++  // When the feature flag flips (env or query param), reset the active
++  // section to the first entry in the relevant navigation set so we
++  // never point at an id that doesn't exist in the current layout.
++  useEffect(() => {
++    const target = enableRedesign ? REDESIGN_SECTION_ITEMS[0].id : LEGACY_SECTION_ITEMS[0].id
++    setActiveSectionId(target)
++  }, [enableRedesign])
+   // Activities & Notes ΓÇô dynamic table state
+   const [activitiesLoading, setActivitiesLoading] = useState<boolean>(false)
+   const [activitiesError, setActivitiesError] = useState<string | null>(null)
+@@ -181,15 +576,42 @@ export const RevenueScheduleSupportingDetails = forwardRef<
+   const [ticketCreateModalOpen, setTicketCreateModalOpen] = useState<boolean>(false)
+   const ticketsSearchDebounceRef = useRef<NodeJS.Timeout | null>(null)
+ 
++  // Matches / deposit metadata for Additional Information & Transactions
++  const [matchesLoading, setMatchesLoading] = useState<boolean>(false)
++  const [matchesError, setMatchesError] = useState<string | null>(null)
++  const [matches, setMatches] = useState<ScheduleMatchCard[]>([])
++  const [activeMatchId, setActiveMatchId] = useState<string | null>(null)
++
++  useEffect(() => {
++    if (!matches.length) {
++      setActiveMatchId(null)
++      return
++    }
++    if (!activeMatchId || !matches.some(match => match.id === activeMatchId)) {
++      setActiveMatchId(matches[0].id)
++    }
++  }, [matches, activeMatchId])
++
+   useImperativeHandle(
+     ref,
+     () => ({
+       openTicketCreateModal: () => {
+         setActiveSectionId("tickets")
+         setTicketCreateModalOpen(true)
++        setTimeout(() => {
++          containerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
++        }, 0)
++      },
++      openSection: (sectionId: string) => {
++        const validIds = (enableRedesign ? REDESIGN_SECTION_ITEMS : LEGACY_SECTION_ITEMS).map(item => item.id)
++        if (!validIds.includes(sectionId)) return
++        setActiveSectionId(sectionId)
++        setTimeout(() => {
++          containerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
++        }, 0)
+       }
+     }),
+-    []
++    [enableRedesign]
+   )
+ 
+   const RS_ACTIVITY_FILTER_COLUMNS: Array<{ id: string; label: string }> = useMemo(() => [
+@@ -549,14 +971,6 @@ export const RevenueScheduleSupportingDetails = forwardRef<
+     }
+   }, [schedule?.id, activitiesPage, activitiesPageSize, activitiesSearch, activitiesIncludeCompleted, mapApiRowToActivity])
+ 
+-  useEffect(() => {
+-    void fetchActivities()
+-  }, [fetchActivities])
+-
+-  useEffect(() => {
+-    void fetchTickets()
+-  }, [fetchTickets])
+-
+   const handleSearch = useCallback((query: string) => {
+     setActivitiesSearch(query)
+     setActivitiesPage(1)
+@@ -632,6 +1046,69 @@ export const RevenueScheduleSupportingDetails = forwardRef<
+     [tickets, ticketsColumnFilters]
+   )
+ 
++  const fetchMatches = useCallback(async () => {
++    if (!schedule?.id) {
++      setMatches([])
++      setMatchesError(null)
++      return
++    }
++
++    setMatchesLoading(true)
++    setMatchesError(null)
++
++    try {
++      const response = await fetch(`/api/revenue-schedules/${encodeURIComponent(String(schedule.id))}/matches`, {
++        cache: "no-store"
++      })
++      const payload = await response.json().catch(() => null)
++      if (!response.ok) {
++        throw new Error(payload?.error ?? "Failed to load matched deposits")
++      }
++
++      const rows: any[] = Array.isArray(payload?.data) ? payload.data : []
++      const mapped: ScheduleMatchCard[] = rows.map(row => ({
++        id: String(row.id ?? row.depositLineItemId ?? ""),
++        depositLineItemId: row.depositLineItemId ?? null,
++        depositId: row.depositId ?? null,
++        depositName: row.depositName ?? null,
++        depositPaymentDate: row.depositPaymentDate ?? null,
++        depositPaymentType: row.depositPaymentType ?? null,
++        linePaymentDate: row.linePaymentDate ?? null,
++        reconciledAt: row.reconciledAt ?? null,
++        usageAmount: typeof row.usageAmount === "number" ? row.usageAmount : null,
++        commissionAmount: typeof row.commissionAmount === "number" ? row.commissionAmount : null,
++        metadata: (row.metadata as Record<string, unknown> | null) ?? null
++      }))
++
++      setMatches(mapped)
++    } catch (error) {
++      console.error("Failed to load schedule matches", error)
++      setMatches([])
++      setMatchesError(error instanceof Error ? error.message : "Unable to load matched deposits")
++    } finally {
++      setMatchesLoading(false)
++    }
++  }, [schedule?.id])
++
++  // Lazy-load supporting data for the active section. This effect
++  // intentionally lives after the individual fetch callbacks so that
++  // they are fully initialized before being referenced here.
++  useEffect(() => {
++    if (activeSectionId === "activities-notes") {
++      void fetchActivities()
++    }
++    if (activeSectionId === "tickets") {
++      void fetchTickets()
++    }
++    if (enableRedesign && activeSectionId === "additional-information") {
++      void fetchMatches()
++    }
++    if (enableRedesign && activeSectionId === "transactions") {
++      // Transactions reuse the same match data; ensure we have it loaded.
++      void fetchMatches()
++    }
++  }, [activeSectionId, enableRedesign, fetchActivities, fetchTickets, fetchMatches])
++
+   const financialSplits = useMemo<FinancialSplitDefinition[]>(() => {
+     const commissionActual = schedule?.actualCommission ?? "$0.00"
+     const commissionDifference = schedule?.commissionDifference ?? "$0.00"
+@@ -730,6 +1207,18 @@ export const RevenueScheduleSupportingDetails = forwardRef<
+     return [columnA, columnB]
+   }, [schedule])
+ 
++  const opportunityKeyValueItems = useMemo<KeyValueItem[]>(
++    () =>
++      opportunityColumns.flatMap(column =>
++        column.map(field => ({
++          label: field.label,
++          value: field.value,
++          emphasize: field.emphasize
++        }))
++      ),
++    [opportunityColumns]
++  )
++
+   const productColumns = useMemo<DetailLineProps[][]>(() => {
+     const shippingAddress = schedule?.shippingAddress ?? "23, ABC Street"
+     const city = shippingAddress.split(",").slice(-2, -1)[0]?.trim() ?? "Rio Linda"
+@@ -750,6 +1239,18 @@ export const RevenueScheduleSupportingDetails = forwardRef<
+     return [fields.slice(0, 3), fields.slice(3)]
+   }, [schedule])
+ 
++  const productKeyValueItems = useMemo<KeyValueItem[]>(
++    () =>
++      productColumns.flatMap(column =>
++        column.map(field => ({
++          label: field.label,
++          value: field.value,
++          emphasize: field.emphasize
++        }))
++      ),
++    [productColumns]
++  )
++
+   const reconciledDeposits = useMemo(
+     () => [
+       {
+@@ -798,7 +1299,7 @@ export const RevenueScheduleSupportingDetails = forwardRef<
+     [schedule]
+   )
+ 
+-  const renderFinancialSummary = () => {
++  const renderFinancialSummaryLegacy = () => {
+     if (!activeSplit) {
+       return <p className="text-[11px] text-slate-500">No commission split data available.</p>
+     }
+@@ -846,7 +1347,7 @@ export const RevenueScheduleSupportingDetails = forwardRef<
+     )
+   }
+ 
+-  const renderOpportunityDetails = () => (
++  const renderOpportunityDetailsLegacy = () => (
+     <div className="space-y-3">
+       <div className="grid gap-4 lg:grid-cols-2">
+         {opportunityColumns.map((column, columnIndex) => (
+@@ -860,7 +1361,7 @@ export const RevenueScheduleSupportingDetails = forwardRef<
+     </div>
+   )
+ 
+-  const renderProductDetails = () => (
++  const renderProductDetailsLegacy = () => (
+     <div className="space-y-3">
+       <div className="grid gap-4 lg:grid-cols-2">
+         {productColumns.map((column, columnIndex) => (
+@@ -874,7 +1375,360 @@ export const RevenueScheduleSupportingDetails = forwardRef<
+     </div>
+   )
+ 
+-  const renderReconciledDeposits = () => (
++  const renderCommissionSplitsRedesign = () => {
++    if (!schedule) {
++      return (
++        <SectionContainer
++          title="Commission Splits"
++          description="Partner-level view of reconciled commissions and remaining receivables."
++        >
++          <EmptyState
++            title="No commission data"
++            description="Splits will appear here after expected and actual commissions are available."
++          />
++        </SectionContainer>
++      )
++    }
++
++    const parseCurrency = (value?: string | null): number => {
++      if (!value) return 0
++      const cleaned = value.replace(/[^0-9.-]/g, "")
++      const numeric = Number(cleaned)
++      return Number.isFinite(numeric) ? numeric : 0
++    }
++
++    const parsePercent = (value?: string | null): number => {
++      if (!value) return 0
++      const cleaned = value.replace(/[^0-9.-]/g, "")
++      const numeric = Number(cleaned)
++      if (!Number.isFinite(numeric)) return 0
++      return numeric / 100
++    }
++
++    const formatMoney = (amount: number): string =>
++      new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2 }).format(amount)
++
++    const commissionActual = parseCurrency(
++      schedule.actualCommission ?? schedule.expectedCommissionNet ?? schedule.expectedCommissionGross ?? schedule.expectedCommission
++    )
++
++    if (commissionActual === 0) {
++      return (
++        <SectionContainer
++          title="Commission Splits"
++          description="Partner-level view of reconciled commissions and remaining receivables."
++        >
++          <EmptyState
++            title="No commission data"
++            description="Splits will appear here after expected and actual commissions are available."
++          />
++        </SectionContainer>
++      )
++    }
++
++    const houseSplitLabel = schedule.houseSplitPercent ?? "20.00%"
++    const houseRepSplitLabel = schedule.houseRepSplitPercent ?? "30.00%"
++    const subagentSplitLabel = schedule.subagentSplitPercent ?? "50.00%"
++
++    const splitCards = [
++      {
++        id: "house",
++        label: schedule.accountName ?? "House",
++        percentLabel: houseSplitLabel,
++        percent: parsePercent(houseSplitLabel)
++      },
++      {
++        id: "houseRep",
++        label: schedule.houseRepName ? `House Rep - ${schedule.houseRepName}` : "House Rep",
++        percentLabel: houseRepSplitLabel,
++        percent: parsePercent(houseRepSplitLabel)
++      },
++      {
++        id: "subagent",
++        label: schedule.subagentName ? `Subagent - ${schedule.subagentName}` : "Subagent",
++        percentLabel: subagentSplitLabel,
++        percent: parsePercent(subagentSplitLabel)
++      }
++    ] as const
++
++    return (
++      <SectionContainer
++        title="Commission Splits"
++        description="Reconciled and receivables amounts broken out by partner split."
++      >
++        <div className="grid gap-3 lg:grid-cols-3">
++          {splitCards.map(split => {
++            const net = commissionActual * split.percent
++            return (
++              <div key={split.id} className="overflow-hidden rounded-lg border border-gray-200 bg-white">
++                <div className="bg-blue-900 px-3 py-2 text-white">
++                  <h4 className="text-xs font-semibold">
++                    {split.label} - {split.percentLabel}
++                  </h4>
++                </div>
++                <div className="space-y-2 p-2">
++                  <div className="rounded bg-gray-50 p-2">
++                    <h5 className="mb-1 text-xs font-semibold uppercase text-blue-800">Reconciled</h5>
++                    <div className="space-y-0.5">
++                      <div className="flex justify-between text-xs">
++                        <span className="text-gray-600">Actual Commission</span>
++                        <span className="font-medium">{formatMoney(commissionActual)}</span>
++                      </div>
++                      <div className="flex justify-between text-xs">
++                        <span className="text-gray-600">Split %</span>
++                        <span className="font-medium">├ù {split.percentLabel}</span>
++                      </div>
++                      <div className="mt-0.5 border-t border-gray-300 pt-0.5">
++                        <div className="flex justify-between text-xs">
++                          <span className="font-bold text-gray-700">Net</span>
++                          <span className="font-bold text-blue-900">{formatMoney(net)}</span>
++                        </div>
++                      </div>
++                    </div>
++                  </div>
++
++                  <div className="rounded bg-blue-50 p-2">
++                    <h5 className="mb-1 text-xs font-semibold uppercase text-blue-800">Receivables</h5>
++                    <div className="space-y-0.5">
++                      <div className="flex justify-between text-xs">
++                        <span className="text-gray-600">Actual Commission</span>
++                        <span className="font-medium">{formatMoney(net)}</span>
++                      </div>
++                      <div className="flex justify-between text-xs">
++                        <span className="text-gray-600">Paid</span>
++                        <span className="font-medium">- {formatMoney(net)}</span>
++                      </div>
++                      <div className="mt-0.5 border-t border-blue-200 pt-0.5">
++                        <div className="flex justify-between text-xs">
++                          <span className="font-bold text-gray-700">Total</span>
++                          <span className="font-bold text-blue-900">{formatMoney(0)}</span>
++                        </div>
++                      </div>
++                    </div>
++                  </div>
++                </div>
++              </div>
++            )
++          })}
++        </div>
++      </SectionContainer>
++    )
++  }
++
++  const renderOpportunityDetailsRedesign = () => (
++    <SectionContainer
++      title="Opportunity Details"
++      description="Account, order, customer, location and service IDs for this revenue schedule."
++    >
++      <KeyValueGrid items={opportunityKeyValueItems} columns={2} />
++    </SectionContainer>
++  )
++
++  const renderAdditionalInformationRedesign = () => {
++    if (matchesLoading) {
++      return (
++        <SectionContainer title="Additional Information" description="Vendor and distributor metadata from matched deposit line items.">
++          <LoadingState label="Loading matched deposits..." />
++        </SectionContainer>
++      )
++    }
++
++    if (matchesError) {
++      return (
++        <SectionContainer title="Additional Information" description="Vendor and distributor metadata from matched deposit line items.">
++          <ErrorBanner
++            message={matchesError}
++            action={(
++              <button
++                type="button"
++                onClick={() => void fetchMatches()}
++                className="rounded-full bg-white px-3 py-1 text-[11px] font-semibold text-primary-700 shadow-sm ring-1 ring-primary-200 hover:bg-primary-50"
++              >
++                Retry
++              </button>
++            )}
++          />
++        </SectionContainer>
++      )
++    }
++
++    if (!matches.length) {
++      return (
++        <SectionContainer title="Additional Information" description="Vendor and distributor metadata from matched deposit line items.">
++          <EmptyState
++            title="No matched deposits"
++            description="Once deposit line items are matched and reconciled, their metadata will appear here."
++          />
++        </SectionContainer>
++      )
++    }
++
++    const formatCardDate = (iso?: string | null) => (iso ? formatDate(iso) : "ΓÇö")
++
++    const activeCard =
++      (activeMatchId ? matches.find(match => match.id === activeMatchId) : null) ?? matches[0]
++
++    const normalizeKey = (value: string) => value.trim().toLowerCase().replace(/\s+/g, " ")
++
++    const metadataEntries = normalizeMatchMetadata(activeCard.metadata ?? null)
++
++    const findEntry = (candidates: string[]): readonly [string, string] | null => {
++      for (const candidate of candidates) {
++        const target = normalizeKey(candidate)
++        const exact = metadataEntries.find(([key]) => normalizeKey(key) === target)
++        if (exact) return exact
++        const partial = metadataEntries.find(([key]) => normalizeKey(key).includes(target))
++        if (partial) return partial
++      }
++      return null
++    }
++
++    const usedKeys = new Set<string>()
++    const remember = (entry: readonly [string, string] | null) => {
++      if (entry) usedKeys.add(normalizeKey(entry[0]))
++    }
++
++    const servicesEntry = findEntry(["services", "service"])
++    const vendorProductNameEntry = findEntry(["product name - vendor", "vendor product name", "product name"])
++    const salesIdEntry = findEntry(["sales id", "sales_id", "salesid"])
++    const productCodeEntry = findEntry(["product code", "product_code", "productcode"])
++
++    remember(servicesEntry)
++    remember(vendorProductNameEntry)
++    remember(salesIdEntry)
++    remember(productCodeEntry)
++
++    const isKnownIdKey = (key: string) => {
++      const normalized = normalizeKey(key)
++      return ["account id", "order id", "customer id", "location id", "service id"].some(fragment =>
++        normalized.includes(fragment)
++      )
++    }
++
++    const remainingEntries = metadataEntries.filter(([key]) => !usedKeys.has(normalizeKey(key)) && !isKnownIdKey(key))
++    const perColumn = Math.ceil(remainingEntries.length / 3) || 0
++    const columns = [0, 1, 2].map(index => remainingEntries.slice(index * perColumn, (index + 1) * perColumn))
++
++    const placeholderRows = Array.from({ length: 5 }).map((_, index) => (
++      <div key={`placeholder-${index}`} className="flex justify-between items-center">
++        <span className="text-xs text-gray-400">New Field</span>
++        <span className="text-xs font-medium text-gray-400">ΓÇö</span>
++      </div>
++    ))
++
++    const depositLabel = activeCard.depositName ?? activeCard.depositId ?? "ΓÇö"
++
++    return (
++      <SectionContainer title="Additional Information" description="Vendor and distributor metadata from matched deposit line items.">
++        <div className="space-y-3">
++          {matches.length > 1 ? (
++            <PillTabs
++              tabs={matches.map(match => ({
++                id: match.id,
++                label: match.depositName ?? match.depositId ?? match.id
++              }))}
++              activeId={activeCard.id}
++              onChange={setActiveMatchId}
++            />
++          ) : null}
++
++          <div className="grid grid-cols-1 gap-3 lg:grid-cols-4">
++            <div className="border border-gray-200 rounded-lg bg-white overflow-hidden">
++              <div className="bg-gray-100 border-b border-gray-200 px-3 py-1.5 flex justify-between items-center">
++                <div className="flex items-center space-x-2 min-w-0">
++                  <span className="text-xs bg-blue-900 text-white px-2 py-0.5 rounded font-medium whitespace-nowrap">
++                    Commission Deposit
++                  </span>
++                  <span className="text-xs font-semibold text-gray-700 truncate" title={depositLabel}>
++                    {depositLabel}
++                  </span>
++                </div>
++              </div>
++              <div className="p-3 space-y-1.5">
++                <div className="flex justify-between items-center">
++                  <span className="text-xs text-gray-600">Reconciled</span>
++                  <span className="text-xs font-medium text-gray-900">
++                    {formatCardDate(activeCard.reconciledAt ?? activeCard.depositPaymentDate ?? activeCard.linePaymentDate)}
++                  </span>
++                </div>
++                <div className="flex justify-between items-center">
++                  <span className="text-xs text-gray-600">Payment Type</span>
++                  <span className="text-xs font-medium text-gray-900">{activeCard.depositPaymentType ?? "ΓÇö"}</span>
++                </div>
++                <div className="flex justify-between items-center gap-3">
++                  <span className="text-xs text-gray-600">Services</span>
++                  <span className="text-xs font-medium text-gray-900 truncate" title={servicesEntry?.[1] ?? ""}>
++                    {servicesEntry?.[1] ?? "ΓÇö"}
++                  </span>
++                </div>
++                <div className="flex justify-between items-center gap-3">
++                  <span className="text-xs text-gray-600">Product Name - Vendor</span>
++                  <span
++                    className="text-xs font-medium text-gray-900 truncate"
++                    title={vendorProductNameEntry?.[1] ?? schedule?.productNameVendor ?? ""}
++                  >
++                    {vendorProductNameEntry?.[1] ?? schedule?.productNameVendor ?? "ΓÇö"}
++                  </span>
++                </div>
++                <div className="flex justify-between items-center gap-3">
++                  <span className="text-xs text-gray-600">Sales ID</span>
++                  <span className="text-xs font-medium text-gray-900 truncate" title={salesIdEntry?.[1] ?? ""}>
++                    {salesIdEntry?.[1] ?? "ΓÇö"}
++                  </span>
++                </div>
++                <div className="flex justify-between items-center gap-3">
++                  <span className="text-xs text-gray-600">Product Code</span>
++                  <span className="text-xs font-medium text-gray-900 truncate" title={productCodeEntry?.[1] ?? ""}>
++                    {productCodeEntry?.[1] ?? "ΓÇö"}
++                  </span>
++                </div>
++              </div>
++            </div>
++
++            {columns.map((columnEntries, columnIndex) => {
++              const hasEntries = columnEntries.length > 0
++              return (
++                <div key={`meta-column-${columnIndex}`} className="border border-gray-200 rounded-lg bg-white overflow-hidden">
++                  <div className="bg-gray-100 border-b border-gray-200 px-3 py-1.5 flex justify-between items-center">
++                    <div className="flex items-center space-x-2">
++                      <span
++                        className={`text-xs px-2 py-0.5 rounded font-medium ${
++                          hasEntries ? "bg-blue-200 text-blue-800" : "bg-gray-400 text-white"
++                        }`}
++                      >
++                        {hasEntries ? "Meta" : "ΓÇö"}
++                      </span>
++                      <span className={`text-xs font-semibold ${hasEntries ? "text-gray-700" : "text-gray-400"}`}>
++                        {hasEntries ? "Metadata" : "No Data"}
++                      </span>
++                    </div>
++                  </div>
++                  <div className="p-3 space-y-1">
++                    {hasEntries
++                      ? columnEntries.map(([key, value]) => (
++                          <div key={`${activeCard.id}-${columnIndex}-${key}`} className="flex justify-between items-center gap-3">
++                            <span className="text-xs text-gray-600 truncate" title={key}>
++                              {key}
++                            </span>
++                            <span className="text-xs font-medium text-gray-900 truncate" title={value}>
++                              {value}
++                            </span>
++                          </div>
++                        ))
++                      : placeholderRows}
++                  </div>
++                </div>
++              )
++            })}
++          </div>
++        </div>
++      </SectionContainer>
++    )
++  }
++
++  const renderTransactionsRedesign = () => <TransactionsSection schedule={schedule} matches={matches} formatDate={formatDate} />
++
++  const renderReconciledDepositsLegacy = () => (
+     <div className="space-y-3">
+       <div className="overflow-x-auto">
+         <table className="w-full min-w-[720px] table-fixed overflow-hidden rounded-2xl border border-slate-200 text-[11px]">
+@@ -938,7 +1792,7 @@ export const RevenueScheduleSupportingDetails = forwardRef<
+     </div>
+   )
+ 
+-  const renderPaymentsMade = () => (
++  const renderPaymentsMadeLegacy = () => (
+     <div className="space-y-3">
+       <div className="overflow-x-auto">
+         <table className="w-full min-w-[720px] table-fixed overflow-hidden rounded-2xl border border-slate-200 text-[11px]">
+@@ -1096,71 +1950,158 @@ export const RevenueScheduleSupportingDetails = forwardRef<
+ 
+   let sectionContent: React.ReactNode
+ 
+-  switch (activeSectionId) {
+-    case "financial-summary":
+-      sectionContent = renderFinancialSummary()
+-      break
+-    case "opportunity-details":
+-      sectionContent = renderOpportunityDetails()
+-      break
+-    case "product-details":
+-      sectionContent = renderProductDetails()
+-      break
+-    case "reconciled-deposits":
+-      sectionContent = renderReconciledDeposits()
+-      break
+-    case "payments-made":
+-      sectionContent = renderPaymentsMade()
+-      break
+-    case "activities-notes":
+-      sectionContent = renderActivitiesNotes()
+-      break
+-    case "tickets":
+-      sectionContent = renderTickets()
+-      break
+-    default:
+-      sectionContent = null
++  if (enableRedesign) {
++    switch (activeSectionId) {
++      case "opportunity-details":
++        sectionContent = renderOpportunityDetailsRedesign()
++        break
++      case "additional-information":
++        sectionContent = renderAdditionalInformationRedesign()
++        break
++      case "commission-splits":
++        sectionContent = renderCommissionSplitsRedesign()
++        break
++      case "transactions":
++        sectionContent = renderTransactionsRedesign()
++        break
++      case "activities-notes":
++        sectionContent = (
++          <SectionContainer
++            title="Activities"
++            description="Timeline of activities, notes, and files associated with this revenue schedule."
++          >
++            {renderActivitiesNotes()}
++          </SectionContainer>
++        )
++        break
++      case "tickets":
++        sectionContent = (
++          <SectionContainer
++            title="Tickets"
++            description="Support tickets related to this revenue schedule."
++          >
++            {renderTickets()}
++          </SectionContainer>
++        )
++        break
++      default:
++        sectionContent = null
++    }
++  } else {
++    switch (activeSectionId) {
++      case "financial-summary":
++        sectionContent = renderFinancialSummaryLegacy()
++        break
++      case "opportunity-details":
++        sectionContent = renderOpportunityDetailsLegacy()
++        break
++      case "product-details":
++        sectionContent = renderProductDetailsLegacy()
++        break
++      case "reconciled-deposits":
++        sectionContent = renderReconciledDepositsLegacy()
++        break
++      case "payments-made":
++        sectionContent = renderPaymentsMadeLegacy()
++        break
++      case "activities-notes":
++        sectionContent = renderActivitiesNotes()
++        break
++      case "tickets":
++        sectionContent = renderTickets()
++        break
++      default:
++        sectionContent = null
++    }
+   }
+ 
++  const navigationItems = enableRedesign ? REDESIGN_SECTION_ITEMS : LEGACY_SECTION_ITEMS
++
+   return (
+     <>
+-      <section>
+-        <div className="grid gap-2 xl:grid-cols-[260px,1fr] items-start">
+-          <nav className="flex flex-col gap-0 rounded-3xl border border-slate-300 bg-white p-0 overflow-hidden divide-y divide-blue-200 self-start h-fit">
+-            {SECTION_ITEMS.map(item => {
+-              const Icon = item.icon
+-              const isActive = item.id === activeSectionId
+-              return (
+-                <button
+-                  key={item.id}
+-                  type="button"
+-                  onClick={() => setActiveSectionId(item.id)}
+-                  className={`flex w-full items-start gap-2 px-3 py-2 text-left transition shadow-sm ${
+-                    isActive
+-                      ? "rounded-none bg-primary-700 text-white hover:bg-primary-800"
+-                      : "rounded-none bg-gradient-to-b from-blue-100 to-blue-200 text-primary-800 hover:from-blue-200 hover:to-blue-300"
+-                  }`}
+-                >
+-                  <span
+-                    className={`flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full border ${
+-                      isActive ? "border-white bg-white text-primary-700" : "border-blue-200 bg-white text-primary-700"
++      <section ref={containerRef}>
++        {enableRedesign ? (
++          <div className="rounded-3xl border border-slate-300 bg-white shadow-sm">
++            <div className="flex flex-wrap items-end gap-1 border-b border-blue-200 bg-gradient-to-r from-blue-50 to-blue-100 px-3 pt-1">
++              {navigationItems.map(item => {
++                const isActive = item.id === activeSectionId
++                return (
++                  <button
++                    key={item.id}
++                    type="button"
++                    onClick={() => setActiveSectionId(item.id)}
++                    className={cn(
++                      "inline-flex items-center border-b-2 px-3 pb-1 pt-2 text-[11px] font-semibold transition",
++                      isActive
++                        ? "border-primary-700 text-primary-800"
++                        : "border-transparent text-primary-700/70 hover:text-primary-800"
++                    )}
++                  >
++                    {item.label}
++                  </button>
++                )
++              })}
++            </div>
++            <div className="p-3">
++              {sectionContent ?? (
++                <p className="text-[11px] text-slate-500">Select a section to view its details.</p>
++              )}
++            </div>
++          </div>
++        ) : (
++          <div className="grid items-start gap-2 xl:grid-cols-[260px,1fr]">
++            <nav className="flex h-fit flex-col gap-0 divide-y divide-blue-200 self-start overflow-hidden rounded-3xl border border-slate-300 bg-white p-0">
++              {navigationItems.map(item => {
++                const Icon = item.icon
++                const isActive = item.id === activeSectionId
++                return (
++                  <button
++                    key={item.id}
++                    type="button"
++                    onClick={() => setActiveSectionId(item.id)}
++                    className={`flex w-full items-start gap-2 px-3 py-2 text-left transition shadow-sm ${
++                      isActive
++                        ? "rounded-none bg-primary-700 text-white hover:bg-primary-800"
++                        : "rounded-none bg-gradient-to-b from-blue-100 to-blue-200 text-primary-800 hover:from-blue-200 hover:to-blue-300"
+                     }`}
+                   >
+-                    <Icon className="h-4 w-4" />
+-                  </span>
+-                  <span className="space-y-0.5">
+-                    <span className={`block text-[11px] font-semibold ${isActive ? "text-white" : "text-primary-800"}`}>{item.label}</span>
+-                    <span className={`block text-[11px] leading-tight ${isActive ? "text-blue-100" : "text-primary-700/70"}`}>{item.description}</span>
+-                  </span>
+-                </button>
+-              )
+-            })}
+-          </nav>
++                    <span
++                      className={`flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full border ${
++                        isActive
++                          ? "border-white bg-white text-primary-700"
++                          : "border-blue-200 bg-white text-primary-700"
++                      }`}
++                    >
++                      <Icon className="h-4 w-4" />
++                    </span>
++                    <span className="space-y-0.5">
++                      <span
++                        className={`block text-[11px] font-semibold ${
++                          isActive ? "text-white" : "text-primary-800"
++                        }`}
++                      >
++                        {item.label}
++                      </span>
++                      <span
++                        className={`block text-[11px] leading-tight ${
++                          isActive ? "text-blue-100" : "text-primary-700/70"
++                        }`}
++                      >
++                        {item.description}
++                      </span>
++                    </span>
++                  </button>
++                )
++              })}
++            </nav>
+ 
+-          <div className="p-3">
+-            {sectionContent ?? <p className="text-[11px] text-slate-500">Select a section to view its details.</p>}
++            <div className="p-3">
++              {sectionContent ?? (
++                <p className="text-[11px] text-slate-500">Select a section to view its details.</p>
++              )}
++            </div>
+           </div>
+-        </div>
++        )}
+       </section>
+ 
+       <TicketCreateModal
+diff --git a/components/section/DataTableLite.tsx b/components/section/DataTableLite.tsx
+new file mode 100644
+index 0000000..547a0a3
+--- /dev/null
++++ b/components/section/DataTableLite.tsx
+@@ -0,0 +1,138 @@
++import type { ReactNode } from "react"
++
++import { cn } from "@/lib/utils"
++
++export interface DataTableColumn {
++  id: string
++  header: string
++  align?: "left" | "right" | "center"
++  widthClass?: string
++}
++
++export interface DataTableLiteProps<Row extends Record<string, any>> {
++  columns: DataTableColumn[]
++  rows: Row[]
++  totalsRow?: Partial<Record<string, ReactNode>>
++  getRowKey?: (row: Row, index: number) => string
++  emptyMessage?: string
++  className?: string
++}
++
++export function DataTableLite<Row extends Record<string, any>>({
++  columns,
++  rows,
++  totalsRow,
++  getRowKey,
++  emptyMessage = "No records to display",
++  className
++}: DataTableLiteProps<Row>) {
++  const hasRows = rows.length > 0
++
++  return (
++    <div className={cn("overflow-x-auto", className)}>
++      <table className="w-full min-w-[720px] table-fixed overflow-hidden rounded-2xl border border-slate-200 text-[11px]">
++        <thead className="bg-indigo-50 text-indigo-700">
++          <tr>
++            {columns.map(column => {
++              const align =
++                column.align === "right"
++                  ? "text-right"
++                  : column.align === "center"
++                    ? "text-center"
++                    : "text-left"
++              return (
++                <th
++                  key={column.id}
++                  className={cn(
++                    "px-2 py-1.5 text-[11px] font-semibold uppercase tracking-wide tabular-nums",
++                    align,
++                    column.widthClass
++                  )}
++                >
++                  {column.header}
++                </th>
++              )
++            })}
++          </tr>
++        </thead>
++        <tbody className="bg-white text-slate-700">
++          {!hasRows ? (
++            <tr>
++              <td
++                colSpan={columns.length}
++                className="px-3 py-4 text-center text-[11px] text-slate-500"
++              >
++                {emptyMessage}
++              </td>
++            </tr>
++          ) : (
++            rows.map((row, rowIndex) => (
++              <tr
++                key={getRowKey ? getRowKey(row, rowIndex) : String(rowIndex)}
++                className="border-t border-slate-100"
++              >
++                {columns.map(column => {
++                  const rawValue = row[column.id]
++                  const align =
++                    column.align === "right"
++                      ? "text-right"
++                      : column.align === "center"
++                        ? "text-center"
++                        : "text-left"
++                  return (
++                    <td
++                      key={column.id}
++                      className={cn(
++                        "px-2 py-1.5",
++                        align,
++                        column.widthClass,
++                        typeof rawValue === "number" && "tabular-nums"
++                      )}
++                    >
++                      {typeof rawValue === "string" ? (
++                        <span className="block truncate" title={rawValue}>
++                          {rawValue}
++                        </span>
++                      ) : (
++                        rawValue
++                      )}
++                    </td>
++                  )
++                })}
++              </tr>
++            ))
++          )}
++        </tbody>
++        {totalsRow ? (
++          <tfoot>
++            <tr className="border-t border-slate-200 bg-slate-50 font-semibold">
++              {columns.map((column, index) => {
++                const align =
++                  column.align === "right"
++                    ? "text-right"
++                    : column.align === "center"
++                      ? "text-center"
++                      : "text-left"
++                const value = totalsRow[column.id]
++                return (
++                  <td
++                    key={column.id}
++                    className={cn(
++                      "px-2 py-1.5",
++                      align,
++                      column.widthClass,
++                      index === 0 && "uppercase tracking-wide"
++                    )}
++                  >
++                    {value ?? (index === 0 ? "Totals" : null)}
++                  </td>
++                )
++              })}
++            </tr>
++          </tfoot>
++        ) : null}
++      </table>
++    </div>
++  )
++}
++
+diff --git a/components/section/EmptyState.tsx b/components/section/EmptyState.tsx
+new file mode 100644
+index 0000000..1870d51
+--- /dev/null
++++ b/components/section/EmptyState.tsx
+@@ -0,0 +1,22 @@
++import type { ReactNode } from "react"
++import { Inbox } from "lucide-react"
++
++interface EmptyStateProps {
++  title: string
++  description?: string
++  action?: ReactNode
++}
++
++export function EmptyState({ title, description, action }: EmptyStateProps) {
++  return (
++    <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center">
++      <Inbox className="h-6 w-6 text-slate-300" />
++      <div className="space-y-0.5">
++        <p className="text-[11px] font-semibold text-slate-700 uppercase tracking-wide">{title}</p>
++        {description ? <p className="text-[11px] text-slate-500">{description}</p> : null}
++      </div>
++      {action ? <div className="mt-1">{action}</div> : null}
++    </div>
++  )
++}
++
+diff --git a/components/section/ErrorBanner.tsx b/components/section/ErrorBanner.tsx
+new file mode 100644
+index 0000000..9d3398c
+--- /dev/null
++++ b/components/section/ErrorBanner.tsx
+@@ -0,0 +1,22 @@
++import type { ReactNode } from "react"
++import { AlertCircle } from "lucide-react"
++
++interface ErrorBannerProps {
++  title?: string
++  message: string
++  action?: ReactNode
++}
++
++export function ErrorBanner({ title = "Something went wrong", message, action }: ErrorBannerProps) {
++  return (
++    <div className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-[11px] text-red-700">
++      <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
++      <div className="space-y-0.5">
++        <p className="font-semibold">{title}</p>
++        <p>{message}</p>
++        {action ? <div className="mt-1">{action}</div> : null}
++      </div>
++    </div>
++  )
++}
++
+diff --git a/components/section/KeyValueGrid.tsx b/components/section/KeyValueGrid.tsx
+new file mode 100644
+index 0000000..7498f23
+--- /dev/null
++++ b/components/section/KeyValueGrid.tsx
+@@ -0,0 +1,83 @@
++import type { ReactNode } from "react"
++
++import { cn } from "@/lib/utils"
++
++export interface KeyValueItem {
++  label: string
++  value?: ReactNode
++  emphasize?: boolean
++}
++
++interface KeyValueGridProps {
++  items: KeyValueItem[]
++  /**
++   * Number of visual columns. Values above 3 are clamped.
++   */
++  columns?: 1 | 2 | 3
++  className?: string
++}
++
++const placeholder = <span className="text-slate-300">--</span>
++
++function renderValue(value?: ReactNode) {
++  if (value === undefined || value === null) return placeholder
++  if (typeof value === "string") {
++    const trimmed = value.trim()
++    if (!trimmed.length) return placeholder
++    return (
++      <span className="block truncate" title={trimmed}>
++        {trimmed}
++      </span>
++    )
++  }
++  return value
++}
++
++export function KeyValueGrid({ items, columns = 2, className }: KeyValueGridProps) {
++  const safeColumns = Math.min(Math.max(columns, 1), 3)
++  const perColumn = Math.ceil(items.length / safeColumns) || 1
++
++  const columnGroups: KeyValueItem[][] = []
++  for (let i = 0; i < safeColumns; i += 1) {
++    const start = i * perColumn
++    const end = start + perColumn
++    columnGroups.push(items.slice(start, end))
++  }
++
++  return (
++    <div className={cn("grid gap-4 lg:grid-cols-2 xl:grid-cols-3", className)}>
++      {columnGroups.map((column, columnIndex) => (
++        <div key={columnIndex} className="space-y-1.5 min-w-0">
++          {column.map((item, itemIndex) => {
++            const valueNode = renderValue(item.value)
++            return (
++              <div
++                key={`${columnIndex}-${itemIndex}-${item.label}`}
++                className="grid grid-cols-[minmax(120px,200px),minmax(0,1fr)] items-baseline gap-2 text-[11px]"
++              >
++                <span
++                  className={cn(
++                    "text-slate-600",
++                    item.emphasize && "font-semibold text-slate-800"
++                  )}
++                >
++                  {item.label}
++                </span>
++                <span
++                  className={cn(
++                    "text-left text-slate-800",
++                    item.emphasize && "font-semibold",
++                    "min-w-0"
++                  )}
++                >
++                  {valueNode}
++                </span>
++              </div>
++            )
++          })}
++        </div>
++      ))}
++    </div>
++  )
++}
++
+diff --git a/components/section/LoadingState.tsx b/components/section/LoadingState.tsx
+new file mode 100644
+index 0000000..579cf9c
+--- /dev/null
++++ b/components/section/LoadingState.tsx
+@@ -0,0 +1,15 @@
++import { Loader2 } from "lucide-react"
++
++interface LoadingStateProps {
++  label?: string
++}
++
++export function LoadingState({ label = "Loading..." }: LoadingStateProps) {
++  return (
++    <div className="flex items-center justify-center rounded-md border border-slate-200 bg-white px-4 py-3 text-[11px] text-slate-700 shadow-sm">
++      <Loader2 className="mr-2 h-4 w-4 animate-spin text-primary-600" />
++      <span>{label}</span>
++    </div>
++  )
++}
++
+diff --git a/components/section/PillTabs.tsx b/components/section/PillTabs.tsx
+new file mode 100644
+index 0000000..d61474a
+--- /dev/null
++++ b/components/section/PillTabs.tsx
+@@ -0,0 +1,43 @@
++import type { ReactNode } from "react"
++
++import { cn } from "@/lib/utils"
++
++export interface PillTab {
++  id: string
++  label: string
++}
++
++interface PillTabsProps {
++  tabs: PillTab[]
++  activeId: string | null
++  onChange?: (id: string) => void
++  className?: string
++}
++
++export function PillTabs({ tabs, activeId, onChange, className }: PillTabsProps) {
++  if (!tabs.length) return null
++
++  return (
++    <div className={cn("flex flex-wrap justify-start gap-2", className)}>
++      {tabs.map(tab => {
++        const isActive = tab.id === activeId
++        return (
++          <button
++            key={tab.id}
++            type="button"
++            onClick={() => onChange?.(tab.id)}
++            className={cn(
++              "rounded-md border px-3 py-1.5 text-[11px] font-semibold shadow-sm transition",
++              isActive
++                ? "border-primary-700 bg-primary-700 text-white hover:bg-primary-800"
++                : "border-blue-300 bg-gradient-to-b from-blue-100 to-blue-200 text-primary-800 hover:from-blue-200 hover:to-blue-300 hover:border-blue-400"
++            )}
++          >
++            {tab.label}
++          </button>
++        )
++      })}
++    </div>
++  )
++}
++
+diff --git a/components/section/SectionContainer.tsx b/components/section/SectionContainer.tsx
+new file mode 100644
+index 0000000..5a101b9
+--- /dev/null
++++ b/components/section/SectionContainer.tsx
+@@ -0,0 +1,52 @@
++import type { ReactNode } from "react"
++
++import { cn } from "@/lib/utils"
++
++interface SectionContainerProps {
++  title: string
++  description?: string
++  actions?: ReactNode
++  children: ReactNode
++  className?: string
++  bodyClassName?: string
++  /**
++   * When true, keeps the header visible while scrolling within the
++   * section container. The parent is expected to provide the scroll
++   * context (e.g., via max-height + overflow-y-auto).
++   *
++   * Assumption: revenue schedule detail uses a single page scroll
++   * today, so sticky behavior is mostly a future enhancement.
++   */
++  stickyHeader?: boolean
++}
++
++export function SectionContainer({
++  title,
++  description,
++  actions,
++  children,
++  className,
++  bodyClassName,
++  stickyHeader = false
++}: SectionContainerProps) {
++  return (
++    <section className={cn("rounded-2xl border border-slate-200 bg-white shadow-sm", className)}>
++      <div
++        className={cn(
++          "flex items-start justify-between gap-3 border-b border-slate-200 bg-slate-50 px-3 py-2",
++          stickyHeader && "sticky top-0 z-10"
++        )}
++      >
++        <div className="space-y-0.5">
++          <h2 className="text-[11px] font-semibold uppercase tracking-wide text-slate-700">{title}</h2>
++          {description ? (
++            <p className="max-w-2xl text-[11px] text-slate-500 leading-snug">{description}</p>
++          ) : null}
++        </div>
++        {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
++      </div>
++      <div className={cn("px-3 py-3", bodyClassName)}>{children}</div>
++    </section>
++  )
++}
++
+diff --git a/lib/feature-flags.ts b/lib/feature-flags.ts
+new file mode 100644
+index 0000000..dc73b1e
+--- /dev/null
++++ b/lib/feature-flags.ts
+@@ -0,0 +1,36 @@
++import type { ReadonlyURLSearchParams } from "next/navigation"
++
++function parseBooleanFlag(value: string | null | undefined): boolean {
++  if (!value) return false
++  const normalized = value.trim().toLowerCase()
++  return normalized === "1" || normalized === "true" || normalized === "yes" || normalized === "on"
++}
++
++/**
++ * Feature flag: enables the redesigned Revenue Schedule Detail supporting
++ * sections (bottom left-rail area).
++ *
++ * Assumptions:
++ * - Env flag is tenant-wide and primarily used in non-production/staging.
++ * - Query param is for developer QA and always wins over the env default.
++ */
++export function isRevenueScheduleDetailRedesignEnabled(
++  searchParams?: ReadonlyURLSearchParams | URLSearchParams | null
++): boolean {
++  const envFlag = parseBooleanFlag(process.env.NEXT_PUBLIC_RSD_DETAILS_V2 ?? "")
++
++  const queryValue =
++    typeof searchParams?.get === "function"
++      ? searchParams.get("rsd_v2") ?? searchParams.get("rsdV2")
++      : null
++
++  const queryFlag = parseBooleanFlag(queryValue ?? "")
++
++  // Query param overrides env when present; otherwise env flag controls.
++  if (queryValue !== null && queryValue !== undefined) {
++    return queryFlag
++  }
++
++  return envFlag
++}
++
+diff --git a/prisma/migrations/20251215002422_add_revenue_schedule_comments/migration.sql b/prisma/migrations/20251215002422_add_revenue_schedule_comments/migration.sql
+new file mode 100644
+index 0000000..90c60a8
+--- /dev/null
++++ b/prisma/migrations/20251215002422_add_revenue_schedule_comments/migration.sql
+@@ -0,0 +1,5 @@
++-- AlterTable
++ALTER TABLE "RevenueSchedule" ADD COLUMN     "comments" TEXT;
++
++-- AlterTable
++ALTER TABLE "revenue_types" ALTER COLUMN "id" DROP DEFAULT;
+diff --git a/prisma/schema.prisma b/prisma/schema.prisma
+index aff275d..9c588f7 100644
+--- a/prisma/schema.prisma
++++ b/prisma/schema.prisma
+@@ -36,6 +36,7 @@ model Tenant {
+   industries              Industry[]
+   productFamilies         ProductFamily[]
+   productSubtypes         ProductSubtype[]
++  revenueTypes            RevenueType[]
+   opportunities           Opportunity[]
+   opportunityProducts     OpportunityProduct[]
+   opportunityRoles        OpportunityRole[]
+@@ -258,6 +259,30 @@ model ProductSubtype {
+   @@unique([tenantId, name])
+ }
+ 
++model RevenueType {
++  id          String   @id @default(uuid()) @db.Uuid
++  tenantId    String   @db.Uuid
++  code        String
++  label       String
++  description String?
++  category    String   // "NRC" or "MRC"
++  isActive    Boolean  @default(true)
++  isSystem    Boolean  @default(false)
++  displayOrder Int     @default(1000)
++  createdAt   DateTime @default(now())
++  updatedAt   DateTime @updatedAt
++
++  // Relations
++  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
++
++  // Indexes
++  @@unique([tenantId, code])
++  @@index([tenantId, isActive])
++  @@index([tenantId])
++
++  @@map("revenue_types")
++}
++
+ model Address {
+   id               String    @id @default(uuid()) @db.Uuid
+   tenantId         String    @db.Uuid
+@@ -537,7 +562,7 @@ model OpportunityProduct {
+   productCodeSnapshot        String?
+   productNameHouseSnapshot   String?
+   productNameVendorSnapshot  String?
+-  revenueTypeSnapshot        RevenueType?
++  revenueTypeSnapshot        String?                  // Changed from enum to String for historical snapshots
+   priceEachSnapshot          Decimal?                 @db.Decimal(16, 2)
+   commissionPercentSnapshot  Decimal?                 @db.Decimal(5, 2)
+   distributorNameSnapshot    String?
+@@ -596,7 +621,7 @@ model Product {
+   productNameHouse              String
+   productNameVendor             String?
+   description                   String?
+-  revenueType                   RevenueType
++  revenueType                   String               // Changed from enum to String to support custom types
+   commissionPercent             Decimal?             @db.Decimal(5, 2)
+   priceEach                     Decimal?             @db.Decimal(16, 2)
+   isActive                      Boolean              @default(true)
+@@ -655,6 +680,7 @@ model RevenueSchedule {
+   status                     RevenueScheduleStatus @default(Unreconciled)
+   isSelected                 Boolean               @default(false)
+   notes                      String?
++  comments                   String?
+   createdById                String?               @db.Uuid
+   updatedById                String?               @db.Uuid
+   createdAt                  DateTime              @default(now())
+@@ -770,6 +796,7 @@ model DepositLineItem {
+   commissionAllocated       Decimal?               @db.Decimal(16, 2)
+   commissionUnallocated     Decimal?               @db.Decimal(16, 2)
+   commissionRate            Decimal?               @db.Decimal(7, 4)
++  metadata                  Json?
+   isChargeback              Boolean                @default(false)
+   reconciled                Boolean                @default(false)
+   reconciledAt              DateTime?
+@@ -1242,15 +1269,6 @@ enum LeadSource {
+   Other
+ }
+ 
+-enum RevenueType {
+-  NRC_PerItem
+-  NRC_Percent
+-  NRC_FlatFee
+-  NRC_Resale
+-  MRC_ThirdParty
+-  MRC_House
+-}
+-
+ enum RevenueScheduleType {
+   OneTime
+   Recurring

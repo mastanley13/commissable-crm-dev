@@ -1,4 +1,4 @@
-import { AccountStatus, OpportunityStage, OpportunityStatus, OpportunityType, OpportunityProductStatus, RevenueType } from "@prisma/client"
+import { AccountStatus, OpportunityStage, OpportunityStatus, OpportunityType, OpportunityProductStatus } from "@prisma/client"
 import { getPrisma, disconnect } from "../lib/db"
 import { recalculateOpportunityStage } from "../lib/opportunities/stage"
 
@@ -40,7 +40,7 @@ async function ensureProduct(prisma: Awaited<ReturnType<typeof getPrisma>>, tena
       tenantId,
       productCode: `DEMO-${Math.random().toString(36).slice(2, 7).toUpperCase()}`,
       productNameHouse: "Demo Service",
-      revenueType: RevenueType.MRC_ThirdParty,
+      revenueType: "MRC_ThirdParty" as any,
       priceEach: 100 as any,
       commissionPercent: 10 as any,
       isActive: true,

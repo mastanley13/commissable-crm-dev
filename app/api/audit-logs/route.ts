@@ -15,12 +15,7 @@ const AUDIT_LOG_VIEW_PERMISSIONS = [
 ]
 
 export async function GET(request: NextRequest) {
-  console.log('[AuditLogs API] === REQUEST RECEIVED ===')
-  console.log('[AuditLogs API] URL:', request.url)
-  console.log('[AuditLogs API] Search params:', Object.fromEntries(request.nextUrl.searchParams.entries()))
-
   return withPermissions(request, AUDIT_LOG_VIEW_PERMISSIONS, async req => {
-    console.log('[AuditLogs API] === INSIDE withPermissions HANDLER ===')
     const searchParams = request.nextUrl.searchParams
     const entityName = searchParams.get("entityName")
     const entityId = searchParams.get("entityId")
@@ -44,6 +39,8 @@ export async function GET(request: NextRequest) {
 
     const page = Math.max(1, Number(searchParams.get("page") ?? "1"))
     const pageSize = Math.min(200, Math.max(1, Number(searchParams.get("pageSize") ?? "50")))
+    const summaryOnlyParam = searchParams.get("summaryOnly")
+    const summaryOnly = summaryOnlyParam === "true" || summaryOnlyParam === "1"
 
     const where: Prisma.AuditLogWhereInput = {
       tenantId: req.user.tenantId,
@@ -57,15 +54,6 @@ export async function GET(request: NextRequest) {
     }
 
     try {
-      console.log('[AuditLogs API] Fetching logs with params:', {
-        entityName,
-        entityId,
-        entityIds,
-        page,
-        pageSize,
-        tenantId: req.user.tenantId
-      })
-
       const client = await getPrisma()
 
       const [logs, total] = await client.$transaction([
@@ -81,14 +69,12 @@ export async function GET(request: NextRequest) {
         client.auditLog.count({ where })
       ])
 
-      console.log('[AuditLogs API] Found logs:', logs.length, 'total:', total)
-
       return NextResponse.json({
         data: logs.map(log => {
           // Parse JSON fields if they're strings (shouldn't happen with Prisma, but just in case)
           const parseJsonField = (field: any) => {
             if (field === null || field === undefined) return null
-            if (typeof field === 'string') {
+            if (typeof field === "string") {
               try {
                 return JSON.parse(field)
               } catch {
@@ -98,7 +84,9 @@ export async function GET(request: NextRequest) {
             return field
           }
 
-          return {
+          const changedFields = parseJsonField(log.changedFields)
+
+          const base = {
             id: log.id,
             entityName: log.entityName,
             entityId: log.entityId,
@@ -106,7 +94,15 @@ export async function GET(request: NextRequest) {
             createdAt: log.createdAt.toISOString(),
             userId: log.userId,
             userName: log.user?.fullName ?? log.user?.email ?? null,
-            changedFields: parseJsonField(log.changedFields),
+            changedFields
+          }
+
+          if (summaryOnly) {
+            return base
+          }
+
+          return {
+            ...base,
             previousValues: parseJsonField(log.previousValues),
             newValues: parseJsonField(log.newValues),
             metadata: parseJsonField(log.metadata)

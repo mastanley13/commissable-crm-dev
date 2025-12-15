@@ -202,6 +202,7 @@ export const ACTIVITY_TABLE_BASE_COLUMNS: Column[] = [
 ]
 
 type OwnerOption = { value: string; label: string }
+type ContactOption = { value: string; label: string; accountName?: string }
 
 const STAGE_OPTIONS: OpportunityStageOption[] = getOpportunityStageOptions()
 
@@ -1204,6 +1205,9 @@ function EditableOpportunityHeader({
   const houseRepPercentField = editor.register("houseRepPercent")
   const houseSplitPercentField = editor.register("houseSplitPercent")
   const descriptionField = editor.register("description")
+  const [referredByOptions, setReferredByOptions] = useState<ContactOption[]>([])
+  const [referredByLoading, setReferredByLoading] = useState(false)
+  const [showReferredByDropdown, setShowReferredByDropdown] = useState(false)
 
   useEffect(() => {
     if (!editor.draft) return
@@ -1250,6 +1254,69 @@ function EditableOpportunityHeader({
       el.click()
     }
   }, [])
+
+  useEffect(() => {
+    if (!showReferredByDropdown) {
+      return
+    }
+
+    const controller = new AbortController()
+
+    const fetchContacts = async () => {
+      setReferredByLoading(true)
+      try {
+        const query = (referredField.value as string | undefined)?.trim() ?? ""
+        const params = new URLSearchParams({
+          page: "1",
+          pageSize: "50"
+        })
+
+        if (query.length > 0) {
+          params.set("q", query)
+        }
+
+        const response = await fetch(`/api/contacts?${params.toString()}`, {
+          cache: "no-store",
+          signal: controller.signal
+        })
+
+        if (!response.ok) {
+          throw new Error("Failed to load contacts")
+        }
+
+        const payload = await response.json().catch(() => null)
+        const items: any[] = Array.isArray(payload?.data) ? payload.data : []
+
+        const options: ContactOption[] = items.map(item => {
+          const fullName = typeof item.fullName === "string" ? item.fullName.trim() : ""
+          return {
+            value: fullName || item.id,
+            label: fullName || "Unnamed contact",
+            accountName: typeof item.accountName === "string" ? item.accountName : undefined
+          }
+        })
+
+        setReferredByOptions(options)
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          return
+        }
+        console.error("Unable to load contacts for Referred By", error)
+        setReferredByOptions([])
+      } finally {
+        setReferredByLoading(false)
+      }
+    }
+
+    const debounce = setTimeout(() => {
+      void fetchContacts()
+    }, 250)
+
+    return () => {
+      controller.abort()
+      clearTimeout(debounce)
+    }
+  }, [referredField.value, showReferredByDropdown])
 
   const renderRow = (
     label: string,
@@ -1423,13 +1490,45 @@ function EditableOpportunityHeader({
 
         <div className="space-y-1.5">
           <FieldRow label="Referred By" compact>
-            <div className="flex flex-col gap-1 w-full max-w-[260px]">
+            <div className="relative flex flex-col gap-1 w-full max-w-[260px]">
               <EditableField.Input
                 className="w-full"
                 value={(referredField.value as string) ?? ""}
-                onChange={referredField.onChange}
-                onBlur={referredField.onBlur}
+                placeholder="Type to search contacts..."
+                onChange={event => {
+                  referredField.onChange(event)
+                  setShowReferredByDropdown(true)
+                }}
+                onFocus={() => setShowReferredByDropdown(true)}
+                onBlur={() => {
+                  setTimeout(() => setShowReferredByDropdown(false), 160)
+                  referredField.onBlur()
+                }}
               />
+              {showReferredByDropdown && (referredByLoading || referredByOptions.length > 0) && (
+                <div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
+                  {referredByLoading ? (
+                    <div className="px-3 py-2 text-sm text-gray-500">Loading...</div>
+                  ) : (
+                    referredByOptions.map(option => (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => {
+                          editor.setField("referredBy", option.label)
+                          setShowReferredByDropdown(false)
+                        }}
+                        className="w-full px-3 py-2 text-left text-sm hover:bg-primary-50 focus:bg-primary-50 focus:outline-none"
+                      >
+                        <div className="font-medium text-gray-900">{option.label}</div>
+                        {option.accountName && (
+                          <div className="text-xs text-gray-500">{option.accountName}</div>
+                        )}
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
               {editor.errors.referredBy ? (
                 <p className="text-[10px] text-red-600">{editor.errors.referredBy}</p>
               ) : null}

@@ -1,6 +1,6 @@
 ﻿"use client"
 
-import { useEffect, useState, type FormEvent } from "react"
+import { useEffect, useMemo, useState, type FormEvent } from "react"
 import { Settings2, Users, Layers, Grid3X3, DollarSign } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
 
@@ -143,6 +143,9 @@ const FIELD_CATEGORIES: { id: FieldCategoryId; label: string; description: strin
     }
   ]
 
+const FIELD_TABLE_MAX_BODY_HEIGHT = 420
+const FIELD_TABLE_PAGE_SIZE = 10
+
 export default function DataSettingsPage() {
   const { user, isLoading, hasPermission } = useAuth()
   const [activeSection, setActiveSection] = useState<SectionId>("manage-fields")
@@ -233,14 +236,15 @@ export default function DataSettingsPage() {
 
 function ProductSubtypeSettings() {
   const [subtypes, setSubtypes] = useState<ProductSubtypeType[]>([])
-  const [families, setFamilies] = useState<ProductFamilyType[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [savingId, setSavingId] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
   const [newName, setNewName] = useState("")
   const [newDescription, setNewDescription] = useState("")
-  const [newFamilyId, setNewFamilyId] = useState("")
+  const [page, setPage] = useState(1)
+
+  const pageSize = FIELD_TABLE_PAGE_SIZE
 
   useEffect(() => {
     const load = async () => {
@@ -248,23 +252,16 @@ function ProductSubtypeSettings() {
         setLoading(true)
         setError(null)
 
-        const [subtypesRes, familiesRes] = await Promise.all([
-          fetch("/api/admin/data-settings/product-subtypes?includeInactive=true", {
-            cache: "no-store"
-          }),
-          fetch("/api/admin/data-settings/product-families?includeInactive=true", {
-            cache: "no-store"
-          })
-        ])
+        const res = await fetch(
+          "/api/admin/data-settings/product-subtypes?includeInactive=true",
+          { cache: "no-store" }
+        )
 
-        if (!subtypesRes.ok) throw new Error("Failed to load product subtypes")
-        if (!familiesRes.ok) throw new Error("Failed to load product families")
+        if (!res.ok) throw new Error("Failed to load product subtypes")
 
-        const subtypesJson = await subtypesRes.json()
-        const familiesJson = await familiesRes.json()
+        const json = await res.json()
 
-        setSubtypes(subtypesJson.data ?? [])
-        setFamilies(familiesJson.data ?? [])
+        setSubtypes(json.data ?? [])
       } catch (err) {
         console.error(err)
         setError(
@@ -277,6 +274,19 @@ function ProductSubtypeSettings() {
 
     load()
   }, [])
+
+  const totalPages = Math.max(1, Math.ceil(subtypes.length / pageSize))
+
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(totalPages)
+    }
+  }, [page, totalPages])
+
+  const visibleSubtypes = useMemo(() => {
+    const start = (page - 1) * pageSize
+    return subtypes.slice(start, start + pageSize)
+  }, [page, pageSize, subtypes])
 
   const handleToggle = async (subtype: ProductSubtypeType) => {
     try {
@@ -318,8 +328,7 @@ function ProductSubtypeSettings() {
         body: JSON.stringify({
           name,
           description: newDescription.trim() || null,
-          isActive: true,
-          productFamilyId: newFamilyId || null
+          isActive: true
         })
       })
       if (!res.ok) throw new Error("Failed to create product subtype")
@@ -328,7 +337,7 @@ function ProductSubtypeSettings() {
       setSubtypes(prev => [...prev, created])
       setNewName("")
       setNewDescription("")
-      setNewFamilyId("")
+      setPage(1)
     } catch (err) {
       console.error(err)
       setError(
@@ -337,12 +346,6 @@ function ProductSubtypeSettings() {
     } finally {
       setCreating(false)
     }
-  }
-
-  const familyNameFor = (subtype: ProductSubtypeType) => {
-    if (subtype.family?.name) return subtype.family.name
-    const match = families.find(fam => fam.id === subtype.productFamilyId)
-    return match?.name ?? "—"
   }
 
   return (
@@ -358,142 +361,160 @@ function ProductSubtypeSettings() {
         className="space-y-3 rounded-md border border-gray-200 bg-gray-50 p-3"
       >
         <div className="text-sm font-medium text-gray-900">Add Product Subtype</div>
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr,1fr,auto]">
           <div>
-            <label className="mb-1 block text-xs font-medium text-gray-700">
+            <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">
               Name
             </label>
             <input
               type="text"
               value={newName}
               onChange={e => setNewName(e.target.value)}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+              className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
               placeholder="e.g. UCaaS"
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-gray-700">
-              Product Family (optional)
-            </label>
-            <select
-              value={newFamilyId}
-              onChange={e => setNewFamilyId(e.target.value)}
-              className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm"
-            >
-              <option value="">No family selected</option>
-              {families
-                .filter(fam => fam.isActive)
-                .map(fam => (
-                  <option key={fam.id} value={fam.id}>
-                    {fam.name}
-                  </option>
-                ))}
-            </select>
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-gray-700">
+            <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">
               Description (optional)
             </label>
             <input
               type="text"
               value={newDescription}
               onChange={e => setNewDescription(e.target.value)}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+              className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
               placeholder="Short explanation of when to use this subtype"
             />
           </div>
-        </div>
-        <div className="flex justify-end">
           <button
             type="submit"
             disabled={creating}
-            className="inline-flex items-center rounded-md bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
+            className="inline-flex items-center justify-center self-end rounded-md bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50 md:w-auto"
           >
             {creating ? "Adding..." : "Add Product Subtype"}
           </button>
         </div>
       </form>
 
-      <div className="overflow-hidden rounded-md border border-gray-200">
-        <table className="min-w-full divide-y divide-gray-200 text-sm">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-4 py-2 text-left font-medium text-gray-700">Name</th>
-              <th className="px-4 py-2 text-left font-medium text-gray-700">
-                Product Family
-              </th>
-              <th className="px-4 py-2 text-left font-medium text-gray-700">Code</th>
-              <th className="px-4 py-2 text-left font-medium text-gray-700">
-                Description
-              </th>
-              <th className="px-4 py-2 text-left font-medium text-gray-700">Status</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-200">
-            {loading && (
+      <div className="overflow-hidden rounded-md border border-gray-200 bg-white">
+        <div
+          className="overflow-y-auto"
+          style={{ maxHeight: FIELD_TABLE_MAX_BODY_HEIGHT }}
+        >
+          <table className="min-w-full divide-y divide-gray-200 text-sm">
+            <thead className="bg-gray-50">
               <tr>
-                <td colSpan={5} className="px-4 py-4 text-center text-gray-500">
-                  Loading product subtypes...
-                </td>
+                <th className="px-4 py-2 text-left font-medium text-gray-700">
+                  Name
+                </th>
+                <th className="px-4 py-2 text-left font-medium text-gray-700">
+                  Code
+                </th>
+                <th className="px-4 py-2 text-left font-medium text-gray-700">
+                  Description
+                </th>
+                <th className="px-4 py-2 text-left font-medium text-gray-700">
+                  Status
+                </th>
               </tr>
-            )}
-            {!loading && subtypes.length === 0 && (
-              <tr>
-                <td colSpan={5} className="px-4 py-4 text-center text-gray-500">
-                  No product subtypes found.
-                </td>
-              </tr>
-            )}
-            {subtypes.map(subtype => (
-              <tr key={subtype.id} className="hover:bg-gray-50">
-                <td className="px-4 py-2 align-top">
-                  <div className="flex items-center space-x-2">
-                    <span className="font-medium text-gray-900">{subtype.name}</span>
-                    {subtype.isSystem && (
-                      <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700">
-                        Default
-                      </span>
-                    )}
-                  </div>
-                </td>
-                <td className="px-4 py-2 align-top text-xs text-gray-600">
-                  {familyNameFor(subtype)}
-                </td>
-                <td className="px-4 py-2 align-top text-xs text-gray-600">
-                  {subtype.code}
-                </td>
-                <td className="px-4 py-2 align-top text-xs text-gray-600">
-                  {subtype.description || (
-                    <span className="text-gray-400">No description</span>
-                  )}
-                </td>
-                <td className="px-4 py-2 align-top">
-                  <button
-                    type="button"
-                    onClick={() => handleToggle(subtype)}
-                    disabled={savingId === subtype.id}
-                    className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium border ${
-                      subtype.isActive
-                        ? "border-green-200 bg-green-50 text-green-700"
-                        : "border-gray-200 bg-gray-50 text-gray-600"
-                    }`}
-                  >
-                    <span
-                      className={`mr-2 inline-block h-2 w-2 rounded-full ${
-                        subtype.isActive ? "bg-green-500" : "bg-gray-400"
-                      }`}
-                    />
-                    {savingId === subtype.id
-                      ? "Updating..."
-                      : subtype.isActive
-                      ? "Enabled"
-                      : "Disabled"}
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              {loading && (
+                <tr>
+                  <td colSpan={4} className="px-4 py-4 text-center text-gray-500">
+                    Loading product subtypes...
+                  </td>
+                </tr>
+              )}
+              {!loading && subtypes.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="px-4 py-4 text-center text-gray-500">
+                    No product subtypes found.
+                  </td>
+                </tr>
+              )}
+              {!loading &&
+                visibleSubtypes.map(subtype => (
+                  <tr key={subtype.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-2 align-top">
+                      <div className="flex items-center space-x-2">
+                        <span className="font-medium text-gray-900">
+                          {subtype.name}
+                        </span>
+                        {subtype.isSystem && (
+                          <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700">
+                            Default
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-2 align-top text-xs text-gray-600">
+                      {subtype.code}
+                    </td>
+                    <td className="px-4 py-2 align-top text-xs text-gray-600">
+                      {subtype.description || (
+                        <span className="text-gray-400">No description</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2 align-top">
+                      <button
+                        type="button"
+                        onClick={() => handleToggle(subtype)}
+                        disabled={savingId === subtype.id}
+                        className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium border ${
+                          subtype.isActive
+                            ? "border-green-200 bg-green-50 text-green-700"
+                            : "border-gray-200 bg-gray-50 text-gray-600"
+                        }`}
+                      >
+                        <span
+                          className={`mr-2 inline-block h-2 w-2 rounded-full ${
+                            subtype.isActive ? "bg-green-500" : "bg-gray-400"
+                          }`}
+                        />
+                        {savingId === subtype.id
+                          ? "Updating..."
+                          : subtype.isActive
+                          ? "Enabled"
+                          : "Disabled"}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="flex items-center justify-between border-t border-gray-200 bg-gray-50 px-4 py-2 text-xs text-gray-600">
+          <div>
+            {subtypes.length === 0
+              ? "No product subtypes to display."
+              : `Showing ${(page - 1) * pageSize + 1}-${Math.min(
+                  page * pageSize,
+                  subtypes.length
+                )} of ${subtypes.length} subtypes`}
+          </div>
+          <div className="inline-flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setPage(prev => Math.max(1, prev - 1))}
+              disabled={page <= 1}
+              className="rounded border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Previous
+            </button>
+            <span>
+              Page {page} of {totalPages}
+            </span>
+            <button
+              type="button"
+              onClick={() => setPage(prev => Math.min(totalPages, prev + 1))}
+              disabled={page >= totalPages}
+              className="rounded border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Next
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   )
@@ -676,6 +697,9 @@ function ProductFamilySettings() {
   const [creating, setCreating] = useState(false)
   const [newName, setNewName] = useState("")
   const [newDescription, setNewDescription] = useState("")
+  const [page, setPage] = useState(1)
+
+  const pageSize = FIELD_TABLE_PAGE_SIZE
 
   useEffect(() => {
     const load = async () => {
@@ -700,6 +724,19 @@ function ProductFamilySettings() {
     }
     load()
   }, [])
+
+  const totalPages = Math.max(1, Math.ceil(families.length / pageSize))
+
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(totalPages)
+    }
+  }, [page, totalPages])
+
+  const visibleFamilies = useMemo(() => {
+    const start = (page - 1) * pageSize
+    return families.slice(start, start + pageSize)
+  }, [page, pageSize, families])
 
   const handleToggle = async (family: ProductFamilyType) => {
     try {
@@ -777,26 +814,26 @@ function ProductFamilySettings() {
         </div>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <div>
-            <label className="mb-1 block text-xs font-medium text-gray-700">
+            <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">
               Name
             </label>
             <input
               type="text"
               value={newName}
               onChange={e => setNewName(e.target.value)}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+              className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
               placeholder="e.g. AI Services"
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-gray-700">
+            <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">
               Description (optional)
             </label>
             <input
               type="text"
               value={newDescription}
               onChange={e => setNewDescription(e.target.value)}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+              className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
               placeholder="Short explanation of when to use this family"
             />
           </div>
@@ -812,80 +849,125 @@ function ProductFamilySettings() {
         </div>
       </form>
 
-      <div className="overflow-hidden rounded-md border border-gray-200">
-        <table className="min-w-full divide-y divide-gray-200 text-sm">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-4 py-2 text-left font-medium text-gray-700">Name</th>
-              <th className="px-4 py-2 text-left font-medium text-gray-700">Code</th>
-              <th className="px-4 py-2 text-left font-medium text-gray-700">
-                Description
-              </th>
-              <th className="px-4 py-2 text-left font-medium text-gray-700">Status</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-200">
-            {loading && (
+      <div className="overflow-hidden rounded-md border border-gray-200 bg-white">
+        <div
+          className="overflow-y-auto"
+          style={{ maxHeight: FIELD_TABLE_MAX_BODY_HEIGHT }}
+        >
+          <table className="min-w-full divide-y divide-gray-200 text-sm">
+            <thead className="bg-gray-50">
               <tr>
-                <td colSpan={4} className="px-4 py-4 text-center text-gray-500">
-                  Loading product family types...
-                </td>
+                <th className="px-4 py-2 text-left font-medium text-gray-700">
+                  Name
+                </th>
+                <th className="px-4 py-2 text-left font-medium text-gray-700">
+                  Code
+                </th>
+                <th className="px-4 py-2 text-left font-medium text-gray-700">
+                  Description
+                </th>
+                <th className="px-4 py-2 text-left font-medium text-gray-700">
+                  Status
+                </th>
               </tr>
-            )}
-            {!loading && families.length === 0 && (
-              <tr>
-                <td colSpan={4} className="px-4 py-4 text-center text-gray-500">
-                  No product family types found.
-                </td>
-              </tr>
-            )}
-            {families.map(family => (
-              <tr key={family.id} className="hover:bg-gray-50">
-                <td className="px-4 py-2 align-top">
-                  <div className="flex items-center space-x-2">
-                    <span className="font-medium text-gray-900">{family.name}</span>
-                    {family.isSystem && (
-                      <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700">
-                        Default
-                      </span>
-                    )}
-                  </div>
-                </td>
-                <td className="px-4 py-2 align-top text-xs text-gray-600">
-                  {family.code}
-                </td>
-                <td className="px-4 py-2 align-top text-xs text-gray-600">
-                  {family.description || (
-                    <span className="text-gray-400">No description</span>
-                  )}
-                </td>
-                <td className="px-4 py-2 align-top">
-                  <button
-                    type="button"
-                    onClick={() => handleToggle(family)}
-                    disabled={savingId === family.id}
-                    className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium border ${
-                      family.isActive
-                        ? "border-green-200 bg-green-50 text-green-700"
-                        : "border-gray-200 bg-gray-50 text-gray-600"
-                    }`}
-                  >
-                    <span
-                      className={`mr-2 inline-block h-2 w-2 rounded-full ${
-                        family.isActive ? "bg-green-500" : "bg-gray-400"
-                      }`}
-                    />
-                    {savingId === family.id
-                      ? "Updating..."
-                      : family.isActive
-                      ? "Enabled"
-                      : "Disabled"}
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              {loading && (
+                <tr>
+                  <td colSpan={4} className="px-4 py-4 text-center text-gray-500">
+                    Loading product family types...
+                  </td>
+                </tr>
+              )}
+              {!loading && families.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="px-4 py-4 text-center text-gray-500">
+                    No product family types found.
+                  </td>
+                </tr>
+              )}
+              {!loading &&
+                visibleFamilies.map(family => (
+                  <tr key={family.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-2 align-top">
+                      <div className="flex items-center space-x-2">
+                        <span className="font-medium text-gray-900">
+                          {family.name}
+                        </span>
+                        {family.isSystem && (
+                          <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700">
+                            Default
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-2 align-top text-xs text-gray-600">
+                      {family.code}
+                    </td>
+                    <td className="px-4 py-2 align-top text-xs text-gray-600">
+                      {family.description || (
+                        <span className="text-gray-400">No description</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2 align-top">
+                      <button
+                        type="button"
+                        onClick={() => handleToggle(family)}
+                        disabled={savingId === family.id}
+                        className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium border ${
+                          family.isActive
+                            ? "border-green-200 bg-green-50 text-green-700"
+                            : "border-gray-200 bg-gray-50 text-gray-600"
+                        }`}
+                      >
+                        <span
+                          className={`mr-2 inline-block h-2 w-2 rounded-full ${
+                            family.isActive ? "bg-green-500" : "bg-gray-400"
+                          }`}
+                        />
+                        {savingId === family.id
+                          ? "Updating..."
+                          : family.isActive
+                          ? "Enabled"
+                          : "Disabled"}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="flex items-center justify-between border-t border-gray-200 bg-gray-50 px-4 py-2 text-xs text-gray-600">
+          <div>
+            {families.length === 0
+              ? "No product family types to display."
+              : `Showing ${(page - 1) * pageSize + 1}-${Math.min(
+                  page * pageSize,
+                  families.length
+                )} of ${families.length} product family types`}
+          </div>
+          <div className="inline-flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setPage(prev => Math.max(1, prev - 1))}
+              disabled={page <= 1}
+              className="rounded border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Previous
+            </button>
+            <span>
+              Page {page} of {totalPages}
+            </span>
+            <button
+              type="button"
+              onClick={() => setPage(prev => Math.min(totalPages, prev + 1))}
+              disabled={page >= totalPages}
+              className="rounded border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Next
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   )
@@ -896,6 +978,12 @@ function AccountTypeSettings() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [savingId, setSavingId] = useState<string | null>(null)
+  const [creating, setCreating] = useState(false)
+  const [newName, setNewName] = useState("")
+  const [newDescription, setNewDescription] = useState("")
+  const [page, setPage] = useState(1)
+
+  const pageSize = FIELD_TABLE_PAGE_SIZE
 
   useEffect(() => {
     const load = async () => {
@@ -921,6 +1009,19 @@ function AccountTypeSettings() {
     load()
   }, [])
 
+  const totalPages = Math.max(1, Math.ceil(items.length / pageSize))
+
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(totalPages)
+    }
+  }, [page, totalPages])
+
+  const visibleItems = useMemo(() => {
+    const start = (page - 1) * pageSize
+    return items.slice(start, start + pageSize)
+  }, [page, pageSize, items])
+
   const handleToggle = async (item: AccountTypeSetting) => {
     try {
       setSavingId(item.id)
@@ -942,6 +1043,43 @@ function AccountTypeSettings() {
     }
   }
 
+  const handleCreate = async (event: FormEvent) => {
+    event.preventDefault()
+    const name = newName.trim()
+    if (!name) {
+      setError("Name is required to add an account type.")
+      return
+    }
+
+    try {
+      setCreating(true)
+      setError(null)
+      const res = await fetch("/api/admin/data-settings/account-types", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name,
+          description: newDescription.trim() || null,
+          isActive: true
+        })
+      })
+      if (!res.ok) throw new Error("Failed to create account type")
+      const json = await res.json()
+      const created: AccountTypeSetting = json.data
+      setItems(prev => [...prev, created])
+      setNewName("")
+      setNewDescription("")
+      setPage(1)
+    } catch (err) {
+      console.error(err)
+      setError(
+        err instanceof Error ? err.message : "Failed to create account type"
+      )
+    } finally {
+      setCreating(false)
+    }
+  }
+
   return (
     <div className="space-y-4">
       {error && (
@@ -950,80 +1088,167 @@ function AccountTypeSettings() {
         </div>
       )}
 
-      <div className="overflow-hidden rounded-md border border-gray-200">
-        <table className="min-w-full divide-y divide-gray-200 text-sm">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-4 py-2 text-left font-medium text-gray-700">Name</th>
-              <th className="px-4 py-2 text-left font-medium text-gray-700">Code</th>
-              <th className="px-4 py-2 text-left font-medium text-gray-700">
-                Description
-              </th>
-              <th className="px-4 py-2 text-left font-medium text-gray-700">Status</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-200">
-            {loading && (
+      <form
+        onSubmit={handleCreate}
+        className="space-y-2 rounded-md border border-gray-200 bg-gray-50 p-2.5"
+      >
+        <div className="text-xs font-medium text-gray-900">
+          Add Account Type
+        </div>
+        <div className="grid grid-cols-1 gap-2 md:grid-cols-[1fr,1fr,auto]">
+          <div>
+            <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+              Name
+            </label>
+            <input
+              type="text"
+              value={newName}
+              onChange={e => setNewName(e.target.value)}
+              className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
+              placeholder="e.g. Partner"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+              Description (optional)
+            </label>
+            <input
+              type="text"
+              value={newDescription}
+              onChange={e => setNewDescription(e.target.value)}
+              className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
+              placeholder="Short explanation of when to use this type"
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={creating}
+            className="inline-flex items-center justify-center self-end rounded-md bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50 md:w-auto"
+          >
+            {creating ? "Adding..." : "Add Account Type"}
+          </button>
+        </div>
+      </form>
+
+      <div className="overflow-hidden rounded-md border border-gray-200 bg-white">
+        <div
+          className="overflow-y-auto"
+          style={{ maxHeight: FIELD_TABLE_MAX_BODY_HEIGHT }}
+        >
+          <table className="min-w-full divide-y divide-gray-200 text-sm">
+            <thead className="bg-gray-50">
               <tr>
-                <td colSpan={4} className="px-4 py-4 text-center text-gray-500">
-                  Loading account types...
-                </td>
+                <th className="px-4 py-2 text-left font-medium text-gray-700">
+                  Name
+                </th>
+                <th className="px-4 py-2 text-left font-medium text-gray-700">
+                  Code
+                </th>
+                <th className="px-4 py-2 text-left font-medium text-gray-700">
+                  Description
+                </th>
+                <th className="px-4 py-2 text-left font-medium text-gray-700">
+                  Status
+                </th>
               </tr>
-            )}
-            {!loading && items.length === 0 && (
-              <tr>
-                <td colSpan={4} className="px-4 py-4 text-center text-gray-500">
-                  No account types found.
-                </td>
-              </tr>
-            )}
-            {items.map(item => (
-              <tr key={item.id} className="hover:bg-gray-50">
-                <td className="px-4 py-2 align-top">
-                  <div className="flex items-center space-x-2">
-                    <span className="font-medium text-gray-900">{item.name}</span>
-                    {item.isSystem && (
-                      <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700">
-                        System
-                      </span>
-                    )}
-                  </div>
-                </td>
-                <td className="px-4 py-2 align-top text-xs text-gray-600">
-                  {item.code}
-                </td>
-                <td className="px-4 py-2 align-top text-xs text-gray-600">
-                  {item.description || (
-                    <span className="text-gray-400">No description</span>
-                  )}
-                </td>
-                <td className="px-4 py-2 align-top">
-                  <button
-                    type="button"
-                    onClick={() => handleToggle(item)}
-                    disabled={savingId === item.id}
-                    className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium border ${
-                      item.isActive
-                        ? "border-green-200 bg-green-50 text-green-700"
-                        : "border-gray-200 bg-gray-50 text-gray-600"
-                    }`}
-                  >
-                    <span
-                      className={`mr-2 inline-block h-2 w-2 rounded-full ${
-                        item.isActive ? "bg-green-500" : "bg-gray-400"
-                      }`}
-                    />
-                    {savingId === item.id
-                      ? "Updating..."
-                      : item.isActive
-                      ? "Enabled"
-                      : "Disabled"}
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              {loading && (
+                <tr>
+                  <td colSpan={4} className="px-4 py-4 text-center text-gray-500">
+                    Loading account types...
+                  </td>
+                </tr>
+              )}
+              {!loading && items.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="px-4 py-4 text-center text-gray-500">
+                    No account types found.
+                  </td>
+                </tr>
+              )}
+              {!loading &&
+                visibleItems.map(item => (
+                  <tr key={item.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-2 align-top">
+                      <div className="flex items-center space-x-2">
+                        <span className="font-medium text-gray-900">
+                          {item.name}
+                        </span>
+                        {item.isSystem && (
+                          <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700">
+                            System
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-2 align-top text-xs text-gray-600">
+                      {item.code}
+                    </td>
+                    <td className="px-4 py-2 align-top text-xs text-gray-600">
+                      {item.description || (
+                        <span className="text-gray-400">No description</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2 align-top">
+                      <button
+                        type="button"
+                        onClick={() => handleToggle(item)}
+                        disabled={savingId === item.id}
+                        className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium border ${
+                          item.isActive
+                            ? "border-green-200 bg-green-50 text-green-700"
+                            : "border-gray-200 bg-gray-50 text-gray-600"
+                        }`}
+                      >
+                        <span
+                          className={`mr-2 inline-block h-2 w-2 rounded-full ${
+                            item.isActive ? "bg-green-500" : "bg-gray-400"
+                          }`}
+                        />
+                        {savingId === item.id
+                          ? "Updating..."
+                          : item.isActive
+                          ? "Enabled"
+                          : "Disabled"}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="flex items-center justify-between border-t border-gray-200 bg-gray-50 px-4 py-2 text-xs text-gray-600">
+          <div>
+            {items.length === 0
+              ? "No account types to display."
+              : `Showing ${(page - 1) * pageSize + 1}-${Math.min(
+                  page * pageSize,
+                  items.length
+                )} of ${items.length} account types`}
+          </div>
+          <div className="inline-flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setPage(prev => Math.max(1, prev - 1))}
+              disabled={page <= 1}
+              className="rounded border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Previous
+            </button>
+            <span>
+              Page {page} of {totalPages}
+            </span>
+            <button
+              type="button"
+              onClick={() => setPage(prev => Math.min(totalPages, prev + 1))}
+              disabled={page >= totalPages}
+              className="rounded border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Next
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   )
@@ -1034,6 +1259,9 @@ function RevenueTypeSettings() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [savingCode, setSavingCode] = useState<string | null>(null)
+  const [page, setPage] = useState(1)
+
+  const pageSize = FIELD_TABLE_PAGE_SIZE
 
   useEffect(() => {
     const load = async () => {
@@ -1055,6 +1283,19 @@ function RevenueTypeSettings() {
     }
     load()
   }, [])
+
+  const totalPages = Math.max(1, Math.ceil(items.length / pageSize))
+
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(totalPages)
+    }
+  }, [page, totalPages])
+
+  const visibleItems = useMemo(() => {
+    const start = (page - 1) * pageSize
+    return items.slice(start, start + pageSize)
+  }, [page, pageSize, items])
 
   const handleToggle = async (item: RevenueTypeSetting) => {
     try {
@@ -1093,79 +1334,124 @@ function RevenueTypeSettings() {
         </div>
       )}
 
-      <div className="overflow-hidden rounded-md border border-gray-200">
-        <table className="min-w-full divide-y divide-gray-200 text-sm">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-4 py-2 text-left font-medium text-gray-700">Label</th>
-              <th className="px-4 py-2 text-left font-medium text-gray-700">Code</th>
-              <th className="px-4 py-2 text-left font-medium text-gray-700">
-                Category
-              </th>
-              <th className="px-4 py-2 text-left font-medium text-gray-700">
-                Description
-              </th>
-              <th className="px-4 py-2 text-left font-medium text-gray-700">Status</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-200">
-            {loading && (
+      <div className="overflow-hidden rounded-md border border-gray-200 bg-white">
+        <div
+          className="overflow-y-auto"
+          style={{ maxHeight: FIELD_TABLE_MAX_BODY_HEIGHT }}
+        >
+          <table className="min-w-full divide-y divide-gray-200 text-sm">
+            <thead className="bg-gray-50">
               <tr>
-                <td colSpan={5} className="px-4 py-4 text-center text-gray-500">
-                  Loading revenue types...
-                </td>
+                <th className="px-4 py-2 text-left font-medium text-gray-700">
+                  Label
+                </th>
+                <th className="px-4 py-2 text-left font-medium text-gray-700">
+                  Code
+                </th>
+                <th className="px-4 py-2 text-left font-medium text-gray-700">
+                  Category
+                </th>
+                <th className="px-4 py-2 text-left font-medium text-gray-700">
+                  Description
+                </th>
+                <th className="px-4 py-2 text-left font-medium text-gray-700">
+                  Status
+                </th>
               </tr>
-            )}
-            {!loading && items.length === 0 && (
-              <tr>
-                <td colSpan={5} className="px-4 py-4 text-center text-gray-500">
-                  No revenue types found.
-                </td>
-              </tr>
-            )}
-            {items.map(item => (
-              <tr key={item.code} className="hover:bg-gray-50">
-                <td className="px-4 py-2 align-top">
-                  <span className="font-medium text-gray-900">{item.label}</span>
-                </td>
-                <td className="px-4 py-2 align-top text-xs text-gray-600">
-                  {item.code}
-                </td>
-                <td className="px-4 py-2 align-top text-xs text-gray-600">
-                  <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700">
-                    {item.category}
-                  </span>
-                </td>
-                <td className="px-4 py-2 align-top text-xs text-gray-600">
-                  {item.description}
-                </td>
-                <td className="px-4 py-2 align-top">
-                  <button
-                    type="button"
-                    onClick={() => handleToggle(item)}
-                    disabled={savingCode === item.code}
-                    className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium border ${
-                      item.isEnabled
-                        ? "border-green-200 bg-green-50 text-green-700"
-                        : "border-gray-200 bg-gray-50 text-gray-600"
-                    }`}
-                  >
-                    <span
-                      className={`mr-2 inline-block h-2 w-2 rounded-full ${
-                        item.isEnabled ? "bg-green-500" : "bg-gray-400"
-                      }`}
-                    />
-                    {savingCode === item.code
-                      ? "Updating..."
-                      : item.isEnabled
-                      ? "Enabled"
-                      : "Disabled"}
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              {loading && (
+                <tr>
+                  <td colSpan={5} className="px-4 py-4 text-center text-gray-500">
+                    Loading revenue types...
+                  </td>
+                </tr>
+              )}
+              {!loading && items.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="px-4 py-4 text-center text-gray-500">
+                    No revenue types found.
+                  </td>
+                </tr>
+              )}
+              {!loading &&
+                visibleItems.map(item => (
+                  <tr key={item.code} className="hover:bg-gray-50">
+                    <td className="px-4 py-2 align-top">
+                      <span className="font-medium text-gray-900">
+                        {item.label}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2 align-top text-xs text-gray-600">
+                      {item.code}
+                    </td>
+                    <td className="px-4 py-2 align-top text-xs text-gray-600">
+                      <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700">
+                        {item.category}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2 align-top text-xs text-gray-600">
+                      {item.description}
+                    </td>
+                    <td className="px-4 py-2 align-top">
+                      <button
+                        type="button"
+                        onClick={() => handleToggle(item)}
+                        disabled={savingCode === item.code}
+                        className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium border ${
+                          item.isEnabled
+                            ? "border-green-200 bg-green-50 text-green-700"
+                            : "border-gray-200 bg-gray-50 text-gray-600"
+                        }`}
+                      >
+                        <span
+                          className={`mr-2 inline-block h-2 w-2 rounded-full ${
+                            item.isEnabled ? "bg-green-500" : "bg-gray-400"
+                          }`}
+                        />
+                        {savingCode === item.code
+                          ? "Updating..."
+                          : item.isEnabled
+                          ? "Enabled"
+                          : "Disabled"}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="flex items-center justify-between border-t border-gray-200 bg-gray-50 px-4 py-2 text-xs text-gray-600">
+          <div>
+            {items.length === 0
+              ? "No revenue types to display."
+              : `Showing ${(page - 1) * pageSize + 1}-${Math.min(
+                  page * pageSize,
+                  items.length
+                )} of ${items.length} revenue types`}
+          </div>
+          <div className="inline-flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setPage(prev => Math.max(1, prev - 1))}
+              disabled={page <= 1}
+              className="rounded border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Previous
+            </button>
+            <span>
+              Page {page} of {totalPages}
+            </span>
+            <button
+              type="button"
+              onClick={() => setPage(prev => Math.min(totalPages, prev + 1))}
+              disabled={page >= totalPages}
+              className="rounded border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Next
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   )

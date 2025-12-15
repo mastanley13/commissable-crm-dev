@@ -1,0 +1,735 @@
+1: "use client"
+2: 
+3: import Link from "next/link"
+4: import { Loader2, AlertCircle } from "lucide-react"
+5: import { useCallback, useMemo, useRef, type ReactNode } from "react"
+6: 
+7: import { cn } from "@/lib/utils"
+8: import { RevenueScheduleSupportingDetails, type RevenueScheduleSupportingDetailsHandle } from "./revenue-schedule-supporting-details"
+9: import { useEntityEditor } from "@/hooks/useEntityEditor"
+10: import { useUnsavedChangesPrompt } from "@/hooks/useUnsavedChangesPrompt"
+11: import { useAuth } from "@/lib/auth-context"
+12: import { EditableField } from "./editable-field"
+13: import { useToasts } from "./toast"
+14: import { getRevenueTypeLabel, REVENUE_TYPE_OPTIONS } from "@/lib/revenue-types"
+15: 
+16: interface FieldDefinition {
+17:   fieldId: string
+18:   label: string
+19:   value?: ReactNode
+20:   fullWidth?: boolean
+21: }
+22: 
+23: interface MetricDefinition {
+24:   fieldId: string
+25:   label: string
+26:   value?: ReactNode
+27: }
+28: 
+29: export interface RevenueScheduleDetailRecord {
+30:   id: string
+31:   revenueSchedule?: string
+32:   revenueScheduleName?: string
+33:   revenueScheduleDate?: string
+34:   productNameVendor?: string
+35:   productDescriptionVendor?: string
+36:   productRevenueType?: string
+37:   productRevenueTypeLabel?: string | null
+38:   scheduleStatus?: string
+39:   inDispute?: boolean
+40:   opportunityId?: string | number | null
+41:   opportunityName?: string | null
+42:   distributorName?: string | null
+43:   distributorId?: string | null
+44:   vendorName?: string | null
+45:   vendorId?: string | null
+46:   accountName?: string | null
+47:   accountId?: string | null
+48:   productId?: string | null
+49:   legalName?: string | null
+50:   shippingAddress?: string | null
+51:   billingAddress?: string | null
+52:   expectedCommissionRatePercent?: string | null
+53:   actualCommissionRatePercent?: string | null
+54:   commissionRateDifference?: string | null
+55:   houseSplitPercent?: string | null
+56:   houseRepSplitPercent?: string | null
+57:   subagentSplitPercent?: string | null
+58:   subagentName?: string | null
+59:   quantity?: string | null
+60:   priceEach?: string | null
+61:   expectedUsage?: string | null
+62:   expectedUsageGross?: string | null
+63:   expectedUsageAdjustment?: string | null
+64:   expectedUsageNet?: string | null
+65:   actualUsage?: string | null
+66:   usageBalance?: string | null
+67:   expectedCommissionGross?: string | null
+68:   expectedCommissionAdjustment?: string | null
+69:   expectedCommissionNet?: string | null
+70:   actualCommission?: string | null
+71:   commissionDifference?: string | null
+72: }
+73: 
+74: interface RevenueScheduleDetailsViewProps {
+75:   schedule: RevenueScheduleDetailRecord | null
+76:   loading?: boolean
+77:   error?: string | null
+78:   scheduleKey?: string
+79:   onRefresh?: () => void
+80: }
+81: 
+82: const placeholder = <span className="text-gray-400">--</span>
+83: const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+84: 
+85: const fieldLabelClass =
+86:   "text-[11px] font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap flex items-center"
+87: const baseFieldBoxClass =
+88:   "flex min-h-[28px] w-full items-center justify-between border-b-2 border-gray-300 bg-transparent pl-[3px] pr-0 py-1 text-[11px] text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis"
+89: 
+90: function renderValue(value?: ReactNode) {
+91:   if (value === undefined || value === null) {
+92:     return placeholder
+93:   }
+94: 
+95:   if (typeof value === "string") {
+96:     const trimmed = value.trim()
+97:     if (trimmed.length === 0) {
+98:       return placeholder
+99:     }
+100:     return trimmed
+101:   }
+102: 
+103:   return value
+104: }
+105: 
+106: function FieldRow({ label, value, fullWidth }: FieldDefinition) {
+107:   const resolvedValue = renderValue(value)
+108:   const displayValue =
+109:     typeof resolvedValue === "string" ? (
+110:       <span className="block truncate" title={resolvedValue}>
+111:         {resolvedValue}
+112:       </span>
+113:     ) : (
+114:       resolvedValue
+115:     )
+116: 
+117:   const fieldBoxClass = `${baseFieldBoxClass} ${fullWidth ? "max-w-[18rem] whitespace-normal break-words" : "max-w-[18rem]"}`
+118: 
+119:   return (
+120:     <div className="grid items-center gap-3 sm:grid-cols-[180px,minmax(0,1fr)]">
+121:       <span className={fieldLabelClass}>{label}</span>
+122:       <div className={fieldBoxClass}>{displayValue}</div>
+123:     </div>
+124:   )
+125: }
+126: 
+127: function MetricTile({ fieldId, label, value }: MetricDefinition) {
+128:   const resolvedValue = renderValue(value)
+129:   const displayValue =
+130:     typeof resolvedValue === "string" ? (
+131:       <span className="block truncate" title={resolvedValue}>
+132:         {resolvedValue}
+133:       </span>
+134:     ) : (
+135:       resolvedValue
+136:     )
+137: 
+138:   return (
+139:     <div className="flex min-w-[110px] flex-1 flex-col justify-between gap-0.5 border-2 border-gray-300 bg-white px-2 py-1.5 text-[11px] text-gray-900 shadow-sm">
+140:       <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 whitespace-normal break-words leading-tight">{label}</span>
+141:       <div className="text-left text-[11px] font-semibold text-gray-900 whitespace-nowrap">{displayValue}</div>
+142:     </div>
+143:   )
+144: }
+145: 
+146: interface RevenueScheduleInlineForm {
+147:   revenueScheduleName: string
+148:   revenueScheduleDate: string
+149: }
+150: 
+151: function mapDetailToInline(detail: RevenueScheduleDetailRecord | null): RevenueScheduleInlineForm {
+152:   const name = detail?.revenueScheduleName ?? detail?.revenueSchedule ?? ""
+153:   return {
+154:     revenueScheduleName: name || "",
+155:     revenueScheduleDate: detail?.revenueScheduleDate ?? ""
+156:   }
+157: }
+158: 
+159: function EditRow({ label, control, error }: { label: string; control: ReactNode; error?: string }) {
+160:   return (
+161:     <div className="grid items-center gap-3 sm:grid-cols-[180px,minmax(0,1fr)]">
+162:       <span className={fieldLabelClass}>{label}</span>
+163:       <div className="max-w-[18rem] flex w-full flex-col gap-1">
+164:         {control}
+165:         {error ? <p className="text-[10px] text-red-600">{error}</p> : null}
+166:       </div>
+167:     </div>
+168:   )
+169: }
+170: 
+171: export function RevenueScheduleDetailsView({
+172:   schedule,
+173:   loading = false,
+174:   error,
+175:   scheduleKey,
+176:   onRefresh
+177: }: RevenueScheduleDetailsViewProps) {
+178:   const { hasPermission } = useAuth()
+179:   const { showSuccess, showError } = useToasts()
+180:   const supportingDetailsRef = useRef<RevenueScheduleSupportingDetailsHandle | null>(null)
+181:   const enableInlineEditing = hasPermission("revenue-schedules.manage")
+182:   const canCreateTickets = hasPermission("tickets.create")
+183: 
+184:   const inlineInitial = useMemo(() => mapDetailToInline(schedule), [schedule])
+185:   const validateInline = useCallback((draft: RevenueScheduleInlineForm) => {
+186:     const errors: Record<string, string> = {}
+187:     if (!draft.revenueScheduleName || draft.revenueScheduleName.trim().length === 0) {
+188:       errors.revenueScheduleName = "Revenue schedule name is required."
+189:     }
+190:     if (draft.revenueScheduleDate) {
+191:       const trimmed = draft.revenueScheduleDate.trim()
+192:       const isoPattern = /^\d{4}-\d{2}-\d{2}$/
+193:       if (!isoPattern.test(trimmed)) {
+194:         errors.revenueScheduleDate = "Use YYYY-MM-DD format."
+195:       } else {
+196:         const parsed = new Date(trimmed)
+197:         if (Number.isNaN(parsed.getTime())) {
+198:           errors.revenueScheduleDate = "Invalid date."
+199:         }
+200:       }
+201:     }
+202:     return errors
+203:   }, [])
+204: 
+205:   const submitInline = useCallback(
+206:     async (_patch: Partial<RevenueScheduleInlineForm>, draft: RevenueScheduleInlineForm) => {
+207:       if (!schedule?.id) {
+208:         throw new Error("Revenue schedule id is required")
+209:       }
+210:       const payload: any = {
+211:         revenueScheduleName: draft.revenueScheduleName?.trim(),
+212:         revenueScheduleDate: draft.revenueScheduleDate?.trim(),
+213:         productNameVendor: (draft as any).productNameVendor?.trim?.(),
+214:         productDescriptionVendor: (draft as any).productDescriptionVendor?.trim?.(),
+215:         productRevenueType: (draft as any).productRevenueType?.trim?.(),
+216:         expectedCommissionRatePercent: (draft as any).expectedCommissionRatePercent?.trim?.(),
+217:         houseSplitPercent: (draft as any).houseSplitPercent?.trim?.(),
+218:         houseRepSplitPercent: (draft as any).houseRepSplitPercent?.trim?.(),
+219:         subagentSplitPercent: (draft as any).subagentSplitPercent?.trim?.()
+220:       }
+221:       const response = await fetch(`/api/revenue-schedules/${schedule.id}`, {
+222:         method: "PATCH",
+223:         headers: { "Content-Type": "application/json" },
+224:         body: JSON.stringify(payload)
+225:       })
+226:       const body = await response.json().catch(() => null)
+227:       if (!response.ok) {
+228:         const message = body?.error ?? "Failed to update revenue schedule"
+229:         const serverErrors = (body?.errors ?? {}) as Record<string, string>
+230:         showError("Unable to update revenue schedule", message)
+231:         const error = new Error(message) as Error & { serverErrors?: Record<string, string> }
+232:         if (serverErrors && Object.keys(serverErrors).length > 0) {
+233:           error.serverErrors = serverErrors
+234:         }
+235:         throw error
+236:       }
+237:       await onRefresh?.()
+238:       return draft
+239:     },
+240:     [schedule?.id, onRefresh, showError]
+241:   )
+242: 
+243:   const editor = useEntityEditor<RevenueScheduleInlineForm>({
+244:     initial: enableInlineEditing ? inlineInitial : null,
+245:     validate: enableInlineEditing ? validateInline : undefined,
+246:     onSubmit: enableInlineEditing ? submitInline : undefined
+247:   })
+248: 
+249:   useUnsavedChangesPrompt(enableInlineEditing && editor.isDirty)
+250: 
+251:   const nameField = enableInlineEditing ? editor.register("revenueScheduleName") : null
+252:   const dateField = enableInlineEditing ? editor.register("revenueScheduleDate") : null
+253:   const productNameField = enableInlineEditing ? editor.register("productNameVendor" as any) : null
+254:   const productDescField = enableInlineEditing ? editor.register("productDescriptionVendor" as any) : null
+255:   const productTypeField = enableInlineEditing ? editor.register("productRevenueType" as any) : null
+256:   const expectedRateField = enableInlineEditing ? editor.register("expectedCommissionRatePercent" as any) : null
+257:   const houseSplitField = enableInlineEditing ? editor.register("houseSplitPercent" as any) : null
+258:   const houseRepSplitField = enableInlineEditing ? editor.register("houseRepSplitPercent" as any) : null
+259:   const subagentSplitField = enableInlineEditing ? editor.register("subagentSplitPercent" as any) : null
+260:   // derive display values from editor when enabled
+261:   const baseScheduleName = schedule ? (schedule.revenueScheduleName ?? schedule.revenueSchedule ?? `Schedule #${schedule.id}`) : ""
+262:   const scheduleName =
+263:     enableInlineEditing && typeof nameField?.value === "string" && (nameField.value as string).length > 0
+264:       ? (nameField.value as string)
+265:       : baseScheduleName
+266:   const scheduleDate = enableInlineEditing && typeof dateField?.value === "string" ? (dateField.value as string) : schedule?.revenueScheduleDate ?? ""
+267: 
+268:   const handleSave = useCallback(async () => {
+269:     if (!enableInlineEditing) return
+270:     try {
+271:       const result = await editor.submit()
+272:       if (result) {
+273:         showSuccess("Revenue schedule updated", "Changes saved.")
+274:         // Best-effort refresh
+275:         try { onRefresh && (await onRefresh()) } catch {}
+276:       }
+277:     } catch (error) {
+278:       if (error && typeof error === "object" && "serverErrors" in error) {
+279:         editor.setErrors((error as { serverErrors?: Record<string, string> }).serverErrors ?? {})
+280:       } else {
+281:         showError("Unable to update revenue schedule", error instanceof Error ? error.message : "")
+282:       }
+283:     }
+284:   }, [editor, enableInlineEditing, onRefresh, showError, showSuccess])
+285: 
+286:   if (loading) {
+287:     return (
+288:       <div className="flex min-h-[400px] items-center justify-center">
+289:         <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white px-6 py-4 shadow-sm">
+290:           <Loader2 className="h-5 w-5 animate-spin text-primary-600" />
+291:           <span className="text-sm font-medium text-gray-700">Loading revenue schedule...</span>
+292:         </div>
+293:       </div>
+294:     )
+295:   }
+296: 
+297:   if (error) {
+298:     return (
+299:       <div className="flex min-h-[400px] items-center justify-center">
+300:         <div className="flex max-w-lg items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-6 py-4 text-sm text-red-700 shadow-sm">
+301:           <AlertCircle className="mt-0.5 h-5 w-5 flex-shrink-0" />
+302:           <div>
+303:             <p className="font-semibold">Unable to load revenue schedule</p>
+304:             <p className="mt-1 text-red-600">{error}</p>
+305:           </div>
+306:         </div>
+307:       </div>
+308:     )
+309:   }
+310: 
+311:   if (!schedule) {
+312:     return (
+313:       <div className="flex min-h-[400px] items-center justify-center">
+314:         <div className="flex flex-col items-center gap-4 rounded-xl border border-gray-200 bg-white px-8 py-10 text-center shadow-sm">
+315:           <AlertCircle className="h-8 w-8 text-gray-400" />
+316:           <div className="space-y-1">
+317:             <p className="text-lg font-semibold text-gray-900">Revenue schedule not found</p>
+318:             <p className="text-sm text-gray-600">
+319:               <span>We could not locate a revenue schedule matching&nbsp;</span>
+320:               <span className="font-semibold text-gray-800">{scheduleKey ?? "unknown"}</span>
+321:               <span>. Return to the list to pick another record.</span>
+322:             </p>
+323:           </div>
+324:           <Link
+325:             href="/revenue-schedules"
+326:             className="inline-flex items-center rounded-full bg-primary-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary-700"
+327:           >
+328:             Back to Revenue Schedules
+329:           </Link>
+330:         </div>
+331:       </div>
+332:     )
+333:   }
+334: 
+335:   // scheduleName derived above to reflect inline edits
+336:   const statusPillClass =
+337:     schedule.scheduleStatus?.toLowerCase() === "reconciled"
+338:       ? "bg-emerald-100 text-emerald-700 border-emerald-200"
+339:       : schedule.scheduleStatus?.toLowerCase() === "in dispute"
+340:         ? "bg-amber-100 text-amber-700 border-amber-200"
+341:         : "bg-blue-100 text-blue-700 border-blue-200"
+342: 
+343:   const disputePillClass = schedule.inDispute ? "bg-rose-100 text-rose-700 border-rose-200" : "bg-emerald-100 text-emerald-700 border-emerald-200"
+344: 
+345:   const productRevenueTypeDisplay =
+346:     schedule.productRevenueTypeLabel ??
+347:     getRevenueTypeLabel(schedule.productRevenueType) ??
+348:     schedule.productRevenueType
+349: 
+350:   const columnOne: FieldDefinition[] = [
+351:     { fieldId: "04.01.000", label: "Revenue Schedule Name", value: scheduleName },
+352:     { fieldId: "04.01.001", label: "Revenue Schedule Date", value: scheduleDate },
+353:     {
+354:       fieldId: "04.01.002",
+355:       label: "Vendor - Product Name",
+356:       value:
+357:         schedule.productId &&
+358:         schedule.productNameVendor &&
+359:         UUID_REGEX.test(schedule.productId) ? (
+360:           <Link
+361:             href={`/products/${schedule.productId}`}
+362:             className="block w-full min-w-0 truncate text-primary-700 hover:text-primary-800 focus:text-primary-800 focus:outline-none no-underline"
+363:           >
+364:             {schedule.productNameVendor}
+365:           </Link>
+366:         ) : (
+367:           schedule.productNameVendor
+368:         )
+369:     },
+370:     { fieldId: "04.01.003", label: "Vendor - Product Description", value: schedule.productDescriptionVendor },
+371:     { fieldId: "04.01.004", label: "Product Revenue Type", value: productRevenueTypeDisplay },
+372:     {
+373:       fieldId: "04.01.005",
+374:       label: "Status",
+375:       value: schedule.scheduleStatus ?? "Unknown"
+376:     },
+377:     {
+378:       fieldId: "04.01.006",
+379:       label: "In Dispute",
+380:       value: schedule.inDispute ? "Yes" : "No"
+381:     }
+382:   ]
+383: 
+384:   const columnTwo: FieldDefinition[] = [
+385:     {
+386:       fieldId: "04.01.007",
+387:       label: "Opportunity Name",
+388:       value:
+389:         schedule.opportunityId &&
+390:         schedule.opportunityName &&
+391:         typeof schedule.opportunityId === "string" &&
+392:         UUID_REGEX.test(schedule.opportunityId) ? (
+393:           <Link
+394:             href={`/opportunities/${schedule.opportunityId}`}
+395:             className="block w-full min-w-0 truncate text-primary-700 hover:text-primary-800 focus:text-primary-800 focus:outline-none no-underline"
+396:           >
+397:             <span className="block w-full truncate text-primary-700 hover:text-primary-800 focus:text-primary-800 focus:outline-none">
+398:               {schedule.opportunityName}
+399:             </span>
+400:           </Link>
+401:         ) : (
+402:           schedule.opportunityName
+403:         )
+404:     },
+405:     {
+406:       fieldId: "04.01.008",
+407:       label: "Distributor Name",
+408:       value:
+409:         schedule.distributorId &&
+410:         schedule.distributorName &&
+411:         UUID_REGEX.test(schedule.distributorId) ? (
+412:           <Link
+413:             href={`/accounts/${schedule.distributorId}`}
+414:             className="block w-full min-w-0 truncate text-primary-700 hover:text-primary-800 focus:text-primary-800 focus:outline-none no-underline"
+415:           >
+416:             <span className="block w-full truncate text-primary-700 hover:text-primary-800 focus:text-primary-800 focus:outline-none">
+417:               {schedule.distributorName}
+418:             </span>
+419:           </Link>
+420:         ) : (
+421:           schedule.distributorName
+422:         )
+423:     },
+424:     {
+425:       fieldId: "04.01.009",
+426:       label: "Vendor Name",
+427:       value:
+428:         schedule.vendorId &&
+429:         schedule.vendorName &&
+430:         UUID_REGEX.test(schedule.vendorId) ? (
+431:           <Link
+432:             href={`/accounts/${schedule.vendorId}`}
+433:             className="block w-full min-w-0 truncate text-primary-700 hover:text-primary-800 focus:text-primary-800 focus:outline-none no-underline"
+434:           >
+435:             <span className="block w-full truncate text-primary-700 hover:text-primary-800 focus:text-primary-800 focus:outline-none">
+436:               {schedule.vendorName}
+437:             </span>
+438:           </Link>
+439:         ) : (
+440:           schedule.vendorName
+441:         )
+442:     },
+443:     {
+444:       fieldId: "04.01.010",
+445:       label: "Account Name",
+446:       value:
+447:         schedule.accountId &&
+448:         schedule.accountName &&
+449:         UUID_REGEX.test(schedule.accountId) ? (
+450:           <Link
+451:             href={`/accounts/${schedule.accountId}`}
+452:             className="block w-full min-w-0 truncate text-primary-700 hover:text-primary-800 focus:text-primary-800 focus:outline-none no-underline"
+453:           >
+454:             <span className="block w-full truncate text-primary-700 hover:text-primary-800 focus:text-primary-800 focus:outline-none">
+455:               {schedule.accountName}
+456:             </span>
+457:           </Link>
+458:         ) : (
+459:           schedule.accountName
+460:         )
+461:     },
+462:     { fieldId: "04.01.011", label: "Legal Name", value: schedule.legalName ?? schedule.accountName },
+463:     {
+464:       fieldId: "04.01.012",
+465:       label: "Shipping Address",
+466:       value: schedule.shippingAddress ? (
+467:         <span className="block truncate" title={schedule.shippingAddress}>
+468:           {schedule.shippingAddress}
+469:         </span>
+470:       ) : undefined,
+471:       fullWidth: true
+472:     },
+473:     {
+474:       fieldId: "04.01.013",
+475:       label: "Billing Address",
+476:       value: schedule.billingAddress ? (
+477:         <span className="block truncate" title={schedule.billingAddress}>
+478:           {schedule.billingAddress}
+479:         </span>
+480:       ) : undefined,
+481:       fullWidth: true
+482:     }
+483:   ]
+484: 
+485:   const columnThree: FieldDefinition[] = [
+486:     { fieldId: "04.01.014", label: "Commission Rate Expected", value: schedule.expectedCommissionRatePercent },
+487:     { fieldId: "04.01.015", label: "Commission Rate Actual", value: schedule.actualCommissionRatePercent },
+488:     { fieldId: "04.01.016", label: "Commission Rate Difference", value: schedule.commissionRateDifference },
+489:     { fieldId: "04.01.017", label: "House Split %", value: schedule.houseSplitPercent },
+490:     { fieldId: "04.01.018", label: "House Rep Split %", value: schedule.houseRepSplitPercent },
+491:     { fieldId: "04.01.019", label: "Subagent Split %", value: schedule.subagentSplitPercent },
+492:     { fieldId: "04.01.020", label: "Subagent", value: schedule.subagentName }
+493:   ]
+494: 
+495:   const topColumns = [columnOne, columnTwo, columnThree]
+496: 
+497:   const summaryMetrics: MetricDefinition[] = [
+498:     { fieldId: "04.01.022", label: "Quantity", value: schedule.quantity },
+499:     { fieldId: "04.01.023", label: "Price Each", value: schedule.priceEach },
+500:     { fieldId: "N/A", label: "Usage Gross (Est.)", value: schedule.expectedUsageGross ?? schedule.expectedUsage },
+501:     {
+502:       fieldId: "04.01.024",
+503:       label: "Usage Adjustment",
+504:       value: schedule.expectedUsageAdjustment ?? schedule.expectedUsage
+505:     },
+506:     { fieldId: "04.01.025", label: "Usage Net (Est.)", value: schedule.expectedUsageNet },
+507:     { fieldId: "04.01.026", label: "Usage (Actual)", value: schedule.actualUsage },
+508:     { fieldId: "04.01.027", label: "Usage Balance", value: schedule.usageBalance },
+509:     { fieldId: "04.01.028", label: "Commission Gross (Est.)", value: schedule.expectedCommissionGross },
+510:     { fieldId: "04.01.029", label: "Commission Adjustment", value: schedule.expectedCommissionAdjustment },
+511:     { fieldId: "04.01.030", label: "Commission Net (Est.)", value: schedule.expectedCommissionNet },
+512:     { fieldId: "N/A", label: "Commission (Actual)", value: schedule.actualCommission },
+513:     { fieldId: "N/A", label: "Commission Variance", value: schedule.commissionDifference }
+514:   ]
+515: 
+516:   return (
+517:     <div className="space-y-3 p-2">
+518:       <div className="rounded-2xl bg-gray-100 p-3 shadow-sm h-[300px] overflow-y-auto">
+519:         <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
+520:           <div className="flex items-center gap-3">
+521:             <p className="text-[13px] font-semibold uppercase tracking-wide text-primary-600">Revenue Schedule Detail</p>
+522:             {enableInlineEditing && editor.isDirty ? (
+523:               <span className="text-[11px] font-semibold text-amber-600">Unsaved changes</span>
+524:             ) : null}
+525:           </div>
+526:           <div className="flex items-center gap-2">
+527:             {canCreateTickets ? (
+528:               <button
+529:                 type="button"
+530:                 onClick={() => supportingDetailsRef.current?.openTicketCreateModal()}
+531:                 disabled={!schedule}
+532:                 className="flex items-center gap-2 rounded-md border border-primary-600 bg-white px-3 py-1.5 text-sm font-medium text-primary-700 transition hover:bg-primary-50 disabled:cursor-not-allowed disabled:opacity-60"
+533:               >
+534:                 Create Ticket
+535:               </button>
+536:             ) : null}
+537:             {enableInlineEditing ? (
+538:               <button
+539:                 type="button"
+540:                 onClick={handleSave}
+541:                 disabled={editor.saving || !editor.isDirty}
+542:                 className="flex items-center gap-2 rounded-md bg-primary-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-60"
+543:               >
+544:                 {editor.saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Update"}
+545:               </button>
+546:             ) : null}
+547:           </div>
+548:         </div>
+549: 
+550:         <div className="grid gap-6 lg:grid-cols-3">
+551:           {topColumns.map((column, index) => (
+552:             <div key={`column-${index}`} className="space-y-1.5">
+553:               {column.map(field => {
+554:                 if (enableInlineEditing && field.fieldId === "04.01.000" && nameField) {
+555:                   return (
+556:                     <EditRow
+557:                       key={`${field.fieldId}-${field.label}`}
+558:                       label="Revenue Schedule Name"
+559:                       control={
+560:                         <EditableField.Input
+561:                           value={(nameField.value as string) ?? ""}
+562:                           onChange={nameField.onChange}
+563:                           onBlur={nameField.onBlur}
+564:                           placeholder="RS-10001"
+565:                         />
+566:                       }
+567:                       error={editor.errors.revenueScheduleName}
+568:                     />
+569:                   )
+570:                 }
+571:                 if (enableInlineEditing && field.fieldId === "04.01.001" && dateField) {
+572:                   return (
+573:                     <EditRow
+574:                       key={`${field.fieldId}-${field.label}`}
+575:                       label="Revenue Schedule Date"
+576:                       control={
+577:                         <div className="relative">
+578:                           <EditableField.Input
+579:                             type="date"
+580:                             value={(dateField.value as string) ?? ""}
+581:                             onChange={dateField.onChange}
+582:                             onBlur={dateField.onBlur}
+583:                             className="pr-6 [color-scheme:light] [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-0 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-datetime-edit]:opacity-0 [&::-webkit-datetime-edit]:focus:opacity-100"
+584:                             style={{ colorScheme: 'light' } as React.CSSProperties}
+585:                             onFocus={(e) => {
+586:                               e.currentTarget.classList.add('date-input-focused')
+587:                             }}
+588:                           />
+589:                           <span className="pointer-events-none absolute left-0 top-1/2 -translate-y-1/2 text-xs text-gray-900">
+590:                             {(dateField.value as string) || <span className="text-gray-400">YYYY-MM-DD</span>}
+591:                           </span>
+592:                         </div>
+593:                       }
+594:                       error={editor.errors.revenueScheduleDate}
+595:                     />
+596:                   )
+597:                 }
+598:                 if (enableInlineEditing && field.fieldId === "04.01.002" && productNameField) {
+599:                   return (
+600:                     <EditRow
+601:                       key={`${field.fieldId}-${field.label}`}
+602:                       label="Vendor - Product Name"
+603:                       control={
+604:                         <EditableField.Input
+605:                           value={(productNameField.value as string) ?? ""}
+606:                           onChange={productNameField.onChange}
+607:                           onBlur={productNameField.onBlur}
+608:                           placeholder="Product name"
+609:                         />
+610:                       }
+611:                     />
+612:                   )
+613:                 }
+614:                 if (enableInlineEditing && field.fieldId === "04.01.003" && productDescField) {
+615:                   return (
+616:                     <EditRow
+617:                       key={`${field.fieldId}-${field.label}`}
+618:                       label="Vendor - Product Description"
+619:                       control={
+620:                         <EditableField.Input
+621:                           value={(productDescField.value as string) ?? ""}
+622:                           onChange={productDescField.onChange}
+623:                           onBlur={productDescField.onBlur}
+624:                           placeholder="Description"
+625:                         />
+626:                       }
+627:                     />
+628:                   )
+629:                 }
+630:                   if (enableInlineEditing && field.fieldId === "04.01.004" && productTypeField) {
+631:                     return (
+632:                       <EditRow
+633:                         key={`${field.fieldId}-${field.label}`}
+634:                         label="Product Revenue Type"
+635:                         control={
+636:                           <EditableField.Select
+637:                             value={(productTypeField.value as string) ?? ""}
+638:                             onChange={productTypeField.onChange}
+639:                             onBlur={productTypeField.onBlur}
+640:                           >
+641:                             <option value="">Select revenue type</option>
+642:                             {REVENUE_TYPE_OPTIONS.map(option => (
+643:                               <option key={option.value} value={option.value}>
+644:                                 {option.label}
+645:                               </option>
+646:                             ))}
+647:                           </EditableField.Select>
+648:                         }
+649:                       />
+650:                     )
+651:                   }
+652:                 if (enableInlineEditing && field.fieldId === "04.01.014" && expectedRateField) {
+653:                   return (
+654:                     <EditRow
+655:                       key={`${field.fieldId}-${field.label}`}
+656:                       label="Commission Rate Expected"
+657:                       control={
+658:                         <EditableField.Input
+659:                           value={(expectedRateField.value as string) ?? ""}
+660:                           onChange={expectedRateField.onChange}
+661:                           onBlur={expectedRateField.onBlur}
+662:                           placeholder="12.50%"
+663:                         />
+664:                       }
+665:                     />
+666:                   )
+667:                 }
+668:                 if (enableInlineEditing && field.fieldId === "04.01.017" && houseSplitField) {
+669:                   return (
+670:                     <EditRow
+671:                       key={`${field.fieldId}-${field.label}`}
+672:                       label="House Split %"
+673:                       control={
+674:                         <EditableField.Input
+675:                           value={(houseSplitField.value as string) ?? ""}
+676:                           onChange={houseSplitField.onChange}
+677:                           onBlur={houseSplitField.onBlur}
+678:                           placeholder="20%"
+679:                         />
+680:                       }
+681:                     />
+682:                   )
+683:                 }
+684:                 if (enableInlineEditing && field.fieldId === "04.01.018" && houseRepSplitField) {
+685:                   return (
+686:                     <EditRow
+687:                       key={`${field.fieldId}-${field.label}`}
+688:                       label="House Rep Split %"
+689:                       control={
+690:                         <EditableField.Input
+691:                           value={(houseRepSplitField.value as string) ?? ""}
+692:                           onChange={houseRepSplitField.onChange}
+693:                           onBlur={houseRepSplitField.onBlur}
+694:                           placeholder="30%"
+695:                         />
+696:                       }
+697:                     />
+698:                   )
+699:                 }
+700:                 if (enableInlineEditing && field.fieldId === "04.01.019" && subagentSplitField) {
+701:                   return (
+702:                     <EditRow
+703:                       key={`${field.fieldId}-${field.label}`}
+704:                       label="Subagent Split %"
+705:                       control={
+706:                         <EditableField.Input
+707:                           value={(subagentSplitField.value as string) ?? ""}
+708:                           onChange={subagentSplitField.onChange}
+709:                           onBlur={subagentSplitField.onBlur}
+710:                           placeholder="50%"
+711:                         />
+712:                       }
+713:                     />
+714:                   )
+715:                 }
+716:                 return <FieldRow key={`${field.fieldId}-${field.label}`} {...field} />
+717:               })}
+718:             </div>
+719:           ))}
+720:         </div>
+721:       </div>
+722: 
+723:       <div className="border-y-2 border-blue-900 bg-blue-100 px-3 py-1.5">
+724:         <h2 className="text-[11px] font-semibold uppercase tracking-wide text-gray-600 mb-1.5">Schedule Summary</h2>
+725:         <div className="flex flex-wrap gap-2">
+726:           {summaryMetrics.map(metric => (
+727:             <MetricTile key={`${metric.fieldId}-${metric.label}`} {...metric} />
+728:           ))}
+729:         </div>
+730:       </div>
+731: 
+732:       <RevenueScheduleSupportingDetails ref={supportingDetailsRef} schedule={schedule} />
+733:     </div>
+734:   )
+735: }

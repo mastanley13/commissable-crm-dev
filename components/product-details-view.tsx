@@ -977,11 +977,7 @@ interface EditableProductHeaderProps {
         </div>
       )}
       {activeTab === "history" && product && (
-        <div className="rounded-b-2xl border-x border-b border-gray-200 bg-white pt-0 px-3 pb-4">
-          <div className="border-t-2 border-t-primary-600 -mr-3 pt-3">
-            <AuditHistoryTab entityName="Product" entityId={product.id} />
-          </div>
-        </div>
+        <AuditHistoryTab entityName="Product" entityId={product.id} />
       )}
     </div>
   )
@@ -1153,4 +1149,3 @@ export function ProductDetailsView({
     </div>
   )
 }
-

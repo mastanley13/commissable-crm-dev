@@ -1,0 +1,1185 @@
+1: "use client"
+2: 
+3: import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react"
+4: import {
+5:   PiggyBank,
+6:   BriefcaseBusiness,
+7:   Package,
+8:   Coins,
+9:   CreditCard,
+10:   NotebookPen,
+11:   Ticket
+12: } from "lucide-react"
+13: import type { LucideIcon } from "lucide-react"
+14: 
+15: import type { RevenueScheduleDetailRecord } from "./revenue-schedule-details-view"
+16: import { ListHeader, type ColumnFilter } from "@/components/list-header"
+17: import { ColumnChooserModal } from "@/components/column-chooser-modal"
+18: import { DynamicTable, type Column, type PaginationInfo } from "@/components/dynamic-table"
+19: import { useTablePreferences } from "@/hooks/useTablePreferences"
+20: import { applySimpleFilters } from "@/lib/filter-utils"
+21: import { getRevenueTypeLabel } from "@/lib/revenue-types"
+22: import { ACTIVITY_TABLE_BASE_COLUMNS } from "@/components/opportunity-details-view"
+23: import { ActivityNoteCreateModal } from "@/components/activity-note-create-modal"
+24: import { TicketCreateModal } from "@/components/ticket-create-modal"
+25: import { useAuth } from "@/lib/auth-context"
+26: 
+27: interface SectionNavigationItem {
+28:   id: string
+29:   label: string
+30:   description: string
+31:   icon: LucideIcon
+32: }
+33: 
+34: interface DetailLineProps {
+35:   label: string
+36:   value?: React.ReactNode
+37:   emphasize?: boolean
+38:   underline?: boolean
+39: }
+40: 
+41: interface FinancialSplitDefinition {
+42:   id: string
+43:   tabLabel: string
+44:   leftHeading: string
+45:   rightHeading: string
+46:   leftFields: DetailLineProps[]
+47:   rightFields: DetailLineProps[]
+48: }
+49: 
+50: const placeholder = <span className="text-slate-300">--</span>
+51: 
+52: function renderValue(value?: React.ReactNode) {
+53:   if (value === undefined || value === null) {
+54:     return placeholder
+55:   }
+56: 
+57:   if (typeof value === "string") {
+58:     const trimmed = value.trim()
+59:     if (!trimmed.length) {
+60:       return placeholder
+61:     }
+62:     return trimmed
+63:   }
+64: 
+65:   return value
+66: }
+67: 
+68: function DetailLine({ label, value, emphasize = false, underline = false }: DetailLineProps) {
+69:   const resolvedValue = renderValue(value)
+70:   const labelClasses = emphasize ? "font-semibold text-slate-700" : "text-slate-600"
+71:   const valueClasses = `text-left ${emphasize ? "font-semibold text-slate-900" : "text-slate-700"}`
+72: 
+73:   return (
+74:     <div className="space-y-0.5">
+75:       <div className="grid grid-cols-[minmax(auto,200px),auto] items-baseline gap-3 text-[11px]">
+76:         <span className={labelClasses}>{label}</span>
+77:         <span className={valueClasses}>{resolvedValue}</span>
+78:       </div>
+79:       {underline ? (
+80:         <div className="grid grid-cols-[minmax(auto,200px),auto] gap-3">
+81:           <span />
+82:           <div className="flex flex-col gap-[2px] pb-0.5">
+83:             <span className="h-px w-full bg-slate-300" />
+84:             <span className="h-px w-full bg-slate-300" />
+85:           </div>
+86:         </div>
+87:       ) : null}
+88:     </div>
+89:   )
+90: }
+91: 
+92: const SECTION_ITEMS: SectionNavigationItem[] = [
+93:   {
+94:     id: "financial-summary",
+95:     label: "Financial Summary",
+96:     description: "Commission details and revenue splits",
+97:     icon: PiggyBank
+98:   },
+99:   {
+100:     id: "opportunity-details",
+101:     label: "Opportunity Details",
+102:     description: "Account and customer information",
+103:     icon: BriefcaseBusiness
+104:   },
+105:   {
+106:     id: "product-details",
+107:     label: "Product Details",
+108:     description: "Vendor supplied product data",
+109:     icon: Package
+110:   },
+111:   {
+112:     id: "reconciled-deposits",
+113:     label: "Reconciled Deposits",
+114:     description: "Deposit reconciliation information",
+115:     icon: Coins
+116:   },
+117:   {
+118:     id: "payments-made",
+119:     label: "Payments Made",
+120:     description: "Amounts paid out to reps and partners",
+121:     icon: CreditCard
+122:   },
+123:   {
+124:     id: "activities-notes",
+125:     label: "Activities and Notes",
+126:     description: "Tasks, notes, and attached files",
+127:     icon: NotebookPen
+128:   },
+129:   {
+130:     id: "tickets",
+131:     label: "Tickets",
+132:     description: "Support tickets for this schedule",
+133:     icon: Ticket
+134:   }
+135: ]
+136: 
+137: export interface RevenueScheduleSupportingDetailsHandle {
+138:   openTicketCreateModal: () => void
+139: }
+140: 
+141: export const RevenueScheduleSupportingDetails = forwardRef<
+142:   RevenueScheduleSupportingDetailsHandle,
+143:   { schedule: RevenueScheduleDetailRecord | null }
+144: >(function RevenueScheduleSupportingDetails({ schedule }, ref) {
+145:   const { hasPermission } = useAuth()
+146:   const canCreateTickets = hasPermission ? hasPermission("tickets.create") : true
+147: 
+148:   const [activeSectionId, setActiveSectionId] = useState<string>(SECTION_ITEMS[0].id)
+149:   // Activities & Notes – dynamic table state
+150:   const [activitiesLoading, setActivitiesLoading] = useState<boolean>(false)
+151:   const [activitiesError, setActivitiesError] = useState<string | null>(null)
+152:   const [activities, setActivities] = useState<any[]>([])
+153:   const [activitiesPagination, setActivitiesPagination] = useState<PaginationInfo>({ page: 1, pageSize: 10, total: 0, totalPages: 1 })
+154:   const [activitiesPage, setActivitiesPage] = useState<number>(1)
+155:   const [activitiesPageSize, setActivitiesPageSize] = useState<number>(10)
+156:   const [activitiesSearch, setActivitiesSearch] = useState<string>("")
+157:   const [activitiesIncludeCompleted, setActivitiesIncludeCompleted] = useState<boolean>(false) // Active-only by default
+158:   const [activitiesColumnFilters, setActivitiesColumnFilters] = useState<ColumnFilter[]>([])
+159:   const [selectedActivityIds, setSelectedActivityIds] = useState<string[]>([])
+160:   const [columnChooserOpen, setColumnChooserOpen] = useState<boolean>(false)
+161:   const [createModalOpen, setCreateModalOpen] = useState<boolean>(false)
+162:   const searchDebounceRef = useRef<NodeJS.Timeout | null>(null)
+163: 
+164:   // Tickets tab – dynamic table state
+165:   const [ticketsLoading, setTicketsLoading] = useState<boolean>(false)
+166:   const [ticketsError, setTicketsError] = useState<string | null>(null)
+167:   const [tickets, setTickets] = useState<any[]>([])
+168:   const [ticketsPagination, setTicketsPagination] = useState<PaginationInfo>({
+169:     page: 1,
+170:     pageSize: 10,
+171:     total: 0,
+172:     totalPages: 1
+173:   })
+174:   const [ticketsPage, setTicketsPage] = useState<number>(1)
+175:   const [ticketsPageSize, setTicketsPageSize] = useState<number>(10)
+176:   const [ticketsSearch, setTicketsSearch] = useState<string>("")
+177:   const [ticketsStatusFilter, setTicketsStatusFilter] = useState<"active" | "all">("active")
+178:   const [ticketsColumnFilters, setTicketsColumnFilters] = useState<ColumnFilter[]>([])
+179:   const [selectedTicketIds, setSelectedTicketIds] = useState<string[]>([])
+180:   const [ticketsColumnChooserOpen, setTicketsColumnChooserOpen] = useState<boolean>(false)
+181:   const [ticketCreateModalOpen, setTicketCreateModalOpen] = useState<boolean>(false)
+182:   const ticketsSearchDebounceRef = useRef<NodeJS.Timeout | null>(null)
+183: 
+184:   useImperativeHandle(
+185:     ref,
+186:     () => ({
+187:       openTicketCreateModal: () => {
+188:         setActiveSectionId("tickets")
+189:         setTicketCreateModalOpen(true)
+190:       }
+191:     }),
+192:     []
+193:   )
+194: 
+195:   const RS_ACTIVITY_FILTER_COLUMNS: Array<{ id: string; label: string }> = useMemo(() => [
+196:     { id: "activityDate", label: "Activity Date" },
+197:     { id: "activityType", label: "Activity Type" },
+198:     { id: "activityStatus", label: "Activity Status" },
+199:     { id: "description", label: "Description" },
+200:     { id: "activityOwner", label: "Activity Owner" },
+201:     { id: "createdBy", label: "Created By" }
+202:   ], [])
+203: 
+204:   const RS_TICKET_FILTER_COLUMNS: Array<{ id: string; label: string }> = useMemo(
+205:     () => [
+206:       { id: "ticketNumber", label: "Ticket Number" },
+207:       { id: "issue", label: "Issue" },
+208:       { id: "distributorName", label: "Distributor Name" },
+209:       { id: "vendorName", label: "Vendor Name" },
+210:       { id: "opportunityName", label: "Opportunity Name" }
+211:     ],
+212:     []
+213:   )
+214: 
+215:   // Format date to YYYY-MM-DD to match other detail tables
+216:   const formatDate = useCallback((value?: string | Date | null): string => {
+217:     if (!value) return "--"
+218:     const date = value instanceof Date ? value : new Date(value)
+219:     if (Number.isNaN(date.getTime())) return "--"
+220:     const y = date.getFullYear()
+221:     const m = String(date.getMonth() + 1).padStart(2, "0")
+222:     const d = String(date.getDate()).padStart(2, "0")
+223:     return `${y}-${m}-${d}`
+224:   }, [])
+225: 
+226:   // Persisted column preferences (reuse Opportunity activities columns for parity)
+227:   const RS_ACTIVITY_BASE_COLUMNS: Column[] = useMemo(() => {
+228:     const base = ACTIVITY_TABLE_BASE_COLUMNS.map(c => ({ ...c }))
+229:     // Nudge widths down to fit the smaller right-hand section
+230:     const widthOverrides: Record<string, number> = {
+231:       "multi-action": 140,
+232:       id: 160,
+233:       activityDate: 140,
+234:       activityType: 140,
+235:       activityOwner: 160,
+236:       description: 240,
+237:       activityStatus: 140,
+238:       attachment: 120,
+239:       fileName: 180,
+240:       createdBy: 160
+241:     }
+242:     return base.map(col => (widthOverrides[col.id] ? { ...col, width: widthOverrides[col.id] } : col))
+243:   }, [])
+244:   const { columns: activityPreferenceColumns, handleColumnsChange: handleActivityColumnsChange } = useTablePreferences(
+245:     "revenue-schedule:activities",
+246:     RS_ACTIVITY_BASE_COLUMNS
+247:   )
+248: 
+249:   const activityColumnsWithRender = useMemo<Column[]>(() => {
+250:     return activityPreferenceColumns.map(col => {
+251:       if (col.id === "activityDate") {
+252:         return { ...col, render: (value?: string | Date | null) => formatDate(value) }
+253:       }
+254:       return col
+255:     })
+256:   }, [activityPreferenceColumns, formatDate])
+257: 
+258:   const mapApiRowToActivity = useCallback((row: any) => {
+259:     const attachments = Array.isArray(row.attachments) ? row.attachments : []
+260:     const count = attachments.length
+261:     const attachmentLabel = count === 0 ? "None" : `${count} file${count === 1 ? "" : "s"}`
+262:     const primaryName = count > 0 ? attachments[0]?.fileName ?? null : null
+263: 
+264:     return {
+265:       id: row.id,
+266:       active: Boolean(row.active),
+267:       activityDate: row.dueDate ?? row.createdAt ?? null,
+268:       activityType: row.type ?? null,
+269:       activityStatus: row.status ?? null,
+270:       description: row.description ?? row.subject ?? null,
+271:       activityOwner: row.assigneeName ?? null,
+272:       createdBy: row.creatorName ?? null,
+273:       attachment: attachmentLabel,
+274:       fileName: primaryName,
+275:       attachments
+276:     }
+277:   }, [])
+278: 
+279:   const RS_TICKET_BASE_COLUMNS: Column[] = useMemo(
+280:     () => [
+281:       {
+282:         id: "multi-action",
+283:         label: "Select All",
+284:         width: 160,
+285:         minWidth: 130,
+286:         maxWidth: 220,
+287:         type: "multi-action",
+288:         hideable: false
+289:       },
+290:       {
+291:         id: "ticketNumber",
+292:         label: "Ticket Number",
+293:         width: 150,
+294:         minWidth: 130,
+295:         maxWidth: 220,
+296:         sortable: true,
+297:         accessor: "ticketNumber"
+298:       },
+299:       {
+300:         id: "issue",
+301:         label: "Issue",
+302:         width: 230,
+303:         minWidth: 180,
+304:         maxWidth: 360,
+305:         sortable: true,
+306:         accessor: "issue"
+307:       },
+308:       {
+309:         id: "distributorName",
+310:         label: "Distributor Name",
+311:         width: 180,
+312:         minWidth: 150,
+313:         maxWidth: 260,
+314:         sortable: true,
+315:         accessor: "distributorName"
+316:       },
+317:       {
+318:         id: "vendorName",
+319:         label: "Vendor Name",
+320:         width: 180,
+321:         minWidth: 150,
+322:         maxWidth: 260,
+323:         sortable: true,
+324:         accessor: "vendorName"
+325:       },
+326:       {
+327:         id: "opportunityName",
+328:         label: "Opportunity Name",
+329:         width: 220,
+330:         minWidth: 180,
+331:         maxWidth: 320,
+332:         sortable: true,
+333:         accessor: "opportunityName"
+334:       },
+335:       {
+336:         id: "status",
+337:         label: "Status",
+338:         width: 130,
+339:         minWidth: 110,
+340:         maxWidth: 180,
+341:         sortable: true,
+342:         accessor: "status"
+343:       }
+344:     ],
+345:     []
+346:   )
+347: 
+348:   const {
+349:     columns: ticketPreferenceColumns,
+350:     handleColumnsChange: handleTicketColumnsChange
+351:   } = useTablePreferences("revenue-schedule:tickets", RS_TICKET_BASE_COLUMNS)
+352: 
+353:   const ticketColumnsWithRender = useMemo<Column[]>(
+354:     () =>
+355:       ticketPreferenceColumns.map(column => {
+356:         if (column.id === "multi-action") {
+357:           return {
+358:             ...column,
+359:             render: (_: unknown, row: any) => {
+360:               const rowId = String(row.id)
+361:               const checked = selectedTicketIds.includes(rowId)
+362:               return (
+363:                 <div className="flex items-center" data-disable-row-click="true">
+364:                   <label
+365:                     className="flex cursor-pointer items-center justify-center"
+366:                     onClick={event => event.stopPropagation()}
+367:                   >
+368:                     <input
+369:                       type="checkbox"
+370:                       className="sr-only"
+371:                       checked={checked}
+372:                       aria-label={`Select ticket ${rowId}`}
+373:                       onChange={() => {
+374:                         setSelectedTicketIds(previous =>
+375:                           checked ? previous.filter(id => id !== rowId) : Array.from(new Set([...previous, rowId]))
+376:                         )
+377:                       }}
+378:                     />
+379:                     <span
+380:                       className={
+381:                         checked
+382:                           ? "flex h-4 w-4 items-center justify-center rounded border border-primary-500 bg-primary-600 text-white"
+383:                           : "flex h-4 w-4 items-center justify-center rounded border border-gray-300 bg-white text-transparent"
+384:                       }
+385:                     >
+386:                       <span className="block h-3 w-3 rounded-sm bg-current" />
+387:                     </span>
+388:                   </label>
+389:                 </div>
+390:               )
+391:             }
+392:           }
+393:         }
+394: 
+395:         if (column.id === "ticketNumber") {
+396:           return {
+397:             ...column,
+398:             render: (value: unknown, row: any) => {
+399:               const ticketId = String(row.id ?? "")
+400:               if (!ticketId) {
+401:                 return <span>{value as string}</span>
+402:               }
+403:               const display = (value as string) || row.ticketNumber || ticketId
+404:               return (
+405:                 <a
+406:                   href={`/tickets/${ticketId}`}
+407:                   className="text-blue-600 hover:text-blue-800 font-medium"
+408:                 >
+409:                   {display}
+410:                 </a>
+411:               )
+412:             }
+413:           }
+414:         }
+415: 
+416:         if (column.id === "status") {
+417:           return {
+418:             ...column,
+419:             render: (_: unknown, row: any) => (
+420:               <span
+421:                 className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+422:                   row.active ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"
+423:                 }`}
+424:               >
+425:                 {row.status ?? (row.active ? "Active" : "Inactive")}
+426:               </span>
+427:             )
+428:           }
+429:         }
+430: 
+431:           return column
+432:         }),
+433:       [selectedTicketIds, ticketPreferenceColumns]
+434:   )
+435: 
+436:   const mapApiRowToTicket = useCallback((row: any) => {
+437:     const active = row?.active !== false
+438:     return {
+439:       id: String(row?.id ?? ""),
+440:       distributorName: row?.distributorName ?? "",
+441:       vendorName: row?.vendorName ?? "",
+442:       issue: row?.issue ?? "",
+443:       revenueScheduleId: row?.revenueScheduleId ?? "",
+444:       revenueSchedule: row?.revenueSchedule ?? "",
+445:       opportunityName: row?.opportunityName ?? "",
+446:       ticketNumber: row?.ticketNumber ?? "",
+447:       status: active ? "Active" : "Inactive",
+448:       active
+449:     }
+450:   }, [])
+451: 
+452:   const fetchTickets = useCallback(async () => {
+453:     if (!schedule?.id) {
+454:       setTickets([])
+455:       setTicketsPagination({ page: 1, pageSize: ticketsPageSize, total: 0, totalPages: 1 })
+456:       return
+457:     }
+458: 
+459:     setTicketsLoading(true)
+460:     setTicketsError(null)
+461: 
+462:     try {
+463:       const params = new URLSearchParams({
+464:         page: String(ticketsPage),
+465:         pageSize: String(ticketsPageSize),
+466:         sortBy: "ticketNumber",
+467:         sortDir: "asc",
+468:         status: ticketsStatusFilter === "active" ? "active" : "all",
+469:         revenueScheduleId: String(schedule.id)
+470:       })
+471: 
+472:       if (ticketsSearch.trim()) {
+473:         params.set("q", ticketsSearch.trim())
+474:       }
+475: 
+476:       const response = await fetch(`/api/tickets?${params.toString()}`, { cache: "no-store" })
+477:       const payload = await response.json().catch(() => null)
+478: 
+479:       if (!response.ok) {
+480:         throw new Error(payload?.error ?? "Failed to load tickets")
+481:       }
+482: 
+483:       const data: any[] = Array.isArray(payload?.data) ? payload.data : []
+484:       const pagination: PaginationInfo = payload?.pagination ?? {
+485:         page: ticketsPage,
+486:         pageSize: ticketsPageSize,
+487:         total: data.length,
+488:         totalPages: 1
+489:       }
+490: 
+491:       const mapped = data.map(mapApiRowToTicket)
+492:       setTickets(mapped)
+493:       setTicketsPagination(pagination)
+494:       setSelectedTicketIds(prev => prev.filter(id => mapped.some(row => row.id === id)))
+495:     } catch (error) {
+496:       console.error("Failed to load schedule tickets", error)
+497:       setTickets([])
+498:       setTicketsPagination({ page: 1, pageSize: ticketsPageSize, total: 0, totalPages: 1 })
+499:       setTicketsError(error instanceof Error ? error.message : "Unable to load tickets")
+500:     } finally {
+501:       setTicketsLoading(false)
+502:     }
+503:   }, [schedule?.id, ticketsPage, ticketsPageSize, ticketsSearch, ticketsStatusFilter, mapApiRowToTicket])
+504: 
+505:   const fetchActivities = useCallback(async () => {
+506:     if (!schedule?.id) {
+507:       setActivities([])
+508:       setActivitiesPagination({ page: 1, pageSize: activitiesPageSize, total: 0, totalPages: 1 })
+509:       return
+510:     }
+511:     setActivitiesLoading(true)
+512:     setActivitiesError(null)
+513:     try {
+514:       const params = new URLSearchParams({
+515:         page: String(activitiesPage),
+516:         pageSize: String(activitiesPageSize),
+517:         contextType: "RevenueSchedule",
+518:         contextId: String(schedule.id),
+519:         includeCompleted: activitiesIncludeCompleted ? "true" : "false",
+520:         sortBy: "dueDate",
+521:         sortDirection: "desc"
+522:       })
+523:       if (activitiesSearch.trim()) params.set("search", activitiesSearch.trim())
+524: 
+525:       const response = await fetch(`/api/activities?${params.toString()}`, { cache: "no-store" })
+526:       const payload = await response.json().catch(() => null)
+527:       if (!response.ok) {
+528:         throw new Error(payload?.error ?? "Failed to load activities")
+529:       }
+530: 
+531:       const data: any[] = Array.isArray(payload?.data) ? payload.data : []
+532:       const pagination: PaginationInfo = payload?.pagination ?? {
+533:         page: activitiesPage,
+534:         pageSize: activitiesPageSize,
+535:         total: data.length,
+536:         totalPages: 1
+537:       }
+538:       const mapped = data.map(mapApiRowToActivity)
+539:       setActivities(mapped)
+540:       setActivitiesPagination(pagination)
+541:       setSelectedActivityIds(prev => prev.filter(id => mapped.some(row => row.id === id)))
+542:     } catch (err) {
+543:       console.error("Failed to load schedule activities", err)
+544:       setActivities([])
+545:       setActivitiesPagination({ page: 1, pageSize: activitiesPageSize, total: 0, totalPages: 1 })
+546:       setActivitiesError(err instanceof Error ? err.message : "Unable to load activities")
+547:     } finally {
+548:       setActivitiesLoading(false)
+549:     }
+550:   }, [schedule?.id, activitiesPage, activitiesPageSize, activitiesSearch, activitiesIncludeCompleted, mapApiRowToActivity])
+551: 
+552:   useEffect(() => {
+553:     void fetchActivities()
+554:   }, [fetchActivities])
+555: 
+556:   useEffect(() => {
+557:     void fetchTickets()
+558:   }, [fetchTickets])
+559: 
+560:   const handleSearch = useCallback((query: string) => {
+561:     setActivitiesSearch(query)
+562:     setActivitiesPage(1)
+563:     if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current)
+564:     searchDebounceRef.current = setTimeout(() => {
+565:       void fetchActivities()
+566:     }, 250)
+567:   }, [fetchActivities])
+568: 
+569:   const handleStatusFilter = useCallback((filter: string) => {
+570:     const includeCompleted = filter !== "active"
+571:     setActivitiesIncludeCompleted(includeCompleted)
+572:     setActivitiesPage(1)
+573:   }, [])
+574: 
+575:   const handleActivitiesPageChange = useCallback((page: number) => {
+576:     setActivitiesPage(page)
+577:   }, [])
+578: 
+579:   const handleActivitiesPageSizeChange = useCallback((size: number) => {
+580:     setActivitiesPageSize(size)
+581:     setActivitiesPage(1)
+582:   }, [])
+583: 
+584:   const handleActivityItemSelect = useCallback((itemId: string, selected: boolean) => {
+585:     setSelectedActivityIds(prev => (selected ? Array.from(new Set([...prev, itemId])) : prev.filter(id => id !== itemId)))
+586:   }, [])
+587: 
+588:   const handleSelectAllActivities = useCallback((selected: boolean) => {
+589:     if (selected) {
+590:       setSelectedActivityIds(activities.map(row => row.id))
+591:     } else {
+592:       setSelectedActivityIds([])
+593:     }
+594:   }, [activities])
+595: 
+596:   const filteredActivities = useMemo(() => applySimpleFilters(activities, activitiesColumnFilters), [activities, activitiesColumnFilters])
+597: 
+598:   const handleTicketStatusFilter = useCallback((filter: string) => {
+599:     const normalized: "active" | "all" = filter === "active" ? "active" : "all"
+600:     setTicketsStatusFilter(normalized)
+601:     setTicketsPage(1)
+602:   }, [])
+603: 
+604:   const handleTicketsPageChange = useCallback((page: number) => {
+605:     setTicketsPage(page)
+606:   }, [])
+607: 
+608:   const handleTicketsPageSizeChange = useCallback((size: number) => {
+609:     setTicketsPageSize(size)
+610:     setTicketsPage(1)
+611:   }, [])
+612: 
+613:   const handleTicketItemSelect = useCallback((itemId: string, selected: boolean) => {
+614:     setSelectedTicketIds(previous =>
+615:       selected ? Array.from(new Set([...previous, itemId])) : previous.filter(id => id !== itemId)
+616:     )
+617:   }, [])
+618: 
+619:   const handleSelectAllTickets = useCallback(
+620:     (selected: boolean) => {
+621:       if (selected) {
+622:         setSelectedTicketIds(tickets.map(row => String(row.id)))
+623:       } else {
+624:         setSelectedTicketIds([])
+625:       }
+626:     },
+627:     [tickets]
+628:   )
+629: 
+630:   const filteredTickets = useMemo(
+631:     () => applySimpleFilters(tickets, ticketsColumnFilters),
+632:     [tickets, ticketsColumnFilters]
+633:   )
+634: 
+635:   const financialSplits = useMemo<FinancialSplitDefinition[]>(() => {
+636:     const commissionActual = schedule?.actualCommission ?? "$0.00"
+637:     const commissionDifference = schedule?.commissionDifference ?? "$0.00"
+638:     const expectedNet = schedule?.expectedCommissionNet ?? "$0.00"
+639: 
+640:     const houseSplit = schedule?.houseSplitPercent ?? "20.00%"
+641:     const houseRepSplit = schedule?.houseRepSplitPercent ?? "30.00%"
+642:     const subagentSplit = schedule?.subagentSplitPercent ?? "50.00%"
+643: 
+644:     return [
+645:       {
+646:         id: "house",
+647:         tabLabel: `Commission Split - House (${houseSplit})`,
+648:         leftHeading: `Reconciled Commissions - House - ${houseSplit}`,
+649:         rightHeading: `Receivables - House - ${houseSplit}`,
+650:         leftFields: [
+651:           { label: "Commission Actual", value: commissionActual },
+652:           { label: "House Split %", value: `X ${houseSplit}` },
+653:           { label: "Commission Net House", value: expectedNet, emphasize: true }
+654:         ],
+655:         rightFields: [
+656:           { label: "Commission Balance Total", value: commissionDifference },
+657:           { label: "House Split %", value: `X ${houseSplit}` },
+658:           { label: "Commission Net Receivables House", value: commissionDifference, emphasize: true }
+659:         ]
+660:       },
+661:       {
+662:         id: "house-rep",
+663:         tabLabel: `Commission Split - House Rep (${houseRepSplit})`,
+664:         leftHeading: `Reconciled Commissions - House Rep - ${houseRepSplit}`,
+665:         rightHeading: `Receivables - House Rep - ${houseRepSplit}`,
+666:         leftFields: [
+667:           { label: "Commission Actual", value: commissionActual },
+668:           { label: "House Rep Split %", value: `X ${houseRepSplit}` },
+669:           { label: "Commission Net House Rep", value: expectedNet, emphasize: true }
+670:         ],
+671:         rightFields: [
+672:           { label: "Commission Balance Total", value: commissionDifference },
+673:           { label: "House Rep Split %", value: `X ${houseRepSplit}` },
+674:           { label: "Commission Net Receivables House Rep", value: commissionDifference, emphasize: true }
+675:         ]
+676:       },
+677:       {
+678:         id: "subagent",
+679:         tabLabel: `Commission Split - Subagent (${subagentSplit})`,
+680:         leftHeading: `Reconciled Commissions - Subagent - ${subagentSplit}`,
+681:         rightHeading: `Receivables - Subagent - ${subagentSplit}`,
+682:         leftFields: [
+683:           { label: "Commission Actual", value: commissionActual },
+684:           { label: "Subagent Split %", value: `X ${subagentSplit}` },
+685:           { label: "Commission Net Subagent", value: expectedNet, emphasize: true }
+686:         ],
+687:         rightFields: [
+688:           { label: "Commission Balance Total", value: commissionDifference },
+689:           { label: "Subagent Split %", value: `X ${subagentSplit}` },
+690:           { label: "Commission Net Receivables Subagent", value: commissionDifference, emphasize: true }
+691:         ]
+692:       }
+693:     ]
+694:   }, [schedule])
+695: 
+696:   const [activeSplitId, setActiveSplitId] = useState<string>(financialSplits[0]?.id ?? "")
+697: 
+698:   useEffect(() => {
+699:     if (!financialSplits.length) {
+700:       setActiveSplitId("")
+701:       return
+702:     }
+703: 
+704:     if (!financialSplits.some(split => split.id === activeSplitId)) {
+705:       setActiveSplitId(financialSplits[0].id)
+706:     }
+707:   }, [financialSplits, activeSplitId])
+708: 
+709:   const activeSplit = financialSplits.find(split => split.id === activeSplitId) ?? financialSplits[0]
+710: 
+711:   const opportunityColumns = useMemo<DetailLineProps[][]>(() => {
+712:     const columnA: DetailLineProps[] = [
+713:       { label: "House - Account ID", value: schedule?.accountName ?? "A0000000000008867" },
+714:       { label: "Vendor - Account ID", value: schedule?.vendorName ?? "0008" },
+715:       { label: "Distributor - Account ID", value: schedule?.distributorName ?? "0002" },
+716:       { label: "House - Customer ID", value: "0012" },
+717:       { label: "Vendor - Customer ID", value: "0013" },
+718:       { label: "Distributor - Customer ID", value: "0014" }
+719:     ]
+720: 
+721:     const columnB: DetailLineProps[] = [
+722:       { label: "Location ID", value: "0015" },
+723:       { label: "Opportunity ID", value: schedule?.opportunityId ?? "1" },
+724:       { label: "Opportunity Owner", value: schedule?.opportunityName ?? "4" },
+725:       { label: "House - Order ID", value: "001231" },
+726:       { label: "Vendor - Order ID", value: "0016" },
+727:       { label: "Distributor - Order ID", value: "0017" }
+728:     ]
+729: 
+730:     return [columnA, columnB]
+731:   }, [schedule])
+732: 
+733:   const productColumns = useMemo<DetailLineProps[][]>(() => {
+734:     const shippingAddress = schedule?.shippingAddress ?? "23, ABC Street"
+735:     const city = shippingAddress.split(",").slice(-2, -1)[0]?.trim() ?? "Rio Linda"
+736:     const stateMatch = schedule?.shippingAddress?.match(/\b[A-Z]{2}\b/)?.[0] ?? "CA"
+737: 
+738:     const fields: DetailLineProps[] = [
+739:       { label: "Service ID", value: schedule?.revenueSchedule ?? "12355234" },
+740:       {
+741:         label: "USOC",
+742:         value: getRevenueTypeLabel(schedule?.productRevenueType) ?? schedule?.productRevenueType ?? "AA3251"
+743:       },
+744:       { label: "Service Address", value: shippingAddress },
+745:       { label: "Service City", value: city },
+746:       { label: "Service State", value: stateMatch },
+747:       { label: "Service Postal Code", value: "92242" }
+748:     ]
+749: 
+750:     return [fields.slice(0, 3), fields.slice(3)]
+751:   }, [schedule])
+752: 
+753:   const reconciledDeposits = useMemo(
+754:     () => [
+755:       {
+756:         item: "1",
+757:         depositDate: "2025-04-01",
+758:         payee: schedule?.vendorName ?? "Telarus",
+759:         product: schedule?.productNameVendor ?? "UCaaS Seat - 1 User",
+760:         usageActual: schedule?.actualUsage ?? "$12.00",
+761:         commissionActual: schedule?.actualCommission ?? "$1.20",
+762:         paymentMethod: "Bank Transfer",
+763:         paymentReference: "RS-1234-PYMT"
+764:       }
+765:     ],
+766:     [schedule]
+767:   )
+768: 
+769:   const depositTotals = useMemo(
+770:     () => ({
+771:       usageActual: "$120.00",
+772:       commissionActual: schedule?.actualCommission ?? "$120.00"
+773:     }),
+774:     [schedule]
+775:   )
+776: 
+777:   const paymentsMade = useMemo(
+778:     () => [
+779:       {
+780:         item: "1",
+781:         paymentDate: "2025-04-07",
+782:         payee: schedule?.subagentName ?? "Subagent Team",
+783:         split: schedule?.subagentSplitPercent ?? "50.00%",
+784:         amount: "$60.00",
+785:         method: "ACH",
+786:         reference: "PMT-10024"
+787:       },
+788:       {
+789:         item: "2",
+790:         paymentDate: "2025-04-10",
+791:         payee: "House Rep Team",
+792:         split: schedule?.houseRepSplitPercent ?? "30.00%",
+793:         amount: "$36.00",
+794:         method: "Check",
+795:         reference: "PMT-10025"
+796:       }
+797:     ],
+798:     [schedule]
+799:   )
+800: 
+801:   const renderFinancialSummary = () => {
+802:     if (!activeSplit) {
+803:       return <p className="text-[11px] text-slate-500">No commission split data available.</p>
+804:     }
+805: 
+806:     return (
+807:       <div className="space-y-3">
+808:         <div className="flex flex-wrap justify-start gap-2">
+809:           {financialSplits.map(split => {
+810:             const isActive = split.id === activeSplitId
+811:             return (
+812:               <button
+813:                 key={split.id}
+814:                 type="button"
+815:                 onClick={() => setActiveSplitId(split.id)}
+816:                 className={`rounded-md border px-3 py-1.5 text-[11px] font-semibold shadow-sm transition ${
+817:                   isActive
+818:                     ? "border-primary-700 bg-primary-700 text-white hover:bg-primary-800"
+819:                     : "border-blue-300 bg-gradient-to-b from-blue-100 to-blue-200 text-primary-800 hover:from-blue-200 hover:to-blue-300 hover:border-blue-400"
+820:                 }`}
+821:               >
+822:                 {split.tabLabel}
+823:               </button>
+824:             )
+825:           })}
+826:         </div>
+827:         <div className="grid gap-4 lg:grid-cols-2">
+828:           <div className="space-y-2 max-w-md">
+829:             <h3 className="text-[11px] font-semibold text-slate-900">{activeSplit.leftHeading}</h3>
+830:             <div className="space-y-2">
+831:               {activeSplit.leftFields.map(field => (
+832:                 <DetailLine key={`${activeSplit.id}-left-${field.label}`} {...field} />
+833:               ))}
+834:             </div>
+835:           </div>
+836:           <div className="space-y-2 max-w-md">
+837:             <h3 className="text-[11px] font-semibold text-slate-900">{activeSplit.rightHeading}</h3>
+838:             <div className="space-y-2">
+839:               {activeSplit.rightFields.map(field => (
+840:                 <DetailLine key={`${activeSplit.id}-right-${field.label}`} {...field} />
+841:               ))}
+842:             </div>
+843:           </div>
+844:         </div>
+845:       </div>
+846:     )
+847:   }
+848: 
+849:   const renderOpportunityDetails = () => (
+850:     <div className="space-y-3">
+851:       <div className="grid gap-4 lg:grid-cols-2">
+852:         {opportunityColumns.map((column, columnIndex) => (
+853:           <div key={`opportunity-column-${columnIndex}`} className="space-y-2 max-w-md">
+854:             {column.map(field => (
+855:               <DetailLine key={`opportunity-${columnIndex}-${field.label}`} {...field} />
+856:             ))}
+857:           </div>
+858:         ))}
+859:       </div>
+860:     </div>
+861:   )
+862: 
+863:   const renderProductDetails = () => (
+864:     <div className="space-y-3">
+865:       <div className="grid gap-4 lg:grid-cols-2">
+866:         {productColumns.map((column, columnIndex) => (
+867:           <div key={`product-column-${columnIndex}`} className="space-y-2 max-w-md">
+868:             {column.map(field => (
+869:               <DetailLine key={`product-${columnIndex}-${field.label}`} {...field} />
+870:             ))}
+871:           </div>
+872:         ))}
+873:       </div>
+874:     </div>
+875:   )
+876: 
+877:   const renderReconciledDeposits = () => (
+878:     <div className="space-y-3">
+879:       <div className="overflow-x-auto">
+880:         <table className="w-full min-w-[720px] table-fixed overflow-hidden rounded-2xl border border-slate-200 text-[11px]">
+881:           <thead className="bg-indigo-50 text-indigo-700">
+882:             <tr>
+883:               {[
+884:                 "Item",
+885:                 "Deposit Date",
+886:                 "Payee",
+887:                 "Vendor - Product Name",
+888:                 "Usage Actual",
+889:                 "Commission Actual",
+890:                 "Payment Method",
+891:                 "Payment Reference"
+892:               ].map(header => {
+893:                 const isNumeric = header === "Usage Actual" || header === "Commission Actual"
+894:                 const widthMap: Record<string, string> = {
+895:                   "Item": "w-[64px] min-w-[64px]",
+896:                   "Vendor - Product Name": "w-[300px] min-w-[300px]",
+897:                   "Usage Actual": "w-[120px] min-w-[120px]",
+898:                   "Commission Actual": "w-[140px] min-w-[140px]",
+899:                   "Payment Method": "w-[160px] min-w-[160px]"
+900:                 }
+901:                 const widthClass = widthMap[header] ?? ""
+902:                 const alignClass = isNumeric ? "text-right" : "text-left"
+903:                 return (
+904:                   <th
+905:                     key={header}
+906:                     className={`px-2 py-1.5 ${alignClass} ${widthClass} text-[11px] font-semibold uppercase tracking-wide tabular-nums`}
+907:                   >
+908:                     {header}
+909:                   </th>
+910:                 )
+911:               })}
+912:             </tr>
+913:           </thead>
+914:           <tbody className="bg-white text-slate-700">
+915:             {reconciledDeposits.map(row => (
+916:               <tr key={`deposit-${row.item}`} className="border-t border-slate-100">
+917:                 <td className="px-2 py-1.5 font-semibold text-slate-900 w-[64px] min-w-[64px]">{row.item}</td>
+918:                 <td className="px-2 py-1.5">{row.depositDate}</td>
+919:                 <td className="px-2 py-1.5">{row.payee}</td>
+920:                 <td className="px-2 py-1.5 w-[300px] min-w-[300px]"><span className="block truncate">{row.product}</span></td>
+921:                 <td className="px-2 py-1.5 text-right tabular-nums w-[120px] min-w-[120px]">{row.usageActual}</td>
+922:                 <td className="px-2 py-1.5 text-right tabular-nums w-[140px] min-w-[140px]">{row.commissionActual}</td>
+923:                 <td className="px-2 py-1.5 w-[160px] min-w-[160px]"><span className="block truncate">{row.paymentMethod}</span></td>
+924:                 <td className="px-2 py-1.5">{row.paymentReference}</td>
+925:               </tr>
+926:             ))}
+927:             <tr className="border-t-2 border-slate-300 bg-slate-50 text-slate-900">
+928:               <td className="px-2 py-1.5 text-[11px] font-semibold" colSpan={4}>
+929:                 Deposit Totals
+930:               </td>
+931:               <td className="px-2 py-1.5 text-right text-[11px] font-semibold tabular-nums w-[120px] min-w-[120px]">{depositTotals.usageActual}</td>
+932:               <td className="px-2 py-1.5 text-right text-[11px] font-semibold tabular-nums w-[140px] min-w-[140px]">{depositTotals.commissionActual}</td>
+933:               <td className="px-2 py-1.5" colSpan={2} />
+934:             </tr>
+935:           </tbody>
+936:         </table>
+937:       </div>
+938:     </div>
+939:   )
+940: 
+941:   const renderPaymentsMade = () => (
+942:     <div className="space-y-3">
+943:       <div className="overflow-x-auto">
+944:         <table className="w-full min-w-[720px] table-fixed overflow-hidden rounded-2xl border border-slate-200 text-[11px]">
+945:           <thead className="bg-indigo-50 text-indigo-700">
+946:             <tr>
+947:               {["Item", "Payment Date", "Payee", "Split %", "Amount Paid", "Payment Method", "Payment Reference"].map(header => {
+948:                 const isNumeric = header === "Split %" || header === "Amount Paid"
+949:                 const widthMap: Record<string, string> = {
+950:                   "Item": "w-[64px] min-w-[64px]",
+951:                   "Payment Date": "w-[120px] min-w-[120px]",
+952:                   "Payee": "w-[200px] min-w-[200px]",
+953:                   "Split %": "w-[100px] min-w-[100px]",
+954:                   "Amount Paid": "w-[160px] min-w-[160px]",
+955:                   "Payment Method": "w-[160px] min-w-[160px]"
+956:                 }
+957:                 const widthClass = widthMap[header] ?? ""
+958:                 const alignClass = isNumeric ? "text-right" : "text-left"
+959:                 return (
+960:                   <th key={header} className={`px-2 py-1.5 ${alignClass} ${widthClass} text-[11px] font-semibold uppercase tracking-wide tabular-nums`}>
+961:                     {header}
+962:                   </th>
+963:                 )
+964:               })}
+965:             </tr>
+966:           </thead>
+967:           <tbody className="bg-white text-slate-700">
+968:             {paymentsMade.map(row => (
+969:               <tr key={`payment-${row.item}`} className="border-t border-slate-100">
+970:                 <td className="px-2 py-1.5 font-semibold text-slate-900 w-[64px] min-w-[64px]">{row.item}</td>
+971:                 <td className="px-2 py-1.5 w-[120px] min-w-[120px]">{row.paymentDate}</td>
+972:                 <td className="px-2 py-1.5 w-[200px] min-w-[200px]"><span className="block truncate">{row.payee}</span></td>
+973:                 <td className="px-2 py-1.5 text-right tabular-nums w-[100px] min-w-[100px]">{row.split}</td>
+974:                 <td className="px-2 py-1.5 text-right tabular-nums w-[120px] min-w-[120px]">{row.amount}</td>
+975:                 <td className="px-2 py-1.5 w-[160px] min-w-[160px]"><span className="block truncate">{row.method}</span></td>
+976:                 <td className="px-2 py-1.5"><span className="block truncate">{row.reference}</span></td>
+977:               </tr>
+978:             ))}
+979:           </tbody>
+980:         </table>
+981:       </div>
+982:     </div>
+983:   )
+984: 
+985:   const renderActivitiesNotes = () => (
+986:     <div className="space-y-2">
+987:       <ListHeader
+988:         inTab
+989:         compact
+990:         searchPlaceholder="Search activities"
+991:         onSearch={handleSearch}
+992:         onFilterChange={handleStatusFilter}
+993:         filterColumns={RS_ACTIVITY_FILTER_COLUMNS}
+994:         columnFilters={activitiesColumnFilters}
+995:         onColumnFiltersChange={setActivitiesColumnFilters}
+996:         onSettingsClick={() => setColumnChooserOpen(true)}
+997:         showCreateButton={true}
+998:         onCreateClick={() => setCreateModalOpen(true)}
+999:       />
+1000: 
+1001:       <DynamicTable
+1002:         columns={activityColumnsWithRender}
+1003:         data={filteredActivities}
+1004:         loading={activitiesLoading}
+1005:         emptyMessage={activitiesError ?? "No data available in table"}
+1006:         onColumnsChange={handleActivityColumnsChange}
+1007:         pagination={activitiesPagination}
+1008:         onPageChange={handleActivitiesPageChange}
+1009:         onPageSizeChange={handleActivitiesPageSizeChange}
+1010:         selectedItems={selectedActivityIds}
+1011:         onItemSelect={(id, selected) => handleActivityItemSelect(id, selected)}
+1012:         onSelectAll={handleSelectAllActivities}
+1013:         alwaysShowPagination={true}
+1014:         fillContainerWidth={true}
+1015:         autoSizeColumns={true}
+1016:         maxBodyHeight={300}
+1017:         hideSelectAllLabel={false}
+1018:         selectHeaderLabel="Select All"
+1019:       />
+1020: 
+1021:       <ColumnChooserModal
+1022:         isOpen={columnChooserOpen}
+1023:         columns={activityColumnsWithRender}
+1024:         onApply={handleActivityColumnsChange}
+1025:         onClose={() => setColumnChooserOpen(false)}
+1026:       />
+1027: 
+1028:       <ActivityNoteCreateModal
+1029:         isOpen={createModalOpen}
+1030:         context="revenue-schedule"
+1031:         entityName={schedule?.revenueScheduleName ?? schedule?.revenueSchedule ?? undefined}
+1032:         revenueScheduleId={schedule?.id}
+1033:         onClose={() => setCreateModalOpen(false)}
+1034:         onSuccess={() => {
+1035:           setCreateModalOpen(false)
+1036:           // After creating, refetch the current page
+1037:           void fetchActivities()
+1038:         }}
+1039:       />
+1040:     </div>
+1041:   )
+1042: 
+1043:   const renderTickets = () => (
+1044:     <div className="space-y-2">
+1045:       <ListHeader
+1046:         inTab
+1047:         compact
+1048:         searchPlaceholder="Search tickets"
+1049:         onSearch={query => {
+1050:           setTicketsSearch(query)
+1051:           setTicketsPage(1)
+1052:           if (ticketsSearchDebounceRef.current) {
+1053:             clearTimeout(ticketsSearchDebounceRef.current)
+1054:           }
+1055:           ticketsSearchDebounceRef.current = setTimeout(() => {
+1056:             void fetchTickets()
+1057:           }, 250)
+1058:         }}
+1059:         onFilterChange={handleTicketStatusFilter}
+1060:         filterColumns={RS_TICKET_FILTER_COLUMNS}
+1061:         columnFilters={ticketsColumnFilters}
+1062:         onColumnFiltersChange={setTicketsColumnFilters}
+1063:         onSettingsClick={() => setTicketsColumnChooserOpen(true)}
+1064:         showCreateButton={canCreateTickets}
+1065:         onCreateClick={() => setTicketCreateModalOpen(true)}
+1066:       />
+1067: 
+1068:       <DynamicTable
+1069:         columns={ticketColumnsWithRender}
+1070:         data={filteredTickets}
+1071:         loading={ticketsLoading}
+1072:         emptyMessage={ticketsError ?? "No data available in table"}
+1073:         onColumnsChange={handleTicketColumnsChange}
+1074:         pagination={ticketsPagination}
+1075:         onPageChange={handleTicketsPageChange}
+1076:         onPageSizeChange={handleTicketsPageSizeChange}
+1077:         selectedItems={selectedTicketIds}
+1078:         onItemSelect={(id, selected) => handleTicketItemSelect(id, selected)}
+1079:         onSelectAll={handleSelectAllTickets}
+1080:         alwaysShowPagination={true}
+1081:         fillContainerWidth={true}
+1082:         autoSizeColumns={true}
+1083:         maxBodyHeight={300}
+1084:         hideSelectAllLabel={false}
+1085:         selectHeaderLabel="Select All"
+1086:       />
+1087: 
+1088:       <ColumnChooserModal
+1089:         isOpen={ticketsColumnChooserOpen}
+1090:         columns={ticketColumnsWithRender}
+1091:         onApply={handleTicketColumnsChange}
+1092:         onClose={() => setTicketsColumnChooserOpen(false)}
+1093:       />
+1094:     </div>
+1095:   )
+1096: 
+1097:   let sectionContent: React.ReactNode
+1098: 
+1099:   switch (activeSectionId) {
+1100:     case "financial-summary":
+1101:       sectionContent = renderFinancialSummary()
+1102:       break
+1103:     case "opportunity-details":
+1104:       sectionContent = renderOpportunityDetails()
+1105:       break
+1106:     case "product-details":
+1107:       sectionContent = renderProductDetails()
+1108:       break
+1109:     case "reconciled-deposits":
+1110:       sectionContent = renderReconciledDeposits()
+1111:       break
+1112:     case "payments-made":
+1113:       sectionContent = renderPaymentsMade()
+1114:       break
+1115:     case "activities-notes":
+1116:       sectionContent = renderActivitiesNotes()
+1117:       break
+1118:     case "tickets":
+1119:       sectionContent = renderTickets()
+1120:       break
+1121:     default:
+1122:       sectionContent = null
+1123:   }
+1124: 
+1125:   return (
+1126:     <>
+1127:       <section>
+1128:         <div className="grid gap-2 xl:grid-cols-[260px,1fr] items-start">
+1129:           <nav className="flex flex-col gap-0 rounded-3xl border border-slate-300 bg-white p-0 overflow-hidden divide-y divide-blue-200 self-start h-fit">
+1130:             {SECTION_ITEMS.map(item => {
+1131:               const Icon = item.icon
+1132:               const isActive = item.id === activeSectionId
+1133:               return (
+1134:                 <button
+1135:                   key={item.id}
+1136:                   type="button"
+1137:                   onClick={() => setActiveSectionId(item.id)}
+1138:                   className={`flex w-full items-start gap-2 px-3 py-2 text-left transition shadow-sm ${
+1139:                     isActive
+1140:                       ? "rounded-none bg-primary-700 text-white hover:bg-primary-800"
+1141:                       : "rounded-none bg-gradient-to-b from-blue-100 to-blue-200 text-primary-800 hover:from-blue-200 hover:to-blue-300"
+1142:                   }`}
+1143:                 >
+1144:                   <span
+1145:                     className={`flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full border ${
+1146:                       isActive ? "border-white bg-white text-primary-700" : "border-blue-200 bg-white text-primary-700"
+1147:                     }`}
+1148:                   >
+1149:                     <Icon className="h-4 w-4" />
+1150:                   </span>
+1151:                   <span className="space-y-0.5">
+1152:                     <span className={`block text-[11px] font-semibold ${isActive ? "text-white" : "text-primary-800"}`}>{item.label}</span>
+1153:                     <span className={`block text-[11px] leading-tight ${isActive ? "text-blue-100" : "text-primary-700/70"}`}>{item.description}</span>
+1154:                   </span>
+1155:                 </button>
+1156:               )
+1157:             })}
+1158:           </nav>
+1159: 
+1160:           <div className="p-3">
+1161:             {sectionContent ?? <p className="text-[11px] text-slate-500">Select a section to view its details.</p>}
+1162:           </div>
+1163:         </div>
+1164:       </section>
+1165: 
+1166:       <TicketCreateModal
+1167:         isOpen={ticketCreateModalOpen}
+1168:         onClose={() => setTicketCreateModalOpen(false)}
+1169:         onSuccess={() => {
+1170:           setTicketCreateModalOpen(false)
+1171:           void fetchTickets()
+1172:         }}
+1173:         defaultRevenueScheduleId={schedule?.id}
+1174:         defaultRevenueScheduleName={schedule?.revenueScheduleName ?? schedule?.revenueSchedule ?? ""}
+1175:         defaultOpportunityId={schedule?.opportunityId ? String(schedule.opportunityId) : ""}
+1176:         defaultOpportunityName={schedule?.opportunityName ?? ""}
+1177:         defaultDistributorAccountId={schedule?.distributorId ?? ""}
+1178:         defaultDistributorName={schedule?.distributorName ?? ""}
+1179:         defaultVendorAccountId={schedule?.vendorId ?? ""}
+1180:         defaultVendorName={schedule?.vendorName ?? ""}
+1181:         defaultProductNameVendor={schedule?.productNameVendor ?? ""}
+1182:       />
+1183:     </>
+1184:   )
+1185: })

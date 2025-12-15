@@ -1,0 +1,53 @@
+﻿const { PrismaClient } = require('@prisma/client');
+
+async function main() {
+  const prisma = new PrismaClient();
+  try {
+    const r = await prisma.revenueSchedule.findFirst({
+      include: {
+        account: {
+          select: {
+            id: true,
+            accountName: true,
+            accountNumber: true,
+            shippingAddress: { select: { line1: true, line2: true, city: true, state: true, postalCode: true, country: true } },
+            billingAddress: { select: { line1: true, line2: true, city: true, state: true, postalCode: true, country: true } },
+          },
+        },
+        distributor: { select: { id: true, accountName: true, accountNumber: true } },
+        vendor: { select: { id: true, accountName: true, accountNumber: true } },
+        product: { select: { id: true, productNameVendor: true, productDescriptionVendor: true, revenueType: true, commissionPercent: true, priceEach: true } },
+        opportunityProduct: { select: { id: true, quantity: true, unitPrice: true, expectedUsage: true, expectedCommission: true } },
+        opportunity: {
+          select: {
+            id: true,
+            name: true,
+            orderIdVendor: true,
+            orderIdDistributor: true,
+            customerIdHouse: true,
+            customerIdVendor: true,
+            customerIdDistributor: true,
+            locationId: true,
+            houseSplitPercent: true,
+            houseRepPercent: true,
+            subagentPercent: true,
+            distributorName: true,
+            vendorName: true,
+            billingAddress: true,
+            shippingAddress: true,
+            description: true,
+          },
+        },
+      },
+    });
+    console.log('Result exists:', !!r);
+  } catch (e) {
+    console.error('Query failed:', e);
+    process.exitCode = 1;
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+main();
+

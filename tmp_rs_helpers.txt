@@ -1,0 +1,370 @@
+1: import { Prisma, RevenueScheduleStatus } from "@prisma/client"
+2: import { getRevenueTypeLabel } from "@/lib/revenue-types"
+3: 
+4: export type RevenueScheduleWithRelations = Prisma.RevenueScheduleGetPayload<{
+5:   include: {
+6:     account: {
+7:       select: {
+8:         id: true
+9:         accountName: true
+10:         accountLegalName: true
+11:         accountNumber: true
+12:         shippingAddress: {
+13:           select: {
+14:             line1: true
+15:             line2: true
+16:             city: true
+17:             state: true
+18:             postalCode: true
+19:             country: true
+20:           }
+21:         }
+22:         billingAddress: {
+23:           select: {
+24:             line1: true
+25:             line2: true
+26:             city: true
+27:             state: true
+28:             postalCode: true
+29:             country: true
+30:           }
+31:         }
+32:       }
+33:     }
+34:     distributor: {
+35:       select: {
+36:         id: true
+37:         accountName: true
+38:         accountNumber: true
+39:       }
+40:     }
+41:     vendor: {
+42:       select: {
+43:         id: true
+44:         accountName: true
+45:         accountNumber: true
+46:       }
+47:     }
+48:     product: {
+49:       select: {
+50:         id: true
+51:         productNameVendor: true
+52:         productDescriptionVendor: true
+53:         revenueType: true
+54:         commissionPercent: true
+55:         priceEach: true
+56:       }
+57:     }
+58:     opportunityProduct: {
+59:       select: {
+60:         id: true
+61:         quantity: true
+62:         unitPrice: true
+63:         expectedUsage: true
+64:         expectedCommission: true
+65:       }
+66:     }
+67:     opportunity: {
+68:       select: {
+69:         id: true
+70:         name: true
+71:         orderIdHouse: true
+72:         orderIdVendor: true
+73:         orderIdDistributor: true
+74:         customerIdHouse: true
+75:         customerIdVendor: true
+76:         customerIdDistributor: true
+77:         locationId: true
+78:         houseSplitPercent: true
+79:         houseRepPercent: true
+80:         subagentPercent: true
+81:         distributorName: true
+82:         vendorName: true
+83:         billingAddress: true
+84:         shippingAddress: true
+85:         description: true
+86:       }
+87:     }
+88:   }
+89: }>
+90: 
+91: export interface RevenueScheduleListItem {
+92:   id: string
+93:   revenueScheduleName: string
+94:   revenueSchedule?: string | null
+95:   revenueScheduleDate: string | null
+96:   productNameVendor: string | null
+97:   distributorName: string | null
+98:   vendorName: string | null
+99:   accountName: string | null
+100:   opportunityId: string | null
+101:   opportunityName: string | null
+102:   scheduleStatus: string
+103:   inDispute: boolean
+104:   quantity: string | null
+105:   quantityRaw?: number | null
+106:   priceEach: string | null
+107:   unitPriceRaw?: number | null
+108:   expectedUsageGross: string | null
+109:   expectedUsageAdjustment: string | null
+110:   usageAdjustmentRaw?: number | null
+111:   expectedUsage?: string | null
+112:   usageAdjustment?: string | null
+113:   expectedUsageNet: string | null
+114:   actualUsage: string | null
+115:   usageBalance: string | null
+116:   expectedCommissionGross: string | null
+117:   expectedCommissionAdjustment: string | null
+118:   expectedCommissionNet: string | null
+119:   actualCommission: string | null
+120:   commissionDifference: string | null
+121:   customerIdDistributor: string | null
+122:   distributorId?: string | null
+123:   vendorId?: string | null
+124:   accountId?: string | null
+125:   productId?: string | null
+126:   customerIdVendor: string | null
+127:   orderIdDistributor: string | null
+128:   orderIdVendor: string | null
+129:   orderIdHouse: string | null
+130:   locationId: string | null
+131:   active: boolean
+132: }
+133: 
+134: export interface RevenueScheduleDetail extends RevenueScheduleListItem {
+135:   productDescriptionVendor: string | null
+136:   productRevenueType: string | null
+137:   productRevenueTypeLabel: string | null
+138:   legalName: string | null
+139:   shippingAddress: string | null
+140:   billingAddress: string | null
+141:   expectedCommissionRatePercent: string | null
+142:   actualCommissionRatePercent: string | null
+143:   commissionRateDifference: string | null
+144:   houseSplitPercent: string | null
+145:   houseRepSplitPercent: string | null
+146:   subagentSplitPercent: string | null
+147:   subagentName: string | null
+148: }
+149: 
+150: const currencyFormatter = new Intl.NumberFormat("en-US", {
+151:   style: "currency",
+152:   currency: "USD",
+153:   minimumFractionDigits: 2
+154: })
+155: 
+156: const percentFormatter = new Intl.NumberFormat("en-US", {
+157:   style: "percent",
+158:   minimumFractionDigits: 2,
+159:   maximumFractionDigits: 2
+160: })
+161: 
+162: const numberFormatter = new Intl.NumberFormat("en-US", {
+163:   minimumFractionDigits: 0,
+164:   maximumFractionDigits: 4
+165: })
+166: 
+167: function toNumber(value: unknown): number {
+168:   if (value === null || value === undefined) return 0
+169:   if (typeof value === "number") return value
+170:   if (typeof value === "string") {
+171:     const parsed = Number(value)
+172:     return Number.isNaN(parsed) ? 0 : parsed
+173:   }
+174: 
+175:   try {
+176:     // Prisma Decimal implements valueOf
+177:     return Number(value as number)
+178:   } catch {
+179:     return 0
+180:   }
+181: }
+182: 
+183: function formatCurrency(value: unknown): string | null {
+184:   if (value === null || value === undefined) return null
+185:   const numeric = toNumber(value)
+186:   return currencyFormatter.format(numeric)
+187: }
+188: 
+189: function formatPercent(value: unknown): string | null {
+190:   if (value === null || value === undefined) return null
+191:   const numeric = toNumber(value)
+192:   if (!Number.isFinite(numeric)) return null
+193:   return percentFormatter.format(numeric)
+194: }
+195: 
+196: function formatPercentFromFraction(value: unknown): string | null {
+197:   if (value === null || value === undefined) return null
+198:   const numeric = toNumber(value)
+199:   if (!Number.isFinite(numeric)) return null
+200:   return percentFormatter.format(numeric)
+201: }
+202: 
+203: function formatNumber(value: unknown): string | null {
+204:   if (value === null || value === undefined) return null
+205:   const numeric = toNumber(value)
+206:   if (!Number.isFinite(numeric)) return null
+207:   return numberFormatter.format(numeric)
+208: }
+209: 
+210: function formatDate(value: Date | string | null | undefined): string | null {
+211:   if (!value) return null
+212:   const date = value instanceof Date ? value : new Date(value)
+213:   if (Number.isNaN(date.getTime())) {
+214:     return null
+215:   }
+216:   return date.toISOString().slice(0, 10)
+217: }
+218: 
+219: function formatAddress(address?: {
+220:   line1: string | null
+221:   line2: string | null
+222:   city: string | null
+223:   state: string | null
+224:   postalCode: string | null
+225:   country: string | null
+226: } | null): string | null {
+227:   if (!address) return null
+228:   const parts = [
+229:     address.line1,
+230:     address.line2,
+231:     address.city,
+232:     address.state,
+233:     address.postalCode,
+234:     address.country
+235:   ]
+236:     .map(part => (part ?? "").trim())
+237:     .filter(Boolean)
+238: 
+239:   if (parts.length === 0) {
+240:     return null
+241:   }
+242:   return parts.join(", ")
+243: }
+244: 
+245: function mapStatus(
+246:   status: RevenueScheduleStatus | null | undefined,
+247:   usageBalance: number,
+248:   commissionDifference: number,
+249: ): {
+250:   status: string
+251:   inDispute: boolean
+252: } {
+253:   const hasVariance = Math.abs(usageBalance) > 0.005 || Math.abs(commissionDifference) > 0.005
+254: 
+255:   if (status === RevenueScheduleStatus.Reconciled) {
+256:     return { status: "Reconciled", inDispute: false }
+257:   }
+258: 
+259:   if (status === RevenueScheduleStatus.Overpaid) {
+260:     return { status: "Overpaid", inDispute: true }
+261:   }
+262: 
+263:   if (status === RevenueScheduleStatus.Underpaid) {
+264:     return { status: "Underpaid", inDispute: hasVariance }
+265:   }
+266: 
+267:   return { status: "Unreconciled", inDispute: hasVariance }
+268: }
+269: 
+270: function extractSubagentName(description: string | null | undefined): string | null {
+271:   if (!description) return null
+272:   const match = description.match(/^Subagent:\s*(.+)$/im)
+273:   return match?.[1]?.trim() ?? null
+274: }
+275: 
+276: export function mapRevenueScheduleToListItem(schedule: RevenueScheduleWithRelations): RevenueScheduleListItem {
+277:   const expectedUsage = toNumber(schedule.expectedUsage ?? schedule.opportunityProduct?.expectedUsage)
+278:   const usageAdjustment = toNumber(schedule.usageAdjustment)
+279:   const expectedUsageNet = expectedUsage + usageAdjustment
+280:   const actualUsage = toNumber(schedule.actualUsage)
+281:   const usageBalance = expectedUsageNet - actualUsage
+282: 
+283:   const expectedCommission = toNumber(schedule.expectedCommission ?? schedule.opportunityProduct?.expectedCommission)
+284:   const actualCommission = toNumber(schedule.actualCommission)
+285:   const commissionDifference = expectedCommission - actualCommission
+286: 
+287:   const statusInfo = mapStatus(schedule.status, usageBalance, commissionDifference)
+288: 
+289:   const quantity = schedule.opportunityProduct?.quantity ?? null
+290:   const quantityNumber = quantity !== null ? toNumber(quantity) : null
+291:   const quantityValue = quantityNumber !== null ? formatNumber(quantityNumber) : null
+292:   const unitPrice = schedule.opportunityProduct?.unitPrice ?? schedule.product?.priceEach ?? null
+293:   const unitPriceNumber = unitPrice !== null ? toNumber(unitPrice) : null
+294: 
+295:   return {
+296:     id: schedule.id,
+297:     revenueScheduleName: schedule.scheduleNumber ?? schedule.id,
+298:     revenueSchedule: schedule.scheduleNumber ?? schedule.id,
+299:     revenueScheduleDate: formatDate(schedule.scheduleDate),
+300:     productNameVendor: schedule.product?.productNameVendor ?? null,
+301:     distributorName: schedule.distributor?.accountName ?? schedule.opportunity?.distributorName ?? null,
+302:     vendorName: schedule.vendor?.accountName ?? schedule.opportunity?.vendorName ?? null,
+303:     accountName: schedule.account?.accountName ?? null,
+304:     opportunityId: schedule.opportunity?.id ?? null,
+305:     opportunityName: schedule.opportunity?.name ?? null,
+306:     scheduleStatus: statusInfo.status,
+307:     inDispute: statusInfo.inDispute,
+308:       quantity: quantityValue,
+309:       quantityRaw: quantityNumber,
+310:       priceEach: formatCurrency(unitPriceNumber),
+311:       unitPriceRaw: unitPriceNumber,
+312:       expectedUsageGross: formatCurrency(expectedUsage),
+313:       expectedUsageAdjustment: formatCurrency(usageAdjustment),
+314:       usageAdjustmentRaw: usageAdjustment,
+315:     expectedUsage: formatCurrency(expectedUsage),
+316:     usageAdjustment: formatCurrency(usageAdjustment),
+317:     expectedUsageNet: formatCurrency(expectedUsageNet),
+318:     actualUsage: formatCurrency(actualUsage),
+319:     usageBalance: formatCurrency(usageBalance),
+320:     expectedCommissionGross: formatCurrency(expectedCommission),
+321:     expectedCommissionAdjustment: formatCurrency(0),
+322:     expectedCommissionNet: formatCurrency(expectedCommission),
+323:     actualCommission: formatCurrency(actualCommission),
+324:     commissionDifference: formatCurrency(commissionDifference),
+325:     customerIdDistributor: schedule.opportunity?.customerIdDistributor ?? schedule.distributor?.accountNumber ?? null,
+326:     distributorId: schedule.distributor?.id ?? null,
+327:     vendorId: schedule.vendor?.id ?? null,
+328:     accountId: schedule.account?.id ?? null,
+329:     productId: schedule.product?.id ?? null,
+330:     customerIdVendor: schedule.opportunity?.customerIdVendor ?? schedule.vendor?.accountNumber ?? null,
+331:     orderIdDistributor: schedule.distributorOrderId ?? schedule.opportunity?.orderIdDistributor ?? null,
+332:     orderIdVendor: schedule.opportunity?.orderIdVendor ?? null,
+333:     orderIdHouse: schedule.orderIdHouse ?? schedule.opportunity?.orderIdHouse ?? null,
+334:     locationId: schedule.opportunity?.locationId ?? schedule.account?.accountNumber ?? null,
+335:     active: schedule.status !== RevenueScheduleStatus.Reconciled
+336:   }
+337: }
+338: 
+339: export function mapRevenueScheduleToDetail(schedule: RevenueScheduleWithRelations): RevenueScheduleDetail {
+340:   const listValues = mapRevenueScheduleToListItem(schedule)
+341:   const expectedCommissionRate = schedule.product?.commissionPercent ?? null
+342:   const productRevenueType = schedule.product?.revenueType ?? null
+343: 
+344:   const actualCommissionNumber = toNumber(schedule.actualCommission)
+345:   const actualUsageNumber = toNumber(schedule.actualUsage)
+346: 
+347:   const actualCommissionRate = actualUsageNumber > 0 ? actualCommissionNumber / actualUsageNumber : null
+348:   const expectedCommissionRateFraction = expectedCommissionRate ? toNumber(expectedCommissionRate) / 100 : null
+349:   const commissionRateDifference =
+350:     expectedCommissionRateFraction !== null && actualCommissionRate !== null
+351:       ? expectedCommissionRateFraction - actualCommissionRate
+352:       : null
+353: 
+354:   return {
+355:     ...listValues,
+356:     productDescriptionVendor: schedule.product?.productDescriptionVendor ?? null,
+357:     productRevenueType,
+358:     productRevenueTypeLabel: getRevenueTypeLabel(productRevenueType) ?? productRevenueType ?? null,
+359:     legalName: schedule.account?.accountLegalName ?? null,
+360:     shippingAddress: formatAddress(schedule.account?.shippingAddress),
+361:     billingAddress: formatAddress(schedule.account?.billingAddress),
+362:     expectedCommissionRatePercent: formatPercent(expectedCommissionRateFraction),
+363:     actualCommissionRatePercent: formatPercent(actualCommissionRate),
+364:     commissionRateDifference: formatPercent(commissionRateDifference),
+365:     houseSplitPercent: formatPercentFromFraction(schedule.opportunity?.houseSplitPercent),
+366:     houseRepSplitPercent: formatPercentFromFraction(schedule.opportunity?.houseRepPercent),
+367:     subagentSplitPercent: formatPercentFromFraction(schedule.opportunity?.subagentPercent),
+368:     subagentName: extractSubagentName(schedule.opportunity?.description) ?? null
+369:   }
+370: }

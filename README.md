@@ -51,47 +51,36 @@ npm run dev
 
 ```
 commissable-crm/
-├── app/                    # Next.js App Router pages
-│   ├── (dashboard)/       # Dashboard layout group
-│   │   ├── accounts/      # Accounts page
-│   │   ├── contacts/      # Contacts page
-│   │   ├── opportunities/ # Opportunities page
-│   │   └── ...           # Other CRM pages
-│   ├── globals.css       # Global styles
-│   └── layout.tsx        # Root layout
-├── components/            # Reusable components
-│   ├── sidebar.tsx       # Navigation sidebar
-│   ├── topbar.tsx        # Header bar
-│   ├── list-header.tsx   # Filter/search controls
-│   └── dynamic-table.tsx # Resizable data table
-├── lib/                  # Utilities and configurations
-│   ├── nav.ts           # Navigation configuration
-│   ├── utils.ts         # Utility functions
-│   └── mock-data.ts     # Sample data
-└── ...
+  app/                    # Next.js App Router pages
+    (dashboard)/          # Dashboard layout group
+      accounts/           # Accounts page
+      contacts/           # Contacts page
+      opportunities/      # Opportunities page
+      ...                 # Other CRM pages
+    globals.css           # Global styles
+    layout.tsx            # Root layout
+  components/             # Reusable components
+    sidebar.tsx           # Navigation sidebar
+    topbar.tsx            # Header bar
+    list-header.tsx       # Filter/search controls
+    dynamic-table.tsx     # Resizable data table
+  lib/                    # Utilities and configurations
+    nav.ts                # Navigation configuration
+    utils.ts              # Utility functions
+    mock-data.ts          # Sample data
+  docs/                   # Project documentation (see index below)
+  playground/             # Dev-only mockups, experiments
 ```
 
-## Key Components
+## Documentation Index
 
-### Dynamic Table
-The `DynamicTable` component provides:
-- **Resizable columns**: Drag column borders to resize
-- **Column reordering**: Drag column headers to reorder
-- **Sorting**: Click headers to sort data
-- **Custom cell types**: Toggle switches, checkboxes, links, etc.
-- **Responsive design**: Horizontal scroll on smaller screens
-
-### Navigation
-- **Collapsible sidebar**: Toggle between expanded and collapsed states
-- **Active states**: Visual indicators for current page
-- **Icons**: Lucide React icons for all navigation items
-- **Responsive**: Adapts to different screen sizes
-
-### Filtering & Search
-- **Real-time search**: Filter data as you type
-- **Column-based filtering**: Filter by specific columns
-- **Active/All toggles**: Quick filter states
-- **Pagination**: Navigate through large datasets
+- `docs/plans/` � Implementation plans, rollout strategies, milestone plans
+- `docs/specs/` � Feature specs, data model designs, UI/UX and behavior docs
+- `docs/runbooks/` � Deployment, local dev, database, and troubleshooting guides
+- `docs/notes/` � Meeting notes, status summaries, exploratory notes
+- `docs/incidents/` � Security reviews, production/debugging incident writeups
+- `docs/tasks/` � Checklists, task lists, and to-do style documents
+- `docs/reference-data/` � Reference files such as vendor/distributor mapping CSVs
 
 ## Available Scripts
 
@@ -118,39 +107,3 @@ colors: {
 ```
 
 ### Navigation
-Add or modify navigation items in `lib/nav.ts`:
-```typescript
-export const navigation: NavItem[] = [
-  { name: 'New Module', href: '/new-module', icon: YourIcon },
-  // ... existing items
-]
-```
-
-### Mock Data
-Sample data is provided in `lib/mock-data.ts`. Replace with real API calls in production.
-
-## Production Deployment
-
-1. Build the application:
-```bash
-npm run build
-```
-
-2. Start the production server:
-```bash
-npm run start
-```
-
-The application will be available at [http://localhost:3000](http://localhost:3000).
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Test thoroughly
-5. Submit a pull request
-
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.

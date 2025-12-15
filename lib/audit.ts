@@ -1,5 +1,5 @@
-import { prisma } from './db'
-import { AuditAction } from '@prisma/client'
+import { prisma } from "./db"
+import { AuditAction, Prisma } from "@prisma/client"
 
 export interface AuditLogParams {
   userId: string
@@ -8,12 +8,12 @@ export interface AuditLogParams {
   entityName: string
   entityId: string
   requestId?: string
-  changedFields?: Record<string, any>
-  previousValues?: Record<string, any>
-  newValues?: Record<string, any>
+  changedFields?: Record<string, { from: unknown; to: unknown }>
+  previousValues?: Record<string, unknown>
+  newValues?: Record<string, unknown>
   ipAddress?: string
   userAgent?: string
-  metadata?: Record<string, any>
+  metadata?: Record<string, unknown>
 }
 
 /**
@@ -47,30 +47,99 @@ export async function logAudit(params: AuditLogParams): Promise<void> {
 /**
  * Helper function to extract changed fields between two objects
  */
-export function getChangedFields(previous: Record<string, any>, current: Record<string, any>): Record<string, any> {
-  const changed: Record<string, any> = {}
-  
-  // Check for changed values
-  for (const key in current) {
-    if (previous[key] !== current[key]) {
-      changed[key] = {
-        from: previous[key],
-        to: current[key]
-      }
+export function getChangedFields(
+  previous: Record<string, unknown>,
+  current: Record<string, unknown>
+): Record<string, { from: unknown; to: unknown }> {
+  const changed: Record<string, { from: unknown; to: unknown }> = {}
+
+  const allKeys = Array.from(
+    new Set<string>([
+      ...Object.keys(previous || {}),
+      ...Object.keys(current || {})
+    ])
+  )
+
+  for (const key of allKeys) {
+    const prev = previous ? previous[key] : undefined
+    const next = current ? current[key] : undefined
+
+    if (areAuditValuesEqual(prev, next)) {
+      continue
+    }
+
+    changed[key] = {
+      from: normaliseAuditValue(prev),
+      to: normaliseAuditValue(next)
     }
   }
-  
-  // Check for removed fields
-  for (const key in previous) {
-    if (!(key in current)) {
-      changed[key] = {
-        from: previous[key],
-        to: null
-      }
-    }
-  }
-  
+
   return changed
+}
+
+function areAuditValuesEqual(a: unknown, b: unknown): boolean {
+  if (a === b) return true
+
+  // Treat null/undefined as equivalent
+  if (a == null && b == null) return true
+
+  // Date comparison
+  if (a instanceof Date && b instanceof Date) {
+    return a.getTime() === b.getTime()
+  }
+
+  if (a instanceof Date && typeof b === "string") {
+    const parsed = new Date(b)
+    return !Number.isNaN(parsed.getTime()) && a.getTime() === parsed.getTime()
+  }
+
+  if (b instanceof Date && typeof a === "string") {
+    const parsed = new Date(a)
+    return !Number.isNaN(parsed.getTime()) && b.getTime() === parsed.getTime()
+  }
+
+  // Decimal comparison (Prisma.Decimal)
+  if (isPrismaDecimal(a) && isPrismaDecimal(b)) {
+    const decA = a as Prisma.Decimal & { equals?: (other: Prisma.Decimal) => boolean }
+    if (typeof decA.equals === "function") {
+      return decA.equals(b as Prisma.Decimal)
+    }
+    return a.toString() === b.toString()
+  }
+
+  // Fallback – different types or objects we don't normalise specially
+  return false
+}
+
+function normaliseAuditValue(value: unknown): unknown {
+  if (value instanceof Date) {
+    return value.toISOString()
+  }
+
+  if (isPrismaDecimal(value)) {
+    try {
+      const decimal = value as Prisma.Decimal & { toNumber?: () => number }
+      const asNumber = decimal.toNumber ? decimal.toNumber() : Number(decimal.toString())
+      return Number.isFinite(asNumber) ? asNumber : value.toString()
+    } catch {
+      return value.toString()
+    }
+  }
+
+  if (typeof value === "bigint") {
+    return value.toString()
+  }
+
+  return value
+}
+
+function isPrismaDecimal(value: unknown): value is Prisma.Decimal {
+  if (!value || typeof value !== "object") return false
+
+  if (value instanceof Prisma.Decimal) return true
+
+  const ctorName = value.constructor?.name
+  return ctorName === "Decimal"
 }
 
 /**
@@ -112,8 +181,8 @@ export async function logAccountAudit(
   userId: string,
   tenantId: string,
   request: Request,
-  previousValues?: Record<string, any>,
-  newValues?: Record<string, any>
+  previousValues?: Record<string, unknown>,
+  newValues?: Record<string, unknown>
 ): Promise<void> {
   const changedFields = previousValues && newValues 
     ? getChangedFields(previousValues, newValues)
@@ -142,8 +211,8 @@ export async function logProductAudit(
   userId: string,
   tenantId: string,
   request: Request,
-  previousValues?: Record<string, any>,
-  newValues?: Record<string, any>
+  previousValues?: Record<string, unknown>,
+  newValues?: Record<string, unknown>
 ): Promise<void> {
   const changedFields = previousValues && newValues
     ? getChangedFields(previousValues, newValues)
@@ -172,8 +241,8 @@ export async function logContactAudit(
   userId: string,
   tenantId: string,
   request: Request,
-  previousValues?: Record<string, any>,
-  newValues?: Record<string, any>
+  previousValues?: Record<string, unknown>,
+  newValues?: Record<string, unknown>
 ): Promise<void> {
   const changedFields = previousValues && newValues 
     ? getChangedFields(previousValues, newValues)
@@ -202,11 +271,20 @@ export async function logActivityAudit(
   userId: string,
   tenantId: string,
   request?: Request,
-  previousValues?: Record<string, any>,
-  newValues?: Record<string, any>
+  previousValues?: unknown,
+  newValues?: unknown
 ): Promise<void> {
-  const changedFields = previousValues && newValues
-    ? getChangedFields(previousValues, newValues)
+  const prev =
+    previousValues && typeof previousValues === "object"
+      ? (previousValues as Record<string, unknown>)
+      : undefined
+  const next =
+    newValues && typeof newValues === "object"
+      ? (newValues as Record<string, unknown>)
+      : undefined
+
+  const changedFields = prev && next
+    ? getChangedFields(prev, next)
     : undefined
 
   await logAudit({
@@ -216,8 +294,8 @@ export async function logActivityAudit(
     entityName: 'Activity',
     entityId: activityId,
     changedFields,
-    previousValues,
-    newValues,
+    previousValues: prev,
+    newValues: next,
     ipAddress: request ? getClientIP(request) : undefined,
     userAgent: request ? getUserAgent(request) : undefined
   })
@@ -231,8 +309,8 @@ export async function logUserAudit(
   userId: string,
   tenantId: string,
   request: Request,
-  previousValues?: Record<string, any>,
-  newValues?: Record<string, any>
+  previousValues?: Record<string, unknown>,
+  newValues?: Record<string, unknown>
 ): Promise<void> {
   const changedFields = previousValues && newValues
     ? getChangedFields(previousValues, newValues)
@@ -261,8 +339,8 @@ export async function logOpportunityAudit(
   userId: string,
   tenantId: string,
   request: Request,
-  previousValues?: Record<string, any>,
-  newValues?: Record<string, any>
+  previousValues?: Record<string, unknown>,
+  newValues?: Record<string, unknown>
 ): Promise<void> {
   const changedFields = previousValues && newValues
     ? getChangedFields(previousValues, newValues)
@@ -281,4 +359,3 @@ export async function logOpportunityAudit(
     userAgent: getUserAgent(request)
   })
 }
-

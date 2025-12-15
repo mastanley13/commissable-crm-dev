@@ -8,6 +8,13 @@ import { useBreadcrumbs } from "@/lib/breadcrumb-context"
 import { useToasts } from "@/components/toast"
 import { OpportunityDetailRecord } from "@/components/opportunity-types"
 
+const UUID_REGEX = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/
+
+function isUuid(value: string | null | undefined): value is string {
+  if (!value) return false
+  return UUID_REGEX.test(value.trim())
+}
+
 export default function OpportunityDetailPage() {
   const params = useParams()
   const router = useRouter()
@@ -61,11 +68,35 @@ export default function OpportunityDetailPage() {
 
         const payload = await response.json().catch(() => null)
         const data = payload?.data
-        const detail = data?.detail as OpportunityDetailRecord | undefined
+        let detail = data?.detail as OpportunityDetailRecord | undefined
         if (!detail) {
           setOpportunity(null)
           setError("Opportunity details unavailable")
           return
+        }
+
+        if (isUuid(detail.referredBy)) {
+          try {
+            const contactResponse = await fetch(`/api/contacts/${detail.referredBy}`, {
+              cache: "no-store",
+              signal
+            })
+
+            if (contactResponse.ok) {
+              const contactPayload = await contactResponse.json().catch(() => null)
+              const fullName = contactPayload?.data?.fullName
+              if (typeof fullName === "string" && fullName.trim().length > 0) {
+                detail = {
+                  ...detail,
+                  referredBy: fullName.trim()
+                }
+              }
+            }
+          } catch (error) {
+            if (!(error instanceof DOMException && error.name === "AbortError")) {
+              console.error("Failed to resolve referred by contact", error)
+            }
+          }
         }
 
         const expectedUsageGross = typeof data?.expectedUsageGrossTotal === "number"

@@ -40,6 +40,18 @@ interface AuditLogAPIResponse {
   changedFields: Record<string, { from: any; to: any }> | null
 }
 
+const currencyFormatter = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2
+})
+
+const percentFormatter = new Intl.NumberFormat("en-US", {
+  style: "percent",
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2
+})
 
 const HISTORY_TABLE_BASE_COLUMNS: Column[] = [
   {
@@ -114,35 +126,100 @@ const HISTORY_FILTER_COLUMNS = [
   { id: "toValue", label: "To" }
 ]
 
+function isPercentField(fieldName: string): boolean {
+  const name = fieldName.toLowerCase()
+  return name.includes("percent") || name.endsWith("pct") || name.endsWith("_pct")
+}
+
+function isCurrencyField(fieldName: string): boolean {
+  const name = fieldName.toLowerCase()
+  return (
+    name.includes("price") ||
+    name.includes("amount") ||
+    name.includes("revenue") ||
+    name.includes("commission")
+  )
+}
+
+function formatHistoryValue(fieldName: string, value: unknown): string {
+  if (value === null || value === undefined) {
+    return "-"
+  }
+
+  const numeric =
+    typeof value === "number"
+      ? value
+      : typeof value === "string"
+        ? Number(value)
+        : Number.NaN
+
+  if (Number.isFinite(numeric)) {
+    if (isPercentField(fieldName)) {
+      const ratio = numeric <= 1 ? numeric : numeric / 100
+      return percentFormatter.format(ratio)
+    }
+
+    if (isCurrencyField(fieldName)) {
+      return currencyFormatter.format(numeric)
+    }
+  }
+
+  if (value instanceof Date) {
+    return value.toISOString().slice(0, 16).replace("T", " ")
+  }
+
+  return String(value)
+}
+
 // Helper function to convert API response to HistoryRow format
 function convertAuditLogsToHistoryRows(logs: AuditLogAPIResponse[]): HistoryRow[] {
   const rows: HistoryRow[] = []
 
   logs.forEach(log => {
-    if (!log.changedFields || typeof log.changedFields !== 'object' || Object.keys(log.changedFields).length === 0) {
-      // If no changed fields, create a single row for the action
-      rows.push({
-        id: log.id,
-        occurredAt: new Date(log.createdAt).toISOString().slice(0, 16).replace('T', ' '),
-        userName: log.userName || 'System',
-        action: log.action,
-        field: '-',
-        fromValue: '-',
-        toValue: '-'
-      })
-    } else {
-      // Create a row for each changed field
-      Object.entries(log.changedFields).forEach(([fieldName, change]) => {
-        const changeObj = change as any
+    const occurredAt = new Date(log.createdAt).toISOString().slice(0, 16).replace("T", " ")
+    const userName = log.userName || "System"
+
+    const changedEntries =
+      log.changedFields && typeof log.changedFields === "object"
+        ? Object.entries(log.changedFields)
+        : []
+
+    let addedRowForLog = false
+
+    if (changedEntries.length > 0) {
+      for (const [fieldName, change] of changedEntries) {
+        const changeObj = change as { from?: unknown; to?: unknown }
+        const formattedFrom = formatHistoryValue(fieldName, changeObj?.from)
+        const formattedTo = formatHistoryValue(fieldName, changeObj?.to)
+
+        // Skip no-op changes where formatted values are identical
+        if (formattedFrom === formattedTo) {
+          continue
+        }
+
         rows.push({
           id: `${log.id}-${fieldName}`,
-          occurredAt: new Date(log.createdAt).toISOString().slice(0, 16).replace('T', ' '),
-          userName: log.userName || 'System',
+          occurredAt,
+          userName,
           action: log.action,
           field: fieldName,
-          fromValue: String(changeObj?.from ?? '-'),
-          toValue: String(changeObj?.to ?? '-')
+          fromValue: formattedFrom,
+          toValue: formattedTo
         })
+        addedRowForLog = true
+      }
+    }
+
+    // If we didn't add any field-level rows, fall back to a single generic row.
+    if (!addedRowForLog) {
+      rows.push({
+        id: log.id,
+        occurredAt,
+        userName,
+        action: log.action,
+        field: "-",
+        fromValue: "-",
+        toValue: "-"
       })
     }
   })
@@ -180,23 +257,18 @@ export function AuditHistoryTab({
       setIsLoading(true)
       setError(null)
       try {
-        const url = `/api/audit-logs?entityName=${entityName}&entityId=${entityId}&pageSize=200`
-        console.log('[AuditHistoryTab] Fetching from:', url)
+        const url = `/api/audit-logs?entityName=${entityName}&entityId=${entityId}&pageSize=200&summaryOnly=true`
         const response = await fetch(url)
-        console.log('[AuditHistoryTab] Response status:', response.status)
 
         if (!response.ok) {
           const errorText = await response.text()
-          console.error('[AuditHistoryTab] Error response:', errorText)
           throw new Error(`Failed to fetch audit logs: ${response.status}`)
         }
         const data = await response.json()
-        console.log('[AuditHistoryTab] Received data:', data)
         const converted = convertAuditLogsToHistoryRows(data.data || [])
-        console.log('[AuditHistoryTab] Converted rows:', converted)
         setFetchedHistoryRows(converted)
       } catch (err) {
-        console.error('[AuditHistoryTab] Error:', err)
+        console.error("[AuditHistoryTab] Error:", err)
         setError(err instanceof Error ? err.message : 'An error occurred')
         setFetchedHistoryRows([])
       } finally {
