@@ -4,7 +4,13 @@ import { withPermissions, createErrorResponse } from "@/lib/api-auth"
 import { prisma } from "@/lib/db"
 import { parseSpreadsheetFile } from "@/lib/deposit-import/parse-file"
 import { depositFieldDefinitions, requiredDepositFieldIds } from "@/lib/deposit-import/fields"
-import { extractDepositMappingFromTemplateConfig } from "@/lib/deposit-import/template-mapping"
+import {
+  createEmptyDepositMapping,
+  extractDepositMappingFromTemplateConfig,
+  serializeDepositMappingForTemplate,
+  type DepositMappingConfigV1,
+  type DepositFieldId,
+} from "@/lib/deposit-import/template-mapping"
 
 function startOfMonth(date: Date) {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1))
@@ -101,6 +107,7 @@ export async function POST(request: NextRequest) {
     // Support both the original flat { fieldId: columnName } mapping and the richer
     // DepositMappingConfigV1 shape used by the new UI.
     let canonicalMapping: Record<string, string> = {}
+    let mappingConfigForTemplate: DepositMappingConfigV1 | null = null
 
     if (mappingPayload && typeof mappingPayload === "object" && !Array.isArray(mappingPayload)) {
       const candidate = mappingPayload as Record<string, unknown>
@@ -111,6 +118,7 @@ export async function POST(request: NextRequest) {
         typeof candidate["line"] === "object"
       ) {
         const extracted = extractDepositMappingFromTemplateConfig({ depositMapping: mappingPayload })
+        mappingConfigForTemplate = extracted
         canonicalMapping = Object.entries(extracted.line ?? {}).reduce((acc, [fieldId, columnName]) => {
           if (typeof columnName === "string" && columnName.trim()) {
             acc[fieldId] = columnName.trim()
@@ -124,6 +132,15 @@ export async function POST(request: NextRequest) {
           }
           return acc
         }, {} as Record<string, string>)
+
+        const base = createEmptyDepositMapping()
+        const line: Partial<Record<DepositFieldId, string>> = {}
+        for (const [fieldId, columnName] of Object.entries(canonicalMapping)) {
+          const normalizedFieldId = String(fieldId)
+          if (!depositFieldDefinitions.some(field => field.id === normalizedFieldId)) continue
+          line[normalizedFieldId as DepositFieldId] = columnName
+        }
+        mappingConfigForTemplate = { ...base, line }
       }
     }
 
@@ -153,7 +170,11 @@ export async function POST(request: NextRequest) {
       return createErrorResponse(error instanceof Error ? error.message : "Mapping failed", 400)
     }
 
-const result = await prisma.$transaction(async tx => {
+    const templateConfigToPersist = mappingConfigForTemplate
+      ? serializeDepositMappingForTemplate(mappingConfigForTemplate)
+      : null
+
+    const result = await prisma.$transaction(async tx => {
       const deposit = await tx.deposit.create({
         data: {
           tenantId,
@@ -254,6 +275,38 @@ const result = await prisma.$transaction(async tx => {
           },
         },
       })
+
+      if (templateConfigToPersist) {
+        const existingTemplate = await tx.reconciliationTemplate.findFirst({
+          where: {
+            tenantId,
+            distributorAccountId,
+            vendorAccountId,
+          },
+        })
+
+        if (existingTemplate) {
+          await tx.reconciliationTemplate.update({
+            where: { id: existingTemplate.id },
+            data: {
+              config: templateConfigToPersist,
+            },
+          })
+        } else {
+          await tx.reconciliationTemplate.create({
+            data: {
+              tenantId,
+              name: "Default deposit mapping",
+              description: "Auto-created from deposit upload mapping.",
+              distributorAccountId,
+              vendorAccountId,
+              createdByUserId: req.user.id,
+              createdByContactId,
+              config: templateConfigToPersist,
+            },
+          })
+        }
+      }
 
       return {
         depositId: deposit.id,

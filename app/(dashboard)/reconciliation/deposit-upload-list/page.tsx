@@ -16,6 +16,7 @@ import {
   seedDepositMapping,
   setColumnSelection,
   createCustomFieldForColumn,
+  extractDepositMappingFromTemplateConfig,
   type DepositMappingConfigV1,
   type DepositColumnSelection,
   type DepositCustomFieldSection,
@@ -96,10 +97,42 @@ export default function DepositUploadListPage() {
       try {
         const parsed = await parseSpreadsheetFile(selectedFile, selectedFile.name, selectedFile.type)
         if (cancelled) return
-        setCsvHeaders(parsed.headers)
+
+        const headers = parsed.headers
+        setCsvHeaders(headers)
         setSampleRows(parsed.rows.slice(0, 5))
         setParsedRowCount(parsed.rows.length)
-        setMapping(previous => seedDepositMapping({ headers: parsed.headers, templateMapping: previous }))
+
+        let templateMapping: DepositMappingConfigV1 | null = null
+        const distributorAccountId = formState.distributorAccountId?.trim() ?? ''
+        const vendorAccountId = formState.vendorAccountId?.trim() ?? ''
+
+        if (distributorAccountId && vendorAccountId) {
+          try {
+            const params = new URLSearchParams({
+              distributorAccountId,
+              vendorAccountId,
+              pageSize: '1',
+            })
+            const response = await fetch(`/api/reconciliation/templates?${params.toString()}`, {
+              cache: 'no-store',
+            })
+            if (response.ok) {
+              const payload = await response.json().catch(() => null)
+              const rawConfig = payload?.data?.[0]?.config
+              if (rawConfig) {
+                templateMapping = extractDepositMappingFromTemplateConfig(rawConfig)
+              }
+            } else {
+              // Soft-fail on template lookup; fall back to auto-mapping only.
+              console.warn('Template lookup failed for deposit upload mapping')
+            }
+          } catch (error) {
+            console.error('Unable to load reconciliation template for deposit upload', error)
+          }
+        }
+
+        setMapping(seedDepositMapping({ headers, templateMapping }))
       } catch (error) {
         if (cancelled) return
         console.error('Unable to parse file', error)
@@ -114,7 +147,7 @@ export default function DepositUploadListPage() {
     return () => {
       cancelled = true
     }
-  }, [selectedFile])
+  }, [selectedFile, formState.distributorAccountId, formState.vendorAccountId])
 
   useEffect(() => {
     const canonicalFieldMapping: Record<string, string> = Object.entries(mapping.line ?? {}).reduce(
