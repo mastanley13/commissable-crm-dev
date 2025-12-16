@@ -3003,32 +3003,25 @@ useEffect(() => {
 
             return (
               <div className="flex items-center" data-disable-row-click="true">
-                <label
-                  className="flex cursor-pointer items-center justify-center"
-                  onClick={event => event.stopPropagation()}
+                <button
+                  type="button"
+                  role="checkbox"
+                  aria-checked={checked}
+                  aria-label={`Select revenue schedule ${row.scheduleNumber ?? row.productNameVendor ?? row.id}`}
+                  className={cn(
+                    "flex h-4 w-4 items-center justify-center rounded border transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-1",
+                    checked
+                      ? "border-primary-500 bg-primary-600 text-white"
+                      : "border-gray-300 bg-white text-transparent"
+                  )}
+                  onClick={event => {
+                    event.stopPropagation()
+                    handleRevenueSelect(row.id, !checked)
+                  }}
+                  onMouseDown={event => event.preventDefault()}
                 >
-                  <input
-                    type="checkbox"
-                    className="sr-only"
-                    checked={checked}
-                    aria-label={`Select revenue schedule ${row.scheduleNumber ?? row.productNameVendor ?? row.id}`}
-                    onChange={event => {
-                      event.stopPropagation()
-                      handleRevenueSelect(row.id, event.target.checked)
-                      event.target.blur()
-                    }}
-                  />
-                  <span
-                    className={cn(
-                      "flex h-4 w-4 items-center justify-center rounded border transition-colors",
-                      checked
-                        ? "border-primary-500 bg-primary-600 text-white"
-                        : "border-gray-300 bg-white text-transparent"
-                    )}
-                  >
-                    <Check className="h-3 w-3" aria-hidden="true" />
-                  </span>
-                </label>
+                  <Check className="h-3 w-3" aria-hidden="true" />
+                </button>
               </div>
             )
           }
@@ -4381,32 +4374,25 @@ useEffect(() => {
 
             return (
               <div className="flex items-center gap-2" data-disable-row-click="true">
-                <label
-                  className="flex cursor-pointer items-center justify-center"
-                  onClick={event => event.stopPropagation()}
+                <button
+                  type="button"
+                  role="checkbox"
+                  aria-checked={checked}
+                  aria-label={`Select product line item ${row.productName}`}
+                  className={cn(
+                    "flex h-4 w-4 items-center justify-center rounded border transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-1",
+                    checked
+                      ? "border-primary-500 bg-primary-600 text-white"
+                      : "border-gray-300 bg-white text-transparent"
+                  )}
+                  onClick={event => {
+                    event.stopPropagation()
+                    handleLineItemSelect(row.id, !checked)
+                  }}
+                  onMouseDown={event => event.preventDefault()}
                 >
-                  <input
-                    type="checkbox"
-                    className="sr-only"
-                    checked={checked}
-                    aria-label={`Select product line item ${row.productName}`}
-                    onChange={event => {
-                      event.stopPropagation()
-                      handleLineItemSelect(row.id, event.target.checked)
-                      event.target.blur()
-                    }}
-                  />
-                  <span
-                    className={cn(
-                      "flex h-4 w-4 items-center justify-center rounded border transition-colors",
-                      checked
-                        ? "border-primary-500 bg-primary-600 text-white"
-                        : "border-gray-300 bg-white text-transparent"
-                    )}
-                  >
-                    <Check className="h-3 w-3" aria-hidden="true" />
-                  </span>
-                </label>
+                  <Check className="h-3 w-3" aria-hidden="true" />
+                </button>
 
                 <button
                   type="button"

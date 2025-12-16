@@ -370,14 +370,28 @@ export function OpportunityCreateModal({
   const displaySubagentPercent = useMemo(() => {
     const raw = form.subagentPercent.trim()
     if (!raw) return ""
+
+    // When focused, show raw value so user can type freely
+    if (subagentPercentFocused) {
+      return raw
+    }
+
+    // When not focused, show formatted percent
     return formatPercentDisplay(raw, { alwaysSymbol: true })
-  }, [form.subagentPercent])
+  }, [form.subagentPercent, subagentPercentFocused])
 
   const displayHouseRepPercent = useMemo(() => {
     const raw = form.houseRepPercent.trim()
     if (!raw) return ""
+
+    // When focused, show raw value so user can type freely
+    if (houseRepPercentFocused) {
+      return raw
+    }
+
+    // When not focused, show formatted percent
     return formatPercentDisplay(raw, { alwaysSymbol: true })
-  }, [form.houseRepPercent])
+  }, [form.houseRepPercent, houseRepPercentFocused])
 
   const handleClose = useCallback(() => {
     setForm(buildInitialForm(defaultAccountId))

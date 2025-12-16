@@ -237,12 +237,14 @@ export function RevenueScheduleCloneModal({
                     inputUnderlineCls,
                     !unitPriceValid && "border-rose-500 focus:border-rose-500",
                   )}
-                  value={unitPrice ? formatCurrencyDisplay(unitPrice, { alwaysSymbol: true }) : ""}
+                  value={unitPrice ? (unitPriceFocused ? unitPrice : formatCurrencyDisplay(unitPrice, { alwaysSymbol: true })) : ""}
                   onChange={event => {
                     const normalized = normalizeDecimalInput(event.target.value)
                     setUnitPrice(normalized)
                   }}
+                  onFocus={() => setUnitPriceFocused(true)}
                   onBlur={() => {
+                    setUnitPriceFocused(false)
                     setUnitPrice(prev => formatDecimalToFixed(prev))
                   }}
                   disabled={submitting}

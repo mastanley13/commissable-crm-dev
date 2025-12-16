@@ -938,28 +938,28 @@ export function DynamicTable({
         const rowId = getRowId(row)
         const checked = rowId ? selectedItems.includes(rowId) : Boolean(value)
         return (
-          <label
-            className="flex cursor-pointer items-center justify-center"
+          <button
+            type="button"
+            role="checkbox"
+            aria-checked={checked}
+            aria-label={rowId ? `Select row ${rowId}` : `Select row ${index + 1}`}
             data-disable-row-click="true"
+            className={cn(
+              "flex h-4 w-4 items-center justify-center rounded border transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-1",
+              checked
+                ? "border-primary-500 bg-primary-600 text-white"
+                : "border-gray-300 bg-white text-transparent"
+            )}
+            onClick={event => {
+              event.stopPropagation()
+              if (onItemSelect && rowId) {
+                onItemSelect(rowId, !checked, row)
+              }
+            }}
+            onMouseDown={event => event.preventDefault()}
           >
-            <input
-              type="checkbox"
-              className="sr-only"
-              checked={checked}
-              aria-label={rowId ? `Select row ${rowId}` : `Select row ${index + 1}`}
-              onChange={event => handleCheckboxChange(event, row, index)}
-            />
-            <span
-              className={cn(
-                "flex h-4 w-4 items-center justify-center rounded border transition-colors",
-                checked
-                  ? "border-primary-500 bg-primary-600 text-white"
-                  : "border-gray-300 bg-white text-transparent"
-              )}
-            >
-              <Check className="h-3 w-3" aria-hidden="true" />
-            </span>
-          </label>
+            <Check className="h-3 w-3" aria-hidden="true" />
+          </button>
         )
       }
       case "email":

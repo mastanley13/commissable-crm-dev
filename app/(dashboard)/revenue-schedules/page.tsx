@@ -1301,18 +1301,20 @@ export default function RevenueSchedulesPage() {
             return (
               <div className="flex items-center gap-2" data-disable-row-click="true">
                 {/* Checkbox */}
-                <label className="flex cursor-pointer items-center justify-center" onClick={e => e.stopPropagation()}>
-                  <input
-                    type="checkbox"
-                    className="sr-only"
-                    checked={checked}
-                    aria-label={`Select revenue schedule ${rowId}`}
-                    onChange={() => handleSelectSchedule(rowId, !checked)}
-                  />
-                  <span className={`flex h-4 w-4 items-center justify-center rounded border transition-colors ${checked ? 'border-primary-500 bg-primary-600 text-white' : 'border-gray-300 bg-white text-transparent'}`}>
-                    <Check className="h-3 w-3" aria-hidden="true" />
-                  </span>
-                </label>
+                <button
+                  type="button"
+                  role="checkbox"
+                  aria-checked={checked}
+                  aria-label={`Select revenue schedule ${rowId}`}
+                  className={`flex h-4 w-4 items-center justify-center rounded border transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-1 ${checked ? 'border-primary-500 bg-primary-600 text-white' : 'border-gray-300 bg-white text-transparent'}`}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleSelectSchedule(rowId, !checked)
+                  }}
+                  onMouseDown={(e) => e.preventDefault()}
+                >
+                  <Check className="h-3 w-3" aria-hidden="true" />
+                </button>
 
                 {/* Toggle placeholder (schedules do not have active/inactive; use open/reconciled style if needed) */}
                 <span className="inline-flex w-9 h-5 items-center justify-start rounded-full bg-gray-300 opacity-50" title="No status toggle for schedules">

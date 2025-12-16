@@ -62,6 +62,8 @@ export function OpportunityLineItemEditModal({
   const [productLoading, setProductLoading] = useState(false)
   const { showError, showSuccess } = useToasts()
   const [unitPriceFocused, setUnitPriceFocused] = useState(false)
+  const [expectedRevenueFocused, setExpectedRevenueFocused] = useState(false)
+  const [expectedCommissionFocused, setExpectedCommissionFocused] = useState(false)
 
   const fetchProducts = useCallback(
     async (query?: string) => {
@@ -197,20 +199,41 @@ export function OpportunityLineItemEditModal({
   const displayUnitPrice = useMemo(() => {
     const raw = form.unitPrice.trim()
     if (!raw) return ""
+
+    // When focused, show raw value so user can type freely
+    if (unitPriceFocused) {
+      return raw
+    }
+
+    // When not focused, show formatted currency
     return formatCurrencyDisplay(raw, { alwaysSymbol: true })
-  }, [form.unitPrice])
+  }, [form.unitPrice, unitPriceFocused])
 
   const displayExpectedRevenue = useMemo(() => {
     const raw = form.expectedRevenue.trim()
     if (!raw) return ""
+
+    // When focused, show raw value so user can type freely
+    if (expectedRevenueFocused) {
+      return raw
+    }
+
+    // When not focused, show formatted currency
     return formatCurrencyDisplay(raw, { alwaysSymbol: true })
-  }, [form.expectedRevenue])
+  }, [form.expectedRevenue, expectedRevenueFocused])
 
   const displayExpectedCommission = useMemo(() => {
     const raw = form.expectedCommission.trim()
     if (!raw) return ""
+
+    // When focused, show raw value so user can type freely
+    if (expectedCommissionFocused) {
+      return raw
+    }
+
+    // When not focused, show formatted currency
     return formatCurrencyDisplay(raw, { alwaysSymbol: true })
-  }, [form.expectedCommission])
+  }, [form.expectedCommission, expectedCommissionFocused])
 
   const handleSearch = async () => {
     await fetchProducts(productQuery)
@@ -470,7 +493,9 @@ export function OpportunityLineItemEditModal({
                     setExpectedRevenueDirty(true)
                     handleDecimalChange("expectedRevenue")(event)
                   }}
+                  onFocus={() => setExpectedRevenueFocused(true)}
                   onBlur={() => {
+                    setExpectedRevenueFocused(false)
                     handleDecimalBlur("expectedRevenue")()
                   }}
                   className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
@@ -483,7 +508,11 @@ export function OpportunityLineItemEditModal({
                   inputMode="decimal"
                   value={displayExpectedCommission}
                   onChange={handleDecimalChange("expectedCommission")}
-                  onBlur={handleDecimalBlur("expectedCommission")}
+                  onFocus={() => setExpectedCommissionFocused(true)}
+                  onBlur={() => {
+                    setExpectedCommissionFocused(false)
+                    handleDecimalBlur("expectedCommission")()
+                  }}
                   className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
                 />
               </div>

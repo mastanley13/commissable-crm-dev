@@ -1,6 +1,7 @@
 ﻿"use client"
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react"
+
 import { X } from "lucide-react"
 import { useToasts } from "@/components/toast"
 import { formatCurrencyDisplay, formatDecimalToFixed, formatPercentDisplay, normalizeDecimalInput } from "@/lib/number-format"
@@ -72,6 +73,18 @@ interface ProductSubtypeOption {
   familyName: string | null
 }
 
+function getAllowedSubtypesForFamilyName(
+  subtypes: ProductSubtypeOption[],
+  familyIdByName: Map<string, string>,
+  familyName: string
+): string[] {
+  const trimmedFamily = familyName.trim()
+  const familyId = trimmedFamily.length > 0 ? (familyIdByName.get(trimmedFamily) ?? null) : null
+  return subtypes
+    .filter((subtype) => familyId == null || subtype.productFamilyId == null || subtype.productFamilyId === familyId)
+    .map((subtype) => subtype.name)
+}
+
 export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdHouse, onClose, onSuccess }: OpportunityLineItemCreateModalProps) {
   const [form, setForm] = useState<LineItemFormState>(INITIAL_FORM_STATE)
   const [loading, setLoading] = useState(false)
@@ -89,7 +102,6 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
   const [showProductDropdown, setShowProductDropdown] = useState(false)
   const [showDistributorDropdown, setShowDistributorDropdown] = useState(false)
   const [showVendorDropdown, setShowVendorDropdown] = useState(false)
-  const [showSubtypeDropdown, setShowSubtypeDropdown] = useState(false)
   const [showProductNameDropdown, setShowProductNameDropdown] = useState(false)
   const [showCatalogFamilyDropdown, setShowCatalogFamilyDropdown] = useState(false)
   const [showCatalogSubtypeDropdown, setShowCatalogSubtypeDropdown] = useState(false)
@@ -99,7 +111,6 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
   const [familyOptions, setFamilyOptions] = useState<string[]>([])
   const [subtypeOptions, setSubtypeOptions] = useState<string[]>([])
   const [productNameOptions, setProductNameOptions] = useState<string[]>([])
-  const [showFamilyDropdown, setShowFamilyDropdown] = useState(false)
   const [productOptions, setProductOptions] = useState<ProductOption[]>([])
   // Product create state
   const [selectedDistributorId, setSelectedDistributorId] = useState<string>("")
@@ -118,6 +129,8 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
   const [commissionPercentFocused, setCommissionPercentFocused] = useState(false)
   const [masterFamilies, setMasterFamilies] = useState<ProductFamilyOption[]>([])
   const [masterSubtypes, setMasterSubtypes] = useState<ProductSubtypeOption[]>([])
+  const [masterDataError, setMasterDataError] = useState<string | null>(null)
+  const [submitError, setSubmitError] = useState<string | null>(null)
 
   const { showError, showSuccess } = useToasts()
 
@@ -167,14 +180,6 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
       productSubtypeHouse: it.productSubtypeHouse ?? null
     }))
     setProductOptions(mapped)
-    if (masterFamilies.length === 0) {
-      const fams = Array.from(new Set(mapped.map(p => p.productFamilyVendor).filter(Boolean))) as string[]
-      setFamilyOptions(fams)
-    }
-    if (masterSubtypes.length === 0) {
-      const subs = Array.from(new Set(mapped.map(p => p.productSubtypeVendor).filter(Boolean))) as string[]
-      setSubtypeOptions(subs)
-    }
     const names = Array.from(new Set(mapped.map(p => p.productNameVendor || p.name).filter(Boolean))) as string[]
     setProductNameOptions(names)
   }, [
@@ -185,8 +190,6 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
     productInput,
     selectedDistributorId,
     selectedVendorId,
-    masterFamilies.length,
-    masterSubtypes.length,
   ])
 
   const ensureProductInOptions = useCallback((product: ProductOption) => {
@@ -322,6 +325,8 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
     setProductNameHouse(""); setProductNameVendor(""); setProductFamilyVendorInput(""); setProductSubtypeVendor(""); setProductCode(""); setRevenueType(""); setProductActive(true)
     setDedupeExactMatch(null); setDedupeLikelyMatches([])
     setMasterFamilies([]); setMasterSubtypes([])
+    setMasterDataError(null)
+    setSubmitError(null)
     const now = new Date(); const first = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1))
     setForm(prev => ({ ...prev, commissionStartDate: first.toISOString().slice(0,10) }))
     // Default to Add Product from Catalog when modal opens
@@ -356,6 +361,7 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
       .then(res => (res.ok ? res.json() : Promise.reject()))
       .then(payload => {
         if (cancelled) return
+        setMasterDataError(null)
         const families: ProductFamilyOption[] = Array.isArray(payload?.families)
           ? payload.families
               .map((f: any): ProductFamilyOption => ({
@@ -382,14 +388,26 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
         setFamilyOptions(vendorFamilies)
         setSubtypeOptions(vendorSubtypes)
       })
-      .catch(() => {
-        // Silent failure; fallback to existing behavior (values derived from products)
+      .catch((error) => {
+        if (!cancelled) {
+          setMasterDataError(error instanceof Error ? error.message : "Failed to load Product picklists")
+        }
       })
 
     return () => {
       cancelled = true
     }
   }, [isOpen])
+
+  const familyIdByName = useMemo(
+    () => new Map(masterFamilies.map((family) => [family.name, family.id] as const)),
+    [masterFamilies]
+  )
+
+  const vendorSubtypePicklist = useMemo(
+    () => getAllowedSubtypesForFamilyName(masterSubtypes, familyIdByName, productFamilyVendorInput),
+    [masterSubtypes, familyIdByName, productFamilyVendorInput]
+  )
 
   // Expected revenue auto-calc when quantity/price change
   const [expectedRevenueDirty, setExpectedRevenueDirty] = useState(false)
@@ -416,11 +434,12 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
       showError('Missing information', 'Revenue type is required.')
       return
     }
-    const defaultStartDate = () => {
-      const now = new Date()
-      return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString().slice(0,10)
-    }
-    setLoading(true)
+      const defaultStartDate = () => {
+        const now = new Date()
+        return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString().slice(0,10)
+      }
+      setSubmitError(null)
+      setLoading(true)
     try {
       const { exact, likely } = await runProductDedupe()
       setDedupeExactMatch(exact)
@@ -437,21 +456,41 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
 
       const derivedProductNameHouse = (productNameHouse.trim() || productNameVendor.trim() || 'New Product').slice(0, 120)
       const derivedProductCode = (productCode.trim() || `AUTO-${Date.now()}-${Math.random().toString(36).slice(2,8).toUpperCase()}`).slice(0, 64)
-      const productPayload: Record<string, unknown> = {
-        productNameHouse: derivedProductNameHouse,
-        productCode: derivedProductCode,
-        revenueType,
-        priceEach: form.unitPrice ? Number(form.unitPrice) : undefined,
-        commissionPercent: form.commissionPercent ? Number(form.commissionPercent) : undefined,
-        isActive: productActive,
-        productNameVendor: productNameVendor.trim() || undefined,
-        productFamilyVendor: productFamilyVendorInput.trim() || undefined,
-        productSubtypeVendor: productSubtypeVendor.trim() || undefined,
-        vendorAccountId: selectedVendorId || undefined,
-        distributorAccountId: selectedDistributorId || undefined,
-      }
+        const productPayload: Record<string, unknown> = {
+          productNameHouse: derivedProductNameHouse,
+          productCode: derivedProductCode,
+          revenueType,
+          priceEach: form.unitPrice ? Number(form.unitPrice) : undefined,
+          commissionPercent: form.commissionPercent ? Number(form.commissionPercent) : undefined,
+          isActive: productActive,
+          productNameVendor: productNameVendor.trim() || undefined,
+          productFamilyVendor: productFamilyVendorInput.trim() || undefined,
+          productSubtypeVendor: productSubtypeVendor.trim() || undefined,
+          vendorAccountId: selectedVendorId || undefined,
+          distributorAccountId: selectedDistributorId || undefined,
+        }
 
-      // Attempt to create product
+        // Preflight vendor/distributor pair against the Opportunity before creating a product.
+        const preflightRes = await fetch(
+          `/api/opportunities/${opportunityId}/line-items/validate-vendor-distributor`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              distributorAccountId: selectedDistributorId || null,
+              vendorAccountId: selectedVendorId || null,
+            }),
+          },
+        )
+        if (!preflightRes.ok) {
+          const ep = await preflightRes.json().catch(() => null)
+          const message =
+            ep?.error ?? 'Unable to validate Distributor/Vendor for this opportunity.'
+          setSubmitError(message)
+          throw new Error(message)
+        }
+
+        // Attempt to create product
       let createdProductId: string | null = null
       let createRes = await fetch('/api/products', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(productPayload) })
       if (createRes.status === 201) {
@@ -486,20 +525,34 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
       liPayload.commissionStartDate = form.commissionStartDate || defaultStartDate()
 
       const attachRes = await fetch(`/api/opportunities/${opportunityId}/line-items`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(liPayload) })
-      if (!attachRes.ok) {
-        const ep = await attachRes.json().catch(()=>null)
-        throw new Error(ep?.error ?? 'Failed to add line item')
-      }
+        if (!attachRes.ok) {
+          const ep = await attachRes.json().catch(()=>null)
+          const message = ep?.error ?? 'Failed to add line item'
+          setSubmitError(message)
+          const createdNewProduct = createRes && createRes.status === 201
+          if (createdNewProduct && createdProductId) {
+            try {
+              await fetch(`/api/products/${createdProductId}`, { method: 'DELETE' })
+            } catch (rollbackError) {
+              console.error('Failed to roll back product after attach error', rollbackError)
+            }
+          }
+          throw new Error(message)
+        }
       showSuccess('Line item added', createRes.status === 409 ? 'Existing product matched and added.' : 'New product created and added.')
       setDedupeExactMatch(null); setDedupeLikelyMatches([])
       await onSuccess?.(); onClose()
-    } catch (err: any) {
-      console.error(err)
-      showError('Unable to add product', err?.message ?? 'Please try again later.')
-    } finally {
+      } catch (err: any) {
+        console.error(err)
+        const message = err?.message ?? 'Please try again later.'
+        if (!submitError) {
+          setSubmitError(message)
+        }
+        showError('Unable to add product', message)
+      } finally {
       setLoading(false)
     }
-  }, [revenueType, showError, runProductDedupe, productNameHouse, productNameVendor, productCode, form.unitPrice, form.commissionPercent, productActive, productFamilyVendorInput, productSubtypeVendor, selectedVendorId, selectedDistributorId, form.quantity, form.expectedUsage, form.expectedRevenue, form.expectedCommission, form.schedulePeriods, form.commissionStartDate, opportunityId, showSuccess, onSuccess, onClose])
+  }, [revenueType, showError, runProductDedupe, productNameHouse, productNameVendor, productCode, form.unitPrice, form.commissionPercent, productActive, productFamilyVendorInput, productSubtypeVendor, selectedVendorId, selectedDistributorId, form.quantity, form.expectedUsage, form.expectedRevenue, form.expectedCommission, form.schedulePeriods, form.commissionStartDate, opportunityId, showSuccess, onSuccess, onClose, submitError])
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -524,12 +577,22 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
     setLoading(true)
     try {
       const res = await fetch(`/api/opportunities/${opportunityId}/line-items`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
-      if (!res.ok) { const ep = await res.json().catch(()=>null); throw new Error(ep?.error ?? 'Failed to create line item') }
+      if (!res.ok) {
+        const ep = await res.json().catch(()=>null)
+        const message = ep?.error ?? 'Failed to create line item'
+        setSubmitError(message)
+        throw new Error(message)
+      }
       showSuccess('Line item added', 'The product has been added to this opportunity.')
       await onSuccess?.(); onClose()
-    } catch (err: any) {
-      console.error(err); showError('Unable to create line item', err?.message ?? 'Please try again later.')
-    } finally { setLoading(false) }
+      } catch (err: any) {
+        console.error(err)
+        const message = err?.message ?? 'Please try again later.'
+        if (!submitError) {
+          setSubmitError(message)
+        }
+        showError('Unable to create line item', message)
+      } finally { setLoading(false) }
   }
 
   const labelCls = 'mb-0.5 block text-[11px] font-semibold uppercase tracking-wide text-gray-500'
@@ -555,10 +618,12 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
     const raw = form.unitPrice.trim()
     if (!raw) return ""
 
+    // When focused, show raw value so user can type freely
     if (unitPriceFocused) {
-      return formatCurrencyDisplay(raw, { alwaysSymbol: true })
+      return raw
     }
 
+    // When not focused, show formatted currency
     return formatCurrencyDisplay(raw, { alwaysSymbol: true })
   }, [form.unitPrice, unitPriceFocused])
 
@@ -566,10 +631,12 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
     const raw = form.commissionPercent.trim()
     if (!raw) return ""
 
+    // When focused, show raw value so user can type freely
     if (commissionPercentFocused) {
-      return formatPercentDisplay(raw, { alwaysSymbol: true })
+      return raw
     }
 
+    // When not focused, show formatted percent
     return formatPercentDisplay(raw, { alwaysSymbol: true })
   }, [form.commissionPercent, commissionPercentFocused])
 
@@ -588,9 +655,9 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
           </button>
         </div>
 
-        {/* Tab Switch */}
-        <div className="px-6 pt-3">
-          <div className="inline-flex gap-1 text-sm">
+          {/* Tab Switch */}
+          <div className="px-6 pt-3">
+            <div className="inline-flex gap-1 text-sm">
             <button
               type="button"
               onClick={() => setActiveTab("add")}
@@ -612,13 +679,21 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
                   ? "border-primary-700 bg-primary-700 text-white hover:bg-primary-800"
                   : "border-blue-300 bg-gradient-to-b from-blue-100 to-blue-200 text-primary-800 hover:from-blue-200 hover:to-blue-300 hover:border-blue-400"
               }`}
-            >
-              Create New Product
-            </button>
+              >
+                Create New Product
+              </button>
+            </div>
           </div>
-        </div>
 
-        {activeTab === "add" && (
+          {submitError && (
+            <div className="px-6 pt-3">
+              <div className="mb-3 rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+                {submitError}
+              </div>
+            </div>
+          )}
+  
+          {activeTab === "add" && (
           <form className="max-h-[80vh] overflow-y-auto px-6 py-3" onSubmit={handleSubmit}>
             <div className="grid gap-6 md:grid-cols-2">
               {/* Left column: catalog filters + product lookup */}
@@ -883,6 +958,12 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
             className="max-h-[80vh] overflow-y-auto px-6 py-3"
             onSubmit={(e) => { e.preventDefault(); void handleCreateSubmit(); }}
           >
+            {masterDataError ? (
+              <div className="mb-4 rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+                Unable to load Product Family/Subtype picklists from Data Settings. Creating a product may be blocked
+                until this is resolved.
+              </div>
+            ) : null}
             {dedupeExactMatch && (
               <div className="mb-4 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800">
                 <div className="font-semibold">Existing product found</div>
@@ -975,46 +1056,43 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
                   <label className={labelCls}>
                     {badge(3)}Vendor - Product Family<span className="ml-1 text-red-500">*</span>
                   </label>
-                  <input
+                  <select
                     value={productFamilyVendorInput}
-                    onChange={e=>{ setProductFamilyVendorInput(e.target.value); setShowFamilyDropdown(true) }}
-                    onFocus={()=>setShowFamilyDropdown(true)}
-                    onBlur={()=>setTimeout(()=>setShowFamilyDropdown(false),200)}
-                    placeholder="e.g., UCaaS"
+                    onChange={(e) => {
+                      const nextFamily = e.target.value
+                      setProductFamilyVendorInput(nextFamily)
+                      const allowed = getAllowedSubtypesForFamilyName(masterSubtypes, familyIdByName, nextFamily)
+                      if (productSubtypeVendor.trim() && !allowed.includes(productSubtypeVendor.trim())) {
+                        setProductSubtypeVendor("")
+                      }
+                    }}
                     className={inputCls}
-                    disabled={!selectedDistributorId || !selectedVendorId}
-                  />
-                  {showFamilyDropdown && familyOptions.length > 0 && selectedDistributorId && selectedVendorId && (
-                    <div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
-                      {familyOptions.filter(f => f.toLowerCase().includes((productFamilyVendorInput||'').toLowerCase())).map(fam => (
-                        <button key={fam} type="button" className="w-full px-3 py-2 text-left text-sm hover:bg-primary-50" onClick={()=>{ setProductFamilyVendorInput(fam); setShowFamilyDropdown(false) }}>
-                          <div className="font-medium text-gray-900">{fam}</div>
-                        </button>
-                      ))}
-                    </div>
-                  )}
+                    disabled={(!selectedDistributorId || !selectedVendorId) && familyOptions.length > 0 ? true : familyOptions.length === 0}
+                  >
+                    <option value="">Select</option>
+                    {familyOptions.map((fam) => (
+                      <option key={fam} value={fam}>
+                        {fam}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 <div className="relative">
                   <label className={labelCls}>{badge(4)}Vendor - Product Subtype</label>
-                  <input
+                  <select
                     value={productSubtypeVendor}
-                    onChange={e => { setProductSubtypeVendor(e.target.value); setShowSubtypeDropdown(true) }}
-                    onFocus={()=>setShowSubtypeDropdown(true)}
-                    onBlur={()=>setTimeout(()=>setShowSubtypeDropdown(false),200)}
-                    placeholder="Optional subtype"
+                    onChange={(e) => setProductSubtypeVendor(e.target.value)}
                     className={inputCls}
-                    disabled={!productFamilyVendorInput.trim()}
-                  />
-                  {showSubtypeDropdown && subtypeOptions.length > 0 && productFamilyVendorInput.trim() && (
-                    <div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
-                      {subtypeOptions.filter(s => s.toLowerCase().includes((productSubtypeVendor||'').toLowerCase())).map(sub => (
-                        <button key={sub} type="button" className="w-full px-3 py-2 text-left text-sm hover:bg-primary-50" onClick={()=>{ setProductSubtypeVendor(sub); setShowSubtypeDropdown(false) }}>
-                          <div className="font-medium text-gray-900">{sub}</div>
-                        </button>
-                      ))}
-                    </div>
-                  )}
+                    disabled={!productFamilyVendorInput.trim() || vendorSubtypePicklist.length === 0}
+                  >
+                    <option value="">Select</option>
+                    {vendorSubtypePicklist.map((sub) => (
+                      <option key={sub} value={sub}>
+                        {sub}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 <div className="relative">

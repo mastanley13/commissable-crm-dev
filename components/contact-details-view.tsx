@@ -2511,19 +2511,22 @@ const [groupsPageSize, setGroupsPageSize] = useState(100)
             const activeValue = !!row.active
             return (
               <div className="flex items-center gap-2" data-disable-row-click="true">
-                <label className="flex cursor-pointer items-center justify-center" onClick={e => e.stopPropagation()}>
-                  <input type="checkbox" className="sr-only" checked={checked} aria-label={"Select activity " + row.id} onChange={() => handleActivitySelect(row.id, !checked)} />
-                  <span
-                    className={cn(
-                      "flex h-4 w-4 items-center justify-center rounded border transition-colors",
-                      checked
-                        ? "border-primary-500 bg-primary-600 text-white"
-                        : "border-gray-300 bg-white text-transparent"
-                    )}
-                  >
-                    <Check className="h-3 w-3" aria-hidden="true" />
-                  </span>
-                </label>
+                <button
+                  type="button"
+                  role="checkbox"
+                  aria-checked={checked}
+                  aria-label={"Select activity " + row.id}
+                  className={cn(
+                    "flex h-4 w-4 items-center justify-center rounded border transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-1",
+                    checked
+                      ? "border-primary-500 bg-primary-600 text-white"
+                      : "border-gray-300 bg-white text-transparent"
+                  )}
+                  onClick={e => { e.stopPropagation(); handleActivitySelect(row.id, !checked) }}
+                  onMouseDown={e => e.preventDefault()}
+                >
+                  <Check className="h-3 w-3" aria-hidden="true" />
+                </button>
                 <button
                   type="button"
                   onClick={(event) => {
@@ -2631,19 +2634,23 @@ const [groupsPageSize, setGroupsPageSize] = useState(100)
             const activeValue = !!row.active
             return (
               <div className="flex items-center gap-2" data-disable-row-click="true">
-                <label className="flex cursor-pointer items-center justify-center" onClick={e => e.stopPropagation()}>
-                  <input type="checkbox" className="sr-only" checked={checked} aria-label={"Select opportunity " + (row.opportunityName || row.id)} onChange={() => handleOpportunitySelect(row.id, !checked)} />
-                  <span
-                    className={cn(
-                      "flex h-4 w-4 items-center justify-center rounded border transition-colors",
-                      checked
-                        ? "border-primary-500 bg-primary-600 text-white"
-                        : "border-gray-300 bg-white text-transparent"
-                    )}
-                  >
-                    <Check className="h-3 w-3" aria-hidden="true" />
-                  </span>
-                </label>                <button
+                <button
+                  type="button"
+                  role="checkbox"
+                  aria-checked={checked}
+                  aria-label={"Select opportunity " + (row.opportunityName || row.id)}
+                  className={cn(
+                    "flex h-4 w-4 items-center justify-center rounded border transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-1",
+                    checked
+                      ? "border-primary-500 bg-primary-600 text-white"
+                      : "border-gray-300 bg-white text-transparent"
+                  )}
+                  onClick={e => { e.stopPropagation(); handleOpportunitySelect(row.id, !checked) }}
+                  onMouseDown={e => e.preventDefault()}
+                >
+                  <Check className="h-3 w-3" aria-hidden="true" />
+                </button>
+                <button
                   type="button"
                   onClick={(event) => {
                     event.stopPropagation();
@@ -2781,19 +2788,23 @@ const [groupsPageSize, setGroupsPageSize] = useState(100)
             const activeValue = !!row.active
             return (
               <div className="flex items-center gap-2" data-disable-row-click="true">
-                <label className="flex cursor-pointer items-center justify-center" onClick={e => e.stopPropagation()}>
-                  <input type="checkbox" className="sr-only" checked={checked} aria-label={"Select group " + (row.groupName || row.id)} onChange={() => handleGroupSelect(row.id, !checked)} />
-                  <span
-                    className={cn(
-                      "flex h-4 w-4 items-center justify-center rounded border transition-colors",
-                      checked
-                        ? "border-primary-500 bg-primary-600 text-white"
-                        : "border-gray-300 bg-white text-transparent"
-                    )}
-                  >
-                    <Check className="h-3 w-3" aria-hidden="true" />
-                  </span>
-                </label>                <button
+                <button
+                  type="button"
+                  role="checkbox"
+                  aria-checked={checked}
+                  aria-label={"Select group " + (row.groupName || row.id)}
+                  className={cn(
+                    "flex h-4 w-4 items-center justify-center rounded border transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-1",
+                    checked
+                      ? "border-primary-500 bg-primary-600 text-white"
+                      : "border-gray-300 bg-white text-transparent"
+                  )}
+                  onClick={e => { e.stopPropagation(); handleGroupSelect(row.id, !checked) }}
+                  onMouseDown={e => e.preventDefault()}
+                >
+                  <Check className="h-3 w-3" aria-hidden="true" />
+                </button>
+                <button
                   type="button"
                   onClick={(event) => {
                     event.stopPropagation();

@@ -10,7 +10,13 @@ type TicketRow = {
   id: string
   distributorName: string
   vendorName: string
+  createdAt: string
+  dueDate: string
   issue: string
+  priority: string
+  status: string
+  assignedToName: string
+  requestorName: string
   revenueScheduleId: string
   revenueSchedule: string
   opportunityName: string
@@ -96,6 +102,11 @@ type TicketWithRelations = Prisma.TicketGetPayload<{
         fullName: true
       }
     }
+    createdBy: {
+      select: {
+        fullName: true
+      }
+    }
   }
 }>
 
@@ -123,6 +134,13 @@ function parseColumnFilters(raw: string | null): ColumnFilter[] {
 function formatShortId(id: string | null | undefined): string {
   if (!id || typeof id !== "string") return ""
   return id.slice(0, 8).toUpperCase()
+}
+
+function formatDate(value: Date | null | undefined): string {
+  if (!value) return ""
+  const date = value instanceof Date ? value : new Date(value)
+  if (Number.isNaN(date.getTime())) return ""
+  return date.toISOString().slice(0, 10)
 }
 
 function mapTicketToRow(ticket: TicketWithRelations): TicketRow {
@@ -178,7 +196,13 @@ function mapTicketToRow(ticket: TicketWithRelations): TicketRow {
     id: ticket.id,
     distributorName,
     vendorName,
+    createdAt: formatDate(ticket.createdAt ?? ticket.openedAt ?? null),
+    dueDate: formatDate(ticket.closedAt ?? null),
     issue: ticket.issue,
+    priority: String(ticket.priority),
+    status: String(ticket.status),
+    assignedToName: ticket.assignedTo?.fullName ?? "",
+    requestorName: ticket.createdBy?.fullName ?? "",
     revenueScheduleId,
     revenueSchedule: revenueScheduleName,
     opportunityName,
@@ -389,7 +413,8 @@ export async function POST(request: NextRequest) {
               }
             }
           },
-          assignedTo: { select: { fullName: true } }
+          assignedTo: { select: { fullName: true } },
+          createdBy: { select: { fullName: true } }
         }
       })
 
@@ -496,6 +521,9 @@ export async function GET(request: NextRequest) {
           },
           assignedTo: {
             select: { fullName: true }
+          },
+          createdBy: {
+            select: { fullName: true }
           }
         }
       })
@@ -548,6 +576,18 @@ export async function GET(request: NextRequest) {
                 return row.orderIdVendor.toLowerCase().includes(value)
               case "ticketNumber":
                 return row.ticketNumber.toLowerCase().includes(value)
+              case "createdAt":
+                return row.createdAt.toLowerCase().includes(value)
+              case "dueDate":
+                return row.dueDate.toLowerCase().includes(value)
+              case "priority":
+                return row.priority.toLowerCase().includes(value)
+              case "status":
+                return row.status.toLowerCase().includes(value)
+              case "owner":
+                return row.assignedToName.toLowerCase().includes(value)
+              case "requestor":
+                return row.requestorName.toLowerCase().includes(value)
               default:
                 return true
             }
@@ -558,7 +598,11 @@ export async function GET(request: NextRequest) {
       const sortableFields: Record<string, keyof TicketRow> = {
         distributorName: "distributorName",
         vendorName: "vendorName",
+        createdAt: "createdAt",
+        dueDate: "dueDate",
         issue: "issue",
+        priority: "priority",
+        status: "status",
         revenueSchedule: "revenueSchedule",
         opportunityName: "opportunityName",
         productNameVendor: "productNameVendor",
@@ -567,7 +611,9 @@ export async function GET(request: NextRequest) {
         description: "description",
         opportunityId: "opportunityId",
         orderIdVendor: "orderIdVendor",
-        ticketNumber: "ticketNumber"
+        ticketNumber: "ticketNumber",
+        owner: "assignedToName",
+        requestor: "requestorName"
       }
       const sortField = sortableFields[sortByParam] ?? "distributorName"
       rows.sort((a, b) => {

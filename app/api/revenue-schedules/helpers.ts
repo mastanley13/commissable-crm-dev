@@ -48,6 +48,7 @@ export type RevenueScheduleWithRelations = Prisma.RevenueScheduleGetPayload<{
     product: {
       select: {
         id: true
+        productNameHouse: true
         productNameVendor: true
         productDescriptionVendor: true
         revenueType: true
@@ -58,10 +59,12 @@ export type RevenueScheduleWithRelations = Prisma.RevenueScheduleGetPayload<{
     opportunityProduct: {
       select: {
         id: true
+        productNameHouseSnapshot: true
         quantity: true
         unitPrice: true
         expectedUsage: true
         expectedCommission: true
+        revenueStartDate: true
       }
     }
     opportunity: {
@@ -83,6 +86,11 @@ export type RevenueScheduleWithRelations = Prisma.RevenueScheduleGetPayload<{
         billingAddress: true
         shippingAddress: true
         description: true
+        owner: {
+          select: {
+            fullName: true
+          }
+        }
       }
     }
   }
@@ -93,12 +101,16 @@ export interface RevenueScheduleListItem {
   revenueScheduleName: string
   revenueSchedule?: string | null
   revenueScheduleDate: string | null
+  revenueMonth?: string | null
   productNameVendor: string | null
+  productNameHouse?: string | null
   distributorName: string | null
   vendorName: string | null
   accountName: string | null
   opportunityId: string | null
   opportunityName: string | null
+  opportunityOwnerName?: string | null
+  billingMonth?: string | null
   scheduleStatus: string
   inDispute: boolean
   quantity: string | null
@@ -119,6 +131,7 @@ export interface RevenueScheduleListItem {
   actualCommission: string | null
   commissionDifference: string | null
   customerIdDistributor: string | null
+  customerIdHouse?: string | null
   distributorId?: string | null
   vendorId?: string | null
   accountId?: string | null
@@ -132,9 +145,6 @@ export interface RevenueScheduleListItem {
 }
 
 export interface RevenueScheduleDetail extends RevenueScheduleListItem {
-  productDescriptionVendor: string | null
-  productRevenueType: string | null
-  productRevenueTypeLabel: string | null
   legalName: string | null
   shippingAddress: string | null
   billingAddress: string | null
@@ -284,8 +294,10 @@ export function mapRevenueScheduleToListItem(schedule: RevenueScheduleWithRelati
   const usageBalance = expectedUsageNet - actualUsage
 
   const expectedCommission = toNumber(schedule.expectedCommission ?? schedule.opportunityProduct?.expectedCommission)
+  const expectedCommissionAdjustment = toNumber(schedule.actualCommissionAdjustment)
+  const expectedCommissionNet = expectedCommission + expectedCommissionAdjustment
   const actualCommission = toNumber(schedule.actualCommission)
-  const commissionDifference = expectedCommission - actualCommission
+  const commissionDifference = expectedCommissionNet - actualCommission
 
   const statusInfo = mapStatus(schedule.status, usageBalance, commissionDifference)
 
@@ -295,17 +307,29 @@ export function mapRevenueScheduleToListItem(schedule: RevenueScheduleWithRelati
   const unitPrice = schedule.opportunityProduct?.unitPrice ?? schedule.product?.priceEach ?? null
   const unitPriceNumber = unitPrice !== null ? toNumber(unitPrice) : null
 
+  const revenueMonthDate = schedule.opportunityProduct?.revenueStartDate ?? null
+  const revenueMonth = revenueMonthDate ? formatDate(revenueMonthDate)?.slice(0, 7) ?? null : null
+
+  const productNameHouse =
+    schedule.opportunityProduct?.productNameHouseSnapshot ?? schedule.product?.productNameHouse ?? null
+
+  const opportunityOwnerName = schedule.opportunity?.owner?.fullName ?? null
+
   return {
     id: schedule.id,
     revenueScheduleName: schedule.scheduleNumber ?? schedule.id,
     revenueSchedule: schedule.scheduleNumber ?? schedule.id,
     revenueScheduleDate: formatDate(schedule.scheduleDate),
     productNameVendor: schedule.product?.productNameVendor ?? null,
+    revenueMonth,
+    productNameHouse,
     distributorName: schedule.distributor?.accountName ?? schedule.opportunity?.distributorName ?? null,
     vendorName: schedule.vendor?.accountName ?? schedule.opportunity?.vendorName ?? null,
     accountName: schedule.account?.accountName ?? null,
     opportunityId: schedule.opportunity?.id ?? null,
     opportunityName: schedule.opportunity?.name ?? null,
+    opportunityOwnerName,
+    billingMonth: null,
     scheduleStatus: statusInfo.status,
     inDispute: statusInfo.inDispute,
       quantity: quantityValue,
@@ -321,11 +345,12 @@ export function mapRevenueScheduleToListItem(schedule: RevenueScheduleWithRelati
     actualUsage: formatCurrency(actualUsage),
     usageBalance: formatCurrency(usageBalance),
     expectedCommissionGross: formatCurrency(expectedCommission),
-    expectedCommissionAdjustment: formatCurrency(0),
-    expectedCommissionNet: formatCurrency(expectedCommission),
+    expectedCommissionAdjustment: formatCurrency(expectedCommissionAdjustment),
+    expectedCommissionNet: formatCurrency(expectedCommissionNet),
     actualCommission: formatCurrency(actualCommission),
     commissionDifference: formatCurrency(commissionDifference),
     customerIdDistributor: schedule.opportunity?.customerIdDistributor ?? schedule.distributor?.accountNumber ?? null,
+    customerIdHouse: schedule.opportunity?.customerIdHouse ?? null,
     distributorId: schedule.distributor?.id ?? null,
     vendorId: schedule.vendor?.id ?? null,
     accountId: schedule.account?.id ?? null,
@@ -356,9 +381,6 @@ export function mapRevenueScheduleToDetail(schedule: RevenueScheduleWithRelation
 
   return {
     ...listValues,
-    productDescriptionVendor: schedule.product?.productDescriptionVendor ?? null,
-    productRevenueType,
-    productRevenueTypeLabel: getRevenueTypeLabel(productRevenueType) ?? productRevenueType ?? null,
     legalName: schedule.account?.accountLegalName ?? null,
     shippingAddress: formatAddress(schedule.account?.shippingAddress),
     billingAddress: formatAddress(schedule.account?.billingAddress),

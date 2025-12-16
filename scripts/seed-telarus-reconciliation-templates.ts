@@ -147,7 +147,7 @@ async function main() {
 
   const depositFieldIds = new Set<DepositFieldId>(depositFieldDefinitions.map(field => field.id as DepositFieldId))
 
-  for (const [key, group] of groups.entries()) {
+  for (const [key, group] of Array.from(groups.entries())) {
     const [origin, companyName] = key.split("|")
     const distributorName = origin.trim()
     const vendorName = companyName.trim()
@@ -203,7 +203,8 @@ async function main() {
       line,
     }
 
-    const config = serializeDepositMappingForTemplate(mapping)
+    const baseConfig = serializeDepositMappingForTemplate(mapping)
+    const config: Prisma.InputJsonValue = baseConfig as unknown as Prisma.InputJsonValue
 
     const existingTemplate = await prisma.reconciliationTemplate.findFirst({
       where: {
@@ -235,10 +236,10 @@ async function main() {
           createdByUserId: await resolveSystemUserId(tenantId),
           createdByContactId: null,
           config: {
-            ...config,
+            ...(baseConfig as unknown as Prisma.JsonObject),
             telarusTemplateId: group.templateId || null,
             telarusOrigin: origin,
-          } as Prisma.JsonObject,
+          } as unknown as Prisma.JsonObject,
         },
       })
       console.log(

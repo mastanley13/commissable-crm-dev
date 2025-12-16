@@ -60,6 +60,36 @@ async function getRevenueSchedulePaymentType(tenantId: string, revenueScheduleId
   return unique.join(", ")
 }
 
+async function getRevenueScheduleBillingMonth(tenantId: string, revenueScheduleId: string): Promise<string | null> {
+  const matches = await prisma.depositLineMatch.findMany({
+    where: {
+      tenantId,
+      revenueScheduleId,
+      status: DepositLineMatchStatus.Applied
+    },
+    select: {
+      depositLineItem: {
+        select: {
+          deposit: {
+            select: {
+              month: true
+            }
+          }
+        }
+      }
+    }
+  })
+
+  const months = matches
+    .map(match => match.depositLineItem?.deposit?.month ?? null)
+    .filter((value): value is Date => value instanceof Date && !Number.isNaN(value.getTime()))
+    .sort((a, b) => a.getTime() - b.getTime())
+
+  const first = months[0]
+  if (!first) return null
+  return first.toISOString().slice(0, 10)
+}
+
 export async function GET(request: NextRequest, { params }: { params: { revenueScheduleId: string } }) {
   return withAuth(request, async (req) => {
     try {
@@ -119,9 +149,7 @@ export async function GET(request: NextRequest, { params }: { params: { revenueS
           product: {
             select: {
               id: true,
-              productNameVendor: true,
-              productDescriptionVendor: true,
-              revenueType: true,
+              productNameHouse: true,
               commissionPercent: true,
               priceEach: true
             }
@@ -129,10 +157,12 @@ export async function GET(request: NextRequest, { params }: { params: { revenueS
           opportunityProduct: {
             select: {
               id: true,
+              productNameHouseSnapshot: true,
               quantity: true,
               unitPrice: true,
               expectedUsage: true,
-              expectedCommission: true
+              expectedCommission: true,
+              revenueStartDate: true
             }
           },
           opportunity: {
@@ -153,7 +183,12 @@ export async function GET(request: NextRequest, { params }: { params: { revenueS
               vendorName: true,
               billingAddress: true,
               shippingAddress: true,
-              description: true
+              description: true,
+              owner: {
+                select: {
+                  fullName: true
+                }
+              }
             }
           }
         }
@@ -166,6 +201,8 @@ export async function GET(request: NextRequest, { params }: { params: { revenueS
       const detail = mapRevenueScheduleToDetail(schedule as RevenueScheduleWithRelations)
       // Populate Payment Type from matched deposits, when available.
       detail.paymentType = await getRevenueSchedulePaymentType(req.user.tenantId, revenueScheduleId)
+      // Billing Month is derived from the earliest matched deposit month, when available.
+      detail.billingMonth = await getRevenueScheduleBillingMonth(req.user.tenantId, revenueScheduleId)
 
       return NextResponse.json({ data: detail })
     } catch (error) {
@@ -190,8 +227,9 @@ export async function PATCH(request: NextRequest, { params }: { params: { revenu
       const existing = await prisma.revenueSchedule.findFirst({
         where: { id: revenueScheduleId, tenantId },
         include: {
-          product: { select: { id: true } },
-          opportunity: { select: { id: true } }
+          product: { select: { id: true, priceEach: true, commissionPercent: true } },
+          opportunityProduct: { select: { id: true, quantity: true, unitPrice: true } },
+          opportunity: { select: { id: true, houseSplitPercent: true, houseRepPercent: true, subagentPercent: true } }
         }
       })
 
@@ -201,6 +239,33 @@ export async function PATCH(request: NextRequest, { params }: { params: { revenu
 
       const data: Record<string, any> = { updatedById: req.user.id }
       let hasChanges = false
+      const errors: Record<string, string> = {}
+
+      const parseNumberInput = (value: string): number | null => {
+        const cleaned = value.replace(/[^0-9.-]/g, "")
+        const numeric = Number(cleaned)
+        return Number.isFinite(numeric) ? numeric : null
+      }
+
+      const parsePercentInput = (value: string): number | null => {
+        const raw = value.trim()
+        if (!raw) return null
+        if (raw.endsWith("%")) {
+          const num = Number(raw.slice(0, -1).trim())
+          return Number.isFinite(num) ? num : null
+        }
+        const num = Number(raw.replace(/[^0-9.-]/g, ""))
+        if (!Number.isFinite(num)) return null
+        return num <= 1 ? num * 100 : num
+      }
+
+      const getTrimmedInput = (value: unknown): string => {
+        if (typeof value === "string") return value.trim()
+        if (typeof value === "number" && Number.isFinite(value)) return String(value)
+        return ""
+      }
+
+      const productId = (existing as any)?.product?.id as string | undefined
 
       if (typeof (payload as any)?.revenueScheduleName === "string") {
         data.scheduleNumber = (payload as any).revenueScheduleName.trim() || null
@@ -211,7 +276,9 @@ export async function PATCH(request: NextRequest, { params }: { params: { revenu
         const text: string = (payload as any).revenueScheduleDate.trim()
         if (text.length > 0) {
           const date = new Date(text)
-          if (!Number.isNaN(date.getTime())) {
+          if (Number.isNaN(date.getTime())) {
+            errors.revenueScheduleDate = "Invalid date. Use YYYY-MM-DD."
+          } else {
             data.scheduleDate = date
             hasChanges = true
           }
@@ -226,43 +293,193 @@ export async function PATCH(request: NextRequest, { params }: { params: { revenu
         hasChanges = true
       }
 
+      const quantityInput = getTrimmedInput((payload as any)?.quantity)
+      const priceEachInput = getTrimmedInput((payload as any)?.priceEach)
+      const expectedUsageAdjustmentInput = getTrimmedInput((payload as any)?.expectedUsageAdjustment)
+      const expectedCommissionAdjustmentInput = getTrimmedInput((payload as any)?.expectedCommissionAdjustment)
+
+      const quantityValue = quantityInput ? parseNumberInput(quantityInput) : null
+      const unitPriceValue = priceEachInput ? parseNumberInput(priceEachInput) : null
+
+      if (quantityInput) {
+        if (quantityValue === null) {
+          errors.quantity = "Enter a valid number."
+        } else if (quantityValue < 0) {
+          errors.quantity = "Quantity must be 0 or greater."
+        }
+      }
+
+      if (priceEachInput) {
+        if (unitPriceValue === null) {
+          errors.priceEach = "Enter a valid amount."
+        } else if (unitPriceValue < 0) {
+          errors.priceEach = "Price per must be 0 or greater."
+        }
+      }
+
+      if (expectedUsageAdjustmentInput) {
+        const adjustment = parseNumberInput(expectedUsageAdjustmentInput)
+        if (adjustment === null) {
+          errors.expectedUsageAdjustment = "Enter a valid amount."
+        }
+      }
+
+      if (expectedCommissionAdjustmentInput) {
+        const adjustment = parseNumberInput(expectedCommissionAdjustmentInput)
+        if (adjustment === null) {
+          errors.expectedCommissionAdjustment = "Enter a valid amount."
+        }
+      }
+
+      const expectedRateInput = getTrimmedInput((payload as any)?.expectedCommissionRatePercent)
+      const expectedRateValue = expectedRateInput ? parsePercentInput(expectedRateInput) : null
+      if (expectedRateInput) {
+        if (expectedRateValue === null) {
+          errors.expectedCommissionRatePercent = "Enter a valid percent."
+        } else if (expectedRateValue < 0 || expectedRateValue > 100) {
+          errors.expectedCommissionRatePercent = "Expected rate must be between 0 and 100."
+        }
+      }
+
+      const houseSplitInput = getTrimmedInput((payload as any)?.houseSplitPercent)
+      const houseRepSplitInput = getTrimmedInput((payload as any)?.houseRepSplitPercent)
+      const subagentSplitInput = getTrimmedInput((payload as any)?.subagentSplitPercent)
+
+      const houseSplitPercentValue = houseSplitInput ? parsePercentInput(houseSplitInput) : null
+      const houseRepSplitPercentValue = houseRepSplitInput ? parsePercentInput(houseRepSplitInput) : null
+      const subagentSplitPercentValue = subagentSplitInput ? parsePercentInput(subagentSplitInput) : null
+
+      if (houseSplitInput && houseSplitPercentValue === null) errors.houseSplitPercent = "Enter a valid percent."
+      if (houseRepSplitInput && houseRepSplitPercentValue === null) errors.houseRepSplitPercent = "Enter a valid percent."
+      if (subagentSplitInput && subagentSplitPercentValue === null) errors.subagentSplitPercent = "Enter a valid percent."
+
+      const anySplitTouched = Boolean(houseSplitInput || houseRepSplitInput || subagentSplitInput)
+      if (anySplitTouched) {
+        const nextHouse =
+          houseSplitPercentValue !== null
+            ? houseSplitPercentValue / 100
+            : (existing as any)?.opportunity?.houseSplitPercent ?? null
+        const nextHouseRep =
+          houseRepSplitPercentValue !== null
+            ? houseRepSplitPercentValue / 100
+            : (existing as any)?.opportunity?.houseRepPercent ?? null
+        const nextSubagent =
+          subagentSplitPercentValue !== null
+            ? subagentSplitPercentValue / 100
+            : (existing as any)?.opportunity?.subagentPercent ?? null
+
+        const splits: Array<[string, number | null]> = [
+          ["houseSplitPercent", nextHouse],
+          ["houseRepSplitPercent", nextHouseRep],
+          ["subagentSplitPercent", nextSubagent]
+        ]
+
+        for (const [key, value] of splits) {
+          if (value === null || typeof value !== "number" || !Number.isFinite(value)) {
+            errors[key] = errors[key] ?? "Provide all split percents."
+            continue
+          }
+          if (value < 0 || value > 1) {
+            errors[key] = errors[key] ?? "Split percent must be between 0 and 100."
+          }
+        }
+
+        const total = [nextHouse, nextHouseRep, nextSubagent].reduce((sum, value) => sum + (value ?? 0), 0)
+        if (Number.isFinite(total) && Math.abs(total - 1) > 0.0001) {
+          const message = "Split total must equal 100%."
+          errors.houseSplitPercent = errors.houseSplitPercent ?? message
+          errors.houseRepSplitPercent = errors.houseRepSplitPercent ?? message
+          errors.subagentSplitPercent = errors.subagentSplitPercent ?? message
+        }
+      }
+
+      const oppProductId = (existing as any)?.opportunityProduct?.id as string | undefined
+
+      // Update Quantity and Price Per on the Opportunity Product (preferred per-opportunity values).
+      // Also recompute expectedUsage/expectedCommission when possible.
+      const oppProductData: Record<string, any> = {}
+
+      if (Object.keys(errors).length > 0) {
+        return NextResponse.json({ error: "Invalid input", errors }, { status: 400 })
+      }
+
+      if (quantityInput && quantityValue !== null && oppProductId) {
+        oppProductData.quantity = quantityValue
+      }
+
+      if (priceEachInput && unitPriceValue !== null) {
+        if (oppProductId) {
+          oppProductData.unitPrice = unitPriceValue
+        } else if (productId) {
+          // Fallback: if there is no opportunity product, update the product default.
+          await prisma.product.update({ where: { id: productId }, data: { priceEach: unitPriceValue } })
+          hasChanges = true
+        }
+      }
+
+      const resolvedQuantity =
+        quantityValue !== null
+          ? quantityValue
+          : oppProductId
+            ? Number((existing as any)?.opportunityProduct?.quantity ?? NaN)
+            : null
+
+      const resolvedUnitPrice =
+        unitPriceValue !== null
+          ? unitPriceValue
+          : oppProductId
+            ? Number((existing as any)?.opportunityProduct?.unitPrice ?? NaN)
+            : Number((existing as any)?.product?.priceEach ?? NaN)
+
+      if (Number.isFinite(resolvedQuantity as number) && Number.isFinite(resolvedUnitPrice as number)) {
+        const expectedUsage = (resolvedQuantity as number) * (resolvedUnitPrice as number)
+        data.expectedUsage = expectedUsage
+
+        const commissionPercent = Number((existing as any)?.product?.commissionPercent ?? NaN)
+        if (Number.isFinite(commissionPercent)) {
+          data.expectedCommission = expectedUsage * (commissionPercent / 100)
+          if (oppProductId) {
+            oppProductData.expectedCommission = data.expectedCommission
+          }
+        }
+
+        if (oppProductId) {
+          oppProductData.expectedUsage = expectedUsage
+        }
+      }
+
+      if (oppProductId && Object.keys(oppProductData).length > 0) {
+        await prisma.opportunityProduct.update({ where: { id: oppProductId }, data: oppProductData })
+        hasChanges = true
+      }
+
+      // Expected Usage Adjustment maps to RevenueSchedule.usageAdjustment
+      if (expectedUsageAdjustmentInput) {
+        const adjustment = parseNumberInput(expectedUsageAdjustmentInput)
+        if (adjustment !== null) {
+          data.usageAdjustment = adjustment
+          hasChanges = true
+        }
+      }
+
+      // Expected Commission Adjustment maps to RevenueSchedule.actualCommissionAdjustment (current schema field).
+      if (expectedCommissionAdjustmentInput) {
+        const adjustment = parseNumberInput(expectedCommissionAdjustmentInput)
+        if (adjustment !== null) {
+          data.actualCommissionAdjustment = adjustment
+          hasChanges = true
+        }
+      }
+
       if (!hasChanges) {
         // continue; we may still update related entities below
       }
 
       // Update related Product fields
-      const productId = (existing as any)?.product?.id as string | undefined
       if (productId) {
         const productData: Record<string, any> = {}
-        if (typeof (payload as any)?.productNameVendor === 'string') {
-          productData.productNameVendor = ((payload as any).productNameVendor as string).trim() || null
-        }
-        if (typeof (payload as any)?.productDescriptionVendor === 'string') {
-          productData.productDescriptionVendor = ((payload as any).productDescriptionVendor as string).trim() || null
-        }
-        if (typeof (payload as any)?.productRevenueType === "string") {
-          const rawType = ((payload as any).productRevenueType as string).trim()
-          if (!rawType) {
-            productData.revenueType = null
-          } else if (!isRevenueTypeCode(rawType)) {
-            return NextResponse.json({ error: "Invalid revenue type" }, { status: 400 })
-          } else {
-            productData.revenueType = rawType
-          }
-        }
-        if (typeof (payload as any)?.expectedCommissionRatePercent === 'string') {
-          const raw = ((payload as any).expectedCommissionRatePercent as string).trim()
-          let value: number | null = null
-          if (raw.endsWith('%')) {
-            const num = Number(raw.slice(0, -1))
-            if (!Number.isNaN(num)) value = num
-          } else {
-            const num = Number(raw)
-            if (!Number.isNaN(num)) value = num <= 1 ? num * 100 : num
-          }
-          if (value !== null) {
-            productData.commissionPercent = value
-          }
+        if (expectedRateInput && expectedRateValue !== null) {
+          productData.commissionPercent = expectedRateValue
         }
         if (Object.keys(productData).length > 0) {
           await prisma.product.update({ where: { id: productId }, data: productData })
@@ -274,29 +491,10 @@ export async function PATCH(request: NextRequest, { params }: { params: { revenu
       const oppId = (existing as any)?.opportunity?.id as string | undefined
       if (oppId) {
         const oppData: Record<string, any> = {}
-        const parseFraction = (v: string): number | null => {
-          const t = v.trim()
-          if (!t) return null
-          if (t.endsWith('%')) {
-            const n = Number(t.slice(0, -1))
-            if (!Number.isNaN(n)) return n / 100
-            return null
-          }
-          const n2 = Number(t)
-          if (Number.isNaN(n2)) return null
-          return n2 <= 1 ? n2 : n2 / 100
-        }
-        if (typeof (payload as any)?.houseSplitPercent === 'string') {
-          const f = parseFraction((payload as any).houseSplitPercent)
-          if (f !== null) oppData.houseSplitPercent = f
-        }
-        if (typeof (payload as any)?.houseRepSplitPercent === 'string') {
-          const f = parseFraction((payload as any).houseRepSplitPercent)
-          if (f !== null) oppData.houseRepPercent = f
-        }
-        if (typeof (payload as any)?.subagentSplitPercent === 'string') {
-          const f = parseFraction((payload as any).subagentSplitPercent)
-          if (f !== null) oppData.subagentPercent = f
+        if (anySplitTouched) {
+          if (houseSplitPercentValue !== null) oppData.houseSplitPercent = houseSplitPercentValue / 100
+          if (houseRepSplitPercentValue !== null) oppData.houseRepPercent = houseRepSplitPercentValue / 100
+          if (subagentSplitPercentValue !== null) oppData.subagentPercent = subagentSplitPercentValue / 100
         }
         if (Object.keys(oppData).length > 0) {
           await prisma.opportunity.update({ where: { id: oppId }, data: oppData })
@@ -331,9 +529,9 @@ export async function PATCH(request: NextRequest, { params }: { params: { revenu
           },
           distributor: { select: { id: true, accountName: true, accountNumber: true } },
           vendor: { select: { id: true, accountName: true, accountNumber: true } },
-          product: { select: { id: true, productNameVendor: true, productDescriptionVendor: true, revenueType: true, commissionPercent: true, priceEach: true } },
-          opportunityProduct: { select: { id: true, quantity: true, unitPrice: true, expectedUsage: true, expectedCommission: true } },
-          opportunity: { select: { id: true, name: true, orderIdHouse: true, orderIdVendor: true, orderIdDistributor: true, customerIdHouse: true, customerIdVendor: true, customerIdDistributor: true, locationId: true, houseSplitPercent: true, houseRepPercent: true, subagentPercent: true, distributorName: true, vendorName: true, billingAddress: true, shippingAddress: true, description: true } }
+          product: { select: { id: true, productNameHouse: true, commissionPercent: true, priceEach: true } },
+          opportunityProduct: { select: { id: true, productNameHouseSnapshot: true, quantity: true, unitPrice: true, expectedUsage: true, expectedCommission: true, revenueStartDate: true } },
+          opportunity: { select: { id: true, name: true, orderIdHouse: true, orderIdVendor: true, orderIdDistributor: true, customerIdHouse: true, customerIdVendor: true, customerIdDistributor: true, locationId: true, houseSplitPercent: true, houseRepPercent: true, subagentPercent: true, distributorName: true, vendorName: true, billingAddress: true, shippingAddress: true, description: true, owner: { select: { fullName: true } } } }
         }
       })
 
@@ -343,6 +541,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { revenu
 
       const detail = mapRevenueScheduleToDetail(updated as RevenueScheduleWithRelations)
       detail.paymentType = await getRevenueSchedulePaymentType(tenantId, revenueScheduleId)
+      detail.billingMonth = await getRevenueScheduleBillingMonth(tenantId, revenueScheduleId)
       return NextResponse.json({ data: detail })
     } catch (error) {
       console.error("Failed to update revenue schedule", error)

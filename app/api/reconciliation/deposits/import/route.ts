@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { DataEntity, ImportExportSource, JobStatus } from "@prisma/client"
+import type { Prisma } from "@prisma/client"
 import { withPermissions, createErrorResponse } from "@/lib/api-auth"
 import { prisma } from "@/lib/db"
 import { parseSpreadsheetFile } from "@/lib/deposit-import/parse-file"
@@ -170,8 +171,8 @@ export async function POST(request: NextRequest) {
       return createErrorResponse(error instanceof Error ? error.message : "Mapping failed", 400)
     }
 
-    const templateConfigToPersist = mappingConfigForTemplate
-      ? serializeDepositMappingForTemplate(mappingConfigForTemplate)
+    const templateConfigToPersist: Prisma.InputJsonValue | null = mappingConfigForTemplate
+      ? (serializeDepositMappingForTemplate(mappingConfigForTemplate) as unknown as Prisma.InputJsonValue)
       : null
 
     const result = await prisma.$transaction(async tx => {
@@ -253,6 +254,13 @@ export async function POST(request: NextRequest) {
         },
       })
 
+      const importFilters: Prisma.InputJsonValue = {
+        distributorAccountId,
+        vendorAccountId,
+        mapping: mappingPayload as Prisma.InputJsonValue,
+        commissionPeriod: commissionPeriodInput || null,
+      }
+
       await tx.importJob.create({
         data: {
           tenantId,
@@ -267,12 +275,7 @@ export async function POST(request: NextRequest) {
           errorCount: 0,
           startedAt: new Date(),
           completedAt: new Date(),
-          filters: {
-            distributorAccountId,
-            vendorAccountId,
-            mapping: mappingPayload,
-            commissionPeriod: commissionPeriodInput || null,
-          },
+          filters: importFilters,
         },
       })
 

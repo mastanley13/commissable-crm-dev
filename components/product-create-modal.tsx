@@ -5,6 +5,8 @@ import { Loader2, X } from "lucide-react"
 import { useToasts } from "./toast"
 import { EditableSwitch } from "./editable-field"
 import { formatCurrencyDisplay, formatDecimalToFixed, formatPercentDisplay, normalizeDecimalInput } from "@/lib/number-format"
+import { PicklistCombobox } from "./picklist-combobox"
+import { SelectCombobox } from "./select-combobox"
 
 type SelectOption = { value: string; label: string }
 
@@ -77,6 +79,19 @@ interface ProductSubtypeOption {
   familyName: string | null
 }
 
+function getAllowedSubtypesForFamilyName(
+  subtypes: ProductSubtypeOption[],
+  familyIdByName: Map<string, string>,
+  familyName: string
+): string[] {
+  const trimmedFamily = familyName.trim()
+  const familyId = trimmedFamily.length > 0 ? (familyIdByName.get(trimmedFamily) ?? null) : null
+
+  return subtypes
+    .filter((subtype) => familyId == null || subtype.productFamilyId == null || subtype.productFamilyId === familyId)
+    .map((subtype) => subtype.name)
+}
+
 const INITIAL_FORM: ProductFormState = {
   isActive: true,
   distributorAccountId: "",
@@ -122,28 +137,21 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
   const [revenueTypes, setRevenueTypes] = useState<SelectOption[]>([])
   const [distributorInput, setDistributorInput] = useState("")
   const [vendorInput, setVendorInput] = useState("")
-  const [productFamilyInput, setProductFamilyInput] = useState("")
-  const [productSubtypeInput, setProductSubtypeInput] = useState("")
   const [productSearchInput, setProductSearchInput] = useState("")
   const [showDistributorDropdown, setShowDistributorDropdown] = useState(false)
   const [showVendorDropdown, setShowVendorDropdown] = useState(false)
-  const [showFamilyDropdown, setShowFamilyDropdown] = useState(false)
-  const [showSubtypeDropdown, setShowSubtypeDropdown] = useState(false)
   const [showProductDropdown, setShowProductDropdown] = useState(false)
   const [familyOptions, setFamilyOptions] = useState<string[]>([])
-  const [subtypeOptions, setSubtypeOptions] = useState<string[]>([])
   const [productOptions, setProductOptions] = useState<CatalogProductOption[]>([])
   const [houseFamilyOptions, setHouseFamilyOptions] = useState<string[]>([])
-  const [houseSubtypeOptions, setHouseSubtypeOptions] = useState<string[]>([])
   const [houseProductNameOptions, setHouseProductNameOptions] = useState<string[]>([])
-  const [showHouseFamilyDropdown, setShowHouseFamilyDropdown] = useState(false)
-  const [showHouseSubtypeDropdown, setShowHouseSubtypeDropdown] = useState(false)
   const [showHouseProductDropdown, setShowHouseProductDropdown] = useState(false)
   const [dedupeExactMatch, setDedupeExactMatch] = useState<CatalogProductOption | null>(null)
   const [dedupeLikelyMatches, setDedupeLikelyMatches] = useState<CatalogProductOption[]>([])
   const { showError, showSuccess } = useToasts()
   const [masterFamilies, setMasterFamilies] = useState<ProductFamilyOption[]>([])
   const [masterSubtypes, setMasterSubtypes] = useState<ProductSubtypeOption[]>([])
+  const [masterDataError, setMasterDataError] = useState<string | null>(null)
 
 
   useEffect(() => {
@@ -152,27 +160,20 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
     setErrors({})
     setDistributorInput("")
     setVendorInput("")
-    setProductFamilyInput("")
-    setProductSubtypeInput("")
     setProductSearchInput("")
     setFamilyOptions([])
-    setSubtypeOptions([])
     setProductOptions([])
     setHouseFamilyOptions([])
-    setHouseSubtypeOptions([])
     setHouseProductNameOptions([])
     setShowDistributorDropdown(false)
     setShowVendorDropdown(false)
-    setShowFamilyDropdown(false)
-    setShowSubtypeDropdown(false)
     setShowProductDropdown(false)
-    setShowHouseFamilyDropdown(false)
-    setShowHouseSubtypeDropdown(false)
     setShowHouseProductDropdown(false)
     setDedupeExactMatch(null)
     setDedupeLikelyMatches([])
     setMasterFamilies([])
     setMasterSubtypes([])
+    setMasterDataError(null)
   }, [isOpen])
 
   useEffect(() => {
@@ -231,6 +232,7 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
       .then(res => (res.ok ? res.json() : Promise.reject()))
       .then(payload => {
         if (cancelled) return
+        setMasterDataError(null)
         const families: ProductFamilyOption[] = Array.isArray(payload?.families)
           ? payload.families
               .map((f: any): ProductFamilyOption => ({
@@ -253,23 +255,45 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
         setMasterSubtypes(subtypes)
 
         const vendorFamilies = families.map(f => f.name)
-        const vendorSubtypes = subtypes.map(s => s.name)
         setFamilyOptions(vendorFamilies)
-        setSubtypeOptions(vendorSubtypes)
 
         const houseFamilies = families.map(f => f.name)
-        const houseSubtypes = subtypes.map(s => s.name)
         setHouseFamilyOptions(houseFamilies)
-        setHouseSubtypeOptions(houseSubtypes)
       })
-      .catch(() => {
-        // Silent failure; fallback to existing behavior (values derived from products)
+      .catch((error) => {
+        if (!cancelled) {
+          setMasterDataError(error instanceof Error ? error.message : "Failed to load Product picklists")
+        }
       })
 
     return () => {
       cancelled = true
     }
   }, [isOpen])
+
+  const familyIdByName = useMemo(
+    () => new Map(masterFamilies.map((family) => [family.name, family.id] as const)),
+    [masterFamilies]
+  )
+
+  const vendorSubtypePicklist = useMemo(
+    () => getAllowedSubtypesForFamilyName(masterSubtypes, familyIdByName, form.productFamilyVendor),
+    [masterSubtypes, familyIdByName, form.productFamilyVendor]
+  )
+
+  const houseSubtypePicklist = useMemo(
+    () => getAllowedSubtypesForFamilyName(masterSubtypes, familyIdByName, form.productFamilyHouse),
+    [masterSubtypes, familyIdByName, form.productFamilyHouse]
+  )
+
+  const distributorSubtypePicklist = useMemo(
+    () => getAllowedSubtypesForFamilyName(masterSubtypes, familyIdByName, form.distributorProductFamily),
+    [masterSubtypes, familyIdByName, form.distributorProductFamily]
+  )
+
+  const dropdownCls =
+    "absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg"
+  const optionBtnCls = "w-full px-3 py-2 text-left text-sm hover:bg-primary-50"
 
   const canSubmit = useMemo(() => {
     if (!form.productNameHouse.trim()) return false
@@ -313,10 +337,12 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
     const raw = form.priceEach.trim()
     if (!raw) return ""
 
+    // When focused, show raw value so user can type freely
     if (priceEachFocused) {
-      return formatCurrencyDisplay(raw, { alwaysSymbol: true })
+      return raw
     }
 
+    // When not focused, show formatted currency
     return formatCurrencyDisplay(raw, { alwaysSymbol: true })
   }, [form.priceEach, priceEachFocused])
 
@@ -324,10 +350,12 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
     const raw = form.commissionPercent.trim()
     if (!raw) return ""
 
+    // When focused, show raw value so user can type freely
     if (commissionPercentFocused) {
-      return formatPercentDisplay(raw, { alwaysSymbol: true })
+      return raw
     }
 
+    // When not focused, show formatted percent
     return formatPercentDisplay(raw, { alwaysSymbol: true })
   }, [form.commissionPercent, commissionPercentFocused])
 
@@ -356,8 +384,8 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
     const filters: Array<{ columnId: string; value: string }> = []
     if (form.distributorAccountId) filters.push({ columnId: "distributorId", value: form.distributorAccountId })
     if (form.vendorAccountId) filters.push({ columnId: "vendorId", value: form.vendorAccountId })
-    if (productFamilyInput.trim()) filters.push({ columnId: "productFamilyVendor", value: productFamilyInput.trim() })
-    if (productSubtypeInput.trim()) filters.push({ columnId: "productSubtypeVendor", value: productSubtypeInput.trim() })
+    if (form.productFamilyVendor.trim()) filters.push({ columnId: "productFamilyVendor", value: form.productFamilyVendor.trim() })
+    if (form.productSubtypeVendor.trim()) filters.push({ columnId: "productSubtypeVendor", value: form.productSubtypeVendor.trim() })
     if (productSearchInput.trim()) filters.push({ columnId: "productNameVendor", value: productSearchInput.trim() })
     if (filters.length > 0) params.set("filters", JSON.stringify(filters))
     const res = await fetch(`/api/products?${params.toString()}`, { cache: "no-store" })
@@ -367,12 +395,6 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
     }
     const payload = await res.json().catch(() => null)
     const items = Array.isArray(payload?.data) ? payload.data : []
-    const houseFamilies = Array.from(
-      new Set(items.map((it: any) => it.productFamilyHouse).filter((v: any) => typeof v === "string" && v.trim().length > 0))
-    ) as string[]
-    const houseSubtypes = Array.from(
-      new Set(items.map((it: any) => it.productSubtypeHouse).filter((v: any) => typeof v === "string" && v.trim().length > 0))
-    ) as string[]
     const houseNames = Array.from(
       new Set(
         items
@@ -380,8 +402,6 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
           .filter((v: string) => v && v.trim().length > 0)
       )
     ) as string[]
-    setHouseFamilyOptions(houseFamilies)
-    setHouseSubtypeOptions(houseSubtypes)
     setHouseProductNameOptions(houseNames)
     const mapped: CatalogProductOption[] = items.map((it: any) => ({
       id: it.id,
@@ -403,11 +423,7 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
       commissionPercent: typeof it.commissionPercent === "number" ? it.commissionPercent : null,
     }))
     setProductOptions(mapped)
-    const fams = Array.from(new Set(mapped.map((p) => p.productFamilyVendor).filter(Boolean))) as string[]
-    const subs = Array.from(new Set(mapped.map((p) => p.productSubtypeVendor).filter(Boolean))) as string[]
-    setFamilyOptions(fams)
-    setSubtypeOptions(subs)
-  }, [form.distributorAccountId, form.vendorAccountId, productFamilyInput, productSubtypeInput, productSearchInput])
+  }, [form.distributorAccountId, form.vendorAccountId, form.productFamilyVendor, form.productSubtypeVendor, productSearchInput])
 
   const runProductDedupe = useCallback(async (): Promise<{ exact: CatalogProductOption | null; likely: CatalogProductOption[] }> => {
     const houseName = form.productNameHouse.trim()
@@ -483,8 +499,6 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
     (option: CatalogProductOption) => {
       setDistributorInput(option.distributorName || distributorInput)
       setVendorInput(option.vendorName || vendorInput)
-      setProductFamilyInput(option.productFamilyVendor || productFamilyInput)
-      setProductSubtypeInput(option.productSubtypeVendor || productSubtypeInput)
       setProductSearchInput(option.name || productSearchInput)
       setForm((prev) => ({
         ...prev,
@@ -503,7 +517,7 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
         commissionPercent: option.commissionPercent != null ? Number(option.commissionPercent).toFixed(2) : prev.commissionPercent,
       }))
     },
-    [distributorInput, vendorInput, productFamilyInput, productSubtypeInput, productSearchInput]
+    [distributorInput, vendorInput, productSearchInput]
   )
 
   const handleSubmit = useCallback(
@@ -674,6 +688,13 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
               </div>
             )}
 
+            {masterDataError ? (
+              <div className="mb-3 rounded-md border border-rose-200 bg-rose-50 p-3 text-xs text-rose-800">
+                Unable to load Product Family/Subtype picklists from Data Settings. These dropdowns may be unavailable
+                until the issue is resolved.
+              </div>
+            ) : null}
+
             <div className="grid gap-3 lg:grid-cols-2">
               {/* Left Column (House + Account assignments) */}
               <div className={columnCls}>
@@ -765,48 +786,35 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
                     <label className={labelCls}>House - Product Family</label>
                   </div>
                   <div className="relative">
-                    <input
-                      className={inputCls}
+                    <PicklistCombobox
                       value={form.productFamilyHouse}
-                      onChange={(e) => {
-                        handleChange("productFamilyHouse")(e)
-                        setShowHouseFamilyDropdown(true)
+                      options={houseFamilyOptions}
+                      placeholder="Search or pick a family"
+                      disabled={houseFamilyOptions.length === 0}
+                      inputClassName={inputCls}
+                      dropdownClassName={dropdownCls}
+                      optionClassName={optionBtnCls}
+                      onChange={(nextFamily) => {
+                        setForm((prev) => {
+                          const allowedSubtypes = getAllowedSubtypesForFamilyName(
+                            masterSubtypes,
+                            familyIdByName,
+                            nextFamily
+                          )
+                          const currentSubtype = prev.productSubtypeHouse
+                          const keepSubtype = !currentSubtype || allowedSubtypes.includes(currentSubtype)
+                          return {
+                            ...prev,
+                            productFamilyHouse: nextFamily,
+                            productSubtypeHouse: nextFamily ? (keepSubtype ? currentSubtype : "") : "",
+                          }
+                        })
                       }}
-                      onFocus={() => {
-                        setShowHouseFamilyDropdown(true)
-                        ensureProductsLoaded()
-                      }}
-                      onBlur={() => setTimeout(() => setShowHouseFamilyDropdown(false), 200)}
-                      placeholder="Enter house family"
-                      disabled={!form.distributorAccountId || !form.vendorAccountId}
                     />
-                    {showHouseFamilyDropdown && (
-                      <div className="absolute z-10 mt-1 max-h-52 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
-                        {houseFamilyOptions
-                          .filter((fam) => fam.toLowerCase().includes((form.productFamilyHouse || "").toLowerCase()))
-                          .map((fam) => (
-                            <button
-                              key={fam}
-                              type="button"
-                              className="w-full px-3 py-2 text-left text-sm hover:bg-primary-50"
-                              onClick={() => {
-                                setForm((prev) => ({
-                                  ...prev,
-                                  productFamilyHouse: fam,
-                                  productSubtypeHouse: "",
-                                }))
-                                setShowHouseFamilyDropdown(false)
-                              }}
-                            >
-                              <div className="font-medium text-gray-900">{fam}</div>
-                            </button>
-                          ))}
-                        {houseFamilyOptions.length === 0 && (
-                          <div className="px-3 py-2 text-sm text-gray-500">No house families yet. Keep typing to add one.</div>
-                        )}
-                      </div>
-                    )}
                   </div>
+                  {errors.productFamilyHouse ? (
+                    <p className="text-[11px] text-rose-600">{errors.productFamilyHouse}</p>
+                  ) : null}
                 </div>
 
                 <div className="space-y-1">
@@ -815,44 +823,20 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
                     <label className={labelCls}>House - Product Subtype</label>
                   </div>
                   <div className="relative">
-                    <input
-                      className={inputCls}
+                    <PicklistCombobox
                       value={form.productSubtypeHouse}
-                      onChange={(e) => {
-                        handleChange("productSubtypeHouse")(e)
-                        setShowHouseSubtypeDropdown(true)
-                      }}
-                      onFocus={() => {
-                        setShowHouseSubtypeDropdown(true)
-                        ensureProductsLoaded()
-                      }}
-                      onBlur={() => setTimeout(() => setShowHouseSubtypeDropdown(false), 200)}
-                      placeholder="Enter house subtype"
-                      disabled={!form.productFamilyHouse.trim()}
+                      options={houseSubtypePicklist}
+                      placeholder="Search or pick a subtype"
+                      disabled={!form.productFamilyHouse.trim() || houseSubtypePicklist.length === 0}
+                      inputClassName={inputCls}
+                      dropdownClassName={dropdownCls}
+                      optionClassName={optionBtnCls}
+                      onChange={(nextSubtype) => setForm((prev) => ({ ...prev, productSubtypeHouse: nextSubtype }))}
                     />
-                    {showHouseSubtypeDropdown && form.productFamilyHouse.trim() && (
-                      <div className="absolute z-10 mt-1 max-h-52 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
-                        {houseSubtypeOptions
-                          .filter((sub) => sub.toLowerCase().includes((form.productSubtypeHouse || "").toLowerCase()))
-                          .map((sub) => (
-                            <button
-                              key={sub}
-                              type="button"
-                              className="w-full px-3 py-2 text-left text-sm hover:bg-primary-50"
-                              onClick={() => {
-                                setForm((prev) => ({ ...prev, productSubtypeHouse: sub }))
-                                setShowHouseSubtypeDropdown(false)
-                              }}
-                            >
-                              <div className="font-medium text-gray-900">{sub}</div>
-                            </button>
-                          ))}
-                        {houseSubtypeOptions.length === 0 && (
-                          <div className="px-3 py-2 text-sm text-gray-500">No house subtypes yet. Keep typing to add one.</div>
-                        )}
-                      </div>
-                    )}
                   </div>
+                  {errors.productSubtypeHouse ? (
+                    <p className="text-[11px] text-rose-600">{errors.productSubtypeHouse}</p>
+                  ) : null}
                 </div>
 
                 <div className="space-y-1">
@@ -957,12 +941,16 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
 
                 <div className="space-y-1">
                   <label className={labelCls}>Revenue Type</label>
-                  <select className={selectCls} value={form.revenueType} onChange={handleChange("revenueType")}>
-                    <option value="">Select revenue type</option>
-                    {revenueTypes.map((opt) => (
-                      <option key={opt.value} value={opt.value}>{opt.label}</option>
-                    ))}
-                  </select>
+                  <SelectCombobox
+                    value={form.revenueType}
+                    options={revenueTypes}
+                    placeholder="Select revenue type"
+                    disabled={revenueTypes.length === 0}
+                    inputClassName={inputCls}
+                    dropdownClassName={dropdownCls}
+                    optionClassName={optionBtnCls}
+                    onChange={(next) => setForm((prev) => ({ ...prev, revenueType: next }))}
+                  />
                   {errors.revenueType ? <p className="text-[11px] text-rose-600">{errors.revenueType}</p> : null}
                 </div>
 
@@ -997,17 +985,53 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
 
                 <div className="space-y-1">
                   <label className={labelCls}>Distributor - Product Family</label>
-                  <input className={inputCls} value={form.distributorProductFamily} onChange={handleChange("distributorProductFamily")} placeholder="Enter distributor family" />
+                  <PicklistCombobox
+                    value={form.distributorProductFamily}
+                    options={familyOptions}
+                    placeholder="Search or pick a family"
+                    disabled={familyOptions.length === 0}
+                    inputClassName={inputCls}
+                    dropdownClassName={dropdownCls}
+                    optionClassName={optionBtnCls}
+                    onChange={(nextFamily) => {
+                      setForm((prev) => {
+                        const allowedSubtypes = getAllowedSubtypesForFamilyName(
+                          masterSubtypes,
+                          familyIdByName,
+                          nextFamily
+                        )
+                        const currentSubtype = prev.distributorProductSubtype
+                        const keepSubtype = !currentSubtype || allowedSubtypes.includes(currentSubtype)
+                        return {
+                          ...prev,
+                          distributorProductFamily: nextFamily,
+                          distributorProductSubtype: nextFamily ? (keepSubtype ? currentSubtype : "") : "",
+                        }
+                      })
+                    }}
+                  />
+                  {errors.distributorProductFamily ? (
+                    <p className="text-[11px] text-rose-600">{errors.distributorProductFamily}</p>
+                  ) : null}
                 </div>
 
                 <div className="space-y-1">
                   <label className={labelCls}>Distributor - Product Subtype</label>
-                  <input
-                    className={inputCls}
+                  <PicklistCombobox
                     value={form.distributorProductSubtype}
-                    onChange={handleChange("distributorProductSubtype")}
-                    placeholder="Enter distributor subtype"
+                    options={distributorSubtypePicklist}
+                    placeholder="Search or pick a subtype"
+                    disabled={!form.distributorProductFamily.trim() || distributorSubtypePicklist.length === 0}
+                    inputClassName={inputCls}
+                    dropdownClassName={dropdownCls}
+                    optionClassName={optionBtnCls}
+                    onChange={(nextSubtype) =>
+                      setForm((prev) => ({ ...prev, distributorProductSubtype: nextSubtype }))
+                    }
                   />
+                  {errors.distributorProductSubtype ? (
+                    <p className="text-[11px] text-rose-600">{errors.distributorProductSubtype}</p>
+                  ) : null}
                 </div>
 
                 <div className="space-y-1">
@@ -1080,89 +1104,51 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
 
                 <div className="space-y-1">
                   <label className={labelCls}>Vendor - Product Family</label>
-                  <div className="relative">
-                    <input
-                      className={inputCls}
-                      value={form.productFamilyVendor}
-                      onChange={(e) => {
-                        setProductFamilyInput(e.target.value)
-                        handleChange("productFamilyVendor")(e)
-                        setShowFamilyDropdown(true)
-                      }}
-                      onFocus={() => { setShowFamilyDropdown(true); ensureProductsLoaded() }}
-                      onBlur={() => setTimeout(() => setShowFamilyDropdown(false), 200)}
-                      placeholder="Enter vendor family"
-                    />
-                    {showFamilyDropdown && (
-                      <div className="absolute z-10 mt-1 max-h-52 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
-                        {familyOptions
-                          .filter((fam) => fam.toLowerCase().includes((productFamilyInput || "").toLowerCase()))
-                          .map((fam) => (
-                            <button
-                              key={fam}
-                              type="button"
-                              className="w-full px-3 py-2 text-left text-sm hover:bg-primary-50"
-                              onClick={() => {
-                                setProductFamilyInput(fam)
-                                setProductSubtypeInput("")
-                                setForm((prev) => ({
-                                  ...prev,
-                                  productFamilyVendor: fam,
-                                  productSubtypeVendor: "",
-                                }))
-                                setShowFamilyDropdown(false)
-                              }}
-                            >
-                              <div className="font-medium text-gray-900">{fam}</div>
-                            </button>
-                          ))}
-                        {familyOptions.length === 0 && (
-                          <div className="px-3 py-2 text-sm text-gray-500">No families yet. Keep typing to search.</div>
-                        )}
-                      </div>
-                    )}
-                  </div>
+                  <PicklistCombobox
+                    value={form.productFamilyVendor}
+                    options={familyOptions}
+                    placeholder="Search or pick a family"
+                    disabled={familyOptions.length === 0}
+                    inputClassName={inputCls}
+                    dropdownClassName={dropdownCls}
+                    optionClassName={optionBtnCls}
+                    onChange={(nextFamily) => {
+                      setForm((prev) => {
+                        const allowedSubtypes = getAllowedSubtypesForFamilyName(
+                          masterSubtypes,
+                          familyIdByName,
+                          nextFamily
+                        )
+                        const currentSubtype = prev.productSubtypeVendor
+                        const keepSubtype = !currentSubtype || allowedSubtypes.includes(currentSubtype)
+                        return {
+                          ...prev,
+                          productFamilyVendor: nextFamily,
+                          productSubtypeVendor: nextFamily ? (keepSubtype ? currentSubtype : "") : "",
+                        }
+                      })
+                    }}
+                  />
+                  {errors.productFamilyVendor ? (
+                    <p className="text-[11px] text-rose-600">{errors.productFamilyVendor}</p>
+                  ) : null}
                 </div>
 
                 <div className="space-y-1">
                   <label className={labelCls}>Vendor - Product Subtype</label>
-                  <div className="relative">
-                    <input
-                      className={inputCls}
-                      value={form.productSubtypeVendor}
-                      onChange={(e) => {
-                        setProductSubtypeInput(e.target.value)
-                        handleChange("productSubtypeVendor")(e)
-                        setShowSubtypeDropdown(true)
-                      }}
-                      onFocus={() => { setShowSubtypeDropdown(true); ensureProductsLoaded() }}
-                      onBlur={() => setTimeout(() => setShowSubtypeDropdown(false), 200)}
-                      placeholder="Enter vendor subtype"
-                    />
-                    {showSubtypeDropdown && productFamilyInput.trim() && (
-                      <div className="absolute z-10 mt-1 max-h-52 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
-                        {subtypeOptions
-                          .filter((sub) => sub.toLowerCase().includes((productSubtypeInput || "").toLowerCase()))
-                          .map((sub) => (
-                            <button
-                              key={sub}
-                              type="button"
-                              className="w-full px-3 py-2 text-left text-sm hover:bg-primary-50"
-                              onClick={() => {
-                                setProductSubtypeInput(sub)
-                                setForm((prev) => ({ ...prev, productSubtypeVendor: sub }))
-                                setShowSubtypeDropdown(false)
-                              }}
-                            >
-                              <div className="font-medium text-gray-900">{sub}</div>
-                            </button>
-                          ))}
-                        {subtypeOptions.length === 0 && (
-                          <div className="px-3 py-2 text-sm text-gray-500">No subtypes yet. Keep typing to search.</div>
-                        )}
-                      </div>
-                    )}
-                  </div>
+                  <PicklistCombobox
+                    value={form.productSubtypeVendor}
+                    options={vendorSubtypePicklist}
+                    placeholder="Search or pick a subtype"
+                    disabled={!form.productFamilyVendor.trim() || vendorSubtypePicklist.length === 0}
+                    inputClassName={inputCls}
+                    dropdownClassName={dropdownCls}
+                    optionClassName={optionBtnCls}
+                    onChange={(nextSubtype) => setForm((prev) => ({ ...prev, productSubtypeVendor: nextSubtype }))}
+                  />
+                  {errors.productSubtypeVendor ? (
+                    <p className="text-[11px] text-rose-600">{errors.productSubtypeVendor}</p>
+                  ) : null}
                 </div>
 
                 <div className="space-y-1">

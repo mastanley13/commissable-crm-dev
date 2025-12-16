@@ -138,7 +138,7 @@ const RevenueScheduleDetail = () => {
   const commissionBalanceSubagent = 0; // All payments made
 
   // Format helpers
-  const formatCurrency = (value) => {
+  const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD',
@@ -146,16 +146,16 @@ const RevenueScheduleDetail = () => {
     }).format(value);
   };
 
-  const formatPercent = (value) => `${value.toFixed(2)}%`;
+  const formatPercent = (value: number) => `${value.toFixed(2)}%`;
 
-  const formatDiff = (value) => {
+  const formatDiff = (value: number) => {
     const formatted = formatCurrency(Math.abs(value));
     if (value > 0) return `+${formatted}`;
     if (value < 0) return `-${formatted}`;
     return formatted;
   };
 
-  const formatPercentDiff = (value) => {
+  const formatPercentDiff = (value: number) => {
     const formatted = `${Math.abs(value).toFixed(2)}%`;
     if (value > 0) return `+${formatted}`;
     if (value < 0) return `-${formatted}`;
@@ -958,7 +958,7 @@ const RevenueScheduleDetail = () => {
 
                         {/* Totals Row */}
                         <tr className="bg-gray-100 border-t-2 border-gray-300 font-semibold">
-                          <td className="px-2 py-2 text-xs text-gray-700 whitespace-nowrap" colSpan="5">TOTALS</td>
+                          <td className="px-2 py-2 text-xs text-gray-700 whitespace-nowrap" colSpan={5}>TOTALS</td>
                           <td className="px-2 py-2 text-xs text-right font-bold text-blue-600 whitespace-nowrap">{formatCurrency(actualUsageGross)}</td>
                           <td className="px-2 py-2 text-xs text-right font-bold text-green-600 whitespace-nowrap">{formatCurrency(actualCommissionNet)}</td>
                           <td className="px-2 py-2 text-xs text-right font-bold text-red-600 whitespace-nowrap">-{formatCurrency(commissionNetSubagent + commissionNetHouseRep)}</td>

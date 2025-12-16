@@ -31,6 +31,7 @@ import { PillTabs } from "@/components/section/PillTabs"
 import { EmptyState } from "@/components/section/EmptyState"
 import { ErrorBanner } from "@/components/section/ErrorBanner"
 import { LoadingState } from "@/components/section/LoadingState"
+import { CommissionPayoutCreateModal } from "@/components/commission-payout-create-modal"
 
 interface SectionNavigationItem {
   id: string
@@ -67,6 +68,16 @@ interface ScheduleMatchCard {
   usageAmount: number | null
   commissionAmount: number | null
   metadata: Record<string, unknown> | null
+}
+
+interface SchedulePayoutRow {
+  id: string
+  splitType: "House" | "HouseRep" | "Subagent"
+  status: "Posted" | "Voided"
+  amount: number
+  paidAt: string
+  reference: string | null
+  notes: string | null
 }
 
 const placeholder = <span className="text-slate-300">--</span>
@@ -202,6 +213,7 @@ export const RevenueScheduleSupportingDetails = forwardRef<
 >(function RevenueScheduleSupportingDetails({ schedule, enableRedesign = false }, ref) {
   const { hasPermission } = useAuth()
   const canCreateTickets = hasPermission ? hasPermission("tickets.create") : true
+  const canManageSchedules = hasPermission ? hasPermission("revenue-schedules.manage") : true
 
   const REDESIGN_SECTION_ITEMS: SectionNavigationItem[] = [
     {
@@ -291,7 +303,13 @@ export const RevenueScheduleSupportingDetails = forwardRef<
   const [matches, setMatches] = useState<ScheduleMatchCard[]>([])
   const [activeMatchId, setActiveMatchId] = useState<string | null>(null)
   const [transactionFilter, setTransactionFilter] = useState<"all" | "billings" | "deposits" | "payments">("all")
-  const [paymentSplitFilter, setPaymentSplitFilter] = useState<"all" | "subagent" | "houseRep">("all")
+  const [paymentSplitFilter, setPaymentSplitFilter] = useState<"all" | "house" | "subagent" | "houseRep">("all")
+
+  const [payoutsLoading, setPayoutsLoading] = useState<boolean>(false)
+  const [payoutsError, setPayoutsError] = useState<string | null>(null)
+  const [payouts, setPayouts] = useState<SchedulePayoutRow[]>([])
+
+  const [payoutCreateModalOpen, setPayoutCreateModalOpen] = useState(false)
 
   useImperativeHandle(
     ref,
@@ -417,13 +435,31 @@ export const RevenueScheduleSupportingDetails = forwardRef<
         accessor: "ticketNumber"
       },
       {
+        id: "createdAt",
+        label: "Created Date",
+        width: 140,
+        minWidth: 130,
+        maxWidth: 220,
+        sortable: true,
+        accessor: "createdAt"
+      },
+      {
         id: "issue",
         label: "Issue",
-        width: 230,
+        width: 260,
         minWidth: 180,
-        maxWidth: 360,
+        maxWidth: 420,
         sortable: true,
         accessor: "issue"
+      },
+      {
+        id: "priority",
+        label: "Priority",
+        width: 130,
+        minWidth: 110,
+        maxWidth: 180,
+        sortable: true,
+        accessor: "priority"
       },
       {
         id: "distributorName",
@@ -453,6 +489,24 @@ export const RevenueScheduleSupportingDetails = forwardRef<
         accessor: "opportunityName"
       },
       {
+        id: "owner",
+        label: "Owner",
+        width: 170,
+        minWidth: 140,
+        maxWidth: 220,
+        sortable: true,
+        accessor: "assignedToName"
+      },
+      {
+        id: "requestor",
+        label: "Requestor",
+        width: 170,
+        minWidth: 140,
+        maxWidth: 240,
+        sortable: true,
+        accessor: "requestorName"
+      },
+      {
         id: "status",
         label: "Status",
         width: 130,
@@ -460,6 +514,15 @@ export const RevenueScheduleSupportingDetails = forwardRef<
         maxWidth: 180,
         sortable: true,
         accessor: "status"
+      },
+      {
+        id: "dueDate",
+        label: "Due Date",
+        width: 140,
+        minWidth: 120,
+        maxWidth: 200,
+        sortable: true,
+        accessor: "dueDate"
       }
     ],
     []
@@ -537,14 +600,36 @@ export const RevenueScheduleSupportingDetails = forwardRef<
           return {
             ...column,
             render: (_: unknown, row: any) => (
-              <span
-                className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                  row.active ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"
-                }`}
-              >
+              <span className={cn(
+                "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium",
+                row.status === "Open" ? "bg-blue-100 text-blue-800" : "",
+                row.status === "InProgress" ? "bg-indigo-100 text-indigo-800" : "",
+                row.status === "Waiting" ? "bg-amber-100 text-amber-800" : "",
+                row.status === "Resolved" ? "bg-emerald-100 text-emerald-800" : "",
+                row.status === "Closed" ? "bg-gray-100 text-gray-800" : "",
+                !row.status ? "bg-gray-100 text-gray-800" : ""
+              )}>
                 {row.status ?? (row.active ? "Active" : "Inactive")}
               </span>
             )
+          }
+        }
+
+        if (column.id === "priority") {
+          return {
+            ...column,
+            render: (value: unknown) => {
+              const text = typeof value === "string" && value.trim().length ? value.trim() : "--"
+              const className =
+                text === "High"
+                  ? "bg-red-100 text-red-800"
+                  : text === "Medium"
+                    ? "bg-amber-100 text-amber-800"
+                    : text === "Low"
+                      ? "bg-slate-100 text-slate-800"
+                      : "bg-slate-100 text-slate-700"
+              return <span className={cn("inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium", className)}>{text}</span>
+            }
           }
         }
 
@@ -564,7 +649,12 @@ export const RevenueScheduleSupportingDetails = forwardRef<
       revenueSchedule: row?.revenueSchedule ?? "",
       opportunityName: row?.opportunityName ?? "",
       ticketNumber: row?.ticketNumber ?? "",
-      status: active ? "Active" : "Inactive",
+      createdAt: row?.createdAt ?? "",
+      dueDate: row?.dueDate ?? "",
+      priority: row?.priority ?? "",
+      assignedToName: row?.assignedToName ?? "",
+      requestorName: row?.requestorName ?? "",
+      status: row?.status ?? (active ? "Active" : "Inactive"),
       active
     }
   }, [])
@@ -803,12 +893,63 @@ export const RevenueScheduleSupportingDetails = forwardRef<
     }
   }, [schedule?.id])
 
+  const fetchPayouts = useCallback(async () => {
+    if (!schedule?.id) {
+      setPayouts([])
+      setPayoutsError(null)
+      return
+    }
+
+    setPayoutsLoading(true)
+    setPayoutsError(null)
+
+    try {
+      const response = await fetch(
+        `/api/revenue-schedules/${encodeURIComponent(String(schedule.id))}/payouts`,
+        { cache: "no-store" }
+      )
+      const payload = await response.json().catch(() => null)
+
+      if (!response.ok) {
+        throw new Error(payload?.error ?? "Failed to load payouts")
+      }
+
+      const rows: any[] = Array.isArray(payload?.data) ? payload.data : []
+      const mapped: SchedulePayoutRow[] = rows
+        .map(row => ({
+          id: String(row.id ?? ""),
+          splitType: (row.splitType as SchedulePayoutRow["splitType"]) ?? "House",
+          status: (row.status as SchedulePayoutRow["status"]) ?? "Posted",
+          amount: typeof row.amount === "number" ? row.amount : Number(row.amount ?? 0),
+          paidAt: String(row.paidAt ?? ""),
+          reference: row.reference ?? null,
+          notes: row.notes ?? null
+        }))
+        .filter(row => row.id)
+
+      setPayouts(mapped)
+    } catch (error) {
+      console.error("Failed to load payouts", error)
+      setPayouts([])
+      setPayoutsError(error instanceof Error ? error.message : "Unable to load payouts")
+    } finally {
+      setPayoutsLoading(false)
+    }
+  }, [schedule?.id])
+
   useEffect(() => {
     if (!enableRedesign) return
     if (activeSectionId === "additional-information" || activeSectionId === "transactions") {
       void fetchMatches()
     }
   }, [activeSectionId, enableRedesign, fetchMatches])
+
+  useEffect(() => {
+    if (!enableRedesign) return
+    if (activeSectionId === "commission-splits" || activeSectionId === "transactions") {
+      void fetchPayouts()
+    }
+  }, [activeSectionId, enableRedesign, fetchPayouts])
 
   const financialSplits = useMemo<FinancialSplitDefinition[]>(() => {
     const commissionActual = schedule?.actualCommission ?? "$0.00"
@@ -919,11 +1060,28 @@ export const RevenueScheduleSupportingDetails = forwardRef<
     const formatMoney = (amount: number): string =>
       new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2 }).format(amount)
 
-    const commissionActual = parseCurrency(
-      schedule.actualCommission ?? schedule.expectedCommissionNet ?? schedule.expectedCommissionGross ?? schedule.expectedCommission
+    const expectedCommissionNet = parseCurrency(
+      schedule.expectedCommissionNet ?? schedule.expectedCommissionGross ?? null
     )
 
-    if (commissionActual === 0) {
+    const actualCommissionNet = parseCurrency(schedule.actualCommission ?? null)
+
+    const postedPayouts = payouts.filter(payout => payout.status === "Posted")
+    const paidBySplitType = postedPayouts.reduce(
+      (acc, payout) => {
+        const amount = Number.isFinite(payout.amount) ? payout.amount : 0
+        if (payout.splitType === "House") acc.house += amount
+        if (payout.splitType === "HouseRep") acc.houseRep += amount
+        if (payout.splitType === "Subagent") acc.subagent += amount
+        return acc
+      },
+      { house: 0, houseRep: 0, subagent: 0 }
+    )
+
+    const hasAnyCommission = expectedCommissionNet !== 0 || actualCommissionNet !== 0
+    const hasAnyPayouts = postedPayouts.some(payout => Number.isFinite(payout.amount) && payout.amount !== 0)
+
+    if (!hasAnyCommission && !hasAnyPayouts) {
       return (
         <SectionContainer
           title="Commission Splits"
@@ -967,23 +1125,44 @@ export const RevenueScheduleSupportingDetails = forwardRef<
         title="Commission Splits"
         description="Reconciled and receivables amounts broken out by partner split."
       >
-        <div className="grid gap-3 lg:grid-cols-3">
+        <div className="space-y-2">
+          {payoutsError ? <ErrorBanner message={payoutsError} /> : null}
+          {payoutsLoading ? <LoadingState label="Loading payouts..." /> : null}
+
+          <div className="grid gap-3 lg:grid-cols-3">
           {splitCards.map(split => {
-            const net = commissionActual * split.percent
+            const splitKey = split.id === "house" ? "house" : split.id === "houseRep" ? "houseRep" : "subagent"
+            const paid =
+              splitKey === "house"
+                ? paidBySplitType.house
+                : splitKey === "houseRep"
+                  ? paidBySplitType.houseRep
+                  : paidBySplitType.subagent
+
+            const reconciledNet = actualCommissionNet * split.percent
+            const receivable = expectedCommissionNet * split.percent
+            const balance = receivable - paid
+            const payoutStatus =
+              receivable > 0 && Math.abs(balance) < 0.005 ? "Paid in Full" : paid > 0 ? "Partial" : "Pending"
             return (
               <div key={split.id} className="overflow-hidden rounded-lg border border-gray-200 bg-white">
                 <div className="bg-blue-900 px-3 py-2 text-white">
-                  <h4 className="text-xs font-semibold">
-                    {split.label} - {split.percentLabel}
-                  </h4>
+                  <div className="flex items-center justify-between gap-2">
+                    <h4 className="text-xs font-semibold">
+                      {split.label} - {split.percentLabel}
+                    </h4>
+                    <span className="rounded bg-white/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
+                      {payoutStatus}
+                    </span>
+                  </div>
                 </div>
                 <div className="space-y-2 p-2">
                   <div className="rounded bg-gray-50 p-2">
                     <h5 className="mb-1 text-xs font-semibold uppercase text-blue-800">Reconciled</h5>
                     <div className="space-y-0.5">
                       <div className="flex justify-between text-xs">
-                        <span className="text-gray-600">Actual Commission</span>
-                        <span className="font-medium">{formatMoney(commissionActual)}</span>
+                        <span className="text-gray-600">Actual Commission Net</span>
+                        <span className="font-medium">{formatMoney(actualCommissionNet)}</span>
                       </div>
                       <div className="flex justify-between text-xs">
                         <span className="text-gray-600">Split %</span>
@@ -992,7 +1171,7 @@ export const RevenueScheduleSupportingDetails = forwardRef<
                       <div className="mt-0.5 border-t border-gray-300 pt-0.5">
                         <div className="flex justify-between text-xs">
                           <span className="font-bold text-gray-700">Net</span>
-                          <span className="font-bold text-blue-900">{formatMoney(net)}</span>
+                          <span className="font-bold text-blue-900">{formatMoney(reconciledNet)}</span>
                         </div>
                       </div>
                     </div>
@@ -1002,17 +1181,17 @@ export const RevenueScheduleSupportingDetails = forwardRef<
                     <h5 className="mb-1 text-xs font-semibold uppercase text-blue-800">Receivables</h5>
                     <div className="space-y-0.5">
                       <div className="flex justify-between text-xs">
-                        <span className="text-gray-600">Actual Commission</span>
-                        <span className="font-medium">{formatMoney(net)}</span>
+                        <span className="text-gray-600">Commissions Receivables</span>
+                        <span className="font-medium">{formatMoney(receivable)}</span>
                       </div>
                       <div className="flex justify-between text-xs">
                         <span className="text-gray-600">Paid</span>
-                        <span className="font-medium">-{formatMoney(net)}</span>
+                        <span className="font-medium">{formatMoney(paid)}</span>
                       </div>
                       <div className="mt-0.5 border-t border-blue-200 pt-0.5">
                         <div className="flex justify-between text-xs">
                           <span className="font-bold text-gray-700">Total</span>
-                          <span className="font-bold text-blue-900">{formatMoney(0)}</span>
+                          <span className="font-bold text-blue-900">{formatMoney(balance)}</span>
                         </div>
                       </div>
                     </div>
@@ -1021,6 +1200,7 @@ export const RevenueScheduleSupportingDetails = forwardRef<
               </div>
             )
           })}
+          </div>
         </div>
       </SectionContainer>
     )
@@ -1028,21 +1208,21 @@ export const RevenueScheduleSupportingDetails = forwardRef<
 
   const opportunityColumns = useMemo<DetailLineProps[][]>(() => {
     const columnA: DetailLineProps[] = [
-      { label: "House - Account ID", value: schedule?.accountName ?? "A0000000000008867" },
-      { label: "Vendor - Account ID", value: schedule?.vendorName ?? "0008" },
-      { label: "Distributor - Account ID", value: schedule?.distributorName ?? "0002" },
-      { label: "House - Customer ID", value: "0012" },
-      { label: "Vendor - Customer ID", value: "0013" },
-      { label: "Distributor - Customer ID", value: "0014" }
+      { label: "House - Account ID", value: schedule?.accountId ?? undefined },
+      { label: "Vendor - Account ID", value: schedule?.vendorId ?? undefined },
+      { label: "Distributor - Account ID", value: schedule?.distributorId ?? undefined },
+      { label: "House - Customer ID", value: schedule?.customerIdHouse ?? undefined },
+      { label: "Vendor - Customer ID", value: schedule?.customerIdVendor ?? undefined },
+      { label: "Distributor - Customer ID", value: schedule?.customerIdDistributor ?? undefined }
     ]
 
     const columnB: DetailLineProps[] = [
-      { label: "Location ID", value: "0015" },
-      { label: "Opportunity ID", value: schedule?.opportunityId ?? "1" },
-      { label: "Opportunity Owner", value: schedule?.opportunityName ?? "4" },
-      { label: "House - Order ID", value: "001231" },
-      { label: "Vendor - Order ID", value: "0016" },
-      { label: "Distributor - Order ID", value: "0017" }
+      { label: "Location ID", value: schedule?.locationId ?? undefined },
+      { label: "Opportunity ID", value: schedule?.opportunityId ? String(schedule.opportunityId) : undefined },
+      { label: "Opportunity Owner", value: schedule?.opportunityOwnerName ?? undefined },
+      { label: "House - Order ID", value: schedule?.orderIdHouse ?? undefined },
+      { label: "Vendor - Order ID", value: schedule?.orderIdVendor ?? undefined },
+      { label: "Distributor - Order ID", value: schedule?.orderIdDistributor ?? undefined }
     ]
 
     return [columnA, columnB]
@@ -1164,19 +1344,94 @@ export const RevenueScheduleSupportingDetails = forwardRef<
     )
   }
 
-  const renderOpportunityDetails = () => (
-    <div className="space-y-3">
-      <div className="grid gap-4 lg:grid-cols-2">
-        {opportunityColumns.map((column, columnIndex) => (
-          <div key={`opportunity-column-${columnIndex}`} className="space-y-2 max-w-md">
-            {column.map(field => (
-              <DetailLine key={`opportunity-${columnIndex}-${field.label}`} {...field} />
-            ))}
+  const renderOpportunityDetails = () => {
+    if (enableRedesign) {
+      const rows = [
+        {
+          label: "HOUSE",
+          accountId: schedule?.accountId ?? null,
+          orderId: schedule?.orderIdHouse ?? null,
+          customerId: schedule?.customerIdHouse ?? null,
+          locationId: schedule?.locationId ?? null,
+          serviceId: schedule?.revenueSchedule ?? null
+        },
+        {
+          label: "VENDOR",
+          accountId: schedule?.vendorId ?? null,
+          orderId: schedule?.orderIdVendor ?? null,
+          customerId: schedule?.customerIdVendor ?? null,
+          locationId: null,
+          serviceId: null
+        },
+        {
+          label: "DISTRIBUTOR",
+          accountId: schedule?.distributorId ?? null,
+          orderId: schedule?.orderIdDistributor ?? null,
+          customerId: schedule?.customerIdDistributor ?? null,
+          locationId: null,
+          serviceId: null
+        },
+        {
+          label: "CUSTOMER",
+          accountId: null,
+          orderId: null,
+          customerId: null,
+          locationId: null,
+          serviceId: null
+        }
+      ]
+
+      return (
+        <div className="space-y-3">
+          <div className="border border-gray-200 rounded-lg overflow-hidden">
+            <div className="bg-blue-900 text-white px-3 py-2">
+              <h4 className="text-xs font-semibold">Account, Order, Customer, Location &amp; Service IDs</h4>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600" />
+                    <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Account ID</th>
+                    <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Order ID</th>
+                    <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Customer ID</th>
+                    <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Location ID</th>
+                    <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Service ID</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {rows.map(row => (
+                    <tr key={row.label} className="hover:bg-gray-50">
+                      <td className="px-3 py-2 text-xs font-medium text-gray-600">{row.label}</td>
+                      <td className="px-3 py-2 text-xs text-gray-900">{renderValue(row.accountId ?? undefined)}</td>
+                      <td className="px-3 py-2 text-xs text-gray-900">{renderValue(row.orderId ?? undefined)}</td>
+                      <td className="px-3 py-2 text-xs text-gray-900">{renderValue(row.customerId ?? undefined)}</td>
+                      <td className="px-3 py-2 text-xs text-gray-900">{renderValue(row.locationId ?? undefined)}</td>
+                      <td className="px-3 py-2 text-xs text-gray-900">{renderValue(row.serviceId ?? undefined)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
-        ))}
+        </div>
+      )
+    }
+
+    return (
+      <div className="space-y-3">
+        <div className="grid gap-4 lg:grid-cols-2">
+          {opportunityColumns.map((column, columnIndex) => (
+            <div key={`opportunity-column-${columnIndex}`} className="space-y-2 max-w-md">
+              {column.map(field => (
+                <DetailLine key={`opportunity-${columnIndex}-${field.label}`} {...field} />
+              ))}
+            </div>
+          ))}
+        </div>
       </div>
-    </div>
-  )
+    )
+  }
 
   const renderProductDetails = () => (
     <div className="space-y-3">
@@ -1663,8 +1918,7 @@ export const RevenueScheduleSupportingDetails = forwardRef<
           ? parseCurrency(
               schedule.actualCommission ??
               schedule.expectedCommissionNet ??
-              schedule.expectedCommissionGross ??
-              schedule.expectedCommission
+              schedule.expectedCommissionGross
             )
           : 0
 
@@ -1677,7 +1931,7 @@ export const RevenueScheduleSupportingDetails = forwardRef<
           date: string
           type: "Billing" | "Commission Deposit" | "Payment"
           account: string
-          splitId: "subagent" | "houseRep" | null
+          splitId: "house" | "subagent" | "houseRep" | null
           splitLabel: string
           ref: string
           amount: number
@@ -1716,52 +1970,48 @@ export const RevenueScheduleSupportingDetails = forwardRef<
             amount: 0,
             commission: commissionAmount,
             paid: 0,
-            total: 0
+            total: commissionAmount
           })
         })
 
-        if (commissionActual && (subagentPercent || houseRepPercent)) {
-          const subagentAmount = commissionActual * subagentPercent
-          const houseRepAmount = commissionActual * houseRepPercent
-
-          if (subagentAmount) {
-            baseRows.push({
-              id: `payment-subagent-${schedule?.id ?? ""}`,
-              date: formatDate(schedule?.revenueScheduleDate ?? null),
-              type: "Payment",
-              account: schedule?.subagentName ?? "Subagent",
-              splitId: "subagent",
-              splitLabel: schedule?.subagentSplitPercent ?? "",
-              ref: "PAY-SUBAGENT",
-              amount: 0,
-              commission: 0,
-              paid: -subagentAmount,
-              total: 0
-            })
-          }
-
-          if (houseRepAmount) {
-            baseRows.push({
-              id: `payment-house-rep-${schedule?.id ?? ""}`,
-              date: formatDate(schedule?.revenueScheduleDate ?? null),
-              type: "Payment",
-              account: schedule?.houseRepName ?? "House Rep",
-              splitId: "houseRep",
-              splitLabel: schedule?.houseRepSplitPercent ?? "",
-              ref: "PAY-HOUSEREP",
-              amount: 0,
-              commission: 0,
-              paid: -houseRepAmount,
-              total: 0
-            })
-          }
-        }
+        const postedPayouts = payouts.filter(payout => payout.status === "Posted")
+        postedPayouts.forEach(payout => {
+          const amount = Number.isFinite(payout.amount) ? payout.amount : 0
+          if (!amount) return
+          const splitId = payout.splitType === "House" ? "house" : payout.splitType === "HouseRep" ? "houseRep" : "subagent"
+          const splitLabel =
+            splitId === "house"
+              ? schedule?.houseSplitPercent ?? ""
+              : splitId === "houseRep"
+                ? schedule?.houseRepSplitPercent ?? ""
+                : schedule?.subagentSplitPercent ?? ""
+          const account =
+            splitId === "house"
+              ? schedule?.accountName ?? "House"
+              : splitId === "houseRep"
+                ? schedule?.houseRepName ?? "House Rep"
+                : schedule?.subagentName ?? "Subagent"
+          baseRows.push({
+            id: `payment-${payout.id}`,
+            date: formatDate(payout.paidAt),
+            type: "Payment",
+            account,
+            splitId,
+            splitLabel,
+            ref: payout.reference ?? payout.id,
+            amount: 0,
+            commission: 0,
+            paid: -amount,
+            total: -amount
+          })
+        })
 
         const filteredRows = baseRows.filter(row => {
           if (transactionFilter === "billings" && row.type !== "Billing") return false
           if (transactionFilter === "deposits" && row.type !== "Commission Deposit") return false
           if (transactionFilter === "payments" && row.type !== "Payment") return false
           if (transactionFilter === "payments") {
+            if (paymentSplitFilter === "house" && row.splitId !== "house") return false
             if (paymentSplitFilter === "subagent" && row.splitId !== "subagent") return false
             if (paymentSplitFilter === "houseRep" && row.splitId !== "houseRep") return false
           }
@@ -1808,7 +2058,7 @@ export const RevenueScheduleSupportingDetails = forwardRef<
             title="Transaction Ledger"
             description="Billing, commission deposits, and payments affecting this revenue schedule."
             actions={(
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-800">
                   <span className="mr-1 italic text-blue-600">Choose one:</span>
                   {(["all", "billings", "deposits", "payments"] as const).map(option => (
@@ -1841,15 +2091,30 @@ export const RevenueScheduleSupportingDetails = forwardRef<
                       className="ml-1 rounded-full bg-blue-600 px-2 py-0.5 text-[10px] font-semibold text-white outline-none focus:ring-2 focus:ring-white/60"
                     >
                       <option value="all">All Splits</option>
-                      <option value="subagent">Subagent</option>
+                      <option value="house">House</option>
                       <option value="houseRep">House Rep</option>
+                      <option value="subagent">Subagent</option>
                     </select>
                   ) : null}
                 </div>
-                <span className="text-[10px] font-semibold text-blue-700">{filteredRows.length} transactions</span>
+
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-semibold text-blue-700">{filteredRows.length} transactions</span>
+                  {canManageSchedules && schedule?.id ? (
+                    <button
+                      type="button"
+                      onClick={() => setPayoutCreateModalOpen(true)}
+                      className="rounded-full bg-blue-600 px-3 py-0.5 text-[10px] font-semibold text-white hover:bg-blue-700"
+                    >
+                      Record Payment
+                    </button>
+                  ) : null}
+                </div>
               </div>
             )}
           >
+            {payoutsError ? <ErrorBanner message={payoutsError} /> : null}
+            {payoutsLoading ? <LoadingState label="Loading payouts..." /> : null}
             <DataTableLite
               columns={columns}
               rows={rows}
@@ -1919,9 +2184,9 @@ export const RevenueScheduleSupportingDetails = forwardRef<
     <>
       <section ref={containerRef}>
         {enableRedesign ? (
-          <div className="rounded-3xl border border-slate-300 bg-white shadow-sm">
-            <div className="flex flex-wrap items-end gap-1 border-b border-blue-200 bg-gradient-to-r from-blue-50 to-blue-100 px-3 pt-1">
-              {(enableRedesign ? REDESIGN_SECTION_ITEMS : LEGACY_SECTION_ITEMS).map(item => {
+          <div className="flex flex-col overflow-hidden">
+            <div className="flex flex-wrap gap-1 border-x border-t border-gray-200 bg-gray-100 pt-2 px-3 pb-0">
+              {REDESIGN_SECTION_ITEMS.map(item => {
                 const isActive = item.id === activeSectionId
                 return (
                   <button
@@ -1929,10 +2194,10 @@ export const RevenueScheduleSupportingDetails = forwardRef<
                     type="button"
                     onClick={() => setActiveSectionId(item.id)}
                     className={cn(
-                      "inline-flex items-center border-b-2 px-3 pb-1 pt-2 text-[11px] font-semibold transition",
+                      "rounded-t-md border px-3 py-1.5 text-sm font-semibold shadow-sm transition",
                       isActive
-                        ? "border-primary-700 text-primary-800"
-                        : "border-transparent text-primary-700/70 hover:text-primary-800"
+                        ? "relative -mb-[1px] z-10 border-primary-700 bg-primary-700 text-white hover:bg-primary-800"
+                        : "border-blue-300 bg-gradient-to-b from-blue-100 to-blue-200 text-primary-800 hover:border-blue-400 hover:from-blue-200 hover:to-blue-300"
                     )}
                   >
                     {item.label}
@@ -1940,10 +2205,12 @@ export const RevenueScheduleSupportingDetails = forwardRef<
                 )
               })}
             </div>
-            <div className="p-3">
-              {sectionContent ?? (
-                <p className="text-[11px] text-slate-500">Select a section to view its details.</p>
-              )}
+            <div className="border-x border-b border-gray-200 bg-white px-3 pb-3 pt-0">
+              <div className="border-t-2 border-t-primary-600 -mx-3 px-3 pt-3">
+                {sectionContent ?? (
+                  <p className="text-[11px] text-slate-500">Select a section to view its details.</p>
+                )}
+              </div>
             </div>
           </div>
         ) : (
@@ -2003,6 +2270,15 @@ export const RevenueScheduleSupportingDetails = forwardRef<
         defaultVendorName={schedule?.vendorName ?? ""}
         defaultProductNameVendor={schedule?.productNameVendor ?? ""}
       />
+
+      {schedule?.id ? (
+        <CommissionPayoutCreateModal
+          isOpen={payoutCreateModalOpen}
+          onClose={() => setPayoutCreateModalOpen(false)}
+          onSuccess={() => void fetchPayouts()}
+          revenueScheduleId={schedule.id}
+        />
+      ) : null}
     </>
   )
 })

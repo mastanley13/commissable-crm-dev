@@ -223,10 +223,12 @@ export function RevenueScheduleCreateModal({
     const raw = rateForm.ratePercent.trim()
     if (!raw) return ""
 
+    // When focused, show raw value so user can type freely
     if (ratePercentFocused) {
-      return formatPercentDisplay(raw, { alwaysSymbol: true })
+      return raw
     }
 
+    // When not focused, show formatted percent
     return formatPercentDisplay(raw, { alwaysSymbol: true })
   }, [rateForm.ratePercent, ratePercentFocused])
 
@@ -234,10 +236,12 @@ export function RevenueScheduleCreateModal({
     const raw = splitForm.house.trim()
     if (!raw) return ""
 
+    // When focused, show raw value so user can type freely
     if (splitFormHouseFocused) {
-      return formatPercentDisplay(raw, { alwaysSymbol: true })
+      return raw
     }
 
+    // When not focused, show formatted percent
     return formatPercentDisplay(raw, { alwaysSymbol: true })
   }, [splitForm.house, splitFormHouseFocused])
 
@@ -245,10 +249,12 @@ export function RevenueScheduleCreateModal({
     const raw = splitForm.houseRep.trim()
     if (!raw) return ""
 
+    // When focused, show raw value so user can type freely
     if (splitFormHouseRepFocused) {
-      return formatPercentDisplay(raw, { alwaysSymbol: true })
+      return raw
     }
 
+    // When not focused, show formatted percent
     return formatPercentDisplay(raw, { alwaysSymbol: true })
   }, [splitForm.houseRep, splitFormHouseRepFocused])
 
@@ -256,10 +262,12 @@ export function RevenueScheduleCreateModal({
     const raw = splitForm.subagent.trim()
     if (!raw) return ""
 
+    // When focused, show raw value so user can type freely
     if (splitFormSubagentFocused) {
-      return formatPercentDisplay(raw, { alwaysSymbol: true })
+      return raw
     }
 
+    // When not focused, show formatted percent
     return formatPercentDisplay(raw, { alwaysSymbol: true })
   }, [splitForm.subagent, splitFormSubagentFocused])
 
@@ -313,10 +321,12 @@ export function RevenueScheduleCreateModal({
     const raw = createForm.priceEach.trim()
     if (!raw) return ""
 
+    // When focused, show raw value so user can type freely
     if (priceEachFocused) {
-      return formatCurrencyDisplay(raw, { alwaysSymbol: true })
+      return raw
     }
 
+    // When not focused, show formatted currency
     return formatCurrencyDisplay(raw, { alwaysSymbol: true })
   }, [createForm.priceEach, priceEachFocused])
 
@@ -324,10 +334,12 @@ export function RevenueScheduleCreateModal({
     const raw = createForm.manualAmount.trim()
     if (!raw) return ""
 
+    // When focused, show raw value so user can type freely
     if (manualAmountFocused) {
-      return formatCurrencyDisplay(raw, { alwaysSymbol: true })
+      return raw
     }
 
+    // When not focused, show formatted currency
     return formatCurrencyDisplay(raw, { alwaysSymbol: true })
   }, [createForm.manualAmount, manualAmountFocused])
 
@@ -335,10 +347,12 @@ export function RevenueScheduleCreateModal({
     const raw = createForm.commissionRate.trim()
     if (!raw) return ""
 
+    // When focused, show raw value so user can type freely
     if (commissionRateFocused) {
-      return formatPercentDisplay(raw, { alwaysSymbol: true })
+      return raw
     }
 
+    // When not focused, show formatted percent
     return formatPercentDisplay(raw, { alwaysSymbol: true })
   }, [createForm.commissionRate, commissionRateFocused])
 
@@ -346,10 +360,12 @@ export function RevenueScheduleCreateModal({
     const raw = createForm.splitHouse.trim()
     if (!raw) return ""
 
+    // When focused, show raw value so user can type freely
     if (splitHouseFocused) {
-      return formatPercentDisplay(raw, { alwaysSymbol: true })
+      return raw
     }
 
+    // When not focused, show formatted percent
     return formatPercentDisplay(raw, { alwaysSymbol: true })
   }, [createForm.splitHouse, splitHouseFocused])
 
@@ -357,10 +373,12 @@ export function RevenueScheduleCreateModal({
     const raw = createForm.splitHouseRep.trim()
     if (!raw) return ""
 
+    // When focused, show raw value so user can type freely
     if (splitHouseRepFocused) {
-      return formatPercentDisplay(raw, { alwaysSymbol: true })
+      return raw
     }
 
+    // When not focused, show formatted percent
     return formatPercentDisplay(raw, { alwaysSymbol: true })
   }, [createForm.splitHouseRep, splitHouseRepFocused])
 
@@ -368,10 +386,12 @@ export function RevenueScheduleCreateModal({
     const raw = createForm.splitSubagent.trim()
     if (!raw) return ""
 
+    // When focused, show raw value so user can type freely
     if (splitSubagentFocused) {
-      return formatPercentDisplay(raw, { alwaysSymbol: true })
+      return raw
     }
 
+    // When not focused, show formatted percent
     return formatPercentDisplay(raw, { alwaysSymbol: true })
   }, [createForm.splitSubagent, splitSubagentFocused])
 

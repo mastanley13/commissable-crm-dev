@@ -2,6 +2,7 @@
 
 import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react"
 import { useToasts } from "./toast"
+import { SelectCombobox } from "./select-combobox"
 
 export interface AddressFormValues {
   line1: string
@@ -528,19 +529,15 @@ export function AccountEditModal({ isOpen, onClose, onSuccess, account }: Accoun
               <div className="grid grid-cols-5 gap-3">
                 <div className="col-span-3">
                   <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Account Type <span className="text-red-500">*</span></label>
-                  <select
+                  <SelectCombobox
                     value={form.accountTypeId}
-                    onChange={handleFieldChange("accountTypeId")}
-                    className={`w-full border-b-2 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500 ${errors.accountTypeId ? "border-red-500 focus:border-red-500" : "border-gray-300"}`}
-                    required
-                  >
-                    <option value="">- Select -</option>
-                    {accountTypes.map(option => (
-                      <option key={option.id} value={option.id}>
-                        {option.name}
-                      </option>
-                    ))}
-                  </select>
+                    options={accountTypes.map((option) => ({ value: option.id, label: option.name }))}
+                    placeholder="Search or pick an account type"
+                    inputClassName={`w-full border-b-2 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500 ${errors.accountTypeId ? "border-red-500 focus:border-red-500" : "border-gray-300"}`}
+                    dropdownClassName="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg"
+                    optionClassName="w-full px-3 py-2 text-left text-sm hover:bg-primary-50"
+                    onChange={(next) => setForm((prev) => ({ ...prev, accountTypeId: next }))}
+                  />
                   {errors.accountTypeId && <p className="mt-1 text-xs text-red-600">{errors.accountTypeId}</p>}
                 </div>
                 <div className="col-span-2">

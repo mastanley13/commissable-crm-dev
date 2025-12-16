@@ -8,7 +8,8 @@ import { dedupeColumnFilters } from "@/lib/filter-utils"
 import { mapProductToRow } from "./helpers"
 import { logProductAudit } from "@/lib/audit"
 import { ensureNoneDirectDistributorAccount } from "@/lib/none-direct-distributor"
-import { REVENUE_TYPE_DEFINITIONS, isRevenueTypeCode } from "@/lib/revenue-types"
+import { REVENUE_TYPE_DEFINITIONS } from "@/lib/revenue-types"
+import { isEnabledRevenueType } from "@/lib/server-revenue-types"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -281,8 +282,11 @@ export async function POST(request: NextRequest) {
       const revenueTypeValue = getString((payload as any).revenueType)
       if (!revenueTypeValue) {
         errors.revenueType = "Revenue type is required"
-      } else if (!isRevenueTypeCode(revenueTypeValue)) {
-        errors.revenueType = "Invalid revenue type"
+      } else {
+        const allowed = await isEnabledRevenueType(req.user.tenantId, revenueTypeValue)
+        if (!allowed) {
+          errors.revenueType = "Select a valid Revenue Type managed in Data Settings."
+        }
       }
 
       const priceEach = getOptionalNumber((payload as any).priceEach)
@@ -294,6 +298,87 @@ export async function POST(request: NextRequest) {
       if ((payload as any).commissionPercent !== undefined && commissionPercent !== null) {
         if (commissionPercent < 0 || commissionPercent > 100) {
           errors.commissionPercent = "Commission percent must be between 0 and 100"
+        }
+      }
+
+      const productFamilyHouse = getOptionalString((payload as any).productFamilyHouse)
+      const productSubtypeHouse = getOptionalString((payload as any).productSubtypeHouse)
+      const productFamilyVendor = getOptionalString((payload as any).productFamilyVendor)
+      const productSubtypeVendor = getOptionalString((payload as any).productSubtypeVendor)
+      const distributorProductFamily = getOptionalString((payload as any).distributorProductFamily)
+      const distributorProductSubtype = getOptionalString((payload as any).distributorProductSubtype)
+
+      const hasPicklistValues = Boolean(
+        productFamilyHouse ||
+          productSubtypeHouse ||
+          productFamilyVendor ||
+          productSubtypeVendor ||
+          distributorProductFamily ||
+          distributorProductSubtype
+      )
+
+      if (hasPicklistValues) {
+        try {
+          const tenantId = req.user.tenantId
+          const [families, subtypes] = await Promise.all([
+            prisma.productFamily.findMany({
+              where: { tenantId, isActive: true },
+              select: { id: true, name: true }
+            }),
+            prisma.productSubtype.findMany({
+              where: { tenantId, isActive: true },
+              select: {
+                name: true,
+                productFamilyId: true,
+                family: { select: { name: true } }
+              }
+            })
+          ])
+
+          const familyNames = new Set(families.map((f) => f.name))
+          const familyIdByName = new Map(families.map((f) => [f.name, f.id] as const))
+          const subtypeByName = new Map(
+            subtypes.map((s) => [
+              s.name,
+              { productFamilyId: s.productFamilyId, familyName: s.family?.name ?? null }
+            ] as const)
+          )
+
+          const validateFamily = (field: string, value: string | null) => {
+            if (!value) return
+            if (!familyNames.has(value)) {
+              errors[field] = "Select a valid value managed in Data Settings."
+            }
+          }
+
+          const validateSubtype = (
+            subtypeField: string,
+            subtypeValue: string | null,
+            familyValue: string | null
+          ) => {
+            if (!subtypeValue) return
+            const record = subtypeByName.get(subtypeValue)
+            if (!record) {
+              errors[subtypeField] = "Select a valid value managed in Data Settings."
+              return
+            }
+            if (!familyValue) return
+            const familyId = familyIdByName.get(familyValue) ?? null
+            if (record.productFamilyId && familyId && record.productFamilyId !== familyId) {
+              errors[subtypeField] = "Subtype does not belong to the selected Product Family."
+            }
+          }
+
+          validateFamily("productFamilyHouse", productFamilyHouse)
+          validateFamily("productFamilyVendor", productFamilyVendor)
+          validateFamily("distributorProductFamily", distributorProductFamily)
+
+          validateSubtype("productSubtypeHouse", productSubtypeHouse, productFamilyHouse)
+          validateSubtype("productSubtypeVendor", productSubtypeVendor, productFamilyVendor)
+          validateSubtype("distributorProductSubtype", distributorProductSubtype, distributorProductFamily)
+        } catch (error) {
+          console.error("Failed to validate product picklists", error)
+          errors.productFamilyVendor = "Unable to validate picklist values. Please try again."
         }
       }
 
@@ -316,12 +401,13 @@ export async function POST(request: NextRequest) {
           productCode,
           productNameHouse,
           productNameDistributor: getOptionalString((payload as any).productNameDistributor),
-          productFamilyHouse: getOptionalString((payload as any).productFamilyHouse),
-          productSubtypeHouse: getOptionalString((payload as any).productSubtypeHouse),
+          productFamilyHouse,
+          productSubtypeHouse,
           productNameVendor: getOptionalString((payload as any).productNameVendor),
-          productFamilyVendor: getOptionalString((payload as any).productFamilyVendor),
-          productSubtypeVendor: getOptionalString((payload as any).productSubtypeVendor),
-          distributorProductSubtype: getOptionalString((payload as any).distributorProductSubtype),
+          productFamilyVendor,
+          productSubtypeVendor,
+          distributorProductFamily,
+          distributorProductSubtype,
           partNumberHouse: getOptionalString((payload as any).partNumberHouse),
           productDescriptionVendor: getOptionalString((payload as any).productDescriptionVendor),
           description: getOptionalString((payload as any).description),

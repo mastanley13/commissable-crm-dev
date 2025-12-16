@@ -52,6 +52,7 @@ model Tenant {
   systemSettings          SystemSetting[]
   tablePreferences        TablePreference[]
   tickets                 Ticket[]
+  commissionPayouts        CommissionPayout[]
   users                   User[]
   sessions                UserSession[]
 }
@@ -149,6 +150,8 @@ model User {
   productsUpdated             Product[]                @relation("ProductUpdatedBy")
   reconciliationsHandled      Reconciliation[]         @relation("ReconciliationUser")
   reconciliationTemplates     ReconciliationTemplate[]
+  commissionPayoutsCreated    CommissionPayout[]        @relation("CommissionPayoutCreatedBy")
+  commissionPayoutsUpdated    CommissionPayout[]        @relation("CommissionPayoutUpdatedBy")
   revenueSchedulesCreated     RevenueSchedule[]        @relation("RevenueScheduleCreatedBy")
   revenueSchedulesUpdated     RevenueSchedule[]        @relation("RevenueScheduleUpdatedBy")
   roleGrants                  RolePermission[]         @relation("RolePermissionGrantedBy")
@@ -671,6 +674,7 @@ model RevenueSchedule {
   updatedBy                  User?                 @relation("RevenueScheduleUpdatedBy", fields: [updatedById], references: [id])
   vendor                     Account?              @relation("RevenueScheduleVendor", fields: [vendorAccountId], references: [id])
   tickets                    Ticket[]
+  commissionPayouts          CommissionPayout[]
   depositLineMatches         DepositLineMatch[]
   primaryDepositLineItems    DepositLineItem[]     @relation("PrimaryScheduleForDepositLine")
 
@@ -1003,6 +1007,30 @@ model Ticket {
   @@index([tenantId, assignedToId])
 }
 
+model CommissionPayout {
+  id                String                 @id @default(uuid()) @db.Uuid
+  tenantId          String                 @db.Uuid
+  revenueScheduleId String                 @db.Uuid
+  splitType         CommissionPayoutSplitType
+  status            CommissionPayoutStatus @default(Posted)
+  amount            Decimal                @db.Decimal(16, 2)
+  paidAt            DateTime               @default(now())
+  reference         String?
+  notes             String?
+  createdById       String?                @db.Uuid
+  updatedById       String?                @db.Uuid
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+
+  revenueSchedule   RevenueSchedule        @relation(fields: [revenueScheduleId], references: [id], onDelete: Cascade)
+  tenant            Tenant                 @relation(fields: [tenantId], references: [id])
+  createdBy         User?                  @relation("CommissionPayoutCreatedBy", fields: [createdById], references: [id])
+  updatedBy         User?                  @relation("CommissionPayoutUpdatedBy", fields: [updatedById], references: [id])
+
+  @@index([tenantId, revenueScheduleId])
+  @@index([tenantId, paidAt])
+}
+
 model TablePreference {
   id            String        @id @default(uuid()) @db.Uuid
   tenantId      String        @db.Uuid
@@ -1278,6 +1306,17 @@ enum DepositPaymentType {
   Check
   CreditCard
   Other
+}
+
+enum CommissionPayoutSplitType {
+  House
+  HouseRep
+  Subagent
+}
+
+enum CommissionPayoutStatus {
+  Posted
+  Voided
 }
 
 enum DepositLineItemStatus {

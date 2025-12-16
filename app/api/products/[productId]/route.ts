@@ -5,7 +5,7 @@ import { withAuth } from "@/lib/api-auth"
 import { hasAnyPermission } from "@/lib/auth"
 import { logProductAudit } from "@/lib/audit"
 import { ensureNoneDirectDistributorAccount } from "@/lib/none-direct-distributor"
-import { isRevenueTypeCode } from "@/lib/revenue-types"
+import { isEnabledRevenueType } from "@/lib/server-revenue-types"
 
 const PRODUCT_MUTATION_PERMISSIONS = [
   "products.update",
@@ -275,8 +275,12 @@ export async function PATCH(request: NextRequest, { params }: { params: { produc
       }
 
       if (typeof payload.revenueType === "string") {
-        if (!isRevenueTypeCode(payload.revenueType)) {
-          return NextResponse.json({ error: "Invalid revenue type" }, { status: 400 })
+        const allowed = await isEnabledRevenueType(req.user.tenantId, payload.revenueType)
+        if (!allowed) {
+          return NextResponse.json(
+            { error: "Select a valid Revenue Type managed in Data Settings." },
+            { status: 400 }
+          )
         }
         data.revenueType = payload.revenueType
         hasChanges = true
@@ -360,6 +364,102 @@ export async function PATCH(request: NextRequest, { params }: { params: { produc
             ;(data as Record<string, unknown>)[key] = raw.trim() || null
             hasChanges = true
           }
+        }
+      }
+
+      const PICKLIST_FIELDS = [
+        "productFamilyHouse",
+        "productSubtypeHouse",
+        "productFamilyVendor",
+        "productSubtypeVendor",
+        "distributorProductFamily",
+        "distributorProductSubtype",
+      ] as const
+
+      const touchesPicklists = PICKLIST_FIELDS.some((field) => field in payload)
+      if (touchesPicklists) {
+        try {
+          const [families, subtypes] = await Promise.all([
+            prisma.productFamily.findMany({
+              where: { tenantId, isActive: true },
+              select: { id: true, name: true }
+            }),
+            prisma.productSubtype.findMany({
+              where: { tenantId, isActive: true },
+              select: {
+                name: true,
+                productFamilyId: true,
+                family: { select: { name: true } }
+              }
+            })
+          ])
+
+          const familyNames = new Set(families.map((f) => f.name))
+          const familyIdByName = new Map(families.map((f) => [f.name, f.id] as const))
+          const subtypeByName = new Map(
+            subtypes.map((s) => [
+              s.name,
+              { productFamilyId: s.productFamilyId, familyName: s.family?.name ?? null }
+            ] as const)
+          )
+
+          const errors: Record<string, string> = {}
+
+          const getNext = (field: (typeof PICKLIST_FIELDS)[number]) => {
+            if (Object.prototype.hasOwnProperty.call(data, field)) {
+              return (data as any)[field] as string | null
+            }
+            return (existing as any)[field] as string | null
+          }
+
+          const validateFamily = (field: "productFamilyHouse" | "productFamilyVendor" | "distributorProductFamily") => {
+            if (!(field in payload)) return
+            const value = getNext(field)
+            if (!value) return
+            if (!familyNames.has(value)) {
+              errors[field] = "Select a valid value managed in Data Settings."
+            }
+          }
+
+          const validateSubtype = (
+            subtypeField: "productSubtypeHouse" | "productSubtypeVendor" | "distributorProductSubtype",
+            familyField: "productFamilyHouse" | "productFamilyVendor" | "distributorProductFamily"
+          ) => {
+            const subtypeTouched = subtypeField in payload
+            const familyTouched = familyField in payload
+            if (!subtypeTouched && !familyTouched) return
+
+            const subtypeValue = getNext(subtypeField)
+            const familyValue = getNext(familyField)
+            if (!subtypeValue) return
+
+            const record = subtypeByName.get(subtypeValue)
+            if (!record) {
+              errors[subtypeField] = "Select a valid value managed in Data Settings (or clear the field)."
+              return
+            }
+
+            if (!familyValue) return
+            const familyId = familyIdByName.get(familyValue) ?? null
+            if (record.productFamilyId && familyId && record.productFamilyId !== familyId) {
+              errors[subtypeField] = "Subtype does not belong to the selected Product Family."
+            }
+          }
+
+          validateFamily("productFamilyHouse")
+          validateFamily("productFamilyVendor")
+          validateFamily("distributorProductFamily")
+
+          validateSubtype("productSubtypeHouse", "productFamilyHouse")
+          validateSubtype("productSubtypeVendor", "productFamilyVendor")
+          validateSubtype("distributorProductSubtype", "distributorProductFamily")
+
+          if (Object.keys(errors).length > 0) {
+            return NextResponse.json({ error: "Validation failed", errors }, { status: 400 })
+          }
+        } catch (error) {
+          console.error("Failed to validate product picklists", error)
+          return NextResponse.json({ error: "Failed to validate picklist values" }, { status: 500 })
         }
       }
 

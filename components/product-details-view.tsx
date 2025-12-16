@@ -10,6 +10,8 @@ import { useEntityEditor, type EntityEditor } from "@/hooks/useEntityEditor"
 import { useAuth } from "@/lib/auth-context"
 import { getRevenueTypeLabel, REVENUE_TYPE_OPTIONS } from "@/lib/revenue-types"
 import { AuditHistoryTab } from "./audit-history-tab"
+import { PicklistCombobox } from "./picklist-combobox"
+import { SelectCombobox } from "./select-combobox"
 
 export interface ProductOpportunityUsage {
   id: string
@@ -130,6 +132,26 @@ interface ProductInlineForm {
   productDescriptionDistributor: string
   vendorAccountId: string
   distributorAccountId: string
+}
+
+type ProductFamilyPicklistOption = { id: string; name: string }
+type ProductSubtypePicklistOption = {
+  id: string
+  name: string
+  productFamilyId: string | null
+  familyName: string | null
+}
+
+function getAllowedSubtypesForFamilyName(
+  subtypes: ProductSubtypePicklistOption[],
+  familyIdByName: Map<string, string>,
+  familyName: string
+): string[] {
+  const trimmedFamily = familyName.trim()
+  const familyId = trimmedFamily.length > 0 ? (familyIdByName.get(trimmedFamily) ?? null) : null
+  return subtypes
+    .filter((subtype) => familyId == null || subtype.productFamilyId == null || subtype.productFamilyId === familyId)
+    .map((subtype) => subtype.name)
 }
 
 const TABS: { id: TabKey; label: string }[] = [
@@ -632,6 +654,10 @@ interface EditableProductHeaderProps {
   type AccountOption = { value: string; label: string; accountTypeName?: string }
   const [vendorOptions, setVendorOptions] = useState<AccountOption[]>([])
   const [distributorOptions, setDistributorOptions] = useState<AccountOption[]>([])
+  const [productFamilies, setProductFamilies] = useState<ProductFamilyPicklistOption[]>([])
+  const [productSubtypes, setProductSubtypes] = useState<ProductSubtypePicklistOption[]>([])
+  const [revenueTypeOptions, setRevenueTypeOptions] = useState<{ value: string; label: string }[]>(REVENUE_TYPE_OPTIONS)
+  const [picklistError, setPicklistError] = useState<string | null>(null)
 
   useEffect(() => {
     const fromWindow: { vendors?: AccountOption[]; distributors?: AccountOption[] } | undefined =
@@ -654,6 +680,106 @@ interface EditableProductHeaderProps {
     })()
   }, [])
 
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await fetch("/api/products/master-data", { cache: "no-store" })
+        if (!res.ok) throw new Error("Failed to load product picklists")
+        const payload = await res.json().catch(() => null)
+        if (cancelled) return
+
+        const families: ProductFamilyPicklistOption[] = Array.isArray(payload?.families)
+          ? payload.families
+              .map((f: any): ProductFamilyPicklistOption => ({
+                id: String(f.id),
+                name: String(f.name ?? "").trim()
+              }))
+              .filter((f: ProductFamilyPicklistOption) => f.name.length > 0)
+          : []
+
+        const subtypes: ProductSubtypePicklistOption[] = Array.isArray(payload?.subtypes)
+          ? payload.subtypes
+              .map((s: any): ProductSubtypePicklistOption => ({
+                id: String(s.id),
+                name: String(s.name ?? "").trim(),
+                productFamilyId: s.productFamilyId ? String(s.productFamilyId) : null,
+                familyName: s.familyName ? String(s.familyName) : null
+              }))
+              .filter((s: ProductSubtypePicklistOption) => s.name.length > 0)
+          : []
+
+        setProductFamilies(families)
+        setProductSubtypes(subtypes)
+        setPicklistError(null)
+      } catch (error) {
+        if (!cancelled) {
+          setPicklistError(error instanceof Error ? error.message : "Failed to load product picklists")
+          setProductFamilies([])
+          setProductSubtypes([])
+        }
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await fetch("/api/products/options", { cache: "no-store" })
+        if (!res.ok) throw new Error("Failed to load revenue types")
+        const payload = await res.json().catch(() => null)
+        if (cancelled) return
+        const types = Array.isArray(payload?.revenueTypes)
+          ? payload.revenueTypes
+          : Array.isArray(payload?.data?.revenueTypes)
+            ? payload.data.revenueTypes
+            : []
+        const normalized = types.map((t: any) => ({ value: String(t.value ?? t), label: String(t.label ?? t) }))
+        if (normalized.length > 0) {
+          setRevenueTypeOptions(normalized)
+        }
+      } catch {
+        // keep defaults
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const familyIdByName = useMemo(
+    () => new Map(productFamilies.map((family) => [family.name, family.id] as const)),
+    [productFamilies]
+  )
+
+  const familyPicklistNames = useMemo(() => productFamilies.map((f) => f.name), [productFamilies])
+
+  const houseFamilyValue = String(familyHouseField.value ?? "").trim()
+  const houseSubtypeValue = String(subtypeHouseField.value ?? "").trim()
+  const vendorFamilyValue = String(familyVendorField.value ?? "").trim()
+  const vendorSubtypeValue = String(subtypeVendorField.value ?? "").trim()
+  const distributorFamilyValue = String(familyDistributorField.value ?? "").trim()
+  const distributorSubtypeValue = String(subtypeDistributorField.value ?? "").trim()
+
+  const houseSubtypePicklistNames = useMemo(
+    () => getAllowedSubtypesForFamilyName(productSubtypes, familyIdByName, houseFamilyValue),
+    [productSubtypes, familyIdByName, houseFamilyValue]
+  )
+
+  const vendorSubtypePicklistNames = useMemo(
+    () => getAllowedSubtypesForFamilyName(productSubtypes, familyIdByName, vendorFamilyValue),
+    [productSubtypes, familyIdByName, vendorFamilyValue]
+  )
+
+  const distributorSubtypePicklistNames = useMemo(
+    () => getAllowedSubtypesForFamilyName(productSubtypes, familyIdByName, distributorFamilyValue),
+    [productSubtypes, familyIdByName, distributorFamilyValue]
+  )
+
   const isActive = Boolean(activeField.value)
   const productName = (nameField.value as string) || product.productNameVendor || "Product"
   const disableSave = editor.saving || !editor.isDirty
@@ -666,6 +792,12 @@ interface EditableProductHeaderProps {
       </div>
     </FieldRow>
   )
+
+  const picklistInputCls =
+    "w-full border-b-2 border-gray-300 bg-transparent px-0 py-1.5 text-xs focus:border-primary-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+  const dropdownCls =
+    "absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg"
+  const optionBtnCls = "w-full px-3 py-2 text-left text-sm hover:bg-primary-50"
 
   return (
     <div className="flex flex-col gap-0">
@@ -680,6 +812,11 @@ interface EditableProductHeaderProps {
                 <span className="text-xs font-semibold text-amber-600">Unsaved changes</span>
               ) : null}
             </div>
+            {picklistError ? (
+              <p className="text-[11px] text-rose-700">
+                Unable to load Product Family/Subtype picklists from Data Settings. Dropdowns may be incomplete.
+              </p>
+            ) : null}
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -748,22 +885,47 @@ interface EditableProductHeaderProps {
 
             {renderRow(
               "House - Product Family",
-              <EditableField.Input
-                value={(familyHouseField?.value as string) ?? ""}
-                onChange={familyHouseField.onChange}
+              <PicklistCombobox
+                value={houseFamilyValue}
+                options={familyPicklistNames}
+                placeholder="Search or pick a family"
+                disabled={familyPicklistNames.length === 0 && !houseFamilyValue}
+                inputClassName={picklistInputCls}
+                dropdownClassName={dropdownCls}
+                optionClassName={optionBtnCls}
                 onBlur={familyHouseField.onBlur}
-                placeholder="Enter family"
-              />
+                onChange={(nextFamily) => {
+                  editor.setField("productFamilyHouse", nextFamily)
+                  const allowedSubtypes = getAllowedSubtypesForFamilyName(
+                    productSubtypes,
+                    familyIdByName,
+                    nextFamily
+                  )
+                  if (houseSubtypeValue && !allowedSubtypes.includes(houseSubtypeValue)) {
+                    editor.setField("productSubtypeHouse", "")
+                  }
+                  if (!nextFamily) {
+                    editor.setField("productSubtypeHouse", "")
+                  }
+                }}
+              />,
+              editor.errors.productFamilyHouse
             )}
 
             {renderRow(
               "House - Product Subtype",
-              <EditableField.Input
-                value={(subtypeHouseField?.value as string) ?? ""}
-                onChange={subtypeHouseField.onChange}
+              <PicklistCombobox
+                value={houseSubtypeValue}
+                options={houseSubtypePicklistNames}
+                placeholder="Search or pick a subtype"
+                disabled={!houseFamilyValue || (houseSubtypePicklistNames.length === 0 && !houseSubtypeValue)}
+                inputClassName={picklistInputCls}
+                dropdownClassName={dropdownCls}
+                optionClassName={optionBtnCls}
                 onBlur={subtypeHouseField.onBlur}
-                placeholder="Enter house subtype"
-              />
+                onChange={(nextSubtype) => editor.setField("productSubtypeHouse", nextSubtype)}
+              />,
+              editor.errors.productSubtypeHouse
             )}
           </div>
 
@@ -799,18 +961,17 @@ interface EditableProductHeaderProps {
 
             {renderRow(
               "Revenue Type",
-              <EditableField.Select
+              <SelectCombobox
                 value={(revenueTypeField.value as string) ?? ""}
-                onChange={revenueTypeField.onChange}
+                options={revenueTypeOptions}
+                placeholder="Select revenue type"
+                disabled={revenueTypeOptions.length === 0}
+                inputClassName={picklistInputCls}
+                dropdownClassName={dropdownCls}
+                optionClassName={optionBtnCls}
                 onBlur={revenueTypeField.onBlur}
-              >
-                <option value="">Select revenue type</option>
-                {REVENUE_TYPE_OPTIONS.map(option => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </EditableField.Select>,
+                onChange={(next) => editor.setField("revenueType", next)}
+              />,
               editor.errors.revenueType
             )}
 
@@ -885,22 +1046,50 @@ interface EditableProductHeaderProps {
 
             {renderRow(
               "Distributor - Product Family",
-              <EditableField.Input
-                value={(familyDistributorField?.value as string) ?? ""}
-                onChange={familyDistributorField.onChange}
+              <PicklistCombobox
+                value={distributorFamilyValue}
+                options={familyPicklistNames}
+                placeholder="Search or pick a family"
+                disabled={familyPicklistNames.length === 0 && !distributorFamilyValue}
+                inputClassName={picklistInputCls}
+                dropdownClassName={dropdownCls}
+                optionClassName={optionBtnCls}
                 onBlur={familyDistributorField.onBlur}
-                placeholder="Enter distributor family"
-              />
+                onChange={(nextFamily) => {
+                  editor.setField("distributorProductFamily", nextFamily)
+                  const allowedSubtypes = getAllowedSubtypesForFamilyName(
+                    productSubtypes,
+                    familyIdByName,
+                    nextFamily
+                  )
+                  if (distributorSubtypeValue && !allowedSubtypes.includes(distributorSubtypeValue)) {
+                    editor.setField("distributorProductSubtype", "")
+                  }
+                  if (!nextFamily) {
+                    editor.setField("distributorProductSubtype", "")
+                  }
+                }}
+              />,
+              editor.errors.distributorProductFamily
             )}
 
               {renderRow(
                 "Distributor - Product Subtype",
-                <EditableField.Input
-                  value={(subtypeDistributorField?.value as string) ?? ""}
-                  onChange={subtypeDistributorField.onChange}
+                <PicklistCombobox
+                  value={distributorSubtypeValue}
+                  options={distributorSubtypePicklistNames}
+                  placeholder="Search or pick a subtype"
+                  disabled={
+                    !distributorFamilyValue ||
+                    (distributorSubtypePicklistNames.length === 0 && !distributorSubtypeValue)
+                  }
+                  inputClassName={picklistInputCls}
+                  dropdownClassName={dropdownCls}
+                  optionClassName={optionBtnCls}
                   onBlur={subtypeDistributorField.onBlur}
-                  placeholder="Enter distributor subtype"
-                />
+                  onChange={(nextSubtype) => editor.setField("distributorProductSubtype", nextSubtype)}
+                />,
+                editor.errors.distributorProductSubtype
               )}
 
             {renderRow(
@@ -944,22 +1133,47 @@ interface EditableProductHeaderProps {
 
             {renderRow(
               "Vendor - Product Family",
-              <EditableField.Input
-                value={(familyVendorField?.value as string) ?? ""}
-                onChange={familyVendorField.onChange}
+              <PicklistCombobox
+                value={vendorFamilyValue}
+                options={familyPicklistNames}
+                placeholder="Search or pick a family"
+                disabled={familyPicklistNames.length === 0 && !vendorFamilyValue}
+                inputClassName={picklistInputCls}
+                dropdownClassName={dropdownCls}
+                optionClassName={optionBtnCls}
                 onBlur={familyVendorField.onBlur}
-                placeholder="Enter vendor family"
-              />
+                onChange={(nextFamily) => {
+                  editor.setField("productFamilyVendor", nextFamily)
+                  const allowedSubtypes = getAllowedSubtypesForFamilyName(
+                    productSubtypes,
+                    familyIdByName,
+                    nextFamily
+                  )
+                  if (vendorSubtypeValue && !allowedSubtypes.includes(vendorSubtypeValue)) {
+                    editor.setField("productSubtypeVendor", "")
+                  }
+                  if (!nextFamily) {
+                    editor.setField("productSubtypeVendor", "")
+                  }
+                }}
+              />,
+              editor.errors.productFamilyVendor
             )}
 
             {renderRow(
               "Vendor - Product Subtype",
-              <EditableField.Input
-                value={(subtypeVendorField?.value as string) ?? ""}
-                onChange={subtypeVendorField.onChange}
+              <PicklistCombobox
+                value={vendorSubtypeValue}
+                options={vendorSubtypePicklistNames}
+                placeholder="Search or pick a subtype"
+                disabled={!vendorFamilyValue || (vendorSubtypePicklistNames.length === 0 && !vendorSubtypeValue)}
+                inputClassName={picklistInputCls}
+                dropdownClassName={dropdownCls}
+                optionClassName={optionBtnCls}
                 onBlur={subtypeVendorField.onBlur}
-                placeholder="Enter vendor subtype"
-              />
+                onChange={(nextSubtype) => editor.setField("productSubtypeVendor", nextSubtype)}
+              />,
+              editor.errors.productSubtypeVendor
             )}
 
             {renderRow(
