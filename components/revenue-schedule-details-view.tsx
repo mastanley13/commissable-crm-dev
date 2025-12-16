@@ -348,7 +348,7 @@ function FinancialSummarySection({
       <button
         type="button"
         onClick={() => setCollapsed(previous => !previous)}
-        className="flex w-full items-center px-3 py-1.5 text-left"
+        className="flex w-full items-center px-3 py-1 text-left"
       >
         <div className="flex items-center gap-2">
           <span className="mr-2 text-xs text-gray-500">
@@ -363,14 +363,14 @@ function FinancialSummarySection({
         </span>
       </button>
       {!collapsed ? (
-        <div className="grid grid-cols-1 gap-3 p-2 md:grid-cols-3">
+        <div className="grid grid-cols-1 gap-2 p-1.5 md:grid-cols-3">
           {/* Usage Summary */}
-          <div className="rounded-lg border border-gray-200 bg-gray-50 p-2 text-[11px] text-gray-900">
-            <h3 className="mb-1 border-b border-gray-300 pb-1 text-[11px] font-semibold text-blue-900">
+          <div className="rounded-lg border border-gray-200 bg-gray-50 p-1.5 text-[11px] text-gray-900">
+            <h3 className="mb-0.5 border-b border-gray-300 pb-0.5 text-[11px] font-semibold text-blue-900">
               Usage Summary
             </h3>
-            <div className="space-y-1">
-              <div className="flex items-center justify-between h-[18px]">
+            <div className="space-y-0.5">
+              <div className="flex items-center justify-between">
                 <span className="text-gray-600">Quantity</span>
                 {enableInlineEditing && quantityField ? (
                   <div className="flex flex-col items-end gap-0.5">
@@ -439,13 +439,13 @@ function FinancialSummarySection({
                   </span>
                 )}
               </div>
-              <div className="flex items-center justify-between rounded bg-gray-100 px-1 py-0.5">
+              <div className="flex items-center justify-between rounded bg-gray-100 -mx-1 px-1 py-0.5">
                 <span className="font-bold text-gray-700">Expected Usage Net</span>
                 <span className="font-bold text-gray-900">
                   = {renderValue(expectedUsageNet)}
                 </span>
               </div>
-              <div className="mt-1 flex items-center justify-between border-t border-gray-300 pt-1 h-[18px]">
+              <div className="mt-0.5 flex items-center justify-between border-t border-gray-300 pt-0.5">
                 <span className="text-blue-600">Actual Usage</span>
                 <button
                   type="button"
@@ -455,7 +455,7 @@ function FinancialSummarySection({
                   {renderValue(schedule.actualUsage)}
                 </button>
               </div>
-              <div className="mt-1 flex items-center justify-between rounded bg-gray-100 px-1 py-0.5 pt-1 border-t border-gray-300">
+              <div className="mt-0.5 flex items-center justify-start rounded bg-gray-100 -mx-1 px-1 py-0.5 pt-0.5 border-t border-gray-300">
                 <span className="font-bold text-gray-700">Usage Difference (+/-)</span>
                 <span className={cn("font-bold", usageDiffClass)}>
                   = {formatDiff(usageDifference)}
@@ -465,16 +465,16 @@ function FinancialSummarySection({
           </div>
 
           {/* Commission Summary */}
-          <div className="rounded-lg border border-gray-200 bg-gray-50 p-2 text-[11px] text-gray-900">
-            <h3 className="mb-1 border-b border-gray-300 pb-1 text-[11px] font-semibold text-blue-900">
+          <div className="rounded-lg border border-gray-200 bg-gray-50 p-1.5 text-[11px] text-gray-900">
+            <h3 className="mb-0.5 border-b border-gray-300 pb-0.5 text-[11px] font-semibold text-blue-900">
               Commission Summary
             </h3>
-            <div className="space-y-1">
+            <div className="space-y-0.5">
               <div className="flex items-center justify-between">
                 <span className="text-gray-600">Billing Month</span>
                 <span className="font-medium text-gray-900">{renderValue(schedule.billingMonth)}</span>
               </div>
-              <div className="flex items-center justify-between pt-1 mt-1 border-t border-gray-300">
+              <div className="flex items-center justify-between pt-0.5 mt-0.5 border-t border-gray-300">
                 <span className="text-gray-600">Expected Commission</span>
                 <span className="font-medium text-gray-900">{renderValue(commissionExpected)}</span>
               </div>
@@ -516,8 +516,10 @@ function FinancialSummarySection({
                   {renderValue(schedule.actualCommission)}
                 </button>
               </div>
-              <div className="h-4" />
-              <div className="mt-1 flex items-center justify-between rounded bg-gray-100 px-1 py-0.5 pt-1 border-t border-gray-300">
+              <div className="flex items-center justify-between h-2">
+                <span className="text-gray-600">&nbsp;</span>
+              </div>
+              <div className="mt-0.5 flex items-center justify-start rounded bg-gray-100 -mx-1 px-1 py-0.5 pt-0.5 border-t border-gray-300">
                 <span className="font-bold text-gray-700">Commission Difference</span>
                 <span className={cn("font-bold", commissionDiffClass)}>
                   = {formatDiff(commissionDifferenceNumber)}
@@ -527,8 +529,8 @@ function FinancialSummarySection({
           </div>
 
           {/* Splits */}
-          <div className="rounded-lg border border-gray-200 bg-gray-50 p-2 text-[11px] text-gray-900">
-            <div className="mb-1 flex items-center justify-between border-b border-gray-300 pb-1">
+          <div className="rounded-lg border border-gray-200 bg-gray-50 p-2 text-[11px] text-gray-900" style={{ height: "220px" }}>
+            <div className="mb-0.5 flex items-center justify-between border-b border-gray-300 pb-0.5">
               <h3 className="text-[11px] font-semibold text-blue-900">Splits</h3>
               <div className="flex items-center gap-1">
                 <button
@@ -557,7 +559,7 @@ function FinancialSummarySection({
                 </button>
               </div>
             </div>
-            <div className="space-y-1">
+            <div className="space-y-0.5">
               <div className="flex items-center justify-between">
                 <span className="text-gray-600">{splitMode === "percent" ? "House Split %" : "House Split"}</span>
                 {enableInlineEditing && splitMode === "percent" && houseSplitField ? (
@@ -619,13 +621,13 @@ function FinancialSummarySection({
                   </span>
                 )}
               </div>
-              <div className="flex items-center justify-between rounded bg-gray-100 px-1 py-0.5">
+              <div className="flex items-center justify-between rounded bg-gray-100 -mx-1 px-1 py-0.5">
                 <span className="font-bold text-gray-700">{splitMode === "percent" ? "Total Split %" : "Total Split"}</span>
                 <span className="font-bold text-gray-900">
                   = {renderValue(splitsDisplay.total)}
                 </span>
               </div>
-              <div className="mt-1 flex items-center justify-between border-t border-gray-300 pt-1">
+              <div className="mt-0.5 flex items-center justify-between border-t border-gray-300 pt-0.5">
                 <span className="text-gray-600">Expected Rate %</span>
                 {enableInlineEditing && expectedRateField ? (
                   <div className="flex flex-col items-end gap-0.5">
@@ -654,7 +656,7 @@ function FinancialSummarySection({
                   {renderValue(schedule.actualCommissionRatePercent)}
                 </button>
               </div>
-              <div className="mt-1 flex items-center justify-between rounded bg-gray-100 px-1 py-0.5 pt-1 border-t border-gray-300">
+              <div className="mt-0.5 flex items-center justify-start rounded bg-gray-100 -mx-1 px-1 py-0.5 pt-0.5 border-t border-gray-300">
                 <span className="font-bold text-gray-700">Commission Rate Difference</span>
                 <span className={cn("font-bold", commissionRateDiffClass)}>
                   = {formatPercentDiff(commissionRateDifferenceNumber)}
@@ -1065,8 +1067,7 @@ export function RevenueScheduleDetailsView({
         <span className="block truncate" title={schedule.shippingAddress}>
           {schedule.shippingAddress}
         </span>
-      ) : undefined,
-      fullWidth: true
+      ) : undefined
     },
     {
       fieldId: "04.01.013",
@@ -1075,8 +1076,7 @@ export function RevenueScheduleDetailsView({
         <span className="block truncate" title={schedule.billingAddress}>
           {schedule.billingAddress}
         </span>
-      ) : undefined,
-      fullWidth: true
+      ) : undefined
     }
   ]
 

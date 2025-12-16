@@ -32,3 +32,13 @@ export function isRevenueScheduleDetailRedesignEnabled(
   return envFlag
 }
 
+/**
+ * Feature flag: switches the primary navigation from the left sidebar
+ * to a horizontal bar at the top of the page.
+ *
+ * - Controlled by env var NEXT_PUBLIC_TOP_NAV.
+ * - Default is off (sidebar layout).
+ */
+export function isTopNavigationExperimentEnabled(): boolean {
+  return parseBooleanFlag(process.env.NEXT_PUBLIC_TOP_NAV ?? "")
+}

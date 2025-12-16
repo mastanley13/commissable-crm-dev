@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
 import { withPermissions } from "@/lib/api-auth"
-import { RevenueScheduleStatus } from "@prisma/client"
+import { AuditAction, RevenueScheduleStatus } from "@prisma/client"
+import { logRevenueScheduleAudit } from "@/lib/audit"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -31,6 +32,7 @@ export async function POST(request: NextRequest) {
       }
 
       const tenantId = req.user.tenantId
+      const reasonText = typeof body.reason === "string" ? body.reason.trim() : ""
 
       const schedules = await prisma.revenueSchedule.findMany({
         where: { id: { in: scheduleIds }, tenantId },
@@ -41,7 +43,8 @@ export async function POST(request: NextRequest) {
           actualUsage: true,
           actualUsageAdjustment: true,
           actualCommission: true,
-          actualCommissionAdjustment: true
+          actualCommissionAdjustment: true,
+          notes: true
         }
       })
 
@@ -91,7 +94,13 @@ export async function POST(request: NextRequest) {
         }
 
         try {
-          await prisma.revenueSchedule.update({
+          const previousValues: Record<string, unknown> = {
+            scheduleNumber: schedule.scheduleNumber ?? null,
+            status: schedule.status,
+            notes: schedule.notes ?? null
+          }
+
+          const updatedSchedule = await prisma.revenueSchedule.update({
             where: { id: schedule.id },
             data: {
               status: RevenueScheduleStatus.Reconciled,
@@ -99,6 +108,21 @@ export async function POST(request: NextRequest) {
             }
           })
           updated += 1
+
+          await logRevenueScheduleAudit(
+            AuditAction.Update,
+            schedule.id,
+            req.user.id,
+            tenantId,
+            request,
+            previousValues,
+            {
+              scheduleNumber: schedule.scheduleNumber ?? null,
+              status: updatedSchedule.status,
+              notes: schedule.notes ?? null,
+              deactivationReason: reasonText || null
+            }
+          )
         } catch (error) {
           failed.push(schedule.id)
           errors[schedule.id] =
@@ -113,4 +137,3 @@ export async function POST(request: NextRequest) {
     }
   })
 }
-

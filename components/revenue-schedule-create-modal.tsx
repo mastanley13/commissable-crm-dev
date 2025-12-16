@@ -745,7 +745,7 @@ export function RevenueScheduleCreateModal({
         throw new Error(message)
       }
 
-      showSuccess("Commission splits updated", "Splits will update for future schedules.")
+      showSuccess("Commission splits updated", "Selected schedules now use the updated splits.")
       await onSuccess?.()
       onClose()
     } catch (err) {
@@ -771,12 +771,17 @@ export function RevenueScheduleCreateModal({
     setSubmitting(true)
     setError(null)
     try {
-      if (statusForm.action === "delete") {
-        const results = await Promise.allSettled(
-          ids.map(async id => {
-            const response = await fetch(`/api/revenue-schedules/${encodeURIComponent(id)}`, {
-              method: "DELETE"
-            })
+        if (statusForm.action === "delete") {
+          const results = await Promise.allSettled(
+            ids.map(async id => {
+              const deleteUrl = new URL(
+                `/api/revenue-schedules/${encodeURIComponent(id)}`,
+                window.location.origin
+              )
+              if (statusForm.reason.trim()) {
+                deleteUrl.searchParams.set("reason", statusForm.reason.trim())
+              }
+              const response = await fetch(deleteUrl.toString(), { method: "DELETE" })
 
             if (!response.ok) {
               const body = await response.json().catch(() => null)
@@ -905,6 +910,166 @@ export function RevenueScheduleCreateModal({
     statusForm.scope
   ])
 
+  const submitBulkRateUpdate = useCallback(async () => {
+    if (!canSubmitRates) return
+
+    const payload = {
+      scheduleIds: rateForm.selectedIds,
+      effectiveDate: rateForm.effectiveDate,
+      ratePercent: parseNumber(rateForm.ratePercent),
+      scope: rateForm.scope
+    }
+
+    setSubmitting(true)
+    setError(null)
+    try {
+      const response = await fetch("/api/revenue-schedules/bulk/update-rate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      })
+
+      const body = await response.json().catch(() => null)
+
+      if (!response.ok) {
+        const message = body?.error ?? "Unable to update commission rates"
+        throw new Error(message)
+      }
+
+      const updatedCount: number =
+        typeof body?.updated === "number" ? body.updated : rateForm.selectedIds.length
+      const failedIds: string[] = Array.isArray(body?.failed) ? body.failed : []
+      const errors = (body?.errors ?? null) as Record<string, string> | null
+
+      if (updatedCount === 0) {
+        const message =
+          failedIds.length > 0
+            ? "No commission rates were updated. Some schedules may be ineligible for changes."
+            : "No commission rates were updated."
+        setError(message)
+        showError("Rate update failed", message)
+        return
+      }
+
+      if (failedIds.length > 0 && errors && typeof errors === "object") {
+        const detail = failedIds
+          .map(id => errors[id])
+          .filter(Boolean)
+          .join("; ")
+        if (detail) {
+          setError(detail)
+          showError("Some commission rates could not be updated", detail)
+        }
+      }
+
+      showSuccess(
+        `Commission rates updated for ${updatedCount} product${updatedCount === 1 ? "" : "s"}.`,
+        "Rate changes will apply going forward."
+      )
+      await onSuccess?.()
+      onClose()
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unable to update commission rates"
+      setError(message)
+      showError("Rate update failed", message)
+    } finally {
+      setSubmitting(false)
+    }
+  }, [
+    canSubmitRates,
+    onClose,
+    onSuccess,
+    rateForm.effectiveDate,
+    rateForm.ratePercent,
+    rateForm.scope,
+    rateForm.selectedIds,
+    showError,
+    showSuccess
+  ])
+
+  const submitBulkSplitUpdate = useCallback(async () => {
+    if (!canSubmitSplits) return
+
+    const payload = {
+      scheduleIds: splitForm.selectedIds,
+      effectiveDate: splitForm.effectiveDate,
+      splits: {
+        house: parseNumber(splitForm.house),
+        houseRep: parseNumber(splitForm.houseRep),
+        subagent: parseNumber(splitForm.subagent)
+      },
+      scope: splitForm.scope
+    }
+
+    setSubmitting(true)
+    setError(null)
+    try {
+      const response = await fetch("/api/revenue-schedules/bulk/update-split", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      })
+
+      const body = await response.json().catch(() => null)
+
+      if (!response.ok) {
+        const message = body?.error ?? "Unable to update commission splits"
+        throw new Error(message)
+      }
+
+      const updatedCount: number =
+        typeof body?.updated === "number" ? body.updated : splitForm.selectedIds.length
+      const failedIds: string[] = Array.isArray(body?.failed) ? body.failed : []
+      const errors = (body?.errors ?? null) as Record<string, string> | null
+
+      if (updatedCount === 0) {
+        const message =
+          failedIds.length > 0
+            ? "No commission splits were updated. Some opportunities may be ineligible for changes."
+            : "No commission splits were updated."
+        setError(message)
+        showError("Split update failed", message)
+        return
+      }
+
+      if (failedIds.length > 0 && errors && typeof errors === "object") {
+        const detail = failedIds
+          .map(id => errors[id])
+          .filter(Boolean)
+          .join("; ")
+        if (detail) {
+          setError(detail)
+          showError("Some commission splits could not be updated", detail)
+        }
+      }
+
+      showSuccess(
+        `Commission splits updated for ${updatedCount} opportunit${updatedCount === 1 ? "y" : "ies"}.`,
+        "Selected schedules now use the updated splits."
+      )
+      await onSuccess?.()
+      onClose()
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unable to update commission splits"
+      setError(message)
+      showError("Split update failed", message)
+    } finally {
+      setSubmitting(false)
+    }
+  }, [
+    canSubmitSplits,
+    onClose,
+    onSuccess,
+    showError,
+    showSuccess,
+    splitForm.effectiveDate,
+    splitForm.house,
+    splitForm.houseRep,
+    splitForm.scope,
+    splitForm.selectedIds,
+    splitForm.subagent
+  ])
+
   const handleUndoSubmit = useCallback(async () => {
     if (!canSubmitUndo) return
 
@@ -921,13 +1086,43 @@ export function RevenueScheduleCreateModal({
         body: JSON.stringify(payload)
       })
 
+      const body = await response.json().catch(() => null)
+
       if (!response.ok) {
-        const body = await response.json().catch(() => null)
         const message = body?.error ?? "Unable to undo deposit matches"
         throw new Error(message)
       }
 
-      showSuccess("Deposit matches undone", "Selected deposit matches were reversed.")
+      const updatedCount: number =
+        typeof body?.updated === "number" ? body.updated : depositSelection.length
+      const failedIds: string[] = Array.isArray(body?.failed) ? body.failed : []
+      const errors = (body?.errors ?? null) as Record<string, string> | null
+
+      if (updatedCount === 0) {
+        const message =
+          failedIds.length > 0
+            ? "No deposit matches were undone. Some lines may be ineligible for changes."
+            : "No deposit matches were undone."
+        setError(message)
+        showError("Undo match failed", message)
+        return
+      }
+
+      if (failedIds.length > 0 && errors && typeof errors === "object") {
+        const detail = failedIds
+          .map(id => errors[id])
+          .filter(Boolean)
+          .join("; ")
+        if (detail) {
+          setError(detail)
+          showError("Some deposit matches could not be undone", detail)
+        }
+      }
+
+      showSuccess(
+        `Deposit matches undone for ${updatedCount} line${updatedCount === 1 ? "" : "s"}.`,
+        "Selected deposit matches were reversed."
+      )
       await onSuccess?.()
       onClose()
     } catch (err) {
@@ -943,16 +1138,23 @@ export function RevenueScheduleCreateModal({
     if (activeTab === "create") {
       handleCreateSubmit()
     } else if (activeTab === "rates") {
-      handleRateSubmit()
+      submitBulkRateUpdate()
     } else if (activeTab === "split") {
-      handleSplitSubmit()
+      submitBulkSplitUpdate()
     } else if (activeTab === "status") {
       if (!canSubmitStatus) return
       setShowStatusConfirm(true)
     } else {
       handleUndoSubmit()
     }
-  }, [activeTab, canSubmitStatus, handleCreateSubmit, handleRateSubmit, handleSplitSubmit, handleUndoSubmit])
+  }, [
+    activeTab,
+    canSubmitStatus,
+    handleCreateSubmit,
+    handleUndoSubmit,
+    submitBulkRateUpdate,
+    submitBulkSplitUpdate
+  ])
 
   const handleStatusConfirm = useCallback(() => {
     setShowStatusConfirm(false)
@@ -972,7 +1174,7 @@ export function RevenueScheduleCreateModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-      <div className="flex max-h-[90vh] w-full max-w-5xl flex-col rounded-2xl bg-white shadow-xl">
+      <div className="flex h-[900px] w-full max-w-[1024px] flex-col rounded-2xl bg-white shadow-xl">
         <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
           <div>
             <p className="text-xs font-semibold uppercase text-primary-600">
@@ -1399,24 +1601,7 @@ export function RevenueScheduleCreateModal({
               <div>
                 <label className={labelCls}>Apply To</label>
                 <div className="flex flex-wrap gap-4 text-xs text-gray-600">
-                  <label className="inline-flex items-center gap-2">
-                    <input
-                      type="radio"
-                      name="rate-scope"
-                      checked={rateForm.scope === "selection"}
-                      onChange={() => setRateForm(prev => ({ ...prev, scope: "selection" }))}
-                    />
-                    Selected schedules only
-                  </label>
-                  <label className="inline-flex items-center gap-2">
-                    <input
-                      type="radio"
-                      name="rate-scope"
-                      checked={rateForm.scope === "series"}
-                      onChange={() => setRateForm(prev => ({ ...prev, scope: "series" }))}
-                    />
-                    Entire series from effective date forward
-                  </label>
+                  <span>Selected schedules (updates underlying product rate).</span>
                 </div>
               </div>
             </div>
@@ -1474,24 +1659,7 @@ export function RevenueScheduleCreateModal({
                 <div>
                   <label className={labelCls}>Apply To</label>
                   <div className="flex flex-wrap gap-4 text-xs text-gray-600">
-                    <label className="inline-flex items-center gap-2">
-                      <input
-                        type="radio"
-                        name="split-scope"
-                        checked={splitForm.scope === "selection"}
-                        onChange={() => setSplitForm(prev => ({ ...prev, scope: "selection" }))}
-                      />
-                      Selected schedules only
-                    </label>
-                    <label className="inline-flex items-center gap-2">
-                      <input
-                        type="radio"
-                        name="split-scope"
-                        checked={splitForm.scope === "series"}
-                        onChange={() => setSplitForm(prev => ({ ...prev, scope: "series" }))}
-                      />
-                      Entire series from effective date forward
-                    </label>
+                    <span>Selected schedules (overrides the opportunity&apos;s default splits for these schedules only).</span>
                   </div>
                 </div>
               </div>
@@ -1668,7 +1836,10 @@ export function RevenueScheduleCreateModal({
             <div className="space-y-5">
               <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700">
                 <p>Undo a deposit match to reopen the schedule for reconciliation.</p>
-                <p className="mt-2 text-xs text-gray-500">Selected matches will be detached. Balances return to outstanding so they can be re-matched.</p>
+                <p className="mt-2 text-xs text-gray-500">
+                  Selected deposit lines will be reset and any matches on those lines will be removed so balances return
+                  to outstanding and can be re-matched.
+                </p>
               </div>
 
               {depositLoading ? (

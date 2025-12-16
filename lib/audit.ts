@@ -263,6 +263,36 @@ export async function logContactAudit(
 }
 
 /**
+ * Audit logging for revenue schedule operations
+ */
+export async function logRevenueScheduleAudit(
+  action: AuditAction,
+  scheduleId: string,
+  userId: string,
+  tenantId: string,
+  request: Request,
+  previousValues?: Record<string, unknown>,
+  newValues?: Record<string, unknown>
+): Promise<void> {
+  const changedFields = previousValues && newValues
+    ? getChangedFields(previousValues, newValues)
+    : undefined
+
+  await logAudit({
+    userId,
+    tenantId,
+    action,
+    entityName: 'RevenueSchedule',
+    entityId: scheduleId,
+    changedFields,
+    previousValues,
+    newValues,
+    ipAddress: getClientIP(request),
+    userAgent: getUserAgent(request)
+  })
+}
+
+/**
  * Audit logging for activity operations
  */
 export async function logActivityAudit(

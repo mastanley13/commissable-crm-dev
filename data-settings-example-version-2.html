@@ -681,7 +681,7 @@
             <div>
               <h3 class="dd-section-title">Monthly Recurring Charges (MRC)</h3>
               <p class="dd-section-hint">
-                Used for ongoing services where commissions are expected on a periodic basis.
+                These are used for ongoing services where commissions are expected on a periodic basis.
               </p>
               <table class="dd-table">
                 <thead>
@@ -700,7 +700,7 @@
                     <td><span class="dd-tag dd-tag-mrc">3rd‑party billed</span></td>
                     <td>
                       Product billed directly to the client by a third‑party vendor (e.g., AT&amp;T, Verizon).
-                      Agency tracks expected usage and commission received.
+                      The agency tracks the "expected" usage to calculate the commission, but only tracks the commission received for IRS revenue purposes, as the agency is not the billing entity.
                     </td>
                     <td><input type="radio" name="mrc-default"></td>
                   </tr>
@@ -709,7 +709,7 @@
                     <td>MRC – Agency</td>
                     <td><span class="dd-tag dd-tag-mrc">Agency billed</span></td>
                     <td>
-                      Agency bills the client directly. System tracks full revenue amount (billing) and profit/commission.
+                      This applies when the agency bills the client directly. In this scenario, the system must track the full revenue amount (billing) in addition to the profit/commission for tax and historical purposes.
                     </td>
                     <td><input type="radio" name="mrc-default" checked></td>
                   </tr>

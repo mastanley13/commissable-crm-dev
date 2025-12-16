@@ -198,46 +198,89 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
 
   const runProductDedupe = useCallback(async (): Promise<{ exact: ProductOption | null; likely: ProductOption[] }> => {
     // Use the same effective House name that will be stored on the Product.
-    // If the user hasn't entered a House name, fall back to the vendor name,
-    // but do NOT dedupe on the generic "New Product" placeholder.
+    // If the user hasn't entered a House name, fall back to the vendor name.
     const rawName = (productNameHouse.trim() || productNameVendor.trim()).slice(0, 120)
     const name = rawName.trim()
-    if (!name) {
+    const code = productCode.trim()
+
+    if (!name && !code) {
       return { exact: null, likely: [] }
     }
 
-    const params = new URLSearchParams({ page: '1', pageSize: '25' })
-    const filters: Array<{ columnId: string; value: string }> = [{ columnId: 'productNameHouse', value: name }]
-    params.set('filters', JSON.stringify(filters))
+    const seen = new Set<string>()
+    const collected: ProductOption[] = []
 
-    const res = await fetch(`/api/products?${params.toString()}`, { cache: 'no-store' })
-    if (!res.ok) return { exact: null, likely: [] }
-    const payload = await res.json().catch(() => null)
-    const items = Array.isArray(payload?.data) ? payload.data : []
-    const mapped: ProductOption[] = items.map((it: any) => ({
-      id: it.id,
-      name: it.productNameHouse || it.productNameVendor || 'Product',
-      vendorName: it.vendorName,
-      distributorName: it.distributorName,
-      vendorId: it.vendorId ?? null,
-      distributorId: it.distributorId ?? null,
-      productCode: it.partNumberVendor,
-      revenueType: it.revenueType,
-      priceEach: typeof it.priceEach === 'number' ? it.priceEach : null,
-      commissionPercent: typeof it.commissionPercent === 'number' ? it.commissionPercent : null,
-      productFamilyVendor: it.productFamilyVendor ?? null,
-      productSubtypeVendor: it.productSubtypeVendor ?? null,
-      productNameVendor: it.productNameVendor ?? null,
-      productNameHouse: it.productNameHouse ?? null,
-      productFamilyHouse: it.productFamilyHouse ?? null,
-      productSubtypeHouse: it.productSubtypeHouse ?? null
-    }))
+    const fetchByQuery = async (query: string) => {
+      const q = query.trim()
+      if (!q) return
 
+      const params = new URLSearchParams({ page: "1", pageSize: "25" })
+      params.set("q", q)
+
+      const res = await fetch(`/api/products?${params.toString()}`, { cache: "no-store" })
+      if (!res.ok) return
+      const payload = await res.json().catch(() => null)
+      const items = Array.isArray(payload?.data) ? payload.data : []
+      items.forEach((it: any) => {
+        const id = String(it.id)
+        if (seen.has(id)) return
+        seen.add(id)
+        collected.push({
+          id: it.id,
+          name: it.productNameHouse || it.productNameVendor || "Product",
+          vendorName: it.vendorName,
+          distributorName: it.distributorName,
+          vendorId: it.vendorId ?? null,
+          distributorId: it.distributorId ?? null,
+          productCode: it.partNumberVendor ?? it.productCode ?? null,
+          revenueType: it.revenueType,
+          priceEach: typeof it.priceEach === "number" ? it.priceEach : null,
+          commissionPercent: typeof it.commissionPercent === "number" ? it.commissionPercent : null,
+          productFamilyVendor: it.productFamilyVendor ?? null,
+          productSubtypeVendor: it.productSubtypeVendor ?? null,
+          productNameVendor: it.productNameVendor ?? null,
+          productNameHouse: it.productNameHouse ?? null,
+          productFamilyHouse: it.productFamilyHouse ?? null,
+          productSubtypeHouse: it.productSubtypeHouse ?? null,
+        })
+      })
+    }
+
+    if (name) {
+      await fetchByQuery(name)
+    }
+    if (code) {
+      await fetchByQuery(code)
+    }
+
+    if (collected.length === 0) {
+      return { exact: null, likely: [] }
+    }
+
+    const normalizedCode = code.toLowerCase()
     const normalizedName = name.toLowerCase()
-    const exact = mapped.find(p => p.productNameHouse && p.productNameHouse.toLowerCase() === normalizedName) ?? null
-    const likely = mapped.filter(p => p.id !== exact?.id)
+
+    let exact: ProductOption | null = null
+
+    if (normalizedCode) {
+      exact =
+        collected.find(
+          (p) => p.productCode && p.productCode.toLowerCase() === normalizedCode
+        ) ?? null
+    }
+
+    if (!exact && normalizedName) {
+      exact =
+        collected.find((p) => {
+          const house = (p.productNameHouse ?? "").toLowerCase()
+          const vendor = (p.productNameVendor ?? "").toLowerCase()
+          return house === normalizedName || vendor === normalizedName
+        }) ?? null
+    }
+
+    const likely = collected.filter((p) => p.id !== exact?.id)
     return { exact, likely }
-  }, [productNameHouse, productNameVendor])
+  }, [productNameHouse, productNameVendor, productCode])
 
   const switchToCatalogWithProduct = useCallback((product: ProductOption) => {
     ensureProductInOptions(product)
@@ -446,11 +489,17 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
       setDedupeLikelyMatches(likely)
 
       if (exact) {
-        showError('Existing product found', 'Use the existing product instead to avoid duplicates.')
+        showError(
+          'Existing product found',
+          'We found a product with the same Product Name or Vendor Part Number. Use the existing product from the catalog or cancel to avoid duplicates.'
+        )
         return
       }
       if (likely.length > 0 && !skipLikelyCheck) {
-        showError('Possible duplicates found', 'Review the matches or proceed anyway.')
+        showError(
+          'Possible duplicates found',
+          'We found similar products based on Product Name or Vendor Part Number. Review the matches, choose one to use, or cancel.'
+        )
         return
       }
 
@@ -644,7 +693,7 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 px-4">
-      <div className="w-full max-w-3xl overflow-hidden rounded-2xl bg-white shadow-xl">
+      <div className="w-full max-w-5xl h-[900px] overflow-hidden rounded-2xl bg-white shadow-xl">
         <div className="flex items-center justify-between border-b border-gray-200 px-6 py-3">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-primary-600">{activeTab === "add" ? "Add Line Item" : "Create Product"}</p>
@@ -967,7 +1016,9 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
             {dedupeExactMatch && (
               <div className="mb-4 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800">
                 <div className="font-semibold">Existing product found</div>
-                <div className="mt-1">We found a product with the same House name. Use the existing product instead to avoid duplicates.</div>
+                <div className="mt-1">
+                  We found a product with the same Product Name or Vendor Part Number. Use the existing product from the catalog to avoid duplicates, or cancel.
+                </div>
                 <div className="mt-2 flex gap-2">
                   <button type="button" className="rounded-md bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-700" onClick={()=>switchToCatalogWithProduct(dedupeExactMatch)} disabled={loading}>
                     Use existing product
@@ -981,7 +1032,9 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
             {dedupeLikelyMatches.length > 0 && (
               <div className="mb-4 rounded-md border border-yellow-200 bg-yellow-50 p-3 text-sm text-yellow-800">
                 <div className="font-semibold">Possible duplicates</div>
-                <div className="mt-1">We found similar products. Choose one to use, or proceed anyway.</div>
+                <div className="mt-1">
+                  We found similar products based on Product Name or Vendor Part Number. Choose an existing product to use, continue anyway, or cancel.
+                </div>
                 <div className="mt-2 space-y-2">
                   {dedupeLikelyMatches.map(match => (
                     <div key={match.id} className="flex flex-col rounded-md border border-yellow-100 bg-white/60 px-3 py-2 text-xs text-gray-800">

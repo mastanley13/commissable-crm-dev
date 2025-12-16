@@ -210,7 +210,7 @@ export function Topbar() {
   }, [pathname])
 
   return (
-    <div className="relative z-40 bg-white border-b-2 border-blue-900 px-4 py-1.5">
+    <div className="relative z-40 bg-white border-b-2 border-blue-900 px-4 py-0.5">
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex items-center gap-2">
           <button

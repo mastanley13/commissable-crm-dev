@@ -104,10 +104,31 @@ export async function GET(request: NextRequest) {
             tenantId,
             ...(includeInactive ? {} : { isActive: true })
           },
-          orderBy: { displayOrder: "asc" }
+          orderBy: { displayOrder: "asc" },
+          include: {
+            _count: {
+              select: {
+                subtypes: true
+              }
+            }
+          }
         })
 
-        return NextResponse.json({ data: families })
+        const data = families.map(family => ({
+          id: family.id,
+          tenantId: family.tenantId,
+          code: family.code,
+          name: family.name,
+          description: family.description,
+          isActive: family.isActive,
+          isSystem: family.isSystem,
+          displayOrder: family.displayOrder,
+          createdAt: family.createdAt,
+          updatedAt: family.updatedAt,
+          usageCount: family._count?.subtypes ?? 0
+        }))
+
+        return NextResponse.json({ data })
       } catch (error) {
         console.error("Failed to load product families", error)
         return createErrorResponse("Failed to load product family types", 500)
@@ -194,6 +215,31 @@ export async function PATCH(request: NextRequest) {
           }
         }
 
+        if (typeof body.code === "string") {
+          const rawCode = body.code.trim()
+          if (rawCode.length > 0) {
+            const normalizedCode = normalizeCode(rawCode)
+            if (normalizedCode && normalizedCode !== existing.code) {
+              const conflicting = await prisma.productFamily.findFirst({
+                where: {
+                  tenantId,
+                  code: normalizedCode,
+                  NOT: { id: existing.id }
+                }
+              })
+
+              if (conflicting) {
+                return createErrorResponse(
+                  "Another product family already uses this code",
+                  400
+                )
+              }
+
+              data.code = normalizedCode
+            }
+          }
+        }
+
         if (typeof body.description === "string") {
           const description = body.description.trim()
           data.description = description.length > 0 ? description : null
@@ -206,8 +252,6 @@ export async function PATCH(request: NextRequest) {
         if (typeof body.displayOrder === "number") {
           data.displayOrder = body.displayOrder
         }
-
-        // Do not allow changing code or isSystem via this endpoint
 
         if (Object.keys(data).length === 0) {
           return NextResponse.json({ data: existing })
@@ -222,6 +266,68 @@ export async function PATCH(request: NextRequest) {
       } catch (error) {
         console.error("Failed to update product family", error)
         return createErrorResponse("Failed to update product family type", 500)
+      }
+    }
+  )
+}
+
+export async function DELETE(request: NextRequest) {
+  return withPermissions(
+    request,
+    MANAGE_PERMISSIONS,
+    async (req) => {
+      const tenantId = req.user.tenantId
+
+      let body: any = null
+      try {
+        body = await request.json()
+      } catch {
+        // Ignore parse errors and handle as missing id below
+      }
+
+      const id = body && typeof body.id === "string" ? body.id : null
+      if (!id) {
+        return createErrorResponse("Product family id is required", 400)
+      }
+
+      try {
+        const existing = await prisma.productFamily.findFirst({
+          where: { id, tenantId },
+          include: {
+            _count: {
+              select: {
+                subtypes: true
+              }
+            }
+          }
+        })
+
+        if (!existing) {
+          return createErrorResponse("Product family not found", 404)
+        }
+
+        if (existing.isSystem) {
+          return createErrorResponse(
+            "System product families cannot be deleted",
+            400
+          )
+        }
+
+        if ((existing._count?.subtypes ?? 0) > 0) {
+          return createErrorResponse(
+            "Cannot delete a product family that still has product subtypes. Remove or reassign those subtypes first.",
+            400
+          )
+        }
+
+        await prisma.productFamily.delete({
+          where: { id: existing.id }
+        })
+
+        return NextResponse.json({ success: true })
+      } catch (error) {
+        console.error("Failed to delete product family", error)
+        return createErrorResponse("Failed to delete product family type", 500)
       }
     }
   )

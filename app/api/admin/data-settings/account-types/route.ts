@@ -146,16 +146,23 @@ export async function PATCH(request: NextRequest) {
           return createErrorResponse("Account type not found", 404)
         }
 
-        const isCanonical = CANONICAL_ACCOUNT_TYPE_CODES.has(
-          existing.code.toUpperCase()
-        )
-
         const data: any = {}
 
-        if (!isCanonical && typeof body.name === "string") {
+        // Allow editing name for all account types
+        if (typeof body.name === "string") {
           const name = body.name.trim()
           if (name && name !== existing.name) {
             data.name = name
+          }
+        }
+        // Allow editing code for all account types, but keep it normalized
+        if (typeof body.code === "string") {
+          const rawCode = body.code.trim()
+          if (rawCode.length > 0) {
+            const normalizedCode = normalizeCode(rawCode)
+            if (normalizedCode && normalizedCode !== existing.code) {
+              data.code = normalizedCode
+            }
           }
         }
 
@@ -176,7 +183,24 @@ export async function PATCH(request: NextRequest) {
           data.displayOrder = body.displayOrder
         }
 
-        // Do not allow changing code or isSystem via this endpoint
+        // Do not allow changing isSystem via this endpoint
+
+        if (data.code) {
+          const conflicting = await prisma.accountType.findFirst({
+            where: {
+              tenantId,
+              code: data.code,
+              NOT: { id: existing.id }
+            }
+          })
+
+          if (conflicting) {
+            return createErrorResponse(
+              "Another account type already uses this code",
+              400
+            )
+          }
+        }
 
         if (Object.keys(data).length === 0) {
           return NextResponse.json({ data: existing })
@@ -196,3 +220,72 @@ export async function PATCH(request: NextRequest) {
   )
 }
 
+export async function DELETE(request: NextRequest) {
+  return withPermissions(
+    request,
+    MANAGE_PERMISSIONS,
+    async (req) => {
+      const tenantId = req.user.tenantId
+
+      let body: any = null
+      try {
+        body = await request.json()
+      } catch {
+        // Ignore JSON parse errors and handle as missing id below
+      }
+
+      const id = body && typeof body.id === "string" ? body.id : null
+      if (!id) {
+        return createErrorResponse("Account type id is required", 400)
+      }
+
+      try {
+        const existing = await prisma.accountType.findFirst({
+          where: { id, tenantId },
+          include: {
+            _count: {
+              select: {
+                accounts: true,
+                contacts: true
+              }
+            }
+          }
+        })
+
+        if (!existing) {
+          return createErrorResponse("Account type not found", 404)
+        }
+
+        const isCanonical = CANONICAL_ACCOUNT_TYPE_CODES.has(
+          existing.code.toUpperCase()
+        )
+
+        if (existing.isSystem || isCanonical) {
+          return createErrorResponse(
+            "System account types cannot be deleted",
+            400
+          )
+        }
+
+        const usageCount =
+          (existing._count?.accounts ?? 0) + (existing._count?.contacts ?? 0)
+
+        if (usageCount > 0) {
+          return createErrorResponse(
+            "Cannot delete an account type that is in use",
+            400
+          )
+        }
+
+        await prisma.accountType.delete({
+          where: { id: existing.id }
+        })
+
+        return NextResponse.json({ success: true })
+      } catch (error) {
+        console.error("Failed to delete account type", error)
+        return createErrorResponse("Failed to delete account type", 500)
+      }
+    }
+  )
+}

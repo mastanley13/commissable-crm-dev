@@ -1712,15 +1712,94 @@ export const RevenueScheduleSupportingDetails = forwardRef<
             </SectionContainer>
           )
         } else if (!matches.length) {
+          const emptyColumns: Array<readonly [string, string][]> = [[], [], []]
+
           sectionContent = (
             <SectionContainer
               title="Additional Information"
               description="Vendor and distributor metadata from matched deposit line items."
             >
-              <EmptyState
-                title="No matched deposits"
-                description="Once deposit line items are matched and reconciled, their metadata will appear here."
-              />
+              <div className="border border-gray-200 rounded-lg overflow-hidden">
+                <div className="bg-blue-900 text-white px-3 py-2">
+                  <h4 className="text-xs font-semibold">Vendor/Distributor Product Metadata</h4>
+                </div>
+                <div className="bg-gray-50 px-3 pb-3 pt-3 space-y-3">
+                  <p className="text-[11px] text-gray-500 italic">
+                    This section displays metadata from vendor/distributor deposit line items as they are reconciled
+                    with this revenue schedule. Known ID fields (Account, Order, Customer, Location, Service) update
+                    the Opportunity Details tab. Other metadata fields not present on the schedule are added here
+                    dynamically. Data is read-only.
+                  </p>
+
+                  <div className="grid grid-cols-1 gap-3 lg:grid-cols-4">
+                    <div className="border border-gray-200 rounded-lg bg-white overflow-hidden">
+                      <div className="bg-gray-100 border-b border-gray-200 px-3 py-1.5 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="inline-flex items-center rounded bg-blue-900 px-2 py-0.5 text-[10px] font-semibold text-white">
+                            Commission Deposit
+                          </span>
+                          <span className="text-[11px] font-semibold text-gray-700">
+                            No matched deposits
+                          </span>
+                        </div>
+                      </div>
+                      <div className="space-y-1.5 p-3 text-[11px]">
+                        <div className="flex items-center justify-between">
+                          <span className="text-gray-600">Reconciled</span>
+                          <span className="font-medium text-gray-900">--</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-gray-600">Payment Type</span>
+                          <span className="font-medium text-gray-900">--</span>
+                        </div>
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="text-gray-600">Services</span>
+                          <span className="truncate font-medium text-gray-900">--</span>
+                        </div>
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="text-gray-600">Product Name - Vendor</span>
+                          <span className="truncate font-medium text-gray-900">--</span>
+                        </div>
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="text-gray-600">Sales ID</span>
+                          <span className="truncate font-medium text-gray-900">--</span>
+                        </div>
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="text-gray-600">Product Code</span>
+                          <span className="truncate font-medium text-gray-900">--</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {emptyColumns.map((columnEntries, columnIndex) => (
+                      <div
+                        key={`meta-column-empty-${columnIndex}`}
+                        className="border border-gray-200 rounded-lg bg-white overflow-hidden"
+                      >
+                        <div className="bg-gray-100 border-b border-gray-200 px-3 py-1.5 flex items-center">
+                          <span className="inline-flex items-center rounded bg-gray-400 px-2 py-0.5 text-[10px] font-semibold text-white">
+                            --
+                          </span>
+                          <span className="ml-2 text-[11px] font-semibold text-gray-700">
+                            No Data
+                          </span>
+                        </div>
+                        <div className="space-y-1 p-3 text-[11px]">
+                          {Array.from({ length: 5 }).map((_, index) => (
+                            <div
+                              key={`placeholder-empty-${columnIndex}-${index}`}
+                              className="flex items-center justify-between"
+                            >
+                              <span className="text-gray-400">New Field</span>
+                              <span className="text-gray-300">--</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
             </SectionContainer>
           )
         } else {
@@ -1777,28 +1856,49 @@ export const RevenueScheduleSupportingDetails = forwardRef<
               title="Additional Information"
               description="Vendor and distributor metadata from matched deposit line items."
             >
-              <div className="space-y-3">
-                {matches.length > 1 ? (
-                  <PillTabs
-                    tabs={matches.map(match => ({
-                      id: match.id,
-                      label: match.depositName ?? match.depositId ?? match.id
-                    }))}
-                    activeId={activeCard.id}
-                    onChange={setActiveMatchId}
-                  />
-                ) : null}
+              <div className="border border-gray-200 rounded-lg overflow-hidden">
+                <div className="bg-blue-900 text-white px-3 py-2">
+                  <h4 className="text-xs font-semibold">Vendor/Distributor Product Metadata</h4>
+                </div>
+                <div className="bg-gray-50 px-3 pb-3 pt-3 space-y-3">
+                  <p className="text-[11px] text-gray-500 italic">
+                    This section displays metadata from vendor/distributor deposit line items as they are reconciled
+                    with this revenue schedule. Known ID fields (Account, Order, Customer, Location, Service) update
+                    the Opportunity Details tab. Other metadata fields not present on the schedule are added here
+                    dynamically. Data is read-only.
+                  </p>
 
-                <div className="grid grid-cols-1 gap-3 lg:grid-cols-4">
-                    <div className="rounded-lg border border-gray-200 bg-white">
-                      <div className="border-b border-gray-200 bg-gray-50 px-3 py-1.5 text-[11px] font-semibold text-gray-700">
-                        Commission Deposit
+                  {matches.length > 1 ? (
+                    <PillTabs
+                      tabs={matches.map(match => ({
+                        id: match.id,
+                        label: match.depositName ?? match.depositId ?? match.id
+                      }))}
+                      activeId={activeCard.id}
+                      onChange={setActiveMatchId}
+                    />
+                  ) : null}
+
+                  <div className="grid grid-cols-1 gap-3 lg:grid-cols-4">
+                    <div className="border border-gray-200 rounded-lg bg-white overflow-hidden">
+                      <div className="bg-gray-100 border-b border-gray-200 px-3 py-1.5 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="inline-flex items-center rounded bg-blue-900 px-2 py-0.5 text-[10px] font-semibold text-white">
+                            Commission Deposit
+                          </span>
+                          <span className="text-[11px] font-semibold text-gray-700">
+                            {activeCard.depositName ?? activeCard.depositId ?? activeCard.id}
+                          </span>
+                        </div>
                       </div>
                       <div className="space-y-1.5 p-3 text-[11px]">
                         <div className="flex items-center justify-between">
                           <span className="text-gray-600">Reconciled</span>
                           <span className="font-medium text-gray-900">
-                            {activeCard.reconciledAt ?? activeCard.depositPaymentDate ?? activeCard.linePaymentDate ?? "--"}
+                            {activeCard.reconciledAt ??
+                              activeCard.depositPaymentDate ??
+                              activeCard.linePaymentDate ??
+                              "--"}
                           </span>
                         </div>
                         <div className="flex items-center justify-between">
@@ -1837,41 +1937,47 @@ export const RevenueScheduleSupportingDetails = forwardRef<
                       </div>
                     </div>
 
-                  {columns.map((columnEntries, columnIndex) => (
-                    <div
-                      key={`meta-column-${columnIndex}`}
-                      className="rounded-lg border border-gray-200 bg-white"
-                    >
-                      <div className="border-b border-gray-200 bg-gray-50 px-3 py-1.5 text-[11px] font-semibold text-gray-700">
-                        {columnEntries.length ? "Metadata" : "No Data"}
+                    {columns.map((columnEntries, columnIndex) => (
+                      <div
+                        key={`meta-column-${columnIndex}`}
+                        className="border border-gray-200 rounded-lg bg-white overflow-hidden"
+                      >
+                        <div className="bg-gray-100 border-b border-gray-200 px-3 py-1.5 flex items-center">
+                          <span className="inline-flex items-center rounded bg-gray-400 px-2 py-0.5 text-[10px] font-semibold text-white">
+                            {columnEntries.length ? "Meta" : "--"}
+                          </span>
+                          <span className="ml-2 text-[11px] font-semibold text-gray-700">
+                            {columnEntries.length ? "Metadata" : "No Data"}
+                          </span>
+                        </div>
+                        <div className="space-y-1 p-3 text-[11px]">
+                          {columnEntries.length
+                            ? columnEntries.map(([key, value]) => (
+                                <div
+                                  key={`${activeCard.id}-${columnIndex}-${key}`}
+                                  className="flex items-center justify-between gap-3"
+                                >
+                                  <span className="truncate text-gray-600" title={key}>
+                                    {key}
+                                  </span>
+                                  <span className="truncate font-medium text-gray-900" title={value}>
+                                    {value}
+                                  </span>
+                                </div>
+                              ))
+                            : Array.from({ length: 5 }).map((_, index) => (
+                                <div
+                                  key={`placeholder-${columnIndex}-${index}`}
+                                  className="flex items-center justify-between"
+                                >
+                                  <span className="text-gray-400">New Field</span>
+                                  <span className="text-gray-300">--</span>
+                                </div>
+                              ))}
+                        </div>
                       </div>
-                      <div className="space-y-1 p-3 text-[11px]">
-                        {columnEntries.length
-                          ? columnEntries.map(([key, value]) => (
-                              <div
-                                key={`${activeCard.id}-${columnIndex}-${key}`}
-                                className="flex items-center justify-between gap-3"
-                              >
-                                <span className="truncate text-gray-600" title={key}>
-                                  {key}
-                                </span>
-                                <span className="truncate font-medium text-gray-900" title={value}>
-                                  {value}
-                                </span>
-                              </div>
-                            ))
-                          : Array.from({ length: 5 }).map((_, index) => (
-                              <div
-                                key={`placeholder-${columnIndex}-${index}`}
-                                className="flex items-center justify-between"
-                              >
-                                <span className="text-gray-400">New Field</span>
-                                <span className="text-gray-300">--</span>
-                              </div>
-                            ))}
-                      </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
               </div>
             </SectionContainer>

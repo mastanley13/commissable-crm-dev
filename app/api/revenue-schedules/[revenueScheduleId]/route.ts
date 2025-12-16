@@ -3,7 +3,14 @@ import { prisma } from "@/lib/db"
 import { withAuth, withPermissions } from "@/lib/api-auth"
 import { mapRevenueScheduleToDetail, type RevenueScheduleWithRelations } from "../helpers"
 import { isRevenueTypeCode } from "@/lib/revenue-types"
-import { Activity, Ticket, DepositLineMatchStatus, DepositPaymentType } from "@prisma/client"
+import {
+  Activity,
+  Ticket,
+  DepositLineMatchStatus,
+  DepositPaymentType,
+  AuditAction,
+} from "@prisma/client"
+import { logProductAudit, logRevenueScheduleAudit } from "@/lib/audit"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -237,6 +244,41 @@ export async function PATCH(request: NextRequest, { params }: { params: { revenu
         return NextResponse.json({ error: "Revenue schedule not found" }, { status: 404 })
       }
 
+      const previousProductCommission =
+        existing.product?.commissionPercent !== null &&
+        existing.product?.commissionPercent !== undefined
+          ? Number(existing.product.commissionPercent)
+          : null
+
+      const previousEffectiveSplits = {
+        houseSplitPercent:
+          (existing as any).houseSplitPercentOverride ??
+          existing.opportunity?.houseSplitPercent ??
+          null,
+        houseRepSplitPercent:
+          (existing as any).houseRepSplitPercentOverride ??
+          existing.opportunity?.houseRepPercent ??
+          null,
+        subagentSplitPercent:
+          (existing as any).subagentSplitPercentOverride ??
+          existing.opportunity?.subagentPercent ??
+          null,
+      }
+
+      const previousScheduleValues: Record<string, unknown> = {
+        scheduleNumber: (existing as any).scheduleNumber ?? null,
+        scheduleDate: (existing as any).scheduleDate ?? null,
+        expectedUsage: (existing as any).expectedUsage ?? null,
+        expectedCommission: (existing as any).expectedCommission ?? null,
+        usageAdjustment: (existing as any).usageAdjustment ?? null,
+        actualCommissionAdjustment: (existing as any).actualCommissionAdjustment ?? null,
+        notes: (existing as any).notes ?? null,
+        expectedCommissionRatePercent: previousProductCommission,
+        houseSplitPercent: previousEffectiveSplits.houseSplitPercent,
+        houseRepSplitPercent: previousEffectiveSplits.houseRepSplitPercent,
+        subagentSplitPercent: previousEffectiveSplits.subagentSplitPercent,
+      }
+
       const data: Record<string, any> = { updatedById: req.user.id }
       let hasChanges = false
       const errors: Record<string, string> = {}
@@ -355,18 +397,22 @@ export async function PATCH(request: NextRequest, { params }: { params: { revenu
 
       const anySplitTouched = Boolean(houseSplitInput || houseRepSplitInput || subagentSplitInput)
       if (anySplitTouched) {
+        const currentHouse = previousEffectiveSplits.houseSplitPercent
+        const currentHouseRep = previousEffectiveSplits.houseRepSplitPercent
+        const currentSubagent = previousEffectiveSplits.subagentSplitPercent
+
         const nextHouse =
           houseSplitPercentValue !== null
             ? houseSplitPercentValue / 100
-            : (existing as any)?.opportunity?.houseSplitPercent ?? null
+            : currentHouse
         const nextHouseRep =
           houseRepSplitPercentValue !== null
             ? houseRepSplitPercentValue / 100
-            : (existing as any)?.opportunity?.houseRepPercent ?? null
+            : currentHouseRep
         const nextSubagent =
           subagentSplitPercentValue !== null
             ? subagentSplitPercentValue / 100
-            : (existing as any)?.opportunity?.subagentPercent ?? null
+            : currentSubagent
 
         const splits: Array<[string, number | null]> = [
           ["houseSplitPercent", nextHouse],
@@ -484,20 +530,39 @@ export async function PATCH(request: NextRequest, { params }: { params: { revenu
         if (Object.keys(productData).length > 0) {
           await prisma.product.update({ where: { id: productId }, data: productData })
           hasChanges = true
+
+          if (typeof productData.commissionPercent === "number") {
+            const nextCommission = productData.commissionPercent
+            if (previousProductCommission !== nextCommission) {
+              await logProductAudit(
+                AuditAction.Update,
+                productId,
+                req.user.id,
+                tenantId,
+                request,
+                { commissionPercent: previousProductCommission },
+                { commissionPercent: nextCommission },
+              )
+            }
+          }
         }
       }
 
-      // Update related Opportunity split percents (fractions)
-      const oppId = (existing as any)?.opportunity?.id as string | undefined
-      if (oppId) {
-        const oppData: Record<string, any> = {}
-        if (anySplitTouched) {
-          if (houseSplitPercentValue !== null) oppData.houseSplitPercent = houseSplitPercentValue / 100
-          if (houseRepSplitPercentValue !== null) oppData.houseRepPercent = houseRepSplitPercentValue / 100
-          if (subagentSplitPercentValue !== null) oppData.subagentPercent = subagentSplitPercentValue / 100
+      // Apply per-schedule commission split overrides when provided.
+      if (anySplitTouched) {
+        const splitOverrideData: Record<string, any> = {}
+        if (houseSplitPercentValue !== null) {
+          splitOverrideData.houseSplitPercentOverride = houseSplitPercentValue / 100
         }
-        if (Object.keys(oppData).length > 0) {
-          await prisma.opportunity.update({ where: { id: oppId }, data: oppData })
+        if (houseRepSplitPercentValue !== null) {
+          splitOverrideData.houseRepSplitPercentOverride = houseRepSplitPercentValue / 100
+        }
+        if (subagentSplitPercentValue !== null) {
+          splitOverrideData.subagentSplitPercentOverride = subagentSplitPercentValue / 100
+        }
+
+        if (Object.keys(splitOverrideData).length > 0) {
+          Object.assign(data, splitOverrideData)
           hasChanges = true
         }
       }
@@ -539,6 +604,51 @@ export async function PATCH(request: NextRequest, { params }: { params: { revenu
         return NextResponse.json({ error: "Revenue schedule not found after update" }, { status: 404 })
       }
 
+      const nextProductCommission =
+        updated.product?.commissionPercent !== null &&
+        updated.product?.commissionPercent !== undefined
+          ? Number(updated.product.commissionPercent)
+          : null
+
+      const nextEffectiveSplits = {
+        houseSplitPercent:
+          (updated as any).houseSplitPercentOverride ??
+          updated.opportunity?.houseSplitPercent ??
+          null,
+        houseRepSplitPercent:
+          (updated as any).houseRepSplitPercentOverride ??
+          updated.opportunity?.houseRepPercent ??
+          null,
+        subagentSplitPercent:
+          (updated as any).subagentSplitPercentOverride ??
+          updated.opportunity?.subagentPercent ??
+          null,
+      }
+
+      const newScheduleValues: Record<string, unknown> = {
+        scheduleNumber: (updated as any).scheduleNumber ?? null,
+        scheduleDate: (updated as any).scheduleDate ?? null,
+        expectedUsage: (updated as any).expectedUsage ?? null,
+        expectedCommission: (updated as any).expectedCommission ?? null,
+        usageAdjustment: (updated as any).usageAdjustment ?? null,
+        actualCommissionAdjustment: (updated as any).actualCommissionAdjustment ?? null,
+        notes: (updated as any).notes ?? null,
+        expectedCommissionRatePercent: nextProductCommission,
+        houseSplitPercent: nextEffectiveSplits.houseSplitPercent,
+        houseRepSplitPercent: nextEffectiveSplits.houseRepSplitPercent,
+        subagentSplitPercent: nextEffectiveSplits.subagentSplitPercent,
+      }
+
+      await logRevenueScheduleAudit(
+        AuditAction.Update,
+        revenueScheduleId,
+        req.user.id,
+        tenantId,
+        request,
+        previousScheduleValues,
+        newScheduleValues,
+      )
+
       const detail = mapRevenueScheduleToDetail(updated as RevenueScheduleWithRelations)
       detail.paymentType = await getRevenueSchedulePaymentType(tenantId, revenueScheduleId)
       detail.billingMonth = await getRevenueScheduleBillingMonth(tenantId, revenueScheduleId)
@@ -573,6 +683,10 @@ export async function DELETE(request: NextRequest, { params }: { params: { reven
         select: {
           id: true,
           scheduleNumber: true,
+          scheduleDate: true,
+          expectedUsage: true,
+          expectedCommission: true,
+          usageAdjustment: true,
           actualUsage: true,
           actualUsageAdjustment: true,
           actualCommission: true,
@@ -612,11 +726,36 @@ export async function DELETE(request: NextRequest, { params }: { params: { reven
               ? "is in reconciliation"
               : "is linked to deposit lines"
 
-        return NextResponse.json(
-          { error: `Cannot delete revenue schedule ${label} because it ${reason}.` },
-          { status: 409 }
-        )
+          return NextResponse.json(
+            { error: `Cannot delete revenue schedule ${label} because it ${reason}.` },
+            { status: 409 }
+          )
+        }
+
+      const deleteReason = request.nextUrl.searchParams.get("reason") || null
+
+      const previousValues: Record<string, unknown> = {
+        scheduleNumber: schedule.scheduleNumber ?? null,
+        scheduleDate: schedule.scheduleDate ?? null,
+        expectedUsage: schedule.expectedUsage ?? null,
+        expectedCommission: schedule.expectedCommission ?? null,
+        usageAdjustment: schedule.usageAdjustment ?? null,
+        actualUsage: schedule.actualUsage ?? null,
+        actualUsageAdjustment: schedule.actualUsageAdjustment ?? null,
+        actualCommission: schedule.actualCommission ?? null,
+        actualCommissionAdjustment: schedule.actualCommissionAdjustment ?? null,
+        deleteReason,
       }
+
+      await logRevenueScheduleAudit(
+        AuditAction.Delete,
+        revenueScheduleId,
+        req.user.id,
+        tenantId,
+        request,
+        previousValues,
+        undefined,
+      )
 
       await prisma.$transaction(async (tx) => {
         // Remove non-monetary dependents to satisfy FKs

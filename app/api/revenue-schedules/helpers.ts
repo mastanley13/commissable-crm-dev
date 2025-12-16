@@ -286,6 +286,38 @@ function extractSubagentName(description: string | null | undefined): string | n
   return match?.[1]?.trim() ?? null
 }
 
+function getEffectiveSplitFractions(schedule: RevenueScheduleWithRelations): {
+  house: number | null
+  houseRep: number | null
+  subagent: number | null
+} {
+  const houseOverride = schedule.houseSplitPercentOverride
+  const houseRepOverride = schedule.houseRepSplitPercentOverride
+  const subagentOverride = schedule.subagentSplitPercentOverride
+
+  const houseBase = schedule.opportunity?.houseSplitPercent ?? null
+  const houseRepBase = schedule.opportunity?.houseRepPercent ?? null
+  const subagentBase = schedule.opportunity?.subagentPercent ?? null
+
+  const resolve = (override: unknown, base: unknown): number | null => {
+    if (override !== null && override !== undefined) {
+      const numeric = toNumber(override)
+      return Number.isFinite(numeric) ? numeric : null
+    }
+    if (base !== null && base !== undefined) {
+      const numeric = toNumber(base)
+      return Number.isFinite(numeric) ? numeric : null
+    }
+    return null
+  }
+
+  return {
+    house: resolve(houseOverride, houseBase),
+    houseRep: resolve(houseRepOverride, houseRepBase),
+    subagent: resolve(subagentOverride, subagentBase)
+  }
+}
+
 export function mapRevenueScheduleToListItem(schedule: RevenueScheduleWithRelations): RevenueScheduleListItem {
   const expectedUsage = toNumber(schedule.expectedUsage ?? schedule.opportunityProduct?.expectedUsage)
   const usageAdjustment = toNumber(schedule.usageAdjustment)
@@ -379,6 +411,8 @@ export function mapRevenueScheduleToDetail(schedule: RevenueScheduleWithRelation
       ? expectedCommissionRateFraction - actualCommissionRate
       : null
 
+  const splits = getEffectiveSplitFractions(schedule)
+
   return {
     ...listValues,
     legalName: schedule.account?.accountLegalName ?? null,
@@ -387,9 +421,9 @@ export function mapRevenueScheduleToDetail(schedule: RevenueScheduleWithRelation
     expectedCommissionRatePercent: formatPercent(expectedCommissionRateFraction),
     actualCommissionRatePercent: formatPercent(actualCommissionRate),
     commissionRateDifference: formatPercent(commissionRateDifference),
-    houseSplitPercent: formatPercentFromFraction(schedule.opportunity?.houseSplitPercent),
-    houseRepSplitPercent: formatPercentFromFraction(schedule.opportunity?.houseRepPercent),
-    subagentSplitPercent: formatPercentFromFraction(schedule.opportunity?.subagentPercent),
+    houseSplitPercent: formatPercentFromFraction(splits.house),
+    houseRepSplitPercent: formatPercentFromFraction(splits.houseRep),
+    subagentSplitPercent: formatPercentFromFraction(splits.subagent),
     subagentName: extractSubagentName(schedule.opportunity?.description) ?? null,
     // Payment type is derived from deposit matches in the API route.
     paymentType: null,

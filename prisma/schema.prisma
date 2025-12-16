@@ -656,6 +656,9 @@ model RevenueSchedule {
   orderIdHouse               String?
   distributorOrderId         String?
   status                     RevenueScheduleStatus @default(Unreconciled)
+  houseSplitPercentOverride  Decimal?             @db.Decimal(5, 4)
+  houseRepSplitPercentOverride Decimal?           @db.Decimal(5, 4)
+  subagentSplitPercentOverride Decimal?           @db.Decimal(5, 4)
   isSelected                 Boolean               @default(false)
   notes                      String?
   createdById                String?               @db.Uuid

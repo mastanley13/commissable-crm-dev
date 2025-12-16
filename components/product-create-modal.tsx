@@ -427,43 +427,91 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
 
   const runProductDedupe = useCallback(async (): Promise<{ exact: CatalogProductOption | null; likely: CatalogProductOption[] }> => {
     const houseName = form.productNameHouse.trim()
-    if (!houseName) {
+    const vendorName = form.productNameVendor.trim()
+    const code = form.productCode.trim()
+
+    const effectiveName = (houseName || vendorName).slice(0, 120)
+    const name = effectiveName.trim()
+
+    if (!name && !code) {
       return { exact: null, likely: [] }
     }
 
-    const params = new URLSearchParams({ page: "1", pageSize: "25" })
-    const filters: Array<{ columnId: string; value: string }> = [{ columnId: "productNameHouse", value: houseName }]
-    params.set("filters", JSON.stringify(filters))
+    const seen = new Set<string>()
+    const collected: CatalogProductOption[] = []
 
-    const res = await fetch(`/api/products?${params.toString()}`, { cache: "no-store" })
-    if (!res.ok) return { exact: null, likely: [] }
-    const payload = await res.json().catch(() => null)
-    const items = Array.isArray(payload?.data) ? payload.data : []
-    const mapped: CatalogProductOption[] = items.map((it: any) => ({
-      id: it.id,
-      name: it.productNameHouse || it.productNameVendor || "Product",
-      productNameHouse: it.productNameHouse ?? null,
-      distributorName: it.distributorName ?? null,
-      vendorName: it.vendorName ?? null,
-      distributorId: it.distributorId ?? it.distributorAccountId ?? null,
-      vendorId: it.vendorId ?? it.vendorAccountId ?? null,
-      productNameVendor: it.productNameVendor ?? null,
-      productFamilyVendor: it.productFamilyVendor ?? null,
-      productSubtypeVendor: it.productSubtypeVendor ?? null,
-      productFamilyHouse: it.productFamilyHouse ?? null,
-      productSubtypeHouse: it.productSubtypeHouse ?? null,
-      distributorProductSubtype: it.distributorProductSubtype ?? null,
-      productCode: it.partNumberVendor ?? it.productCode ?? null,
-      revenueType: it.revenueType ?? null,
-      priceEach: typeof it.priceEach === "number" ? it.priceEach : null,
-      commissionPercent: typeof it.commissionPercent === "number" ? it.commissionPercent : null,
-    }))
+    const fetchByQuery = async (query: string) => {
+      const q = query.trim()
+      if (!q) return
 
-    const normalizedHouseName = houseName.toLowerCase()
-    const exact = mapped.find(p => p.productNameHouse && p.productNameHouse.toLowerCase() === normalizedHouseName) ?? null
-    const likely = mapped.filter(p => p.id !== exact?.id)
+      const params = new URLSearchParams({ page: "1", pageSize: "25" })
+      params.set("q", q)
+
+      const res = await fetch(`/api/products?${params.toString()}`, { cache: "no-store" })
+      if (!res.ok) return
+      const payload = await res.json().catch(() => null)
+      const items = Array.isArray(payload?.data) ? payload.data : []
+      items.forEach((it: any) => {
+        const id = String(it.id)
+        if (seen.has(id)) return
+        seen.add(id)
+        collected.push({
+          id: it.id,
+          name: it.productNameHouse || it.productNameVendor || "Product",
+          productNameHouse: it.productNameHouse ?? null,
+          distributorName: it.distributorName ?? null,
+          vendorName: it.vendorName ?? null,
+          distributorId: it.distributorId ?? it.distributorAccountId ?? null,
+          vendorId: it.vendorId ?? it.vendorAccountId ?? null,
+          productNameVendor: it.productNameVendor ?? null,
+          productFamilyVendor: it.productFamilyVendor ?? null,
+          productSubtypeVendor: it.productSubtypeVendor ?? null,
+          productFamilyHouse: it.productFamilyHouse ?? null,
+          productSubtypeHouse: it.productSubtypeHouse ?? null,
+          distributorProductSubtype: it.distributorProductSubtype ?? null,
+          productCode: it.partNumberVendor ?? it.productCode ?? null,
+          revenueType: it.revenueType ?? null,
+          priceEach: typeof it.priceEach === "number" ? it.priceEach : null,
+          commissionPercent: typeof it.commissionPercent === "number" ? it.commissionPercent : null,
+        })
+      })
+    }
+
+    if (name) {
+      await fetchByQuery(name)
+    }
+    if (code) {
+      await fetchByQuery(code)
+    }
+
+    if (collected.length === 0) {
+      return { exact: null, likely: [] }
+    }
+
+    const normalizedCode = code.toLowerCase()
+    const normalizedName = name.toLowerCase()
+
+    let exact: CatalogProductOption | null = null
+
+    if (normalizedCode) {
+      exact =
+        collected.find(
+          (p) => p.productCode && p.productCode.toLowerCase() === normalizedCode
+        ) ?? null
+    }
+
+    if (!exact && normalizedName) {
+      exact =
+        collected.find((p) => {
+          const house = (p.productNameHouse ?? "").toLowerCase()
+          const vendor = (p.productNameVendor ?? "").toLowerCase()
+          return house === normalizedName || vendor === normalizedName
+        }) ?? null
+    }
+
+    const likely = collected.filter((p) => p.id !== exact?.id)
     return { exact, likely }
-  }, [form.productNameHouse])
+  }, [form.productNameHouse, form.productNameVendor, form.productCode])
 
   const ensureProductsLoaded = useCallback(() => {
     if (productOptions.length === 0) {
@@ -534,12 +582,18 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
         setDedupeLikelyMatches(likely)
 
         if (exact) {
-          showError("Existing product found", "Use the existing product instead to avoid duplicates.")
+          showError(
+            "Existing product found",
+            "We found a product with the same Product Name or Vendor Part Number. Use the existing product from the catalog or cancel to avoid duplicates."
+          )
           setLoading(false)
           return
         }
         if (likely.length > 0) {
-          showError("Possible duplicates found", "Review the matches below or proceed anyway.")
+          showError(
+            "Possible duplicates found",
+            "We found similar products based on Product Name or Vendor Part Number. Review the matches, choose one to use, or cancel."
+          )
           setLoading(false)
           return
         }
@@ -609,7 +663,7 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 px-4 backdrop-blur-sm">
-      <div className="w-full max-w-5xl max-h-[98vh] flex flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+      <div className="w-[1024px] max-w-5xl h-[900px] max-h-[98vh] flex flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
         <div className="flex items-center justify-between border-b border-gray-200 px-6 py-2">
           <div>
             <h2 className="text-lg font-semibold text-gray-900">Create New Product</h2>
@@ -631,7 +685,7 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
               <div className="mb-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-xs text-amber-800">
                 <div className="font-semibold text-amber-900">Existing product found</div>
                 <div className="mt-1">
-                  A product with the same House name already exists. Review it in the catalog before creating another.
+                  A product with the same Product Name or Vendor Part Number already exists. Review it in the catalog and use the existing product instead of creating a duplicate, or cancel.
                 </div>
                 <div className="mt-2">
                   <div className="font-medium text-gray-900">{dedupeExactMatch.name}</div>
@@ -657,7 +711,9 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
             {dedupeLikelyMatches.length > 0 && (
               <div className="mb-3 rounded-md border border-yellow-200 bg-yellow-50 p-3 text-xs text-yellow-800">
                 <div className="font-semibold text-yellow-900">Possible duplicates</div>
-                <div className="mt-1">We found similar products in the catalog. Review them before creating a new one.</div>
+                <div className="mt-1">
+                  We found similar products based on Product Name or Vendor Part Number. Review them before creating a new one, choose an existing product to use, or cancel.
+                </div>
                 <div className="mt-2 space-y-2">
                   {dedupeLikelyMatches.map((match) => (
                     <div key={match.id} className="rounded-md border border-yellow-100 bg-white/70 px-3 py-2">

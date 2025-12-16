@@ -1,7 +1,8 @@
 ﻿"use client"
 
-import { useEffect, useMemo, useState, type FormEvent } from "react"
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react"
 import { Settings2, Users, Layers, Grid3X3, DollarSign } from "lucide-react"
+import { Trash2 } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
 
 type SectionId = "manage-fields"
@@ -30,6 +31,7 @@ interface ProductFamilyType {
   description: string | null
   isActive: boolean
   isSystem: boolean
+  usageCount?: number
 }
 
 interface ProductSubtypeType {
@@ -53,6 +55,7 @@ interface AccountTypeSetting {
   description: string | null
   isActive: boolean
   isSystem: boolean
+  usageCount?: number
 }
 
 interface RevenueTypeSetting {
@@ -61,6 +64,7 @@ interface RevenueTypeSetting {
   description: string
   category: "NRC" | "MRC"
   isEnabled: boolean
+  isSystem: boolean
 }
 
 type FieldId =
@@ -232,7 +236,7 @@ export default function DataSettingsPage() {
   )
 }
 
-function ProductSubtypeSettings() {
+function ProductSubtypeSettings({ editMode }: { editMode: boolean }) {
   const [subtypes, setSubtypes] = useState<ProductSubtypeType[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -241,6 +245,15 @@ function ProductSubtypeSettings() {
   const [newName, setNewName] = useState("")
   const [newDescription, setNewDescription] = useState("")
   const [page, setPage] = useState(1)
+  const [drafts, setDrafts] = useState<
+    Record<string, { name: string; code: string; description: string }>
+  >({})
+  const [confirmDelete, setConfirmDelete] = useState<ProductSubtypeType | null>(
+    null
+  )
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [bulkSaving, setBulkSaving] = useState(false)
+  const prevEditModeRef = useRef(editMode)
 
   const pageSize = FIELD_TABLE_PAGE_SIZE
 
@@ -285,6 +298,27 @@ function ProductSubtypeSettings() {
     const start = (page - 1) * pageSize
     return subtypes.slice(start, start + pageSize)
   }, [page, pageSize, subtypes])
+
+  useEffect(() => {
+    if (!editMode) {
+      setDrafts({})
+      return
+    }
+
+    setDrafts(prev => {
+      const next = { ...prev }
+      for (const subtype of subtypes) {
+        if (!next[subtype.id]) {
+          next[subtype.id] = {
+            name: subtype.name ?? "",
+            code: subtype.code ?? "",
+            description: subtype.description ?? ""
+          }
+        }
+      }
+      return next
+    })
+  }, [editMode, subtypes])
 
   const handleToggle = async (subtype: ProductSubtypeType) => {
     try {
@@ -346,6 +380,160 @@ function ProductSubtypeSettings() {
     }
   }
 
+  const handleUpdate = async (subtype: ProductSubtypeType) => {
+    const draft = drafts[subtype.id]
+
+    if (!draft) {
+      return
+    }
+
+    const name = draft.name.trim()
+    const code = draft.code.trim()
+    const description = draft.description.trim()
+
+    if (!name) {
+      setError("Name is required for product subtypes.")
+      return
+    }
+
+    const payload: any = { id: subtype.id }
+
+    // Allow editing name and code for all subtypes.
+    payload.name = name
+    if (code) {
+      payload.code = code
+    }
+
+    payload.description = description
+
+    try {
+      setSavingId(subtype.id)
+      setError(null)
+      const res = await fetch("/api/admin/data-settings/product-subtypes", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      })
+      if (!res.ok) {
+        let message = "Failed to update product subtype"
+        try {
+          const parsed = await res.json()
+          if (parsed && typeof parsed.error === "string") {
+            message = parsed.error
+          }
+        } catch {
+          // Ignore JSON parse errors
+        }
+        throw new Error(message)
+      }
+      const json = await res.json()
+      const updated: ProductSubtypeType = json.data
+      setSubtypes(prev =>
+        prev.map(s => (s.id === updated.id ? updated : s))
+      )
+      setDrafts(prev => ({
+        ...prev,
+        [updated.id]: {
+          name: updated.name,
+          code: updated.code,
+          description: updated.description ?? ""
+        }
+      }))
+    } catch (err) {
+      console.error(err)
+      setError(
+        err instanceof Error ? err.message : "Failed to update product subtype"
+      )
+    } finally {
+      setSavingId(null)
+    }
+  }
+
+  const saveAllDrafts = async () => {
+    if (!Object.keys(drafts).length) return
+    setBulkSaving(true)
+    try {
+      for (const [id] of Object.entries(drafts)) {
+        const subtype = subtypes.find(s => s.id === id)
+        if (!subtype) continue
+
+        const draft = drafts[id]
+        const name = draft.name.trim()
+        if (!name) {
+          setError("Name is required for product subtypes.")
+          throw new Error("Name is required")
+        }
+
+        const code = draft.code.trim()
+        const description = draft.description.trim()
+
+        const currentDescription = subtype.description ?? ""
+        const hasNameChange = name !== subtype.name
+        const hasCodeChange = code && code !== (subtype.code ?? "")
+        const hasDescriptionChange = description !== currentDescription
+
+        if (!hasNameChange && !hasCodeChange && !hasDescriptionChange) {
+          continue
+        }
+
+        await handleUpdate(subtype)
+      }
+    } finally {
+      setBulkSaving(false)
+    }
+  }
+
+  useEffect(() => {
+    if (prevEditModeRef.current && !editMode) {
+      void saveAllDrafts()
+    }
+    prevEditModeRef.current = editMode
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editMode, drafts])
+
+  const handleRequestDelete = (subtype: ProductSubtypeType) => {
+    if (subtype.isSystem) {
+      return
+    }
+    setConfirmDelete(subtype)
+  }
+
+  const handleConfirmDelete = async () => {
+    if (!confirmDelete) return
+
+    try {
+      setDeletingId(confirmDelete.id)
+      setError(null)
+      const res = await fetch("/api/admin/data-settings/product-subtypes", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: confirmDelete.id })
+      })
+      if (!res.ok) {
+        let message = "Failed to delete product subtype"
+        try {
+          const parsed = await res.json()
+          if (parsed && typeof parsed.error === "string") {
+            message = parsed.error
+          }
+        } catch {
+          // Ignore JSON parse errors
+        }
+        throw new Error(message)
+      }
+
+      setSubtypes(prev => prev.filter(s => s.id !== confirmDelete.id))
+      setConfirmDelete(null)
+    } catch (err) {
+      console.error(err)
+      setError(
+        err instanceof Error ? err.message : "Failed to delete product subtype"
+      )
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
   return (
     <div className="space-y-4">
       {error && (
@@ -402,34 +590,52 @@ function ProductSubtypeSettings() {
             minHeight: FIELD_TABLE_MAX_BODY_HEIGHT
           }}
         >
-          <table className="min-w-full divide-y divide-gray-200 text-sm">
+          <table className="min-w-full table-fixed divide-y divide-gray-200 text-sm">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-4 py-2 text-left font-medium text-gray-700">
+                <th
+                  className="px-4 py-2 text-left font-medium text-gray-700"
+                  style={{ width: "26%" }}
+                >
                   Name
                 </th>
-                <th className="px-4 py-2 text-left font-medium text-gray-700">
+                <th
+                  className="px-4 py-2 text-left font-medium text-gray-700"
+                  style={{ width: "18%" }}
+                >
                   Code
                 </th>
-                <th className="px-4 py-2 text-left font-medium text-gray-700">
+                <th
+                  className="px-4 py-2 text-left font-medium text-gray-700"
+                  style={{ width: "40%" }}
+                >
                   Description
                 </th>
-                <th className="px-4 py-2 text-left font-medium text-gray-700">
+                <th
+                  className="px-4 py-2 text-left font-medium text-gray-700"
+                  style={{ width: "12%" }}
+                >
                   Status
+                </th>
+                <th
+                  className="px-4 py-2 text-right font-medium text-gray-700"
+                  style={{ width: "4%" }}
+                >
+                  Actions
                 </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
               {loading && (
                 <tr>
-                  <td colSpan={4} className="px-4 py-4 text-center text-gray-500">
+                  <td colSpan={5} className="px-4 py-4 text-center text-gray-500">
                     Loading product subtypes...
                   </td>
                 </tr>
               )}
               {!loading && subtypes.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="px-4 py-4 text-center text-gray-500">
+                  <td colSpan={5} className="px-4 py-4 text-center text-gray-500">
                     No product subtypes found.
                   </td>
                 </tr>
@@ -439,9 +645,36 @@ function ProductSubtypeSettings() {
                   <tr key={subtype.id} className="hover:bg-gray-50">
                     <td className="px-4 py-2 align-top">
                       <div className="flex items-center space-x-2">
-                        <span className="font-medium text-gray-900">
-                          {subtype.name}
-                        </span>
+                        <div className="min-h-[20px] flex-1 text-xs font-medium text-gray-900">
+                          {editMode ? (
+                            <input
+                              type="text"
+                              value={
+                                drafts[subtype.id]?.name !== undefined
+                                  ? drafts[subtype.id]?.name
+                                  : subtype.name
+                              }
+                              onChange={e =>
+                                setDrafts(prev => ({
+                                  ...prev,
+                                  [subtype.id]: {
+                                    name: e.target.value,
+                                    code: prev[subtype.id]?.code ?? subtype.code,
+                                    description:
+                                      prev[subtype.id]?.description ??
+                                      subtype.description ??
+                                      ""
+                                  }
+                                }))
+                              }
+                              className="w-full bg-transparent px-0 py-1 focus:outline-none"
+                            />
+                          ) : (
+                            <span className="block px-0 py-1">
+                              {subtype.name}
+                            </span>
+                          )}
+                        </div>
                         {subtype.isSystem && (
                           <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700">
                             Default
@@ -450,18 +683,74 @@ function ProductSubtypeSettings() {
                       </div>
                     </td>
                     <td className="px-4 py-2 align-top text-xs text-gray-600">
-                      {subtype.code}
+                      <div className="min-h-[20px]">
+                        {editMode ? (
+                          <input
+                            type="text"
+                            value={
+                              drafts[subtype.id]?.code !== undefined
+                                ? drafts[subtype.id]?.code
+                                : subtype.code
+                            }
+                            onChange={e =>
+                              setDrafts(prev => ({
+                                ...prev,
+                                [subtype.id]: {
+                                  name: prev[subtype.id]?.name ?? subtype.name,
+                                  code: e.target.value,
+                                  description:
+                                    prev[subtype.id]?.description ??
+                                    subtype.description ??
+                                    ""
+                                }
+                              }))
+                            }
+                            className="w-full bg-transparent px-0 py-1 text-xs text-gray-900 focus:outline-none"
+                          />
+                        ) : (
+                          <span className="block px-0 py-1">{subtype.code}</span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-2 align-top text-xs text-gray-600">
-                      {subtype.description || (
-                        <span className="text-gray-400">No description</span>
-                      )}
+                      <div className="min-h-[20px]">
+                        {editMode ? (
+                          <input
+                            type="text"
+                            value={
+                              drafts[subtype.id]?.description !== undefined
+                                ? drafts[subtype.id]?.description
+                                : subtype.description ?? ""
+                            }
+                            onChange={e =>
+                              setDrafts(prev => ({
+                                ...prev,
+                                [subtype.id]: {
+                                  name: prev[subtype.id]?.name ?? subtype.name,
+                                  code: prev[subtype.id]?.code ?? subtype.code,
+                                  description: e.target.value
+                                }
+                              }))
+                            }
+                            className="w-full bg-transparent px-0 py-1 text-xs text-gray-900 focus:outline-none"
+                            placeholder="No description"
+                          />
+                        ) : subtype.description ? (
+                          <span className="block px-0 py-1">
+                            {subtype.description}
+                          </span>
+                        ) : (
+                          <span className="block px-0 py-1 text-gray-400">
+                            No description
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-2 align-top">
                       <button
                         type="button"
                         onClick={() => handleToggle(subtype)}
-                        disabled={savingId === subtype.id}
+                        disabled={savingId === subtype.id || bulkSaving}
                         className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium border ${
                           subtype.isActive
                             ? "border-green-200 bg-green-50 text-green-700"
@@ -479,6 +768,21 @@ function ProductSubtypeSettings() {
                           ? "Enabled"
                           : "Disabled"}
                       </button>
+                    </td>
+                    <td className="px-4 py-2 align-top text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        {!subtype.isSystem && (
+                          <button
+                            type="button"
+                            onClick={() => handleRequestDelete(subtype)}
+                            disabled={deletingId === subtype.id || bulkSaving}
+                            className="inline-flex items-center rounded-full border border-red-200 bg-red-50 p-1 text-red-600 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-40"
+                            title="Delete this product subtype"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -517,12 +821,46 @@ function ProductSubtypeSettings() {
           </div>
         </div>
       </div>
+
+      {confirmDelete && (
+        <div className="fixed inset-0 z-30 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="w-full max-w-md rounded-lg bg-white p-4 shadow-xl">
+            <h3 className="text-base font-semibold text-gray-900">
+              Delete Product Subtype
+            </h3>
+            <p className="mt-2 text-sm text-gray-600">
+              Are you sure you want to delete{" "}
+              <span className="font-semibold">{confirmDelete.name}</span>? This
+              will remove it from future dropdowns.
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirmDelete(null)}
+                className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDelete}
+                disabled={deletingId === confirmDelete.id}
+                className="inline-flex items-center rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <Trash2 className="mr-1.5 h-4 w-4" />
+                {deletingId === confirmDelete.id ? "Deleting..." : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
 
 function ManageFieldsSection() {
   const [activeField, setActiveField] = useState<FieldId>("account-types")
+  const [editMode, setEditMode] = useState(false)
 
   const activeFieldDef =
     FIELD_DEFINITIONS.find(field => field.id === activeField) ??
@@ -531,13 +869,13 @@ function ManageFieldsSection() {
   const renderFieldContent = () => {
     switch (activeField) {
       case "account-types":
-        return <AccountTypeSettings />
+        return <AccountTypeSettings editMode={editMode} />
       case "revenue-types":
-        return <RevenueTypeSettings />
+        return <RevenueTypeSettings editMode={editMode} />
       case "product-families":
-        return <ProductFamilySettings />
+        return <ProductFamilySettings editMode={editMode} />
       case "product-subtypes":
-        return <ProductSubtypeSettings />
+        return <ProductSubtypeSettings editMode={editMode} />
       default:
         return null
     }
@@ -545,7 +883,16 @@ function ManageFieldsSection() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-lg font-semibold text-gray-900">Manage Fields</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-lg font-semibold text-gray-900">Manage Fields</h1>
+        <button
+          type="button"
+          onClick={() => setEditMode(prev => !prev)}
+          className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50"
+        >
+          {editMode ? "Done Editing" : "Edit Values"}
+        </button>
+      </div>
 
       {/* Field directory grouped by category in a 3-column grid */}
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
@@ -643,7 +990,7 @@ function FieldHeader({ definition }: FieldHeaderProps) {
   )
 }
 
-function ProductFamilySettings() {
+function ProductFamilySettings({ editMode }: { editMode: boolean }) {
   const [families, setFamilies] = useState<ProductFamilyType[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -652,6 +999,15 @@ function ProductFamilySettings() {
   const [newName, setNewName] = useState("")
   const [newDescription, setNewDescription] = useState("")
   const [page, setPage] = useState(1)
+  const [drafts, setDrafts] = useState<
+    Record<string, { name: string; code: string; description: string }>
+  >({})
+  const [confirmDelete, setConfirmDelete] = useState<ProductFamilyType | null>(
+    null
+  )
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [bulkSaving, setBulkSaving] = useState(false)
+  const prevEditModeRef = useRef(editMode)
 
   const pageSize = FIELD_TABLE_PAGE_SIZE
 
@@ -691,6 +1047,27 @@ function ProductFamilySettings() {
     const start = (page - 1) * pageSize
     return families.slice(start, start + pageSize)
   }, [page, pageSize, families])
+
+  useEffect(() => {
+    if (!editMode) {
+      setDrafts({})
+      return
+    }
+
+    setDrafts(prev => {
+      const next = { ...prev }
+      for (const family of families) {
+        if (!next[family.id]) {
+          next[family.id] = {
+            name: family.name ?? "",
+            code: family.code ?? "",
+            description: family.description ?? ""
+          }
+        }
+      }
+      return next
+    })
+  }, [editMode, families])
 
   const handleToggle = async (family: ProductFamilyType) => {
     try {
@@ -748,6 +1125,168 @@ function ProductFamilySettings() {
       )
     } finally {
       setCreating(false)
+    }
+  }
+
+  const handleUpdate = async (family: ProductFamilyType) => {
+    const draft = drafts[family.id]
+
+    if (!draft) {
+      return
+    }
+
+    const name = draft.name.trim()
+    const code = draft.code.trim()
+    const description = draft.description.trim()
+
+    if (!name) {
+      setError("Name is required for product families.")
+      return
+    }
+
+    const payload: any = { id: family.id }
+
+    // Allow editing name and code for all families.
+    payload.name = name
+    if (code) {
+      payload.code = code
+    }
+
+    payload.description = description
+
+    try {
+      setSavingId(family.id)
+      setError(null)
+      const res = await fetch("/api/admin/data-settings/product-families", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      })
+      if (!res.ok) {
+        let message = "Failed to update product family type"
+        try {
+          const parsed = await res.json()
+          if (parsed && typeof parsed.error === "string") {
+            message = parsed.error
+          }
+        } catch {
+          // Ignore JSON parse errors
+        }
+        throw new Error(message)
+      }
+      const json = await res.json()
+      const updated: ProductFamilyType = json.data
+      setFamilies(prev =>
+        prev.map(f => (f.id === updated.id ? updated : f))
+      )
+      setDrafts(prev => ({
+        ...prev,
+        [updated.id]: {
+          name: updated.name,
+          code: updated.code,
+          description: updated.description ?? ""
+        }
+      }))
+    } catch (err) {
+      console.error(err)
+      setError(
+        err instanceof Error ? err.message : "Failed to update product family type"
+      )
+    } finally {
+      setSavingId(null)
+    }
+  }
+
+  const saveAllDrafts = async () => {
+    if (!Object.keys(drafts).length) return
+    setBulkSaving(true)
+    try {
+      for (const [id] of Object.entries(drafts)) {
+        const family = families.find(f => f.id === id)
+        if (!family) continue
+
+        const draft = drafts[id]
+        const name = draft.name.trim()
+        if (!name) {
+          setError("Name is required for product families.")
+          throw new Error("Name is required")
+        }
+
+        const code = draft.code.trim()
+        const description = draft.description.trim()
+
+        const currentDescription = family.description ?? ""
+        const hasNameChange = name !== family.name
+        const hasCodeChange = code && code !== (family.code ?? "")
+        const hasDescriptionChange = description !== currentDescription
+
+        if (!hasNameChange && !hasCodeChange && !hasDescriptionChange) {
+          continue
+        }
+
+        await handleUpdate(family)
+      }
+    } finally {
+      setBulkSaving(false)
+    }
+  }
+
+  useEffect(() => {
+    if (prevEditModeRef.current && !editMode) {
+      void saveAllDrafts()
+    }
+    prevEditModeRef.current = editMode
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editMode, drafts])
+
+  const handleRequestDelete = (family: ProductFamilyType) => {
+    if (family.isSystem) {
+      return
+    }
+
+    if ((family.usageCount ?? 0) > 0) {
+      setError(
+        "Product families that still have product subtypes cannot be deleted. Remove or reassign those subtypes first."
+      )
+      return
+    }
+
+    setConfirmDelete(family)
+  }
+
+  const handleConfirmDelete = async () => {
+    if (!confirmDelete) return
+
+    try {
+      setDeletingId(confirmDelete.id)
+      setError(null)
+      const res = await fetch("/api/admin/data-settings/product-families", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: confirmDelete.id })
+      })
+      if (!res.ok) {
+        let message = "Failed to delete product family type"
+        try {
+          const parsed = await res.json()
+          if (parsed && typeof parsed.error === "string") {
+            message = parsed.error
+          }
+        } catch {
+          // Ignore JSON parse errors
+        }
+        throw new Error(message)
+      }
+
+      setFamilies(prev => prev.filter(f => f.id !== confirmDelete.id))
+      setConfirmDelete(null)
+    } catch (err) {
+      console.error(err)
+      setError(
+        err instanceof Error ? err.message : "Failed to delete product family type"
+      )
+    } finally {
+      setDeletingId(null)
     }
   }
 
@@ -809,34 +1348,52 @@ function ProductFamilySettings() {
             minHeight: FIELD_TABLE_MAX_BODY_HEIGHT
           }}
         >
-          <table className="min-w-full divide-y divide-gray-200 text-sm">
+          <table className="min-w-full table-fixed divide-y divide-gray-200 text-sm">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-4 py-2 text-left font-medium text-gray-700">
+                <th
+                  className="px-4 py-2 text-left font-medium text-gray-700"
+                  style={{ width: "26%" }}
+                >
                   Name
                 </th>
-                <th className="px-4 py-2 text-left font-medium text-gray-700">
+                <th
+                  className="px-4 py-2 text-left font-medium text-gray-700"
+                  style={{ width: "18%" }}
+                >
                   Code
                 </th>
-                <th className="px-4 py-2 text-left font-medium text-gray-700">
+                <th
+                  className="px-4 py-2 text-left font-medium text-gray-700"
+                  style={{ width: "40%" }}
+                >
                   Description
                 </th>
-                <th className="px-4 py-2 text-left font-medium text-gray-700">
+                <th
+                  className="px-4 py-2 text-left font-medium text-gray-700"
+                  style={{ width: "12%" }}
+                >
                   Status
+                </th>
+                <th
+                  className="px-4 py-2 text-right font-medium text-gray-700"
+                  style={{ width: "4%" }}
+                >
+                  Actions
                 </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
               {loading && (
                 <tr>
-                  <td colSpan={4} className="px-4 py-4 text-center text-gray-500">
+                  <td colSpan={5} className="px-4 py-4 text-center text-gray-500">
                     Loading product family types...
                   </td>
                 </tr>
               )}
               {!loading && families.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="px-4 py-4 text-center text-gray-500">
+                  <td colSpan={5} className="px-4 py-4 text-center text-gray-500">
                     No product family types found.
                   </td>
                 </tr>
@@ -846,9 +1403,36 @@ function ProductFamilySettings() {
                   <tr key={family.id} className="hover:bg-gray-50">
                     <td className="px-4 py-2 align-top">
                       <div className="flex items-center space-x-2">
-                        <span className="font-medium text-gray-900">
-                          {family.name}
-                        </span>
+                        <div className="min-h-[20px] flex-1 text-xs font-medium text-gray-900">
+                          {editMode ? (
+                            <input
+                              type="text"
+                              value={
+                                drafts[family.id]?.name !== undefined
+                                  ? drafts[family.id]?.name
+                                  : family.name
+                              }
+                              onChange={e =>
+                                setDrafts(prev => ({
+                                  ...prev,
+                                  [family.id]: {
+                                    name: e.target.value,
+                                    code: prev[family.id]?.code ?? family.code,
+                                    description:
+                                      prev[family.id]?.description ??
+                                      family.description ??
+                                      ""
+                                  }
+                                }))
+                              }
+                              className="w-full bg-transparent px-0 py-1 focus:outline-none"
+                            />
+                          ) : (
+                            <span className="block px-0 py-1">
+                              {family.name}
+                            </span>
+                          )}
+                        </div>
                         {family.isSystem && (
                           <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700">
                             Default
@@ -857,18 +1441,74 @@ function ProductFamilySettings() {
                       </div>
                     </td>
                     <td className="px-4 py-2 align-top text-xs text-gray-600">
-                      {family.code}
+                      <div className="min-h-[20px]">
+                        {editMode ? (
+                          <input
+                            type="text"
+                            value={
+                              drafts[family.id]?.code !== undefined
+                                ? drafts[family.id]?.code
+                                : family.code
+                            }
+                            onChange={e =>
+                              setDrafts(prev => ({
+                                ...prev,
+                                [family.id]: {
+                                  name: prev[family.id]?.name ?? family.name,
+                                  code: e.target.value,
+                                  description:
+                                    prev[family.id]?.description ??
+                                    family.description ??
+                                    ""
+                                }
+                              }))
+                            }
+                            className="w-full bg-transparent px-0 py-1 text-xs text-gray-900 focus:outline-none"
+                          />
+                        ) : (
+                          <span className="block px-0 py-1">{family.code}</span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-2 align-top text-xs text-gray-600">
-                      {family.description || (
-                        <span className="text-gray-400">No description</span>
-                      )}
+                      <div className="min-h-[20px]">
+                        {editMode ? (
+                          <input
+                            type="text"
+                            value={
+                              drafts[family.id]?.description !== undefined
+                                ? drafts[family.id]?.description
+                                : family.description ?? ""
+                            }
+                            onChange={e =>
+                              setDrafts(prev => ({
+                                ...prev,
+                                [family.id]: {
+                                  name: prev[family.id]?.name ?? family.name,
+                                  code: prev[family.id]?.code ?? family.code,
+                                  description: e.target.value
+                                }
+                              }))
+                            }
+                            className="w-full bg-transparent px-0 py-1 text-xs text-gray-900 focus:outline-none"
+                            placeholder="No description"
+                          />
+                        ) : family.description ? (
+                          <span className="block px-0 py-1">
+                            {family.description}
+                          </span>
+                        ) : (
+                          <span className="block px-0 py-1 text-gray-400">
+                            No description
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-2 align-top">
                       <button
                         type="button"
                         onClick={() => handleToggle(family)}
-                        disabled={savingId === family.id}
+                        disabled={savingId === family.id || bulkSaving}
                         className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium border ${
                           family.isActive
                             ? "border-green-200 bg-green-50 text-green-700"
@@ -886,6 +1526,29 @@ function ProductFamilySettings() {
                           ? "Enabled"
                           : "Disabled"}
                       </button>
+                    </td>
+                    <td className="px-4 py-2 align-top text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        {!family.isSystem && (
+                          <button
+                            type="button"
+                            onClick={() => handleRequestDelete(family)}
+                            disabled={
+                              deletingId === family.id ||
+                              bulkSaving ||
+                              (family.usageCount ?? 0) > 0
+                            }
+                            className="inline-flex items-center rounded-full border border-red-200 bg-red-50 p-1 text-red-600 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-40"
+                            title={
+                              (family.usageCount ?? 0) > 0
+                                ? "Cannot delete a product family that still has product subtypes"
+                                : "Delete this product family"
+                            }
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -924,11 +1587,45 @@ function ProductFamilySettings() {
           </div>
         </div>
       </div>
+
+      {confirmDelete && (
+        <div className="fixed inset-0 z-30 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="w-full max-w-md rounded-lg bg-white p-4 shadow-xl">
+            <h3 className="text-base font-semibold text-gray-900">
+              Delete Product Family
+            </h3>
+            <p className="mt-2 text-sm text-gray-600">
+              Are you sure you want to delete{" "}
+              <span className="font-semibold">{confirmDelete.name}</span>? This
+              will remove it from future dropdowns. Families with existing
+              product subtypes cannot be deleted.
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirmDelete(null)}
+                className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDelete}
+                disabled={deletingId === confirmDelete.id}
+                className="inline-flex items-center rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <Trash2 className="mr-1.5 h-4 w-4" />
+                {deletingId === confirmDelete.id ? "Deleting..." : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
 
-function AccountTypeSettings() {
+function AccountTypeSettings({ editMode }: { editMode: boolean }) {
   const [items, setItems] = useState<AccountTypeSetting[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -937,6 +1634,15 @@ function AccountTypeSettings() {
   const [newName, setNewName] = useState("")
   const [newDescription, setNewDescription] = useState("")
   const [page, setPage] = useState(1)
+  const [drafts, setDrafts] = useState<
+    Record<string, { name: string; code: string; description: string }>
+  >({})
+  const [confirmDelete, setConfirmDelete] = useState<AccountTypeSetting | null>(
+    null
+  )
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [bulkSaving, setBulkSaving] = useState(false)
+  const prevEditModeRef = useRef(editMode)
 
   const pageSize = FIELD_TABLE_PAGE_SIZE
 
@@ -963,6 +1669,27 @@ function AccountTypeSettings() {
     }
     load()
   }, [])
+
+  useEffect(() => {
+    if (!editMode) {
+      setDrafts({})
+      return
+    }
+
+    setDrafts(prev => {
+      const next = { ...prev }
+      for (const item of items) {
+        if (!next[item.id]) {
+          next[item.id] = {
+            name: item.name ?? "",
+            code: item.code ?? "",
+            description: item.description ?? ""
+          }
+        }
+      }
+      return next
+    })
+  }, [editMode, items])
 
   const totalPages = Math.max(1, Math.ceil(items.length / pageSize))
 
@@ -1035,6 +1762,170 @@ function AccountTypeSettings() {
     }
   }
 
+  const handleUpdate = async (item: AccountTypeSetting) => {
+    const draft = drafts[item.id]
+
+    if (!draft) {
+      return
+    }
+
+    const name = draft.name.trim()
+    const code = draft.code.trim()
+    const description = draft.description.trim()
+
+    if (!name) {
+      setError("Name is required for account types.")
+      return
+    }
+
+    const payload: any = { id: item.id }
+
+    // Allow editing name and code for both system and custom types.
+    payload.name = name
+    if (code) {
+      payload.code = code
+    }
+
+    payload.description = description
+
+    try {
+      setSavingId(item.id)
+      setError(null)
+      const res = await fetch("/api/admin/data-settings/account-types", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      })
+      if (!res.ok) {
+        let message = "Failed to update account type"
+        try {
+          const parsed = await res.json()
+          if (parsed && typeof parsed.error === "string") {
+            message = parsed.error
+          }
+        } catch {
+          // Ignore JSON parse errors and fall back to default message
+        }
+        throw new Error(message)
+      }
+      const json = await res.json()
+      const updated: AccountTypeSetting = json.data
+      setItems(prev => prev.map(it => (it.id === updated.id ? updated : it)))
+      setDrafts(prev => ({
+        ...prev,
+        [updated.id]: {
+          name: updated.name,
+          code: updated.code,
+          description: updated.description ?? ""
+        }
+      }))
+    } catch (err) {
+      console.error(err)
+      setError(
+        err instanceof Error ? err.message : "Failed to update account type"
+      )
+    } finally {
+      setSavingId(null)
+    }
+  }
+
+  const saveAllDrafts = async () => {
+    if (!Object.keys(drafts).length) return
+
+    setBulkSaving(true)
+    try {
+      for (const [id] of Object.entries(drafts)) {
+        const item = items.find(it => it.id === id)
+        if (!item) continue
+
+        const draft = drafts[id]
+        const name = draft.name.trim()
+        if (!name) {
+          setError("Name is required for account types.")
+          throw new Error("Name is required")
+        }
+
+        const code = draft.code.trim()
+        const description = draft.description.trim()
+
+        const currentDescription = item.description ?? ""
+        const hasNameChange = name !== item.name
+        const hasCodeChange = code && code !== (item.code ?? "")
+        const hasDescriptionChange = description !== currentDescription
+
+        if (!hasNameChange && !hasCodeChange && !hasDescriptionChange) {
+          continue
+        }
+
+        await handleUpdate(item)
+      }
+    } finally {
+      setBulkSaving(false)
+    }
+  }
+
+  useEffect(() => {
+    if (prevEditModeRef.current && !editMode) {
+      // Transition from editing -> not editing, save all staged changes
+      void saveAllDrafts()
+    }
+    prevEditModeRef.current = editMode
+    // Intentionally exclude saveAllDrafts from deps to avoid re-running
+    // on every draft change; we only care about the editMode transition.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editMode, drafts])
+
+  const handleRequestDelete = (item: AccountTypeSetting) => {
+    if (item.isSystem) {
+      return
+    }
+
+    if ((item.usageCount ?? 0) > 0) {
+      setError(
+        "Account types that are in use on accounts or contacts cannot be deleted."
+      )
+      return
+    }
+
+    setConfirmDelete(item)
+  }
+
+  const handleConfirmDelete = async () => {
+    if (!confirmDelete) return
+
+    try {
+      setDeletingId(confirmDelete.id)
+      setError(null)
+      const res = await fetch("/api/admin/data-settings/account-types", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: confirmDelete.id })
+      })
+      if (!res.ok) {
+        let message = "Failed to delete account type"
+        try {
+          const parsed = await res.json()
+          if (parsed && typeof parsed.error === "string") {
+            message = parsed.error
+          }
+        } catch {
+          // Ignore JSON parse errors
+        }
+        throw new Error(message)
+      }
+
+      setItems(prev => prev.filter(it => it.id !== confirmDelete.id))
+      setConfirmDelete(null)
+    } catch (err) {
+      console.error(err)
+      setError(
+        err instanceof Error ? err.message : "Failed to delete account type"
+      )
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
   return (
     <div className="space-y-4">
       {error && (
@@ -1093,34 +1984,52 @@ function AccountTypeSettings() {
             minHeight: FIELD_TABLE_MAX_BODY_HEIGHT
           }}
         >
-          <table className="min-w-full divide-y divide-gray-200 text-sm">
+          <table className="min-w-full table-fixed divide-y divide-gray-200 text-sm">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-4 py-2 text-left font-medium text-gray-700">
+                <th
+                  className="px-4 py-2 text-left font-medium text-gray-700"
+                  style={{ width: "26%" }}
+                >
                   Name
                 </th>
-                <th className="px-4 py-2 text-left font-medium text-gray-700">
+                <th
+                  className="px-4 py-2 text-left font-medium text-gray-700"
+                  style={{ width: "18%" }}
+                >
                   Code
                 </th>
-                <th className="px-4 py-2 text-left font-medium text-gray-700">
+                <th
+                  className="px-4 py-2 text-left font-medium text-gray-700"
+                  style={{ width: "40%" }}
+                >
                   Description
                 </th>
-                <th className="px-4 py-2 text-left font-medium text-gray-700">
+                <th
+                  className="px-4 py-2 text-left font-medium text-gray-700"
+                  style={{ width: "12%" }}
+                >
                   Status
+                </th>
+                <th
+                  className="px-4 py-2 text-right font-medium text-gray-700"
+                  style={{ width: "4%" }}
+                >
+                  Actions
                 </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
               {loading && (
                 <tr>
-                  <td colSpan={4} className="px-4 py-4 text-center text-gray-500">
+                  <td colSpan={5} className="px-4 py-4 text-center text-gray-500">
                     Loading account types...
                   </td>
                 </tr>
               )}
               {!loading && items.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="px-4 py-4 text-center text-gray-500">
+                  <td colSpan={5} className="px-4 py-4 text-center text-gray-500">
                     No account types found.
                   </td>
                 </tr>
@@ -1130,9 +2039,36 @@ function AccountTypeSettings() {
                   <tr key={item.id} className="hover:bg-gray-50">
                     <td className="px-4 py-2 align-top">
                       <div className="flex items-center space-x-2">
-                        <span className="font-medium text-gray-900">
-                          {item.name}
-                        </span>
+                        <div className="min-h-[20px] flex-1 text-xs font-medium text-gray-900">
+                          {editMode ? (
+                            <input
+                              type="text"
+                              value={
+                                drafts[item.id]?.name !== undefined
+                                  ? drafts[item.id]?.name
+                                  : item.name
+                              }
+                              onChange={e =>
+                                setDrafts(prev => ({
+                                  ...prev,
+                                  [item.id]: {
+                                    name: e.target.value,
+                                    code: prev[item.id]?.code ?? item.code,
+                                    description:
+                                      prev[item.id]?.description ??
+                                      item.description ??
+                                      ""
+                                  }
+                                }))
+                              }
+                              className="w-full bg-transparent px-0 py-1 focus:outline-none"
+                            />
+                          ) : (
+                            <span className="block px-0 py-1">
+                              {item.name}
+                            </span>
+                          )}
+                        </div>
                         {item.isSystem && (
                           <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700">
                             System
@@ -1141,12 +2077,67 @@ function AccountTypeSettings() {
                       </div>
                     </td>
                     <td className="px-4 py-2 align-top text-xs text-gray-600">
-                      {item.code}
+                      <div className="min-h-[20px]">
+                        {editMode ? (
+                          <input
+                            type="text"
+                            value=
+                              {drafts[item.id]?.code !== undefined
+                                ? drafts[item.id]?.code
+                                : item.code}
+                            onChange={e =>
+                              setDrafts(prev => ({
+                                ...prev,
+                                [item.id]: {
+                                  name: prev[item.id]?.name ?? item.name,
+                                  code: e.target.value,
+                                  description:
+                                    prev[item.id]?.description ??
+                                    item.description ??
+                                    ""
+                                }
+                              }))
+                            }
+                            className="w-full bg-transparent px-0 py-1 text-xs text-gray-900 focus:outline-none"
+                          />
+                        ) : (
+                          <span className="block px-0 py-1">{item.code}</span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-2 align-top text-xs text-gray-600">
-                      {item.description || (
-                        <span className="text-gray-400">No description</span>
-                      )}
+                      <div className="min-h-[20px]">
+                        {editMode ? (
+                          <input
+                            type="text"
+                            value={
+                              drafts[item.id]?.description !== undefined
+                                ? drafts[item.id]?.description
+                                : item.description ?? ""
+                            }
+                            onChange={e =>
+                              setDrafts(prev => ({
+                                ...prev,
+                                [item.id]: {
+                                  name: prev[item.id]?.name ?? item.name,
+                                  code: prev[item.id]?.code ?? item.code,
+                                  description: e.target.value
+                                }
+                              }))
+                            }
+                            className="w-full bg-transparent px-0 py-1 text-xs text-gray-900 focus:outline-none"
+                            placeholder="No description"
+                          />
+                        ) : item.description ? (
+                          <span className="block px-0 py-1">
+                            {item.description}
+                          </span>
+                        ) : (
+                          <span className="block px-0 py-1 text-gray-400">
+                            No description
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-2 align-top">
                       <button
@@ -1157,8 +2148,8 @@ function AccountTypeSettings() {
                           item.isActive
                             ? "border-green-200 bg-green-50 text-green-700"
                             : "border-gray-200 bg-gray-50 text-gray-600"
-                        }`}
-                      >
+                          }`}
+                        >
                         <span
                           className={`mr-2 inline-block h-2 w-2 rounded-full ${
                             item.isActive ? "bg-green-500" : "bg-gray-400"
@@ -1170,6 +2161,29 @@ function AccountTypeSettings() {
                           ? "Enabled"
                           : "Disabled"}
                       </button>
+                    </td>
+                    <td className="px-4 py-2 align-top text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        {!item.isSystem && (
+                          <button
+                            type="button"
+                            onClick={() => handleRequestDelete(item)}
+                            disabled={
+                              deletingId === item.id ||
+                              (item.usageCount ?? 0) > 0 ||
+                              bulkSaving
+                            }
+                            className="inline-flex items-center rounded-full border border-red-200 bg-red-50 p-1 text-red-600 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-40"
+                            title={
+                              (item.usageCount ?? 0) > 0
+                                ? "Cannot delete an account type that is in use"
+                                : "Delete this account type"
+                            }
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -1208,11 +2222,45 @@ function AccountTypeSettings() {
           </div>
         </div>
       </div>
+
+      {confirmDelete && (
+        <div className="fixed inset-0 z-30 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="w-full max-w-md rounded-lg bg-white p-4 shadow-xl">
+            <h3 className="text-base font-semibold text-gray-900">
+              Delete Account Type
+            </h3>
+            <p className="mt-2 text-sm text-gray-600">
+              Are you sure you want to delete{" "}
+              <span className="font-semibold">{confirmDelete.name}</span>? This
+              will remove it from future dropdowns. The type is not currently
+              used on any accounts or contacts.
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirmDelete(null)}
+                className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDelete}
+                disabled={deletingId === confirmDelete.id}
+                className="inline-flex items-center rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <Trash2 className="mr-1.5 h-4 w-4" />
+                {deletingId === confirmDelete.id ? "Deleting..." : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
 
-function RevenueTypeSettings() {
+function RevenueTypeSettings({ editMode }: { editMode: boolean }) {
   const [items, setItems] = useState<RevenueTypeSetting[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -1221,6 +2269,13 @@ function RevenueTypeSettings() {
   const [newLabel, setNewLabel] = useState("")
   const [newDescription, setNewDescription] = useState("")
   const [page, setPage] = useState(1)
+  const [drafts, setDrafts] = useState<
+    Record<string, { label: string; description: string }>
+  >({})
+  const [confirmDeleteCode, setConfirmDeleteCode] = useState<string | null>(null)
+  const [deletingCode, setDeletingCode] = useState<string | null>(null)
+  const [bulkSaving, setBulkSaving] = useState(false)
+  const prevEditModeRef = useRef(editMode)
 
   const pageSize = FIELD_TABLE_PAGE_SIZE
 
@@ -1253,10 +2308,30 @@ function RevenueTypeSettings() {
     }
   }, [page, totalPages])
 
-    const visibleItems = useMemo(() => {
-      const start = (page - 1) * pageSize
-      return items.slice(start, start + pageSize)
-    }, [page, pageSize, items])
+  const visibleItems = useMemo(() => {
+    const start = (page - 1) * pageSize
+    return items.slice(start, start + pageSize)
+  }, [page, pageSize, items])
+
+  useEffect(() => {
+    if (!editMode) {
+      setDrafts({})
+      return
+    }
+
+    setDrafts(prev => {
+      const next = { ...prev }
+      for (const item of items) {
+        if (!next[item.code]) {
+          next[item.code] = {
+            label: item.label ?? "",
+            description: item.description ?? ""
+          }
+        }
+      }
+      return next
+    })
+  }, [editMode, items])
 
   const handleCreate = async (event: FormEvent) => {
     event.preventDefault()
@@ -1299,11 +2374,11 @@ function RevenueTypeSettings() {
     }
   }
 
-    const handleToggle = async (item: RevenueTypeSetting) => {
-      try {
-        setSavingCode(item.code)
-        setError(null)
-        const nextEnabled = items
+  const handleToggle = async (item: RevenueTypeSetting) => {
+    try {
+      setSavingCode(item.code)
+      setError(null)
+      const nextEnabled = items
         .map(it =>
           it.code === item.code ? { ...it, isEnabled: !it.isEnabled } : it
         )
@@ -1328,7 +2403,148 @@ function RevenueTypeSettings() {
     }
   }
 
-    return (
+  const handleUpdate = async (item: RevenueTypeSetting) => {
+    const draft = drafts[item.code]
+    if (!draft) return
+
+    const label = draft.label.trim()
+    const description = draft.description.trim()
+
+    if (!label) {
+      setError("Label is required for revenue types.")
+      return
+    }
+
+    try {
+      setSavingCode(item.code)
+      setError(null)
+      const res = await fetch("/api/admin/data-settings/revenue-types", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code: item.code,
+          label,
+          description
+        })
+      })
+      if (!res.ok) {
+        let message = "Failed to update revenue type"
+        try {
+          const parsed = await res.json()
+          if (parsed && typeof parsed.error === "string") {
+            message = parsed.error
+          }
+        } catch {
+          // Ignore JSON parse errors
+        }
+        throw new Error(message)
+      }
+
+      const json = await res.json()
+      const updated: RevenueTypeSetting = json.data
+      setItems(prev =>
+        prev.map(it => (it.code === updated.code ? updated : it))
+      )
+      setDrafts(prev => ({
+        ...prev,
+        [updated.code]: {
+          label: updated.label,
+          description: updated.description ?? ""
+        }
+      }))
+    } catch (err) {
+      console.error(err)
+      setError(
+        err instanceof Error ? err.message : "Failed to update revenue type"
+      )
+    } finally {
+      setSavingCode(null)
+    }
+  }
+
+  const saveAllDrafts = async () => {
+    if (!Object.keys(drafts).length) return
+    setBulkSaving(true)
+    try {
+      for (const [code] of Object.entries(drafts)) {
+        const item = items.find(it => it.code === code)
+        if (!item) continue
+
+        const draft = drafts[code]
+        const label = draft.label.trim()
+        if (!label) {
+          setError("Label is required for revenue types.")
+          throw new Error("Label is required")
+        }
+
+        const description = draft.description.trim()
+
+        const hasLabelChange = label !== item.label
+        const hasDescriptionChange = description !== (item.description ?? "")
+
+        if (!hasLabelChange && !hasDescriptionChange) {
+          continue
+        }
+
+        await handleUpdate(item)
+      }
+    } finally {
+      setBulkSaving(false)
+    }
+  }
+
+  useEffect(() => {
+    if (prevEditModeRef.current && !editMode) {
+      void saveAllDrafts()
+    }
+    prevEditModeRef.current = editMode
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editMode, drafts])
+
+  const handleRequestDelete = (item: RevenueTypeSetting) => {
+    if (item.isSystem) {
+      return
+    }
+    setConfirmDeleteCode(item.code)
+  }
+
+  const handleConfirmDelete = async () => {
+    if (!confirmDeleteCode) return
+
+    try {
+      setDeletingCode(confirmDeleteCode)
+      setError(null)
+      const res = await fetch("/api/admin/data-settings/revenue-types", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: confirmDeleteCode })
+      })
+      if (!res.ok) {
+        let message = "Failed to delete revenue type"
+        try {
+          const parsed = await res.json()
+          if (parsed && typeof parsed.error === "string") {
+            message = parsed.error
+          }
+        } catch {
+          // Ignore JSON parse errors
+        }
+        throw new Error(message)
+      }
+
+      setItems(prev => prev.filter(it => it.code !== confirmDeleteCode))
+      setConfirmDeleteCode(null)
+    } catch (err) {
+      console.error(err)
+      setError(
+        err instanceof Error ? err.message : "Failed to delete revenue type"
+      )
+    } finally {
+      setDeletingCode(null)
+    }
+  }
+
+  return (
       <div className="space-y-4">
         {error && (
           <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
@@ -1386,34 +2602,52 @@ function RevenueTypeSettings() {
               minHeight: FIELD_TABLE_MAX_BODY_HEIGHT
             }}
         >
-          <table className="min-w-full divide-y divide-gray-200 text-sm">
+          <table className="min-w-full table-fixed divide-y divide-gray-200 text-sm">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-4 py-2 text-left font-medium text-gray-700">
+                <th
+                  className="px-4 py-2 text-left font-medium text-gray-700"
+                  style={{ width: "24%" }}
+                >
                   Label
                 </th>
-                <th className="px-4 py-2 text-left font-medium text-gray-700">
+                <th
+                  className="px-4 py-2 text-left font-medium text-gray-700"
+                  style={{ width: "18%" }}
+                >
                   Code
                 </th>
-                <th className="px-4 py-2 text-left font-medium text-gray-700">
+                <th
+                  className="px-4 py-2 text-left font-medium text-gray-700"
+                  style={{ width: "42%" }}
+                >
                   Description
                 </th>
-                <th className="px-4 py-2 text-left font-medium text-gray-700">
+                <th
+                  className="px-4 py-2 text-left font-medium text-gray-700"
+                  style={{ width: "12%" }}
+                >
                   Status
+                </th>
+                <th
+                  className="px-4 py-2 text-right font-medium text-gray-700"
+                  style={{ width: "4%" }}
+                >
+                  Actions
                 </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
               {loading && (
                 <tr>
-                  <td colSpan={4} className="px-4 py-4 text-center text-gray-500">
+                  <td colSpan={5} className="px-4 py-4 text-center text-gray-500">
                     Loading revenue types...
                   </td>
                 </tr>
               )}
               {!loading && items.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="px-4 py-4 text-center text-gray-500">
+                  <td colSpan={5} className="px-4 py-4 text-center text-gray-500">
                     No revenue types found.
                   </td>
                 </tr>
@@ -1422,21 +2656,73 @@ function RevenueTypeSettings() {
                 visibleItems.map(item => (
                   <tr key={item.code} className="hover:bg-gray-50">
                     <td className="px-4 py-2 align-top">
-                      <span className="font-medium text-gray-900">
-                        {item.label}
-                      </span>
+                      <div className="min-h-[20px] text-xs font-medium text-gray-900">
+                        {editMode ? (
+                          <input
+                            type="text"
+                            value={
+                              drafts[item.code]?.label !== undefined
+                                ? drafts[item.code]?.label
+                                : item.label
+                            }
+                            onChange={e =>
+                              setDrafts(prev => ({
+                                ...prev,
+                                [item.code]: {
+                                  label: e.target.value,
+                                  description:
+                                    prev[item.code]?.description ??
+                                    item.description ??
+                                    ""
+                                }
+                              }))
+                            }
+                            className="w-full bg-transparent px-0 py-1 focus:outline-none"
+                          />
+                        ) : (
+                          <span className="block px-0 py-1">
+                            {item.label}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-2 align-top text-xs text-gray-600">
                       {item.code}
                     </td>
                     <td className="px-4 py-2 align-top text-xs text-gray-600">
-                      {item.description}
+                      <div className="min-h-[20px]">
+                        {editMode ? (
+                          <input
+                            type="text"
+                            value={
+                              drafts[item.code]?.description !== undefined
+                                ? drafts[item.code]?.description
+                                : item.description ?? ""
+                            }
+                            onChange={e =>
+                              setDrafts(prev => ({
+                                ...prev,
+                                [item.code]: {
+                                  label: prev[item.code]?.label ?? item.label,
+                                  description: e.target.value
+                                }
+                              }))
+                            }
+                            className="w-full bg-transparent px-0 py-1 text-xs text-gray-900 focus:outline-none"
+                            placeholder="No description"
+                          />
+                        ) : (
+                          <span className="block px-0 py-1">
+                            {item.description}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-2 align-top">
                       <button
                         type="button"
                         onClick={() => handleToggle(item)}
-                        disabled={savingCode === item.code}
+                        disabled={savingCode === item.code || bulkSaving}
                         className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium border ${
                           item.isEnabled
                             ? "border-green-200 bg-green-50 text-green-700"
@@ -1454,6 +2740,23 @@ function RevenueTypeSettings() {
                           ? "Enabled"
                           : "Disabled"}
                       </button>
+                    </td>
+                    <td className="px-4 py-2 align-top text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        {!item.isSystem && (
+                          <button
+                            type="button"
+                            onClick={() => handleRequestDelete(item)}
+                            disabled={
+                              deletingCode === item.code || bulkSaving
+                            }
+                            className="inline-flex items-center rounded-full border border-red-200 bg-red-50 p-1 text-red-600 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-40"
+                            title="Delete this revenue type"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -1492,6 +2795,38 @@ function RevenueTypeSettings() {
           </div>
         </div>
       </div>
+
+      {confirmDeleteCode && (
+        <div className="fixed inset-0 z-30 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="w-full max-w-md rounded-lg bg-white p-4 shadow-xl">
+            <h3 className="text-base font-semibold text-gray-900">
+              Delete Revenue Type
+            </h3>
+            <p className="mt-2 text-sm text-gray-600">
+              Are you sure you want to delete this custom revenue type? This
+              will remove it from future dropdowns.
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirmDeleteCode(null)}
+                className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDelete}
+                disabled={deletingCode === confirmDeleteCode}
+                className="inline-flex items-center rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <Trash2 className="mr-1.5 h-4 w-4" />
+                {deletingCode === confirmDeleteCode ? "Deleting..." : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

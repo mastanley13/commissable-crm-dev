@@ -2008,6 +2008,7 @@ export function DepositReconciliationDetailView({
       >
         <div
           className="w-full max-w-5xl rounded-2xl bg-white shadow-xl"
+          style={{ width: "1024px", height: "900px" }}
           onClick={event => event.stopPropagation()}
         >
           <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
@@ -2076,6 +2077,7 @@ export function DepositReconciliationDetailView({
       >
         <div
           className="w-full max-w-5xl rounded-2xl bg-white shadow-xl"
+          style={{ width: "1024px", height: "900px" }}
           onClick={event => event.stopPropagation()}
         >
           <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">

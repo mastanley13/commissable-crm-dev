@@ -25,6 +25,7 @@ interface CustomRevenueTypeDefinition {
 
 interface ApiRevenueTypeDefinition extends CustomRevenueTypeDefinition {
   isEnabled: boolean
+  isSystem: boolean
 }
 
 function normalizeCode(value: string): string {
@@ -66,7 +67,6 @@ async function getCustomDefinitionsForTenant(
     return []
   }
 
-  const canonicalCodes = new Set<string>(CANONICAL_REVENUE_CODES)
   const result: CustomRevenueTypeDefinition[] = []
   const seenCodes = new Set<string>()
 
@@ -89,7 +89,6 @@ async function getCustomDefinitionsForTenant(
           : null
 
       if (!code || !label || !category) continue
-      if (canonicalCodes.has(code)) continue
       if (seenCodes.has(code)) continue
 
       seenCodes.add(code)
@@ -162,19 +161,33 @@ async function buildRevenueTypeResponse(
 
   const enabledCodes = await getEnabledCodesForTenant(tenantId, allCodes)
 
+  const customByCode = new Map(
+    customDefinitions.map(def => [def.code, def] as const)
+  )
+
   const canonicalData: ApiRevenueTypeDefinition[] =
-    REVENUE_TYPE_DEFINITIONS.map(def => ({
+    REVENUE_TYPE_DEFINITIONS.map(def => {
+      const override = customByCode.get(def.code)
+      return {
+        code: def.code,
+        label: override?.label ?? def.label,
+        description: override?.description ?? def.description,
+        category: def.category,
+        isEnabled: enabledCodes.has(def.code),
+        isSystem: true
+      }
+    })
+
+  const customData: ApiRevenueTypeDefinition[] = customDefinitions
+    .filter(def => !CANONICAL_REVENUE_CODES.includes(def.code))
+    .map(def => ({
       code: def.code,
       label: def.label,
       description: def.description,
       category: def.category,
-      isEnabled: enabledCodes.has(def.code)
+      isEnabled: enabledCodes.has(def.code),
+      isSystem: false
     }))
-
-  const customData: ApiRevenueTypeDefinition[] = customDefinitions.map(def => ({
-    ...def,
-    isEnabled: enabledCodes.has(def.code)
-  }))
 
   return [...canonicalData, ...customData]
 }
@@ -312,7 +325,8 @@ export async function POST(request: NextRequest) {
           label,
           description,
           category,
-          isEnabled: true
+          isEnabled: true,
+          isSystem: false
         }
 
         return NextResponse.json({ data: created }, { status: 201 })
@@ -382,6 +396,213 @@ export async function PATCH(request: NextRequest) {
       } catch (error) {
         console.error("Failed to update revenue types setting", error)
         return createErrorResponse("Failed to update revenue types", 500)
+      }
+    }
+  )
+}
+
+export async function PUT(request: NextRequest) {
+  return withPermissions(
+    request,
+    MANAGE_PERMISSIONS,
+    async (req) => {
+      const tenantId = req.user.tenantId
+      const body = await request.json()
+
+      const code =
+        typeof body.code === "string" ? body.code.trim() : ""
+
+      if (!code) {
+        return createErrorResponse("Revenue type code is required", 400)
+      }
+
+      const label =
+        typeof body.label === "string" ? body.label.trim() : ""
+      const description =
+        typeof body.description === "string"
+          ? body.description.trim()
+          : ""
+
+      if (!label) {
+        return createErrorResponse("Label is required", 400)
+      }
+
+
+      try {
+        const canonical = REVENUE_TYPE_DEFINITIONS.find(
+          def => def.code === code
+        )
+        const existingCustom = await getCustomDefinitionsForTenant(tenantId)
+
+        let updatedCustom: CustomRevenueTypeDefinition[]
+
+        if (canonical) {
+          // Treat as an override for a canonical revenue type
+          const withoutThis = existingCustom.filter(def => def.code !== code)
+          updatedCustom = [
+            ...withoutThis,
+            {
+              code,
+              label,
+              description,
+              category: canonical.category
+            }
+          ]
+        } else {
+          const index = existingCustom.findIndex(def => def.code === code)
+          if (index === -1) {
+            return createErrorResponse("Custom revenue type not found", 404)
+          }
+
+          updatedCustom = [...existingCustom]
+          updatedCustom[index] = {
+            ...updatedCustom[index],
+            label,
+            description
+          }
+        }
+
+        const allCodes: string[] = [
+          ...CANONICAL_REVENUE_CODES,
+          ...updatedCustom.map(def => def.code)
+        ]
+
+        const enabledCodes = await getEnabledCodesForTenant(
+          tenantId,
+          allCodes
+        )
+
+        await prisma.systemSetting.upsert({
+          where: {
+            tenantId_key: {
+              tenantId,
+              key: CUSTOM_DEFINITIONS_SETTING_KEY
+            }
+          },
+          create: {
+            tenantId,
+            key: CUSTOM_DEFINITIONS_SETTING_KEY,
+            value: JSON.stringify(updatedCustom),
+            description:
+              "Tenant-specific custom revenue type definitions."
+          },
+          update: {
+            value: JSON.stringify(updatedCustom)
+          }
+        })
+
+        const updatedDef =
+          updatedCustom.find(def => def.code === code) ?? canonical!
+
+        const response: ApiRevenueTypeDefinition = {
+          code: updatedDef.code,
+          label: updatedDef.label,
+          description: updatedDef.description,
+          category: updatedDef.category,
+          isEnabled: enabledCodes.has(updatedDef.code),
+          isSystem: canonical ? true : false
+        }
+
+        return NextResponse.json({ data: response })
+      } catch (error) {
+        console.error("Failed to update revenue type", error)
+        return createErrorResponse("Failed to update revenue type", 500)
+      }
+    }
+  )
+}
+
+export async function DELETE(request: NextRequest) {
+  return withPermissions(
+    request,
+    MANAGE_PERMISSIONS,
+    async (req) => {
+      const tenantId = req.user.tenantId
+
+      let body: any = null
+      try {
+        body = await request.json()
+      } catch {
+        // Ignore parse errors and handle as missing code below
+      }
+
+      const code =
+        body && typeof body.code === "string" ? body.code.trim() : ""
+
+      if (!code) {
+        return createErrorResponse("Revenue type code is required", 400)
+      }
+
+      if (CANONICAL_REVENUE_CODES.includes(code)) {
+        return createErrorResponse(
+          "Canonical revenue types cannot be deleted. Disable them instead.",
+          400
+        )
+      }
+
+      try {
+        const existingCustom = await getCustomDefinitionsForTenant(tenantId)
+
+        const index = existingCustom.findIndex(def => def.code === code)
+        if (index === -1) {
+          return createErrorResponse("Custom revenue type not found", 404)
+        }
+
+        const updatedCustom = existingCustom.filter(def => def.code !== code)
+
+        const allCodes: string[] = [
+          ...CANONICAL_REVENUE_CODES,
+          ...updatedCustom.map(def => def.code)
+        ]
+
+        const enabledCodes = await getEnabledCodesForTenant(
+          tenantId,
+          allCodes
+        )
+        enabledCodes.delete(code)
+
+        await prisma.systemSetting.upsert({
+          where: {
+            tenantId_key: {
+              tenantId,
+              key: CUSTOM_DEFINITIONS_SETTING_KEY
+            }
+          },
+          create: {
+            tenantId,
+            key: CUSTOM_DEFINITIONS_SETTING_KEY,
+            value: JSON.stringify(updatedCustom),
+            description:
+              "Tenant-specific custom revenue type definitions."
+          },
+          update: {
+            value: JSON.stringify(updatedCustom)
+          }
+        })
+
+        await prisma.systemSetting.upsert({
+          where: {
+            tenantId_key: {
+              tenantId,
+              key: ENABLED_CODES_SETTING_KEY
+            }
+          },
+          create: {
+            tenantId,
+            key: ENABLED_CODES_SETTING_KEY,
+            value: JSON.stringify(Array.from(enabledCodes)),
+            description:
+              "List of revenue type codes that are enabled for selection."
+          },
+          update: {
+            value: JSON.stringify(Array.from(enabledCodes))
+          }
+        })
+
+        return NextResponse.json({ success: true })
+      } catch (error) {
+        console.error("Failed to delete revenue type", error)
+        return createErrorResponse("Failed to delete revenue type", 500)
       }
     }
   )

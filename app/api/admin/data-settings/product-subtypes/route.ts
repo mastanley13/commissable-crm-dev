@@ -213,6 +213,31 @@ export async function PATCH(request: NextRequest) {
           }
         }
 
+        if (typeof body.code === "string") {
+          const rawCode = body.code.trim()
+          if (rawCode.length > 0) {
+            const normalizedCode = normalizeCode(rawCode)
+            if (normalizedCode && normalizedCode !== existing.code) {
+              const conflicting = await prisma.productSubtype.findFirst({
+                where: {
+                  tenantId,
+                  code: normalizedCode,
+                  NOT: { id: existing.id }
+                }
+              })
+
+              if (conflicting) {
+                return createErrorResponse(
+                  "Another product subtype already uses this code",
+                  400
+                )
+              }
+
+              data.code = normalizedCode
+            }
+          }
+        }
+
         if (typeof body.description === "string") {
           const description = body.description.trim()
           data.description = description.length > 0 ? description : null
@@ -231,8 +256,6 @@ export async function PATCH(request: NextRequest) {
           data.productFamilyId = familyId.length > 0 ? familyId : null
         }
 
-        // Do not allow changing code or isSystem via this endpoint
-
         if (Object.keys(data).length === 0) {
           return NextResponse.json({ data: existing })
         }
@@ -246,6 +269,54 @@ export async function PATCH(request: NextRequest) {
       } catch (error) {
         console.error("Failed to update product subtype", error)
         return createErrorResponse("Failed to update product subtype", 500)
+      }
+    }
+  )
+}
+
+export async function DELETE(request: NextRequest) {
+  return withPermissions(
+    request,
+    MANAGE_PERMISSIONS,
+    async (req) => {
+      const tenantId = req.user.tenantId
+
+      let body: any = null
+      try {
+        body = await request.json()
+      } catch {
+        // Ignore parse errors and handle as missing id below
+      }
+
+      const id = body && typeof body.id === "string" ? body.id : null
+      if (!id) {
+        return createErrorResponse("Product subtype id is required", 400)
+      }
+
+      try {
+        const existing = await prisma.productSubtype.findFirst({
+          where: { id, tenantId }
+        })
+
+        if (!existing) {
+          return createErrorResponse("Product subtype not found", 404)
+        }
+
+        if (existing.isSystem) {
+          return createErrorResponse(
+            "System product subtypes cannot be deleted",
+            400
+          )
+        }
+
+        await prisma.productSubtype.delete({
+          where: { id: existing.id }
+        })
+
+        return NextResponse.json({ success: true })
+      } catch (error) {
+        console.error("Failed to delete product subtype", error)
+        return createErrorResponse("Failed to delete product subtype", 500)
       }
     }
   )
