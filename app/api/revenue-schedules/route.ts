@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
 
       const dedupedFilters = dedupeColumnFilters(columnFilters)
 
-      const where: Prisma.RevenueScheduleWhereInput = { tenantId }
+      const where: Prisma.RevenueScheduleWhereInput = { tenantId, deletedAt: null }
 
       const andFilters: Prisma.RevenueScheduleWhereInput[] = []
 

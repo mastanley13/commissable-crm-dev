@@ -33,6 +33,7 @@ export interface RevenueScheduleDetailRecord {
   revenueScheduleDate?: string
   revenueMonth?: string | null
   billingMonth?: string | null
+  deletedAt?: string | null
   productNameVendor?: string
   productNameHouse?: string | null
   productDescriptionVendor?: string
@@ -1322,6 +1323,7 @@ export function RevenueScheduleDetailsView({
         ref={supportingDetailsRef}
         schedule={schedule}
         enableRedesign={supportingDetailsV2}
+        onRefresh={onRefresh}
       />
     </div>
   )

@@ -150,6 +150,7 @@ export async function GET(request: NextRequest, { params }: { params: { opportun
             orderBy: { createdAt: "asc" }
           },
           revenueSchedules: {
+            where: { deletedAt: null },
             include: {
               product: {
                 select: {

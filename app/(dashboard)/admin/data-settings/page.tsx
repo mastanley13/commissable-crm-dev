@@ -542,46 +542,6 @@ function ProductSubtypeSettings({ editMode }: { editMode: boolean }) {
         </div>
       )}
 
-      <form
-        onSubmit={handleCreate}
-        className="space-y-3 rounded-md border border-gray-200 bg-gray-50 p-3"
-      >
-        <div className="text-xs font-medium text-gray-900">Add Product Subtype</div>
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr,1fr,auto]">
-          <div>
-            <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">
-              Name
-            </label>
-            <input
-              type="text"
-              value={newName}
-              onChange={e => setNewName(e.target.value)}
-              className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
-              placeholder="e.g. UCaaS"
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">
-              Description
-            </label>
-            <input
-              type="text"
-              value={newDescription}
-              onChange={e => setNewDescription(e.target.value)}
-              className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
-              placeholder="Short explanation of when to use this subtype"
-            />
-          </div>
-          <button
-            type="submit"
-            disabled={creating}
-            className="inline-flex items-center justify-center self-end rounded-md bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50 md:w-auto"
-          >
-            {creating ? "Adding..." : "Add Product Subtype"}
-          </button>
-        </div>
-      </form>
-
       <div className="overflow-hidden rounded-md border border-gray-200 bg-white">
         <div
           className="overflow-y-auto"
@@ -594,8 +554,25 @@ function ProductSubtypeSettings({ editMode }: { editMode: boolean }) {
             <thead className="bg-gray-50">
               <tr>
                 <th
+                  className="px-4 py-2 text-left font-medium text-gray-700 whitespace-nowrap"
+                  style={{ width: "6%" }}
+                >
+                  Actions
+                </th>
+                <th
+                  className="px-4 py-2 text-left font-medium text-gray-700 whitespace-nowrap"
+                  style={{ width: "12%" }}
+                >
+                  <div className="flex flex-col leading-tight">
+                    <span>Enabled</span>
+                    <span className="mt-0.5 text-[10px] font-normal text-gray-500">
+                      Click to toggle
+                    </span>
+                  </div>
+                </th>
+                <th
                   className="px-4 py-2 text-left font-medium text-gray-700"
-                  style={{ width: "26%" }}
+                  style={{ width: "24%" }}
                 >
                   Name
                 </th>
@@ -610,18 +587,6 @@ function ProductSubtypeSettings({ editMode }: { editMode: boolean }) {
                   style={{ width: "40%" }}
                 >
                   Description
-                </th>
-                <th
-                  className="px-4 py-2 text-left font-medium text-gray-700"
-                  style={{ width: "12%" }}
-                >
-                  Status
-                </th>
-                <th
-                  className="px-4 py-2 text-right font-medium text-gray-700"
-                  style={{ width: "4%" }}
-                >
-                  Actions
                 </th>
               </tr>
             </thead>
@@ -643,6 +608,54 @@ function ProductSubtypeSettings({ editMode }: { editMode: boolean }) {
               {!loading &&
                 visibleSubtypes.map(subtype => (
                   <tr key={subtype.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-2 align-top">
+                      <div className="flex items-center gap-2">
+                        {!subtype.isSystem && (
+                          <button
+                            type="button"
+                            onClick={() => handleRequestDelete(subtype)}
+                            disabled={deletingId === subtype.id || bulkSaving}
+                            className="inline-flex items-center rounded-full border border-red-200 bg-red-50 p-1 text-red-600 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-40"
+                            title="Delete this product subtype"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-2 align-top">
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={subtype.isActive}
+                        aria-label={`Toggle ${subtype.name} (${subtype.isActive ? "Enabled" : "Disabled"})`}
+                        title={
+                          savingId === subtype.id
+                            ? "Updating status..."
+                            : subtype.isActive
+                            ? "Click to disable"
+                            : "Click to enable"
+                        }
+                        onClick={() => handleToggle(subtype)}
+                        disabled={savingId === subtype.id || bulkSaving}
+                        className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 ${
+                          subtype.isActive
+                            ? "border-green-200 bg-green-50 text-green-700"
+                            : "border-gray-200 bg-gray-50 text-gray-600"
+                        }`}
+                      >
+                        <span
+                          className={`mr-2 inline-block h-2 w-2 rounded-full ${
+                            subtype.isActive ? "bg-green-500" : "bg-gray-400"
+                          }`}
+                        />
+                        {savingId === subtype.id
+                          ? "Updating..."
+                          : subtype.isActive
+                          ? "Enabled"
+                          : "Disabled"}
+                      </button>
+                    </td>
                     <td className="px-4 py-2 align-top">
                       <div className="flex items-center space-x-2">
                         <div className="min-h-[20px] flex-1 text-xs font-medium text-gray-900">
@@ -741,44 +754,6 @@ function ProductSubtypeSettings({ editMode }: { editMode: boolean }) {
                         )}
                       </div>
                     </td>
-                    <td className="px-4 py-2 align-top">
-                      <button
-                        type="button"
-                        onClick={() => handleToggle(subtype)}
-                        disabled={savingId === subtype.id || bulkSaving}
-                        className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium border ${
-                          subtype.isActive
-                            ? "border-green-200 bg-green-50 text-green-700"
-                            : "border-gray-200 bg-gray-50 text-gray-600"
-                        }`}
-                      >
-                        <span
-                          className={`mr-2 inline-block h-2 w-2 rounded-full ${
-                            subtype.isActive ? "bg-green-500" : "bg-gray-400"
-                          }`}
-                        />
-                        {savingId === subtype.id
-                          ? "Updating..."
-                          : subtype.isActive
-                          ? "Enabled"
-                          : "Disabled"}
-                      </button>
-                    </td>
-                    <td className="px-4 py-2 align-top text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        {!subtype.isSystem && (
-                          <button
-                            type="button"
-                            onClick={() => handleRequestDelete(subtype)}
-                            disabled={deletingId === subtype.id || bulkSaving}
-                            className="inline-flex items-center rounded-full border border-red-200 bg-red-50 p-1 text-red-600 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-40"
-                            title="Delete this product subtype"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        )}
-                      </div>
-                    </td>
                   </tr>
                 ))}
             </tbody>
@@ -816,6 +791,46 @@ function ProductSubtypeSettings({ editMode }: { editMode: boolean }) {
           </div>
         </div>
       </div>
+
+      <form
+        onSubmit={handleCreate}
+        className="space-y-3 rounded-md border border-gray-200 bg-gray-50 p-3"
+      >
+        <div className="text-xs font-medium text-gray-900">Add Product Subtype</div>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr,1fr,auto]">
+          <div>
+            <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+              Name
+            </label>
+            <input
+              type="text"
+              value={newName}
+              onChange={e => setNewName(e.target.value)}
+              className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
+              placeholder="e.g. UCaaS"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+              Description
+            </label>
+            <input
+              type="text"
+              value={newDescription}
+              onChange={e => setNewDescription(e.target.value)}
+              className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
+              placeholder="Short explanation of when to use this subtype"
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={creating}
+            className="inline-flex items-center justify-center self-end rounded-md bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50 md:w-auto"
+          >
+            {creating ? "Adding..." : "Add Product Subtype"}
+          </button>
+        </div>
+      </form>
 
       {confirmDelete && (
         <div className="fixed inset-0 z-30 flex items-center justify-center bg-black bg-opacity-50">
@@ -1293,48 +1308,6 @@ function ProductFamilySettings({ editMode }: { editMode: boolean }) {
         </div>
       )}
 
-      <form
-        onSubmit={handleCreate}
-        className="space-y-3 rounded-md border border-gray-200 bg-gray-50 p-3"
-      >
-        <div className="text-xs font-medium text-gray-900">
-          Add Product Family Type
-        </div>
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr,1fr,auto]">
-          <div>
-            <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">
-              Name
-            </label>
-            <input
-              type="text"
-              value={newName}
-              onChange={e => setNewName(e.target.value)}
-              className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
-              placeholder="e.g. AI Services"
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">
-              Description
-            </label>
-            <input
-              type="text"
-              value={newDescription}
-              onChange={e => setNewDescription(e.target.value)}
-              className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
-              placeholder="Short explanation of when to use this family"
-            />
-          </div>
-          <button
-            type="submit"
-            disabled={creating}
-            className="inline-flex items-center justify-center self-end rounded-md bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50 md:w-auto"
-          >
-            {creating ? "Adding..." : "Add Product Family Type"}
-          </button>
-        </div>
-      </form>
-
       <div className="overflow-hidden rounded-md border border-gray-200 bg-white">
         <div
           className="overflow-y-auto"
@@ -1347,8 +1320,25 @@ function ProductFamilySettings({ editMode }: { editMode: boolean }) {
             <thead className="bg-gray-50">
               <tr>
                 <th
+                  className="px-4 py-2 text-left font-medium text-gray-700 whitespace-nowrap"
+                  style={{ width: "6%" }}
+                >
+                  Actions
+                </th>
+                <th
+                  className="px-4 py-2 text-left font-medium text-gray-700 whitespace-nowrap"
+                  style={{ width: "12%" }}
+                >
+                  <div className="flex flex-col leading-tight">
+                    <span>Enabled</span>
+                    <span className="mt-0.5 text-[10px] font-normal text-gray-500">
+                      Click to toggle
+                    </span>
+                  </div>
+                </th>
+                <th
                   className="px-4 py-2 text-left font-medium text-gray-700"
-                  style={{ width: "26%" }}
+                  style={{ width: "24%" }}
                 >
                   Name
                 </th>
@@ -1363,18 +1353,6 @@ function ProductFamilySettings({ editMode }: { editMode: boolean }) {
                   style={{ width: "40%" }}
                 >
                   Description
-                </th>
-                <th
-                  className="px-4 py-2 text-left font-medium text-gray-700"
-                  style={{ width: "12%" }}
-                >
-                  Status
-                </th>
-                <th
-                  className="px-4 py-2 text-right font-medium text-gray-700"
-                  style={{ width: "4%" }}
-                >
-                  Actions
                 </th>
               </tr>
             </thead>
@@ -1396,6 +1374,62 @@ function ProductFamilySettings({ editMode }: { editMode: boolean }) {
               {!loading &&
                 visibleFamilies.map(family => (
                   <tr key={family.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-2 align-top">
+                      <div className="flex items-center gap-2">
+                        {!family.isSystem && (
+                          <button
+                            type="button"
+                            onClick={() => handleRequestDelete(family)}
+                            disabled={
+                              deletingId === family.id ||
+                              bulkSaving ||
+                              (family.usageCount ?? 0) > 0
+                            }
+                            className="inline-flex items-center rounded-full border border-red-200 bg-red-50 p-1 text-red-600 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-40"
+                            title={
+                              (family.usageCount ?? 0) > 0
+                                ? "Cannot delete a product family that still has product subtypes"
+                                : "Delete this product family"
+                            }
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-2 align-top">
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={family.isActive}
+                        aria-label={`Toggle ${family.name} (${family.isActive ? "Enabled" : "Disabled"})`}
+                        title={
+                          savingId === family.id
+                            ? "Updating status..."
+                            : family.isActive
+                            ? "Click to disable"
+                            : "Click to enable"
+                        }
+                        onClick={() => handleToggle(family)}
+                        disabled={savingId === family.id || bulkSaving}
+                        className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 ${
+                          family.isActive
+                            ? "border-green-200 bg-green-50 text-green-700"
+                            : "border-gray-200 bg-gray-50 text-gray-600"
+                        }`}
+                      >
+                        <span
+                          className={`mr-2 inline-block h-2 w-2 rounded-full ${
+                            family.isActive ? "bg-green-500" : "bg-gray-400"
+                          }`}
+                        />
+                        {savingId === family.id
+                          ? "Updating..."
+                          : family.isActive
+                          ? "Enabled"
+                          : "Disabled"}
+                      </button>
+                    </td>
                     <td className="px-4 py-2 align-top">
                       <div className="flex items-center space-x-2">
                         <div className="min-h-[20px] flex-1 text-xs font-medium text-gray-900">
@@ -1494,52 +1528,6 @@ function ProductFamilySettings({ editMode }: { editMode: boolean }) {
                         )}
                       </div>
                     </td>
-                    <td className="px-4 py-2 align-top">
-                      <button
-                        type="button"
-                        onClick={() => handleToggle(family)}
-                        disabled={savingId === family.id || bulkSaving}
-                        className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium border ${
-                          family.isActive
-                            ? "border-green-200 bg-green-50 text-green-700"
-                            : "border-gray-200 bg-gray-50 text-gray-600"
-                        }`}
-                      >
-                        <span
-                          className={`mr-2 inline-block h-2 w-2 rounded-full ${
-                            family.isActive ? "bg-green-500" : "bg-gray-400"
-                          }`}
-                        />
-                        {savingId === family.id
-                          ? "Updating..."
-                          : family.isActive
-                          ? "Enabled"
-                          : "Disabled"}
-                      </button>
-                    </td>
-                    <td className="px-4 py-2 align-top text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        {!family.isSystem && (
-                          <button
-                            type="button"
-                            onClick={() => handleRequestDelete(family)}
-                            disabled={
-                              deletingId === family.id ||
-                              bulkSaving ||
-                              (family.usageCount ?? 0) > 0
-                            }
-                            className="inline-flex items-center rounded-full border border-red-200 bg-red-50 p-1 text-red-600 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-40"
-                            title={
-                              (family.usageCount ?? 0) > 0
-                                ? "Cannot delete a product family that still has product subtypes"
-                                : "Delete this product family"
-                            }
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        )}
-                      </div>
-                    </td>
                   </tr>
                 ))}
             </tbody>
@@ -1577,6 +1565,48 @@ function ProductFamilySettings({ editMode }: { editMode: boolean }) {
           </div>
         </div>
       </div>
+
+      <form
+        onSubmit={handleCreate}
+        className="space-y-3 rounded-md border border-gray-200 bg-gray-50 p-3"
+      >
+        <div className="text-xs font-medium text-gray-900">
+          Add Product Family Type
+        </div>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr,1fr,auto]">
+          <div>
+            <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+              Name
+            </label>
+            <input
+              type="text"
+              value={newName}
+              onChange={e => setNewName(e.target.value)}
+              className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
+              placeholder="e.g. AI Services"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+              Description
+            </label>
+            <input
+              type="text"
+              value={newDescription}
+              onChange={e => setNewDescription(e.target.value)}
+              className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
+              placeholder="Short explanation of when to use this family"
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={creating}
+            className="inline-flex items-center justify-center self-end rounded-md bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50 md:w-auto"
+          >
+            {creating ? "Adding..." : "Add Product Family Type"}
+          </button>
+        </div>
+      </form>
 
       {confirmDelete && (
         <div className="fixed inset-0 z-30 flex items-center justify-center bg-black bg-opacity-50">

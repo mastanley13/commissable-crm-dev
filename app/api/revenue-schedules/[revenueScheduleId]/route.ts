@@ -4,8 +4,6 @@ import { withAuth, withPermissions } from "@/lib/api-auth"
 import { mapRevenueScheduleToDetail, type RevenueScheduleWithRelations } from "../helpers"
 import { isRevenueTypeCode } from "@/lib/revenue-types"
 import {
-  Activity,
-  Ticket,
   DepositLineMatchStatus,
   DepositPaymentType,
   AuditAction,
@@ -105,10 +103,14 @@ export async function GET(request: NextRequest, { params }: { params: { revenueS
         return NextResponse.json({ error: "Revenue schedule id is required" }, { status: 400 })
       }
 
+      const roleCode = (req.user.role?.code ?? "").toLowerCase()
+      const isAdmin = roleCode === "admin"
+
       const schedule = await prisma.revenueSchedule.findFirst({
         where: {
           id: revenueScheduleId,
-          tenantId: req.user.tenantId
+          tenantId: req.user.tenantId,
+          ...(isAdmin ? {} : { deletedAt: null })
         },
         include: {
           account: {
@@ -232,7 +234,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { revenu
 
       // Ensure the schedule exists and belongs to tenant
       const existing = await prisma.revenueSchedule.findFirst({
-        where: { id: revenueScheduleId, tenantId },
+        where: { id: revenueScheduleId, tenantId, deletedAt: null },
         include: {
           product: { select: { id: true, priceEach: true, commissionPercent: true } },
           opportunityProduct: { select: { id: true, quantity: true, unitPrice: true } },
@@ -691,11 +693,16 @@ export async function DELETE(request: NextRequest, { params }: { params: { reven
           actualUsageAdjustment: true,
           actualCommission: true,
           actualCommissionAdjustment: true,
+          deletedAt: true,
         }
       })
 
       if (!schedule) {
         return NextResponse.json({ error: "Revenue schedule not found" }, { status: 404 })
+      }
+
+      if (schedule.deletedAt) {
+        return NextResponse.json({ success: true })
       }
 
       const usageFields = [
@@ -733,19 +740,25 @@ export async function DELETE(request: NextRequest, { params }: { params: { reven
         }
 
       const deleteReason = request.nextUrl.searchParams.get("reason") || null
+      const deletedAt = new Date()
 
       const previousValues: Record<string, unknown> = {
-        scheduleNumber: schedule.scheduleNumber ?? null,
-        scheduleDate: schedule.scheduleDate ?? null,
-        expectedUsage: schedule.expectedUsage ?? null,
-        expectedCommission: schedule.expectedCommission ?? null,
-        usageAdjustment: schedule.usageAdjustment ?? null,
-        actualUsage: schedule.actualUsage ?? null,
-        actualUsageAdjustment: schedule.actualUsageAdjustment ?? null,
-        actualCommission: schedule.actualCommission ?? null,
-        actualCommissionAdjustment: schedule.actualCommissionAdjustment ?? null,
+        deletedAt: schedule.deletedAt,
         deleteReason,
       }
+
+      const newValues: Record<string, unknown> = {
+        deletedAt,
+        deleteReason,
+      }
+
+      await prisma.revenueSchedule.update({
+        where: { id: revenueScheduleId },
+        data: {
+          deletedAt,
+          updatedById: req.user.id
+        }
+      })
 
       await logRevenueScheduleAudit(
         AuditAction.Delete,
@@ -754,22 +767,8 @@ export async function DELETE(request: NextRequest, { params }: { params: { reven
         tenantId,
         request,
         previousValues,
-        undefined,
+        newValues,
       )
-
-      await prisma.$transaction(async (tx) => {
-        // Remove non-monetary dependents to satisfy FKs
-        await tx.activity.deleteMany({ where: { tenantId, revenueScheduleId } })
-        await tx.ticket.deleteMany({ where: { tenantId, revenueScheduleId } })
-        await tx.depositLineMatch.deleteMany({ where: { tenantId, revenueScheduleId } })
-        await tx.reconciliationItem.deleteMany({ where: { tenantId, revenueScheduleId } })
-        await tx.depositLineItem.updateMany({
-          where: { tenantId, primaryRevenueScheduleId: revenueScheduleId },
-          data: { primaryRevenueScheduleId: null }
-        })
-
-        await tx.revenueSchedule.delete({ where: { id: revenueScheduleId } })
-      })
 
       return NextResponse.json({ success: true })
     } catch (error) {

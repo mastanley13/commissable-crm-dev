@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState, type ReactNode } from "react"
 import { DynamicTable, type Column } from "./dynamic-table"
 import { ColumnChooserModal } from "./column-chooser-modal"
 import { ListHeader, type ColumnFilter } from "./list-header"
@@ -27,6 +27,9 @@ interface AuditHistoryTabProps {
   historyRows?: HistoryRow[]
   tableBodyMaxHeight?: number
   tableAreaRefCallback?: (node: HTMLDivElement | null) => void
+  rowActionLabel?: string
+  rowActionRenderer?: (row: HistoryRow) => ReactNode
+  reloadToken?: number
 }
 
 interface AuditLogAPIResponse {
@@ -53,60 +56,97 @@ const percentFormatter = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 2
 })
 
-const HISTORY_TABLE_BASE_COLUMNS: Column[] = [
-  {
-    id: "occurredAt",
-    label: "Date / Time",
-    accessor: "occurredAt",
-    width: 200,
-    minWidth: calculateMinWidth({ label: "Date / Time", type: "text", sortable: true }),
-    maxWidth: 260,
-    sortable: true
-  },
-  {
-    id: "userName",
-    label: "User",
-    accessor: "userName",
-    width: 200,
-    minWidth: calculateMinWidth({ label: "User", type: "text", sortable: true }),
-    maxWidth: 260,
-    sortable: true
-  },
-  {
-    id: "action",
-    label: "Action",
-    accessor: "action",
-    width: 180,
-    minWidth: calculateMinWidth({ label: "Action", type: "text", sortable: true }),
-    maxWidth: 220,
-    sortable: true
-  },
-  {
-    id: "field",
-    label: "Field",
-    accessor: "field",
-    width: 220,
-    minWidth: calculateMinWidth({ label: "Field", type: "text", sortable: true }),
-    maxWidth: 320,
-    sortable: true
-  },
-  {
-    id: "fromValue",
-    label: "From",
-    accessor: "fromValue",
-    width: 260,
-    minWidth: calculateMinWidth({ label: "From", type: "text", sortable: false }),
-    maxWidth: 360
-  },
-  {
-    id: "toValue",
-    label: "To",
-    accessor: "toValue",
-    width: 260,
-    minWidth: calculateMinWidth({ label: "To", type: "text", sortable: false }),
-    maxWidth: 360
+const HISTORY_ACTION_COLUMN_ID = "rowActions"
+
+function buildBaseHistoryColumns(actionLabel?: string): Column[] {
+  const columns: Column[] = [
+    {
+      id: "occurredAt",
+      label: "Date / Time",
+      accessor: "occurredAt",
+      width: 200,
+      minWidth: calculateMinWidth({ label: "Date / Time", type: "text", sortable: true }),
+      maxWidth: 260,
+      sortable: true
+    },
+    {
+      id: "userName",
+      label: "User",
+      accessor: "userName",
+      width: 200,
+      minWidth: calculateMinWidth({ label: "User", type: "text", sortable: true }),
+      maxWidth: 260,
+      sortable: true
+    },
+    {
+      id: "action",
+      label: "Action",
+      accessor: "action",
+      width: 180,
+      minWidth: calculateMinWidth({ label: "Action", type: "text", sortable: true }),
+      maxWidth: 220,
+      sortable: true
+    },
+    {
+      id: "field",
+      label: "Field",
+      accessor: "field",
+      width: 220,
+      minWidth: calculateMinWidth({ label: "Field", type: "text", sortable: true }),
+      maxWidth: 320,
+      sortable: true
+    },
+    {
+      id: "fromValue",
+      label: "From",
+      accessor: "fromValue",
+      width: 260,
+      minWidth: calculateMinWidth({ label: "From", type: "text", sortable: false }),
+      maxWidth: 360
+    },
+    {
+      id: "toValue",
+      label: "To",
+      accessor: "toValue",
+      width: 260,
+      minWidth: calculateMinWidth({ label: "To", type: "text", sortable: false }),
+      maxWidth: 360
+    }
+  ]
+
+  if (actionLabel) {
+    columns.push({
+      id: HISTORY_ACTION_COLUMN_ID,
+      label: actionLabel,
+      width: 120,
+      minWidth: calculateMinWidth({ label: actionLabel, type: "action", sortable: false }),
+      maxWidth: 180,
+      sortable: false,
+      type: "action"
+    })
   }
-]
+
+  return columns
+}
+
+function syncColumnsWithBase(previous: Column[], base: Column[]): Column[] {
+  const prevById = new Map(previous.map(column => [column.id, column]))
+
+  return base.map(column => {
+    const prior = prevById.get(column.id)
+    if (!prior) {
+      return column
+    }
+
+    return {
+      ...column,
+      width: prior.width ?? column.width,
+      hidden: prior.hidden ?? column.hidden,
+      minWidth: prior.minWidth ?? column.minWidth,
+      maxWidth: prior.maxWidth ?? column.maxWidth
+    }
+  })
+}
 
 const HISTORY_FILTER_ACCESSOR: Record<string, keyof HistoryRow> = {
   occurredAt: "occurredAt",
@@ -232,10 +272,17 @@ export function AuditHistoryTab({
   entityId,
   historyRows,
   tableBodyMaxHeight,
-  tableAreaRefCallback
+  tableAreaRefCallback,
+  rowActionLabel,
+  rowActionRenderer,
+  reloadToken
 }: AuditHistoryTabProps) {
+  const baseColumns = useMemo(
+    () => buildBaseHistoryColumns(rowActionRenderer ? (rowActionLabel ?? "Actions") : undefined),
+    [rowActionLabel, rowActionRenderer]
+  )
   const [historyTableColumns, setHistoryTableColumns] = useState<Column[]>(
-    () => HISTORY_TABLE_BASE_COLUMNS.map(column => ({ ...column }))
+    () => baseColumns.map(column => ({ ...column }))
   )
   const [showHistoryColumnSettings, setShowHistoryColumnSettings] = useState(false)
   const [historyColumnFilters, setHistoryColumnFilters] = useState<ColumnFilter[]>([])
@@ -245,6 +292,10 @@ export function AuditHistoryTab({
   const [fetchedHistoryRows, setFetchedHistoryRows] = useState<HistoryRow[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    setHistoryTableColumns(prev => syncColumnsWithBase(prev, baseColumns))
+  }, [baseColumns])
 
   // Fetch audit logs from API if historyRows prop is not provided
   useEffect(() => {
@@ -277,7 +328,7 @@ export function AuditHistoryTab({
     }
 
     fetchAuditLogs()
-  }, [entityName, entityId, historyRows])
+  }, [entityName, entityId, historyRows, reloadToken])
 
   // Use either provided historyRows or fetched data
   const actualHistoryRows = historyRows !== undefined ? historyRows : fetchedHistoryRows
@@ -326,6 +377,17 @@ export function AuditHistoryTab({
     [filteredRows.length, page, pageSize, totalPages]
   )
 
+  const columnsWithActions = useMemo(() => {
+    if (!rowActionRenderer) return historyTableColumns
+    return historyTableColumns.map(column => {
+      if (column.id !== HISTORY_ACTION_COLUMN_ID) return column
+      return {
+        ...column,
+        render: (_value: unknown, row: HistoryRow) => rowActionRenderer(row)
+      }
+    })
+  }, [historyTableColumns, rowActionRenderer])
+
   return (
     <>
       <div className="grid flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0 px-3 pb-0">
@@ -357,7 +419,7 @@ export function AuditHistoryTab({
               <DynamicTable
                 className="flex flex-col"
                 preferOverflowHorizontalScroll
-                columns={historyTableColumns}
+                columns={columnsWithActions}
                 data={paginatedRows}
                 emptyMessage="No history entries yet"
                 pagination={pagination}
@@ -380,7 +442,7 @@ export function AuditHistoryTab({
 
       <ColumnChooserModal
         isOpen={showHistoryColumnSettings}
-        columns={historyTableColumns}
+        columns={columnsWithActions}
         onApply={columns => {
           setHistoryTableColumns(columns)
           setShowHistoryColumnSettings(false)

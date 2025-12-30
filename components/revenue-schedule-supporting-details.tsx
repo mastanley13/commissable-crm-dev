@@ -26,6 +26,7 @@ import { ACTIVITY_TABLE_BASE_COLUMNS } from "@/components/opportunity-details-vi
 import { ActivityNoteCreateModal } from "@/components/activity-note-create-modal"
 import { TicketCreateModal } from "@/components/ticket-create-modal"
 import { useAuth } from "@/lib/auth-context"
+import type { HistoryRow } from "./opportunity-types"
 import { SectionContainer } from "@/components/section/SectionContainer"
 import { KeyValueGrid, type KeyValueItem } from "@/components/section/KeyValueGrid"
 import { PillTabs } from "@/components/section/PillTabs"
@@ -33,6 +34,7 @@ import { EmptyState } from "@/components/section/EmptyState"
 import { ErrorBanner } from "@/components/section/ErrorBanner"
 import { LoadingState } from "@/components/section/LoadingState"
 import { CommissionPayoutCreateModal } from "@/components/commission-payout-create-modal"
+import { useToasts } from "@/components/toast"
 
 interface SectionNavigationItem {
   id: string
@@ -261,16 +263,78 @@ export interface RevenueScheduleSupportingDetailsHandle {
 
 export const RevenueScheduleSupportingDetails = forwardRef<
   RevenueScheduleSupportingDetailsHandle,
-  { schedule: RevenueScheduleDetailRecord | null; enableRedesign?: boolean }
->(function RevenueScheduleSupportingDetails({ schedule, enableRedesign = false }, ref) {
-  const { hasPermission } = useAuth()
+  { schedule: RevenueScheduleDetailRecord | null; enableRedesign?: boolean; onRefresh?: () => void }
+>(function RevenueScheduleSupportingDetails({ schedule, enableRedesign = false, onRefresh }, ref) {
+  const { hasPermission, user } = useAuth()
+  const { showError, showSuccess, ToastContainer } = useToasts()
   const canCreateTickets = hasPermission ? hasPermission("tickets.create") : true
   const canManageSchedules = hasPermission ? hasPermission("revenue-schedules.manage") : true
+  const roleCode = (user?.role?.code ?? "").toLowerCase()
+  const isAdmin = roleCode === "admin"
+  const canRestoreSchedule = isAdmin && Boolean(schedule?.deletedAt)
 
   const initialSection = enableRedesign ? REDESIGN_SECTION_ITEMS[0].id : LEGACY_SECTION_ITEMS[0].id
 
   const [activeSectionId, setActiveSectionId] = useState<string>(initialSection)
   const containerRef = useRef<HTMLElement | null>(null)
+  const [restoreBusy, setRestoreBusy] = useState(false)
+  const [historyReloadToken, setHistoryReloadToken] = useState(0)
+
+  const handleRestoreSchedule = useCallback(async () => {
+    if (!canRestoreSchedule || !schedule?.id) {
+      return
+    }
+
+    const label = schedule.revenueScheduleName ?? schedule.revenueSchedule ?? schedule.id
+    const confirmed = window.confirm(`Restore revenue schedule ${label}?`)
+    if (!confirmed) return
+
+    setRestoreBusy(true)
+    try {
+      const response = await fetch(
+        `/api/revenue-schedules/${encodeURIComponent(schedule.id)}/restore`,
+        { method: "POST" }
+      )
+
+      const payload = await response.json().catch(() => null)
+      if (!response.ok) {
+        const message = payload?.error ?? "Unable to restore revenue schedule."
+        throw new Error(message)
+      }
+
+      showSuccess("Revenue schedule restored", "The schedule is active again.")
+      await onRefresh?.()
+      setHistoryReloadToken(value => value + 1)
+    } catch (err) {
+      console.error("Failed to restore revenue schedule", err)
+      const message = err instanceof Error ? err.message : "Unable to restore revenue schedule."
+      showError("Restore failed", message)
+    } finally {
+      setRestoreBusy(false)
+    }
+  }, [canRestoreSchedule, onRefresh, schedule?.id, schedule?.revenueSchedule, schedule?.revenueScheduleName, showError, showSuccess])
+
+  const historyRowActionRenderer = useCallback((row: HistoryRow) => {
+    if (!canRestoreSchedule) return null
+    const action = String(row.action ?? "").toLowerCase()
+    if (action !== "delete") return null
+    if (row.field !== "deletedAt" && row.field !== "-") return null
+
+    return (
+      <button
+        type="button"
+        className="text-blue-700 hover:underline text-[11px] font-semibold disabled:text-gray-400"
+        onClick={(event) => {
+          event.preventDefault()
+          event.stopPropagation()
+          void handleRestoreSchedule()
+        }}
+        disabled={restoreBusy}
+      >
+        {restoreBusy ? "Restoring..." : "Restore"}
+      </button>
+    )
+  }, [canRestoreSchedule, handleRestoreSchedule, restoreBusy])
 
   useEffect(() => {
     const target = enableRedesign ? REDESIGN_SECTION_ITEMS[0].id : LEGACY_SECTION_ITEMS[0].id
@@ -1400,19 +1464,26 @@ export const RevenueScheduleSupportingDetails = forwardRef<
                   <div className="rounded bg-gray-50 p-2">
                     <h5 className="mb-1 text-xs font-semibold uppercase text-blue-800">Reconciled</h5>
                     <div className="space-y-0.5">
-                      <div className="flex justify-between text-xs">
-                        <span className="text-gray-600">Actual Commission Net</span>
-                        <span className="font-medium">{formatMoney(actualCommissionNet)}</span>
+                      <div className="flex items-center gap-1 min-h-[18px] text-xs">
+                        <span className="flex-1 text-gray-600">Actual Commission Net</span>
+                        <span className="w-3"></span>
+                        <span className="w-20 text-right font-medium text-gray-900">
+                          {formatMoney(actualCommissionNet)}
+                        </span>
                       </div>
-                      <div className="flex justify-between text-xs">
-                        <span className="text-gray-600">Split %</span>
-                        <span className="font-medium">{split.percentLabel}</span>
+                      <div className="flex items-center gap-1 min-h-[18px] text-xs">
+                        <span className="flex-1 text-gray-600">Split %</span>
+                        <span className="w-3 text-center font-medium text-gray-900">×</span>
+                        <span className="w-20 text-right font-medium text-gray-900">
+                          {split.percentLabel}
+                        </span>
                       </div>
-                      <div className="mt-0.5 border-t border-gray-300 pt-0.5">
-                        <div className="flex justify-between text-xs">
-                          <span className="font-bold text-gray-700">Net</span>
-                          <span className="font-bold text-blue-900">{formatMoney(reconciledNet)}</span>
-                        </div>
+                      <div className="flex items-center gap-1 rounded bg-gray-100 -mx-1 px-1 py-0.5 min-h-[18px] text-xs">
+                        <span className="flex-1 font-bold text-gray-700">Net</span>
+                        <span className="w-3 text-center font-bold text-gray-900">=</span>
+                        <span className="w-20 text-right font-bold text-blue-900">
+                          {formatMoney(reconciledNet)}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -1420,19 +1491,26 @@ export const RevenueScheduleSupportingDetails = forwardRef<
                   <div className="rounded bg-blue-50 p-2">
                     <h5 className="mb-1 text-xs font-semibold uppercase text-blue-800">Receivables</h5>
                     <div className="space-y-0.5">
-                      <div className="flex justify-between text-xs">
-                        <span className="text-gray-600">Commissions Receivables</span>
-                        <span className="font-medium">{formatMoney(receivable)}</span>
+                      <div className="flex items-center gap-1 min-h-[18px] text-xs">
+                        <span className="flex-1 text-gray-600">Commissions Receivables</span>
+                        <span className="w-3"></span>
+                        <span className="w-20 text-right font-medium text-gray-900">
+                          {formatMoney(receivable)}
+                        </span>
                       </div>
-                      <div className="flex justify-between text-xs">
-                        <span className="text-gray-600">Paid</span>
-                        <span className="font-medium">{formatMoney(paid)}</span>
+                      <div className="flex items-center gap-1 min-h-[18px] text-xs">
+                        <span className="flex-1 text-gray-600">Paid</span>
+                        <span className="w-3 text-center font-medium text-gray-900">-</span>
+                        <span className="w-20 text-right font-medium text-gray-900">
+                          {formatMoney(paid)}
+                        </span>
                       </div>
-                      <div className="mt-0.5 border-t border-blue-200 pt-0.5">
-                        <div className="flex justify-between text-xs">
-                          <span className="font-bold text-gray-700">Total</span>
-                          <span className="font-bold text-blue-900">{formatMoney(balance)}</span>
-                        </div>
+                      <div className="flex items-center gap-1 rounded bg-blue-100 -mx-1 px-1 py-0.5 min-h-[18px] text-xs">
+                        <span className="flex-1 font-bold text-gray-700">Total</span>
+                        <span className="w-3 text-center font-bold text-gray-900">=</span>
+                        <span className="w-20 text-right font-bold text-blue-900">
+                          {formatMoney(balance)}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -2642,7 +2720,14 @@ export const RevenueScheduleSupportingDetails = forwardRef<
         break
       case "history":
         sectionContent = schedule?.id ? (
-          <AuditHistoryTab entityName="RevenueSchedule" entityId={schedule.id} tableBodyMaxHeight={300} />
+          <AuditHistoryTab
+            entityName="RevenueSchedule"
+            entityId={schedule.id}
+            tableBodyMaxHeight={300}
+            rowActionLabel={canRestoreSchedule ? "Restore" : undefined}
+            rowActionRenderer={canRestoreSchedule ? historyRowActionRenderer : undefined}
+            reloadToken={historyReloadToken}
+          />
         ) : (
           <EmptyState title="No history available." description="Save this schedule to view audit history." />
         )
@@ -2675,7 +2760,14 @@ export const RevenueScheduleSupportingDetails = forwardRef<
         break
       case "history":
         sectionContent = schedule?.id ? (
-          <AuditHistoryTab entityName="RevenueSchedule" entityId={schedule.id} tableBodyMaxHeight={300} />
+          <AuditHistoryTab
+            entityName="RevenueSchedule"
+            entityId={schedule.id}
+            tableBodyMaxHeight={300}
+            rowActionLabel={canRestoreSchedule ? "Restore" : undefined}
+            rowActionRenderer={canRestoreSchedule ? historyRowActionRenderer : undefined}
+            reloadToken={historyReloadToken}
+          />
         ) : (
           <EmptyState title="No history available." description="Save this schedule to view audit history." />
         )
@@ -2789,6 +2881,8 @@ export const RevenueScheduleSupportingDetails = forwardRef<
           revenueScheduleId={schedule.id}
         />
       ) : null}
+
+      <ToastContainer />
     </>
   )
 })

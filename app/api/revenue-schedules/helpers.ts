@@ -113,6 +113,7 @@ export interface RevenueScheduleListItem {
   billingMonth?: string | null
   scheduleStatus: string
   inDispute: boolean
+  deletedAt: string | null
   quantity: string | null
   quantityRaw?: number | null
   priceEach: string | null
@@ -364,6 +365,7 @@ export function mapRevenueScheduleToListItem(schedule: RevenueScheduleWithRelati
     billingMonth: null,
     scheduleStatus: statusInfo.status,
     inDispute: statusInfo.inDispute,
+    deletedAt: schedule.deletedAt ? schedule.deletedAt.toISOString() : null,
       quantity: quantityValue,
       quantityRaw: quantityNumber,
       priceEach: formatCurrency(unitPriceNumber),
