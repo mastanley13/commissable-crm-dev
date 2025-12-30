@@ -350,6 +350,14 @@ const REVENUE_PERCENT_COLUMN_IDS = new Set([
 
 const REVENUE_NUMBER_COLUMN_IDS = new Set(["quantity"])
 
+const PRODUCT_CURRENCY_COLUMN_IDS = new Set([
+  "unitPrice",
+  "expectedRevenue",
+  "expectedCommission"
+])
+
+const PRODUCT_NUMBER_COLUMN_IDS = new Set(["quantity"])
+
 const ROLE_FILTER_COLUMNS: Array<{ id: string; label: string }> = [
   { id: "role", label: "Role" },
   { id: "fullName", label: "Full Name" },
@@ -1884,6 +1892,7 @@ export function OpportunityDetailsView({
   const [productStatusFilter, setProductStatusFilter] = useState<"active" | "inactive">("active")
   const [productCurrentPage, setProductCurrentPage] = useState(1)
   const [productPageSize, setProductPageSize] = useState(100)
+  const [productSort, setProductSort] = useState<{ columnId: string; direction: "asc" | "desc" } | null>(null)
   const [showProductColumnSettings, setShowProductColumnSettings] = useState(false)
   const [showCreateLineItemModal, setShowCreateLineItemModal] = useState(false)
   const [editingLineItem, setEditingLineItem] = useState<OpportunityLineItemRecord | null>(null)
@@ -2386,8 +2395,33 @@ useEffect(() => {
       rows = applySimpleFilters(rows as unknown as Record<string, unknown>[], productColumnFilters) as typeof rows
     }
 
+    if (productSort) {
+      const { columnId, direction } = productSort
+      const multiplier = direction === "asc" ? 1 : -1
+      const numericColumn =
+        PRODUCT_CURRENCY_COLUMN_IDS.has(columnId) ||
+        PRODUCT_NUMBER_COLUMN_IDS.has(columnId)
+
+      const toComparable = (row: OpportunityLineItemRecord): number | string => {
+        const raw = (row as any)?.[columnId]
+        if (numericColumn) {
+          const numeric = Number(raw)
+          return Number.isFinite(numeric) ? numeric : 0
+        }
+        return raw === null || raw === undefined ? "" : String(raw).toLowerCase()
+      }
+
+      rows.sort((a, b) => {
+        const aVal = toComparable(a)
+        const bVal = toComparable(b)
+        if (aVal < bVal) return -1 * multiplier
+        if (aVal > bVal) return 1 * multiplier
+        return 0
+      })
+    }
+
     return rows
-  }, [effectiveProductRows, productStatusFilter, productSearchQuery, productColumnFilters])
+  }, [effectiveProductRows, productStatusFilter, productSearchQuery, productColumnFilters, productSort])
 
   const paginatedProductRows = useMemo(() => {
     const start = (productCurrentPage - 1) * productPageSize
@@ -4351,6 +4385,11 @@ useEffect(() => {
   void persistProductPageSize(normalized)
 }, [persistProductPageSize])
 
+  const handleProductSort = useCallback((columnId: string, direction: "asc" | "desc") => {
+    setProductSort({ columnId, direction })
+    setProductCurrentPage(1)
+  }, [])
+
   useEffect(() => {
     setSelectedLineItems(previous =>
       previous.filter(id => filteredProductRows.some(row => row.id === id))
@@ -4360,6 +4399,7 @@ useEffect(() => {
   useEffect(() => {
     setLineItemStatusOverrides({})
     setSelectedLineItems([])
+    setProductSort(null)
   }, [opportunity?.id])
   const productTableColumns = useMemo(() => {
     return productPreferenceColumns.map(column => {
@@ -4884,6 +4924,7 @@ useEffect(() => {
                         data={paginatedProductRows}
                         loading={productPreferencesLoading}
                         onColumnsChange={handleProductTableColumnsChange}
+                        onSort={handleProductSort}
                         emptyMessage="No product line items"
                         maxBodyHeight={tableBodyMaxHeight}
                         pagination={productPagination}

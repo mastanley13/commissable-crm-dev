@@ -665,6 +665,7 @@ model RevenueSchedule {
   updatedById                String?               @db.Uuid
   createdAt                  DateTime              @default(now())
   updatedAt                  DateTime              @updatedAt
+  deletedAt                  DateTime?
   activities                 Activity[]            @relation("ActivityRevenueSchedule")
   reconciliationItems        ReconciliationItem[]
   account                    Account               @relation(fields: [accountId], references: [id])
@@ -683,6 +684,7 @@ model RevenueSchedule {
 
   @@index([tenantId, accountId])
   @@index([tenantId, opportunityId])
+  @@index([tenantId, deletedAt])
 }
 
 model Reconciliation {
