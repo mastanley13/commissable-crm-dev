@@ -1225,7 +1225,8 @@ export function RevenueScheduleCreateModal({
             <div className="space-y-5">
               <div className="grid gap-5 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
                 <div className="space-y-4">
-                  <div>
+                  <div className="grid gap-x-12 gap-y-4 sm:grid-cols-2" data-section="create-schedules-two-col">
+                    <div className="sm:col-start-1">
                     <label className={labelCls}>Opportunity Product<span className="ml-1 text-red-500">*</span></label>
                     <select
                       value={createForm.productId}
@@ -1249,7 +1250,7 @@ export function RevenueScheduleCreateModal({
                     </select>
                   </div>
 
-                  <div>
+                  <div className="sm:col-start-2">
                     <label className={labelCls}>Schedule Series Name</label>
                     <input
                       type="text"
@@ -1260,7 +1261,7 @@ export function RevenueScheduleCreateModal({
                     />
                   </div>
 
-                  <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="grid gap-4 sm:col-span-2 sm:grid-cols-2">
                     <div>
                       <label className={labelCls}>Start Date<span className="ml-1 text-red-500">*</span></label>
                       <div className="relative">
@@ -1291,7 +1292,7 @@ export function RevenueScheduleCreateModal({
                   </div>
 
                   {createForm.cadence !== "OneTime" ? (
-                    <div>
+                    <div className="sm:col-start-1">
                       <label className={labelCls}>Number of Schedules<span className="ml-1 text-red-500">*</span></label>
                       <input
                         type="number"
@@ -1305,7 +1306,7 @@ export function RevenueScheduleCreateModal({
                     </div>
                   ) : null}
 
-                  <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-4 sm:col-start-2">
                     <div>
                       <label className={labelCls}>Quantity</label>
                       <input
@@ -1333,6 +1334,8 @@ export function RevenueScheduleCreateModal({
                         placeholder="$100.00"
                       />
                     </div>
+                  </div>
+
                   </div>
 
                   <div className="space-y-2">

@@ -1,7 +1,8 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { FileSpreadsheet, AlertTriangle, ChevronLeft, ChevronRight } from "lucide-react"
+import { FileSpreadsheet, AlertTriangle, ChevronLeft, ChevronRight, ChevronDown, Check } from "lucide-react"
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu"
 import { depositFieldDefinitions, requiredDepositFieldIds } from "@/lib/deposit-import/fields"
 import {
   getColumnSelection,
@@ -38,6 +39,10 @@ export function MapFieldsStep({
   onProceed,
 }: MapFieldsStepProps) {
   const [previewRowIndex, setPreviewRowIndex] = useState(0)
+  const [openDropdownKey, setOpenDropdownKey] = useState<string | null>(null)
+  const [customDrafts, setCustomDrafts] = useState<
+    Record<string, { label: string; section: DepositCustomFieldSection }>
+  >({})
 
   useEffect(() => {
     setPreviewRowIndex(0)
@@ -65,10 +70,17 @@ export function MapFieldsStep({
 
   const missingRequired = requiredDepositFieldIds.filter(fieldId => !canonicalFieldMapping[fieldId])
 
-  const handleCreateCustomFieldClick = (columnName: string, section: DepositCustomFieldSection) => {
-    const label = window.prompt("Enter a label for this custom field:")?.trim()
-    if (!label) return
-    onCreateCustomField(columnName, { label, section })
+  const updateCustomDraft = (
+    draftKey: string,
+    updates: Partial<{ label: string; section: DepositCustomFieldSection }>,
+  ) => {
+    setCustomDrafts(previous => {
+      const existing = previous[draftKey] ?? { label: "", section: "additional" as const }
+      return {
+        ...previous,
+        [draftKey]: { ...existing, ...updates },
+      }
+    })
   }
 
   const goToPreviousRow = () => {
@@ -199,38 +211,36 @@ export function MapFieldsStep({
                 const customDefinition =
                   selection.type === "custom" ? mapping.customFields[selection.customKey] : undefined
 
-                let selectValue: string
-                if (selection.type === "canonical") {
-                  selectValue = `canonical:${selection.fieldId}`
-                } else if (selection.type === "product") {
-                  selectValue = "product"
-                } else if (selection.type === "ignore") {
-                  selectValue = "ignore"
-                } else if (selection.type === "custom") {
-                  selectValue = "custom"
-                } else {
-                  selectValue = "additional"
+                const selectedLabel =
+                  selection.type === "canonical"
+                    ? depositFieldDefinitions.find(field => field.id === selection.fieldId)?.label ?? "Mapped field"
+                    : selection.type === "custom"
+                      ? customDefinition?.label ?? "Custom field"
+                      : selection.type === "product"
+                        ? "Product info column"
+                        : selection.type === "ignore"
+                          ? "Ignore this column"
+                          : "Additional info (no specific field)"
+
+                const draftKey = `${index}:${header}`
+                const draft = customDrafts[draftKey] ?? { label: header?.trim() ?? "", section: "additional" as const }
+                const isMenuOpen = openDropdownKey === draftKey
+
+                const closeMenu = () => {
+                  setOpenDropdownKey(previous => (previous === draftKey ? null : previous))
                 }
 
-                const handleSelectChange = (value: string) => {
-                  if (value === "additional") {
-                    onColumnSelectionChange(header, { type: "additional" })
-                    return
-                  }
-                  if (value === "product") {
-                    onColumnSelectionChange(header, { type: "product" })
-                    return
-                  }
-                  if (value === "ignore") {
-                    onColumnSelectionChange(header, { type: "ignore" })
-                    return
-                  }
-                  if (value.startsWith("canonical:")) {
-                    const fieldId = value.slice("canonical:".length) as (typeof depositFieldDefinitions)[number]["id"]
-                    onColumnSelectionChange(header, { type: "canonical", fieldId })
-                    return
-                  }
-                  // "custom" is handled via the Create custom field actions.
+                const applySelection = (next: DepositColumnSelection) => {
+                  onColumnSelectionChange(header, next)
+                  closeMenu()
+                }
+
+                const handleCreateCustomFieldInline = () => {
+                  const label = draft.label.trim()
+                  if (!label) return
+                  onCreateCustomField(header, { label, section: draft.section })
+                  updateCustomDraft(draftKey, { label: "" })
+                  closeMenu()
                 }
 
                 const mappedField =
@@ -306,51 +316,153 @@ export function MapFieldsStep({
                       <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 md:hidden">
                         Map to Commissable field
                       </p>
-                      <select
-                        value={selectValue}
-                        disabled={csvHeaders.length === 0}
-                        onChange={event => handleSelectChange(event.target.value)}
-                        className="w-full rounded border border-gray-300 px-2 py-1.5 text-sm focus:border-primary-500 focus:outline-none disabled:bg-gray-100"
+                      <DropdownMenu.Root
+                        open={isMenuOpen}
+                        onOpenChange={open => {
+                          if (open) {
+                            setOpenDropdownKey(draftKey)
+                            if (!customDrafts[draftKey]) {
+                              updateCustomDraft(draftKey, { label: header?.trim() ?? "", section: "additional" })
+                            }
+                            return
+                          }
+                          closeMenu()
+                        }}
                       >
-                        <option value="additional">Additional info (no specific field)</option>
-                        <option value="product">Product info column</option>
-                        <option value="ignore">Ignore this column</option>
-                        <optgroup label="Map to Commissable field">
-                          {depositFieldDefinitions.map(field => (
-                            <option key={field.id} value={`canonical:${field.id}`}>
-                              {field.label}
-                              {field.required ? " (Required)" : ""}
-                            </option>
-                          ))}
-                        </optgroup>
-                        {customDefinition ? (
-                          <optgroup label="Custom field">
-                            <option value="custom">
-                              {customDefinition.label} –{" "}
-                              {customDefinition.section === "product" ? "Product" : "Additional"} info
-                            </option>
-                          </optgroup>
-                        ) : null}
-                      </select>
+                        <DropdownMenu.Trigger asChild>
+                          <button
+                            type="button"
+                            disabled={csvHeaders.length === 0}
+                            className="inline-flex w-full items-center justify-between gap-2 rounded border border-gray-300 bg-white px-2 py-1.5 text-left text-sm text-gray-900 focus:border-primary-500 focus:outline-none disabled:bg-gray-100"
+                            aria-label="Map to Commissable field"
+                          >
+                            <span className="truncate">{selectedLabel}</span>
+                            <ChevronDown className="h-4 w-4 text-gray-500" />
+                          </button>
+                        </DropdownMenu.Trigger>
 
-                      {!customDefinition ? (
-                        <div className="flex flex-wrap gap-2">
-                          <button
-                            type="button"
-                            className="inline-flex items-center rounded border border-gray-300 bg-white px-2 py-1 text-[11px] font-medium text-gray-700 hover:bg-gray-50"
-                            onClick={() => handleCreateCustomFieldClick(header, "additional")}
+                        <DropdownMenu.Portal>
+                          <DropdownMenu.Content
+                            className="z-50 min-w-[320px] rounded-lg border border-gray-200 bg-white p-2 shadow-lg animate-in fade-in-0 zoom-in-95"
+                            sideOffset={6}
+                            align="start"
                           >
-                            Create custom field (Additional)
-                          </button>
-                          <button
-                            type="button"
-                            className="inline-flex items-center rounded border border-gray-300 bg-white px-2 py-1 text-[11px] font-medium text-gray-700 hover:bg-gray-50"
-                            onClick={() => handleCreateCustomFieldClick(header, "product")}
-                          >
-                            Create custom field (Product)
-                          </button>
-                        </div>
-                      ) : (
+                            {!customDefinition ? (
+                              <div className="space-y-2">
+                                <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                                  Create custom field
+                                </p>
+                                <input
+                                  value={draft.label}
+                                  onChange={event => updateCustomDraft(draftKey, { label: event.target.value })}
+                                  onKeyDown={event => {
+                                    if (event.key === "Enter") {
+                                      event.preventDefault()
+                                      handleCreateCustomFieldInline()
+                                    }
+                                  }}
+                                  placeholder="Type new custom field label…"
+                                  className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:border-primary-500 focus:outline-none"
+                                />
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="flex rounded-md border border-gray-300 p-0.5">
+                                    <button
+                                      type="button"
+                                      className={`rounded px-2 py-1 text-[11px] font-semibold ${
+                                        draft.section === "additional"
+                                          ? "bg-primary-50 text-primary-700"
+                                          : "text-gray-600 hover:bg-gray-50"
+                                      }`}
+                                      onClick={() => updateCustomDraft(draftKey, { section: "additional" })}
+                                    >
+                                      Additional
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className={`rounded px-2 py-1 text-[11px] font-semibold ${
+                                        draft.section === "product"
+                                          ? "bg-primary-50 text-primary-700"
+                                          : "text-gray-600 hover:bg-gray-50"
+                                      }`}
+                                      onClick={() => updateCustomDraft(draftKey, { section: "product" })}
+                                    >
+                                      Product
+                                    </button>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    disabled={!draft.label.trim()}
+                                    onClick={handleCreateCustomFieldInline}
+                                    className="inline-flex items-center rounded-md bg-primary-600 px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-gray-300"
+                                  >
+                                    Create
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="space-y-1">
+                                <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                                  Custom field mapped
+                                </p>
+                                <p className="text-sm font-semibold text-gray-900">
+                                  {customDefinition.label}{" "}
+                                  <span className="text-xs font-medium text-gray-500">
+                                    ({customDefinition.section === "product" ? "Product" : "Additional"})
+                                  </span>
+                                </p>
+                              </div>
+                            )}
+
+                            <DropdownMenu.Separator className="my-2 h-px bg-gray-200" />
+
+                            <div className="max-h-[320px] overflow-y-auto pr-1">
+                              <DropdownMenu.Item
+                                className="flex cursor-pointer items-center justify-between rounded-md px-2 py-1.5 text-sm text-gray-700 outline-none transition-colors hover:bg-gray-100 focus:bg-gray-100"
+                                onSelect={() => applySelection({ type: "additional" })}
+                              >
+                                <span>Additional info (no specific field)</span>
+                                {selection.type === "additional" ? <Check className="h-4 w-4 text-primary-600" /> : null}
+                              </DropdownMenu.Item>
+                              <DropdownMenu.Item
+                                className="flex cursor-pointer items-center justify-between rounded-md px-2 py-1.5 text-sm text-gray-700 outline-none transition-colors hover:bg-gray-100 focus:bg-gray-100"
+                                onSelect={() => applySelection({ type: "product" })}
+                              >
+                                <span>Product info column</span>
+                                {selection.type === "product" ? <Check className="h-4 w-4 text-primary-600" /> : null}
+                              </DropdownMenu.Item>
+                              <DropdownMenu.Item
+                                className="flex cursor-pointer items-center justify-between rounded-md px-2 py-1.5 text-sm text-gray-700 outline-none transition-colors hover:bg-gray-100 focus:bg-gray-100"
+                                onSelect={() => applySelection({ type: "ignore" })}
+                              >
+                                <span>Ignore this column</span>
+                                {selection.type === "ignore" ? <Check className="h-4 w-4 text-primary-600" /> : null}
+                              </DropdownMenu.Item>
+
+                              <div className="my-2 border-t border-gray-100" />
+                              <p className="px-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                                Map to Commissable field
+                              </p>
+                              {depositFieldDefinitions.map(field => (
+                                <DropdownMenu.Item
+                                  key={field.id}
+                                  className="flex cursor-pointer items-center justify-between rounded-md px-2 py-1.5 text-sm text-gray-700 outline-none transition-colors hover:bg-gray-100 focus:bg-gray-100"
+                                  onSelect={() => applySelection({ type: "canonical", fieldId: field.id })}
+                                >
+                                  <span className="truncate">
+                                    {field.label}
+                                    {field.required ? " (Required)" : ""}
+                                  </span>
+                                  {selection.type === "canonical" && selection.fieldId === field.id ? (
+                                    <Check className="h-4 w-4 text-primary-600" />
+                                  ) : null}
+                                </DropdownMenu.Item>
+                              ))}
+                            </div>
+                          </DropdownMenu.Content>
+                        </DropdownMenu.Portal>
+                      </DropdownMenu.Root>
+
+                      {customDefinition ? (
                         <p className="text-xs text-gray-600">
                           This column is mapped to a custom{" "}
                           {customDefinition.section === "product"
@@ -358,7 +470,7 @@ export function MapFieldsStep({
                             : "Additional Information"}{" "}
                           field: <span className="font-semibold">{customDefinition.label}</span>.
                         </p>
-                      )}
+                      ) : null}
                     </div>
                   </div>
                 )

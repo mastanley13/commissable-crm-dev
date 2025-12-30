@@ -53,6 +53,7 @@ export interface TableProps {
   maxBodyHeight?: number // Maximum height for the table body with scroll
   preferOverflowHorizontalScroll?: boolean // Prefer horizontal scroll over shrink-to-fit when table is wider than container
   hasLoadedPreferences?: boolean // Indicates columns include loaded user preferences
+  footerAbovePagination?: React.ReactNode // Optional footer content rendered above pagination controls
 }
 
 export function DynamicTable({
@@ -78,7 +79,8 @@ export function DynamicTable({
   selectHeaderLabel,
   maxBodyHeight,
   preferOverflowHorizontalScroll = false,
-  hasLoadedPreferences = false
+  hasLoadedPreferences = false,
+  footerAbovePagination
 }: TableProps) {
   const SortTriangles = useCallback(({ direction }: { direction: "asc" | "desc" | null }) => {
     const base = "w-2.5 h-2.5"
@@ -1187,6 +1189,11 @@ export function DynamicTable({
       {/* Pagination Footer - moved outside grid container */}
       {shouldRenderPagination && pagination && (
         <div className="px-3 py-2 border-t-2 border-gray-400 bg-gray-50 w-full flex-shrink-0">
+          {footerAbovePagination ? (
+            <div className="pb-2">
+              {footerAbovePagination}
+            </div>
+          ) : null}
           <div className="flex items-center justify-between text-sm text-gray-700">
             <div className="flex items-center gap-2">
               <button

@@ -26,7 +26,6 @@ import { TicketCreateModal } from "@/components/ticket-create-modal"
 import { useAuth } from "@/lib/auth-context"
 import { SectionContainer } from "@/components/section/SectionContainer"
 import { KeyValueGrid, type KeyValueItem } from "@/components/section/KeyValueGrid"
-import { DataTableLite, type DataTableColumn } from "@/components/section/DataTableLite"
 import { PillTabs } from "@/components/section/PillTabs"
 import { EmptyState } from "@/components/section/EmptyState"
 import { ErrorBanner } from "@/components/section/ErrorBanner"
@@ -291,12 +290,15 @@ export const RevenueScheduleSupportingDetails = forwardRef<
   const [ticketsPage, setTicketsPage] = useState<number>(1)
   const [ticketsPageSize, setTicketsPageSize] = useState<number>(10)
   const [ticketsSearch, setTicketsSearch] = useState<string>("")
-  const [ticketsStatusFilter, setTicketsStatusFilter] = useState<"active" | "all">("active")
+  const [ticketsStatusFilter, setTicketsStatusFilter] = useState<"active" | "inactive">("active")
+  const [ticketsSort, setTicketsSort] = useState<{ columnId: string; direction: "asc" | "desc" }>({
+    columnId: "ticketNumber",
+    direction: "asc"
+  })
   const [ticketsColumnFilters, setTicketsColumnFilters] = useState<ColumnFilter[]>([])
   const [selectedTicketIds, setSelectedTicketIds] = useState<string[]>([])
   const [ticketsColumnChooserOpen, setTicketsColumnChooserOpen] = useState<boolean>(false)
   const [ticketCreateModalOpen, setTicketCreateModalOpen] = useState<boolean>(false)
-  const ticketsSearchDebounceRef = useRef<NodeJS.Timeout | null>(null)
 
   const [matchesLoading, setMatchesLoading] = useState<boolean>(false)
   const [matchesError, setMatchesError] = useState<string | null>(null)
@@ -310,6 +312,19 @@ export const RevenueScheduleSupportingDetails = forwardRef<
   const [payouts, setPayouts] = useState<SchedulePayoutRow[]>([])
 
   const [payoutCreateModalOpen, setPayoutCreateModalOpen] = useState(false)
+
+  // Opportunity Details tab – dynamic table state (client-side)
+  const [opportunityDetailsSearch, setOpportunityDetailsSearch] = useState<string>("")
+  const [opportunityDetailsColumnFilters, setOpportunityDetailsColumnFilters] = useState<ColumnFilter[]>([])
+  const [opportunityDetailsColumnChooserOpen, setOpportunityDetailsColumnChooserOpen] = useState<boolean>(false)
+  const [opportunityDetailsSort, setOpportunityDetailsSort] = useState<{ columnId: string; direction: "asc" | "desc" } | null>(null)
+
+  // Transactions tab – dynamic table state (client-side)
+  const [transactionsSearch, setTransactionsSearch] = useState<string>("")
+  const [transactionsColumnFilters, setTransactionsColumnFilters] = useState<ColumnFilter[]>([])
+  const [transactionsColumnChooserOpen, setTransactionsColumnChooserOpen] = useState<boolean>(false)
+  const [transactionsPage, setTransactionsPage] = useState<number>(1)
+  const [transactionsSort, setTransactionsSort] = useState<{ columnId: string; direction: "asc" | "desc" } | null>(null)
 
   useImperativeHandle(
     ref,
@@ -638,6 +653,185 @@ export const RevenueScheduleSupportingDetails = forwardRef<
       [selectedTicketIds, ticketPreferenceColumns]
   )
 
+  const RS_OPPORTUNITY_DETAILS_BASE_COLUMNS: Column[] = useMemo(
+    () => [
+      {
+        id: "label",
+        label: "",
+        width: 120,
+        minWidth: 90,
+        maxWidth: 180,
+        sortable: true,
+        accessor: "label",
+        hideable: false
+      },
+      {
+        id: "accountId",
+        label: "Account ID",
+        width: 240,
+        minWidth: 160,
+        maxWidth: 520,
+        sortable: true,
+        accessor: "accountId"
+      },
+      {
+        id: "orderId",
+        label: "Order ID",
+        width: 220,
+        minWidth: 150,
+        maxWidth: 520,
+        sortable: true,
+        accessor: "orderId"
+      },
+      {
+        id: "customerId",
+        label: "Customer ID",
+        width: 240,
+        minWidth: 160,
+        maxWidth: 520,
+        sortable: true,
+        accessor: "customerId"
+      },
+      {
+        id: "locationId",
+        label: "Location ID",
+        width: 180,
+        minWidth: 140,
+        maxWidth: 320,
+        sortable: true,
+        accessor: "locationId"
+      },
+      {
+        id: "serviceId",
+        label: "Service ID",
+        width: 180,
+        minWidth: 140,
+        maxWidth: 320,
+        sortable: true,
+        accessor: "serviceId"
+      }
+    ],
+    []
+  )
+
+  const {
+    columns: opportunityDetailsPreferenceColumns,
+    handleColumnsChange: handleOpportunityDetailsColumnsChange
+  } = useTablePreferences("revenue-schedule:opportunity-details", RS_OPPORTUNITY_DETAILS_BASE_COLUMNS, { defaultPageSize: 10 })
+
+  const opportunityDetailsFilterColumns = useMemo(
+    () =>
+      RS_OPPORTUNITY_DETAILS_BASE_COLUMNS.filter(col => col.id !== "label").map(col => ({
+        id: col.id,
+        label: col.label
+      })),
+    [RS_OPPORTUNITY_DETAILS_BASE_COLUMNS]
+  )
+
+  const opportunityDetailsColumnsWithRender = useMemo<Column[]>(() => {
+    return opportunityDetailsPreferenceColumns.map(column => {
+      if (column.id === "label") {
+        return {
+          ...column,
+          render: (value: unknown) => <span className="text-xs font-medium text-gray-600">{String(value ?? "")}</span>
+        }
+      }
+      return {
+        ...column,
+        render: (value: unknown) => <span className="text-xs text-gray-900">{renderValue(value as any)}</span>
+      }
+    })
+  }, [opportunityDetailsPreferenceColumns])
+
+  const RS_TRANSACTIONS_BASE_COLUMNS: Column[] = useMemo(
+    () => [
+      { id: "date", label: "Date", width: 140, minWidth: 120, maxWidth: 220, sortable: true, accessor: "date" },
+      { id: "type", label: "Type", width: 180, minWidth: 150, maxWidth: 260, sortable: true, accessor: "type" },
+      { id: "account", label: "Account", width: 260, minWidth: 180, maxWidth: 520, sortable: true, accessor: "account" },
+      { id: "split", label: "Split", width: 120, minWidth: 90, maxWidth: 180, sortable: true, accessor: "split" },
+      { id: "ref", label: "ID", width: 260, minWidth: 160, maxWidth: 520, sortable: true, accessor: "ref" },
+      { id: "amount", label: "Amount", width: 140, minWidth: 120, maxWidth: 220, sortable: true, accessor: "amount" },
+      { id: "commission", label: "Commission", width: 160, minWidth: 130, maxWidth: 240, sortable: true, accessor: "commission" },
+      { id: "paid", label: "Paid", width: 140, minWidth: 120, maxWidth: 220, sortable: true, accessor: "paid" },
+      { id: "total", label: "Total", width: 140, minWidth: 120, maxWidth: 220, sortable: true, accessor: "total" }
+    ],
+    []
+  )
+
+  const {
+    columns: transactionsPreferenceColumns,
+    handleColumnsChange: handleTransactionsColumnsChange,
+    pageSize: transactionsPageSize,
+    handlePageSizeChange: handleTransactionsPageSizeChange
+  } = useTablePreferences("revenue-schedule:transactions", RS_TRANSACTIONS_BASE_COLUMNS, { defaultPageSize: 10 })
+
+  const transactionsFilterColumns = useMemo(
+    () =>
+      RS_TRANSACTIONS_BASE_COLUMNS.filter(col => !["amount", "commission", "paid", "total"].includes(col.id)).map(col => ({
+        id: col.id,
+        label: col.label
+      })),
+    [RS_TRANSACTIONS_BASE_COLUMNS]
+  )
+
+  const transactionsColumnsWithRender = useMemo<Column[]>(() => {
+    const renderMoney = (value: unknown, className: string, prefix?: string) => {
+      const text = typeof value === "string" && value.trim().length ? value.trim() : ""
+      if (!text) {
+        return (
+          <div className="w-full text-right tabular-nums">
+            <span className="text-slate-300">--</span>
+          </div>
+        )
+      }
+      return (
+        <div className="w-full text-right tabular-nums">
+          <span className={cn("font-medium", className)}>{prefix ? `${prefix}${text}` : text}</span>
+        </div>
+      )
+    }
+
+    return transactionsPreferenceColumns.map(column => {
+      if (column.id === "type") {
+        return {
+          ...column,
+          render: (value: unknown) => {
+            const text = typeof value === "string" ? value : ""
+            if (text === "Billing") {
+              return (
+                <span className="inline-flex items-center rounded bg-blue-100 px-2 py-0.5 text-[10px] font-semibold text-blue-700">
+                  Billing
+                </span>
+              )
+            }
+            if (text === "Commission Deposit") {
+              return (
+                <span className="inline-flex items-center rounded bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
+                  Commission Deposit
+                </span>
+              )
+            }
+            if (text === "Payment") {
+              return (
+                <span className="inline-flex items-center rounded bg-red-100 px-2 py-0.5 text-[10px] font-semibold text-red-700">
+                  Payment
+                </span>
+              )
+            }
+            return <span className="text-slate-300">--</span>
+          }
+        }
+      }
+
+      if (column.id === "amount") return { ...column, render: (value: unknown) => renderMoney(value, "text-blue-700") }
+      if (column.id === "commission") return { ...column, render: (value: unknown) => renderMoney(value, "text-green-700", "+") }
+      if (column.id === "paid") return { ...column, render: (value: unknown) => renderMoney(value, "text-red-700") }
+      if (column.id === "total") return { ...column, render: (value: unknown) => renderMoney(value, "text-blue-900") }
+
+      return column
+    })
+  }, [transactionsPreferenceColumns])
+
   const mapApiRowToTicket = useCallback((row: any) => {
     const active = row?.active !== false
     return {
@@ -659,6 +853,15 @@ export const RevenueScheduleSupportingDetails = forwardRef<
     }
   }, [])
 
+  const sanitizeTicketColumnFilters = useCallback(() => {
+    return ticketsColumnFilters
+      .map(filter => ({
+        columnId: filter?.columnId ?? "",
+        value: typeof filter?.value === "string" ? filter.value.trim() : String(filter?.value ?? "").trim()
+      }))
+      .filter(filter => filter.columnId && filter.value.length > 0)
+  }, [ticketsColumnFilters])
+
   const fetchTickets = useCallback(async () => {
     if (!schedule?.id) {
       setTickets([])
@@ -673,14 +876,19 @@ export const RevenueScheduleSupportingDetails = forwardRef<
       const params = new URLSearchParams({
         page: String(ticketsPage),
         pageSize: String(ticketsPageSize),
-        sortBy: "ticketNumber",
-        sortDir: "asc",
-        status: ticketsStatusFilter === "active" ? "active" : "all",
+        sortBy: ticketsSort.columnId,
+        sortDir: ticketsSort.direction,
+        status: ticketsStatusFilter,
         revenueScheduleId: String(schedule.id)
       })
 
       if (ticketsSearch.trim()) {
         params.set("q", ticketsSearch.trim())
+      }
+
+      const normalizedFilters = sanitizeTicketColumnFilters()
+      if (normalizedFilters.length > 0) {
+        params.set("columnFilters", JSON.stringify(normalizedFilters))
       }
 
       const response = await fetch(`/api/tickets?${params.toString()}`, { cache: "no-store" })
@@ -710,7 +918,17 @@ export const RevenueScheduleSupportingDetails = forwardRef<
     } finally {
       setTicketsLoading(false)
     }
-  }, [schedule?.id, ticketsPage, ticketsPageSize, ticketsSearch, ticketsStatusFilter, mapApiRowToTicket])
+  }, [
+    schedule?.id,
+    ticketsPage,
+    ticketsPageSize,
+    ticketsSearch,
+    ticketsStatusFilter,
+    ticketsSort.columnId,
+    ticketsSort.direction,
+    sanitizeTicketColumnFilters,
+    mapApiRowToTicket
+  ])
 
   const fetchActivities = useCallback(async () => {
     if (!schedule?.id) {
@@ -806,8 +1024,13 @@ export const RevenueScheduleSupportingDetails = forwardRef<
   const filteredActivities = useMemo(() => applySimpleFilters(activities, activitiesColumnFilters), [activities, activitiesColumnFilters])
 
   const handleTicketStatusFilter = useCallback((filter: string) => {
-    const normalized: "active" | "all" = filter === "active" ? "active" : "all"
+    const normalized: "active" | "inactive" = filter === "inactive" ? "inactive" : "active"
     setTicketsStatusFilter(normalized)
+    setTicketsPage(1)
+  }, [])
+
+  const handleTicketsSort = useCallback((columnId: string, direction: "asc" | "desc") => {
+    setTicketsSort({ columnId, direction })
     setTicketsPage(1)
   }, [])
 
@@ -817,6 +1040,11 @@ export const RevenueScheduleSupportingDetails = forwardRef<
 
   const handleTicketsPageSizeChange = useCallback((size: number) => {
     setTicketsPageSize(size)
+    setTicketsPage(1)
+  }, [])
+
+  const handleTicketsColumnFiltersChange = useCallback((filters: ColumnFilter[]) => {
+    setTicketsColumnFilters(filters)
     setTicketsPage(1)
   }, [])
 
@@ -835,11 +1063,6 @@ export const RevenueScheduleSupportingDetails = forwardRef<
       }
     },
     [tickets]
-  )
-
-  const filteredTickets = useMemo(
-    () => applySimpleFilters(tickets, ticketsColumnFilters),
-    [tickets, ticketsColumnFilters]
   )
 
   const fetchMatches = useCallback(async () => {
@@ -1033,6 +1256,7 @@ export const RevenueScheduleSupportingDetails = forwardRef<
         <SectionContainer
           title="Commission Splits"
           description="Partner-level view of reconciled commissions and remaining receivables."
+          hideHeader
         >
           <EmptyState
             title="No commission data"
@@ -1086,6 +1310,7 @@ export const RevenueScheduleSupportingDetails = forwardRef<
         <SectionContainer
           title="Commission Splits"
           description="Partner-level view of reconciled commissions and remaining receivables."
+          hideHeader
         >
           <EmptyState
             title="No commission data"
@@ -1124,6 +1349,7 @@ export const RevenueScheduleSupportingDetails = forwardRef<
       <SectionContainer
         title="Commission Splits"
         description="Reconciled and receivables amounts broken out by partner split."
+        hideHeader
       >
         <div className="space-y-2">
           {payoutsError ? <ErrorBanner message={payoutsError} /> : null}
@@ -1146,7 +1372,7 @@ export const RevenueScheduleSupportingDetails = forwardRef<
               receivable > 0 && Math.abs(balance) < 0.005 ? "Paid in Full" : paid > 0 ? "Partial" : "Pending"
             return (
               <div key={split.id} className="overflow-hidden rounded-lg border border-gray-200 bg-white">
-                <div className="bg-blue-900 px-3 py-2 text-white">
+                <div className="bg-blue-500 px-3 py-2 text-white border-b-2 border-blue-700">
                   <div className="flex items-center justify-between gap-2">
                     <h4 className="text-xs font-semibold">
                       {split.label} - {split.percentLabel}
@@ -1348,6 +1574,7 @@ export const RevenueScheduleSupportingDetails = forwardRef<
     if (enableRedesign) {
       const rows = [
         {
+          id: "house",
           label: "HOUSE",
           accountId: schedule?.accountId ?? null,
           orderId: schedule?.orderIdHouse ?? null,
@@ -1356,6 +1583,7 @@ export const RevenueScheduleSupportingDetails = forwardRef<
           serviceId: schedule?.revenueSchedule ?? null
         },
         {
+          id: "vendor",
           label: "VENDOR",
           accountId: schedule?.vendorId ?? null,
           orderId: schedule?.orderIdVendor ?? null,
@@ -1364,6 +1592,7 @@ export const RevenueScheduleSupportingDetails = forwardRef<
           serviceId: null
         },
         {
+          id: "distributor",
           label: "DISTRIBUTOR",
           accountId: schedule?.distributorId ?? null,
           orderId: schedule?.orderIdDistributor ?? null,
@@ -1372,6 +1601,7 @@ export const RevenueScheduleSupportingDetails = forwardRef<
           serviceId: null
         },
         {
+          id: "customer",
           label: "CUSTOMER",
           accountId: null,
           orderId: null,
@@ -1381,38 +1611,69 @@ export const RevenueScheduleSupportingDetails = forwardRef<
         }
       ]
 
+      const normalizedSearch = opportunityDetailsSearch.trim().toLowerCase()
+      const searchedRows = normalizedSearch.length
+        ? rows.filter(row => Object.values(row).some(value => String(value ?? "").toLowerCase().includes(normalizedSearch)))
+        : rows
+
+      const filteredRows = applySimpleFilters(searchedRows as any, opportunityDetailsColumnFilters)
+
+      const sortedRows = (() => {
+        if (!opportunityDetailsSort) return filteredRows
+        const { columnId, direction } = opportunityDetailsSort
+        const order = direction === "asc" ? 1 : -1
+        const withIndex = filteredRows.map((row, index) => ({ row, index }))
+        withIndex.sort((a, b) => {
+          const aValue = String((a.row as any)[columnId] ?? "")
+          const bValue = String((b.row as any)[columnId] ?? "")
+          const cmp = aValue.localeCompare(bValue)
+          if (cmp !== 0) return cmp * order
+          return a.index - b.index
+        })
+        return withIndex.map(entry => entry.row)
+      })()
+
       return (
         <div className="space-y-3">
-          <div className="border border-gray-200 rounded-lg overflow-hidden">
-            <div className="bg-blue-900 text-white px-3 py-2">
-              <h4 className="text-xs font-semibold">Account, Order, Customer, Location &amp; Service IDs</h4>
+          <div className="border-2 border-gray-400 rounded-lg overflow-hidden bg-white">
+            <div className="bg-blue-500 text-white px-3 py-2 border-b-2 border-blue-700">
+              <h4 className="text-[11px] font-semibold">Account, Order, Customer, Location &amp; Service IDs</h4>
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600" />
-                    <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Account ID</th>
-                    <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Order ID</th>
-                    <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Customer ID</th>
-                    <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Location ID</th>
-                    <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Service ID</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {rows.map(row => (
-                    <tr key={row.label} className="hover:bg-gray-50">
-                      <td className="px-3 py-2 text-xs font-medium text-gray-600">{row.label}</td>
-                      <td className="px-3 py-2 text-xs text-gray-900">{renderValue(row.accountId ?? undefined)}</td>
-                      <td className="px-3 py-2 text-xs text-gray-900">{renderValue(row.orderId ?? undefined)}</td>
-                      <td className="px-3 py-2 text-xs text-gray-900">{renderValue(row.customerId ?? undefined)}</td>
-                      <td className="px-3 py-2 text-xs text-gray-900">{renderValue(row.locationId ?? undefined)}</td>
-                      <td className="px-3 py-2 text-xs text-gray-900">{renderValue(row.serviceId ?? undefined)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+
+            <ListHeader
+              inTab
+              compact
+              searchPlaceholder="Search IDs"
+              onSearch={query => setOpportunityDetailsSearch(query)}
+              onFilterChange={() => {}}
+              showStatusFilter={false}
+              showCreateButton={false}
+              filterColumns={opportunityDetailsFilterColumns}
+              columnFilters={opportunityDetailsColumnFilters}
+              onColumnFiltersChange={setOpportunityDetailsColumnFilters}
+              onSettingsClick={() => setOpportunityDetailsColumnChooserOpen(true)}
+            />
+
+            <DynamicTable
+              columns={opportunityDetailsColumnsWithRender}
+              data={sortedRows}
+              loading={false}
+              emptyMessage="No IDs to display."
+              onColumnsChange={handleOpportunityDetailsColumnsChange}
+              onSort={(columnId, direction) => setOpportunityDetailsSort({ columnId, direction })}
+              fillContainerWidth
+              autoSizeColumns
+              maxBodyHeight={260}
+              alwaysShowPagination={false}
+              className="border-0 rounded-none"
+            />
+
+            <ColumnChooserModal
+              isOpen={opportunityDetailsColumnChooserOpen}
+              columns={opportunityDetailsColumnsWithRender}
+              onApply={handleOpportunityDetailsColumnsChange}
+              onClose={() => setOpportunityDetailsColumnChooserOpen(false)}
+            />
           </div>
         </div>
       )
@@ -1622,17 +1883,13 @@ export const RevenueScheduleSupportingDetails = forwardRef<
         onSearch={query => {
           setTicketsSearch(query)
           setTicketsPage(1)
-          if (ticketsSearchDebounceRef.current) {
-            clearTimeout(ticketsSearchDebounceRef.current)
-          }
-          ticketsSearchDebounceRef.current = setTimeout(() => {
-            void fetchTickets()
-          }, 250)
         }}
         onFilterChange={handleTicketStatusFilter}
+        statusFilter={ticketsStatusFilter}
+        statusFilterOptions={["active", "inactive"]}
         filterColumns={RS_TICKET_FILTER_COLUMNS}
         columnFilters={ticketsColumnFilters}
-        onColumnFiltersChange={setTicketsColumnFilters}
+        onColumnFiltersChange={handleTicketsColumnFiltersChange}
         onSettingsClick={() => setTicketsColumnChooserOpen(true)}
         showCreateButton={canCreateTickets}
         onCreateClick={() => setTicketCreateModalOpen(true)}
@@ -1640,13 +1897,14 @@ export const RevenueScheduleSupportingDetails = forwardRef<
 
       <DynamicTable
         columns={ticketColumnsWithRender}
-        data={filteredTickets}
+        data={tickets}
         loading={ticketsLoading}
         emptyMessage={ticketsError ?? "No data available in table"}
         onColumnsChange={handleTicketColumnsChange}
         pagination={ticketsPagination}
         onPageChange={handleTicketsPageChange}
         onPageSizeChange={handleTicketsPageSizeChange}
+        onSort={handleTicketsSort}
         selectedItems={selectedTicketIds}
         onItemSelect={(id, selected) => handleTicketItemSelect(id, selected)}
         onSelectAll={handleSelectAllTickets}
@@ -1676,6 +1934,7 @@ export const RevenueScheduleSupportingDetails = forwardRef<
           <SectionContainer
             title="Opportunity Details"
             description="Account, order, customer, location and service IDs for this revenue schedule."
+            hideHeader
           >
             {renderOpportunityDetails()}
           </SectionContainer>
@@ -1687,6 +1946,7 @@ export const RevenueScheduleSupportingDetails = forwardRef<
             <SectionContainer
               title="Additional Information"
               description="Vendor and distributor metadata from matched deposit line items."
+              hideHeader
             >
               <LoadingState label="Loading matched deposits..." />
             </SectionContainer>
@@ -1696,6 +1956,7 @@ export const RevenueScheduleSupportingDetails = forwardRef<
             <SectionContainer
               title="Additional Information"
               description="Vendor and distributor metadata from matched deposit line items."
+              hideHeader
             >
               <ErrorBanner
                 message={matchesError}
@@ -1718,9 +1979,10 @@ export const RevenueScheduleSupportingDetails = forwardRef<
             <SectionContainer
               title="Additional Information"
               description="Vendor and distributor metadata from matched deposit line items."
+              hideHeader
             >
               <div className="border border-gray-200 rounded-lg overflow-hidden">
-                <div className="bg-blue-900 text-white px-3 py-2">
+                <div className="bg-blue-500 text-white px-3 py-2 border-b-2 border-blue-700">
                   <h4 className="text-xs font-semibold">Vendor/Distributor Product Metadata</h4>
                 </div>
                 <div className="bg-gray-50 px-3 pb-3 pt-3 space-y-3">
@@ -1735,7 +1997,7 @@ export const RevenueScheduleSupportingDetails = forwardRef<
                     <div className="border border-gray-200 rounded-lg bg-white overflow-hidden">
                       <div className="bg-gray-100 border-b border-gray-200 px-3 py-1.5 flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <span className="inline-flex items-center rounded bg-blue-900 px-2 py-0.5 text-[10px] font-semibold text-white">
+                          <span className="inline-flex items-center rounded bg-blue-500 px-2 py-0.5 text-[10px] font-semibold text-white">
                             Commission Deposit
                           </span>
                           <span className="text-[11px] font-semibold text-gray-700">
@@ -1855,9 +2117,10 @@ export const RevenueScheduleSupportingDetails = forwardRef<
             <SectionContainer
               title="Additional Information"
               description="Vendor and distributor metadata from matched deposit line items."
+              hideHeader
             >
               <div className="border border-gray-200 rounded-lg overflow-hidden">
-                <div className="bg-blue-900 text-white px-3 py-2">
+                <div className="bg-blue-500 text-white px-3 py-2 border-b-2 border-blue-700">
                   <h4 className="text-xs font-semibold">Vendor/Distributor Product Metadata</h4>
                 </div>
                 <div className="bg-gray-50 px-3 pb-3 pt-3 space-y-3">
@@ -1883,7 +2146,7 @@ export const RevenueScheduleSupportingDetails = forwardRef<
                     <div className="border border-gray-200 rounded-lg bg-white overflow-hidden">
                       <div className="bg-gray-100 border-b border-gray-200 px-3 py-1.5 flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <span className="inline-flex items-center rounded bg-blue-900 px-2 py-0.5 text-[10px] font-semibold text-white">
+                          <span className="inline-flex items-center rounded bg-blue-500 px-2 py-0.5 text-[10px] font-semibold text-white">
                             Commission Deposit
                           </span>
                           <span className="text-[11px] font-semibold text-gray-700">
@@ -1989,18 +2252,6 @@ export const RevenueScheduleSupportingDetails = forwardRef<
         sectionContent = renderCommissionSplitsRedesign()
         break
       case "transactions": {
-        const columns: DataTableColumn[] = [
-          { id: "date", header: "Date" },
-          { id: "type", header: "Type" },
-          { id: "account", header: "Account" },
-          { id: "split", header: "Split" },
-          { id: "ref", header: "ID" },
-          { id: "amount", header: "Amount", align: "right" },
-          { id: "commission", header: "Commission", align: "right" },
-          { id: "paid", header: "Paid", align: "right" },
-          { id: "total", header: "Total", align: "right" }
-        ]
-
         const parseCurrency = (value?: string | null): number => {
           if (!value) return 0
           const cleaned = value.replace(/[^0-9.-]/g, "")
@@ -2019,18 +2270,6 @@ export const RevenueScheduleSupportingDetails = forwardRef<
               schedule.expectedUsage
             )
           : 0
-
-        const commissionActual = schedule
-          ? parseCurrency(
-              schedule.actualCommission ??
-              schedule.expectedCommissionNet ??
-              schedule.expectedCommissionGross
-            )
-          : 0
-
-        const housePercent = parseCurrency(schedule?.houseSplitPercent ?? "0") / 100
-        const houseRepPercent = parseCurrency(schedule?.houseRepSplitPercent ?? "0") / 100
-        const subagentPercent = parseCurrency(schedule?.subagentSplitPercent ?? "0") / 100
 
         const baseRows: Array<{
           id: string
@@ -2124,114 +2363,243 @@ export const RevenueScheduleSupportingDetails = forwardRef<
           return true
         })
 
-        const totals = filteredRows.reduce(
+        type TransactionRecord = {
+          id: string
+          date: string
+          type: "Billing" | "Commission Deposit" | "Payment"
+          account: string
+          split: string
+          ref: string
+          amount: string
+          commission: string
+          paid: string
+          total: string
+          amountValue: number
+          commissionValue: number
+          paidValue: number
+          totalValue: number
+        }
+
+        const normalizedSearch = transactionsSearch.trim().toLowerCase()
+
+        const transactionRecords: TransactionRecord[] = filteredRows.map(row => ({
+          id: row.id,
+          date: row.date,
+          type: row.type,
+          account: row.account,
+          split: row.splitLabel,
+          ref: row.ref,
+          amount: row.amount ? formatMoney(row.amount) : "",
+          commission: row.commission ? formatMoney(row.commission) : "",
+          paid: row.paid ? formatMoney(row.paid) : "",
+          total: row.total ? formatMoney(row.total) : "",
+          amountValue: Number(row.amount ?? 0),
+          commissionValue: Number(row.commission ?? 0),
+          paidValue: Number(row.paid ?? 0),
+          totalValue: Number(row.total ?? 0)
+        }))
+
+        const searchedRecords = normalizedSearch.length
+          ? transactionRecords.filter(record => {
+              const haystack = [
+                record.date,
+                record.type,
+                record.account,
+                record.split,
+                record.ref,
+                record.amount,
+                record.commission,
+                record.paid,
+                record.total
+              ]
+                .map(value => String(value ?? "").toLowerCase())
+                .join(" ")
+              return haystack.includes(normalizedSearch)
+            })
+          : transactionRecords
+
+        const filteredRecords = applySimpleFilters<TransactionRecord>(searchedRecords, transactionsColumnFilters)
+
+        const sortedRecords = (() => {
+          if (!transactionsSort) return filteredRecords
+          const { columnId, direction } = transactionsSort
+          const order = direction === "asc" ? 1 : -1
+          const withIndex = filteredRecords.map((row, index) => ({ row, index }))
+
+          const readSortValue = (row: TransactionRecord) => {
+            if (columnId === "amount") return row.amountValue
+            if (columnId === "commission") return row.commissionValue
+            if (columnId === "paid") return row.paidValue
+            if (columnId === "total") return row.totalValue
+            const value = row[columnId as keyof TransactionRecord]
+            return typeof value === "string" ? value : String(value ?? "")
+          }
+
+          withIndex.sort((a, b) => {
+            const aValue = readSortValue(a.row)
+            const bValue = readSortValue(b.row)
+            if (typeof aValue === "number" && typeof bValue === "number") {
+              const cmp = aValue - bValue
+              if (cmp !== 0) return cmp * order
+              return a.index - b.index
+            }
+            const cmp = String(aValue).localeCompare(String(bValue))
+            if (cmp !== 0) return cmp * order
+            return a.index - b.index
+          })
+
+          return withIndex.map(entry => entry.row)
+        })()
+
+        const totals = filteredRecords.reduce<{ amount: number; commission: number; paid: number; total: number }>(
           (agg, row) => ({
-            amount: agg.amount + row.amount,
-            commission: agg.commission + row.commission,
-            paid: agg.paid + row.paid,
-            total: agg.total + row.total
+            amount: agg.amount + row.amountValue,
+            commission: agg.commission + row.commissionValue,
+            paid: agg.paid + row.paidValue,
+            total: agg.total + row.totalValue
           }),
           { amount: 0, commission: 0, paid: 0, total: 0 }
         )
 
-        const rows = filteredRows.map(row => ({
-          date: row.date,
-          type:
-            row.type === "Billing" ? (
-              <span className="inline-flex items-center rounded bg-blue-100 px-2 py-0.5 text-[10px] font-semibold text-blue-700">
-                Billing
-              </span>
-            ) : row.type === "Commission Deposit" ? (
-              <span className="inline-flex items-center rounded bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
-                Commission Deposit
-              </span>
-            ) : (
-              <span className="inline-flex items-center rounded bg-red-100 px-2 py-0.5 text-[10px] font-semibold text-red-700">
-                Payment
-              </span>
-            ),
-          account: row.account,
-          split: row.splitLabel,
-          ref: row.ref,
-          amount: row.amount ? <span className="font-medium text-blue-700">{formatMoney(row.amount)}</span> : <span className="text-slate-300">--</span>,
-          commission: row.commission ? <span className="font-medium text-green-700">+{formatMoney(row.commission)}</span> : <span className="text-slate-300">--</span>,
-          paid: row.paid ? <span className="font-medium text-red-700">{formatMoney(row.paid)}</span> : <span className="text-slate-300">--</span>,
-          total: row.total ? <span className="font-medium text-blue-900">{formatMoney(row.total)}</span> : <span className="text-slate-300">--</span>
-        }))
+        const totalRecords = sortedRecords.length
+        const totalPages = Math.max(1, Math.ceil(totalRecords / transactionsPageSize))
+        const page = Math.min(transactionsPage, totalPages)
+        const startIndex = (page - 1) * transactionsPageSize
+        const pagedRecords = sortedRecords.slice(startIndex, startIndex + transactionsPageSize)
+
+        const pagination: PaginationInfo = {
+          page,
+          pageSize: transactionsPageSize,
+          total: totalRecords,
+          totalPages
+        }
+
+        const totalsBar = (
+          <div className="flex flex-wrap items-center justify-end gap-5 text-[11px]">
+            <div className="flex items-center gap-1">
+              <span className="text-gray-600">Amount</span>
+              <span className="font-bold text-blue-600">{formatMoney(totals.amount)}</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <span className="text-gray-600">Commission</span>
+              <span className="font-bold text-green-600">{formatMoney(totals.commission)}</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <span className="text-gray-600">Paid</span>
+              <span className="font-bold text-red-600">{formatMoney(totals.paid)}</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <span className="text-gray-600">Total</span>
+              <span className="font-bold text-blue-900">{formatMoney(totals.total)}</span>
+            </div>
+          </div>
+        )
 
         sectionContent = (
           <SectionContainer
             title="Transaction Ledger"
             description="Billing, commission deposits, and payments affecting this revenue schedule."
-            actions={(
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-800">
-                  <span className="mr-1 italic text-blue-600">Choose one:</span>
-                  {(["all", "billings", "deposits", "payments"] as const).map(option => (
-                    <button
-                      key={option}
-                      type="button"
-                      onClick={() => {
-                        setTransactionFilter(option)
-                        if (option !== "payments") setPaymentSplitFilter("all")
-                      }}
-                      className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                        transactionFilter === option
-                          ? "bg-blue-600 text-white"
-                          : "bg-transparent text-blue-700 hover:bg-blue-100"
-                      }`}
-                    >
-                      {option === "all"
-                        ? "All"
-                        : option === "billings"
-                          ? "Billings"
-                          : option === "deposits"
-                            ? "Commission Deposits"
-                            : "Payments"}
-                    </button>
-                  ))}
-                  {transactionFilter === "payments" ? (
-                    <select
-                      value={paymentSplitFilter}
-                      onChange={event => setPaymentSplitFilter(event.target.value as typeof paymentSplitFilter)}
-                      className="ml-1 rounded-full bg-blue-600 px-2 py-0.5 text-[10px] font-semibold text-white outline-none focus:ring-2 focus:ring-white/60"
-                    >
-                      <option value="all">All Splits</option>
-                      <option value="house">House</option>
-                      <option value="houseRep">House Rep</option>
-                      <option value="subagent">Subagent</option>
-                    </select>
-                  ) : null}
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-semibold text-blue-700">{filteredRows.length} transactions</span>
-                  {canManageSchedules && schedule?.id ? (
-                    <button
-                      type="button"
-                      onClick={() => setPayoutCreateModalOpen(true)}
-                      className="rounded-full bg-blue-600 px-3 py-0.5 text-[10px] font-semibold text-white hover:bg-blue-700"
-                    >
-                      Record Payment
-                    </button>
-                  ) : null}
-                </div>
-              </div>
-            )}
+            hideHeader
           >
             {payoutsError ? <ErrorBanner message={payoutsError} /> : null}
             {payoutsLoading ? <LoadingState label="Loading payouts..." /> : null}
-            <DataTableLite
-              columns={columns}
-              rows={rows}
-              totalsRow={{
-                amount: <span className="font-bold text-blue-600">{formatMoney(totals.amount)}</span>,
-                commission: <span className="font-bold text-green-600">{formatMoney(totals.commission)}</span>,
-                paid: <span className="font-bold text-red-600">{formatMoney(totals.paid)}</span>,
-                total: <span className="font-bold text-blue-900">{formatMoney(totals.total)}</span>
-              }}
-              emptyMessage="No transactions to display."
-            />
+            <div className="space-y-2">
+              <ListHeader
+                inTab
+                compact
+                searchPlaceholder="Search transactions"
+                onSearch={query => {
+                  setTransactionsSearch(query)
+                  setTransactionsPage(1)
+                }}
+                onFilterChange={() => {}}
+                showStatusFilter={false}
+                filterColumns={transactionsFilterColumns}
+                columnFilters={transactionsColumnFilters}
+                onColumnFiltersChange={next => {
+                  setTransactionsColumnFilters(next)
+                  setTransactionsPage(1)
+                }}
+                onSettingsClick={() => setTransactionsColumnChooserOpen(true)}
+                showCreateButton={canManageSchedules && Boolean(schedule?.id)}
+                createButtonLabel="Record Payment"
+                onCreateClick={() => setPayoutCreateModalOpen(true)}
+                preSearchAccessory={(
+                  <div className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-800">
+                    <span className="mr-1 italic text-blue-600">Choose one:</span>
+                    {(["all", "billings", "deposits", "payments"] as const).map(option => (
+                      <button
+                        key={option}
+                        type="button"
+                        onClick={() => {
+                          setTransactionFilter(option)
+                          setTransactionsPage(1)
+                          if (option !== "payments") setPaymentSplitFilter("all")
+                        }}
+                        className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                          transactionFilter === option
+                            ? "bg-blue-600 text-white"
+                            : "bg-transparent text-blue-700 hover:bg-blue-100"
+                        }`}
+                      >
+                        {option === "all"
+                          ? "All"
+                          : option === "billings"
+                            ? "Billings"
+                            : option === "deposits"
+                              ? "Commission Deposits"
+                              : "Payments"}
+                      </button>
+                    ))}
+                    {transactionFilter === "payments" ? (
+                      <select
+                        value={paymentSplitFilter}
+                        onChange={event => {
+                          setPaymentSplitFilter(event.target.value as typeof paymentSplitFilter)
+                          setTransactionsPage(1)
+                        }}
+                        className="ml-1 rounded-full bg-blue-600 px-2 py-0.5 text-[10px] font-semibold text-white outline-none focus:ring-2 focus:ring-white/60"
+                      >
+                        <option value="all">All Splits</option>
+                        <option value="house">House</option>
+                        <option value="houseRep">House Rep</option>
+                        <option value="subagent">Subagent</option>
+                      </select>
+                    ) : null}
+                  </div>
+                )}
+                leftAccessory={(
+                  <span className="text-[10px] font-semibold text-blue-700">{totalRecords} transactions</span>
+                )}
+              />
+
+              <DynamicTable
+                columns={transactionsColumnsWithRender}
+                data={pagedRecords}
+                loading={false}
+                emptyMessage="No transactions to display."
+                onColumnsChange={handleTransactionsColumnsChange}
+                onSort={(columnId, direction) => setTransactionsSort({ columnId, direction })}
+                pagination={pagination}
+                onPageChange={nextPage => setTransactionsPage(nextPage)}
+                onPageSizeChange={size => {
+                  setTransactionsPage(1)
+                  void handleTransactionsPageSizeChange(size)
+                }}
+                alwaysShowPagination
+                fillContainerWidth
+                autoSizeColumns={false}
+                maxBodyHeight={300}
+                footerAbovePagination={totalsBar}
+              />
+
+              <ColumnChooserModal
+                isOpen={transactionsColumnChooserOpen}
+                columns={transactionsColumnsWithRender}
+                onApply={handleTransactionsColumnsChange}
+                onClose={() => setTransactionsColumnChooserOpen(false)}
+              />
+            </div>
           </SectionContainer>
         )
         break
@@ -2241,6 +2609,7 @@ export const RevenueScheduleSupportingDetails = forwardRef<
           <SectionContainer
             title="Activities"
             description="Timeline of activities, notes, and files associated with this revenue schedule."
+            hideHeader
           >
             {renderActivitiesNotes()}
           </SectionContainer>
@@ -2251,6 +2620,7 @@ export const RevenueScheduleSupportingDetails = forwardRef<
           <SectionContainer
             title="Tickets"
             description="Support tickets related to this revenue schedule."
+            hideHeader
           >
             {renderTickets()}
           </SectionContainer>

@@ -223,3 +223,88 @@ html, body {
     align-items: flex-start; /* Changed to flex-start for wrapped headers */
   }
 }
+
+/* -------------------------------------------------------------------------- */
+/* Modal standardization                                                      */
+/* -------------------------------------------------------------------------- */
+
+/* Most modals in this app use the overlay combo: `fixed inset-0 z-50 ...` */
+.fixed.inset-0.z-50 > div {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 2rem);
+  min-height: 0;
+}
+
+/* Scrollable modal body: opt into filling remaining space when present. */
+.fixed.inset-0.z-50 > div > form {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.fixed.inset-0.z-50 form[class*="overflow-y-auto"],
+.fixed.inset-0.z-50 div[class*="overflow-y-auto"] {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* Allow in-form footers to push to the bottom via `margin-top: auto`. */
+.fixed.inset-0.z-50 form {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* Replace modal `max-h-[..vh]` patterns with flex sizing to avoid blank space below the footer. */
+.fixed.inset-0.z-50 form[class*="overflow-y-auto"][class*="max-h-"] {
+  max-height: none !important;
+}
+
+/* Header sizing: reduce vertical padding for the top section (and tab bars that are direct children). */
+.fixed.inset-0.z-50 > div > div.border-b {
+  padding: 0.5rem 1.5rem;
+}
+
+/* Standardize footer action rows: divider + bottom-right + sticky within scroll area. */
+.fixed.inset-0.z-50 > div > :is(div, footer)[class*="justify-end"][class*="gap-"]:last-child,
+.fixed.inset-0.z-50 form > :is(div, footer)[class*="justify-end"][class*="gap-"]:last-child {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  margin-top: auto !important;
+  border-top: 1px solid rgb(229 231 235);
+  background: white;
+  padding: 0.5rem 1.5rem;
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+}
+
+/* When the footer row lives inside a padded form, pull the divider to full modal width. */
+.fixed.inset-0.z-50 form[class*="px-6"] > :is(div, footer)[class*="justify-end"][class*="gap-"]:last-child,
+.fixed.inset-0.z-50 form[class*="p-6"] > :is(div, footer)[class*="justify-end"][class*="gap-"]:last-child {
+  margin-left: -1.5rem;
+  margin-right: -1.5rem;
+  padding-left: 1.5rem;
+  padding-right: 1.5rem;
+}
+
+/* Underline field width standardization for modal forms. */
+.fixed.inset-0.z-50 :is(input, select, textarea)[class*="border-b-2"] {
+  width: 300px !important;
+  max-width: 100%;
+}
+
+/* Date picker icon alignment when the indicator is positioned absolutely via Tailwind arbitrary variants. */
+.fixed.inset-0.z-50 input[type="date"][class*="[&::-webkit-calendar-picker-indicator]:absolute"] {
+  position: relative;
+}
+
+.fixed.inset-0.z-50 input[type="date"]::-webkit-calendar-picker-indicator {
+  position: absolute;
+  right: 0.25rem;
+  top: 50%;
+  transform: translateY(-50%);
+  cursor: pointer;
+}

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, ChangeEvent, ReactNode, useRef } from 'react'
-import { Upload, Calendar } from 'lucide-react'
+import { Upload, Calendar, X } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
 import type { DepositUploadFormState } from '@/components/deposit-upload/types'
 
@@ -235,6 +235,14 @@ export function CreateTemplateStep({
     }
   }, [])
 
+  const handleClearCommissionPeriod = useCallback(() => {
+    onFormStateChange({ commissionPeriod: '' })
+  }, [onFormStateChange])
+
+  const handleClearDepositReceivedDate = useCallback(() => {
+    onFormStateChange({ depositReceivedDate: '' })
+  }, [onFormStateChange])
+
   useEffect(() => {
     const debounce = setTimeout(() => {
       void fetchAccounts({
@@ -321,17 +329,29 @@ export function CreateTemplateStep({
               pattern="\d{4}-\d{2}"
               value={formState.commissionPeriod}
               onChange={event => onFormStateChange({ commissionPeriod: event.target.value })}
-              className={`${underlineInputClass} pr-8`}
+              className={`${underlineInputClass} pr-16`}
             />
-            <button
-              type="button"
-              className="absolute right-0 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
-              onClick={openCommissionPeriodCalendar}
-              aria-label="Open month picker"
-              title="Open month picker"
-            >
-              <Calendar className="h-4 w-4" />
-            </button>
+            <div className="absolute right-0 top-1/2 flex -translate-y-1/2 items-center gap-1">
+              <button
+                type="button"
+                className="text-gray-500 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-40"
+                onClick={handleClearCommissionPeriod}
+                disabled={!formState.commissionPeriod}
+                aria-label="Clear commission period"
+                title="Clear commission period"
+              >
+                <X className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                className="text-gray-500 hover:text-gray-700"
+                onClick={openCommissionPeriodCalendar}
+                aria-label="Open month picker"
+                title="Open month picker"
+              >
+                <Calendar className="h-4 w-4" />
+              </button>
+            </div>
             <input
               ref={commissionPeriodNativeRef}
               type="month"
@@ -354,17 +374,29 @@ export function CreateTemplateStep({
               pattern="\d{4}-\d{2}-\d{2}"
               value={formState.depositReceivedDate}
               onChange={event => onFormStateChange({ depositReceivedDate: event.target.value })}
-              className={`${underlineInputClass} pr-8`}
+              className={`${underlineInputClass} pr-16`}
             />
-            <button
-              type="button"
-              className="absolute right-0 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
-              onClick={openDepositDateCalendar}
-              aria-label="Open date picker"
-              title="Open date picker"
-            >
-              <Calendar className="h-4 w-4" />
-            </button>
+            <div className="absolute right-0 top-1/2 flex -translate-y-1/2 items-center gap-1">
+              <button
+                type="button"
+                className="text-gray-500 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-40"
+                onClick={handleClearDepositReceivedDate}
+                disabled={!formState.depositReceivedDate}
+                aria-label="Clear deposit received date"
+                title="Clear deposit received date"
+              >
+                <X className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                className="text-gray-500 hover:text-gray-700"
+                onClick={openDepositDateCalendar}
+                aria-label="Open date picker"
+                title="Open date picker"
+              >
+                <Calendar className="h-4 w-4" />
+              </button>
+            </div>
             <input
               ref={depositDateNativeRef}
               type="date"

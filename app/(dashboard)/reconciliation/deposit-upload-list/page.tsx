@@ -198,15 +198,16 @@ export default function DepositUploadListPage() {
   const { depositReceivedDate, distributorLabel, vendorLabel, commissionPeriod } = formState
 
   useEffect(() => {
-    if (depositReceivedDate && !commissionPeriod) {
-      const monthValue = depositReceivedDate.slice(0, 7)
-      if (monthValue) {
-        setFormState(previous =>
-          previous.commissionPeriod === monthValue ? previous : { ...previous, commissionPeriod: monthValue },
-        )
-      }
-    }
-  }, [depositReceivedDate, commissionPeriod])
+    if (!depositReceivedDate) return
+
+    const monthValue = depositReceivedDate.slice(0, 7)
+    if (!monthValue) return
+
+    setFormState(previous => {
+      if (previous.commissionPeriod) return previous
+      return { ...previous, commissionPeriod: monthValue }
+    })
+  }, [depositReceivedDate])
 
   useEffect(() => {
     const normalizedDate = depositReceivedDate?.trim() ?? ""

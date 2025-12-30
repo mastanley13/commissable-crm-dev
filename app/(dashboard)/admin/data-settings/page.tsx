@@ -675,11 +675,6 @@ function ProductSubtypeSettings({ editMode }: { editMode: boolean }) {
                             </span>
                           )}
                         </div>
-                        {subtype.isSystem && (
-                          <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700">
-                            Default
-                          </span>
-                        )}
                       </div>
                     </td>
                     <td className="px-4 py-2 align-top text-xs text-gray-600">
@@ -1433,11 +1428,6 @@ function ProductFamilySettings({ editMode }: { editMode: boolean }) {
                             </span>
                           )}
                         </div>
-                        {family.isSystem && (
-                          <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700">
-                            Default
-                          </span>
-                        )}
                       </div>
                     </td>
                     <td className="px-4 py-2 align-top text-xs text-gray-600">
@@ -2069,11 +2059,6 @@ function AccountTypeSettings({ editMode }: { editMode: boolean }) {
                             </span>
                           )}
                         </div>
-                        {item.isSystem && (
-                          <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700">
-                            System
-                          </span>
-                        )}
                       </div>
                     </td>
                     <td className="px-4 py-2 align-top text-xs text-gray-600">
