@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
-import { DepositLineItemStatus } from "@prisma/client"
+import { AuditAction, DepositLineItemStatus } from "@prisma/client"
 import { withPermissions, createErrorResponse } from "@/lib/api-auth"
 import { prisma } from "@/lib/db"
 import { recomputeDepositAggregates } from "@/lib/matching/deposit-aggregates"
 import { recomputeRevenueSchedules } from "@/lib/matching/revenue-schedule-status"
 import { getTenantVarianceTolerance } from "@/lib/matching/settings"
+import { logRevenueScheduleAudit } from "@/lib/audit"
 
 export async function POST(
   request: NextRequest,
@@ -34,6 +35,15 @@ export async function POST(
         select: { revenueScheduleId: true },
       })
 
+      const scheduleIds = Array.from(new Set(existingMatches.map(match => match.revenueScheduleId).filter(Boolean)))
+      const schedulesBefore =
+        scheduleIds.length > 0
+          ? await tx.revenueSchedule.findMany({
+              where: { tenantId, id: { in: scheduleIds } },
+              select: { id: true, status: true, actualUsage: true, actualCommission: true },
+            })
+          : []
+
       await tx.depositLineMatch.deleteMany({
         where: { depositLineItemId: lineItem.id },
       })
@@ -52,18 +62,46 @@ export async function POST(
 
       const deposit = await recomputeDepositAggregates(tx, depositId, tenantId)
       const revenueSchedules =
-        existingMatches.length > 0
+        scheduleIds.length > 0
           ? await recomputeRevenueSchedules(
               tx,
-              existingMatches.map(match => match.revenueScheduleId),
+              scheduleIds,
               tenantId,
               { varianceTolerance },
             )
           : []
 
-      return { lineItem: updatedLine, deposit, revenueSchedules }
+      return { lineItem: updatedLine, deposit, revenueSchedules, schedulesBefore }
     })
 
-    return NextResponse.json({ data: result })
+    for (const scheduleResult of result.revenueSchedules ?? []) {
+      const before = (result.schedulesBefore ?? []).find(row => row.id === scheduleResult.schedule.id)
+      await logRevenueScheduleAudit(
+        AuditAction.Update,
+        scheduleResult.schedule.id,
+        req.user.id,
+        tenantId,
+        request,
+        {
+          status: before?.status ?? null,
+          actualUsage: before?.actualUsage ?? null,
+          actualCommission: before?.actualCommission ?? null,
+        },
+        {
+          action: "UnmatchDepositLine",
+          depositId,
+          depositLineItemId: lineItem.id,
+          status: scheduleResult.schedule.status,
+          actualUsage: scheduleResult.schedule.actualUsage,
+          actualCommission: scheduleResult.schedule.actualCommission,
+          usageBalance: scheduleResult.usageBalance,
+          commissionDifference: scheduleResult.commissionDifference,
+          matchCount: scheduleResult.matchCount,
+        },
+      )
+    }
+
+    const { schedulesBefore: _schedulesBefore, ...responseData } = result as any
+    return NextResponse.json({ data: responseData })
   })
 }

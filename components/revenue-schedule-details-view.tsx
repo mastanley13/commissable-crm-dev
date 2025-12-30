@@ -354,7 +354,7 @@ function FinancialSummarySection({
           <span className="mr-2 text-xs text-gray-500">
             {collapsed ? "▸" : "▾"}
           </span>
-          <span className="text-[11px] font-semibold uppercase tracking-wide text-blue-800">
+          <span className="text-[12px] font-semibold uppercase tracking-wide text-blue-600">
             Financial Summary
           </span>
         </div>
@@ -366,12 +366,13 @@ function FinancialSummarySection({
         <div className="grid grid-cols-1 gap-2 p-1.5 md:grid-cols-3">
           {/* Usage Summary */}
           <div className="rounded-lg border border-gray-200 bg-gray-50 p-1.5 text-[11px] text-gray-900 flex flex-col" style={{ height: "220px" }}>
-            <h3 className="mb-0.5 border-b border-gray-300 pb-0.5 text-[11px] font-semibold text-blue-900">
+            <h3 className="mb-0.5 border-b border-gray-300 pb-0.5 text-[12px] font-semibold text-blue-600">
               Usage Summary
             </h3>
             <div className="flex flex-col flex-1 gap-0.5">
-              <div className="flex items-center justify-between min-h-[1.75rem]">
-                <span className="text-gray-600">Quantity</span>
+              <div className="flex items-center gap-1 min-h-[18px]">
+                <span className="flex-1 text-gray-600">Quantity</span>
+                <span className="w-3"></span>
                 {enableInlineEditing && quantityField ? (
                   <div className="flex flex-col items-end gap-0.5">
                     <EditableField.Input
@@ -379,156 +380,145 @@ function FinancialSummarySection({
                       onChange={quantityField.onChange}
                       onBlur={quantityField.onBlur}
                       placeholder="1"
-                      className="max-w-[7rem] text-right border-b-0"
+                      className="w-20 text-right border-b-0"
                     />
                     {errors?.quantity ? <span className="text-[10px] text-red-600">{errors.quantity}</span> : null}
                   </div>
                 ) : (
-                  <span className="font-medium text-gray-900">{renderValue(schedule.quantity)}</span>
+                  <span className="w-20 text-right font-medium text-gray-900">{renderValue(schedule.quantity)}</span>
                 )}
               </div>
-              <div className="flex items-center justify-between min-h-[1.75rem]">
-                <span className="text-gray-600">Price Per</span>
+              <div className="flex items-center gap-1 min-h-[18px]">
+                <span className="flex-1 text-gray-600">Price Per</span>
+                <span className="w-3 text-center font-medium text-gray-900">x</span>
                 {enableInlineEditing && priceEachField ? (
-                  <div className="flex items-center gap-1">
-                    <span className="font-medium text-gray-900">x</span>
-                    <div className="flex flex-col items-end gap-0.5">
-                      <EditableField.Input
-                        value={(priceEachField.value as string) ?? ""}
-                        onChange={priceEachField.onChange}
-                        onBlur={priceEachField.onBlur}
-                        placeholder="$500.00"
-                        className="max-w-[7rem] text-right border-b-0"
-                      />
-                      {errors?.priceEach ? <span className="text-[10px] text-red-600">{errors.priceEach}</span> : null}
-                    </div>
+                  <div className="flex flex-col items-end gap-0.5">
+                    <EditableField.Input
+                      value={(priceEachField.value as string) ?? ""}
+                      onChange={priceEachField.onChange}
+                      onBlur={priceEachField.onBlur}
+                      placeholder="$500.00"
+                      className="w-20 text-right border-b-0"
+                    />
+                    {errors?.priceEach ? <span className="text-[10px] text-red-600">{errors.priceEach}</span> : null}
                   </div>
                 ) : (
-                  <span className="font-medium text-gray-900">
-                    x {renderValue(schedule.priceEach)}
-                  </span>
+                  <span className="w-20 text-right font-medium text-gray-900">{renderValue(schedule.priceEach)}</span>
                 )}
               </div>
-              <div className="flex items-center justify-between min-h-[1.75rem]">
-                <span className="text-gray-600">Expected Usage Gross</span>
-                <span className="font-medium text-gray-900">
-                  = {renderValue(expectedUsageGross)}
-                </span>
+              <div className="flex items-center gap-1 min-h-[18px]">
+                <span className="flex-1 text-gray-600">Expected Usage Gross</span>
+                <span className="w-3 text-center font-medium text-gray-900">=</span>
+                <span className="w-20 text-right font-medium text-gray-900">{renderValue(expectedUsageGross)}</span>
               </div>
-              <div className="flex items-center justify-between min-h-[1.75rem]">
-                <span className="text-gray-600">Expected Usage Adjustment</span>
+              <div className="flex items-center gap-1 min-h-[18px]">
+                <span className="flex-1 text-gray-600">Expected Usage Adjustment</span>
+                <span className="w-3 text-center font-medium text-gray-900">+</span>
                 {enableInlineEditing && expectedUsageAdjustmentField ? (
-                  <div className="flex items-center gap-1">
-                    <span className="font-medium text-gray-900">+</span>
-                    <div className="flex flex-col items-end gap-0.5">
-                      <EditableField.Input
-                        value={(expectedUsageAdjustmentField.value as string) ?? ""}
-                        onChange={expectedUsageAdjustmentField.onChange}
-                        onBlur={expectedUsageAdjustmentField.onBlur}
-                        placeholder="$0.00"
-                        className="max-w-[7rem] text-right border-b-0"
-                      />
-                      {errors?.expectedUsageAdjustment ? (
-                        <span className="text-[10px] text-red-600">{errors.expectedUsageAdjustment}</span>
-                      ) : null}
-                    </div>
+                  <div className="flex flex-col items-end gap-0.5">
+                    <EditableField.Input
+                      value={(expectedUsageAdjustmentField.value as string) ?? ""}
+                      onChange={expectedUsageAdjustmentField.onChange}
+                      onBlur={expectedUsageAdjustmentField.onBlur}
+                      placeholder="$0.00"
+                      className="w-20 text-right border-b-0"
+                    />
+                    {errors?.expectedUsageAdjustment ? (
+                      <span className="text-[10px] text-red-600">{errors.expectedUsageAdjustment}</span>
+                    ) : null}
                   </div>
                 ) : (
-                  <span className="font-medium text-gray-900">
-                    + {renderValue(schedule.expectedUsageAdjustment)}
-                  </span>
+                  <span className="w-20 text-right font-medium text-gray-900">{renderValue(schedule.expectedUsageAdjustment)}</span>
                 )}
               </div>
-              <div className="flex items-center justify-between rounded bg-gray-100 -mx-1 px-1 py-0.5 min-h-[1.75rem]">
-                <span className="font-bold text-gray-700">Expected Usage Net</span>
-                <span className="font-bold text-gray-900">
-                  = {renderValue(expectedUsageNet)}
-                </span>
+              <div className="flex items-center gap-1 rounded bg-gray-100 -mx-1 px-1 py-0.5 min-h-[18px]">
+                <span className="flex-1 font-bold text-gray-700">Expected Usage Net</span>
+                <span className="w-3 text-center font-bold text-gray-900">=</span>
+                <span className="w-20 text-right font-bold text-gray-900">{renderValue(expectedUsageNet)}</span>
               </div>
-              <div className="mt-0.5 flex items-center justify-between border-t border-gray-300 pt-0.5 min-h-[1.75rem]">
-                <span className="text-blue-600">Actual Usage</span>
+              <div className="mt-0.5 flex items-center gap-1 border-t border-gray-300 pt-0.5 min-h-[18px]">
+                <span className="flex-1 text-blue-600">Actual Usage</span>
+                <span className="w-3"></span>
                 <button
                   type="button"
                   onClick={() => onOpenSection?.("transactions")}
-                  className="font-medium text-blue-600"
+                  className="w-20 text-right font-medium text-blue-600"
                 >
                   {renderValue(schedule.actualUsage)}
                 </button>
               </div>
-              <div className="mt-auto flex items-center justify-start rounded bg-gray-100 -mx-1 px-1 py-0.5 pt-0.5 border-t border-gray-300 min-h-[1.75rem]">
-                <span className="font-bold text-gray-700">Usage Difference (+/-)</span>
-                <span className={cn("font-bold", usageDiffClass)}>
-                  = {formatDiff(usageDifference)}
-                </span>
+              <div className="mt-auto flex items-center gap-1 rounded bg-gray-100 -mx-1 px-1 py-0.5 pt-0.5 border-t border-gray-300 min-h-[18px]">
+                <span className="flex-1 font-bold text-gray-700">Usage Difference (+/-)</span>
+                <span className="w-3 text-center font-bold text-gray-900">=</span>
+                <span className={cn("w-20 text-right font-bold", usageDiffClass)}>{formatDiff(usageDifference)}</span>
               </div>
             </div>
           </div>
 
           {/* Commission Summary */}
           <div className="rounded-lg border border-gray-200 bg-gray-50 p-1.5 text-[11px] text-gray-900 flex flex-col" style={{ height: "220px" }}>
-            <h3 className="mb-0.5 border-b border-gray-300 pb-0.5 text-[11px] font-semibold text-blue-900">
+            <h3 className="mb-0.5 border-b border-gray-300 pb-0.5 text-[12px] font-semibold text-blue-600">
               Commission Summary
             </h3>
             <div className="flex flex-col flex-1 gap-0.5">
-              <div className="flex items-center justify-between min-h-[1.75rem]">
-                <span className="text-gray-600">Billing Month</span>
-                <span className="font-medium text-gray-900">{renderValue(schedule.billingMonth)}</span>
+              <div className="flex items-center gap-1 min-h-[18px]">
+                <span className="flex-1 text-gray-600">Billing Month</span>
+                <span className="w-3"></span>
+                <span className="w-20 text-right font-medium text-gray-900">{renderValue(schedule.billingMonth)}</span>
               </div>
-              <div className="flex items-center justify-between pt-0.5 mt-0.5 border-t border-gray-300 min-h-[1.75rem]">
-                <span className="text-gray-600">Expected Commission</span>
-                <span className="font-medium text-gray-900">{renderValue(commissionExpected)}</span>
+              <div className="flex items-center gap-1 pt-0.5 mt-0.5 border-t border-gray-300 min-h-[18px]">
+                <span className="flex-1 text-gray-600">Expected Commission</span>
+                <span className="w-3"></span>
+                <span className="w-20 text-right font-medium text-gray-900">{renderValue(commissionExpected)}</span>
               </div>
-              <div className="flex items-center justify-between min-h-[1.75rem]">
-                <span className="text-gray-600">Expected Commission Adjustment</span>
+              <div className="flex items-center gap-1 min-h-[18px]">
+                <span className="flex-1 text-gray-600">Expected Commission Adjustment</span>
+                <span className="w-3 text-center font-medium text-gray-900">+</span>
                 {enableInlineEditing && expectedCommissionAdjustmentField ? (
-                  <div className="flex items-center gap-1">
-                    <span className="font-medium text-gray-900">+</span>
-                    <div className="flex flex-col items-end gap-0.5">
-                      <EditableField.Input
-                        value={(expectedCommissionAdjustmentField.value as string) ?? ""}
-                        onChange={expectedCommissionAdjustmentField.onChange}
-                        onBlur={expectedCommissionAdjustmentField.onBlur}
-                        placeholder="$0.00"
-                        className="max-w-[7rem] text-right border-b-0"
-                      />
-                      {errors?.expectedCommissionAdjustment ? (
-                        <span className="text-[10px] text-red-600">{errors.expectedCommissionAdjustment}</span>
-                      ) : null}
-                    </div>
+                  <div className="flex flex-col items-end gap-0.5">
+                    <EditableField.Input
+                      value={(expectedCommissionAdjustmentField.value as string) ?? ""}
+                      onChange={expectedCommissionAdjustmentField.onChange}
+                      onBlur={expectedCommissionAdjustmentField.onBlur}
+                      placeholder="$0.00"
+                      className="w-20 text-right border-b-0"
+                    />
+                    {errors?.expectedCommissionAdjustment ? (
+                      <span className="text-[10px] text-red-600">{errors.expectedCommissionAdjustment}</span>
+                    ) : null}
                   </div>
                 ) : (
-                  <span className="font-medium text-gray-900">
-                    + {renderValue(schedule.expectedCommissionAdjustment)}
-                  </span>
+                  <span className="w-20 text-right font-medium text-gray-900">{renderValue(schedule.expectedCommissionAdjustment)}</span>
                 )}
               </div>
-              <div className="flex items-center justify-between min-h-[1.75rem]">
-                <span className="font-bold text-gray-600">Expected Commission Net</span>
-                <span className="font-medium text-blue-600">{renderValue(commissionNet)}</span>
+              <div className="flex items-center gap-1 min-h-[18px]">
+                <span className="flex-1 font-bold text-gray-600">Expected Commission Net</span>
+                <span className="w-3"></span>
+                <span className="w-20 text-right font-medium text-blue-600">{renderValue(commissionNet)}</span>
               </div>
-              <div className="flex items-center justify-between min-h-[1.75rem]">
-                <span className="font-bold text-gray-600">Actual Commission</span>
+              <div className="flex items-center gap-1 min-h-[18px]">
+                <span className="flex-1 font-bold text-gray-600">Actual Commission</span>
+                <span className="w-3"></span>
                 <button
                   type="button"
                   onClick={() => onOpenSection?.("transactions")}
-                  className="font-medium text-blue-600"
+                  className="w-20 text-right font-medium text-blue-600"
                 >
                   {renderValue(schedule.actualCommission)}
                 </button>
               </div>
-              <div className="mt-auto flex items-center justify-start rounded bg-gray-100 -mx-1 px-1 py-0.5 pt-0.5 border-t border-gray-300 min-h-[1.75rem]">
-                <span className="font-bold text-gray-700">Commission Difference</span>
-                <span className={cn("font-bold", commissionDiffClass)}>
-                  = {formatDiff(commissionDifferenceNumber)}
-                </span>
+              <div className="mt-auto flex items-center gap-1 rounded bg-gray-100 -mx-1 px-1 py-0.5 pt-0.5 border-t border-gray-300 min-h-[18px]">
+                <span className="flex-1 font-bold text-gray-700">Commission Difference</span>
+                <span className="w-3 text-center font-bold text-gray-900">=</span>
+                <span className={cn("w-20 text-right font-bold", commissionDiffClass)}>{formatDiff(commissionDifferenceNumber)}</span>
               </div>
             </div>
           </div>
 
           {/* Splits */}
           <div className="rounded-lg border border-gray-200 bg-gray-50 p-2 text-[11px] text-gray-900 flex flex-col" style={{ height: "220px" }}>
-            <div className="mb-0.5 flex items-center justify-between border-b border-gray-300 pb-0.5">
-              <h3 className="text-[11px] font-semibold text-blue-900">Splits</h3>
+            <div className="mb-0.5 flex items-center justify-between border-b border-gray-300 pb-0.5 text-[12px]">
+              <h3 className="text-[12px] font-semibold text-blue-600">Splits</h3>
               <div className="flex items-center gap-1">
                 <button
                   type="button"
@@ -557,8 +547,9 @@ function FinancialSummarySection({
               </div>
             </div>
             <div className="flex flex-col flex-1 gap-0.5">
-              <div className="flex items-center justify-between min-h-[1.75rem]">
-                <span className="text-gray-600">{splitMode === "percent" ? "House Split %" : "House Split"}</span>
+              <div className="flex items-center gap-1 min-h-[18px]">
+                <span className="flex-1 text-gray-600">{splitMode === "percent" ? "House Split %" : "House Split"}</span>
+                <span className="w-3"></span>
                 {enableInlineEditing && splitMode === "percent" && houseSplitField ? (
                   <div className="flex flex-col items-end gap-0.5">
                     <EditableField.Input
@@ -566,18 +557,19 @@ function FinancialSummarySection({
                       onChange={houseSplitField.onChange}
                       onBlur={houseSplitField.onBlur}
                       placeholder="20%"
-                      className="max-w-[7rem] text-right border-b-0"
+                      className="w-20 text-right border-b-0"
                     />
                     {errors?.houseSplitPercent ? (
                       <span className="text-[10px] text-red-600">{errors.houseSplitPercent}</span>
                     ) : null}
                   </div>
                 ) : (
-                  <span className="font-medium text-gray-900">{renderValue(splitsDisplay.house)}</span>
+                  <span className="w-20 text-right font-medium text-gray-900">{renderValue(splitsDisplay.house)}</span>
                 )}
               </div>
-              <div className="flex items-center justify-between min-h-[1.75rem]">
-                <span className="text-gray-600">{splitMode === "percent" ? "House Rep Split %" : "House Rep Split"}</span>
+              <div className="flex items-center gap-1 min-h-[18px]">
+                <span className="flex-1 text-gray-600">{splitMode === "percent" ? "House Rep Split %" : "House Rep Split"}</span>
+                <span className="w-3 text-center font-medium text-gray-900">+</span>
                 {enableInlineEditing && splitMode === "percent" && houseRepSplitField ? (
                   <div className="flex flex-col items-end gap-0.5">
                     <EditableField.Input
@@ -585,20 +577,19 @@ function FinancialSummarySection({
                       onChange={houseRepSplitField.onChange}
                       onBlur={houseRepSplitField.onBlur}
                       placeholder="30%"
-                      className="max-w-[7rem] text-right border-b-0"
+                      className="w-20 text-right border-b-0"
                     />
                     {errors?.houseRepSplitPercent ? (
                       <span className="text-[10px] text-red-600">{errors.houseRepSplitPercent}</span>
                     ) : null}
                   </div>
                 ) : (
-                  <span className="font-medium text-gray-900">
-                    + {renderValue(splitsDisplay.houseRep)}
-                  </span>
+                  <span className="w-20 text-right font-medium text-gray-900">{renderValue(splitsDisplay.houseRep)}</span>
                 )}
               </div>
-              <div className="flex items-center justify-between min-h-[1.75rem]">
-                <span className="text-gray-600">{splitMode === "percent" ? "Subagent Split %" : "Subagent Split"}</span>
+              <div className="flex items-center gap-1 min-h-[18px]">
+                <span className="flex-1 text-gray-600">{splitMode === "percent" ? "Subagent Split %" : "Subagent Split"}</span>
+                <span className="w-3 text-center font-medium text-gray-900">+</span>
                 {enableInlineEditing && splitMode === "percent" && subagentSplitField ? (
                   <div className="flex flex-col items-end gap-0.5">
                     <EditableField.Input
@@ -606,26 +597,24 @@ function FinancialSummarySection({
                       onChange={subagentSplitField.onChange}
                       onBlur={subagentSplitField.onBlur}
                       placeholder="50%"
-                      className="max-w-[7rem] text-right border-b-0"
+                      className="w-20 text-right border-b-0"
                     />
                     {errors?.subagentSplitPercent ? (
                       <span className="text-[10px] text-red-600">{errors.subagentSplitPercent}</span>
                     ) : null}
                   </div>
                 ) : (
-                  <span className="font-medium text-gray-900">
-                    + {renderValue(splitsDisplay.subagent)}
-                  </span>
+                  <span className="w-20 text-right font-medium text-gray-900">{renderValue(splitsDisplay.subagent)}</span>
                 )}
               </div>
-              <div className="flex items-center justify-between rounded bg-gray-100 -mx-1 px-1 py-0.5 min-h-[1.75rem]">
-                <span className="font-bold text-gray-700">{splitMode === "percent" ? "Total Split %" : "Total Split"}</span>
-                <span className="font-bold text-gray-900">
-                  = {renderValue(splitsDisplay.total)}
-                </span>
+              <div className="flex items-center gap-1 rounded bg-gray-100 -mx-1 px-1 py-0.5 min-h-[18px]">
+                <span className="flex-1 font-bold text-gray-700">{splitMode === "percent" ? "Total Split %" : "Total Split"}</span>
+                <span className="w-3 text-center font-bold text-gray-900">=</span>
+                <span className="w-20 text-right font-bold text-gray-900">{renderValue(splitsDisplay.total)}</span>
               </div>
-              <div className="mt-0.5 flex items-center justify-between border-t border-gray-300 pt-0.5 min-h-[1.75rem]">
-                <span className="text-gray-600">Expected Rate %</span>
+              <div className="mt-0.5 flex items-center gap-1 border-t border-gray-300 pt-0.5 min-h-[18px]">
+                <span className="flex-1 text-gray-600">Expected Rate %</span>
+                <span className="w-3"></span>
                 {enableInlineEditing && expectedRateField ? (
                   <div className="flex flex-col items-end gap-0.5">
                     <EditableField.Input
@@ -633,31 +622,31 @@ function FinancialSummarySection({
                       onChange={expectedRateField.onChange}
                       onBlur={expectedRateField.onBlur}
                       placeholder="12.50%"
-                      className="max-w-[7rem] text-right border-b-0"
+                      className="w-20 text-right border-b-0"
                     />
                     {errors?.expectedCommissionRatePercent ? (
                       <span className="text-[10px] text-red-600">{errors.expectedCommissionRatePercent}</span>
                     ) : null}
                   </div>
                 ) : (
-                  <span className="font-medium text-gray-900">{renderValue(schedule.expectedCommissionRatePercent)}</span>
+                  <span className="w-20 text-right font-medium text-gray-900">{renderValue(schedule.expectedCommissionRatePercent)}</span>
                 )}
               </div>
-              <div className="flex items-center justify-between min-h-[1.75rem]">
-                <span className="text-blue-600">Actual Rate %</span>
+              <div className="flex items-center gap-1 min-h-[18px]">
+                <span className="flex-1 text-blue-600">Actual Rate %</span>
+                <span className="w-3"></span>
                 <button
                   type="button"
                   onClick={() => onOpenSection?.("transactions")}
-                  className="font-medium text-blue-600"
+                  className="w-20 text-right font-medium text-blue-600"
                 >
                   {renderValue(schedule.actualCommissionRatePercent)}
                 </button>
               </div>
-              <div className="mt-auto flex items-center justify-start rounded bg-gray-100 -mx-1 px-1 py-0.5 pt-0.5 border-t border-gray-300 min-h-[1.75rem]">
-                <span className="font-bold text-gray-700">Commission Rate Difference</span>
-                <span className={cn("font-bold", commissionRateDiffClass)}>
-                  = {formatPercentDiff(commissionRateDifferenceNumber)}
-                </span>
+              <div className="mt-auto flex items-center gap-1 rounded bg-gray-100 -mx-1 px-1 py-0.5 pt-0.5 border-t border-gray-300 min-h-[18px]">
+                <span className="flex-1 font-bold text-gray-700">Commission Rate Difference</span>
+                <span className="w-3 text-center font-bold text-gray-900">=</span>
+                <span className={cn("w-20 text-right font-bold", commissionRateDiffClass)}>{formatPercentDiff(commissionRateDifferenceNumber)}</span>
               </div>
             </div>
           </div>

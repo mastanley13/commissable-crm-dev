@@ -270,13 +270,16 @@ export async function logRevenueScheduleAudit(
   scheduleId: string,
   userId: string,
   tenantId: string,
-  request: Request,
+  request?: Request,
   previousValues?: Record<string, unknown>,
   newValues?: Record<string, unknown>
 ): Promise<void> {
-  const changedFields = previousValues && newValues
-    ? getChangedFields(previousValues, newValues)
-    : undefined
+  const prev = previousValues ?? {}
+  const next = newValues ?? {}
+  const changedFields =
+    previousValues !== undefined || newValues !== undefined
+      ? getChangedFields(prev, next)
+      : undefined
 
   await logAudit({
     userId,
@@ -287,8 +290,8 @@ export async function logRevenueScheduleAudit(
     changedFields,
     previousValues,
     newValues,
-    ipAddress: getClientIP(request),
-    userAgent: getUserAgent(request)
+    ipAddress: request ? getClientIP(request) : undefined,
+    userAgent: request ? getUserAgent(request) : undefined
   })
 }
 

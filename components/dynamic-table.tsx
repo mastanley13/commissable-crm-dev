@@ -83,15 +83,20 @@ export function DynamicTable({
   footerAbovePagination
 }: TableProps) {
   const SortTriangles = useCallback(({ direction }: { direction: "asc" | "desc" | null }) => {
-    const base = "w-2.5 h-2.5"
-    const active = "text-white"
-    const inactive = "text-blue-200"
+    const activeSize = "w-3.5 h-3.5"
+    const inactiveSize = "w-2.5 h-2.5"
+    const active = "text-white drop-shadow-[0_2px_3px_rgba(0,0,0,0.4)]"
+    const inactive = "text-blue-300/40"
     return (
       <span className="ml-1 flex flex-col items-center justify-center leading-none">
         <svg
           viewBox="0 0 12 8"
           aria-hidden="true"
-          className={cn(base, direction === "asc" ? active : inactive)}
+          className={cn(
+            direction === "asc" ? activeSize : inactiveSize,
+            direction === "asc" ? active : inactive,
+            "transition-all duration-200"
+          )}
         >
           <path d="M6 0 L12 8 L0 8 Z" fill="currentColor" />
         </svg>
@@ -99,7 +104,11 @@ export function DynamicTable({
         <svg
           viewBox="0 0 12 8"
           aria-hidden="true"
-          className={cn(base, direction === "desc" ? active : inactive)}
+          className={cn(
+            direction === "desc" ? activeSize : inactiveSize,
+            direction === "desc" ? active : inactive,
+            "transition-all duration-200"
+          )}
         >
           <path d="M0 0 L12 0 L6 8 Z" fill="currentColor" />
         </svg>
@@ -110,9 +119,11 @@ export function DynamicTable({
   const columnsRef = useRef<Column[]>(initialColumns.map(column => ({ ...column })))
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: "asc" | "desc" } | null>(null)
   const [draggedColumn, setDraggedColumn] = useState<string | null>(null)
-  const [resizing, setResizing] = useState<{ columnId: string; startX: number; startWidth: number } | null>(null)
+  const [resizing, setResizing] = useState<{ columnId: string; pointerId: number; startX: number; startWidth: number } | null>(null)
+  const resizingRef = useRef<{ columnId: string; pointerId: number; startX: number; startWidth: number } | null>(null)
   const [isManuallyResized, setIsManuallyResized] = useState(false) // Track manual resize state
-  const [didResize, setDidResize] = useState(false) // Track if a drag actually changed width
+  const didResizeRef = useRef(false)
+  const suppressSortClickUntilRef = useRef<number>(0)
   const [measuredContainerWidth, setMeasuredContainerWidth] = useState<number | null>(null)
 
   const tableRef = useRef<HTMLDivElement>(null)
@@ -673,7 +684,7 @@ export function DynamicTable({
     onSort?.(column.id, direction)
   }
 
-  const handleMouseDown = useCallback((event: React.MouseEvent, columnId: string) => {
+  const handleResizePointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>, columnId: string) => {
     event.preventDefault()
     event.stopPropagation()
 
@@ -682,53 +693,109 @@ export function DynamicTable({
 
     // Mark that user is manually resizing to prevent auto-sizing conflicts
     setIsManuallyResized(true)
-    setDidResize(false)
+    didResizeRef.current = false
 
-    setResizing({
+    const next = {
       columnId,
+      pointerId: event.pointerId,
       startX: event.clientX,
       startWidth: column.width
-    })
-  }, [columns])
-
-  const handleMouseMove = useCallback((event: MouseEvent) => {
-    if (!resizing) return
-
-    setColumnsState(previous => {
-      const column = previous.find(col => col.id === resizing.columnId)
-      if (!column) return previous
-
-      const deltaX = event.clientX - resizing.startX
-      const minWidth = column.minWidth ?? 100
-      const maxWidth = column.maxWidth ?? 600
-      const rawWidth = resizing.startWidth + deltaX
-      const clampedWidth = Math.round(Math.max(minWidth, Math.min(rawWidth, maxWidth)))
-
-      const next = previous.map(col => (
-        col.id === resizing.columnId ? { ...col, width: clampedWidth } : col
-      ))
-      columnsRef.current = next
-      setDidResize(true)
-      return next
-    })
-  }, [resizing])
-
-  const handleMouseUp = useCallback(() => {
-    if (!resizing) {
-      return
     }
 
+    resizingRef.current = next
+    setResizing(next)
+
+    // Keep receiving pointer events even when the cursor leaves the handle.
+    // This also reduces the chance of a "mouseup/click" landing on the header.
+    if (typeof event.currentTarget?.setPointerCapture === "function") {
+      try {
+        event.currentTarget.setPointerCapture(event.pointerId)
+      } catch {
+        // Ignore capture failures (e.g., unsupported environment)
+      }
+    }
+  }, [columns])
+
+  const handleResizePointerMove = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    const resize = resizingRef.current
+    if (!resize) return
+    if (event.pointerId !== resize.pointerId) return
+
+    setColumnsState(previous => {
+      const column = previous.find(col => col.id === resize.columnId)
+      if (!column) return previous
+
+      const deltaX = event.clientX - resize.startX
+      const minWidth = column.minWidth ?? 100
+      const maxWidth = column.maxWidth ?? 600
+      const rawWidth = resize.startWidth + deltaX
+      const clampedWidth = Math.round(Math.max(minWidth, Math.min(rawWidth, maxWidth)))
+
+      if (clampedWidth === column.width) {
+        return previous
+      }
+
+      const next = previous.map(col => (
+        col.id === resize.columnId ? { ...col, width: clampedWidth } : col
+      ))
+      columnsRef.current = next
+      didResizeRef.current = true
+      return next
+    })
+  }, [])
+
+  const finishResize = useCallback(() => {
+    const resized = didResizeRef.current
+    didResizeRef.current = false
+    resizingRef.current = null
     setResizing(null)
 
-    if (didResize && onColumnsChange) {
+    // Prevent a post-drag click from triggering an unintended sort.
+    if (resized) {
+      suppressSortClickUntilRef.current = Date.now() + 300
+    }
+
+    if (resized && onColumnsChange) {
       const latest = columnsRef.current ?? columns
       const snapshot = latest.map(column => ({ ...column }))
       onColumnsChange(snapshot)
     }
-    setDidResize(false)
 
     // Keep isManuallyResized as true to prevent auto-sizing from overriding manual changes
-  }, [columns, didResize, onColumnsChange, resizing])
+  }, [columns, onColumnsChange])
+
+  const handleResizePointerUp = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    const resize = resizingRef.current
+    if (!resize) return
+    if (event.pointerId !== resize.pointerId) return
+
+    event.preventDefault()
+    event.stopPropagation()
+
+    if (typeof event.currentTarget?.hasPointerCapture === "function" &&
+        typeof event.currentTarget?.releasePointerCapture === "function") {
+      try {
+        if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+          event.currentTarget.releasePointerCapture(event.pointerId)
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    finishResize()
+  }, [finishResize])
+
+  const handleResizePointerCancel = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    const resize = resizingRef.current
+    if (!resize) return
+    if (event.pointerId !== resize.pointerId) return
+
+    event.preventDefault()
+    event.stopPropagation()
+
+    finishResize()
+  }, [finishResize])
 
 
   const handleDoubleClick = useCallback((columnId: string) => {
@@ -746,20 +813,6 @@ export function DynamicTable({
       ))
     )
   }, [columns, calculateOptimalWidth, debouncedUpdate])
-
-  React.useEffect(() => {
-    if (!resizing) {
-      return
-    }
-
-    document.addEventListener("mousemove", handleMouseMove)
-    document.addEventListener("mouseup", handleMouseUp)
-
-    return () => {
-      document.removeEventListener("mousemove", handleMouseMove)
-      document.removeEventListener("mouseup", handleMouseUp)
-    }
-  }, [handleMouseMove, handleMouseUp, resizing])
 
   // Cleanup timeouts on unmount
   React.useEffect(() => {
@@ -1032,14 +1085,12 @@ export function DynamicTable({
                   <div
                     key={column.id}
                     className={cn(
-                      "table-cell bg-blue-500 font-semibold text-white text-[11px] relative select-none border-b-2 border-blue-700 border-r-2 border-blue-700 last:border-r-0",
-                      column.sortable && column.id !== "select" && "cursor-pointer hover:bg-blue-600"
+                      "table-cell bg-blue-500 font-semibold text-white text-[11px] relative select-none border-b-2 border-blue-700 border-r-2 border-blue-700 last:border-r-0"
                     )}
                     draggable
                     onDragStart={event => handleDragStart(event, column.id)}
                     onDragOver={handleDragOver}
                     onDrop={event => handleDrop(event, column.id)}
-                    onClick={() => column.id !== "select" && handleSort(column)}
                   >
                     <div className="table-header-content gap-2 min-w-0">
                       {column.id === "select" && onSelectAll ? (
@@ -1084,11 +1135,28 @@ export function DynamicTable({
                         </>
                       ) : (
                         <>
-                          <span className="break-words leading-tight flex-1 min-w-0">{column.label}</span>
-                          {column.sortable && (
-                            <div className="flex-shrink-0">
-                              <SortTriangles direction={sortConfig?.key === column.id ? sortConfig.direction : null} />
-                            </div>
+                          {column.sortable ? (
+                            <button
+                              type="button"
+                              className={cn(
+                                "inline-flex items-center gap-2 min-w-0 max-w-full text-left rounded-sm px-1 -mx-1",
+                                "cursor-pointer hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-white/70"
+                              )}
+                              onClick={event => {
+                                event.preventDefault()
+                                event.stopPropagation()
+                                if (Date.now() < suppressSortClickUntilRef.current) return
+                                handleSort(column)
+                              }}
+                              aria-label={`Sort by ${column.label}`}
+                            >
+                              <span className="break-words leading-tight min-w-0">{column.label}</span>
+                              <span className="flex-shrink-0" aria-hidden="true">
+                                <SortTriangles direction={sortConfig?.key === column.id ? sortConfig.direction : null} />
+                              </span>
+                            </button>
+                          ) : (
+                            <span className="break-words leading-tight flex-1 min-w-0">{column.label}</span>
                           )}
                         </>
                       )}
@@ -1100,7 +1168,10 @@ export function DynamicTable({
                           "column-resizer",
                           resizing?.columnId === column.id && "resizing"
                         )}
-                        onMouseDown={event => handleMouseDown(event, column.id)}
+                        onPointerDown={event => handleResizePointerDown(event, column.id)}
+                        onPointerMove={handleResizePointerMove}
+                        onPointerUp={handleResizePointerUp}
+                        onPointerCancel={handleResizePointerCancel}
                         onClick={event => {
                           event.stopPropagation()
                         }}

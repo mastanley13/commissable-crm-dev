@@ -214,10 +214,10 @@ On parse failure:
    - The CSV header (`header`) or `(unnamed column)`.
    - Displayed in bold text, with mobile‑friendly labels.
 2. **Preview Information**
-   - Up to three sample values per column from the currently selected window of sample rows.
+   - A single sample value per column from the currently selected sample row.
    - Sampling window:
      - Maintained as `previewRowIndex` in local state.
-     - Window size is 3 (`PREVIEW_PAGE_SIZE`).
+     - Window size is 1 (`PREVIEW_PAGE_SIZE`).
      - `previewWindow = sampleRows.slice(windowStart, windowEndExclusive)`.
    - For each column:
      - `previewValues = previewWindow.map(row => row[index] ?? "").filter(non‑empty)`.
@@ -242,11 +242,11 @@ On parse failure:
 #### Row Pager (Preview Window Navigation)
 
 - A compact pager at the top‑right of the “Uploaded columns” card shows:
-  - `Rows {windowStart + 1}-{windowEndExclusive} of {totalPreviewRows}`.
+  - `Row {windowStart + 1} of {totalPreviewRows}`.
 - Navigation:
-  - Left arrow moves backward in chunks of 3 rows:
+  - Left arrow moves backward by 1 row:
     - `previewRowIndex = max(0, previewRowIndex - PREVIEW_PAGE_SIZE)`.
-  - Right arrow moves forward in chunks of 3 rows, stopping before exceeding the row count.
+  - Right arrow moves forward by 1 row, stopping before exceeding the row count.
   - Buttons are disabled on the first/last window based on computed flags.
 
 #### Validation in Map Fields

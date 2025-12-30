@@ -8,11 +8,13 @@ import {
   Coins,
   CreditCard,
   NotebookPen,
+  History,
   Ticket
 } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 
 import type { RevenueScheduleDetailRecord } from "./revenue-schedule-details-view"
+import { AuditHistoryTab } from "./audit-history-tab"
 import { cn } from "@/lib/utils"
 import { ListHeader, type ColumnFilter } from "@/components/list-header"
 import { ColumnChooserModal } from "@/components/column-chooser-modal"
@@ -198,6 +200,57 @@ const LEGACY_SECTION_ITEMS: SectionNavigationItem[] = [
     label: "Tickets",
     description: "Support tickets for this schedule",
     icon: Ticket
+  },
+  {
+    id: "history",
+    label: "History",
+    description: "Audit log for this schedule",
+    icon: History
+  }
+]
+
+const REDESIGN_SECTION_ITEMS: SectionNavigationItem[] = [
+  {
+    id: "opportunity-details",
+    label: "Opportunity Details",
+    description: "Account, order, customer, and location IDs",
+    icon: BriefcaseBusiness
+  },
+  {
+    id: "additional-information",
+    label: "Additional Information",
+    description: "Vendor/distributor metadata from matched deposits",
+    icon: Package
+  },
+  {
+    id: "commission-splits",
+    label: "Commission Splits",
+    description: "Reconciled and receivables by partner",
+    icon: PiggyBank
+  },
+  {
+    id: "transactions",
+    label: "Transactions",
+    description: "Billing, deposits, and payments activity",
+    icon: Coins
+  },
+  {
+    id: "activities-notes",
+    label: "Activities",
+    description: "Tasks, notes, and attached files",
+    icon: NotebookPen
+  },
+  {
+    id: "tickets",
+    label: "Tickets",
+    description: "Support tickets for this schedule",
+    icon: Ticket
+  },
+  {
+    id: "history",
+    label: "History",
+    description: "Audit log entries for this schedule",
+    icon: History
   }
 ]
 
@@ -213,45 +266,6 @@ export const RevenueScheduleSupportingDetails = forwardRef<
   const { hasPermission } = useAuth()
   const canCreateTickets = hasPermission ? hasPermission("tickets.create") : true
   const canManageSchedules = hasPermission ? hasPermission("revenue-schedules.manage") : true
-
-  const REDESIGN_SECTION_ITEMS: SectionNavigationItem[] = [
-    {
-      id: "opportunity-details",
-      label: "Opportunity Details",
-      description: "Account, order, customer, and location IDs",
-      icon: BriefcaseBusiness
-    },
-    {
-      id: "additional-information",
-      label: "Additional Information",
-      description: "Vendor/distributor metadata from matched deposits",
-      icon: Package
-    },
-    {
-      id: "commission-splits",
-      label: "Commission Splits",
-      description: "Reconciled and receivables by partner",
-      icon: PiggyBank
-    },
-    {
-      id: "transactions",
-      label: "Transactions",
-      description: "Billing, deposits, and payments activity",
-      icon: Coins
-    },
-    {
-      id: "activities-notes",
-      label: "Activities",
-      description: "Tasks, notes, and attached files",
-      icon: NotebookPen
-    },
-    {
-      id: "tickets",
-      label: "Tickets",
-      description: "Support tickets for this schedule",
-      icon: Ticket
-    }
-  ]
 
   const initialSection = enableRedesign ? REDESIGN_SECTION_ITEMS[0].id : LEGACY_SECTION_ITEMS[0].id
 
@@ -2626,6 +2640,13 @@ export const RevenueScheduleSupportingDetails = forwardRef<
           </SectionContainer>
         )
         break
+      case "history":
+        sectionContent = schedule?.id ? (
+          <AuditHistoryTab entityName="RevenueSchedule" entityId={schedule.id} tableBodyMaxHeight={300} />
+        ) : (
+          <EmptyState title="No history available." description="Save this schedule to view audit history." />
+        )
+        break
       default:
         sectionContent = null
     }
@@ -2652,10 +2673,19 @@ export const RevenueScheduleSupportingDetails = forwardRef<
       case "tickets":
         sectionContent = renderTickets()
         break
+      case "history":
+        sectionContent = schedule?.id ? (
+          <AuditHistoryTab entityName="RevenueSchedule" entityId={schedule.id} tableBodyMaxHeight={300} />
+        ) : (
+          <EmptyState title="No history available." description="Save this schedule to view audit history." />
+        )
+        break
       default:
         sectionContent = null
     }
   }
+
+  const renderRedesignContentWithoutShell = activeSectionId === "history" && Boolean(schedule?.id)
   return (
     <>
       <section ref={containerRef}>
@@ -2681,13 +2711,17 @@ export const RevenueScheduleSupportingDetails = forwardRef<
                 )
               })}
             </div>
-            <div className="border-x border-b border-gray-200 bg-white px-3 pb-3 pt-0">
-              <div className="border-t-2 border-t-primary-600 -mx-3 px-3 pt-3">
-                {sectionContent ?? (
-                  <p className="text-[11px] text-slate-500">Select a section to view its details.</p>
-                )}
+            {renderRedesignContentWithoutShell ? (
+              sectionContent
+            ) : (
+              <div className="border-x border-b border-gray-200 bg-white px-3 pb-3 pt-0">
+                <div className="border-t-2 border-t-primary-600 -mx-3 px-3 pt-3">
+                  {sectionContent ?? (
+                    <p className="text-[11px] text-slate-500">Select a section to view its details.</p>
+                  )}
+                </div>
               </div>
-            </div>
+            )}
           </div>
         ) : (
           <div className="grid gap-2 xl:grid-cols-[260px,1fr] items-start">

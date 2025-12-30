@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
-import { DepositLineItemStatus, DepositLineMatchStatus, ReconciliationStatus } from "@prisma/client"
+import { AuditAction, DepositLineItemStatus, DepositLineMatchStatus, ReconciliationStatus } from "@prisma/client"
 import { withPermissions, createErrorResponse } from "@/lib/api-auth"
 import { prisma } from "@/lib/db"
 import { recomputeRevenueSchedules } from "@/lib/matching/revenue-schedule-status"
 import { getTenantMatchingPreferences } from "@/lib/matching/settings"
 import { logMatchingMetric } from "@/lib/matching/metrics"
+import { logRevenueScheduleAudit } from "@/lib/audit"
 
 export async function POST(request: NextRequest, { params }: { params: { depositId: string } }) {
   return withPermissions(request, ["reconciliation.manage", "reconciliation.view"], async req => {
@@ -74,11 +75,22 @@ export async function POST(request: NextRequest, { params }: { params: { deposit
         select: { revenueScheduleId: true },
       })
 
+      const scheduleIds = Array.from(
+        new Set(matchedScheduleIds.map(match => match.revenueScheduleId).filter(Boolean)),
+      )
+      const schedulesBefore =
+        scheduleIds.length > 0
+          ? await tx.revenueSchedule.findMany({
+              where: { tenantId, id: { in: scheduleIds } },
+              select: { id: true, status: true, actualUsage: true, actualCommission: true },
+            })
+          : []
+
       const revenueSchedules =
-        matchedScheduleIds.length > 0
+        scheduleIds.length > 0
           ? await recomputeRevenueSchedules(
               tx,
-              matchedScheduleIds.map(match => match.revenueScheduleId),
+              scheduleIds,
               tenantId,
               { varianceTolerance: prefs.varianceTolerance },
             )
@@ -100,7 +112,7 @@ export async function POST(request: NextRequest, { params }: { params: { deposit
         },
       })
 
-      return { deposit: depositUpdate, revenueSchedules }
+      return { deposit: depositUpdate, revenueSchedules, schedulesBefore }
     })
 
     await logMatchingMetric({
@@ -116,6 +128,33 @@ export async function POST(request: NextRequest, { params }: { params: { deposit
       },
     })
 
-    return NextResponse.json({ data: updated })
+    for (const scheduleResult of updated.revenueSchedules ?? []) {
+      const before = (updated.schedulesBefore ?? []).find(row => row.id === scheduleResult.schedule.id)
+      await logRevenueScheduleAudit(
+        AuditAction.Update,
+        scheduleResult.schedule.id,
+        req.user.id,
+        tenantId,
+        request,
+        {
+          status: before?.status ?? null,
+          actualUsage: before?.actualUsage ?? null,
+          actualCommission: before?.actualCommission ?? null,
+        },
+        {
+          action: "FinalizeDeposit",
+          depositId,
+          status: scheduleResult.schedule.status,
+          actualUsage: scheduleResult.schedule.actualUsage,
+          actualCommission: scheduleResult.schedule.actualCommission,
+          usageBalance: scheduleResult.usageBalance,
+          commissionDifference: scheduleResult.commissionDifference,
+          matchCount: scheduleResult.matchCount,
+        },
+      )
+    }
+
+    const { schedulesBefore: _schedulesBefore, ...responseData } = updated as any
+    return NextResponse.json({ data: responseData })
   })
 }

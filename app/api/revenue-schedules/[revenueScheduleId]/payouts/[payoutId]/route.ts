@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
-import { CommissionPayoutSplitType, CommissionPayoutStatus } from "@prisma/client"
+import { AuditAction, CommissionPayoutSplitType, CommissionPayoutStatus } from "@prisma/client"
 
 import { prisma } from "@/lib/db"
 import { withPermissions } from "@/lib/api-auth"
+import { logRevenueScheduleAudit } from "@/lib/audit"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -84,14 +85,45 @@ export async function PATCH(
         return NextResponse.json({ error: "Invalid input", errors }, { status: 400 })
       }
 
-      const updated = await prisma.commissionPayout.updateMany({
+      const previous = await prisma.commissionPayout.findFirst({
         where: { id: payoutId, tenantId, revenueScheduleId },
-        data
       })
 
-      if (!updated.count) {
+      if (!previous) {
         return NextResponse.json({ error: "Payout not found" }, { status: 404 })
       }
+
+      const updated = await prisma.commissionPayout.update({
+        where: { id: payoutId },
+        data,
+      })
+
+      await logRevenueScheduleAudit(
+        AuditAction.Update,
+        revenueScheduleId,
+        req.user.id,
+        tenantId,
+        request,
+        {
+          payoutId,
+          splitType: previous.splitType,
+          status: previous.status,
+          amount: Number(previous.amount),
+          paidAt: previous.paidAt.toISOString(),
+          reference: previous.reference ?? null,
+          notes: previous.notes ?? null,
+        },
+        {
+          action: "UpdatePayment",
+          payoutId,
+          splitType: updated.splitType,
+          status: updated.status,
+          amount: Number(updated.amount),
+          paidAt: updated.paidAt.toISOString(),
+          reference: updated.reference ?? null,
+          notes: updated.notes ?? null,
+        },
+      )
 
       return NextResponse.json({ data: { ok: true } })
     } catch (error) {
@@ -114,14 +146,45 @@ export async function DELETE(
 
       const tenantId = req.user.tenantId
 
-      const updated = await prisma.commissionPayout.updateMany({
+      const previous = await prisma.commissionPayout.findFirst({
         where: { id: payoutId, tenantId, revenueScheduleId },
+      })
+
+      if (!previous) {
+        return NextResponse.json({ error: "Payout not found" }, { status: 404 })
+      }
+
+      const updated = await prisma.commissionPayout.update({
+        where: { id: payoutId },
         data: { status: CommissionPayoutStatus.Voided, updatedById: req.user.id }
       })
 
-      if (!updated.count) {
-        return NextResponse.json({ error: "Payout not found" }, { status: 404 })
-      }
+      await logRevenueScheduleAudit(
+        AuditAction.Update,
+        revenueScheduleId,
+        req.user.id,
+        tenantId,
+        request,
+        {
+          payoutId,
+          splitType: previous.splitType,
+          status: previous.status,
+          amount: Number(previous.amount),
+          paidAt: previous.paidAt.toISOString(),
+          reference: previous.reference ?? null,
+          notes: previous.notes ?? null,
+        },
+        {
+          action: "VoidPayment",
+          payoutId,
+          splitType: updated.splitType,
+          status: updated.status,
+          amount: Number(updated.amount),
+          paidAt: updated.paidAt.toISOString(),
+          reference: updated.reference ?? null,
+          notes: updated.notes ?? null,
+        },
+      )
 
       return NextResponse.json({ data: { ok: true } })
     } catch (error) {
@@ -130,4 +193,3 @@ export async function DELETE(
     }
   })
 }
-

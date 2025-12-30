@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
 import { withPermissions } from "@/lib/api-auth"
+import { AuditAction } from "@prisma/client"
+import { logProductAudit, logRevenueScheduleAudit } from "@/lib/audit"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -23,6 +25,12 @@ type BulkUpdateBody = {
 
 const isFiniteNumber = (value: unknown): value is number =>
   typeof value === "number" && Number.isFinite(value)
+
+const toNullableNumber = (value: unknown): number | null => {
+  if (value === null || value === undefined) return null
+  const numeric = Number(value)
+  return Number.isFinite(numeric) ? numeric : null
+}
 
 export async function POST(request: NextRequest) {
   return withPermissions(request, BULK_UPDATE_PERMISSIONS, async req => {
@@ -48,7 +56,7 @@ export async function POST(request: NextRequest) {
         where: { id: { in: ids }, tenantId },
         include: {
           opportunityProduct: true,
-          product: { select: { id: true } }
+          product: { select: { id: true, commissionPercent: true } }
         }
       })
 
@@ -59,15 +67,23 @@ export async function POST(request: NextRequest) {
 
       for (const schedule of schedules) {
         const txOps: any[] = []
+        const previousAuditValues: Record<string, unknown> = {}
+        const nextAuditValues: Record<string, unknown> = {}
+        const productPreviousAuditValues: Record<string, unknown> = {}
+        const productNextAuditValues: Record<string, unknown> = {}
 
         // Update OpportunityProduct (quantity / price)
         if (schedule.opportunityProductId) {
           const oppProductUpdate: Record<string, number> = {}
           if (isFiniteNumber(patch.quantity)) {
             oppProductUpdate.quantity = patch.quantity
+            previousAuditValues.quantity = toNullableNumber((schedule.opportunityProduct as any)?.quantity)
+            nextAuditValues.quantity = patch.quantity
           }
           if (isFiniteNumber(patch.priceEach)) {
             oppProductUpdate.unitPrice = patch.priceEach
+            previousAuditValues.priceEach = toNullableNumber((schedule.opportunityProduct as any)?.unitPrice)
+            nextAuditValues.priceEach = patch.priceEach
           }
           if (Object.keys(oppProductUpdate).length > 0) {
             txOps.push(
@@ -83,6 +99,8 @@ export async function POST(request: NextRequest) {
         const scheduleUpdate: Record<string, number> = {}
         if (isFiniteNumber(patch.expectedUsageAdjustment)) {
           scheduleUpdate.usageAdjustment = patch.expectedUsageAdjustment
+          previousAuditValues.expectedUsageAdjustment = toNullableNumber((schedule as any)?.usageAdjustment)
+          nextAuditValues.expectedUsageAdjustment = patch.expectedUsageAdjustment
         }
         if (Object.keys(scheduleUpdate).length > 0) {
           txOps.push(
@@ -101,6 +119,10 @@ export async function POST(request: NextRequest) {
               data: { commissionPercent: patch.expectedCommissionRatePercent }
             })
           )
+          productPreviousAuditValues.commissionPercent = toNullableNumber((schedule.product as any)?.commissionPercent)
+          productNextAuditValues.commissionPercent = patch.expectedCommissionRatePercent
+          previousAuditValues.expectedCommissionRatePercent = toNullableNumber((schedule.product as any)?.commissionPercent)
+          nextAuditValues.expectedCommissionRatePercent = patch.expectedCommissionRatePercent
         }
 
         // Note: expectedCommissionAdjustment is not persisted yet; ignore safely.
@@ -113,6 +135,31 @@ export async function POST(request: NextRequest) {
         try {
           await prisma.$transaction(txOps)
           updated += 1
+
+          const hasScheduleAudit = Object.keys(nextAuditValues).length > 0
+          if (hasScheduleAudit) {
+            await logRevenueScheduleAudit(
+              AuditAction.Update,
+              schedule.id,
+              req.user.id,
+              tenantId,
+              request,
+              previousAuditValues,
+              { action: "BulkUpdate", ...nextAuditValues }
+            )
+          }
+
+          if (schedule.product?.id && Object.keys(productNextAuditValues).length > 0) {
+            await logProductAudit(
+              AuditAction.Update,
+              schedule.product.id,
+              req.user.id,
+              tenantId,
+              request,
+              productPreviousAuditValues,
+              productNextAuditValues
+            )
+          }
         } catch (error) {
           errors[schedule.id] = error instanceof Error ? error.message : "Failed to update schedule"
           failed.push(schedule.id)

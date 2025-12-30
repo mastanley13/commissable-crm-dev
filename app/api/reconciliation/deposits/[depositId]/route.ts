@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
-import { ReconciliationStatus } from "@prisma/client"
+import { AuditAction, ReconciliationStatus } from "@prisma/client"
 import { withPermissions, createErrorResponse } from "@/lib/api-auth"
 import { prisma } from "@/lib/db"
 import { recomputeRevenueSchedules } from "@/lib/matching/revenue-schedule-status"
 import { getTenantMatchingPreferences } from "@/lib/matching/settings"
 import { logMatchingMetric } from "@/lib/matching/metrics"
+import { logRevenueScheduleAudit } from "@/lib/audit"
 
 export async function DELETE(request: NextRequest, { params }: { params: { depositId: string } }) {
   return withPermissions(request, ["reconciliation.manage"], async req => {
@@ -38,6 +39,14 @@ export async function DELETE(request: NextRequest, { params }: { params: { depos
       })
       const scheduleIds = Array.from(new Set(matchedSchedules.map(m => m.revenueScheduleId).filter(Boolean)))
 
+      const schedulesBefore =
+        scheduleIds.length > 0
+          ? await tx.revenueSchedule.findMany({
+              where: { tenantId, id: { in: scheduleIds } },
+              select: { id: true, status: true, actualUsage: true, actualCommission: true },
+            })
+          : []
+
       // Remove matches
       await tx.depositLineMatch.deleteMany({
         where: { tenantId, depositLineItem: { depositId } },
@@ -49,18 +58,19 @@ export async function DELETE(request: NextRequest, { params }: { params: { depos
       })
 
       // Recompute linked revenue schedules to restore balances
-      if (scheduleIds.length > 0) {
-        await recomputeRevenueSchedules(tx, scheduleIds, tenantId, {
+      const revenueSchedules =
+        scheduleIds.length > 0
+          ? await recomputeRevenueSchedules(tx, scheduleIds, tenantId, {
           varianceTolerance: prefs.varianceTolerance,
         })
-      }
+          : []
 
       // Delete deposit
       await tx.deposit.delete({
         where: { id: depositId },
       })
 
-      return { id: depositId, schedulesRecomputed: scheduleIds.length }
+      return { id: depositId, schedulesRecomputed: scheduleIds.length, schedulesBefore, revenueSchedules }
     })
 
     await logMatchingMetric({
@@ -76,7 +86,34 @@ export async function DELETE(request: NextRequest, { params }: { params: { depos
       },
     })
 
-    return NextResponse.json({ data: result })
+    for (const scheduleResult of result.revenueSchedules ?? []) {
+      const before = (result.schedulesBefore ?? []).find(row => row.id === scheduleResult.schedule.id)
+      await logRevenueScheduleAudit(
+        AuditAction.Update,
+        scheduleResult.schedule.id,
+        req.user.id,
+        tenantId,
+        request,
+        {
+          status: before?.status ?? null,
+          actualUsage: before?.actualUsage ?? null,
+          actualCommission: before?.actualCommission ?? null,
+        },
+        {
+          action: "DeleteDeposit",
+          depositId,
+          status: scheduleResult.schedule.status,
+          actualUsage: scheduleResult.schedule.actualUsage,
+          actualCommission: scheduleResult.schedule.actualCommission,
+          usageBalance: scheduleResult.usageBalance,
+          commissionDifference: scheduleResult.commissionDifference,
+          matchCount: scheduleResult.matchCount,
+        },
+      )
+    }
+
+    const { schedulesBefore: _schedulesBefore, revenueSchedules: _revenueSchedules, ...responseData } = result as any
+    return NextResponse.json({ data: responseData })
   })
 }
 

@@ -11,7 +11,7 @@ import {
   type DepositCustomFieldSection,
 } from "@/lib/deposit-import/template-mapping"
 
-const PREVIEW_PAGE_SIZE = 3
+const PREVIEW_PAGE_SIZE = 1
 
 interface MapFieldsStepProps {
   file: File | null
@@ -57,6 +57,12 @@ export function MapFieldsStep({
   const previewWindow = sampleRows.slice(windowStart, windowEndExclusive)
   const isFirstWindow = windowStart === 0
   const isLastWindow = windowEndExclusive >= totalPreviewRows
+  const previewRangeLabel =
+    totalPreviewRows === 0
+      ? "No rows"
+      : windowStart + 1 === windowEndExclusive
+        ? `Row ${windowStart + 1} of ${totalPreviewRows}`
+        : `Rows ${windowStart + 1}-${windowEndExclusive} of ${totalPreviewRows}`
 
   const canonicalFieldMapping: Record<string, string> = Object.entries(mapping.line ?? {}).reduce(
     (acc, [fieldId, columnName]) => {
@@ -179,7 +185,7 @@ export function MapFieldsStep({
                   <ChevronLeft className="h-3 w-3" />
                 </button>
                 <span className="min-w-[120px] text-center">
-                  Rows {windowStart + 1}-{windowEndExclusive} of {totalPreviewRows}
+                  {previewRangeLabel}
                 </span>
                 <button
                   type="button"

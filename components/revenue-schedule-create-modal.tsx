@@ -1174,7 +1174,7 @@ export function RevenueScheduleCreateModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-      <div className="flex h-[900px] w-full max-w-[1024px] flex-col rounded-2xl bg-white shadow-xl">
+      <div className="flex h-[900px] w-full max-w-[1024px] flex-col overflow-hidden rounded-2xl bg-white shadow-xl">
         <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
           <div>
             <p className="text-xs font-semibold uppercase text-primary-600">
@@ -1223,7 +1223,7 @@ export function RevenueScheduleCreateModal({
         <div className="flex-1 overflow-y-auto px-6 py-5">
           {activeTab === "create" ? (
             <div className="space-y-5">
-              <div className="grid gap-5 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+              <div className="space-y-5">
                 <div className="space-y-4">
                   <div className="grid gap-x-12 gap-y-4 sm:grid-cols-2" data-section="create-schedules-two-col">
                     <div className="sm:col-start-1">
@@ -1291,22 +1291,22 @@ export function RevenueScheduleCreateModal({
                     </div>
                   </div>
 
-                  {createForm.cadence !== "OneTime" ? (
-                    <div className="sm:col-start-1">
-                      <label className={labelCls}>Number of Schedules<span className="ml-1 text-red-500">*</span></label>
-                      <input
-                        type="number"
-                        min={1}
-                        step={1}
-                        value={createForm.occurrences}
-                        onChange={event => setCreateForm(prev => ({ ...prev, occurrences: event.target.value }))}
-                        className={inputCls}
-                        placeholder="12"
-                      />
-                    </div>
-                  ) : null}
+                  <div className="grid gap-4 sm:col-span-2 sm:grid-cols-3">
+                    {createForm.cadence !== "OneTime" ? (
+                      <div>
+                        <label className={labelCls}>Number of Schedules<span className="ml-1 text-red-500">*</span></label>
+                        <input
+                          type="number"
+                          min={1}
+                          step={1}
+                          value={createForm.occurrences}
+                          onChange={event => setCreateForm(prev => ({ ...prev, occurrences: event.target.value }))}
+                          className={inputCls}
+                          placeholder="12"
+                        />
+                      </div>
+                    ) : null}
 
-                  <div className="space-y-4 sm:col-start-2">
                     <div>
                       <label className={labelCls}>Quantity</label>
                       <input
@@ -1318,6 +1318,7 @@ export function RevenueScheduleCreateModal({
                         placeholder="1.00"
                       />
                     </div>
+
                     <div>
                       <label className={labelCls}>Price Each</label>
                       <input
@@ -1338,56 +1339,7 @@ export function RevenueScheduleCreateModal({
 
                   </div>
 
-                  <div className="space-y-2">
-                    <label className={labelCls}>Amount Per Schedule</label>
-                    <div className="flex flex-wrap gap-4 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
-                      <label className="inline-flex items-center gap-2">
-                        <input
-                          type="radio"
-                          name="amount-mode"
-                          checked={createForm.amountMode === "auto"}
-                          onChange={() => setCreateForm(prev => ({ ...prev, amountMode: "auto" }))}
-                        />
-                        Auto calculate
-                      </label>
-                      <label className="inline-flex items-center gap-2">
-                        <input
-                          type="radio"
-                          name="amount-mode"
-                          checked={createForm.amountMode === "manual"}
-                          onChange={() => setCreateForm(prev => ({ ...prev, amountMode: "manual" }))}
-                        />
-                        Manual entry
-                      </label>
-                    </div>
-                    {createForm.amountMode === "manual" ? (
-                      <input
-                        type="text"
-                        inputMode="decimal"
-                        value={displayManualAmount}
-                        onChange={handleDecimalChangeCreate("manualAmount")}
-                        onFocus={() => setManualAmountFocused(true)}
-                        onBlur={() => {
-                          setManualAmountFocused(false)
-                          handleDecimalBlurCreate("manualAmount")()
-                        }}
-                        className={inputCls}
-                        placeholder="$0.00"
-                      />
-                    ) : (
-                      <div className="rounded-md border border-dashed border-gray-300 bg-gray-50 px-3 py-2 text-xs text-gray-600">
-                        {autoAmountPerSchedule !== null ? (
-                          <span>
-                            Estimated per schedule: <span className="font-semibold text-gray-900">${autoAmountPerSchedule.toFixed(2)}</span>
-                          </span>
-                        ) : (
-                          <span>Enter quantity and price to calculate the per-schedule amount.</span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="grid gap-4 sm:grid-cols-3">
+                  <div className="grid gap-4 sm:grid-cols-4">
                     <div>
                       <label className={labelCls}>Commission Rate %<span className="ml-1 text-red-500">*</span></label>
                       <input
@@ -1462,26 +1414,6 @@ export function RevenueScheduleCreateModal({
                     <p className="text-[11px] text-gray-500">Current total: {splitTotals.sum.toFixed(2)}%</p>
                   )}
 
-                  <div className="space-y-2">
-                    <label className={labelCls}>Chargeback</label>
-                    <label className="inline-flex items-center gap-2 text-xs text-gray-600">
-                      <input
-                        type="checkbox"
-                        checked={createForm.isChargeback}
-                        onChange={event => setCreateForm(prev => ({ ...prev, isChargeback: event.target.checked }))}
-                      />
-                      Mark as chargeback (amount becomes negative)
-                    </label>
-                    {createForm.isChargeback ? (
-                      <textarea
-                        value={createForm.chargebackReason}
-                        onChange={event => setCreateForm(prev => ({ ...prev, chargebackReason: event.target.value }))}
-                        className={textAreaCls}
-                        placeholder="Provide context for this chargeback"
-                      />
-                    ) : null}
-                  </div>
-
                   <div>
                     <label className={labelCls}>Notes</label>
                     <textarea
@@ -1490,6 +1422,78 @@ export function RevenueScheduleCreateModal({
                       className={textAreaCls}
                       placeholder="Share any relevant details for this schedule series"
                     />
+                  </div>
+
+                  <div className="grid gap-5 lg:grid-cols-2">
+                    <div className="space-y-2">
+                      <label className={labelCls}>Chargeback</label>
+                      <label className="inline-flex items-center gap-2 text-xs text-gray-600">
+                        <input
+                          type="checkbox"
+                          checked={createForm.isChargeback}
+                          onChange={event => setCreateForm(prev => ({ ...prev, isChargeback: event.target.checked }))}
+                        />
+                        Mark as chargeback (amount becomes negative)
+                      </label>
+                      {createForm.isChargeback ? (
+                        <textarea
+                          value={createForm.chargebackReason}
+                          onChange={event => setCreateForm(prev => ({ ...prev, chargebackReason: event.target.value }))}
+                          className={textAreaCls}
+                          placeholder="Provide context for this chargeback"
+                        />
+                      ) : null}
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className={labelCls}>Amount Per Schedule</label>
+                      <div className="flex flex-wrap gap-4 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                        <label className="inline-flex items-center gap-2">
+                          <input
+                            type="radio"
+                            name="amount-mode"
+                            checked={createForm.amountMode === "auto"}
+                            onChange={() => setCreateForm(prev => ({ ...prev, amountMode: "auto" }))}
+                          />
+                          Auto calculate
+                        </label>
+                        <label className="inline-flex items-center gap-2">
+                          <input
+                            type="radio"
+                            name="amount-mode"
+                            checked={createForm.amountMode === "manual"}
+                            onChange={() => setCreateForm(prev => ({ ...prev, amountMode: "manual" }))}
+                          />
+                          Manual entry
+                        </label>
+                      </div>
+                      {createForm.amountMode === "manual" ? (
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={displayManualAmount}
+                          onChange={handleDecimalChangeCreate("manualAmount")}
+                          onFocus={() => setManualAmountFocused(true)}
+                          onBlur={() => {
+                            setManualAmountFocused(false)
+                            handleDecimalBlurCreate("manualAmount")()
+                          }}
+                          className={inputCls}
+                          placeholder="$0.00"
+                        />
+                      ) : (
+                        <div className="rounded-md border border-dashed border-gray-300 bg-gray-50 px-3 py-2 text-xs text-gray-600">
+                          {autoAmountPerSchedule !== null ? (
+                            <span>
+                              Estimated per schedule:{" "}
+                              <span className="font-semibold text-gray-900">${autoAmountPerSchedule.toFixed(2)}</span>
+                            </span>
+                          ) : (
+                            <span>Enter quantity and price to calculate the per-schedule amount.</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -1904,6 +1908,19 @@ export function RevenueScheduleCreateModal({
         {error ? (
           <div className="mx-6 mb-3 rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
             {error}
+          </div>
+        ) : null}
+
+        {activeTab === "status" ? (
+          <div
+            className="mx-6 mb-3 flex items-start gap-2 rounded-md border border-gray-200 bg-gray-50 px-4 py-2 text-[11px] text-gray-600"
+            title="Schedules that have usage or commission applied cannot be deleted or modified."
+          >
+            <Info className="mt-0.5 h-4 w-4 text-gray-400" aria-hidden="true" />
+            <p>
+              <span className="font-semibold text-gray-700">Legend:</span>{" "}
+              Schedules that have usage or commission applied cannot be deleted or modified.
+            </p>
           </div>
         ) : null}
 

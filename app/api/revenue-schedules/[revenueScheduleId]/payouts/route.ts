@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
-import { CommissionPayoutSplitType, CommissionPayoutStatus } from "@prisma/client"
+import { AuditAction, CommissionPayoutSplitType, CommissionPayoutStatus } from "@prisma/client"
 
 import { prisma } from "@/lib/db"
 import { withAuth, withPermissions } from "@/lib/api-auth"
+import { logRevenueScheduleAudit } from "@/lib/audit"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -111,6 +112,25 @@ export async function POST(request: NextRequest, { params }: { params: { revenue
           updatedById: req.user.id
         }
       })
+
+      await logRevenueScheduleAudit(
+        AuditAction.Update,
+        revenueScheduleId,
+        req.user.id,
+        tenantId,
+        request,
+        {},
+        {
+          action: "RecordPayment",
+          payoutId: created.id,
+          splitType: created.splitType,
+          status: created.status,
+          amount: Number(created.amount),
+          paidAt: created.paidAt.toISOString(),
+          reference: created.reference ?? null,
+          notes: created.notes ?? null,
+        },
+      )
 
       return NextResponse.json({
         data: {

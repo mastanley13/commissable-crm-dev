@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
-import { Prisma, RevenueScheduleStatus } from "@prisma/client"
+import { AuditAction, Prisma, RevenueScheduleStatus } from "@prisma/client"
 
 import { prisma } from "@/lib/db"
 import { withPermissions } from "@/lib/api-auth"
 import { mapRevenueScheduleToDetail, type RevenueScheduleWithRelations } from "../../helpers"
+import { logRevenueScheduleAudit } from "@/lib/audit"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -389,6 +390,25 @@ export async function POST(request: NextRequest, { params }: { params: { revenue
 
         return results
       })
+
+      for (const created of clones) {
+        await logRevenueScheduleAudit(
+          AuditAction.Create,
+          created.id,
+          req.user.id,
+          tenantId,
+          request,
+          undefined,
+          {
+            action: "CloneRevenueSchedule",
+            sourceRevenueScheduleId: revenueScheduleId,
+            scheduleNumber: (created as any).scheduleNumber ?? null,
+            scheduleDate: (created as any).scheduleDate ?? null,
+            expectedUsage: (created as any).expectedUsage ?? null,
+            expectedCommission: (created as any).expectedCommission ?? null,
+          },
+        )
+      }
 
       const primary = clones[0]
       const detail = mapRevenueScheduleToDetail(primary)

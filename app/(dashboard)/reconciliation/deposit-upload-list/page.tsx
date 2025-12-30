@@ -100,7 +100,7 @@ export default function DepositUploadListPage() {
 
         const headers = parsed.headers
         setCsvHeaders(headers)
-        setSampleRows(parsed.rows.slice(0, 5))
+        setSampleRows(parsed.rows)
         setParsedRowCount(parsed.rows.length)
 
         let templateMapping: DepositMappingConfigV1 | null = null

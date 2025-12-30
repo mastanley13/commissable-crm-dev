@@ -157,6 +157,7 @@ html, body {
   z-index: 1;
   cursor: col-resize;
   background: transparent;
+  touch-action: none;
 }
 
 .column-resizer:hover {

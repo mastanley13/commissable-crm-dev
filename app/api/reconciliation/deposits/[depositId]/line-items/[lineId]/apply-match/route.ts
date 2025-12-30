@@ -3,6 +3,7 @@ import {
   DepositLineItemStatus,
   DepositLineMatchSource,
   DepositLineMatchStatus,
+  AuditAction,
 } from "@prisma/client"
 import { withPermissions, createErrorResponse } from "@/lib/api-auth"
 import { prisma } from "@/lib/db"
@@ -10,6 +11,7 @@ import { recomputeDepositAggregates } from "@/lib/matching/deposit-aggregates"
 import { recomputeRevenueScheduleFromMatches } from "@/lib/matching/revenue-schedule-status"
 import { getTenantVarianceTolerance } from "@/lib/matching/settings"
 import { logMatchingMetric } from "@/lib/matching/metrics"
+import { logRevenueScheduleAudit } from "@/lib/audit"
 
 interface ApplyMatchRequestBody {
   revenueScheduleId: string
@@ -126,6 +128,33 @@ export async function POST(
       source: DepositLineMatchSource.Manual,
       request,
     })
+
+    await logRevenueScheduleAudit(
+      AuditAction.Update,
+      revenueScheduleId,
+      req.user.id,
+      tenantId,
+      request,
+      {
+        status: schedule.status ?? null,
+        actualUsage: schedule.actualUsage ?? null,
+        actualCommission: schedule.actualCommission ?? null,
+      },
+      {
+        action: "ApplyDepositMatch",
+        depositId,
+        depositLineItemId: lineItem.id,
+        depositLineMatchId: result.match.id,
+        allocatedUsage: allocationUsage,
+        allocatedCommission: allocationCommission,
+        status: result.revenueSchedule.schedule.status,
+        actualUsage: result.revenueSchedule.schedule.actualUsage,
+        actualCommission: result.revenueSchedule.schedule.actualCommission,
+        usageBalance: result.revenueSchedule.usageBalance,
+        commissionDifference: result.revenueSchedule.commissionDifference,
+        matchCount: result.revenueSchedule.matchCount,
+      },
+    )
 
     return NextResponse.json({ data: result })
   })
