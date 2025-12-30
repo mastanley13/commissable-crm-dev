@@ -2348,6 +2348,7 @@ useEffect(() => {
         distributorName: item.distributorName ?? "",
         vendorId: item.vendorId ?? null,
         vendorName: item.vendorName ?? "",
+        priceEach: item.priceEach ?? null,
         createdAt: item.createdAt,
         updatedAt: item.updatedAt,
         status: item.status ?? null,

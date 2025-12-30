@@ -2583,48 +2583,6 @@ function RevenueTypeSettings({ editMode }: { editMode: boolean }) {
           </div>
         )}
 
-        <form
-          onSubmit={handleCreate}
-          className="space-y-3 rounded-md border border-gray-200 bg-gray-50 p-3"
-        >
-          <div className="text-xs font-medium text-gray-900">
-            Add Revenue Type
-          </div>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr,1fr,auto]">
-            <div>
-              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">
-                Label
-              </label>
-              <input
-                type="text"
-                value={newLabel}
-                onChange={e => setNewLabel(e.target.value)}
-                className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
-                placeholder="e.g. NRC - Setup Fee"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">
-                Description
-              </label>
-              <input
-                type="text"
-                value={newDescription}
-                onChange={e => setNewDescription(e.target.value)}
-                className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
-                placeholder="Short explanation of when to use this type"
-              />
-            </div>
-            <button
-              type="submit"
-              disabled={creating}
-              className="inline-flex items-center justify-center self-end rounded-md bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50 md:w-auto"
-            >
-              {creating ? "Adding..." : "Add Revenue Type"}
-            </button>
-          </div>
-        </form>
-
         <div className="overflow-hidden rounded-md border border-gray-200 bg-white">
           <div
             className="overflow-y-auto"
@@ -2636,6 +2594,23 @@ function RevenueTypeSettings({ editMode }: { editMode: boolean }) {
           <table className="min-w-full table-fixed divide-y divide-gray-200 text-sm">
             <thead className="bg-gray-50">
               <tr>
+                <th
+                  className="px-4 py-2 text-left font-medium text-gray-700 whitespace-nowrap"
+                  style={{ width: "6%" }}
+                >
+                  Actions
+                </th>
+                <th
+                  className="px-4 py-2 text-left font-medium text-gray-700 whitespace-nowrap"
+                  style={{ width: "12%" }}
+                >
+                  <div className="flex flex-col leading-tight">
+                    <span>Enabled</span>
+                    <span className="mt-0.5 text-[10px] font-normal text-gray-500">
+                      Click to toggle
+                    </span>
+                  </div>
+                </th>
                 <th
                   className="px-4 py-2 text-left font-medium text-gray-700"
                   style={{ width: "24%" }}
@@ -2650,21 +2625,9 @@ function RevenueTypeSettings({ editMode }: { editMode: boolean }) {
                 </th>
                 <th
                   className="px-4 py-2 text-left font-medium text-gray-700"
-                  style={{ width: "42%" }}
+                  style={{ width: "40%" }}
                 >
                   Description
-                </th>
-                <th
-                  className="px-4 py-2 text-left font-medium text-gray-700"
-                  style={{ width: "12%" }}
-                >
-                  Status
-                </th>
-                <th
-                  className="px-4 py-2 text-right font-medium text-gray-700"
-                  style={{ width: "4%" }}
-                >
-                  Actions
                 </th>
               </tr>
             </thead>
@@ -2686,6 +2649,54 @@ function RevenueTypeSettings({ editMode }: { editMode: boolean }) {
               {!loading &&
                 visibleItems.map(item => (
                   <tr key={item.code} className="hover:bg-gray-50">
+                    <td className="px-4 py-2 align-top">
+                      <div className="flex items-center gap-2">
+                        {!item.isSystem && (
+                          <button
+                            type="button"
+                            onClick={() => handleRequestDelete(item)}
+                            disabled={deletingCode === item.code || bulkSaving}
+                            className="inline-flex items-center rounded-full border border-red-200 bg-red-50 p-1 text-red-600 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-40"
+                            title="Delete this revenue type"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-2 align-top">
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={item.isEnabled}
+                        aria-label={`Toggle ${item.label} (${item.isEnabled ? "Enabled" : "Disabled"})`}
+                        title={
+                          savingCode === item.code
+                            ? "Updating status..."
+                            : item.isEnabled
+                            ? "Click to disable"
+                            : "Click to enable"
+                        }
+                        onClick={() => handleToggle(item)}
+                        disabled={savingCode === item.code || bulkSaving}
+                        className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 ${
+                          item.isEnabled
+                            ? "border-green-200 bg-green-50 text-green-700"
+                            : "border-gray-200 bg-gray-50 text-gray-600"
+                        }`}
+                      >
+                        <span
+                          className={`mr-2 inline-block h-2 w-2 rounded-full ${
+                            item.isEnabled ? "bg-green-500" : "bg-gray-400"
+                          }`}
+                        />
+                        {savingCode === item.code
+                          ? "Updating..."
+                          : item.isEnabled
+                          ? "Enabled"
+                          : "Disabled"}
+                      </button>
+                    </td>
                     <td className="px-4 py-2 align-top">
                       <div className="min-h-[20px] text-xs font-medium text-gray-900">
                         {editMode ? (
@@ -2749,46 +2760,6 @@ function RevenueTypeSettings({ editMode }: { editMode: boolean }) {
                         )}
                       </div>
                     </td>
-                    <td className="px-4 py-2 align-top">
-                      <button
-                        type="button"
-                        onClick={() => handleToggle(item)}
-                        disabled={savingCode === item.code || bulkSaving}
-                        className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium border ${
-                          item.isEnabled
-                            ? "border-green-200 bg-green-50 text-green-700"
-                            : "border-gray-200 bg-gray-50 text-gray-600"
-                        }`}
-                      >
-                        <span
-                          className={`mr-2 inline-block h-2 w-2 rounded-full ${
-                            item.isEnabled ? "bg-green-500" : "bg-gray-400"
-                          }`}
-                        />
-                        {savingCode === item.code
-                          ? "Updating..."
-                          : item.isEnabled
-                          ? "Enabled"
-                          : "Disabled"}
-                      </button>
-                    </td>
-                    <td className="px-4 py-2 align-top text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        {!item.isSystem && (
-                          <button
-                            type="button"
-                            onClick={() => handleRequestDelete(item)}
-                            disabled={
-                              deletingCode === item.code || bulkSaving
-                            }
-                            className="inline-flex items-center rounded-full border border-red-200 bg-red-50 p-1 text-red-600 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-40"
-                            title="Delete this revenue type"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        )}
-                      </div>
-                    </td>
                   </tr>
                 ))}
             </tbody>
@@ -2826,6 +2797,48 @@ function RevenueTypeSettings({ editMode }: { editMode: boolean }) {
           </div>
         </div>
       </div>
+
+      <form
+        onSubmit={handleCreate}
+        className="space-y-3 rounded-md border border-gray-200 bg-gray-50 p-3"
+      >
+        <div className="text-xs font-medium text-gray-900">
+          Add Revenue Type
+        </div>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr,1fr,auto]">
+          <div>
+            <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+              Label
+            </label>
+            <input
+              type="text"
+              value={newLabel}
+              onChange={e => setNewLabel(e.target.value)}
+              className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
+              placeholder="e.g. NRC - Setup Fee"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+              Description
+            </label>
+            <input
+              type="text"
+              value={newDescription}
+              onChange={e => setNewDescription(e.target.value)}
+              className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
+              placeholder="Short explanation of when to use this type"
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={creating}
+            className="inline-flex items-center justify-center self-end rounded-md bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50 md:w-auto"
+          >
+            {creating ? "Adding..." : "Add Revenue Type"}
+          </button>
+        </div>
+      </form>
 
       {confirmDeleteCode && (
         <div className="fixed inset-0 z-30 flex items-center justify-center bg-black bg-opacity-50">
