@@ -563,7 +563,7 @@ export function TwoStageDeleteDialog({
         </div>
         <div>
           <h3 className="text-lg font-semibold text-gray-900">Error</h3>
-          <p className="text-sm text-red-600">{error}</p>
+          <p className="max-h-64 overflow-y-auto text-sm text-red-600 whitespace-pre-line break-words">{error}</p>
         </div>
       </div>
 
@@ -608,8 +608,6 @@ export function TwoStageDeleteDialog({
     </div>
   )
 }
-
-
 
 
 

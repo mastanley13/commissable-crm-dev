@@ -22,6 +22,7 @@ import { isRowInactive } from "@/lib/row-state";
 import { calculateMinWidth } from "@/lib/column-width-utils";
 import { cn } from "@/lib/utils";
 import { buildStandardBulkActions } from "@/components/standard-bulk-actions";
+import { useAuth } from "@/lib/auth-context";
 
 
 interface AccountRow {
@@ -384,6 +385,8 @@ const normalizePageSize = (value: number): number => {
 export default function AccountsPage() {
   const router = useRouter();
   const { showSuccess, showError, ToastContainer } = useToasts();
+  const { hasPermission } = useAuth();
+  const userCanPermanentDelete = hasPermission("accounts.delete");
 
   const [accounts, setAccounts] = useState<AccountRow[]>([]);
   const [accountOptions, setAccountOptions] = useState<AccountOptions | null>(null);
@@ -930,7 +933,7 @@ export default function AccountsPage() {
                   ...account,
                   active: isActive,
                   status: isActive ? "Active" : "Inactive",
-                  isDeleted: !isActive,
+                  isDeleted: false,
                 }
               : account
           )
@@ -1198,7 +1201,7 @@ export default function AccountsPage() {
       setAccounts((previous) =>
         previous.map((account) =>
           account.id === accountId
-            ? { ...account, active: false, status: "Inactive", isDeleted: true }
+            ? { ...account, active: false, status: "Archived", isDeleted: true }
             : account
         )
       );
@@ -1223,7 +1226,7 @@ export default function AccountsPage() {
 
       try {
         const deactivateCandidates = targets.filter((account) => account.active);
-        const deletionCandidates = targets.filter((account) => !account.active);
+        const deletionCandidates = targets.filter((account) => !account.active && !account.isDeleted);
 
         const deactivatedIds: string[] = [];
         const deactivationFailures: Array<{ account: AccountRow; message: string }> = [];
@@ -1254,14 +1257,14 @@ export default function AccountsPage() {
             setAccounts((previous) =>
               previous.map((account) =>
                 updatedAccounts.has(account.id)
-                  ? { ...account, active: false, status: "Inactive", isDeleted: true }
+                  ? { ...account, active: false, status: "Inactive", isDeleted: false }
                   : account
               )
             );
 
             showSuccess(
               `Marked ${deactivatedIds.length} account${deactivatedIds.length === 1 ? "" : "s"} inactive`,
-              "Inactive accounts can be deleted if needed."
+              "Inactive status is required before deletion."
             );
           }
         }
@@ -1270,7 +1273,14 @@ export default function AccountsPage() {
         const softDeleteFailures: Array<{ account: AccountRow; message: string }> = [];
         const constraintResults: Array<{ account: AccountRow; constraints: DeletionConstraint[] }> = [];
 
-        for (const account of deletionCandidates) {
+        const deleteCandidateById = new Map<string, AccountRow>();
+        deletionCandidates.forEach((account) => deleteCandidateById.set(account.id, account));
+        const deactivatedIdSet = new Set(deactivatedIds);
+        deactivateCandidates
+          .filter((account) => deactivatedIdSet.has(account.id))
+          .forEach((account) => deleteCandidateById.set(account.id, account));
+
+        for (const account of Array.from(deleteCandidateById.values())) {
           const result = await softDeleteAccountRequest(account.id, bypassConstraints);
 
           if (result.success) {
@@ -1290,7 +1300,7 @@ export default function AccountsPage() {
           setAccounts((previous) =>
             previous.map((account) =>
               successSet.has(account.id)
-                ? { ...account, active: false, status: "Inactive", isDeleted: true }
+                ? { ...account, active: false, status: "Archived", isDeleted: true }
                 : account
             )
           );
@@ -1790,8 +1800,8 @@ export default function AccountsPage() {
         entityLabelPlural="Accounts"
         isDeleted={
           bulkDeleteTargets.length > 0
-            ? bulkDeleteTargets.every((account) => !account.active)
-            : accountToDelete ? !accountToDelete.active : false
+            ? bulkDeleteTargets.every((account) => account.isDeleted)
+            : accountToDelete?.isDeleted ?? false
         }
         onSoftDelete={handleSoftDelete}
         onBulkSoftDelete={
@@ -1807,7 +1817,7 @@ export default function AccountsPage() {
         }
         onPermanentDelete={handlePermanentDelete}
         onRestore={handleRestore}
-        userCanPermanentDelete={true} // TODO: Check user permissions
+        userCanPermanentDelete={userCanPermanentDelete}
       />
       <ToastContainer />
     </CopyProtectionWrapper>

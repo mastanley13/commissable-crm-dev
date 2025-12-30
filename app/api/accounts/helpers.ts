@@ -1,6 +1,7 @@
 export function mapAccountToListRow(account: any) {
   const status = account.status ?? "Active";
   const isActive = status === "Active";
+  const isDeleted = status === "Archived";
 
   return {
     id: account.id,
@@ -31,7 +32,7 @@ export function mapAccountToListRow(account: any) {
     industry: account.industry?.name ?? "",
     websiteUrl: account.websiteUrl ?? "",
     description: account.description ?? "",
-    isDeleted: !isActive
+    isDeleted
   }
 }
 

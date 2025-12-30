@@ -10,6 +10,7 @@ import { logAccountAudit } from "@/lib/audit"
 import { revalidatePath } from "next/cache"
 import { checkDeletionConstraints, softDeleteEntity, permanentDeleteEntity, restoreEntity } from "@/lib/deletion"
 import { ensureActiveOwnerOrNull } from "@/lib/validation"
+import { hasPermission } from "@/lib/auth"
 
 type AddressInput = {
   line1: string
@@ -551,7 +552,7 @@ export async function DELETE(
 
         if (stage === 'permanent') {
           // Permanent deletion - requires admin permissions
-          if (!(req.user as any).permissions?.includes('accounts.permanent_delete')) {
+          if (!hasPermission(req.user, 'accounts.delete')) {
             return NextResponse.json({ error: "Insufficient permissions for permanent deletion" }, { status: 403 })
           }
 
@@ -607,7 +608,7 @@ export async function DELETE(
             stage: 'soft',
             bypassConstraints
           },
-          { status: AccountStatus.Inactive }
+          { status: AccountStatus.Archived }
         )
 
         // Invalidate cache

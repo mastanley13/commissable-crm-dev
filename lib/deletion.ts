@@ -86,8 +86,8 @@ export const RelationshipChecks: Record<string, EntityRelationshipCheck> = {
       const contactCount = await prisma.contact.count({
         where: { 
           tenantId, 
-          accountId
-          // Note: deletedAt field not yet added to schema
+          accountId,
+          deletedAt: null
         }
       })
 
@@ -161,6 +161,7 @@ export const RelationshipChecks: Record<string, EntityRelationshipCheck> = {
         where: {
           tenantId,
           accountId,
+          deletedAt: null,
           status: { in: [RevenueScheduleStatus.Unreconciled, RevenueScheduleStatus.Underpaid, RevenueScheduleStatus.Overpaid] }
         }
       })
@@ -382,7 +383,11 @@ export async function softDeleteEntity(
     if (mapping.statusField === 'deletedAt') {
       updateData.deletedAt = new Date()
     } else {
-      updateData[mapping.statusField] = mapping.inactiveStatus
+      const nextValue =
+        entity === 'Account'
+          ? (mapping as any).deletedStatus ?? mapping.inactiveStatus
+          : mapping.inactiveStatus
+      updateData[mapping.statusField] = nextValue
     }
 
     updateData.updatedById = userId
@@ -430,7 +435,12 @@ export async function permanentDeleteEntity(
         tenantId,
         ...(mapping.statusField === 'deletedAt' 
           ? { deletedAt: { not: null } }
-          : { [mapping.statusField]: mapping.inactiveStatus }
+          : {
+              [mapping.statusField]:
+                entity === 'Account'
+                  ? (mapping as any).deletedStatus ?? mapping.inactiveStatus
+                  : mapping.inactiveStatus
+            }
         )
       }
     })

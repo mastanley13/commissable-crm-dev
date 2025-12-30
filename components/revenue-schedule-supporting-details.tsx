@@ -256,6 +256,16 @@ const REDESIGN_SECTION_ITEMS: SectionNavigationItem[] = [
   }
 ]
 
+const TAB_DESCRIPTIONS: Record<string, string> = {
+  "opportunity-details": "This section displays account, order, customer, location, and service IDs associated with this revenue schedule. These identifiers link the schedule to the relevant business entities in your system.",
+  "additional-information": "This section displays metadata from vendor/distributor deposit line items as they are reconciled with this revenue schedule. Known ID fields (Account, Order, Customer, Location, Service) update the Opportunity Details tab. Other metadata fields not present on the schedule are added here dynamically. Data is read-only.",
+  "commission-splits": "This section shows the commission breakdown by partner, displaying both reconciled amounts that have been matched with deposits and receivables amounts that are pending payment. Split percentages and dollar amounts are shown for each partner role.",
+  "transactions": "This section displays all financial activity related to this revenue schedule, including billing transactions, commission deposits from partners, and payment records. Use the filters to view specific transaction types or date ranges.",
+  "activities-notes": "This section provides a timeline of all activities, notes, tasks, and files associated with this revenue schedule. Add notes to track important information or attach relevant documents for future reference.",
+  "tickets": "This section displays support tickets related to this revenue schedule. Create new tickets to track issues, questions, or requests, and monitor their resolution status.",
+  "history": "This section shows a complete audit log of all changes made to this revenue schedule, including who made each change and when. Use the restore functionality to revert to previous versions if needed."
+}
+
 export interface RevenueScheduleSupportingDetailsHandle {
   openTicketCreateModal: () => void
   openSection: (sectionId: string) => void
@@ -2720,14 +2730,21 @@ export const RevenueScheduleSupportingDetails = forwardRef<
         break
       case "history":
         sectionContent = schedule?.id ? (
-          <AuditHistoryTab
-            entityName="RevenueSchedule"
-            entityId={schedule.id}
-            tableBodyMaxHeight={300}
-            rowActionLabel={canRestoreSchedule ? "Restore" : undefined}
-            rowActionRenderer={canRestoreSchedule ? historyRowActionRenderer : undefined}
-            reloadToken={historyReloadToken}
-          />
+          <div className="border-x border-b border-gray-200 bg-white px-3 pb-3 pt-0">
+            <div className="border-t-2 border-t-primary-600 -mx-3 px-3 pt-3">
+              <p className="text-[11px] text-gray-500 italic mb-3">
+                {TAB_DESCRIPTIONS["history"]}
+              </p>
+              <AuditHistoryTab
+                entityName="RevenueSchedule"
+                entityId={schedule.id}
+                tableBodyMaxHeight={300}
+                rowActionLabel={canRestoreSchedule ? "Restore" : undefined}
+                rowActionRenderer={canRestoreSchedule ? historyRowActionRenderer : undefined}
+                reloadToken={historyReloadToken}
+              />
+            </div>
+          </div>
         ) : (
           <EmptyState title="No history available." description="Save this schedule to view audit history." />
         )
@@ -2808,6 +2825,12 @@ export const RevenueScheduleSupportingDetails = forwardRef<
             ) : (
               <div className="border-x border-b border-gray-200 bg-white px-3 pb-3 pt-0">
                 <div className="border-t-2 border-t-primary-600 -mx-3 px-3 pt-3">
+                  {activeSectionId && TAB_DESCRIPTIONS[activeSectionId] && (
+                    <p className="text-[11px] text-gray-500 italic mb-3">
+                      {TAB_DESCRIPTIONS[activeSectionId]}
+                    </p>
+                  )}
+
                   {sectionContent ?? (
                     <p className="text-[11px] text-slate-500">Select a section to view its details.</p>
                   )}

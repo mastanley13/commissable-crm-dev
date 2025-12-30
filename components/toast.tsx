@@ -98,7 +98,7 @@ function ToastComponent({ toast, onRemove }: ToastProps) {
               {toast.title}
             </h4>
             {toast.message && (
-              <p className={cn("mt-1 text-sm", getTextColor())}>
+              <p className={cn("mt-1 text-sm whitespace-pre-line break-words", getTextColor())}>
                 {toast.message}
               </p>
             )}
