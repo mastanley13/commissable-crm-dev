@@ -433,6 +433,13 @@ export function AccountEditModal({ isOpen, onClose, onSuccess, account }: Accoun
 
       if (!response.ok) {
         const data = await response.json().catch(() => null)
+        const serverErrors =
+          data && typeof data === "object" && data.errors && typeof data.errors === "object"
+            ? (data.errors as FormErrors)
+            : null
+        if (serverErrors && Object.keys(serverErrors).length > 0) {
+          setErrors(serverErrors)
+        }
         throw new Error(data?.error || "Failed to update account")
       }
 

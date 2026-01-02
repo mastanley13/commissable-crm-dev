@@ -1,14 +1,33 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useRouter } from 'next/navigation'
 import { ListHeader } from '@/components/list-header'
 import { DynamicTable, Column, PaginationInfo } from '@/components/dynamic-table'
 import { ColumnChooserModal } from '@/components/column-chooser-modal'
 import { UserCreateModal } from '@/components/user-create-modal'
 import { useTablePreferences } from '@/hooks/useTablePreferences'
 import { PermissionGate } from '@/components/auth/permission-gate'
-import { Edit, Trash2, User, Shield } from 'lucide-react'
+import { Check, Edit, Trash2, User, Shield } from 'lucide-react'
 import { isRowInactive } from '@/lib/row-state'
+import { cn } from '@/lib/utils'
+
+function UserNameCell({ value, userId }: { value: string | null | undefined; userId: string }) {
+  const router = useRouter()
+
+  return (
+    <button
+      type="button"
+      onClick={(event) => {
+        event.stopPropagation()
+        router.push(`/admin/users/${userId}`)
+      }}
+      className="text-blue-600 hover:text-blue-800 font-medium"
+    >
+      {value || "View"}
+    </button>
+  )
+}
 
 const normalizePageSize = (value: number): number => {
   if (!Number.isFinite(value)) return 100
@@ -17,33 +36,14 @@ const normalizePageSize = (value: number): number => {
 
 const userColumns: Column[] = [
   {
-    id: 'active',
-    label: 'Active',
-    width: 80,
-    minWidth: 60,
-    maxWidth: 100,
-    type: 'toggle',
-    accessor: 'active'
-  },
-  {
     id: 'actions',
     label: 'Select All',
-    width: 100,
-    minWidth: 100,
-    maxWidth: 120,
-    type: 'action',
-    render: (_: any, row: any) => (
-      <div className="flex gap-1">
-        <button className="text-blue-500 hover:text-blue-700 p-1 rounded transition-colors" title="Edit user">
-          <Edit className="h-4 w-4" />
-        </button>
-        {isRowInactive(row) && (
-          <button className="text-red-500 hover:text-red-700 p-1 rounded transition-colors" title="Delete user">
-            <Trash2 className="h-4 w-4" />
-          </button>
-        )}
-      </div>
-    )
+    width: 220,
+    minWidth: 200,
+    maxWidth: 260,
+    type: 'multi-action',
+    accessor: 'select',
+    hideable: false,
   },
   {
     id: 'email',
@@ -68,11 +68,7 @@ const userColumns: Column[] = [
     maxWidth: 300,
     sortable: true,
     type: 'text',
-    render: (value) => (
-      <span className="text-blue-600 hover:text-blue-800 cursor-pointer font-medium">
-        {value}
-      </span>
-    )
+    render: (value, row) => <UserNameCell value={value} userId={row.id} />
   },
   {
     id: 'status',
@@ -145,6 +141,7 @@ const userColumns: Column[] = [
 ]
 
 export default function AdminUsersPage() {
+  const router = useRouter()
   const [users, setUsers] = useState<any[]>([])
   const [filteredUsers, setFilteredUsers] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -154,6 +151,7 @@ export default function AdminUsersPage() {
   const [currentPage, setCurrentPage] = useState<number>(1)
   const [pageSize, setPageSize] = useState<number>(100)
   const [updatingUserIds, setUpdatingUserIds] = useState<Set<string>>(new Set())
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([])
 
   const {
     columns: preferenceColumns,
@@ -275,8 +273,8 @@ export default function AdminUsersPage() {
   }
 
   const handleRowClick = (user: any) => {
-    console.log('User clicked:', user)
-    // Navigate to user detail page or open modal
+    if (!user?.id) return
+    router.push(`/admin/users/${user.id}`)
   }
 
   const handleCreateUser = () => {
@@ -332,6 +330,128 @@ export default function AdminUsersPage() {
     }
   }, [filteredUsers.length, currentPage, pageSize])
 
+  const handleUserSelect = useCallback((userId: string, selected: boolean) => {
+    setSelectedUserIds((previous) => {
+      if (selected) {
+        if (previous.includes(userId)) return previous
+        return [...previous, userId]
+      }
+
+      if (!previous.includes(userId)) return previous
+      return previous.filter((id) => id !== userId)
+    })
+  }, [])
+
+  const handleSelectAll = useCallback((selected: boolean) => {
+    if (selected) {
+      const ids = filteredUsers
+        .map((user: any) => user?.id)
+        .filter((id: unknown): id is string => typeof id === 'string' && id.length > 0)
+      setSelectedUserIds(ids)
+      return
+    }
+    setSelectedUserIds([])
+  }, [filteredUsers])
+
+  const tableColumns = useMemo(() => {
+    return preferenceColumns.map((column) => {
+      if (column.id !== 'actions') return column
+
+      return {
+        ...column,
+        type: 'multi-action' as const,
+        render: (_value: unknown, row: any) => {
+          const rowId = row?.id as string | undefined
+          const checked = Boolean(rowId && selectedUserIds.includes(rowId))
+          const activeValue = Boolean(row?.active)
+          const isUpdating = Boolean(rowId && updatingUserIds.has(rowId))
+
+          return (
+            <div className="flex items-center gap-2" data-disable-row-click="true">
+              <label
+                className="flex cursor-pointer items-center justify-center"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <input
+                  type="checkbox"
+                  className="sr-only"
+                  checked={checked}
+                  aria-label={rowId ? `Select user ${row.fullName || row.email || rowId}` : 'Select user'}
+                  onChange={() => {
+                    if (!rowId) return
+                    handleUserSelect(rowId, !checked)
+                  }}
+                />
+                <span
+                  className={`flex h-4 w-4 items-center justify-center rounded border transition-colors ${
+                    checked
+                      ? 'border-primary-500 bg-primary-600 text-white'
+                      : 'border-gray-300 bg-white text-transparent'
+                  }`}
+                >
+                  <Check className="h-3 w-3" aria-hidden="true" />
+                </span>
+              </label>
+
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  if (!rowId || isUpdating) return
+                  void handleToggleUserActive(row, !activeValue)
+                }}
+                className="relative inline-flex items-center cursor-pointer"
+                disabled={isUpdating}
+                title={activeValue ? 'Active' : 'Inactive'}
+              >
+                <span
+                  className={cn(
+                    'relative inline-flex h-6 w-11 items-center rounded-full transition-colors',
+                    activeValue ? 'bg-primary-600' : 'bg-gray-300',
+                    isUpdating ? 'opacity-50' : ''
+                  )}
+                >
+                  <span
+                    className={cn(
+                      'inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform',
+                      activeValue ? 'translate-x-5' : 'translate-x-1'
+                    )}
+                  />
+                </span>
+              </button>
+
+              <button
+                type="button"
+                className="text-blue-500 hover:text-blue-700 p-1 rounded transition-colors"
+                title="Edit user"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  if (!rowId) return
+                  router.push(`/admin/users/${rowId}`)
+                }}
+              >
+                <Edit className="h-4 w-4" />
+              </button>
+
+              {isRowInactive(row) && (
+                <button
+                  type="button"
+                  className="text-red-500 hover:text-red-700 p-1 rounded transition-colors"
+                  title="Delete user"
+                  onClick={(event) => {
+                    event.stopPropagation()
+                  }}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+          )
+        }
+      }
+    })
+  }, [handleToggleUserActive, handleUserSelect, preferenceColumns, router, selectedUserIds, updatingUserIds])
+
   return (
     <PermissionGate
       permissions={['admin.users.read', 'accounts.manage']}
@@ -347,6 +467,7 @@ export default function AdminUsersPage() {
       <div className="h-full flex flex-col">
         {/* List Header */}
         <ListHeader
+          pageTitle="USERS LIST"
           searchPlaceholder="Search users..."
           onSearch={handleSearch}
           onFilterChange={handleFilterChange}
@@ -370,7 +491,7 @@ export default function AdminUsersPage() {
         {/* Table */}
         <div className="flex-1 p-6">
           <DynamicTable
-            columns={preferenceColumns}
+            columns={tableColumns}
             data={paginatedUsers}
             onSort={handleSort}
             onRowClick={handleRowClick}
@@ -380,11 +501,8 @@ export default function AdminUsersPage() {
             pagination={paginationInfo}
             onPageChange={handlePageChange}
             onPageSizeChange={handlePageSizeChange}
-          onToggle={(row, columnId, value) => {
-            if (columnId === 'active') {
-              void handleToggleUserActive(row, Boolean(value))
-            }
-          }}
+            selectedItems={selectedUserIds}
+            onSelectAll={handleSelectAll}
           />
         </div>
 

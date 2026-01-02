@@ -5,32 +5,41 @@ import * as DropdownMenu from "@radix-ui/react-dropdown-menu"
 import { Check, ChevronDown } from "lucide-react"
 
 interface AccountStatusFilterDropdownProps {
-  value: "active" | "all"
-  onChange: (value: "active" | "all") => void
+  value: "active" | "inactive" | "all"
+  options?: Array<"active" | "inactive" | "all">
+  onChange: (value: "active" | "inactive" | "all") => void
   labels?: {
     active?: string
+    inactive?: string
     all?: string
   }
 }
 
-const defaultStatusOptions = [
-  { id: "active" as const, label: "Active" },
-  { id: "all" as const, label: "Show Inactive" },
-] as const
+const defaultStatusOptions = ["active", "inactive"] as const
 
 export function AccountStatusFilterDropdown({
   value,
+  options,
   onChange,
   labels,
 }: AccountStatusFilterDropdownProps) {
   const statusOptions = useMemo(() => {
-    return defaultStatusOptions.map(option => ({
-      ...option,
-      label: option.id === "active"
-        ? (labels?.active ?? option.label)
-        : (labels?.all ?? option.label)
-    }))
-  }, [labels])
+    const configured = Array.isArray(options) && options.length > 0 ? options : [...defaultStatusOptions]
+
+    return configured.map((option) => {
+      if (option === "active") {
+        return { id: option, label: labels?.active ?? "Active" }
+      }
+
+      if (option === "all") {
+        return { id: option, label: labels?.all ?? "All" }
+      }
+
+      const isThreeState = configured.includes("all")
+      const fallback = isThreeState ? "Inactive" : "Show Inactive"
+      return { id: option, label: labels?.inactive ?? fallback }
+    })
+  }, [labels, options])
 
   const selectedOption = statusOptions.find((opt) => opt.id === value)
 

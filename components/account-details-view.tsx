@@ -23,7 +23,7 @@ import { applySimpleFilters } from "@/lib/filter-utils"
 import { useTablePreferences } from "@/hooks/useTablePreferences"
 import type { DeletionConstraint } from "@/lib/deletion"
 import { OpportunityCreateModal } from "./account-opportunity-create-modal"
-import { OpportunityStatus } from "@prisma/client"
+import { AccountStatus, OpportunityStatus } from "@prisma/client"
 import { GroupCreateModal } from "./account-group-create-modal"
 import { GroupEditModal } from "./group-edit-modal"
 import { ActivityNoteCreateModal } from "./activity-note-create-modal"
@@ -140,6 +140,7 @@ export interface AccountDetail {
   parentAccountId?: string | null
   accountType: string
   accountTypeId?: string | null
+  status?: AccountStatus
   active: boolean
   accountOwner?: string
   ownerId?: string | null
@@ -1552,7 +1553,7 @@ function TabToolbar({ suffix }: TabToolbarProps) {
 export function AccountDetailsView({ account, loading = false, error, onEdit, onRefresh }: AccountDetailsViewProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { showSuccess, showError } = useToasts()
+  const { showSuccess, showError, ToastContainer } = useToasts()
   const { hasPermission } = useAuth()
   const accountContextId = account?.id
   const accountContextName = account?.accountName
@@ -1588,6 +1589,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
         return draft
       }
 
+      let didNotifyError = false
       try {
         const response = await fetch(`/api/accounts/${account.id}`, {
           method: "PATCH",
@@ -1600,6 +1602,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
         if (!response.ok) {
           const message = body?.error ?? "Failed to update account"
           const serverErrors = (body?.errors ?? {}) as Record<string, string>
+          didNotifyError = true
           showError("Unable to update account", message)
           const error = new Error(message) as Error & { serverErrors?: Record<string, string> }
           if (serverErrors && Object.keys(serverErrors).length > 0) {
@@ -1612,10 +1615,11 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
         await onRefresh?.()
         return draft
       } catch (error) {
-        if (error instanceof Error) {
-          throw error
+        const message = error instanceof Error ? error.message : "Failed to update account"
+        if (!didNotifyError) {
+          showError("Unable to update account", message)
         }
-        throw new Error("Failed to update account")
+        throw error instanceof Error ? error : new Error(message)
       }
     },
     [account?.id, onRefresh, showError, showSuccess]
@@ -1816,7 +1820,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
   )
 
   const [activityFilter, setActivityFilter] = useState<string>("All")
-  const [activeFilter, setActiveFilter] = useState<"active" | "inactive">("active")
+  const [activeFilter, setActiveFilter] = useState<"active" | "inactive" | "all">("active")
   const [contactsColumnFilters, setContactsColumnFilters] = useState<ColumnFilter[]>([])
   const [contactsSearchQuery, setContactsSearchQuery] = useState("")
   const [contactModalOpen, setContactModalOpen] = useState(false)
@@ -1931,7 +1935,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
   useEffect(() => {
     setActiveTab("contacts")
     setActivityFilter("All")
-    setActiveFilter("active")
+    setActiveFilter(account?.status === AccountStatus.Archived ? "all" : "active")
     setContactsColumnFilters([])
     setContactsSearchQuery("")
     setContactModalOpen(false)
@@ -1971,7 +1975,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
     setSelectedActivities([])
     setContactsPage(1)
     setContactsPageSize(10)
-  }, [account?.id])
+  }, [account?.id, account?.status])
   const loadContactOptions = useCallback(async () => {
     try {
       setContactOptionsLoading(true)
@@ -2149,6 +2153,17 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
         if (a.active && !b.active) return 1
         return 0
       })
+    } else if (activeFilter === "all") {
+      rows.sort((a, b) => {
+        const aDeleted = Boolean(a.isDeleted)
+        const bDeleted = Boolean(b.isDeleted)
+        if (aDeleted !== bDeleted) {
+          return aDeleted ? 1 : -1
+        }
+        if (!a.active && b.active) return -1
+        if (a.active && !b.active) return 1
+        return 0
+      })
     }
     const query = contactsSearchQuery.trim().toLowerCase()
     if (query.length > 0) {
@@ -2302,6 +2317,111 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
       return { success: false, error: message }
     }
   }, [])
+
+  const deactivateContactForDialog = useCallback(async (
+    contactId: string,
+    _reason?: string,
+  ): Promise<{ success: boolean; error?: string }> => {
+    setContactBulkActionLoading(true)
+    try {
+      const result = await deactivateContactRequest(contactId)
+
+      if (!result.success) {
+        const message = result.error || "Failed to deactivate contact"
+        showError("Failed to deactivate contact", message)
+        return { success: false, error: message }
+      }
+
+      setContactRows(previous =>
+        previous.map(contact =>
+          contact.id === contactId
+            ? { ...contact, active: false, isPrimary: false }
+            : contact
+        )
+      )
+      setSelectedContacts(prev => prev.filter(id => id !== contactId))
+      showSuccess("Contact deactivated", "The contact was marked inactive.")
+      onRefresh?.()
+      return { success: true }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to deactivate contact"
+      showError("Failed to deactivate contact", message)
+      return { success: false, error: message }
+    } finally {
+      setContactBulkActionLoading(false)
+    }
+  }, [deactivateContactRequest, onRefresh, setContactRows, setSelectedContacts, showError, showSuccess])
+
+  const bulkDeactivateContactsForDialog = useCallback(async (
+    entities: Array<{ id: string; name: string }>,
+    _reason?: string,
+  ): Promise<{ success: boolean; error?: string }> => {
+    if (!entities || entities.length === 0) {
+      return { success: false, error: "No contacts selected" }
+    }
+
+    setContactBulkActionLoading(true)
+
+    try {
+      const outcomes = await Promise.allSettled(
+        entities.map(entity => deactivateContactRequest(entity.id))
+      )
+
+      const successIds: string[] = []
+      const failures: Array<{ id: string; name: string; message: string }> = []
+
+      outcomes.forEach((result, index) => {
+        const entity = entities[index]
+        if (result.status === "fulfilled" && result.value.success) {
+          successIds.push(entity.id)
+        } else {
+          const message =
+            result.status === "fulfilled"
+              ? (result.value.error || "Failed to deactivate contact")
+              : result.reason instanceof Error
+                ? result.reason.message
+                : "Failed to deactivate contact"
+          failures.push({ id: entity.id, name: entity.name, message })
+        }
+      })
+
+      if (successIds.length > 0) {
+        const successSet = new Set(successIds)
+        setContactRows(previous =>
+          previous.map(contact =>
+            successSet.has(contact.id)
+              ? { ...contact, active: false, isPrimary: false }
+              : contact
+          )
+        )
+        setSelectedContacts(previous => previous.filter(id => !successSet.has(id)))
+        showSuccess(
+          `Marked ${successIds.length} contact${successIds.length === 1 ? "" : "s"} inactive`,
+          "Inactive contacts can be deleted if needed."
+        )
+        onRefresh?.()
+      }
+
+      if (failures.length > 0) {
+        const detail = failures
+          .slice(0, 5)
+          .map(item => `${item.name || item.id.slice(0, 8) + "..."}: ${item.message}`)
+          .join("; ")
+        const message = failures.length > 5 ? `${detail}; and ${failures.length - 5} more` : detail
+        showError("Some contacts could not be deactivated", message)
+        return { success: false, error: message }
+      }
+
+      return { success: true }
+    } catch (error) {
+      console.error("Bulk contact deactivation failed", error)
+      const message = error instanceof Error ? error.message : "Unable to deactivate selected contacts."
+      showError("Bulk deactivation failed", message)
+      return { success: false, error: message }
+    } finally {
+      setContactBulkActionLoading(false)
+    }
+  }, [deactivateContactRequest, onRefresh, setContactRows, setSelectedContacts, showError, showSuccess])
 
   const handleContactSoftDelete = useCallback(async (
     contactId: string,
@@ -2893,6 +3013,90 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
     }
   }, [showSuccess, showError, onRefresh])
 
+  const deactivateGroupForDialog = useCallback(async (
+    groupId: string,
+    _reason?: string,
+  ): Promise<{ success: boolean; error?: string }> => {
+    const group = groupDeleteTargets.find(target => target.id === groupId) ?? groupToDelete
+    if (!group) {
+      return { success: false, error: "Group not found" }
+    }
+
+    try {
+      await handleToggleGroupStatus(group, false)
+      return { success: true }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to deactivate group"
+      return { success: false, error: message }
+    }
+  }, [groupDeleteTargets, groupToDelete, handleToggleGroupStatus])
+
+  const bulkDeactivateGroupsForDialog = useCallback(async (
+    entities: Array<{ id: string; name: string }>,
+    _reason?: string,
+  ): Promise<{ success: boolean; error?: string }> => {
+    if (!entities || entities.length === 0) {
+      return { success: false, error: "No groups selected" }
+    }
+
+    try {
+      const outcomes = await Promise.allSettled(
+        entities.map(async (entity) => {
+          const response = await fetch(`/api/groups/${entity.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ isActive: false })
+          })
+
+          if (!response.ok) {
+            const payload = await response.json().catch(() => null)
+            throw new Error(payload?.error ?? "Failed to deactivate group")
+          }
+
+          return entity.id
+        })
+      )
+
+      const successIds: string[] = []
+      const failures: Array<{ id: string; name: string; message: string }> = []
+
+      outcomes.forEach((result, index) => {
+        const entity = entities[index]
+        if (result.status === "fulfilled") {
+          successIds.push(result.value)
+        } else {
+          const message = result.reason instanceof Error ? result.reason.message : "Failed to deactivate group"
+          failures.push({ id: entity.id, name: entity.name, message })
+        }
+      })
+
+      if (successIds.length > 0) {
+        showSuccess(
+          `Marked ${successIds.length} group${successIds.length === 1 ? "" : "s"} inactive`,
+          "Inactive groups can be deleted if needed."
+        )
+        onRefresh?.()
+      }
+
+      if (failures.length > 0) {
+        const detail = failures
+          .slice(0, 5)
+          .map(item => `${item.name || item.id.slice(0, 8) + "..."}: ${item.message}`)
+          .join("; ")
+        const message = failures.length > 5 ? `${detail}; and ${failures.length - 5} more` : detail
+        showError("Some groups could not be deactivated", message)
+        return { success: false, error: message }
+      }
+
+      return { success: true }
+    } catch (error) {
+      console.error("Bulk group deactivation failed", error)
+      const message = error instanceof Error ? error.message : "Unable to deactivate selected groups."
+      showError("Bulk deactivation failed", message)
+      return { success: false, error: message }
+    }
+  }, [onRefresh, showError, showSuccess])
+
   const handleGroupEditSuccess = () => {
     setShowGroupEditModal(false)
     setEditingGroup(null)
@@ -3406,6 +3610,106 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
       markOpportunityUpdating(opportunity.id, false)
     }
   }, [markOpportunityUpdating, onRefresh, showError, showSuccess])
+
+  const deactivateOpportunityForDialog = useCallback(async (
+    opportunityId: string,
+    _reason?: string,
+  ): Promise<{ success: boolean; error?: string }> => {
+    const opportunity = opportunityRows.find(row => row.id === opportunityId) ?? null
+    if (!opportunity) {
+      return { success: false, error: "Opportunity not found" }
+    }
+
+    try {
+      await handleOpportunityToggleActive(opportunity, false)
+      return { success: true }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to deactivate opportunity"
+      return { success: false, error: message }
+    }
+  }, [handleOpportunityToggleActive, opportunityRows])
+
+  const bulkDeactivateOpportunitiesForDialog = useCallback(async (
+    entities: Array<{ id: string; name: string }>,
+    _reason?: string,
+  ): Promise<{ success: boolean; error?: string }> => {
+    if (!entities || entities.length === 0) {
+      return { success: false, error: "No opportunities selected" }
+    }
+
+    const targets = opportunityRows.filter(row => entities.some(entity => entity.id === row.id))
+    if (targets.length === 0) {
+      return { success: false, error: "Opportunities unavailable" }
+    }
+
+    try {
+      const outcomes = await Promise.allSettled(
+        targets.map(target =>
+          fetch(`/api/opportunities/${target.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ active: false })
+          })
+        )
+      )
+
+      const successIds: string[] = []
+      const failures: Array<{ id: string; name: string; message: string }> = []
+
+      outcomes.forEach((result, index) => {
+        const target = targets[index]
+        const entity = entities.find(e => e.id === target.id)
+        const name = entity?.name || target.opportunityName || target.id.slice(0, 8) + "..."
+
+        if (result.status !== "fulfilled") {
+          const message = result.reason instanceof Error ? result.reason.message : "Failed to deactivate opportunity"
+          failures.push({ id: target.id, name, message })
+          return
+        }
+
+        if (!result.value.ok) {
+          failures.push({ id: target.id, name, message: "Failed to deactivate opportunity" })
+          return
+        }
+
+        successIds.push(target.id)
+      })
+
+      if (successIds.length > 0) {
+        const successSet = new Set(successIds)
+        setOpportunityRows(previous =>
+          previous.map(row =>
+            successSet.has(row.id)
+              ? { ...row, active: false, status: OpportunityStatus.Lost, isDeleted: true }
+              : row
+          )
+        )
+        setSelectedOpportunities(previous => previous.filter(id => !successSet.has(id)))
+        showSuccess(
+          `Marked ${successIds.length} opportunity${successIds.length === 1 ? "" : "ies"} inactive`,
+          "Inactive opportunities can be deleted if needed."
+        )
+        onRefresh?.()
+      }
+
+      if (failures.length > 0) {
+        const detail = failures
+          .slice(0, 5)
+          .map(item => `${item.name}: ${item.message}`)
+          .join("; ")
+        const message = failures.length > 5 ? `${detail}; and ${failures.length - 5} more` : detail
+        showError("Some opportunities could not be deactivated", message)
+        return { success: false, error: message }
+      }
+
+      return { success: true }
+    } catch (error) {
+      console.error("Bulk opportunity deactivation failed", error)
+      const message = error instanceof Error ? error.message : "Unable to deactivate selected opportunities."
+      showError("Bulk deactivation failed", message)
+      return { success: false, error: message }
+    }
+  }, [onRefresh, opportunityRows, setOpportunityRows, setSelectedOpportunities, showError, showSuccess])
 
   const handleBulkOpportunityExportCsv = useCallback(() => {
     if (selectedOpportunities.length === 0) {
@@ -4989,6 +5293,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
+      <ToastContainer />
 
       <div className="flex flex-1 min-h-0 flex-col overflow-hidden px-4 sm:px-6 lg:px-8">
         <div className="flex flex-1 flex-col min-h-0 overflow-hidden">
@@ -5032,10 +5337,15 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                         <ListHeader
                         inTab
                         onCreateClick={handleCreateContact}
-                        onFilterChange={(filter: string) =>
-                          setActiveFilter(filter === "active" ? "active" : "inactive")
-                        }
+                        onFilterChange={(filter: string) => {
+                          if (filter === "inactive") return setActiveFilter("inactive")
+                          if (filter === "all") return setActiveFilter("all")
+                          return setActiveFilter("active")
+                        }}
                         statusFilter={activeFilter}
+                        statusFilterOptions={
+                          account?.status === AccountStatus.Archived ? ["active", "all", "inactive"] : ["active", "inactive"]
+                        }
                         onSearch={handleContactsSearch}
                         filterColumns={contactsFilterColumns}
                         columnFilters={contactsColumnFilters}
@@ -5088,8 +5398,15 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                         <ListHeader
                         inTab
                         onCreateClick={handleCreateOpportunity}
-                        onFilterChange={(filter: string) => setActiveFilter(filter === "active" ? "active" : "inactive")}
+                        onFilterChange={(filter: string) => {
+                          if (filter === "inactive") return setActiveFilter("inactive")
+                          if (filter === "all") return setActiveFilter("all")
+                          return setActiveFilter("active")
+                        }}
                         statusFilter={activeFilter}
+                        statusFilterOptions={
+                          account?.status === AccountStatus.Archived ? ["active", "all", "inactive"] : ["active", "inactive"]
+                        }
                         onSearch={handleOpportunitiesSearch}
                         filterColumns={opportunitiesFilterColumns}
                         columnFilters={opportunitiesColumnFilters}
@@ -5143,8 +5460,15 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                         <ListHeader
                         inTab
                         onCreateClick={handleCreateGroup}
-                        onFilterChange={(filter: string) => setActiveFilter(filter === "active" ? "active" : "inactive")}
+                        onFilterChange={(filter: string) => {
+                          if (filter === "inactive") return setActiveFilter("inactive")
+                          if (filter === "all") return setActiveFilter("all")
+                          return setActiveFilter("active")
+                        }}
                         statusFilter={activeFilter}
+                        statusFilterOptions={
+                          account?.status === AccountStatus.Archived ? ["active", "all", "inactive"] : ["active", "inactive"]
+                        }
                         onSearch={handleGroupsSearch}
                         filterColumns={groupsFilterColumns}
                         columnFilters={groupsColumnFilters}
@@ -5193,8 +5517,15 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                         <ListHeader
                         inTab
                         onCreateClick={handleCreateActivity}
-                        onFilterChange={(filter: string) => setActiveFilter(filter === "active" ? "active" : "inactive")}
+                        onFilterChange={(filter: string) => {
+                          if (filter === "inactive") return setActiveFilter("inactive")
+                          if (filter === "all") return setActiveFilter("all")
+                          return setActiveFilter("active")
+                        }}
                         statusFilter={activeFilter}
+                        statusFilterOptions={
+                          account?.status === AccountStatus.Archived ? ["active", "all", "inactive"] : ["active", "inactive"]
+                        }
                         onSearch={handleActivitiesSearch}
                         filterColumns={activitiesFilterColumns}
                         columnFilters={activitiesColumnFilters}
@@ -5302,6 +5633,10 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
               ? contactDeleteTargets.every(contact => contact.isDeleted)
               : contactToDelete?.isDeleted || false
           }
+          onDeactivate={deactivateContactForDialog}
+          onBulkDeactivate={
+            contactDeleteTargets.length > 0 ? bulkDeactivateContactsForDialog : undefined
+          }
           onSoftDelete={handleContactSoftDelete}
           onBulkSoftDelete={
             contactDeleteTargets.length > 0
@@ -5318,6 +5653,11 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
           onPermanentDelete={handleContactPermanentDelete}
           onRestore={handleContactRestore}
           userCanPermanentDelete={true}
+          disallowActiveDelete={
+            contactDeleteTargets.length > 0
+              ? contactDeleteTargets.some(contact => !!contact.active || !!contact.isPrimary)
+              : (!!contactToDelete?.active || !!contactToDelete?.isPrimary)
+          }
           modalSize="revenue-schedules"
           requireReason
           note="Contacts cannot be deleted while they are Active or Primary, or when they have related records (activities, opportunities, or group memberships). If constraints are detected, you'll see them listed and can only proceed with Force Delete (which may orphan related records)."

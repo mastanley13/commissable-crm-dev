@@ -246,12 +246,14 @@ export async function GET(
       return NextResponse.json({ error: "Account not found" }, { status: 404 })
     }
 
+    const includeDeletedContacts = account.status === AccountStatus.Archived
+
     const [contacts, opportunities, groupMembers, activities] = await Promise.all([
       prisma.contact.findMany({
         where: { 
           tenantId, 
           accountId,
-          deletedAt: null  // Only fetch non-deleted contacts
+          ...(includeDeletedContacts ? {} : { deletedAt: null }) // Archived accounts may need archived contacts visible for cleanup.
         },
         include: { accountType: { select: { name: true } } },
         orderBy: { createdAt: "desc" }
@@ -294,6 +296,7 @@ export async function GET(
       parentAccountId: account.parentAccountId ?? null,
       accountType: account.accountType?.name ?? "",
       accountTypeId: account.accountTypeId ?? null,
+      status: account.status,
       active: account.status === AccountStatus.Active,
       accountOwner: account.owner
         ? `${account.owner.firstName ?? ""} ${account.owner.lastName ?? ""}`.trim()
@@ -332,6 +335,7 @@ export async function PATCH(
     request,
     ['accounts.manage'],
     async (req) => {
+      let data: Record<string, any> = {}
       try {
         const { accountId } = params
         if (!accountId) {
@@ -342,7 +346,7 @@ export async function PATCH(
         const tenantId = req.user.tenantId
         const userId = req.user.id
 
-    const data: Record<string, any> = {
+    data = {
       updatedById: userId
     }
 
@@ -506,7 +510,35 @@ export async function PATCH(
         revalidatePath(`/accounts/${accountId}`)
 
         return NextResponse.json({ data: mapAccountToListRow(updated) })
-      } catch (error) {
+      } catch (error: any) {
+        if (error?.code === "P2002") {
+          const targetRaw = error?.meta?.target as unknown
+          const targetText = Array.isArray(targetRaw)
+            ? targetRaw.join(",")
+            : typeof targetRaw === "string"
+              ? targetRaw
+              : ""
+
+          if (targetText.includes("tenantId") && targetText.includes("accountName")) {
+            const attemptedName = typeof data.accountName === "string" ? data.accountName : ""
+            const suffix = attemptedName ? ` "${attemptedName}"` : ""
+            return NextResponse.json(
+              {
+                error: `Account name must be unique. Another account in your tenant already uses${suffix}.`,
+                errors: {
+                  accountName: "Account name must be unique."
+                }
+              },
+              { status: 409 }
+            )
+          }
+
+          return NextResponse.json(
+            { error: "A record with these details already exists." },
+            { status: 409 }
+          )
+        }
+
         console.error("Failed to update account", error)
         return NextResponse.json({ error: "Failed to update account" }, { status: 500 })
       }

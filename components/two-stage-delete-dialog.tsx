@@ -24,6 +24,9 @@ export interface TwoStageDeleteDialogProps {
   entityId: string
   isDeleted?: boolean
   onSoftDelete: (entityId: string, bypassConstraints?: boolean, reason?: string) => Promise<{ success: boolean, constraints?: DeletionConstraint[], error?: string }>
+  // Optional "Deactivate" action (mark inactive without deleting)
+  onDeactivate?: (entityId: string, reason?: string) => Promise<{ success: boolean; error?: string }>
+  onBulkDeactivate?: (entities: DeleteDialogEntitySummary[], reason?: string) => Promise<{ success: boolean; error?: string }>
   onPermanentDelete: (entityId: string, reason?: string) => Promise<{ success: boolean, error?: string }>
   onBulkPermanentDelete?: (entities: DeleteDialogEntitySummary[], reason?: string) => Promise<{ success: boolean, error?: string }>
   onRestore?: (entityId: string) => Promise<{ success: boolean, error?: string }>
@@ -46,6 +49,7 @@ export interface TwoStageDeleteDialogProps {
 }
 
 type DialogStage = 'initial' | 'constraints' | 'confirm-soft' | 'confirm-permanent' | 'confirm-restore' | 'loading' | 'success' | 'error'
+type DialogPrimaryAction = 'deactivate' | 'delete'
 
 export function TwoStageDeleteDialog({
   isOpen,
@@ -55,6 +59,8 @@ export function TwoStageDeleteDialog({
   entityId,
   isDeleted = false,
   onSoftDelete,
+  onDeactivate,
+  onBulkDeactivate,
   onPermanentDelete,
   onBulkPermanentDelete,
   onRestore,
@@ -74,6 +80,7 @@ export function TwoStageDeleteDialog({
 }: TwoStageDeleteDialogProps) {
   const isRevenueSchedulesSize = modalSize === 'revenue-schedules'
   const [stage, setStage] = useState<DialogStage>('initial')
+  const [primaryAction, setPrimaryAction] = useState<DialogPrimaryAction>('delete')
   const [constraints, setConstraints] = useState<DeletionConstraint[]>([])
   const [error, setError] = useState<string>('')
   const [bypassConstraints, setBypassConstraints] = useState(false)
@@ -87,9 +94,22 @@ export function TwoStageDeleteDialog({
     : entityName
   const reasonTrimmed = reason.trim()
   const reasonMissing = requireReason && reasonTrimmed.length === 0
-  const initialFooterDisabled = disallowActiveDelete || reasonMissing
+  const canShowActionSelection = Boolean(onDeactivate) && !isDeleted
+  const initialFooterDisabled =
+    reasonMissing ||
+    (primaryAction === 'delete' && disallowActiveDelete) ||
+    (primaryAction === 'deactivate' && !onDeactivate)
   const initialFooterPrimaryLabel = primaryActionLabel ?? 'Delete'
   const initialFooterNoteLabel = noteLabel ?? (entity === 'Account' ? 'Legend' : 'Note')
+  const initialFooterEffectiveLabel = canShowActionSelection ? (primaryAction === 'delete' ? 'Delete' : 'Deactivate') : initialFooterPrimaryLabel
+  const initialFooterEffectiveTitle =
+    reasonMissing
+      ? 'Provide a reason before proceeding'
+      : primaryAction === 'delete' && disallowActiveDelete
+        ? 'Deactivate the record before deleting'
+        : primaryAction === 'deactivate' && !onDeactivate
+          ? 'Deactivation is not available for this record'
+          : initialFooterEffectiveLabel
 
   // Reset state when dialog opens/closes
   useEffect(() => {
@@ -99,10 +119,185 @@ export function TwoStageDeleteDialog({
       setError('')
       setBypassConstraints(false)
       setReason('')
+      setPrimaryAction(disallowActiveDelete && onDeactivate ? 'deactivate' : 'delete')
     }
   }, [isOpen])
 
   if (!isOpen) return null
+
+  const renderActionSelection = () => {
+    if (!canShowActionSelection) return null
+
+    return (
+      <div>
+        <label className="block text-xs font-semibold text-gray-700">
+          Action<span className="ml-1 text-red-500">*</span>
+        </label>
+        <div className="mt-2 flex items-center gap-6 text-xs text-gray-700">
+          <label className="inline-flex items-center gap-2">
+            <input
+              type="radio"
+              name="deactivate-delete-action"
+              checked={primaryAction === 'deactivate'}
+              onChange={() => setPrimaryAction('deactivate')}
+              className="h-4 w-4 accent-primary-600"
+            />
+            Deactivate
+          </label>
+          <label className="inline-flex items-center gap-2">
+            <input
+              type="radio"
+              name="deactivate-delete-action"
+              checked={primaryAction === 'delete'}
+              onChange={() => setPrimaryAction('delete')}
+              className="h-4 w-4 accent-primary-600"
+            />
+            Delete
+          </label>
+        </div>
+      </div>
+    )
+  }
+
+  const renderReasonAndAction = (): ReactNode => {
+    if (!requireReason && !canShowActionSelection) return null
+
+    if (isRevenueSchedulesSize && requireReason && canShowActionSelection) {
+      return (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label className="block text-xs font-semibold text-gray-700">
+              {reasonLabel}<span className="ml-1 text-red-500">*</span>
+            </label>
+            <textarea
+              value={reason}
+              onChange={event => setReason(event.target.value)}
+              className="min-h-[84px] w-full resize-y border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs leading-5 focus:border-primary-500 focus:outline-none"
+              placeholder={reasonPlaceholder}
+            />
+          </div>
+          {renderActionSelection()}
+        </div>
+      )
+    }
+
+    return (
+      <>
+        {requireReason ? (
+          <div className="mb-4">
+            <label className="block text-xs font-semibold text-gray-700">
+              {reasonLabel}<span className="ml-1 text-red-500">*</span>
+            </label>
+            <textarea
+              value={reason}
+              onChange={event => setReason(event.target.value)}
+              className="min-h-[84px] w-full resize-y border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs leading-5 focus:border-primary-500 focus:outline-none"
+              placeholder={reasonPlaceholder}
+            />
+          </div>
+        ) : null}
+        {canShowActionSelection ? (
+          <div className={requireReason ? "mt-4" : ""}>
+            {renderActionSelection()}
+          </div>
+        ) : null}
+      </>
+    )
+  }
+
+  const handleDeactivate = async () => {
+    if (!onDeactivate) return
+
+    setStage('loading')
+    setError('')
+
+    try {
+      const result = await onDeactivate(entityId, reasonTrimmed)
+
+      if (result.success) {
+        setStage('success')
+        setTimeout(() => {
+          onClose()
+        }, 1500)
+      } else {
+        setError(result.error || 'Failed to deactivate record')
+        setStage('error')
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An unexpected error occurred')
+      setStage('error')
+    }
+  }
+
+  const handleBulkDeactivate = async () => {
+    if (!multipleEntities || multipleEntities.length === 0) {
+      setError('No records selected to deactivate')
+      setStage('error')
+      return
+    }
+
+    if (!onDeactivate) {
+      setError('Deactivate handler is missing')
+      setStage('error')
+      return
+    }
+
+    setStage('loading')
+    setError('')
+
+    try {
+      if (onBulkDeactivate) {
+        const result = await onBulkDeactivate(multipleEntities, reasonTrimmed)
+        if (result.success) {
+          setStage('success')
+          setTimeout(() => onClose(), 1500)
+          return
+        }
+        setError(result.error || 'Failed to deactivate records')
+        setStage('error')
+        return
+      }
+
+      const targets = multipleEntities.map(entity => entity.id)
+      const entityNameById = new Map(multipleEntities.map(entity => [entity.id, entity.name]))
+      const results = await Promise.allSettled(
+        targets.map(id => onDeactivate(id, reasonTrimmed)),
+      )
+
+      const failures: Array<{ id: string; name: string; error: string }> = []
+      results.forEach((result, index) => {
+        const id = targets[index]
+        const name = entityNameById.get(id) || id.slice(0, 8) + '...'
+        if (result.status !== 'fulfilled') {
+          failures.push({ id, name, error: result.reason instanceof Error ? result.reason.message : 'Unknown error' })
+          return
+        }
+        if (!result.value.success) {
+          failures.push({ id, name, error: result.value.error || 'Failed to deactivate record' })
+        }
+      })
+
+      if (failures.length === 0) {
+        setStage('success')
+        setTimeout(() => onClose(), 1500)
+        return
+      }
+
+      const preview = failures
+        .slice(0, 5)
+        .map(item => `- ${item.name}: ${item.error}`)
+        .join('\n')
+
+      setError(
+        `${failures.length} of ${targets.length} ${targets.length === 1 ? entity.toLowerCase() : lowerPluralLabel} could not be deactivated.\n\n${preview}` +
+          (failures.length > 5 ? `\n- and ${failures.length - 5} more` : ''),
+      )
+      setStage('error')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An unexpected error occurred')
+      setStage('error')
+    }
+  }
 
   type SelectedTableColumn = {
     header: string
@@ -420,7 +615,11 @@ export function TwoStageDeleteDialog({
       const showRolesTable = entity === 'Opportunity Role' || entity === 'OpportunityRole' || entity === 'Role'
       const bulkDescription = isDeleted
         ? `This will permanently remove the selected ${lowerPluralLabel}. This action cannot be undone.`
-        : `This action will deactivate the selected ${lowerPluralLabel}. You can restore them later if needed.`
+        : canShowActionSelection
+          ? primaryAction === 'delete'
+            ? `This action will delete the selected ${lowerPluralLabel}. You can restore them later if needed.`
+            : `This action will deactivate the selected ${lowerPluralLabel}. You can reactivate them later if needed.`
+          : `This action will deactivate the selected ${lowerPluralLabel}. You can restore them later if needed.`
       const bulkTitle = isDeleted ? `Delete ${pluralLabel}` : `Delete ${pluralLabel}`
       return (
         <div className={isRevenueSchedulesSize ? "px-6 py-5" : "p-6"}>
@@ -451,19 +650,7 @@ export function TwoStageDeleteDialog({
                   : renderSelectedGenericTable(multipleEntities!)}
           </div>
 
-          {requireReason ? (
-            <div className="mb-4">
-              <label className="block text-xs font-semibold text-gray-700">
-                {reasonLabel}<span className="ml-1 text-red-500">*</span>
-              </label>
-              <textarea
-                value={reason}
-                onChange={event => setReason(event.target.value)}
-                className="min-h-[84px] w-full resize-y border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs leading-5 focus:border-primary-500 focus:outline-none"
-                placeholder={reasonPlaceholder}
-              />
-            </div>
-          ) : null}
+          {renderReasonAndAction()}
 
           {!isRevenueSchedulesSize && note ? (
             <div
@@ -487,14 +674,14 @@ export function TwoStageDeleteDialog({
                 Cancel
               </button>
               <button
-                onClick={() => setStage('confirm-soft')}
-                disabled={disallowActiveDelete || reasonMissing}
-                className={`px-4 py-2 rounded-lg transition-colors ${disallowActiveDelete || reasonMissing
+                onClick={() => setStage(isDeleted ? 'confirm-permanent' : 'confirm-soft')}
+                disabled={initialFooterDisabled}
+                className={`px-4 py-2 rounded-lg transition-colors ${initialFooterDisabled
                   ? 'bg-red-400 text-white opacity-60 cursor-not-allowed'
                   : 'bg-red-600 text-white hover:bg-red-700'}`}
-                title={disallowActiveDelete ? 'Deactivate the record before deleting' : reasonMissing ? 'Provide a reason before deleting' : 'Delete'}
+                title={initialFooterEffectiveTitle}
               >
-                {disallowActiveDelete ? 'Delete (Disabled)' : 'Delete'}
+                {initialFooterEffectiveLabel}
               </button>
             </div>
           ) : null}
@@ -595,7 +782,11 @@ export function TwoStageDeleteDialog({
               Delete {entity}
             </h3>
             <p className="text-sm text-gray-600">
-              This action will deactivate the {entity.toLowerCase()}. You can restore it later if needed.
+              {canShowActionSelection
+                ? primaryAction === 'delete'
+                  ? `This action will delete the ${entity.toLowerCase()}. You can restore it later if needed.`
+                  : `This action will deactivate the ${entity.toLowerCase()}. You can reactivate it later if needed.`
+                : `This action will deactivate the ${entity.toLowerCase()}. You can restore it later if needed.`}
             </p>
           </div>
         </div>
@@ -662,15 +853,13 @@ export function TwoStageDeleteDialog({
             </button>
             <button
               onClick={() => setStage('confirm-soft')}
-              disabled={disallowActiveDelete || reasonMissing}
-              className={`px-4 py-2 rounded-lg transition-colors ${disallowActiveDelete
+              disabled={initialFooterDisabled}
+              className={`px-4 py-2 rounded-lg transition-colors ${initialFooterDisabled
                 ? 'bg-red-400 text-white opacity-60 cursor-not-allowed'
-                : reasonMissing
-                  ? 'bg-red-400 text-white opacity-60 cursor-not-allowed'
-                  : 'bg-red-600 text-white hover:bg-red-700'}`}
-              title={disallowActiveDelete ? 'Deactivate the record before deleting' : reasonMissing ? 'Provide a reason before deleting' : 'Delete'}
+                : 'bg-red-600 text-white hover:bg-red-700'}`}
+              title={initialFooterEffectiveTitle}
             >
-              {disallowActiveDelete ? 'Delete (Disabled)' : 'Delete'}
+              {initialFooterEffectiveLabel}
             </button>
           </div>
         ) : null}
@@ -744,15 +933,29 @@ export function TwoStageDeleteDialog({
 
   const renderConfirmationStage = (type: 'soft' | 'permanent' | 'restore') => {
     if (hasMultipleEntities) {
+      const softConfig =
+        primaryAction === 'deactivate'
+          ? {
+              title: 'Confirm Deactivation',
+              icon: <Trash2 className="h-5 w-5 text-red-600" />,
+              bgColor: 'bg-red-100',
+              description: `This will deactivate the selected ${lowerPluralLabel}. You can reactivate them later if needed.`,
+              action: 'Deactivate',
+              actionClass: 'bg-red-600 hover:bg-red-700',
+              onConfirm: handleBulkDeactivate
+            }
+          : {
+              title: 'Confirm Deletion',
+              icon: <Trash2 className="h-5 w-5 text-red-600" />,
+              bgColor: 'bg-red-100',
+              description: `This will delete the selected ${lowerPluralLabel}. You can restore them later if needed.`,
+              action: 'Delete',
+              actionClass: 'bg-red-600 hover:bg-red-700',
+              onConfirm: handleSoftDelete
+            }
       const configs = {
         soft: {
-          title: 'Confirm Deletion',
-          icon: <Trash2 className="h-5 w-5 text-red-600" />,
-          bgColor: 'bg-red-100',
-          description: `This will deactivate the selected ${lowerPluralLabel}. You can restore them later if needed.`,
-          action: 'Delete',
-          actionClass: 'bg-red-600 hover:bg-red-700',
-          onConfirm: handleSoftDelete
+          ...softConfig
         },
         permanent: {
           title: 'Confirm Permanent Deletion',
@@ -825,15 +1028,30 @@ export function TwoStageDeleteDialog({
       )
     }
 
+    const softConfig =
+      primaryAction === 'deactivate'
+        ? {
+            title: `Confirm Deactivate ${entity}`,
+            icon: <Trash2 className="h-5 w-5 text-red-600" />,
+            bgColor: 'bg-red-100',
+            description: `This will deactivate the ${entity.toLowerCase()}. You can reactivate it later if needed.`,
+            action: 'Deactivate',
+            actionClass: 'bg-red-600 hover:bg-red-700',
+            onConfirm: handleDeactivate
+          }
+        : {
+            title: `Confirm Delete ${entity}`,
+            icon: <Trash2 className="h-5 w-5 text-red-600" />,
+            bgColor: 'bg-red-100',
+            description: `This will delete the ${entity.toLowerCase()}. You can restore it later if needed.`,
+            action: 'Delete',
+            actionClass: 'bg-red-600 hover:bg-red-700',
+            onConfirm: handleSoftDelete
+          }
+
     const configs = {
       soft: {
-        title: `Confirm Delete ${entity}`,
-        icon: <Trash2 className="h-5 w-5 text-red-600" />,
-        bgColor: 'bg-red-100',
-        description: `This will deactivate the ${entity.toLowerCase()}. You can restore it later if needed.`,
-        action: 'Delete',
-        actionClass: 'bg-red-600 hover:bg-red-700',
-        onConfirm: handleSoftDelete
+        ...softConfig
       },
       permanent: {
         title: `Permanently Delete ${entity}`,
@@ -1024,9 +1242,9 @@ export function TwoStageDeleteDialog({
               onClick={() => setStage(isDeleted ? 'confirm-permanent' : 'confirm-soft')}
               disabled={initialFooterDisabled}
               className="inline-flex items-center gap-2 rounded-md bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-red-300"
-              title={disallowActiveDelete ? 'Deactivate the record before deleting' : reasonMissing ? 'Provide a reason before deleting' : 'Delete'}
+              title={initialFooterEffectiveTitle}
             >
-              {initialFooterPrimaryLabel}
+              {initialFooterEffectiveLabel}
             </button>
           </div>
         ) : null}
@@ -1043,10 +1261,12 @@ export function TwoStageDeleteDialog({
             {stage === 'confirm-soft' && (
               <button
                 type="button"
-                onClick={handleSoftDelete}
+                onClick={primaryAction === 'deactivate'
+                  ? (hasMultipleEntities ? handleBulkDeactivate : handleDeactivate)
+                  : handleSoftDelete}
                 className="inline-flex items-center gap-2 rounded-md bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-red-300"
               >
-                Delete
+                {primaryAction === 'deactivate' ? 'Deactivate' : 'Delete'}
               </button>
             )}
             {stage === 'confirm-permanent' && (

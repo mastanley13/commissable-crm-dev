@@ -704,18 +704,22 @@ export async function DELETE(request: NextRequest, { params }: { params: { oppor
 
       // Guardrails:
       // - OpportunityRole has an FK that can block Opportunity deletion; roles are lightweight so we remove them automatically.
-      // - OpportunityProduct has an FK that blocks Opportunity deletion; users must delete products via the Products tab workflow.
+      // - OpportunityProduct has an FK that blocks Opportunity deletion.
+      //   Archived/inactive line items are treated as deleted and are removed automatically to avoid hidden blockers.
       const productCount = await prisma.$transaction(async tx => {
         await tx.opportunityRole.deleteMany({ where: { tenantId, opportunityId: existing.id } })
-        return tx.opportunityProduct.count({ where: { tenantId, opportunityId: existing.id } })
+        await tx.opportunityProduct.deleteMany({
+          where: { tenantId, opportunityId: existing.id, active: false },
+        })
+        return tx.opportunityProduct.count({ where: { tenantId, opportunityId: existing.id, active: true } })
       })
 
       if (productCount > 0) {
         return NextResponse.json(
           {
             error:
-              `Cannot permanently delete opportunity while it has ${productCount} product line item(s) (including inactive). ` +
-              `Switch the Products tab filter to Inactive and delete the remaining line items first.`
+              `Cannot permanently delete opportunity while it has ${productCount} active product line item(s). ` +
+              `Switch the Products tab filter to Active and delete or deactivate the remaining line items first.`
           },
           { status: 409 }
         )

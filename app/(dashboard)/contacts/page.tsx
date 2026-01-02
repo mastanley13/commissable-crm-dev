@@ -679,6 +679,93 @@ export default function ContactsPage() {
     }
   }, [])
 
+  const deactivateContactForDialog = useCallback(async (
+    contactId: string,
+    _reason?: string
+  ): Promise<{ success: boolean; error?: string }> => {
+    const result = await deactivateContactRequest(contactId)
+
+    if (result.success) {
+      setContacts(previous =>
+        previous.map(contact =>
+          contact.id === contactId
+            ? { ...contact, isPrimary: false, active: false }
+            : contact
+        )
+      )
+      setSelectedContacts(previous => previous.filter(id => id !== contactId))
+      showSuccess("Contact deactivated", "The contact was marked inactive.")
+      return { success: true }
+    }
+
+    const message = result.error || "Unable to deactivate contact"
+    showError("Failed to deactivate contact", message)
+    return { success: false, error: message }
+  }, [deactivateContactRequest, showError, showSuccess])
+
+  const bulkDeactivateContactsForDialog = useCallback(async (
+    entities: Array<{ id: string; name: string }>,
+    _reason?: string
+  ): Promise<{ success: boolean; error?: string }> => {
+    if (!entities || entities.length === 0) {
+      return { success: false, error: "No contacts selected" }
+    }
+
+    setBulkActionLoading(true)
+
+    try {
+      const outcomes = await Promise.allSettled(
+        entities.map(entity => deactivateContactRequest(entity.id))
+      )
+
+      const successIds: string[] = []
+      const failures: Array<{ id: string; name: string; message: string }> = []
+
+      outcomes.forEach((result, index) => {
+        const entity = entities[index]
+        if (result.status === "fulfilled" && result.value.success) {
+          successIds.push(entity.id)
+        } else {
+          const message =
+            result.status === "fulfilled"
+              ? (result.value.error || "Unable to deactivate contact")
+              : (result.reason instanceof Error ? result.reason.message : "Unexpected error")
+          failures.push({ id: entity.id, name: entity.name, message })
+        }
+      })
+
+      if (successIds.length > 0) {
+        const successSet = new Set(successIds)
+        setContacts(previous =>
+          previous.map(contact =>
+            successSet.has(contact.id)
+              ? { ...contact, isPrimary: false, active: false }
+              : contact
+          )
+        )
+        setSelectedContacts(previous => previous.filter(id => !successSet.has(id)))
+        showSuccess(
+          `Deactivated ${successIds.length} contact${successIds.length === 1 ? "" : "s"}`,
+          "Selected contacts were marked inactive."
+        )
+      }
+
+      if (failures.length > 0) {
+        const detail = failures
+          .slice(0, 5)
+          .map(item => `${item.name || item.id.slice(0, 8) + "..."}: ${item.message}`)
+          .join("; ")
+        const message = failures.length > 5 ? `${detail}; and ${failures.length - 5} more` : detail
+        showError("Some contacts could not be deactivated", message)
+        return { success: false, error: message }
+      }
+
+      return { success: true }
+    } finally {
+      setBulkActionLoading(false)
+    }
+  }, [deactivateContactRequest, showError, showSuccess])
+
   const handleSoftDelete = useCallback(async (
     contactId: string,
     bypassConstraints?: boolean,
@@ -1506,6 +1593,8 @@ export default function ContactsPage() {
             ? bulkDeleteTargets.every(contact => contact.isDeleted)
             : contactToDelete?.isDeleted || false
         }
+        onDeactivate={deactivateContactForDialog}
+        onBulkDeactivate={bulkDeactivateContactsForDialog}
         onSoftDelete={handleSoftDelete}
         onBulkSoftDelete={
           bulkDeleteTargets.length > 0

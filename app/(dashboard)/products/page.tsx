@@ -620,6 +620,120 @@ export default function ProductsPage() {
     }
   }, [canEditProducts, reloadProducts, requireAdminForEdit, showError, showSuccess])
 
+  const deactivateProductRequest = useCallback(async (
+    productId: string,
+    _reason?: string,
+  ): Promise<{ success: boolean; error?: string }> => {
+    if (!canEditProducts) {
+      requireAdminForEdit()
+      return { success: false, error: 'Admin access required' }
+    }
+
+    try {
+      const response = await fetch(`/api/products/${productId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ active: false }),
+      })
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null)
+        return { success: false, error: payload?.error ?? 'Failed to deactivate product' }
+      }
+
+      setProducts((previous) =>
+        previous.map((product) =>
+          product.id === productId ? { ...product, active: false } : product,
+        ),
+      )
+      showSuccess('Product deactivated', 'The product was marked inactive.')
+      await reloadProducts()
+      return { success: true }
+    } catch (err) {
+      console.error('Failed to deactivate product', err)
+      const message = err instanceof Error ? err.message : 'Please try again later.'
+      showError('Unable to deactivate product', message)
+      return { success: false, error: message }
+    }
+  }, [canEditProducts, reloadProducts, requireAdminForEdit, showError, showSuccess])
+
+  const bulkDeactivateProductsRequest = useCallback(async (
+    entities: Array<{ id: string; name: string }>,
+    _reason?: string,
+  ): Promise<{ success: boolean; error?: string }> => {
+    if (!canEditProducts) {
+      requireAdminForEdit()
+      return { success: false, error: 'Admin access required' }
+    }
+
+    if (!entities || entities.length === 0) {
+      return { success: false, error: 'No products selected' }
+    }
+
+    setBulkActionLoading(true)
+
+    try {
+      const outcomes = await Promise.allSettled(
+        entities.map(async (entity) => {
+          const response = await fetch(`/api/products/${entity.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ active: false }),
+          })
+
+          if (!response.ok) {
+            const payload = await response.json().catch(() => null)
+            throw new Error(payload?.error ?? 'Failed to deactivate product')
+          }
+
+          return entity.id
+        }),
+      )
+
+      const failures: Array<{ id: string; name: string; message: string }> = []
+      const successIds: string[] = []
+
+      outcomes.forEach((result, index) => {
+        const entity = entities[index]
+        if (result.status === 'fulfilled') {
+          successIds.push(result.value)
+        } else {
+          const message = result.reason instanceof Error ? result.reason.message : 'Unexpected error'
+          failures.push({ id: entity.id, name: entity.name, message })
+        }
+      })
+
+      if (successIds.length > 0) {
+        const successSet = new Set(successIds)
+        setProducts((previous) =>
+          previous.map((product) =>
+            successSet.has(product.id) ? { ...product, active: false } : product,
+          ),
+        )
+        setSelectedProducts((previous) => previous.filter((id) => !successSet.has(id)))
+        showSuccess(
+          `Deactivated ${successIds.length} product${successIds.length === 1 ? '' : 's'}`,
+          'Selected products were marked inactive.',
+        )
+        await reloadProducts()
+      }
+
+      if (failures.length > 0) {
+        const detail = failures
+          .slice(0, 5)
+          .map((item) => `${item.name || item.id.slice(0, 8) + '...'}: ${item.message}`)
+          .join('; ')
+        const message = failures.length > 5 ? `${detail}; and ${failures.length - 5} more` : detail
+        showError('Some products could not be deactivated', message)
+        return { success: false, error: message }
+      }
+
+      return { success: true }
+    } finally {
+      setBulkActionLoading(false)
+    }
+  }, [canEditProducts, reloadProducts, requireAdminForEdit, showError, showSuccess])
+
   const handleProductDelete = useCallback(async (
     productId: string,
     reason?: string,
@@ -670,28 +784,15 @@ export default function ProductsPage() {
       return
     }
 
-    const deletableTargets = targets.filter((product) => isRowInactive(product))
-    const nonDeletableTargets = targets.filter((product) => !isRowInactive(product))
-
-    if (nonDeletableTargets.length > 0) {
-      const details = nonDeletableTargets
-        .map((product) => {
-          const name = product.productNameHouse || product.productNameVendor || 'Product'
-          return `${name} (must be inactive before it can be deleted)`
-        })
-        .join('; ')
-
+    const activeTargets = targets.filter((product) => product.active)
+    if (activeTargets.length > 0) {
       showWarning(
-        'Some products cannot be deleted',
-        `The following products cannot be deleted and will be skipped: ${details}`,
+        'Some products are active',
+        'Active products cannot be deleted. Choose Deactivate in the dialog to mark them inactive first.',
       )
     }
 
-    if (deletableTargets.length === 0) {
-      return
-    }
-
-    setBulkDeleteTargets(deletableTargets)
+    setBulkDeleteTargets(targets)
     setProductToDelete(null)
     setShowDeleteDialog(true)
   }, [canEditProducts, requireAdminForEdit, showError, showWarning])
@@ -699,14 +800,6 @@ export default function ProductsPage() {
   const requestProductDelete = useCallback((product: ProductRow) => {
     if (!canEditProducts) {
       requireAdminForEdit()
-      return
-    }
-
-    if (!isRowInactive(product)) {
-      showWarning(
-        'Cannot delete active product',
-        'Deactivate the product before attempting to delete it.',
-      )
       return
     }
 
@@ -1710,6 +1803,8 @@ export default function ProductsPage() {
               ? bulkDeleteTargets.every((product) => !product.active)
               : productToDelete ? !productToDelete.active : false
           }
+          onDeactivate={deactivateProductRequest}
+          onBulkDeactivate={bulkDeactivateProductsRequest}
           onSoftDelete={async (id, _bypassConstraints, reason) => {
             const result = await handleProductDelete(id, reason)
             return result.success ? { success: true } : { success: false, error: result.error }

@@ -42,79 +42,27 @@ function formatPermanentDependencySummary(dependencies: PermanentDependencyCount
 
 async function getAccountPermanentDeleteDependencies(tenantId: string, accountId: string): Promise<PermanentDependencyCount[]> {
   const [
-    childAccounts,
     contacts,
     opportunities,
-    accountAssignments,
-    accountNotes,
-    groupMembers,
-    activities,
     reconciliations,
-    ticketsAccount,
-    ticketsDistributor,
-    ticketsVendor,
     revenueSchedulesAccount,
-    revenueSchedulesDistributor,
-    revenueSchedulesVendor,
     depositsAccount,
-    depositsDistributor,
-    depositsVendor,
-    depositLineItemsAccount,
-    depositLineItemsVendor,
-    productsDistributor,
-    productsVendor,
-    reconciliationTemplatesDistributor,
-    reconciliationTemplatesVendor,
   ] = await Promise.all([
-    prisma.account.count({ where: { tenantId, parentAccountId: accountId } }),
-    prisma.contact.count({ where: { tenantId, accountId } }),
-    prisma.opportunity.count({ where: { tenantId, accountId } }),
-    prisma.accountAssignment.count({ where: { tenantId, accountId } }),
-    prisma.accountNote.count({ where: { tenantId, accountId } }),
-    prisma.groupMember.count({ where: { tenantId, accountId } }),
-    prisma.activity.count({ where: { tenantId, accountId } }),
+    prisma.contact.count({ where: { tenantId, accountId, deletedAt: null } }),
+    prisma.opportunity.count({ where: { tenantId, accountId, active: true } }),
     prisma.reconciliation.count({ where: { tenantId, accountId } }),
-    prisma.ticket.count({ where: { tenantId, accountId } }),
-    prisma.ticket.count({ where: { tenantId, distributorAccountId: accountId } }),
-    prisma.ticket.count({ where: { tenantId, vendorAccountId: accountId } }),
-    prisma.revenueSchedule.count({ where: { tenantId, accountId } }),
-    prisma.revenueSchedule.count({ where: { tenantId, distributorAccountId: accountId } }),
-    prisma.revenueSchedule.count({ where: { tenantId, vendorAccountId: accountId } }),
+    prisma.revenueSchedule.count({ where: { tenantId, accountId, deletedAt: null } }),
     prisma.deposit.count({ where: { tenantId, accountId } }),
-    prisma.deposit.count({ where: { tenantId, distributorAccountId: accountId } }),
-    prisma.deposit.count({ where: { tenantId, vendorAccountId: accountId } }),
-    prisma.depositLineItem.count({ where: { tenantId, accountId } }),
-    prisma.depositLineItem.count({ where: { tenantId, vendorAccountId: accountId } }),
-    prisma.product.count({ where: { tenantId, distributorAccountId: accountId } }),
-    prisma.product.count({ where: { tenantId, vendorAccountId: accountId } }),
-    prisma.reconciliationTemplate.count({ where: { tenantId, distributorAccountId: accountId } }),
-    prisma.reconciliationTemplate.count({ where: { tenantId, vendorAccountId: accountId } }),
   ])
 
   return [
-    { singular: 'child account', plural: 'child accounts', count: childAccounts },
-    { singular: 'contact', plural: 'contacts', count: contacts },
-    { singular: 'opportunity', plural: 'opportunities', count: opportunities },
-    { singular: 'account assignment', plural: 'account assignments', count: accountAssignments },
-    { singular: 'account note', plural: 'account notes', count: accountNotes },
-    { singular: 'group membership', plural: 'group memberships', count: groupMembers },
-    { singular: 'activity', plural: 'activities', count: activities },
+    // Only include dependencies that are likely to block deletion due to FK constraints.
+    // Many Account relations in Postgres are defined with ON DELETE SET NULL, which will not block account deletion.
+    { singular: 'active contact', plural: 'active contacts', count: contacts },
+    { singular: 'active opportunity', plural: 'active opportunities', count: opportunities },
     { singular: 'reconciliation', plural: 'reconciliations', count: reconciliations },
-    { singular: 'ticket', plural: 'tickets', count: ticketsAccount },
-    { singular: 'ticket (as distributor)', plural: 'tickets (as distributor)', count: ticketsDistributor },
-    { singular: 'ticket (as vendor)', plural: 'tickets (as vendor)', count: ticketsVendor },
-    { singular: 'revenue schedule', plural: 'revenue schedules', count: revenueSchedulesAccount },
-    { singular: 'revenue schedule (as distributor)', plural: 'revenue schedules (as distributor)', count: revenueSchedulesDistributor },
-    { singular: 'revenue schedule (as vendor)', plural: 'revenue schedules (as vendor)', count: revenueSchedulesVendor },
+    { singular: 'active revenue schedule', plural: 'active revenue schedules', count: revenueSchedulesAccount },
     { singular: 'deposit', plural: 'deposits', count: depositsAccount },
-    { singular: 'deposit (as distributor)', plural: 'deposits (as distributor)', count: depositsDistributor },
-    { singular: 'deposit (as vendor)', plural: 'deposits (as vendor)', count: depositsVendor },
-    { singular: 'deposit line item', plural: 'deposit line items', count: depositLineItemsAccount },
-    { singular: 'deposit line item (as vendor)', plural: 'deposit line items (as vendor)', count: depositLineItemsVendor },
-    { singular: 'product (as distributor)', plural: 'products (as distributor)', count: productsDistributor },
-    { singular: 'product (as vendor)', plural: 'products (as vendor)', count: productsVendor },
-    { singular: 'reconciliation template (as distributor)', plural: 'reconciliation templates (as distributor)', count: reconciliationTemplatesDistributor },
-    { singular: 'reconciliation template (as vendor)', plural: 'reconciliation templates (as vendor)', count: reconciliationTemplatesVendor },
   ].filter(dep => dep.count > 0)
 }
 
@@ -559,6 +507,69 @@ export async function permanentDeleteEntity(
           stage: 'permanent',
           error: `Cannot permanently delete this account because it still has related records (${summary}). Delete or reassign those records first, then try again.`
         }
+      }
+
+      // Purge archived dependencies that would otherwise block the DB delete due to FK constraints.
+      // Archived (soft-deleted/inactive) records are treated as deleted for the purpose of permanent deletion.
+      await prisma.$transaction(async (tx) => {
+        // Reconciliation templates are FK RESTRICT on distributor/vendor accounts.
+        await tx.reconciliationTemplate.deleteMany({
+          where: {
+            tenantId,
+            OR: [{ distributorAccountId: entityId }, { vendorAccountId: entityId }],
+          },
+        })
+
+        // Account-level rows that are safe to remove when the account is permanently deleted.
+        await tx.accountAssignment.deleteMany({ where: { tenantId, accountId: entityId } })
+        await tx.accountNote.deleteMany({ where: { tenantId, accountId: entityId } })
+
+        // Archived revenue schedules still FK-reference the account; purge them.
+        await tx.revenueSchedule.deleteMany({
+          where: { tenantId, accountId: entityId, deletedAt: { not: null } },
+        })
+
+        // Archived contacts still FK-reference the account; purge them (and their preferences which are FK RESTRICT).
+        const archivedContacts = await tx.contact.findMany({
+          where: { tenantId, accountId: entityId, deletedAt: { not: null } },
+          select: { id: true },
+        })
+        const archivedContactIds = archivedContacts.map((contact) => contact.id)
+
+        if (archivedContactIds.length > 0) {
+          await tx.contactPreference.deleteMany({
+            where: { tenantId, contactId: { in: archivedContactIds } },
+          })
+          await tx.contact.deleteMany({
+            where: { tenantId, id: { in: archivedContactIds } },
+          })
+        }
+
+        // Inactive opportunities still FK-reference the account; purge them (and their dependent roles/products).
+        const inactiveOpportunities = await tx.opportunity.findMany({
+          where: { tenantId, accountId: entityId, active: false },
+          select: { id: true },
+        })
+        const inactiveOpportunityIds = inactiveOpportunities.map((opportunity) => opportunity.id)
+
+        if (inactiveOpportunityIds.length > 0) {
+          await tx.opportunityRole.deleteMany({
+            where: { tenantId, opportunityId: { in: inactiveOpportunityIds } },
+          })
+          await tx.opportunityProduct.deleteMany({
+            where: { tenantId, opportunityId: { in: inactiveOpportunityIds } },
+          })
+          await tx.opportunity.deleteMany({
+            where: { tenantId, id: { in: inactiveOpportunityIds } },
+          })
+        }
+
+        await tx.account.delete({ where: { id: entityId } })
+      })
+
+      return {
+        success: true,
+        stage: 'permanent',
       }
     }
 

@@ -77,7 +77,7 @@ function mapContactToDetail(contact: any) {
     jobTitle: contact.jobTitle ?? "",
     department: contact.department ?? "",
     contactType: contact.contactType ?? "",
-    active: contact.deletedAt === null,
+    active: Boolean(contact.isPrimary),
     workPhone: contact.workPhone ?? "",
     workPhoneExt: contact.workPhoneExt ?? "",
     mobilePhone: contact.mobilePhone ?? "",
@@ -660,6 +660,11 @@ export async function DELETE(
 
             // Remove from groups
             await tx.groupMember.deleteMany({
+              where: { contactId: contactId, tenantId }
+            })
+
+            // Contact preferences are FK RESTRICT and will block deletion.
+            await tx.contactPreference.deleteMany({
               where: { contactId: contactId, tenantId }
             })
 

@@ -717,15 +717,6 @@ export default function AccountsPage() {
       return;
     }
 
-    const activeCount = targets.filter((account) => account.active).length;
-    if (activeCount > 0) {
-      showError(
-        "Deactivate accounts first",
-        "Selected accounts must be Inactive before they can be deleted. Use the Status bulk action to mark them inactive, then delete."
-      );
-      return;
-    }
-
     setBulkDeleteTargets(targets);
     setAccountToDelete(null);
     setShowDeleteDialog(true);
@@ -1136,6 +1127,121 @@ export default function AccountsPage() {
     },
     [markAccountUpdating],
   );
+
+  const deactivateAccountRequest = useCallback(async (
+    accountId: string,
+    _reason?: string,
+  ): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const response = await fetch(`/api/accounts/${accountId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ active: false }),
+      });
+
+      if (!response.ok) {
+        const message = await response
+          .json()
+          .then((data: any) => data?.error ?? "Failed to deactivate account")
+          .catch(() => "Failed to deactivate account");
+        throw new Error(message);
+      }
+
+      const payload = await response.json().catch(() => null);
+      const updatedRow: AccountRow | null = payload?.data ?? null;
+
+      setAccounts((previous) =>
+        previous.map((row) =>
+          row.id === accountId
+            ? {
+                ...row,
+                ...(updatedRow ?? {}),
+                active: false,
+              }
+            : row,
+        ),
+      );
+
+      showSuccess("Account deactivated", "The account was marked inactive.");
+      return { success: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unable to deactivate account";
+      showError("Failed to deactivate account", message);
+      return { success: false, error: message };
+    }
+  }, [showError, showSuccess]);
+
+  const executeBulkDeactivate = useCallback(async (
+    entities: Array<{ id: string; name: string }>,
+    _reason?: string,
+  ): Promise<{ success: boolean; error?: string }> => {
+    if (!entities || entities.length === 0) {
+      return { success: false, error: "No accounts selected" };
+    }
+
+    setBulkActionLoading(true);
+
+    try {
+      const outcomes = await Promise.allSettled(
+        entities.map(async (entity) => {
+          const response = await fetch(`/api/accounts/${entity.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ active: false }),
+          });
+
+          if (!response.ok) {
+            const payload = await response.json().catch(() => null);
+            throw new Error(payload?.error ?? "Failed to deactivate account");
+          }
+
+          return entity.id;
+        }),
+      );
+
+      const failures: Array<{ id: string; name: string; message: string }> = [];
+      const successIds: string[] = [];
+
+      outcomes.forEach((result, index) => {
+        const entity = entities[index];
+        if (result.status === "fulfilled") {
+          successIds.push(result.value);
+        } else {
+          const message =
+            result.reason instanceof Error ? result.reason.message : "Unexpected error";
+          failures.push({ id: entity.id, name: entity.name, message });
+        }
+      });
+
+      if (successIds.length > 0) {
+        const successSet = new Set(successIds);
+        setAccounts((previous) =>
+          previous.map((row) =>
+            successSet.has(row.id) ? { ...row, active: false } : row,
+          ),
+        );
+        showSuccess(
+          `Deactivated ${successIds.length} account${successIds.length === 1 ? "" : "s"}`,
+          "Selected accounts were marked inactive.",
+        );
+      }
+
+      if (failures.length > 0) {
+        const detail = failures
+          .slice(0, 5)
+          .map((item) => `${item.name || item.id.slice(0, 8) + "..."}: ${item.message}`)
+          .join("; ");
+        const message =
+          failures.length > 5 ? `${detail}; and ${failures.length - 5} more` : detail;
+        showError("Some accounts could not be deactivated", message);
+        return { success: false, error: message };
+      }
+
+      return { success: true };
+    } finally {
+      setBulkActionLoading(false);
+    }
+  }, [showError, showSuccess]);
 
   const requestAccountDeletion = useCallback((account: AccountRow) => {
     setAccountToDelete(account);
@@ -1788,6 +1894,8 @@ export default function AccountsPage() {
             ? bulkDeleteTargets.every((account) => account.isDeleted)
             : accountToDelete?.isDeleted ?? false
         }
+        onDeactivate={deactivateAccountRequest}
+        onBulkDeactivate={executeBulkDeactivate}
         onSoftDelete={handleSoftDelete}
         onBulkSoftDelete={
           bulkDeleteTargets.length > 0
@@ -1806,8 +1914,8 @@ export default function AccountsPage() {
         userCanPermanentDelete={userCanPermanentDelete}
         disallowActiveDelete={
           bulkDeleteTargets.length > 0
-            ? bulkDeleteTargets.some((account) => Boolean(account.active) || Boolean(account.isDeleted))
-            : Boolean(accountToDelete?.active) || Boolean(accountToDelete?.isDeleted)
+            ? bulkDeleteTargets.some((account) => Boolean(account.active))
+            : Boolean(accountToDelete?.active)
         }
         modalSize="revenue-schedules"
         requireReason

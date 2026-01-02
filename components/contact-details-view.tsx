@@ -1532,6 +1532,38 @@ const [groupsPageSize, setGroupsPageSize] = useState(100)
     }
   }, [onRefresh, showError]);
 
+  const deactivateContactForDialog = useCallback(async (
+    contactId: string,
+    _reason?: string
+  ): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const response = await fetch(`/api/contacts/${contactId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isPrimary: false })
+      })
+      const payload = await response.json().catch(() => null)
+
+      if (!response.ok) {
+        const message = payload?.error ?? "Failed to deactivate contact"
+        showError("Failed to deactivate contact", message)
+        return { success: false, error: message }
+      }
+
+      if (payload?.data && onContactUpdated) {
+        onContactUpdated(payload.data)
+      }
+
+      showSuccess("Contact deactivated", "The contact was marked inactive.")
+      await refreshContactData()
+      return { success: true }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to deactivate contact"
+      showError("Failed to deactivate contact", message)
+      return { success: false, error: message }
+    }
+  }, [onContactUpdated, refreshContactData, showError, showSuccess])
+
   const handlePostCreate = useCallback(async () => {
     await refreshContactData();
   }, [refreshContactData]);
@@ -3600,10 +3632,12 @@ useEffect(() => {
             : undefined
         }
         isDeleted={isDeleted}
+        onDeactivate={deactivateContactForDialog}
         onSoftDelete={handleSoftDelete}
         onPermanentDelete={handlePermanentDelete}
         onRestore={handleRestore}
         userCanPermanentDelete={true} // TODO: Check user permissions
+        disallowActiveDelete={Boolean(contact?.isPrimary)}
         modalSize="revenue-schedules"
         requireReason
         note="Contacts cannot be deleted while they are Active or Primary, or when they have related records (activities, opportunities, or group memberships). If constraints are detected, you'll see them listed and can only proceed with Force Delete (which may orphan related records)."

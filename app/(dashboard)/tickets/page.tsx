@@ -697,7 +697,8 @@ export default function TicketsPage() {
         leftAccessory={
           <AccountStatusFilterDropdown
             value={statusFilter === 'active' ? 'active' : 'all'}
-            onChange={(next) => handleStatusClick(next)}
+            options={["active", "all"]}
+            onChange={(next) => handleStatusClick(next === "inactive" ? "all" : next)}
             labels={{ active: 'Active', all: 'Show All' }}
           />
         }

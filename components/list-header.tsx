@@ -335,8 +335,9 @@ export function ListHeader({
             {leftAccessory}
             {showStatusFilter && (
               <AccountStatusFilterDropdown
-                value={activeFilter === "inactive" ? "all" : activeFilter}
-                onChange={(value) => handleStatusFilterChange(value === "all" ? "inactive" : value)}
+                value={activeFilter}
+                options={effectiveStatusOptions}
+                onChange={handleStatusFilterChange}
               />
             )}
 
