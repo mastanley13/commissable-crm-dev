@@ -702,6 +702,29 @@ export async function DELETE(request: NextRequest, { params }: { params: { oppor
         return NextResponse.json({ error: "Opportunity not found" }, { status: 404 })
       }
 
+      // Guardrails: prevent permanent deletion when dependent records exist (matches DB FK restrictions).
+      const [roleCount, productCount] = await Promise.all([
+        prisma.opportunityRole.count({ where: { tenantId, opportunityId: existing.id } }),
+        prisma.opportunityProduct.count({ where: { tenantId, opportunityId: existing.id } })
+      ])
+
+      if (roleCount > 0 || productCount > 0) {
+        const parts: string[] = []
+        if (productCount > 0) {
+          parts.push(`${productCount} product line item(s)`)
+        }
+        if (roleCount > 0) {
+          parts.push(`${roleCount} role(s)`)
+        }
+        const detail = parts.join(" and ")
+        return NextResponse.json(
+          {
+            error: `Cannot permanently delete opportunity while it has ${detail}. Delete dependent records first.`
+          },
+          { status: 409 }
+        )
+      }
+
       await prisma.opportunity.delete({ where: { id: existing.id } })
 
       // Log audit trail for opportunity deletion
@@ -727,6 +750,16 @@ export async function DELETE(request: NextRequest, { params }: { params: { oppor
       return NextResponse.json({ success: true })
     } catch (error) {
       console.error("Failed to delete opportunity", error)
+      // Prisma FK/constraint failures should come back as 409 so the UI can guide the user.
+      if (error && typeof error === "object" && "code" in error) {
+        const prismaError = error as { code?: string; meta?: any }
+        if (prismaError.code === "P2003") {
+          return NextResponse.json(
+            { error: "Cannot delete opportunity due to related records. Delete dependent records first." },
+            { status: 409 }
+          )
+        }
+      }
       return NextResponse.json({ error: "Failed to delete opportunity" }, { status: 500 })
     }
   })

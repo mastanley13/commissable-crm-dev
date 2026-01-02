@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils"
 import { FieldRow } from "./detail/FieldRow"
 import { GroupType, GroupVisibility } from "@prisma/client"
 import { AuditHistoryTab } from "./audit-history-tab"
+import { TabDescription } from "@/components/section/TabDescription"
 import { EditableField } from "./editable-field"
 import { useEntityEditor, type EntityEditor } from "@/hooks/useEntityEditor"
 import { useUnsavedChangesPrompt } from "@/hooks/useUnsavedChangesPrompt"
@@ -496,6 +497,7 @@ export function GroupDetailsView({
                 entityName={"Group" as any}
                 entityId={group.id}
                 tableBodyMaxHeight={GROUP_HISTORY_TABLE_HEIGHT}
+                description="This section shows a complete audit log of all changes made to this group, including who made each change and when. Track membership changes, setting updates, and ownership transfers."
               />
             )}
           </div>

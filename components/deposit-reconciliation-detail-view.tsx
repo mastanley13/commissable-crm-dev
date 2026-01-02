@@ -20,6 +20,7 @@ import {
   ReconciliationScheduleStatusFilterDropdown,
   type ReconciliationScheduleFilterValue
 } from "./reconciliation-schedule-status-filter-dropdown"
+import { TabDescription } from "@/components/section/TabDescription"
 
 export interface DepositReconciliationMetadata {
   id: string
@@ -2245,6 +2246,7 @@ export function DepositReconciliationDetailView({
     ) : null}
 
       <section className="flex min-h-0 flex-1 flex-col">
+        <TabDescription className="px-4 pt-3">This section displays all line items from the imported deposit file. Filter by status to view matched, partially matched, unmatched, or ignored items. Select a line to view matching candidates.</TabDescription>
         <div className="border-b border-slate-100">
           <ListHeader
             pageTitle="DEPOSIT LINE ITEMS"
@@ -2319,6 +2321,7 @@ export function DepositReconciliationDetailView({
       </section>
 
       <section className="flex min-h-0 flex-1 flex-col">
+        <TabDescription className="px-4 pt-3">This section shows revenue schedules that match the selected deposit line item. Review match confidence scores and apply matches to reconcile commission payments.</TabDescription>
         <div className="border-b border-slate-100">
           <ListHeader
             pageTitle="SUGGESTED MATCHES - REVENUE SCHEDULES"

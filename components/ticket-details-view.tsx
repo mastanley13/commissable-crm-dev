@@ -317,6 +317,7 @@ export function TicketDetailsView({ ticket, loading, error, onRefresh }: TicketD
               entityName={"Ticket" as any}
               entityId={ticket.id}
               tableBodyMaxHeight={TICKET_HISTORY_TABLE_HEIGHT}
+              description="This section shows a complete audit log of all changes made to this ticket, including status updates, assignment changes, and resolution notes. Track the full lifecycle of the support request."
             />
           </div>
         </div>

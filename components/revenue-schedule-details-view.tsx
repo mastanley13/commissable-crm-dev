@@ -244,6 +244,19 @@ function FinancialSummarySection({
   const [collapsed, setCollapsed] = useState(false)
   const [splitMode, setSplitMode] = useState<"percent" | "amount">("percent")
 
+  const rowClass = "flex items-center gap-1 px-1 py-0 min-h-[18px]"
+  const labelClass = "flex-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500"
+  // Keep label styling consistent with the top detail section; links are indicated via value color.
+  const labelLinkClass = labelClass
+  const labelStrongClass = cn(labelClass, "font-bold text-gray-700")
+  const labelStrongSoftClass = cn(labelClass, "font-bold text-gray-600")
+  const opClass = "w-3 text-center font-medium text-gray-900"
+  const valueClass = "w-20 text-right font-medium text-gray-900"
+  const valueBoldClass = "w-20 text-right font-bold text-gray-900"
+  const valueLinkClass = "w-20 text-right font-medium text-blue-600"
+  const inputClass = "w-20 text-right border-b-0 py-0 h-[18px] text-[11px] leading-[18px]"
+  const cardHeaderClass = "mb-0.5 flex min-h-[24px] items-center justify-between border-b border-gray-300 pb-0.5"
+
   const inlineQuantity = enableInlineEditing ? (quantityField?.value as string | null | undefined) : null
   const inlinePriceEach = enableInlineEditing ? (priceEachField?.value as string | null | undefined) : null
   const inlineUsageAdj = enableInlineEditing
@@ -386,14 +399,15 @@ function FinancialSummarySection({
       {!collapsed ? (
         <div className="grid grid-cols-1 gap-2 p-1.5 md:grid-cols-3">
           {/* Usage Summary */}
-          <div className="rounded-lg border border-gray-200 bg-gray-50 p-1.5 text-[11px] text-gray-900 flex flex-col" style={{ height: "220px" }}>
-            <h3 className="mb-0.5 border-b border-gray-300 pb-0.5 text-[12px] font-semibold text-blue-600">
-              Usage Summary
-            </h3>
+          <div className="rounded-lg border border-gray-200 bg-gray-50 p-2 text-[11px] text-gray-900 flex flex-col" style={{ height: "220px" }}>
+            <div className={cardHeaderClass}>
+              <h3 className="text-[12px] font-semibold text-blue-600">Usage Summary</h3>
+              <div className="h-5 w-10" aria-hidden="true" />
+            </div>
             <div className="flex flex-col flex-1 gap-0.5">
-              <div className="flex items-center gap-1 min-h-[18px]">
-                <span className="flex-1 text-gray-600">Quantity</span>
-                <span className="w-3"></span>
+              <div className={rowClass}>
+                <span className={labelClass}>Quantity</span>
+                <span className={opClass}></span>
                 {enableInlineEditing && quantityField ? (
                   <div className="flex flex-col items-end gap-0.5">
                     <EditableField.Input
@@ -401,17 +415,17 @@ function FinancialSummarySection({
                       onChange={quantityField.onChange}
                       onBlur={quantityField.onBlur}
                       placeholder="1"
-                      className="w-20 text-right border-b-0"
+                      className={inputClass}
                     />
                     {errors?.quantity ? <span className="text-[10px] text-red-600">{errors.quantity}</span> : null}
                   </div>
                 ) : (
-                  <span className="w-20 text-right font-medium text-gray-900">{renderValue(schedule.quantity)}</span>
+                  <span className={valueClass}>{renderValue(schedule.quantity)}</span>
                 )}
               </div>
-              <div className="flex items-center gap-1 min-h-[18px]">
-                <span className="flex-1 text-gray-600">Price Per</span>
-                <span className="w-3 text-center font-medium text-gray-900">x</span>
+              <div className={rowClass}>
+                <span className={labelClass}>Price Per</span>
+                <span className={opClass}>x</span>
                 {enableInlineEditing && priceEachField ? (
                   <div className="flex flex-col items-end gap-0.5">
                     <EditableField.Input
@@ -419,22 +433,22 @@ function FinancialSummarySection({
                       onChange={priceEachField.onChange}
                       onBlur={priceEachField.onBlur}
                       placeholder="$500.00"
-                      className="w-20 text-right border-b-0"
+                      className={inputClass}
                     />
                     {errors?.priceEach ? <span className="text-[10px] text-red-600">{errors.priceEach}</span> : null}
                   </div>
                 ) : (
-                  <span className="w-20 text-right font-medium text-gray-900">{renderValue(schedule.priceEach)}</span>
+                  <span className={valueClass}>{renderValue(schedule.priceEach)}</span>
                 )}
               </div>
-              <div className="flex items-center gap-1 min-h-[18px]">
-                <span className="flex-1 text-gray-600">Expected Usage Gross</span>
-                <span className="w-3 text-center font-medium text-gray-900">=</span>
-                <span className="w-20 text-right font-medium text-gray-900">{renderValue(expectedUsageGrossDisplay)}</span>
+              <div className={rowClass}>
+                <span className={labelClass}>Expected Usage Gross</span>
+                <span className={opClass}>=</span>
+                <span className={valueClass}>{renderValue(expectedUsageGrossDisplay)}</span>
               </div>
-              <div className="flex items-center gap-1 min-h-[18px]">
-                <span className="flex-1 text-gray-600">Expected Usage Adjustment</span>
-                <span className="w-3 text-center font-medium text-gray-900">+</span>
+              <div className={rowClass}>
+                <span className={labelClass}>Expected Usage Adjustment</span>
+                <span className={opClass}>+</span>
                 {enableInlineEditing && expectedUsageAdjustmentField ? (
                   <div className="flex flex-col items-end gap-0.5">
                     <EditableField.Input
@@ -442,36 +456,36 @@ function FinancialSummarySection({
                       onChange={expectedUsageAdjustmentField.onChange}
                       onBlur={expectedUsageAdjustmentField.onBlur}
                       placeholder="$0.00"
-                      className="w-20 text-right border-b-0"
+                      className={inputClass}
                     />
                     {errors?.expectedUsageAdjustment ? (
                       <span className="text-[10px] text-red-600">{errors.expectedUsageAdjustment}</span>
                     ) : null}
                   </div>
                 ) : (
-                  <span className="w-20 text-right font-medium text-gray-900">{renderValue(schedule.expectedUsageAdjustment)}</span>
+                  <span className={valueClass}>{renderValue(schedule.expectedUsageAdjustment)}</span>
                 )}
               </div>
-              <div className="flex items-center gap-1 rounded bg-gray-100 -mx-1 px-1 py-0.5 min-h-[18px]">
-                <span className="flex-1 font-bold text-gray-700">Expected Usage Net</span>
-                <span className="w-3 text-center font-bold text-gray-900">=</span>
-                <span className="w-20 text-right font-bold text-gray-900">{renderValue(expectedUsageNetDisplay)}</span>
+              <div className={cn(rowClass, "rounded bg-blue-50")}>
+                <span className={labelStrongClass}>Expected Usage Net</span>
+                <span className={cn(opClass, "font-bold")}>=</span>
+                <span className={valueBoldClass}>{renderValue(expectedUsageNetDisplay)}</span>
               </div>
-              <div className="mt-0.5 flex items-center gap-1 border-t border-gray-300 pt-0.5 min-h-[18px]">
-                <span className="flex-1 text-blue-600">Actual Usage</span>
-                <span className="w-3"></span>
+              <div className={cn(rowClass, "border-t border-gray-300")}>
+                <span className={labelLinkClass}>Actual Usage</span>
+                <span className={opClass}></span>
                 <button
                   type="button"
                   onClick={() => onOpenSection?.("transactions")}
-                  className="w-20 text-right font-medium text-blue-600"
+                  className={valueLinkClass}
                 >
                   {renderValue(schedule.actualUsage)}
                 </button>
               </div>
-              <div className="mt-auto flex items-center gap-1 rounded bg-gray-100 -mx-1 px-1 py-0.5 pt-0.5 border-t border-gray-300 min-h-[18px]">
-                <span className="flex-1 font-bold text-gray-700">Usage Difference (+/-)</span>
-                <span className="w-3 text-center font-bold text-gray-900">=</span>
-                <span className={cn("w-20 text-right font-bold", usageDiffClass)}>
+              <div className={cn(rowClass, "mt-auto rounded bg-blue-50 border-t border-gray-300")}>
+                <span className={labelStrongClass}>Usage Difference (+/-)</span>
+                <span className={cn(opClass, "font-bold")}>=</span>
+                <span className={cn(valueBoldClass, usageDiffClass)}>
                   {formatSignedCurrencyDiff(metrics.usageDifference)}
                 </span>
               </div>
@@ -479,24 +493,25 @@ function FinancialSummarySection({
           </div>
 
           {/* Commission Summary */}
-          <div className="rounded-lg border border-gray-200 bg-gray-50 p-1.5 text-[11px] text-gray-900 flex flex-col" style={{ height: "220px" }}>
-            <h3 className="mb-0.5 border-b border-gray-300 pb-0.5 text-[12px] font-semibold text-blue-600">
-              Commission Summary
-            </h3>
+          <div className="rounded-lg border border-gray-200 bg-gray-50 p-2 text-[11px] text-gray-900 flex flex-col" style={{ height: "220px" }}>
+            <div className={cardHeaderClass}>
+              <h3 className="text-[12px] font-semibold text-blue-600">Commission Summary</h3>
+              <div className="h-5 w-10" aria-hidden="true" />
+            </div>
             <div className="flex flex-col flex-1 gap-0.5">
-              <div className="flex items-center gap-1 min-h-[18px]">
-                <span className="flex-1 text-gray-600">Billing Month</span>
-                <span className="w-3"></span>
-                <span className="w-20 text-right font-medium text-gray-900">{renderValue(schedule.billingMonth)}</span>
+              <div className={rowClass}>
+                <span className={labelClass}>Billing Month</span>
+                <span className={opClass}></span>
+                <span className={valueClass}>{renderValue(schedule.billingMonth)}</span>
               </div>
-              <div className="flex items-center gap-1 pt-0.5 mt-0.5 border-t border-gray-300 min-h-[18px]">
-                <span className="flex-1 text-gray-600">Expected Commission</span>
-                <span className="w-3"></span>
-                <span className="w-20 text-right font-medium text-gray-900">{renderValue(commissionExpectedDisplay)}</span>
+              <div className={cn(rowClass, "border-t border-gray-300")}>
+                <span className={labelClass}>Expected Commission</span>
+                <span className={opClass}></span>
+                <span className={valueClass}>{renderValue(commissionExpectedDisplay)}</span>
               </div>
-              <div className="flex items-center gap-1 min-h-[18px]">
-                <span className="flex-1 text-gray-600">Expected Commission Adjustment</span>
-                <span className="w-3 text-center font-medium text-gray-900">+</span>
+              <div className={rowClass}>
+                <span className={labelClass}>Expected Commission Adjustment</span>
+                <span className={opClass}>+</span>
                 {enableInlineEditing && expectedCommissionAdjustmentField ? (
                   <div className="flex flex-col items-end gap-0.5">
                     <EditableField.Input
@@ -504,36 +519,36 @@ function FinancialSummarySection({
                       onChange={expectedCommissionAdjustmentField.onChange}
                       onBlur={expectedCommissionAdjustmentField.onBlur}
                       placeholder="$0.00"
-                      className="w-20 text-right border-b-0"
+                      className={inputClass}
                     />
                     {errors?.expectedCommissionAdjustment ? (
                       <span className="text-[10px] text-red-600">{errors.expectedCommissionAdjustment}</span>
                     ) : null}
                   </div>
                 ) : (
-                  <span className="w-20 text-right font-medium text-gray-900">{renderValue(schedule.expectedCommissionAdjustment)}</span>
+                  <span className={valueClass}>{renderValue(schedule.expectedCommissionAdjustment)}</span>
                 )}
               </div>
-              <div className="flex items-center gap-1 min-h-[18px]">
-                <span className="flex-1 font-bold text-gray-600">Expected Commission Net</span>
-                <span className="w-3"></span>
-                <span className="w-20 text-right font-medium text-blue-600">{renderValue(commissionNetDisplay)}</span>
+              <div className={rowClass}>
+                <span className={labelStrongSoftClass}>Expected Commission Net</span>
+                <span className={opClass}></span>
+                <span className={valueLinkClass}>{renderValue(commissionNetDisplay)}</span>
               </div>
-              <div className="flex items-center gap-1 min-h-[18px]">
-                <span className="flex-1 font-bold text-gray-600">Actual Commission</span>
-                <span className="w-3"></span>
+              <div className={rowClass}>
+                <span className={labelStrongSoftClass}>Actual Commission</span>
+                <span className={opClass}></span>
                 <button
                   type="button"
                   onClick={() => onOpenSection?.("transactions")}
-                  className="w-20 text-right font-medium text-blue-600"
+                  className={valueLinkClass}
                 >
                   {renderValue(schedule.actualCommission)}
                 </button>
               </div>
-              <div className="mt-auto flex items-center gap-1 rounded bg-gray-100 -mx-1 px-1 py-0.5 pt-0.5 border-t border-gray-300 min-h-[18px]">
-                <span className="flex-1 font-bold text-gray-700">Commission Difference</span>
-                <span className="w-3 text-center font-bold text-gray-900">=</span>
-                <span className={cn("w-20 text-right font-bold", commissionDiffClass)}>
+              <div className={cn(rowClass, "mt-auto rounded bg-blue-50 border-t border-gray-300")}>
+                <span className={labelStrongClass}>Commission Difference</span>
+                <span className={cn(opClass, "font-bold")}>=</span>
+                <span className={cn(valueBoldClass, commissionDiffClass)}>
                   {formatSignedCurrencyDiff(metrics.commissionDifference)}
                 </span>
               </div>
@@ -542,7 +557,7 @@ function FinancialSummarySection({
 
           {/* Splits */}
           <div className="rounded-lg border border-gray-200 bg-gray-50 p-2 text-[11px] text-gray-900 flex flex-col" style={{ height: "220px" }}>
-            <div className="mb-0.5 flex items-center justify-between border-b border-gray-300 pb-0.5 text-[12px]">
+            <div className={cardHeaderClass}>
               <h3 className="text-[12px] font-semibold text-blue-600">Splits</h3>
               <div className="flex items-center gap-1">
                 <button
@@ -572,9 +587,9 @@ function FinancialSummarySection({
               </div>
             </div>
             <div className="flex flex-col flex-1 gap-0.5">
-              <div className="flex items-center gap-1 min-h-[18px]">
-                <span className="flex-1 text-gray-600">{splitMode === "percent" ? "House Split %" : "House Split"}</span>
-                <span className="w-3"></span>
+              <div className={rowClass}>
+                <span className={labelClass}>{splitMode === "percent" ? "House Split %" : "House Split"}</span>
+                <span className={opClass}></span>
                 {enableInlineEditing && splitMode === "percent" && houseSplitField ? (
                   <div className="flex flex-col items-end gap-0.5">
                     <EditableField.Input
@@ -582,19 +597,19 @@ function FinancialSummarySection({
                       onChange={houseSplitField.onChange}
                       onBlur={houseSplitField.onBlur}
                       placeholder="20%"
-                      className="w-20 text-right border-b-0"
+                      className={inputClass}
                     />
                     {errors?.houseSplitPercent ? (
                       <span className="text-[10px] text-red-600">{errors.houseSplitPercent}</span>
                     ) : null}
                   </div>
                 ) : (
-                  <span className="w-20 text-right font-medium text-gray-900">{renderValue(splitsDisplay.house)}</span>
+                  <span className={valueClass}>{renderValue(splitsDisplay.house)}</span>
                 )}
               </div>
-              <div className="flex items-center gap-1 min-h-[18px]">
-                <span className="flex-1 text-gray-600">{splitMode === "percent" ? "House Rep Split %" : "House Rep Split"}</span>
-                <span className="w-3 text-center font-medium text-gray-900">+</span>
+              <div className={rowClass}>
+                <span className={labelClass}>{splitMode === "percent" ? "House Rep Split %" : "House Rep Split"}</span>
+                <span className={opClass}>+</span>
                 {enableInlineEditing && splitMode === "percent" && houseRepSplitField ? (
                   <div className="flex flex-col items-end gap-0.5">
                     <EditableField.Input
@@ -602,19 +617,19 @@ function FinancialSummarySection({
                       onChange={houseRepSplitField.onChange}
                       onBlur={houseRepSplitField.onBlur}
                       placeholder="30%"
-                      className="w-20 text-right border-b-0"
+                      className={inputClass}
                     />
                     {errors?.houseRepSplitPercent ? (
                       <span className="text-[10px] text-red-600">{errors.houseRepSplitPercent}</span>
                     ) : null}
                   </div>
                 ) : (
-                  <span className="w-20 text-right font-medium text-gray-900">{renderValue(splitsDisplay.houseRep)}</span>
+                  <span className={valueClass}>{renderValue(splitsDisplay.houseRep)}</span>
                 )}
               </div>
-              <div className="flex items-center gap-1 min-h-[18px]">
-                <span className="flex-1 text-gray-600">{splitMode === "percent" ? "Subagent Split %" : "Subagent Split"}</span>
-                <span className="w-3 text-center font-medium text-gray-900">+</span>
+              <div className={rowClass}>
+                <span className={labelClass}>{splitMode === "percent" ? "Subagent Split %" : "Subagent Split"}</span>
+                <span className={opClass}>+</span>
                 {enableInlineEditing && splitMode === "percent" && subagentSplitField ? (
                   <div className="flex flex-col items-end gap-0.5">
                     <EditableField.Input
@@ -622,24 +637,24 @@ function FinancialSummarySection({
                       onChange={subagentSplitField.onChange}
                       onBlur={subagentSplitField.onBlur}
                       placeholder="50%"
-                      className="w-20 text-right border-b-0"
+                      className={inputClass}
                     />
                     {errors?.subagentSplitPercent ? (
                       <span className="text-[10px] text-red-600">{errors.subagentSplitPercent}</span>
                     ) : null}
                   </div>
                 ) : (
-                  <span className="w-20 text-right font-medium text-gray-900">{renderValue(splitsDisplay.subagent)}</span>
+                  <span className={valueClass}>{renderValue(splitsDisplay.subagent)}</span>
                 )}
               </div>
-              <div className="flex items-center gap-1 rounded bg-gray-100 -mx-1 px-1 py-0.5 min-h-[18px]">
-                <span className="flex-1 font-bold text-gray-700">{splitMode === "percent" ? "Total Split %" : "Total Split"}</span>
-                <span className="w-3 text-center font-bold text-gray-900">=</span>
-                <span className="w-20 text-right font-bold text-gray-900">{renderValue(splitsDisplay.total)}</span>
+              <div className={cn(rowClass, "rounded bg-blue-50")}>
+                <span className={labelStrongClass}>{splitMode === "percent" ? "Total Split %" : "Total Split"}</span>
+                <span className={cn(opClass, "font-bold")}>=</span>
+                <span className={valueBoldClass}>{renderValue(splitsDisplay.total)}</span>
               </div>
-              <div className="mt-0.5 flex items-center gap-1 border-t border-gray-300 pt-0.5 min-h-[18px]">
-                <span className="flex-1 text-gray-600">Expected Rate %</span>
-                <span className="w-3"></span>
+              <div className={cn(rowClass, "border-t border-gray-300")}>
+                <span className={labelClass}>Expected Rate %</span>
+                <span className={opClass}></span>
                 {enableInlineEditing && expectedRateField ? (
                   <div className="flex flex-col items-end gap-0.5">
                     <EditableField.Input
@@ -647,31 +662,31 @@ function FinancialSummarySection({
                       onChange={expectedRateField.onChange}
                       onBlur={expectedRateField.onBlur}
                       placeholder="12.50%"
-                      className="w-20 text-right border-b-0"
+                      className={inputClass}
                     />
                     {errors?.expectedCommissionRatePercent ? (
                       <span className="text-[10px] text-red-600">{errors.expectedCommissionRatePercent}</span>
                     ) : null}
                   </div>
                 ) : (
-                  <span className="w-20 text-right font-medium text-gray-900">{renderValue(schedule.expectedCommissionRatePercent)}</span>
+                  <span className={valueClass}>{renderValue(schedule.expectedCommissionRatePercent)}</span>
                 )}
               </div>
-              <div className="flex items-center gap-1 min-h-[18px]">
-                <span className="flex-1 text-blue-600">Actual Rate %</span>
-                <span className="w-3"></span>
+              <div className={rowClass}>
+                <span className={labelLinkClass}>Actual Rate %</span>
+                <span className={opClass}></span>
                 <button
                   type="button"
                   onClick={() => onOpenSection?.("transactions")}
-                  className="w-20 text-right font-medium text-blue-600"
+                  className={valueLinkClass}
                 >
                   {renderValue(schedule.actualCommissionRatePercent)}
                 </button>
               </div>
-              <div className="mt-auto flex items-center gap-1 rounded bg-gray-100 -mx-1 px-1 py-0.5 pt-0.5 border-t border-gray-300 min-h-[18px]">
-                <span className="flex-1 font-bold text-gray-700">Commission Rate Difference</span>
-                <span className="w-3 text-center font-bold text-gray-900">=</span>
-                <span className={cn("w-20 text-right font-bold", commissionRateDiffClass)}>
+              <div className={cn(rowClass, "mt-auto rounded bg-blue-50 border-t border-gray-300")}>
+                <span className={labelStrongClass}>Commission Rate Difference</span>
+                <span className={cn(opClass, "font-bold")}>=</span>
+                <span className={cn(valueBoldClass, commissionRateDiffClass)}>
                   {formatSignedPercentDiff(metrics.commissionRateDifferenceFraction)}
                 </span>
               </div>

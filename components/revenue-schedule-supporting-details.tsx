@@ -2080,9 +2080,6 @@ export const RevenueScheduleSupportingDetails = forwardRef<
               hideHeader
             >
               <div className="border border-gray-200 rounded-lg overflow-hidden">
-                <div className="bg-blue-500 text-white px-3 py-2 border-b-2 border-blue-700">
-                  <h4 className="text-xs font-semibold">Vendor/Distributor Product Metadata</h4>
-                </div>
                 <div className="bg-gray-50 px-3 pb-3 pt-3 space-y-3">
                   <p className="text-[11px] text-gray-500 italic">
                     This section displays metadata from vendor/distributor deposit line items as they are reconciled
@@ -2218,9 +2215,6 @@ export const RevenueScheduleSupportingDetails = forwardRef<
               hideHeader
             >
               <div className="border border-gray-200 rounded-lg overflow-hidden">
-                <div className="bg-blue-500 text-white px-3 py-2 border-b-2 border-blue-700">
-                  <h4 className="text-xs font-semibold">Vendor/Distributor Product Metadata</h4>
-                </div>
                 <div className="bg-gray-50 px-3 pb-3 pt-3 space-y-3">
                   <p className="text-[11px] text-gray-500 italic">
                     This section displays metadata from vendor/distributor deposit line items as they are reconciled

@@ -12,6 +12,7 @@ import { getRevenueTypeLabel, REVENUE_TYPE_OPTIONS } from "@/lib/revenue-types"
 import { AuditHistoryTab } from "./audit-history-tab"
 import { PicklistCombobox } from "./picklist-combobox"
 import { SelectCombobox } from "./select-combobox"
+import { TabDescription } from "@/components/section/TabDescription"
 
 export interface ProductOpportunityUsage {
   id: string
@@ -159,6 +160,12 @@ const TABS: { id: TabKey; label: string }[] = [
   { id: "vendor", label: "Vendor" },
   { id: "history", label: "History" }
 ]
+
+const TAB_DESCRIPTIONS: Record<TabKey, string> = {
+  distributor: "This section displays distributor-specific product information including the distributor's product name, part number, family classification, and description.",
+  vendor: "This section displays vendor-specific product information including the vendor's product name, part number, family classification, and description.",
+  history: "This section shows a complete audit log of all changes made to this product, including who made each change and when. Use the restore functionality to revert to previous versions if needed."
+}
 
 function numberToInputString(value: number | null | undefined): string {
   if (value === null || value === undefined || Number.isNaN(value)) {
@@ -543,6 +550,7 @@ function ProductHeader({ product, onEdit, activeTab, onTabSelect }: ProductHeade
       {activeTab === "distributor" && (
         <div className="rounded-b-2xl border-x border-b border-gray-200 bg-white pt-0 px-3 pb-4">
           <div className="border-t-2 border-t-primary-600 -mr-3 pt-3">
+            <TabDescription>{TAB_DESCRIPTIONS.distributor}</TabDescription>
             <div className="space-y-1.5">
             <FieldRow label="Distributor - Product Name">
               <div className={fieldBoxClass}>
@@ -578,6 +586,7 @@ function ProductHeader({ product, onEdit, activeTab, onTabSelect }: ProductHeade
       {activeTab === "vendor" && (
         <div className="rounded-b-2xl border-x border-b border-gray-200 bg-white pt-0 px-3 pb-4">
           <div className="border-t-2 border-t-primary-600 -mr-3 pt-3">
+            <TabDescription>{TAB_DESCRIPTIONS.vendor}</TabDescription>
             <div className="space-y-1.5">
             <FieldRow label="Vendor - Product Name">
               <div className={fieldBoxClass}>
@@ -612,7 +621,7 @@ function ProductHeader({ product, onEdit, activeTab, onTabSelect }: ProductHeade
       {activeTab === "history" && (
         <div className="rounded-b-2xl border-x border-b border-gray-200 bg-white pt-0 px-3 pb-4">
           <div className="border-t-2 border-t-primary-600 -mr-3 pt-3">
-            <AuditHistoryTab entityName="Product" entityId={product.id} />
+            <AuditHistoryTab entityName="Product" entityId={product.id} description={TAB_DESCRIPTIONS.history} />
           </div>
         </div>
       )}
@@ -1023,6 +1032,7 @@ interface EditableProductHeaderProps {
       {activeTab === "distributor" && (
         <div className="rounded-b-2xl border-x border-b border-gray-200 bg-white pt-0 px-3 pb-4">
           <div className="border-t-2 border-t-primary-600 -mr-3 pt-3">
+            <TabDescription>{TAB_DESCRIPTIONS.distributor}</TabDescription>
             <div className="space-y-1.5">
             {renderRow(
               "Distributor - Product Name",
@@ -1110,6 +1120,7 @@ interface EditableProductHeaderProps {
       {activeTab === "vendor" && (
         <div className="rounded-b-2xl border-x border-b border-gray-200 bg-white pt-0 px-3 pb-4">
           <div className="border-t-2 border-t-primary-600 -mr-3 pt-3">
+            <TabDescription>{TAB_DESCRIPTIONS.vendor}</TabDescription>
             <div className="space-y-1.5">
             {renderRow(
               "Vendor - Product Name",
@@ -1191,7 +1202,7 @@ interface EditableProductHeaderProps {
         </div>
       )}
       {activeTab === "history" && product && (
-        <AuditHistoryTab entityName="Product" entityId={product.id} />
+        <AuditHistoryTab entityName="Product" entityId={product.id} description={TAB_DESCRIPTIONS.history} />
       )}
     </div>
   )

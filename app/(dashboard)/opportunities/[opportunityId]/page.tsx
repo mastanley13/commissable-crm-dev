@@ -179,25 +179,10 @@ export default function OpportunityDetailPage() {
           customerPurchaseOrder: data?.customerPurchaseOrder ?? null
         }
 
-        const roles = [
-          {
-            id: detail.owner?.id ?? "owner",
-            role: "Opportunity Owner",
-            fullName: detail.owner?.name ?? "Unassigned",
-            jobTitle: null,
-            email: null,
-            workPhone: null,
-            phoneExtension: null,
-            mobile: null,
-            active: true
-          }
-        ]
-
         setOpportunity({
           ...detail,
           summaryMetrics,
-          identifiers,
-          roles
+          identifiers
         })
         setError(null)
       } catch (err) {

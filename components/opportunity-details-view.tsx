@@ -65,6 +65,7 @@ import { buildStandardBulkActions } from "@/components/standard-bulk-actions"
 import type { BulkActionsGridProps } from "@/components/bulk-actions-grid"
 import { RevenueScheduleCloneModal, type SourceScheduleData } from "@/components/revenue-schedule-clone-modal"
 import { RevenueBulkApplyPanel } from "@/components/revenue-bulk-apply-panel"
+import { TabDescription } from "@/components/section/TabDescription"
 
 // Helper function to parse currency values
 const parseCurrency = (val: any): number => {
@@ -1670,6 +1671,17 @@ const DETAIL_TABS: { id: TabKey; label: string }[] = [
   { id: "details", label: "Details" },
   { id: "history", label: "History" }
 ]
+
+const TAB_DESCRIPTIONS: Record<TabKey, string> = {
+  products: "This section displays all products included in this opportunity. Add, edit, or remove products to update pricing and expected revenue calculations.",
+  "revenue-schedules": "This section shows the recurring revenue schedules tied to this opportunity. Revenue schedules track expected billing cycles, commission calculations, and payment timing.",
+  activities: "This section provides a timeline of all activities, notes, tasks, and files associated with this opportunity. Add notes to track important updates or attach relevant documents.",
+  summary: "This section provides a high-level overview of key opportunity metrics including total value, commission estimates, and status indicators at a glance.",
+  roles: "This section defines the partner relationships and commission split assignments for this opportunity. Configure house, subagent, and representative allocations here.",
+  details: "This section displays account, order, customer, location, and service IDs associated with this opportunity. These identifiers link the opportunity to external systems and records.",
+  history: "This section shows a complete audit log of all changes made to this opportunity, including who made each change and when. Use the restore functionality to revert to previous versions if needed."
+}
+
 export function OpportunityDetailsView({
   opportunity,
   loading,
@@ -2068,25 +2080,7 @@ export function OpportunityDetailsView({
       isSynthetic: false
     }))
 
-    if (baseRoles.length > 0) {
-      return baseRoles
-    }
-
-    const fallbackId = opportunity.owner?.id ?? `owner-${opportunity.id}`
-    return [
-      {
-        id: fallbackId,
-        role: "Opportunity Owner",
-        fullName: opportunity.owner?.name ?? "Unassigned",
-        jobTitle: "",
-        email: "",
-        workPhone: "",
-        phoneExtension: "",
-        mobile: "",
-        isActive: true,
-        isSynthetic: true
-      }
-    ]
+    return baseRoles
   }, [opportunity])
 
   const filteredRoleRows = useMemo(() => {
@@ -2165,7 +2159,7 @@ useEffect(() => {
     if (selectedRoles.length === 0) {
       return []
     }
-    return roleRows.filter(row => selectedRoles.includes(row.id))
+    return roleRows.filter(row => !row.isSynthetic && selectedRoles.includes(row.id))
   }, [roleRows, selectedRoles])
 
   const handleRoleSelect = useCallback((roleId: string, selected: boolean) => {
@@ -2183,7 +2177,7 @@ useEffect(() => {
   const handleSelectAllRoles = useCallback(
     (selected: boolean) => {
       if (selected) {
-        setSelectedRoles(paginatedRoleRows.map(row => row.id))
+        setSelectedRoles(paginatedRoleRows.filter(row => !row.isSynthetic).map(row => row.id))
         return
       }
       setSelectedRoles([])
@@ -2208,19 +2202,25 @@ useEffect(() => {
         return {
           ...column,
           render: (_: unknown, row: OpportunityRoleRow) => {
-            const checked = selectedRoles.includes(row.id)
+            const disabled = Boolean(row.isSynthetic)
+            const checked = !disabled && selectedRoles.includes(row.id)
             const labelSource = row.fullName || row.role || row.email
 
             return (
               <div className="flex items-center" data-disable-row-click="true">
                 <label
-                  className="flex cursor-pointer items-center justify-center"
+                  className={cn(
+                    "flex items-center justify-center",
+                    disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"
+                  )}
                   onClick={event => event.stopPropagation()}
+                  title={disabled ? "Opportunity Owner is informational and cannot be deleted." : undefined}
                 >
                   <input
                     type="checkbox"
                     className="sr-only"
                     checked={checked}
+                    disabled={disabled}
                     aria-label={`Select ${labelSource || "role"}`}
                     onChange={event => {
                       event.stopPropagation()
@@ -2233,7 +2233,9 @@ useEffect(() => {
                       "flex h-4 w-4 items-center justify-center rounded border transition-colors",
                       checked
                         ? "border-primary-500 bg-primary-600 text-white"
-                        : "border-gray-300 bg-white text-transparent"
+                        : disabled
+                          ? "border-gray-200 bg-gray-100 text-transparent"
+                          : "border-gray-300 bg-white text-transparent"
                     )}
                   >
                     <Check className="h-3 w-3" aria-hidden="true" />
@@ -5013,11 +5015,13 @@ useEffect(() => {
               <div className="flex flex-1 flex-col min-h-0 overflow-hidden">
                 {activeTab === "summary" ? (
                   <div className="border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-3 px-3 pb-3">
+                    <TabDescription>{TAB_DESCRIPTIONS.summary}</TabDescription>
                     <SummaryTab opportunity={opportunity} />
                   </div>
                 ) : activeTab === "products" ? (
                   <div className="grid flex-1 grid-rows-[auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0 px-3 pb-0">
                     <div className="border-t-2 border-t-primary-600 -mr-3 min-w-0 overflow-hidden">
+                    <TabDescription>{TAB_DESCRIPTIONS.products}</TabDescription>
                     <ListHeader
                       inTab
                       showCreateButton
@@ -5069,6 +5073,7 @@ useEffect(() => {
                 ) : activeTab === "roles" ? (
                   <div className="grid flex-1 grid-rows-[auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0 px-3 pb-0">
                     <div className="border-t-2 border-t-primary-600 -mr-3 min-w-0 overflow-hidden">
+                      <TabDescription>{TAB_DESCRIPTIONS.roles}</TabDescription>
                       <ListHeader
                         inTab
                         showCreateButton
@@ -5120,6 +5125,7 @@ useEffect(() => {
                 ) : activeTab === "revenue-schedules" ? (
                   <div className="grid flex-1 grid-rows-[auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0 px-3 pb-0">
                     <div className="border-t-2 border-t-primary-600 -mr-3 min-w-0 overflow-hidden">
+                      <TabDescription>{TAB_DESCRIPTIONS["revenue-schedules"]}</TabDescription>
                       <ListHeader
                         inTab
                         onCreateClick={() => setShowRevenueCreateModal(true)}
@@ -5177,6 +5183,7 @@ useEffect(() => {
                 ) : activeTab === "activities" ? (
                   <div className="grid flex-1 grid-rows-[auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0 px-3 pb-0">
                     <div className="border-t-2 border-t-primary-600 -mr-3 min-w-0 overflow-hidden">
+                      <TabDescription>{TAB_DESCRIPTIONS.activities}</TabDescription>
                       <ListHeader
                         inTab
                         onCreateClick={handleCreateActivity}
@@ -5226,6 +5233,7 @@ useEffect(() => {
                   </div>
                 ) : activeTab === "details" ? (
                   <div className="border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-3 px-3 pb-3">
+                    <TabDescription>{TAB_DESCRIPTIONS.details}</TabDescription>
                     <DetailsIdentifiersTab opportunity={opportunity} />
                   </div>
                 ) : activeTab === "history" ? (
@@ -5234,6 +5242,7 @@ useEffect(() => {
                     entityId={opportunity.id}
                     tableAreaRefCallback={tableAreaRefCallback}
                     tableBodyMaxHeight={tableBodyMaxHeight}
+                    description={TAB_DESCRIPTIONS.history}
                   />
                 ) : null}
                 </div>

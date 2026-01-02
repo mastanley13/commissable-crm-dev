@@ -50,6 +50,7 @@ import { fieldBoxClass, fieldLabelClass } from "./detail/shared"
 import { useAuth } from "@/lib/auth-context"
 import { VALIDATION_PATTERNS } from "@/lib/validation-shared"
 import { AuditHistoryTab } from "./audit-history-tab"
+import { TabDescription } from "@/components/section/TabDescription"
 
 export interface AccountAddress {
   line1: string
@@ -438,6 +439,14 @@ const TABS: { id: TabKey; label: string }[] = [
   { id: "activities", label: "Activities & Notes" },
   { id: "history", label: "History" }
 ]
+
+const TAB_DESCRIPTIONS: Record<TabKey, string> = {
+  contacts: "This section displays all contacts associated with this account. Use the filters to search by name, job title, or status, and click any contact to view their full profile.",
+  opportunities: "This section lists all sales opportunities linked to this account. Track deal progress, expected close dates, and revenue potential for each opportunity in the pipeline.",
+  groups: "This section shows the groups this account belongs to. Groups help organize accounts by region, industry, or custom criteria for targeted actions and reporting.",
+  activities: "This section provides a timeline of all activities, notes, tasks, and communications related to this account. Add notes to track important interactions or follow-up items.",
+  history: "This section shows a complete audit log of all changes made to this account, including who made each change and when. Use the restore functionality to revert to previous versions if needed."
+}
 
 export const CONTACT_TABLE_BASE_COLUMNS: Column[] = [
   {
@@ -5019,6 +5028,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                   {activeTab === "contacts" && (
                     <div className="grid flex-1 grid-rows-[auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0 px-3 pb-0">
                       <div className="border-t-2 border-t-primary-600 -mr-3 min-w-0 overflow-hidden">
+                        <TabDescription>{TAB_DESCRIPTIONS.contacts}</TabDescription>
                         <ListHeader
                         inTab
                         onCreateClick={handleCreateContact}
@@ -5074,6 +5084,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                   {activeTab === "opportunities" && (
                     <div className="grid flex-1 grid-rows-[auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0 px-3 pb-0">
                       <div className="border-t-2 border-t-primary-600 -mr-3 min-w-0 overflow-hidden">
+                        <TabDescription>{TAB_DESCRIPTIONS.opportunities}</TabDescription>
                         <ListHeader
                         inTab
                         onCreateClick={handleCreateOpportunity}
@@ -5128,6 +5139,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                   {activeTab === "groups" && (
                     <div className="grid flex-1 grid-rows-[auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0 px-3 pb-0">
                       <div className="border-t-2 border-t-primary-600 -mr-3 min-w-0 overflow-hidden">
+                        <TabDescription>{TAB_DESCRIPTIONS.groups}</TabDescription>
                         <ListHeader
                         inTab
                         onCreateClick={handleCreateGroup}
@@ -5177,6 +5189,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                   {activeTab === "activities" && (
                     <div className="grid flex-1 grid-rows-[auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0 px-3 pb-0">
                       <div className="border-t-2 border-t-primary-600 -mr-3 min-w-0 overflow-hidden">
+                        <TabDescription>{TAB_DESCRIPTIONS.activities}</TabDescription>
                         <ListHeader
                         inTab
                         onCreateClick={handleCreateActivity}
@@ -5230,6 +5243,7 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
                       entityId={account.id}
                       tableAreaRefCallback={tableAreaRefCallback}
                       tableBodyMaxHeight={tableBodyMaxHeight}
+                      description={TAB_DESCRIPTIONS.history}
                     />
                   )}
                 </div>

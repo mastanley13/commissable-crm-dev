@@ -6,6 +6,7 @@ import { ColumnChooserModal } from "./column-chooser-modal"
 import { ListHeader, type ColumnFilter } from "./list-header"
 import { calculateMinWidth } from "@/lib/column-width-utils"
 import { HistoryRow } from "./opportunity-types"
+import { TabDescription } from "@/components/section/TabDescription"
 
 const normalizePageSize = (value: number): number => {
   if (!Number.isFinite(value)) return 100
@@ -30,6 +31,7 @@ interface AuditHistoryTabProps {
   rowActionLabel?: string
   rowActionRenderer?: (row: HistoryRow) => ReactNode
   reloadToken?: number
+  description?: string
 }
 
 interface AuditLogAPIResponse {
@@ -275,7 +277,8 @@ export function AuditHistoryTab({
   tableAreaRefCallback,
   rowActionLabel,
   rowActionRenderer,
-  reloadToken
+  reloadToken,
+  description
 }: AuditHistoryTabProps) {
   const baseColumns = useMemo(
     () => buildBaseHistoryColumns(rowActionRenderer ? (rowActionLabel ?? "Actions") : undefined),
@@ -392,6 +395,7 @@ export function AuditHistoryTab({
     <>
       <div className="grid flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0 px-3 pb-0">
         <div className="border-t-2 border-t-primary-600 -mr-3 min-w-0 overflow-hidden">
+          {description && <TabDescription>{description}</TabDescription>}
           <ListHeader
             inTab
             searchPlaceholder="Search history"

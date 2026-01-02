@@ -4,6 +4,7 @@ import Link from "next/link"
 import { ArrowLeft, Calendar, Clock, Loader2, MapPin, Paperclip, User } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
+import { TabDescription } from "@/components/section/TabDescription"
 
 export interface ActivityAttachmentSummary {
   id: string
@@ -151,7 +152,7 @@ function ContextLinks({ activity }: { activity: ActivityDetailRecord }) {
     <div className="rounded-2xl border border-gray-200 bg-white shadow-sm">
       <div className="border-b border-gray-200 px-6 py-4">
         <h3 className="text-sm font-semibold text-gray-900">Linked Records</h3>
-        <p className="text-xs text-gray-500">Entities associated with this activity.</p>
+        <TabDescription className="mt-1 mb-0">This section shows the accounts, contacts, opportunities, and revenue schedules connected to this activity. Click any link to navigate to the related record.</TabDescription>
       </div>
       <dl className="grid gap-4 px-6 py-5">
         {contexts.map(({ label, value, href }) => (
@@ -246,6 +247,7 @@ export function ActivityDetailView({ activity, loading, error, onRefresh }: Acti
           <div className="space-y-6">
             <section className="space-y-3">
               <h2 className="text-sm font-semibold text-gray-900">Activity Summary</h2>
+              <TabDescription>This section displays key scheduling information including due dates, assignments, and status. Review timing and ownership details at a glance.</TabDescription>
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="flex items-center gap-2 text-sm text-gray-700">
                   <Calendar className="h-4 w-4 text-gray-500" />
@@ -270,6 +272,7 @@ export function ActivityDetailView({ activity, loading, error, onRefresh }: Acti
 
             <section className="space-y-3">
               <h2 className="text-sm font-semibold text-gray-900">Description</h2>
+              <TabDescription>This section contains the full description and notes for this activity. Detailed context and instructions are captured here for reference.</TabDescription>
               <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
                 {activity.description ? (
                   <pre className="whitespace-pre-wrap font-sans text-sm text-gray-700">{activity.description}</pre>
@@ -281,6 +284,7 @@ export function ActivityDetailView({ activity, loading, error, onRefresh }: Acti
 
             <section className="space-y-3">
               <h2 className="text-sm font-semibold text-gray-900">Attachments</h2>
+              <TabDescription>This section lists all files attached to this activity. Download relevant documents or reference materials associated with this task.</TabDescription>
               <AttachmentList activityId={activity.id} attachments={activity.attachments} />
             </section>
           </div>
@@ -290,7 +294,7 @@ export function ActivityDetailView({ activity, loading, error, onRefresh }: Acti
             <div className="rounded-2xl border border-gray-200 bg-white shadow-sm">
               <div className="border-b border-gray-200 px-6 py-4">
                 <h3 className="text-sm font-semibold text-gray-900">Audit</h3>
-                <p className="text-xs text-gray-500">Key lifecycle events for this activity.</p>
+                <TabDescription className="mt-1 mb-0">This section displays key lifecycle events including creation, updates, and ownership changes for this activity.</TabDescription>
               </div>
               <dl className="grid gap-4 px-6 py-5">
                 <div>

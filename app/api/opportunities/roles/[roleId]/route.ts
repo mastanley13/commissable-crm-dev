@@ -10,6 +10,10 @@ export const dynamic = "force-dynamic"
 
 const OPPORTUNITY_ROLE_DELETE_PERMISSIONS = ["opportunities.edit.all", "opportunities.manage"]
 
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
+}
+
 export async function DELETE(
   request: NextRequest,
   { params }: { params: { roleId: string } }
@@ -19,6 +23,9 @@ export async function DELETE(
       const { roleId } = params
       if (!roleId) {
         return NextResponse.json({ error: "Role id is required" }, { status: 400 })
+      }
+      if (!isUuid(roleId)) {
+        return NextResponse.json({ error: "Role id must be a valid UUID" }, { status: 400 })
       }
 
       let reason: string | null = null

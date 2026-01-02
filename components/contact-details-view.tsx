@@ -38,6 +38,7 @@ import { fieldBoxClass as sharedFieldBoxClass } from "./detail/shared"
 import { ContactHeaderV2 } from "./contact-header-v2"
 import { AuditHistoryTab } from "./audit-history-tab"
 import { buildStandardBulkActions } from "@/components/standard-bulk-actions"
+import { TabDescription } from "@/components/section/TabDescription"
 
 export interface ActivityAttachmentRow {
   id: string
@@ -355,6 +356,13 @@ const TABS: { id: TabKey; label: string }[] = [
   { id: "activities", label: "Activities & Notes" },
   { id: "history", label: "History" }
 ]
+
+const TAB_DESCRIPTIONS: Record<TabKey, string> = {
+  opportunities: "This section lists all sales opportunities where this contact is involved. Track the contact's role in deals and monitor opportunity progress.",
+  groups: "This section shows the groups this contact belongs to. Groups help organize contacts by role, department, or custom criteria for targeted communications.",
+  activities: "This section provides a timeline of all activities, notes, tasks, and communications with this contact. Add notes to track important conversations or follow-up items.",
+  history: "This section shows a complete audit log of all changes made to this contact record, including who made each change and when. Use the restore functionality to revert to previous versions if needed."
+}
 
 // Legacy field classes removed in favor of shared versions in components/detail/shared.ts
 
@@ -3421,6 +3429,7 @@ useEffect(() => {
                   {activeTab === "activities" && (
                     <div className="grid flex-1 grid-rows-[auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0 px-3 pb-0">
                       <div className="border-t-2 border-t-primary-600 -mr-3 min-w-0 overflow-hidden">
+                        <TabDescription>{TAB_DESCRIPTIONS.activities}</TabDescription>
                         <ListHeader
                         inTab
                         onCreateClick={handleCreateNewClick}
@@ -3466,6 +3475,7 @@ useEffect(() => {
                   {activeTab === "opportunities" && (
                     <div className="grid flex-1 grid-rows-[auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0 px-3 pb-0">
                       <div className="border-t-2 border-t-primary-600 -mr-3 min-w-0 overflow-hidden">
+                        <TabDescription>{TAB_DESCRIPTIONS.opportunities}</TabDescription>
                         <ListHeader
                         inTab
                         onCreateClick={handleCreateNewClick}
@@ -3511,6 +3521,7 @@ useEffect(() => {
                   {activeTab === "groups" && (
                     <div className="grid flex-1 grid-rows-[auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0 px-3 pb-0">
                       <div className="border-t-2 border-t-primary-600 -mr-3 min-w-0 overflow-hidden">
+                        <TabDescription>{TAB_DESCRIPTIONS.groups}</TabDescription>
                         <ListHeader
                         inTab
                         onCreateClick={handleCreateNewClick}
@@ -3558,6 +3569,7 @@ useEffect(() => {
                       entityId={contact.id}
                       tableAreaRefCallback={tableAreaRefCallback}
                       tableBodyMaxHeight={tableBodyMaxHeight}
+                      description={TAB_DESCRIPTIONS.history}
                     />
                   )}
                 </div>
