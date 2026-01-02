@@ -13,6 +13,8 @@ import { Check } from 'lucide-react'
 import { ActivityListItem } from '@/lib/activity-service'
 import { BulkOwnerModal, type BulkOwnerOption } from '@/components/bulk-owner-modal'
 import { BulkStatusModal } from '@/components/bulk-status-modal'
+import { TwoStageDeleteDialog } from '@/components/two-stage-delete-dialog'
+import type { DeletionConstraint } from '@/lib/deletion'
 
 interface ActivityRow {
   id: string
@@ -190,6 +192,8 @@ export default function ActivitiesPage() {
   const [pagination, setPagination] = useState<PaginationInfo>({ page: 1, pageSize: 100, total: 0, totalPages: 1 })
   const [tableBodyHeight, setTableBodyHeight] = useState<number>()
   const tableAreaNodeRef = useRef<HTMLDivElement | null>(null)
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [activityDeleteTargets, setActivityDeleteTargets] = useState<ActivityRow[]>([])
   const { showError, showSuccess } = useToasts()
 
   const {
@@ -343,10 +347,22 @@ export default function ActivitiesPage() {
     REQUEST_ANIMATION_FRAME(() => measureTableArea())
   }, [measureTableArea, activities.length, page, pageSize])
 
-  const hasInactiveSelectedActivities = selectedActivities.some(id => {
-    const row = activities.find(activity => activity.id === id)
-    return row && !row.active
-  })
+  const openBulkDeleteDialog = useCallback(() => {
+    if (selectedActivities.length === 0) {
+      showError("No activities selected", "Select at least one activity to delete.")
+      return
+    }
+
+    const selectedSet = new Set(selectedActivities)
+    const targets = activities.filter(activity => selectedSet.has(activity.id))
+    if (targets.length === 0) {
+      showError("Activities unavailable", "Unable to locate the selected activities on this page.")
+      return
+    }
+
+    setActivityDeleteTargets(targets)
+    setShowDeleteDialog(true)
+  }, [activities, selectedActivities, showError])
 
   const handleSearch = useCallback((query: string) => {
     setSearchQuery(query)
@@ -400,45 +416,129 @@ export default function ActivitiesPage() {
     }
   }, [activities])
 
-  const handleBulkDelete = useCallback(() => {
-    if (selectedActivities.length === 0) {
-      showError("No activities selected", "Select at least one activity to delete.")
-      return
-    }
-    const activityMap = new Map(activities.map(activity => [activity.id, activity]))
-    const inactiveIds = selectedActivities.filter(id => {
-      const row = activityMap.get(id)
-      return row && !row.active
-    })
-    if (inactiveIds.length === 0) {
-      showError("Only inactive items can be deleted", "Mark the selected activities inactive before deleting.")
-      return
-    }
-    const confirmed = typeof window === "undefined"
-      ? true
-      : window.confirm(`Delete ${inactiveIds.length} inactive activit${inactiveIds.length === 1 ? "y" : "ies"}? This can't be undone.`)
-    if (!confirmed) {
-      return
-    }
-    const inactiveSet = new Set(inactiveIds)
-    setActivities(prev => prev.filter(activity => !inactiveSet.has(activity.id)))
-    setSelectedActivities(prev => prev.filter(id => !inactiveSet.has(id)))
-    setPagination(prev => {
-      const nextTotal = Math.max(0, prev.total - inactiveIds.length)
-      const nextTotalPages = Math.max(1, Math.ceil(nextTotal / prev.pageSize))
-      const nextPage = Math.min(prev.page, nextTotalPages)
-      if (nextPage !== prev.page) {
-        setPage(nextPage)
+  const deactivateActivityForDialog = useCallback(async (
+    activityId: string,
+    _reason?: string
+  ): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const response = await fetch(`/api/activities/${activityId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "Completed" })
+      })
+      const payload = await response.json().catch(() => null)
+
+      if (!response.ok) {
+        const message = payload?.error ?? "Failed to complete activity"
+        showError("Failed to update activity", message)
+        return { success: false, error: message }
       }
-      return {
-        ...prev,
-        total: nextTotal,
-        totalPages: nextTotalPages,
-        page: nextPage
+
+      setActivities(previous =>
+        previous.map(activity =>
+          activity.id === activityId ? { ...activity, active: false, status: "Completed" } : activity
+        )
+      )
+      showSuccess("Activity completed", "The activity was marked inactive.")
+      return { success: true }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to update activity"
+      showError("Failed to update activity", message)
+      return { success: false, error: message }
+    }
+  }, [showError, showSuccess])
+
+  const bulkDeactivateActivitiesForDialog = useCallback(async (
+    entities: Array<{ id: string; name: string }>,
+    _reason?: string
+  ): Promise<{ success: boolean; error?: string }> => {
+    if (!entities || entities.length === 0) {
+      return { success: false, error: "No activities selected" }
+    }
+
+    const ids = entities.map(entity => entity.id)
+    const results = await Promise.allSettled(ids.map(id => deactivateActivityForDialog(id)))
+    const failedCount = results.filter(result => result.status !== "fulfilled" || !result.value?.success).length
+
+    if (failedCount > 0) {
+      const message = `${failedCount} activit${failedCount === 1 ? "y" : "ies"} could not be completed.`
+      showError("Some activities could not be completed", message)
+      return { success: false, error: message }
+    }
+
+    return { success: true }
+  }, [deactivateActivityForDialog, showError])
+
+  const deleteActivityRequest = useCallback(async (
+    activityId: string
+  ): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const response = await fetch(`/api/activities/${activityId}`, { method: "DELETE" })
+      const payload = await response.json().catch(() => null)
+      if (!response.ok) {
+        return { success: false, error: payload?.error ?? "Failed to delete activity" }
       }
+      return { success: true }
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : "Unable to delete activity" }
+    }
+  }, [])
+
+  const deleteActivityForDialog = useCallback(async (
+    activityId: string,
+    _bypassConstraints?: boolean,
+    _reason?: string
+  ): Promise<{ success: boolean; constraints?: DeletionConstraint[]; error?: string }> => {
+    const result = await deleteActivityRequest(activityId)
+    return result.success ? { success: true } : { success: false, error: result.error }
+  }, [deleteActivityRequest])
+
+  const bulkDeleteActivitiesForDialog = useCallback(async (
+    entities: Array<{ id: string; name: string }>,
+    _bypassConstraints?: boolean,
+    _reason?: string
+  ): Promise<{ success: boolean; constraints?: DeletionConstraint[]; error?: string }> => {
+    if (!entities || entities.length === 0) {
+      return { success: false, error: "No activities selected" }
+    }
+
+    const ids = entities.map(entity => entity.id)
+    const results = await Promise.allSettled(ids.map(id => deleteActivityRequest(id)))
+
+    const successIds: string[] = []
+    const failures: Array<{ id: string; name: string; message: string }> = []
+    results.forEach((result, index) => {
+      const id = ids[index]
+      const name = entities[index]?.name || id.slice(0, 8) + "..."
+      if (result.status === "fulfilled" && result.value.success) {
+        successIds.push(id)
+        return
+      }
+      const message =
+        result.status === "fulfilled"
+          ? (result.value.error || "Failed to delete activity")
+          : (result.reason instanceof Error ? result.reason.message : "Failed to delete activity")
+      failures.push({ id, name, message })
     })
-    showSuccess("Activities deleted", `${inactiveIds.length} activit${inactiveIds.length === 1 ? "y" : "ies"} removed.`)
-  }, [activities, selectedActivities, showError, showSuccess])
+
+    if (successIds.length > 0) {
+      showSuccess(
+        `Deleted ${successIds.length} activit${successIds.length === 1 ? "y" : "ies"}`,
+        "The selected activities have been removed."
+      )
+      setSelectedActivities(previous => previous.filter(id => !successIds.includes(id)))
+      await reloadActivities()
+    }
+
+    if (failures.length > 0) {
+      const detail = failures.slice(0, 5).map(item => `${item.name}: ${item.message}`).join("; ")
+      const message = failures.length > 5 ? `${detail}; and ${failures.length - 5} more` : detail
+      showError("Some activities could not be deleted", message)
+      return { success: false, error: message }
+    }
+
+    return { success: true }
+  }, [deleteActivityRequest, reloadActivities, showError, showSuccess])
 
   const handleBulkReassign = useCallback(() => {
     if (selectedActivities.length === 0) {
@@ -677,11 +777,11 @@ export default function ActivitiesPage() {
           selectedCount: selectedActivities.length,
           isBusy: tableLoading,
           entityLabelPlural: "activities",
-          onDelete: handleBulkDelete,
+          onDelete: openBulkDeleteDialog,
           onReassign: handleBulkReassign,
           onStatus: handleBulkStatus,
           onExport: handleBulkExport,
-          disableDelete: !hasInactiveSelectedActivities,
+          disableDelete: selectedActivities.length === 0,
         })}
       />
 
@@ -749,6 +849,45 @@ export default function ActivitiesPage() {
           setShowStatusModal(false)
         }}
         onSubmit={handleStatusSubmit}
+      />
+
+      <TwoStageDeleteDialog
+        isOpen={showDeleteDialog}
+        onClose={() => {
+          setShowDeleteDialog(false)
+          setActivityDeleteTargets([])
+        }}
+        entity="Activity"
+        entityName={
+          activityDeleteTargets.length > 0
+            ? `${activityDeleteTargets.length} activit${activityDeleteTargets.length === 1 ? "y" : "ies"}`
+            : "Activity"
+        }
+        entityId={activityDeleteTargets[0]?.id ?? ""}
+        multipleEntities={
+          activityDeleteTargets.length > 0
+            ? activityDeleteTargets.map(activity => ({
+                id: activity.id,
+                name: activity.description || activity.activityType || "Activity",
+                subtitle: activity.accountName ? `Account: ${activity.accountName}` : undefined
+              }))
+            : undefined
+        }
+        entityLabelPlural="Activities"
+        isDeleted={false}
+        onDeactivate={deactivateActivityForDialog}
+        onBulkDeactivate={bulkDeactivateActivitiesForDialog}
+        onSoftDelete={deleteActivityForDialog}
+        onBulkSoftDelete={bulkDeleteActivitiesForDialog}
+        onPermanentDelete={async (id, reason) => {
+          const result = await deleteActivityForDialog(id, undefined, reason)
+          return result.success ? { success: true } : { success: false, error: result.error }
+        }}
+        userCanPermanentDelete={false}
+        disallowActiveDelete={activityDeleteTargets.some(activity => !!activity.active)}
+        modalSize="revenue-schedules"
+        requireReason
+        note="Activities must be completed before they can be deleted. Use Action = Deactivate to mark them completed."
       />
     </div>
   )

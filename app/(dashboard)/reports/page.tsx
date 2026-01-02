@@ -13,6 +13,8 @@ import { useToasts } from '@/components/toast'
 import { FileText, Check } from 'lucide-react'
 import { BulkOwnerModal, type BulkOwnerOption } from '@/components/bulk-owner-modal'
 import { BulkStatusModal } from '@/components/bulk-status-modal'
+import { TwoStageDeleteDialog } from '@/components/two-stage-delete-dialog'
+import type { DeletionConstraint } from '@/lib/deletion'
 
 interface ReportRow {
   id: string
@@ -131,6 +133,8 @@ export default function ReportsPage() {
   })
   const [tableBodyHeight, setTableBodyHeight] = useState<number>()
   const tableAreaNodeRef = useRef<HTMLDivElement | null>(null)
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [reportDeleteTargets, setReportDeleteTargets] = useState<ReportRow[]>([])
   const { showError, showSuccess } = useToasts()
 
   const {
@@ -360,31 +364,65 @@ export default function ReportsPage() {
     await reloadReports()
   }, [reloadReports])
 
-  const handleBulkDelete = useCallback(() => {
+  const openBulkDeleteDialog = useCallback(() => {
     if (selectedReportIds.length === 0) {
       showError("No reports selected", "Select at least one report to delete.")
       return
     }
-    const reportMap = new Map(reports.map(row => [row.id, row]))
-    const inactiveIds = selectedReportIds.filter(id => {
-      const row = reportMap.get(id)
-      return row && !row.active
-    })
-    if (inactiveIds.length === 0) {
-      showError("Only inactive items can be deleted", "Mark the selected reports inactive before deleting.")
+
+    const selectedSet = new Set(selectedReportIds)
+    const targets = reports.filter(report => selectedSet.has(report.id))
+    if (targets.length === 0) {
+      showError("Reports unavailable", "Unable to locate the selected reports on this page.")
       return
     }
-    const confirmed = typeof window === "undefined"
-      ? true
-      : window.confirm(`Delete ${inactiveIds.length} inactive report${inactiveIds.length === 1 ? "" : "s"}? This can't be undone.`)
-    if (!confirmed) {
+
+    setReportDeleteTargets(targets)
+    setShowDeleteDialog(true)
+  }, [reports, selectedReportIds, showError])
+
+  const deactivateReportForDialog = useCallback(async (
+    reportId: string,
+    _reason?: string
+  ): Promise<{ success: boolean; error?: string }> => {
+    setReports(previous =>
+      previous.map(report =>
+        report.id === reportId ? { ...report, active: false, status: "Inactive" } : report
+      )
+    )
+    showSuccess("Report deactivated", "The report was marked inactive.")
+    return { success: true }
+  }, [showSuccess])
+
+  const bulkDeactivateReportsForDialog = useCallback(async (
+    entities: Array<{ id: string; name: string }>,
+    _reason?: string
+  ): Promise<{ success: boolean; error?: string }> => {
+    if (!entities || entities.length === 0) {
+      return { success: false, error: "No reports selected" }
+    }
+
+    const ids = new Set(entities.map(entity => entity.id))
+    setReports(previous =>
+      previous.map(report => (ids.has(report.id) ? { ...report, active: false, status: "Inactive" } : report))
+    )
+    showSuccess(
+      `Marked ${entities.length} report${entities.length === 1 ? "" : "s"} inactive`,
+      "Inactive reports can be deleted if needed."
+    )
+    return { success: true }
+  }, [showSuccess])
+
+  const deleteReportsLocally = useCallback((ids: string[]) => {
+    if (ids.length === 0) {
       return
     }
-    const inactiveSet = new Set(inactiveIds)
-    setReports(prev => prev.filter(row => !inactiveSet.has(row.id)))
-    setSelectedReportIds(prev => prev.filter(id => !inactiveSet.has(id)))
+
+    const idSet = new Set(ids)
+    setReports(previous => previous.filter(report => !idSet.has(report.id)))
+    setSelectedReportIds(previous => previous.filter(id => !idSet.has(id)))
     setPagination(prev => {
-      const nextTotal = Math.max(0, prev.total - inactiveIds.length)
+      const nextTotal = Math.max(0, prev.total - ids.length)
       const nextTotalPages = Math.max(1, Math.ceil(nextTotal / prev.pageSize))
       const nextPage = Math.min(prev.page, nextTotalPages)
       if (nextPage !== prev.page) {
@@ -397,8 +435,35 @@ export default function ReportsPage() {
         page: nextPage
       }
     })
-    showSuccess("Reports deleted", `${inactiveIds.length} report${inactiveIds.length === 1 ? "" : "s"} removed.`)
-  }, [reports, selectedReportIds, showError, showSuccess])
+  }, [])
+
+  const deleteReportForDialog = useCallback(async (
+    reportId: string,
+    _bypassConstraints?: boolean,
+    _reason?: string
+  ): Promise<{ success: boolean; constraints?: DeletionConstraint[]; error?: string }> => {
+    deleteReportsLocally([reportId])
+    showSuccess("Report deleted", "The report has been removed.")
+    return { success: true }
+  }, [deleteReportsLocally, showSuccess])
+
+  const bulkDeleteReportsForDialog = useCallback(async (
+    entities: Array<{ id: string; name: string }>,
+    _bypassConstraints?: boolean,
+    _reason?: string
+  ): Promise<{ success: boolean; constraints?: DeletionConstraint[]; error?: string }> => {
+    if (!entities || entities.length === 0) {
+      return { success: false, error: "No reports selected" }
+    }
+
+    const ids = entities.map(entity => entity.id)
+    deleteReportsLocally(ids)
+    showSuccess(
+      `Deleted ${ids.length} report${ids.length === 1 ? "" : "s"}`,
+      "The selected reports have been removed."
+    )
+    return { success: true }
+  }, [deleteReportsLocally, showSuccess])
 
   const handleBulkReassign = useCallback(() => {
     if (selectedReportIds.length === 0) {
@@ -566,11 +631,6 @@ export default function ReportsPage() {
     })
   }, [preferenceColumns, selectedReportIds, handleSelectReport, tableLoading])
 
-  const hasInactiveSelectedReports = selectedReportIds.some(id => {
-    const row = reports.find(report => report.id === id)
-    return row && !row.active
-  })
-
   return (
     <div className="dashboard-page-container">
       <ListHeader
@@ -594,11 +654,11 @@ export default function ReportsPage() {
           selectedCount: selectedReportIds.length,
           isBusy: tableLoading,
           entityLabelPlural: "reports",
-          onDelete: handleBulkDelete,
+          onDelete: openBulkDeleteDialog,
           onReassign: handleBulkReassign,
           onStatus: handleBulkStatus,
           onExport: handleBulkExport,
-          disableDelete: !hasInactiveSelectedReports,
+          disableDelete: selectedReportIds.length === 0,
         })}
       />
 
@@ -672,6 +732,45 @@ export default function ReportsPage() {
           setShowStatusModal(false)
         }}
         onSubmit={handleStatusSubmit}
+      />
+
+      <TwoStageDeleteDialog
+        isOpen={showDeleteDialog}
+        onClose={() => {
+          setShowDeleteDialog(false)
+          setReportDeleteTargets([])
+        }}
+        entity="Report"
+        entityName={
+          reportDeleteTargets.length > 0
+            ? `${reportDeleteTargets.length} report${reportDeleteTargets.length === 1 ? "" : "s"}`
+            : "Report"
+        }
+        entityId={reportDeleteTargets[0]?.id ?? ""}
+        multipleEntities={
+          reportDeleteTargets.length > 0
+            ? reportDeleteTargets.map(report => ({
+                id: report.id,
+                name: report.reportName || "Report",
+                subtitle: report.ownerName ? `Owner: ${report.ownerName}` : undefined
+              }))
+            : undefined
+        }
+        entityLabelPlural="Reports"
+        isDeleted={false}
+        onDeactivate={deactivateReportForDialog}
+        onBulkDeactivate={bulkDeactivateReportsForDialog}
+        onSoftDelete={deleteReportForDialog}
+        onBulkSoftDelete={bulkDeleteReportsForDialog}
+        onPermanentDelete={async (id, reason) => {
+          const result = await deleteReportForDialog(id, undefined, reason)
+          return result.success ? { success: true } : { success: false, error: result.error }
+        }}
+        userCanPermanentDelete={false}
+        disallowActiveDelete={reportDeleteTargets.some(report => !!report.active)}
+        modalSize="revenue-schedules"
+        requireReason
+        note="Reports must be inactive before they can be deleted. Use Action = Deactivate to mark them inactive."
       />
     </div>
   )

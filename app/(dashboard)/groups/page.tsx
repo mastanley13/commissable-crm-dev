@@ -12,7 +12,9 @@ import { GroupBulkOwnerModal } from '@/components/group-bulk-owner-modal'
 import { GroupBulkStatusModal } from '@/components/group-bulk-status-modal'
 import { useToasts } from '@/components/toast'
 import { buildStandardBulkActions } from '@/components/standard-bulk-actions'
+import { TwoStageDeleteDialog } from '@/components/two-stage-delete-dialog'
 import { Users, Check } from 'lucide-react'
+import type { DeletionConstraint } from '@/lib/deletion'
 
 interface GroupRow {
   id: string
@@ -144,6 +146,8 @@ export default function GroupsPage() {
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
   const [editingGroup, setEditingGroup] = useState<GroupRow | null>(null)
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [groupDeleteTargets, setGroupDeleteTargets] = useState<GroupRow[]>([])
   const [showBulkOwnerModal, setShowBulkOwnerModal] = useState(false)
   const [showBulkStatusModal, setShowBulkStatusModal] = useState(false)
   const [bulkOwnerOptions, setBulkOwnerOptions] = useState<OwnerOption[]>([])
@@ -404,46 +408,193 @@ export default function GroupsPage() {
     URL.revokeObjectURL(url)
   }, [groups, selectedGroupIds, showError])
 
-  const deleteGroups = useCallback(async (ids: string[]) => {
-    if (ids.length === 0) {
+  const openBulkDeleteDialog = useCallback(() => {
+    if (selectedGroupIds.length === 0) {
       showError("No groups selected", "Select at least one group to delete.")
       return
     }
 
-    const confirmDelete = window.confirm(`Delete ${ids.length} group${ids.length === 1 ? "" : "s"}? This cannot be undone.`)
-    if (!confirmDelete) {
+    const selectedSet = new Set(selectedGroupIds)
+    const targets = groups.filter(group => selectedSet.has(group.id))
+    if (targets.length === 0) {
+      showError("Groups unavailable", "Unable to locate the selected groups on this page.")
       return
     }
 
-    setBulkActionLoading(true)
-    try {
-      const results = await Promise.allSettled(
-        ids.map(async (id) => {
-          const response = await fetch(`/api/groups/${id}?force=true`, { method: "DELETE" })
-          if (!response.ok) {
-            const payload = await response.json().catch(() => null)
-            throw new Error(payload?.error ?? "Failed to delete group")
-          }
-        })
-      )
+    setGroupDeleteTargets(targets)
+    setShowDeleteDialog(true)
+  }, [groups, selectedGroupIds, showError])
 
-      const failed = results.filter(result => result.status === "rejected")
-      if (failed.length > 0) {
-        showError("Some groups could not be deleted", `${failed.length} of ${ids.length} operations failed.`)
-      } else {
-        showSuccess("Groups deleted", `${ids.length} group${ids.length === 1 ? "" : "s"} deleted successfully.`)
+  const deactivateGroupForDialog = useCallback(async (
+    groupId: string,
+    _reason?: string
+  ): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const response = await fetch(`/api/groups/${groupId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isActive: false })
+      })
+      const payload = await response.json().catch(() => null)
+
+      if (!response.ok) {
+        const message = payload?.error ?? "Failed to update group"
+        showError("Failed to deactivate group", message)
+        return { success: false, error: message }
       }
 
-      setSelectedGroupIds(previous => previous.filter(id => !ids.includes(id)))
-      await reloadGroups()
-    } finally {
-      setBulkActionLoading(false)
+      setGroups(previous => previous.map(group => (group.id === groupId ? { ...group, active: false } : group)))
+      showSuccess("Group deactivated", "The group was marked inactive.")
+      return { success: true }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to deactivate group"
+      showError("Failed to deactivate group", message)
+      return { success: false, error: message }
     }
-  }, [reloadGroups, showError, showSuccess])
+  }, [showError, showSuccess])
 
-  const handleBulkDelete = useCallback(async () => {
-    await deleteGroups(selectedGroupIds)
-  }, [deleteGroups, selectedGroupIds])
+  const bulkDeactivateGroupsForDialog = useCallback(async (
+    entities: Array<{ id: string; name: string }>,
+    _reason?: string
+  ): Promise<{ success: boolean; error?: string }> => {
+    if (!entities || entities.length === 0) {
+      return { success: false, error: "No groups selected" }
+    }
+
+    const ids = entities.map(entity => entity.id)
+    const responses = await Promise.allSettled(
+      ids.map(async id => {
+        const response = await fetch(`/api/groups/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ isActive: false })
+        })
+        if (!response.ok) {
+          const payload = await response.json().catch(() => null)
+          throw new Error(payload?.error ?? "Failed to update group")
+        }
+        return id
+      })
+    )
+
+    const successIds = responses
+      .filter((result): result is PromiseFulfilledResult<string> => result.status === "fulfilled")
+      .map(result => result.value)
+    const failedCount = responses.length - successIds.length
+
+    if (successIds.length > 0) {
+      const successSet = new Set(successIds)
+      setGroups(previous => previous.map(group => (successSet.has(group.id) ? { ...group, active: false } : group)))
+      showSuccess(
+        `Marked ${successIds.length} group${successIds.length === 1 ? "" : "s"} inactive`,
+        "Inactive groups can still be deleted if needed."
+      )
+    }
+
+    if (failedCount > 0) {
+      const message = `${failedCount} group${failedCount === 1 ? "" : "s"} could not be deactivated.`
+      showError("Some groups could not be deactivated", message)
+      return { success: false, error: message }
+    }
+
+    return { success: true }
+  }, [showError, showSuccess])
+
+  const mapGroupConstraints = useCallback((raw: unknown, groupName?: string): DeletionConstraint[] => {
+    if (!Array.isArray(raw)) {
+      return []
+    }
+    return raw.map((constraint: any) => {
+      const message = typeof constraint?.message === "string" ? constraint.message : "Blocked by related records."
+      const prefixed = groupName ? `${groupName}: ${message}` : message
+      return {
+        entity: "Group",
+        field: typeof constraint?.type === "string" ? constraint.type : "constraint",
+        count: typeof constraint?.count === "number" ? constraint.count : 0,
+        message: prefixed
+      }
+    })
+  }, [])
+
+  const deleteGroupForDialog = useCallback(async (
+    groupId: string,
+    bypassConstraints?: boolean,
+    _reason?: string
+  ): Promise<{ success: boolean; constraints?: DeletionConstraint[]; error?: string }> => {
+    try {
+      const url = `/api/groups/${groupId}${bypassConstraints ? "?force=true" : ""}`
+      const response = await fetch(url, { method: "DELETE" })
+      const payload = await response.json().catch(() => null)
+
+      if (!response.ok) {
+        if (response.status === 409) {
+          const groupName = groups.find(group => group.id === groupId)?.groupName
+          const constraints = mapGroupConstraints(payload?.constraints, groupName)
+          if (constraints.length > 0) {
+            return { success: false, constraints }
+          }
+        }
+        const message = payload?.error ?? "Failed to delete group"
+        return { success: false, error: message }
+      }
+
+      setSelectedGroupIds(previous => previous.filter(id => id !== groupId))
+      await reloadGroups()
+      return { success: true }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to delete group"
+      return { success: false, error: message }
+    }
+  }, [groups, mapGroupConstraints, reloadGroups])
+
+  const bulkDeleteGroupsForDialog = useCallback(async (
+    entities: Array<{ id: string; name: string }>,
+    bypassConstraints?: boolean,
+    reason?: string
+  ): Promise<{ success: boolean; constraints?: DeletionConstraint[]; error?: string }> => {
+    if (!entities || entities.length === 0) {
+      return { success: false, error: "No groups selected" }
+    }
+
+    const constraints: DeletionConstraint[] = []
+    const failures: Array<{ id: string; name: string; message: string }> = []
+    const successIds: string[] = []
+
+    for (const entity of entities) {
+      const result = await deleteGroupForDialog(entity.id, bypassConstraints, reason)
+      if (result.success) {
+        successIds.push(entity.id)
+        continue
+      }
+      if (result.constraints && result.constraints.length > 0) {
+        constraints.push(...result.constraints)
+        continue
+      }
+      failures.push({ id: entity.id, name: entity.name, message: result.error || "Failed to delete group" })
+    }
+
+    if (constraints.length > 0) {
+      return { success: false, constraints }
+    }
+
+    if (successIds.length > 0) {
+      showSuccess(
+        `Deleted ${successIds.length} group${successIds.length === 1 ? "" : "s"}`,
+        "The selected groups have been removed."
+      )
+      setSelectedGroupIds(previous => previous.filter(id => !successIds.includes(id)))
+      await reloadGroups()
+    }
+
+    if (failures.length > 0) {
+      const detail = failures.slice(0, 5).map(item => `${item.name}: ${item.message}`).join("; ")
+      const message = failures.length > 5 ? `${detail}; and ${failures.length - 5} more` : detail
+      showError("Some groups could not be deleted", message)
+      return { success: false, error: message }
+    }
+
+    return { success: true }
+  }, [deleteGroupForDialog, reloadGroups, showError, showSuccess])
 
   const handleBulkOwnerSubmit = useCallback(async (ownerId: string | null) => {
     if (selectedGroupIds.length === 0) {
@@ -603,10 +754,11 @@ export default function GroupsPage() {
           selectedCount: selectedGroupIds.length,
           isBusy: tableLoading || bulkActionLoading,
           entityLabelPlural: "groups",
-          onDelete: handleBulkDelete,
+          onDelete: openBulkDeleteDialog,
           onReassign: openBulkOwnerModal,
           onStatus: openBulkStatusModal,
           onExport: handleBulkExport,
+          disableDelete: selectedGroupIds.length === 0,
         })}
       />
 
@@ -681,6 +833,44 @@ export default function GroupsPage() {
         onClose={() => setShowBulkStatusModal(false)}
         onSubmit={handleBulkStatusSubmit}
         isSubmitting={bulkActionLoading}
+      />
+
+      <TwoStageDeleteDialog
+        isOpen={showDeleteDialog}
+        onClose={() => {
+          setShowDeleteDialog(false)
+          setGroupDeleteTargets([])
+        }}
+        entity="Group"
+        entityName={
+          groupDeleteTargets.length > 0
+            ? `${groupDeleteTargets.length} group${groupDeleteTargets.length === 1 ? "" : "s"}`
+            : "Group"
+        }
+        entityId={groupDeleteTargets[0]?.id ?? ""}
+        multipleEntities={
+          groupDeleteTargets.length > 0
+            ? groupDeleteTargets.map(group => ({
+                id: group.id,
+                name: group.groupName || "Group",
+                subtitle: group.ownerName ? `Owner: ${group.ownerName}` : undefined
+              }))
+            : undefined
+        }
+        entityLabelPlural="Groups"
+        isDeleted={false}
+        onDeactivate={deactivateGroupForDialog}
+        onBulkDeactivate={bulkDeactivateGroupsForDialog}
+        onSoftDelete={deleteGroupForDialog}
+        onBulkSoftDelete={bulkDeleteGroupsForDialog}
+        onPermanentDelete={async (id, reason) => {
+          const result = await deleteGroupForDialog(id, true, reason)
+          return result.success ? { success: true } : { success: false, error: result.error }
+        }}
+        userCanPermanentDelete={false}
+        modalSize="revenue-schedules"
+        requireReason
+        note="Deactivation marks groups inactive. Delete permanently removes the group; if members are attached you may need Force Delete."
       />
     </div>
   )

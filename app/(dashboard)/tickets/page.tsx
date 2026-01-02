@@ -12,6 +12,8 @@ import { Check } from 'lucide-react'
 import { BulkOwnerModal, type BulkOwnerOption } from '@/components/bulk-owner-modal'
 import { BulkStatusModal } from '@/components/bulk-status-modal'
 import { TicketCreateModal } from '@/components/ticket-create-modal'
+import { TwoStageDeleteDialog } from '@/components/two-stage-delete-dialog'
+import type { DeletionConstraint } from '@/lib/deletion'
 
 interface TicketRow {
   id: string
@@ -221,6 +223,8 @@ export default function TicketsPage() {
   const [tableBodyHeight, setTableBodyHeight] = useState<number>()
   const tableAreaNodeRef = useRef<HTMLDivElement | null>(null)
   const [showCreateModal, setShowCreateModal] = useState(false)
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [ticketDeleteTargets, setTicketDeleteTargets] = useState<TicketRow[]>([])
   const { showError, showSuccess } = useToasts()
 
   const {
@@ -392,10 +396,22 @@ export default function TicketsPage() {
     REQUEST_ANIMATION_FRAME(() => measureTableArea())
   }, [measureTableArea, tickets.length, page, pageSize])
 
-  const hasInactiveSelectedTickets = selectedTickets.some(id => {
-    const row = tickets.find(ticket => ticket.id === id)
-    return row && !row.active
-  })
+  const openBulkDeleteDialog = useCallback(() => {
+    if (selectedTickets.length === 0) {
+      showError("No tickets selected", "Select at least one ticket to delete.")
+      return
+    }
+
+    const selectedSet = new Set(selectedTickets)
+    const targets = tickets.filter(ticket => selectedSet.has(ticket.id))
+    if (targets.length === 0) {
+      showError("Tickets unavailable", "Unable to locate the selected tickets on this page.")
+      return
+    }
+
+    setTicketDeleteTargets(targets)
+    setShowDeleteDialog(true)
+  }, [selectedTickets, showError, tickets])
 
   const handleSearch = useCallback((query: string) => {
     setSearchQuery(query)
@@ -453,45 +469,155 @@ export default function TicketsPage() {
     setShowCreateModal(true)
   }
 
-  const handleBulkDelete = useCallback(() => {
-    if (selectedTickets.length === 0) {
-      showError("No tickets selected", "Select at least one ticket to delete.")
-      return
-    }
-    const ticketMap = new Map(tickets.map(ticket => [ticket.id, ticket]))
-    const inactiveIds = selectedTickets.filter(id => {
-      const row = ticketMap.get(id)
-      return row && !row.active
-    })
-    if (inactiveIds.length === 0) {
-      showError("Only inactive items can be deleted", "Mark the selected tickets inactive before deleting.")
-      return
-    }
-    const confirmed = typeof window === "undefined"
-      ? true
-      : window.confirm(`Delete ${inactiveIds.length} inactive ticket${inactiveIds.length === 1 ? "" : "s"}? This can't be undone.`)
-    if (!confirmed) {
-      return
-    }
-    const inactiveSet = new Set(inactiveIds)
-    setTickets(prev => prev.filter(ticket => !inactiveSet.has(ticket.id)))
-    setSelectedTickets(prev => prev.filter(id => !inactiveSet.has(id)))
-    setPagination(prev => {
-      const nextTotal = Math.max(0, prev.total - inactiveIds.length)
-      const nextTotalPages = Math.max(1, Math.ceil(nextTotal / prev.pageSize))
-      const nextPage = Math.min(prev.page, nextTotalPages)
-      if (nextPage !== prev.page) {
-        setPage(nextPage)
+  const deactivateTicketForDialog = useCallback(async (
+    ticketId: string,
+    _reason?: string
+  ): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const response = await fetch(`/api/tickets/${ticketId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ active: false })
+      })
+      const payload = await response.json().catch(() => null)
+
+      if (!response.ok) {
+        const message = payload?.error ?? "Failed to deactivate ticket"
+        showError("Failed to deactivate ticket", message)
+        return { success: false, error: message }
       }
-      return {
-        ...prev,
-        total: nextTotal,
-        totalPages: nextTotalPages,
-        page: nextPage
+
+      setTickets(previous =>
+        previous.map(ticket => (ticket.id === ticketId ? { ...ticket, active: false } : ticket))
+      )
+      showSuccess("Ticket deactivated", "The ticket was marked inactive.")
+      return { success: true }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to deactivate ticket"
+      showError("Failed to deactivate ticket", message)
+      return { success: false, error: message }
+    }
+  }, [showError, showSuccess])
+
+  const bulkDeactivateTicketsForDialog = useCallback(async (
+    entities: Array<{ id: string; name: string }>,
+    _reason?: string
+  ): Promise<{ success: boolean; error?: string }> => {
+    if (!entities || entities.length === 0) {
+      return { success: false, error: "No tickets selected" }
+    }
+
+    const ids = entities.map(entity => entity.id)
+    const responses = await Promise.allSettled(
+      ids.map(async id => {
+        const response = await fetch(`/api/tickets/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ active: false })
+        })
+        if (!response.ok) {
+          const payload = await response.json().catch(() => null)
+          throw new Error(payload?.error ?? "Failed to deactivate ticket")
+        }
+        return id
+      })
+    )
+
+    const successIds = responses
+      .filter((result): result is PromiseFulfilledResult<string> => result.status === "fulfilled")
+      .map(result => result.value)
+    const failedCount = responses.length - successIds.length
+
+    if (successIds.length > 0) {
+      const successSet = new Set(successIds)
+      setTickets(previous =>
+        previous.map(ticket => (successSet.has(ticket.id) ? { ...ticket, active: false } : ticket))
+      )
+      showSuccess(
+        `Marked ${successIds.length} ticket${successIds.length === 1 ? "" : "s"} inactive`,
+        "Inactive tickets can be deleted if needed."
+      )
+    }
+
+    if (failedCount > 0) {
+      const message = `${failedCount} ticket${failedCount === 1 ? "" : "s"} could not be deactivated.`
+      showError("Some tickets could not be deactivated", message)
+      return { success: false, error: message }
+    }
+
+    return { success: true }
+  }, [showError, showSuccess])
+
+  const deleteTicketRequest = useCallback(async (
+    ticketId: string
+  ): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const response = await fetch(`/api/tickets/${ticketId}`, { method: "DELETE" })
+      const payload = await response.json().catch(() => null)
+      if (!response.ok) {
+        return { success: false, error: payload?.error ?? "Failed to delete ticket" }
       }
+      return { success: true }
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : "Unable to delete ticket" }
+    }
+  }, [])
+
+  const deleteTicketForDialog = useCallback(async (
+    ticketId: string,
+    _bypassConstraints?: boolean,
+    _reason?: string
+  ): Promise<{ success: boolean; constraints?: DeletionConstraint[]; error?: string }> => {
+    const result = await deleteTicketRequest(ticketId)
+    return result.success ? { success: true } : { success: false, error: result.error }
+  }, [deleteTicketRequest])
+
+  const bulkDeleteTicketsForDialog = useCallback(async (
+    entities: Array<{ id: string; name: string }>,
+    _bypassConstraints?: boolean,
+    _reason?: string
+  ): Promise<{ success: boolean; constraints?: DeletionConstraint[]; error?: string }> => {
+    if (!entities || entities.length === 0) {
+      return { success: false, error: "No tickets selected" }
+    }
+
+    const ids = entities.map(entity => entity.id)
+    const results = await Promise.allSettled(ids.map(id => deleteTicketRequest(id)))
+
+    const successIds: string[] = []
+    const failures: Array<{ id: string; name: string; message: string }> = []
+    results.forEach((result, index) => {
+      const id = ids[index]
+      const name = entities[index]?.name || id.slice(0, 8) + "..."
+      if (result.status === "fulfilled" && result.value.success) {
+        successIds.push(id)
+        return
+      }
+      const message =
+        result.status === "fulfilled"
+          ? (result.value.error || "Failed to delete ticket")
+          : (result.reason instanceof Error ? result.reason.message : "Failed to delete ticket")
+      failures.push({ id, name, message })
     })
-    showSuccess("Tickets deleted", `${inactiveIds.length} ticket${inactiveIds.length === 1 ? "" : "s"} removed.`)
-  }, [selectedTickets, showError, showSuccess, tickets])
+
+    if (successIds.length > 0) {
+      showSuccess(
+        `Deleted ${successIds.length} ticket${successIds.length === 1 ? "" : "s"}`,
+        "The selected tickets have been removed."
+      )
+      setSelectedTickets(previous => previous.filter(id => !successIds.includes(id)))
+      await reloadTickets()
+    }
+
+    if (failures.length > 0) {
+      const detail = failures.slice(0, 5).map(item => `${item.name}: ${item.message}`).join("; ")
+      const message = failures.length > 5 ? `${detail}; and ${failures.length - 5} more` : detail
+      showError("Some tickets could not be deleted", message)
+      return { success: false, error: message }
+    }
+
+    return { success: true }
+  }, [deleteTicketRequest, reloadTickets, showError, showSuccess])
 
   const handleBulkReassign = useCallback(() => {
     if (selectedTickets.length === 0) {
@@ -706,11 +832,11 @@ export default function TicketsPage() {
           selectedCount: selectedTickets.length,
           isBusy: tableLoading,
           entityLabelPlural: "tickets",
-          onDelete: handleBulkDelete,
+          onDelete: openBulkDeleteDialog,
           onReassign: handleBulkReassign,
           onStatus: handleBulkStatus,
           onExport: handleBulkExport,
-          disableDelete: !hasInactiveSelectedTickets,
+          disableDelete: selectedTickets.length === 0,
         })}
       />
 
@@ -787,6 +913,45 @@ export default function TicketsPage() {
           setShowCreateModal(false)
           reloadTickets().catch(() => undefined)
         }}
+      />
+
+      <TwoStageDeleteDialog
+        isOpen={showDeleteDialog}
+        onClose={() => {
+          setShowDeleteDialog(false)
+          setTicketDeleteTargets([])
+        }}
+        entity="Ticket"
+        entityName={
+          ticketDeleteTargets.length > 0
+            ? `${ticketDeleteTargets.length} ticket${ticketDeleteTargets.length === 1 ? "" : "s"}`
+            : "Ticket"
+        }
+        entityId={ticketDeleteTargets[0]?.id ?? ""}
+        multipleEntities={
+          ticketDeleteTargets.length > 0
+            ? ticketDeleteTargets.map(ticket => ({
+                id: ticket.id,
+                name: ticket.issue || ticket.ticketNumber || "Ticket",
+                subtitle: ticket.ownerName ? `Owner: ${ticket.ownerName}` : undefined
+              }))
+            : undefined
+        }
+        entityLabelPlural="Tickets"
+        isDeleted={false}
+        onDeactivate={deactivateTicketForDialog}
+        onBulkDeactivate={bulkDeactivateTicketsForDialog}
+        onSoftDelete={deleteTicketForDialog}
+        onBulkSoftDelete={bulkDeleteTicketsForDialog}
+        onPermanentDelete={async (id, reason) => {
+          const result = await deleteTicketForDialog(id, undefined, reason)
+          return result.success ? { success: true } : { success: false, error: result.error }
+        }}
+        userCanPermanentDelete={false}
+        disallowActiveDelete={ticketDeleteTargets.some(ticket => !!ticket.active)}
+        modalSize="revenue-schedules"
+        requireReason
+        note="Tickets must be inactive before they can be deleted. Use Action = Deactivate to mark them inactive."
       />
     </div>
   )

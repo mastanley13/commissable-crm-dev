@@ -4,6 +4,8 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from "react"
 import { Settings2, Users, Layers, Grid3X3, DollarSign } from "lucide-react"
 import { Trash2 } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
+import { TwoStageDeleteDialog } from "@/components/two-stage-delete-dialog"
+import type { DeletionConstraint } from "@/lib/deletion"
 
 type SectionId = "manage-fields"
 
@@ -498,37 +500,66 @@ function ProductSubtypeSettings({ editMode }: { editMode: boolean }) {
     setConfirmDelete(subtype)
   }
 
-  const handleConfirmDelete = async () => {
-    if (!confirmDelete) return
-
+  const deactivateSubtypeForDialog = async (
+    subtypeId: string,
+    _reason?: string
+  ): Promise<{ success: boolean; error?: string }> => {
     try {
-      setDeletingId(confirmDelete.id)
+      setSavingId(subtypeId)
+      setError(null)
+      const res = await fetch("/api/admin/data-settings/product-subtypes", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: subtypeId, isActive: false })
+      })
+      const json = await res.json().catch(() => null)
+      if (!res.ok) {
+        const message = json?.error ?? "Failed to update product subtype"
+        setError(message)
+        return { success: false, error: message }
+      }
+      const updated: ProductSubtypeType = json.data
+      setSubtypes(prev => prev.map(s => (s.id === updated.id ? updated : s)))
+      setConfirmDelete(null)
+      return { success: true }
+    } catch (err) {
+      console.error(err)
+      const message = err instanceof Error ? err.message : "Failed to update product subtype"
+      setError(message)
+      return { success: false, error: message }
+    } finally {
+      setSavingId(null)
+    }
+  }
+
+  const deleteSubtypeForDialog = async (
+    subtypeId: string,
+    _bypassConstraints?: boolean,
+    _reason?: string
+  ): Promise<{ success: boolean; constraints?: DeletionConstraint[]; error?: string }> => {
+    try {
+      setDeletingId(subtypeId)
       setError(null)
       const res = await fetch("/api/admin/data-settings/product-subtypes", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: confirmDelete.id })
+        body: JSON.stringify({ id: subtypeId })
       })
+      const parsed = await res.json().catch(() => null)
       if (!res.ok) {
-        let message = "Failed to delete product subtype"
-        try {
-          const parsed = await res.json()
-          if (parsed && typeof parsed.error === "string") {
-            message = parsed.error
-          }
-        } catch {
-          // Ignore JSON parse errors
-        }
-        throw new Error(message)
+        const message = parsed?.error ?? "Failed to delete product subtype"
+        setError(message)
+        return { success: false, error: message }
       }
 
-      setSubtypes(prev => prev.filter(s => s.id !== confirmDelete.id))
+      setSubtypes(prev => prev.filter(s => s.id !== subtypeId))
       setConfirmDelete(null)
+      return { success: true }
     } catch (err) {
       console.error(err)
-      setError(
-        err instanceof Error ? err.message : "Failed to delete product subtype"
-      )
+      const message = err instanceof Error ? err.message : "Failed to delete product subtype"
+      setError(message)
+      return { success: false, error: message }
     } finally {
       setDeletingId(null)
     }
@@ -832,38 +863,34 @@ function ProductSubtypeSettings({ editMode }: { editMode: boolean }) {
         </div>
       </form>
 
-      {confirmDelete && (
-        <div className="fixed inset-0 z-30 flex items-center justify-center bg-black bg-opacity-50">
-          <div className="w-full max-w-md rounded-lg bg-white p-4 shadow-xl">
-            <h3 className="text-base font-semibold text-gray-900">
-              Delete Product Subtype
-            </h3>
-            <p className="mt-2 text-sm text-gray-600">
-              Are you sure you want to delete{" "}
-              <span className="font-semibold">{confirmDelete.name}</span>? This
-              will remove it from future dropdowns.
-            </p>
-            <div className="mt-4 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setConfirmDelete(null)}
-                className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmDelete}
-                disabled={deletingId === confirmDelete.id}
-                className="inline-flex items-center rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                <Trash2 className="mr-1.5 h-4 w-4" />
-                {deletingId === confirmDelete.id ? "Deleting..." : "Delete"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <TwoStageDeleteDialog
+        isOpen={Boolean(confirmDelete)}
+        onClose={() => setConfirmDelete(null)}
+        entity="Product Subtype"
+        entityName={confirmDelete?.name ?? "Product Subtype"}
+        entityId={confirmDelete?.id ?? ""}
+        entitySummary={
+          confirmDelete
+            ? {
+                id: confirmDelete.id,
+                name: confirmDelete.name,
+                subtitle: confirmDelete.code ? `Code: ${confirmDelete.code}` : undefined
+              }
+            : undefined
+        }
+        isDeleted={false}
+        onDeactivate={deactivateSubtypeForDialog}
+        onSoftDelete={deleteSubtypeForDialog}
+        onPermanentDelete={async (id, reason) => {
+          const result = await deleteSubtypeForDialog(id, undefined, reason)
+          return result.success ? { success: true } : { success: false, error: result.error }
+        }}
+        userCanPermanentDelete={false}
+        disallowActiveDelete={Boolean(confirmDelete?.isActive)}
+        modalSize="revenue-schedules"
+        requireReason
+        note="Deactivation hides this subtype from dropdowns. Delete removes it permanently."
+      />
     </div>
   )
 }
@@ -1264,37 +1291,66 @@ function ProductFamilySettings({ editMode }: { editMode: boolean }) {
     setConfirmDelete(family)
   }
 
-  const handleConfirmDelete = async () => {
-    if (!confirmDelete) return
-
+  const deactivateFamilyForDialog = async (
+    familyId: string,
+    _reason?: string
+  ): Promise<{ success: boolean; error?: string }> => {
     try {
-      setDeletingId(confirmDelete.id)
+      setSavingId(familyId)
+      setError(null)
+      const res = await fetch("/api/admin/data-settings/product-families", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: familyId, isActive: false })
+      })
+      const json = await res.json().catch(() => null)
+      if (!res.ok) {
+        const message = json?.error ?? "Failed to update product family type"
+        setError(message)
+        return { success: false, error: message }
+      }
+      const updated: ProductFamilyType = json.data
+      setFamilies(prev => prev.map(f => (f.id === updated.id ? updated : f)))
+      setConfirmDelete(null)
+      return { success: true }
+    } catch (err) {
+      console.error(err)
+      const message = err instanceof Error ? err.message : "Failed to update product family type"
+      setError(message)
+      return { success: false, error: message }
+    } finally {
+      setSavingId(null)
+    }
+  }
+
+  const deleteFamilyForDialog = async (
+    familyId: string,
+    _bypassConstraints?: boolean,
+    _reason?: string
+  ): Promise<{ success: boolean; constraints?: DeletionConstraint[]; error?: string }> => {
+    try {
+      setDeletingId(familyId)
       setError(null)
       const res = await fetch("/api/admin/data-settings/product-families", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: confirmDelete.id })
+        body: JSON.stringify({ id: familyId })
       })
+      const parsed = await res.json().catch(() => null)
       if (!res.ok) {
-        let message = "Failed to delete product family type"
-        try {
-          const parsed = await res.json()
-          if (parsed && typeof parsed.error === "string") {
-            message = parsed.error
-          }
-        } catch {
-          // Ignore JSON parse errors
-        }
-        throw new Error(message)
+        const message = parsed?.error ?? "Failed to delete product family type"
+        setError(message)
+        return { success: false, error: message }
       }
 
-      setFamilies(prev => prev.filter(f => f.id !== confirmDelete.id))
+      setFamilies(prev => prev.filter(f => f.id !== familyId))
       setConfirmDelete(null)
+      return { success: true }
     } catch (err) {
       console.error(err)
-      setError(
-        err instanceof Error ? err.message : "Failed to delete product family type"
-      )
+      const message = err instanceof Error ? err.message : "Failed to delete product family type"
+      setError(message)
+      return { success: false, error: message }
     } finally {
       setDeletingId(null)
     }
@@ -1608,39 +1664,34 @@ function ProductFamilySettings({ editMode }: { editMode: boolean }) {
         </div>
       </form>
 
-      {confirmDelete && (
-        <div className="fixed inset-0 z-30 flex items-center justify-center bg-black bg-opacity-50">
-          <div className="w-full max-w-md rounded-lg bg-white p-4 shadow-xl">
-            <h3 className="text-base font-semibold text-gray-900">
-              Delete Product Family
-            </h3>
-            <p className="mt-2 text-sm text-gray-600">
-              Are you sure you want to delete{" "}
-              <span className="font-semibold">{confirmDelete.name}</span>? This
-              will remove it from future dropdowns. Families with existing
-              product subtypes cannot be deleted.
-            </p>
-            <div className="mt-4 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setConfirmDelete(null)}
-                className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmDelete}
-                disabled={deletingId === confirmDelete.id}
-                className="inline-flex items-center rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                <Trash2 className="mr-1.5 h-4 w-4" />
-                {deletingId === confirmDelete.id ? "Deleting..." : "Delete"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <TwoStageDeleteDialog
+        isOpen={Boolean(confirmDelete)}
+        onClose={() => setConfirmDelete(null)}
+        entity="Product Family"
+        entityName={confirmDelete?.name ?? "Product Family"}
+        entityId={confirmDelete?.id ?? ""}
+        entitySummary={
+          confirmDelete
+            ? {
+                id: confirmDelete.id,
+                name: confirmDelete.name,
+                subtitle: confirmDelete.code ? `Code: ${confirmDelete.code}` : undefined
+              }
+            : undefined
+        }
+        isDeleted={false}
+        onDeactivate={deactivateFamilyForDialog}
+        onSoftDelete={deleteFamilyForDialog}
+        onPermanentDelete={async (id, reason) => {
+          const result = await deleteFamilyForDialog(id, undefined, reason)
+          return result.success ? { success: true } : { success: false, error: result.error }
+        }}
+        userCanPermanentDelete={false}
+        disallowActiveDelete={Boolean(confirmDelete?.isActive)}
+        modalSize="revenue-schedules"
+        requireReason
+        note="Deactivation hides this family from dropdowns. Delete removes it permanently (and may be blocked if it has subtypes)."
+      />
     </div>
   )
 }

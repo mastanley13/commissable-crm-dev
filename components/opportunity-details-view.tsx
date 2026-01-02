@@ -31,11 +31,11 @@ import { ActivityNoteCreateModal } from "./activity-note-create-modal"
 import { ActivityNoteEditModal } from "./activity-note-edit-modal"
 import { ActivityBulkOwnerModal } from "./activity-bulk-owner-modal"
 import { ActivityBulkStatusModal } from "./activity-bulk-status-modal"
-import { ConfirmDialog } from "./confirm-dialog"
 import { TwoStageDeleteDialog } from "./two-stage-delete-dialog"
 import { RevenueScheduleCreateModal } from "./revenue-schedule-create-modal"
 import { useAuth } from "@/lib/auth-context"
 import { useToasts } from "@/components/toast"
+import type { DeletionConstraint } from "@/lib/deletion"
 import { OpportunityRoleCreateModal } from "./opportunity-role-create-modal"
 import { getOpportunityStageLabel, getOpportunityStageOptions, isOpportunityStageAutoManaged, isOpportunityStageValue, type OpportunityStageOption } from "@/lib/opportunity-stage"
 import { getRevenueTypeLabel } from "@/lib/revenue-types"
@@ -1913,8 +1913,6 @@ export function OpportunityDetailsView({
   const [showCreateLineItemModal, setShowCreateLineItemModal] = useState(false)
   const [editingLineItem, setEditingLineItem] = useState<OpportunityLineItemRecord | null>(null)
   const [lineItemToDelete, setLineItemToDelete] = useState<OpportunityLineItemRecord | null>(null)
-  const [lineItemDeleteLoading, setLineItemDeleteLoading] = useState(false)
-  const [lineItemDeleteError, setLineItemDeleteError] = useState<string | null>(null)
   const [selectedLineItems, setSelectedLineItems] = useState<string[]>([])
   const [lineItemBulkActionLoading, setLineItemBulkActionLoading] = useState(false)
   const [lineItemToggleLoading, setLineItemToggleLoading] = useState<Record<string, boolean>>({})
@@ -4155,7 +4153,6 @@ useEffect(() => {
       return
     }
 
-    setLineItemDeleteError(null)
     setLineItemBulkDeleteTargets(targets)
   }, [opportunity, selectedLineItems, showError])
 
@@ -4407,64 +4404,167 @@ useEffect(() => {
     void performBulkStatusUpdate(selectedLineItems, false)
   }, [performBulkStatusUpdate, selectedLineItems])
 
-  const handleConfirmBulkDeleteLineItems = useCallback(async () => {
-    if (lineItemBulkDeleteTargets.length === 0) {
-      return
+  const deactivateLineItemForDialog = useCallback(async (
+    lineItemId: string,
+    _reason?: string
+  ): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const response = await fetch(`/api/opportunities/line-items/${lineItemId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ active: false })
+      })
+      const payload = await response.json().catch(() => null)
+
+      if (!response.ok) {
+        const message = payload?.error ?? "Failed to update product status"
+        return { success: false, error: message }
+      }
+
+      setLineItemStatusOverrides(current => ({ ...current, [lineItemId]: false }))
+      showSuccess("Product inactivated", "The product line item was marked inactive.")
+      await onRefresh?.()
+      return { success: true }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to update product status"
+      return { success: false, error: message }
+    }
+  }, [onRefresh, showSuccess])
+
+  const bulkDeactivateLineItemsForDialog = useCallback(async (
+    entities: Array<{ id: string; name: string }>,
+    _reason?: string
+  ): Promise<{ success: boolean; error?: string }> => {
+    if (!entities || entities.length === 0) {
+      return { success: false, error: "No line items selected" }
     }
 
     setLineItemBulkActionLoading(true)
-    setLineItemDeleteError(null)
-
     try {
       const responses = await Promise.allSettled(
-        lineItemBulkDeleteTargets.map(async item => {
-          const response = await fetch(`/api/opportunities/line-items/${item.id}`, { method: "DELETE" })
+        entities.map(async entity => {
+          const response = await fetch(`/api/opportunities/line-items/${entity.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ active: false })
+          })
           if (!response.ok) {
             const payload = await response.json().catch(() => null)
-            throw new Error(payload?.error ?? "Failed to delete line item")
+            throw new Error(payload?.error ?? "Failed to update product status")
           }
-          return item.id
+          return entity.id
         })
       )
 
-      const successfulIds = responses
+      const successIds = responses
         .filter((result): result is PromiseFulfilledResult<string> => result.status === "fulfilled")
         .map(result => result.value)
+      const failedCount = responses.length - successIds.length
 
-      const failedCount = responses.length - successfulIds.length
+      if (successIds.length > 0) {
+        setLineItemStatusOverrides(current => {
+          const next = { ...current }
+          successIds.forEach(id => {
+            next[id] = false
+          })
+          return next
+        })
 
-      if (successfulIds.length > 0) {
         showSuccess(
-          "Line items deleted",
-          `${successfulIds.length} product line item${successfulIds.length === 1 ? "" : "s"} removed.`
+          "Products inactivated",
+          `${successIds.length} product line item${successIds.length === 1 ? "" : "s"} marked inactive.`
         )
-        setSelectedLineItems(previous => previous.filter(id => !successfulIds.includes(id)))
         await onRefresh?.()
       }
 
       if (failedCount > 0) {
-        showError(
-          "Some deletions failed",
-          `${failedCount} line item${failedCount === 1 ? "" : "s"} could not be deleted. Try again later.`
-        )
+        return { success: false, error: `${failedCount} product line item${failedCount === 1 ? "" : "s"} could not be inactivated.` }
       }
+
+      return { success: true }
     } catch (error) {
-      console.error(error)
-      const message = error instanceof Error ? error.message : "Unable to delete line items"
-      showError("Delete failed", message)
+      const message = error instanceof Error ? error.message : "Unable to update product status"
+      return { success: false, error: message }
     } finally {
       setLineItemBulkActionLoading(false)
-      setLineItemBulkDeleteTargets([])
     }
-  }, [lineItemBulkDeleteTargets, onRefresh, showError, showSuccess])
+  }, [onRefresh, showSuccess])
 
-  const handleCancelBulkDeleteLineItems = useCallback(() => {
-    if (lineItemBulkActionLoading) {
-      return
+  const deleteLineItemForDialog = useCallback(async (
+    lineItemId: string,
+    _bypassConstraints?: boolean,
+    _reason?: string
+  ): Promise<{ success: boolean; constraints?: DeletionConstraint[]; error?: string }> => {
+    try {
+      const response = await fetch(`/api/opportunities/line-items/${lineItemId}`, { method: "DELETE" })
+      const payload = await response.json().catch(() => null)
+      if (!response.ok) {
+        return { success: false, error: payload?.error ?? "Failed to delete line item" }
+      }
+
+      showSuccess("Line item deleted", "The product has been removed from this opportunity.")
+      setSelectedLineItems(previous => previous.filter(id => id !== lineItemId))
+      setLineItemToDelete(null)
+      await onRefresh?.()
+      return { success: true }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to delete line item"
+      showError("Delete failed", message)
+      return { success: false, error: message }
     }
-    setLineItemBulkDeleteTargets([])
-    setLineItemDeleteError(null)
-  }, [lineItemBulkActionLoading])
+  }, [onRefresh, showError, showSuccess])
+
+  const bulkDeleteLineItemsForDialog = useCallback(async (
+    entities: Array<{ id: string; name: string }>,
+    _bypassConstraints?: boolean,
+    _reason?: string
+  ): Promise<{ success: boolean; constraints?: DeletionConstraint[]; error?: string }> => {
+    if (!entities || entities.length === 0) {
+      return { success: false, error: "No line items selected" }
+    }
+
+    setLineItemBulkActionLoading(true)
+    try {
+      const outcomes = await Promise.allSettled(
+        entities.map(async entity => {
+          const response = await fetch(`/api/opportunities/line-items/${entity.id}`, { method: "DELETE" })
+          if (!response.ok) {
+            const payload = await response.json().catch(() => null)
+            throw new Error(payload?.error ?? "Failed to delete line item")
+          }
+          return entity.id
+        })
+      )
+
+      const successIds = outcomes
+        .filter((result): result is PromiseFulfilledResult<string> => result.status === "fulfilled")
+        .map(result => result.value)
+      const failedCount = outcomes.length - successIds.length
+
+      if (successIds.length > 0) {
+        showSuccess(
+          "Line items deleted",
+          `${successIds.length} product line item${successIds.length === 1 ? "" : "s"} removed.`
+        )
+        setSelectedLineItems(previous => previous.filter(id => !successIds.includes(id)))
+        await onRefresh?.()
+      }
+
+      setLineItemBulkDeleteTargets([])
+
+      if (failedCount > 0) {
+        return { success: false, error: `${failedCount} line item${failedCount === 1 ? "" : "s"} could not be deleted.` }
+      }
+
+      return { success: true }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to delete line items"
+      showError("Delete failed", message)
+      return { success: false, error: message }
+    } finally {
+      setLineItemBulkActionLoading(false)
+    }
+  }, [onRefresh, showError, showSuccess])
 
   const productPagination = useMemo(() => {
     const total = filteredProductRows.length
@@ -4597,7 +4697,6 @@ useEffect(() => {
                         if (!target || !canModifyLineItems) {
                           return
                         }
-                        setLineItemDeleteError(null)
                         setLineItemToDelete(target)
                       }}
                       aria-label="Delete line item"
@@ -4739,42 +4838,10 @@ useEffect(() => {
     handleToggleLineItemActive
   ])
 
-  const handleConfirmDeleteLineItem = useCallback(async () => {
-    if (!lineItemToDelete) {
-      return
-    }
-
-    setLineItemDeleteLoading(true)
-    setLineItemDeleteError(null)
-
-    try {
-      const response = await fetch(`/api/opportunities/line-items/${lineItemToDelete.id}`, {
-        method: "DELETE"
-      })
-
-      if (!response.ok) {
-        const payload = await response.json().catch(() => null)
-        const message = payload?.error ?? "Failed to delete line item"
-        throw new Error(message)
-      }
-
-      showSuccess("Line item deleted", "The product has been removed from this opportunity.")
-      await onRefresh?.()
-      setLineItemToDelete(null)
-    } catch (err) {
-      console.error(err)
-      const message = err instanceof Error ? err.message : "Unable to delete line item"
-      setLineItemDeleteError(message)
-      showError("Unable to delete line item", message)
-    } finally {
-      setLineItemDeleteLoading(false)
-    }
-  }, [lineItemToDelete, onRefresh, showError, showSuccess]);
-
   const productBulkActions = useMemo<BulkActionsGridProps>(
     () => ({
       selectedCount: selectedLineItems.length,
-      isBusy: lineItemBulkActionLoading || lineItemDeleteLoading,
+      isBusy: lineItemBulkActionLoading,
       entityName: "product line items",
       actions: [
         {
@@ -4836,7 +4903,6 @@ useEffect(() => {
     [
       selectedLineItems.length,
       lineItemBulkActionLoading,
-      lineItemDeleteLoading,
       handleProductCopyExtendSchedules,
       handleBulkCloneLineItems,
       handleBulkDeleteLineItems,
@@ -5408,40 +5474,60 @@ useEffect(() => {
         }}
       />
 
-      <ConfirmDialog
-        isOpen={Boolean(lineItemToDelete)}
-        title="Delete Line Item"
-        description={
-          lineItemToDelete
-            ? `Are you sure you want to delete ${lineItemToDelete.productName}? This action cannot be undone.`
-            : "Are you sure you want to delete this line item?"
-        }
-        confirmLabel="Delete"
-        onConfirm={handleConfirmDeleteLineItem}
-        onCancel={() => {
-          if (lineItemDeleteLoading) {
-            return
-          }
+      <TwoStageDeleteDialog
+        isOpen={Boolean(lineItemToDelete) || lineItemBulkDeleteTargets.length > 0}
+        onClose={() => {
           setLineItemToDelete(null)
-          setLineItemDeleteError(null)
+          setLineItemBulkDeleteTargets([])
         }}
-        loading={lineItemDeleteLoading}
-        error={lineItemDeleteError}
-      />
-
-      <ConfirmDialog
-        isOpen={lineItemBulkDeleteTargets.length > 0}
-        title="Delete Selected Line Items"
-        description={
-          lineItemBulkDeleteTargets.length === 1
-            ? `Delete ${lineItemBulkDeleteTargets[0]?.productName ?? "this line item"}? This action cannot be undone.`
-            : `Delete ${lineItemBulkDeleteTargets.length.toLocaleString()} selected product line items? This action cannot be undone.`
+        entity="Line Item"
+        entityName={
+          lineItemBulkDeleteTargets.length > 0
+            ? `${lineItemBulkDeleteTargets.length} line item${lineItemBulkDeleteTargets.length === 1 ? "" : "s"}`
+            : lineItemToDelete?.productName || "Line Item"
         }
-        confirmLabel="Delete"
-        onConfirm={handleConfirmBulkDeleteLineItems}
-        onCancel={handleCancelBulkDeleteLineItems}
-        loading={lineItemBulkActionLoading}
-        error={lineItemDeleteError}
+        entityId={
+          lineItemBulkDeleteTargets.length > 0
+            ? lineItemBulkDeleteTargets[0]?.id || ""
+            : lineItemToDelete?.id || ""
+        }
+        multipleEntities={
+          lineItemBulkDeleteTargets.length > 0
+            ? lineItemBulkDeleteTargets.map(item => ({
+                id: item.id,
+                name: item.productName || item.productCode || "Line item",
+                subtitle: item.productCode ? `Code: ${item.productCode}` : undefined
+              }))
+            : undefined
+        }
+        entitySummary={
+          lineItemBulkDeleteTargets.length === 0 && lineItemToDelete
+            ? {
+                id: lineItemToDelete.id,
+                name: lineItemToDelete.productName || lineItemToDelete.productCode || "Line item",
+                subtitle: lineItemToDelete.productCode ? `Code: ${lineItemToDelete.productCode}` : undefined
+              }
+            : undefined
+        }
+        entityLabelPlural="Line Items"
+        isDeleted={false}
+        onDeactivate={deactivateLineItemForDialog}
+        onBulkDeactivate={bulkDeactivateLineItemsForDialog}
+        onSoftDelete={deleteLineItemForDialog}
+        onBulkSoftDelete={bulkDeleteLineItemsForDialog}
+        onPermanentDelete={async (id, reason) => {
+          const result = await deleteLineItemForDialog(id, undefined, reason)
+          return result.success ? { success: true } : { success: false, error: result.error }
+        }}
+        userCanPermanentDelete={false}
+        disallowActiveDelete={
+          lineItemBulkDeleteTargets.length > 0
+            ? lineItemBulkDeleteTargets.some(item => item.active !== false)
+            : (lineItemToDelete ? lineItemToDelete.active !== false : false)
+        }
+        modalSize="revenue-schedules"
+        requireReason
+        note="Product line items must be inactive before they can be deleted. Use Action = Deactivate to mark them inactive."
       />
 
 
