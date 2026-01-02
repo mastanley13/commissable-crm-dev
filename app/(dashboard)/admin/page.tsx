@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { Shield, Users, Settings, Key, Database, UserCheck, Beaker, Shuffle } from 'lucide-react'
+import { Shield, Users, Settings, Key, Database, UserCheck, Beaker, Shuffle, Archive } from 'lucide-react'
 
 const adminSections = [
   {
@@ -38,6 +38,13 @@ const adminSections = [
     href: '/admin/data-settings',
     icon: Database,
     color: 'bg-green-500'
+  },
+  {
+    title: 'Archive',
+    description: 'Review and restore deleted records',
+    href: '/admin/archive',
+    icon: Archive,
+    color: 'bg-slate-600'
   },
   {
     title: 'Security Settings',

@@ -1804,9 +1804,14 @@ export default function AccountsPage() {
         onPermanentDelete={handlePermanentDelete}
         onRestore={handleRestore}
         userCanPermanentDelete={userCanPermanentDelete}
+        disallowActiveDelete={
+          bulkDeleteTargets.length > 0
+            ? bulkDeleteTargets.some((account) => Boolean(account.active) || Boolean(account.isDeleted))
+            : Boolean(accountToDelete?.active) || Boolean(accountToDelete?.isDeleted)
+        }
         modalSize="revenue-schedules"
         requireReason
-        note="Accounts cannot be deleted when they have active contacts, open/on-hold opportunities, billing (won) opportunities, child accounts, or active revenue schedules. If constraints are detected, you'll see them listed and can only proceed with Force Delete (which may orphan related records)."
+        note="Accounts must be Inactive before they can be deleted. Accounts cannot be deleted when they have active contacts, open/on-hold opportunities, billing (won) opportunities, child accounts, or active revenue schedules. If constraints are detected, you'll see them listed and can only proceed with Force Delete (which may orphan related records)."
       />
       <ToastContainer />
     </CopyProtectionWrapper>

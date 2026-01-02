@@ -21,6 +21,103 @@ export interface EntityRelationshipCheck {
   checkFunction: (tenantId: string, entityId: string) => Promise<DeletionConstraint[]>
 }
 
+type PermanentDependencyCount = { singular: string; plural: string; count: number }
+
+function formatPermanentDependencySummary(dependencies: PermanentDependencyCount[]): string {
+  if (!dependencies || dependencies.length === 0) return ''
+
+  const sorted = [...dependencies]
+    .filter(dep => dep.count > 0)
+    .sort((a, b) => b.count - a.count || a.plural.localeCompare(b.plural))
+
+  const top = sorted.slice(0, 4)
+  const remainder = sorted.length - top.length
+
+  const formatted = top
+    .map(dep => `${dep.count} ${dep.count === 1 ? dep.singular : dep.plural}`)
+    .join(', ')
+
+  return remainder > 0 ? `${formatted}, and ${remainder} more` : formatted
+}
+
+async function getAccountPermanentDeleteDependencies(tenantId: string, accountId: string): Promise<PermanentDependencyCount[]> {
+  const [
+    childAccounts,
+    contacts,
+    opportunities,
+    accountAssignments,
+    accountNotes,
+    groupMembers,
+    activities,
+    reconciliations,
+    ticketsAccount,
+    ticketsDistributor,
+    ticketsVendor,
+    revenueSchedulesAccount,
+    revenueSchedulesDistributor,
+    revenueSchedulesVendor,
+    depositsAccount,
+    depositsDistributor,
+    depositsVendor,
+    depositLineItemsAccount,
+    depositLineItemsVendor,
+    productsDistributor,
+    productsVendor,
+    reconciliationTemplatesDistributor,
+    reconciliationTemplatesVendor,
+  ] = await Promise.all([
+    prisma.account.count({ where: { tenantId, parentAccountId: accountId } }),
+    prisma.contact.count({ where: { tenantId, accountId } }),
+    prisma.opportunity.count({ where: { tenantId, accountId } }),
+    prisma.accountAssignment.count({ where: { tenantId, accountId } }),
+    prisma.accountNote.count({ where: { tenantId, accountId } }),
+    prisma.groupMember.count({ where: { tenantId, accountId } }),
+    prisma.activity.count({ where: { tenantId, accountId } }),
+    prisma.reconciliation.count({ where: { tenantId, accountId } }),
+    prisma.ticket.count({ where: { tenantId, accountId } }),
+    prisma.ticket.count({ where: { tenantId, distributorAccountId: accountId } }),
+    prisma.ticket.count({ where: { tenantId, vendorAccountId: accountId } }),
+    prisma.revenueSchedule.count({ where: { tenantId, accountId } }),
+    prisma.revenueSchedule.count({ where: { tenantId, distributorAccountId: accountId } }),
+    prisma.revenueSchedule.count({ where: { tenantId, vendorAccountId: accountId } }),
+    prisma.deposit.count({ where: { tenantId, accountId } }),
+    prisma.deposit.count({ where: { tenantId, distributorAccountId: accountId } }),
+    prisma.deposit.count({ where: { tenantId, vendorAccountId: accountId } }),
+    prisma.depositLineItem.count({ where: { tenantId, accountId } }),
+    prisma.depositLineItem.count({ where: { tenantId, vendorAccountId: accountId } }),
+    prisma.product.count({ where: { tenantId, distributorAccountId: accountId } }),
+    prisma.product.count({ where: { tenantId, vendorAccountId: accountId } }),
+    prisma.reconciliationTemplate.count({ where: { tenantId, distributorAccountId: accountId } }),
+    prisma.reconciliationTemplate.count({ where: { tenantId, vendorAccountId: accountId } }),
+  ])
+
+  return [
+    { singular: 'child account', plural: 'child accounts', count: childAccounts },
+    { singular: 'contact', plural: 'contacts', count: contacts },
+    { singular: 'opportunity', plural: 'opportunities', count: opportunities },
+    { singular: 'account assignment', plural: 'account assignments', count: accountAssignments },
+    { singular: 'account note', plural: 'account notes', count: accountNotes },
+    { singular: 'group membership', plural: 'group memberships', count: groupMembers },
+    { singular: 'activity', plural: 'activities', count: activities },
+    { singular: 'reconciliation', plural: 'reconciliations', count: reconciliations },
+    { singular: 'ticket', plural: 'tickets', count: ticketsAccount },
+    { singular: 'ticket (as distributor)', plural: 'tickets (as distributor)', count: ticketsDistributor },
+    { singular: 'ticket (as vendor)', plural: 'tickets (as vendor)', count: ticketsVendor },
+    { singular: 'revenue schedule', plural: 'revenue schedules', count: revenueSchedulesAccount },
+    { singular: 'revenue schedule (as distributor)', plural: 'revenue schedules (as distributor)', count: revenueSchedulesDistributor },
+    { singular: 'revenue schedule (as vendor)', plural: 'revenue schedules (as vendor)', count: revenueSchedulesVendor },
+    { singular: 'deposit', plural: 'deposits', count: depositsAccount },
+    { singular: 'deposit (as distributor)', plural: 'deposits (as distributor)', count: depositsDistributor },
+    { singular: 'deposit (as vendor)', plural: 'deposits (as vendor)', count: depositsVendor },
+    { singular: 'deposit line item', plural: 'deposit line items', count: depositLineItemsAccount },
+    { singular: 'deposit line item (as vendor)', plural: 'deposit line items (as vendor)', count: depositLineItemsVendor },
+    { singular: 'product (as distributor)', plural: 'products (as distributor)', count: productsDistributor },
+    { singular: 'product (as vendor)', plural: 'products (as vendor)', count: productsVendor },
+    { singular: 'reconciliation template (as distributor)', plural: 'reconciliation templates (as distributor)', count: reconciliationTemplatesDistributor },
+    { singular: 'reconciliation template (as vendor)', plural: 'reconciliation templates (as vendor)', count: reconciliationTemplatesVendor },
+  ].filter(dep => dep.count > 0)
+}
+
 // Entity status mappings for soft deletion
 export const EntityStatusMappings = {
   Account: {
@@ -453,6 +550,18 @@ export async function permanentDeleteEntity(
       }
     }
 
+    if (entity === 'Account') {
+      const dependencies = await getAccountPermanentDeleteDependencies(tenantId, entityId)
+      if (dependencies.length > 0) {
+        const summary = formatPermanentDependencySummary(dependencies)
+        return {
+          success: false,
+          stage: 'permanent',
+          error: `Cannot permanently delete this account because it still has related records (${summary}). Delete or reassign those records first, then try again.`
+        }
+      }
+    }
+
     // Perform permanent deletion
     await (prisma as any)[mapping.model].delete({
       where: { id: entityId }
@@ -464,6 +573,14 @@ export async function permanentDeleteEntity(
     }
   } catch (error) {
     console.error(`Permanent delete failed for ${entity}:${entityId}`, error)
+    const code = error && typeof error === 'object' && 'code' in error ? (error as any).code : null
+    if (code === 'P2003' || code === 'P2014') {
+      return {
+        success: false,
+        stage: 'permanent',
+        error: 'Cannot permanently delete because related records still reference this item. Delete or reassign related records first, then try again.'
+      }
+    }
     return {
       success: false,
       stage: 'permanent',

@@ -93,6 +93,8 @@ export async function GET(request: NextRequest) {
         const ownerId = searchParams.get("ownerId")?.trim() ?? ""
 
         const whereClause: Record<string, unknown> = { tenantId }
+        const normalizedStatus = status.toLowerCase()
+        const archivedOnly = normalizedStatus === "archived" || normalizedStatus === "deleted"
 
         if (query.length > 0) {
           whereClause.OR = [
@@ -109,12 +111,11 @@ export async function GET(request: NextRequest) {
         }
 
         if (status) {
-          const normalized = status.toLowerCase()
-          if (normalized === "active") {
+          if (normalizedStatus === "active") {
             whereClause.status = AccountStatus.Active
-          } else if (normalized === "inactive") {
+          } else if (normalizedStatus === "inactive") {
             whereClause.status = AccountStatus.Inactive
-          } else if (normalized === "archived" || normalized === "deleted") {
+          } else if (archivedOnly) {
             whereClause.status = AccountStatus.Archived
           }
         } else if (!includeArchived) {
@@ -130,7 +131,7 @@ export async function GET(request: NextRequest) {
           prisma.account.findMany({
             where: whereClause,
             include: accountIncludeForList,
-            orderBy: { createdAt: "desc" },
+            orderBy: archivedOnly ? { updatedAt: "desc" } : { createdAt: "desc" },
             skip: (page - 1) * pageSize,
             take: pageSize
           }),

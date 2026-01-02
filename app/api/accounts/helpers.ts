@@ -8,6 +8,8 @@ export function mapAccountToListRow(account: any) {
     select: false,
     active: isActive,
     status,
+    createdAt: account.createdAt instanceof Date ? account.createdAt.toISOString() : account.createdAt ?? null,
+    updatedAt: account.updatedAt instanceof Date ? account.updatedAt.toISOString() : account.updatedAt ?? null,
     accountName: account.accountName,
     accountLegalName: account.accountLegalName ?? "",
     accountType: account.accountType?.name ?? "",

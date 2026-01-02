@@ -11,6 +11,10 @@ interface DeleteDialogEntitySummary {
   accountType?: string
   legalName?: string
   accountOwner?: string
+  roleName?: string
+  email?: string
+  workPhone?: string
+  mobile?: string
 }
 export interface TwoStageDeleteDialogProps {
   isOpen: boolean
@@ -21,6 +25,7 @@ export interface TwoStageDeleteDialogProps {
   isDeleted?: boolean
   onSoftDelete: (entityId: string, bypassConstraints?: boolean, reason?: string) => Promise<{ success: boolean, constraints?: DeletionConstraint[], error?: string }>
   onPermanentDelete: (entityId: string, reason?: string) => Promise<{ success: boolean, error?: string }>
+  onBulkPermanentDelete?: (entities: DeleteDialogEntitySummary[], reason?: string) => Promise<{ success: boolean, error?: string }>
   onRestore?: (entityId: string) => Promise<{ success: boolean, error?: string }>
   userCanPermanentDelete?: boolean
   multipleEntities?: DeleteDialogEntitySummary[]
@@ -35,6 +40,8 @@ export interface TwoStageDeleteDialogProps {
   requireReason?: boolean
   reasonLabel?: string
   reasonPlaceholder?: string
+  primaryActionLabel?: string
+  noteLabel?: string
   note?: string
 }
 
@@ -49,6 +56,7 @@ export function TwoStageDeleteDialog({
   isDeleted = false,
   onSoftDelete,
   onPermanentDelete,
+  onBulkPermanentDelete,
   onRestore,
   userCanPermanentDelete = false,
   multipleEntities,
@@ -60,6 +68,8 @@ export function TwoStageDeleteDialog({
   requireReason = false,
   reasonLabel = 'Reason',
   reasonPlaceholder = 'Provide the reason for this change',
+  primaryActionLabel,
+  noteLabel,
   note
 }: TwoStageDeleteDialogProps) {
   const isRevenueSchedulesSize = modalSize === 'revenue-schedules'
@@ -78,8 +88,8 @@ export function TwoStageDeleteDialog({
   const reasonTrimmed = reason.trim()
   const reasonMissing = requireReason && reasonTrimmed.length === 0
   const initialFooterDisabled = disallowActiveDelete || reasonMissing
-  const initialFooterPrimaryLabel = entity === 'Account' ? 'Apply' : 'Delete'
-  const initialFooterNoteLabel = entity === 'Account' ? 'Legend' : 'Note'
+  const initialFooterPrimaryLabel = primaryActionLabel ?? (entity === 'Account' ? 'Apply' : 'Delete')
+  const initialFooterNoteLabel = noteLabel ?? (entity === 'Account' ? 'Legend' : 'Note')
 
   // Reset state when dialog opens/closes
   useEffect(() => {
@@ -105,20 +115,36 @@ export function TwoStageDeleteDialog({
     setError('')
 
     try {
+      if (onBulkPermanentDelete) {
+        const result = await onBulkPermanentDelete(multipleEntities, reasonTrimmed)
+        if (result.success) {
+          setStage('success')
+          setTimeout(() => {
+            onClose()
+          }, 1500)
+          return
+        }
+        setError(result.error || 'Failed to permanently delete records')
+        setStage('error')
+        return
+      }
+
       const targets = multipleEntities.map(entity => entity.id)
+      const entityNameById = new Map(multipleEntities.map(entity => [entity.id, entity.name]))
       const results = await Promise.allSettled(
         targets.map(id => onPermanentDelete(id, reasonTrimmed))
       )
 
-      const failures: Array<{ id: string; error: string }> = []
+      const failures: Array<{ id: string; name: string; error: string }> = []
       results.forEach((result, index) => {
         const id = targets[index]
+        const name = entityNameById.get(id) || id.slice(0, 8) + '...'
         if (result.status !== 'fulfilled') {
-          failures.push({ id, error: result.reason instanceof Error ? result.reason.message : 'Unknown error' })
+          failures.push({ id, name, error: result.reason instanceof Error ? result.reason.message : 'Unknown error' })
           return
         }
         if (!result.value.success) {
-          failures.push({ id, error: result.value.error || 'Failed to permanently delete record' })
+          failures.push({ id, name, error: result.value.error || 'Failed to permanently delete record' })
         }
       })
 
@@ -132,12 +158,12 @@ export function TwoStageDeleteDialog({
 
       const preview = failures
         .slice(0, 5)
-        .map(item => `- ${item.id.slice(0, 8)}…: ${item.error}`)
+        .map(item => `- ${item.name}: ${item.error}`)
         .join('\n')
 
       setError(
-        `${failures.length} of ${targets.length} record(s) could not be permanently deleted.\n\n${preview}` +
-          (failures.length > 5 ? `\n- …and ${failures.length - 5} more` : ''),
+        `${failures.length} of ${targets.length} ${targets.length === 1 ? entity.toLowerCase() : lowerPluralLabel} could not be permanently deleted.\n\n${preview}` +
+          (failures.length > 5 ? `\n- and ${failures.length - 5} more` : ''),
       )
       setStage('error')
     } catch (err) {
@@ -159,19 +185,21 @@ export function TwoStageDeleteDialog({
 
     try {
       const targets = multipleEntities.map(entity => entity.id)
+      const entityNameById = new Map(multipleEntities.map(entity => [entity.id, entity.name]))
       const results = await Promise.allSettled(
         targets.map(id => onRestore(id))
       )
 
-      const failures: Array<{ id: string; error: string }> = []
+      const failures: Array<{ id: string; name: string; error: string }> = []
       results.forEach((result, index) => {
         const id = targets[index]
+        const name = entityNameById.get(id) || id.slice(0, 8) + '...'
         if (result.status !== 'fulfilled') {
-          failures.push({ id, error: result.reason instanceof Error ? result.reason.message : 'Unknown error' })
+          failures.push({ id, name, error: result.reason instanceof Error ? result.reason.message : 'Unknown error' })
           return
         }
         if (!result.value.success) {
-          failures.push({ id, error: result.value.error || 'Failed to restore record' })
+          failures.push({ id, name, error: result.value.error || 'Failed to restore record' })
         }
       })
 
@@ -185,12 +213,12 @@ export function TwoStageDeleteDialog({
 
       const preview = failures
         .slice(0, 5)
-        .map(item => `- ${item.id.slice(0, 8)}…: ${item.error}`)
+        .map(item => `- ${item.name}: ${item.error}`)
         .join('\n')
 
       setError(
-        `${failures.length} of ${targets.length} record(s) could not be restored.\n\n${preview}` +
-          (failures.length > 5 ? `\n- …and ${failures.length - 5} more` : ''),
+        `${failures.length} of ${targets.length} ${targets.length === 1 ? entity.toLowerCase() : lowerPluralLabel} could not be restored.\n\n${preview}` +
+          (failures.length > 5 ? `\n- and ${failures.length - 5} more` : ''),
       )
       setStage('error')
     } catch (err) {
@@ -283,6 +311,7 @@ export function TwoStageDeleteDialog({
   const renderInitialStage = () => {
     if (hasMultipleEntities) {
       const showAccountsTable = entity === 'Account'
+      const showRolesTable = entity === 'Opportunity Role' || entity === 'OpportunityRole' || entity === 'Role'
       const bulkDescription = isDeleted
         ? `This will permanently remove the selected ${lowerPluralLabel}. This action cannot be undone.`
         : `This action will deactivate the selected ${lowerPluralLabel}. You can restore them later if needed.`
@@ -328,6 +357,39 @@ export function TwoStageDeleteDialog({
                         <td className="px-3 py-2">{item.accountType || '--'}</td>
                         <td className="px-3 py-2">{item.legalName || '--'}</td>
                         <td className="px-3 py-2">{item.accountOwner || '--'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : showRolesTable ? (
+            <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 mb-6">
+              <p className="text-sm text-gray-600 mb-2">
+                Selected {pluralLabel} ({multipleEntities!.length})
+              </p>
+              <div className="max-h-[420px] overflow-y-auto rounded-lg border border-gray-200 bg-white">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-gray-100 text-gray-600">
+                    <tr>
+                      <th className="px-3 py-2">Role</th>
+                      <th className="px-3 py-2">Full Name</th>
+                      <th className="px-3 py-2">Email</th>
+                      <th className="px-3 py-2">Work Phone</th>
+                      <th className="px-3 py-2">Mobile</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {multipleEntities!.map(item => (
+                      <tr key={item.id} className="border-t border-gray-100 text-gray-700">
+                        <td className="px-3 py-2">{item.roleName || item.subtitle || '--'}</td>
+                        <td className="px-3 py-2">
+                          <div className="font-semibold text-gray-900">{item.name || '--'}</div>
+                          <div className="text-[11px] text-gray-500">ID: {item.id.slice(0, 8)}...</div>
+                        </td>
+                        <td className="px-3 py-2">{item.email || '--'}</td>
+                        <td className="px-3 py-2">{item.workPhone || '--'}</td>
+                        <td className="px-3 py-2">{item.mobile || '--'}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -950,11 +1012,6 @@ export function TwoStageDeleteDialog({
     </div>
   )
 }
-
-
-
-
-
 
 
 

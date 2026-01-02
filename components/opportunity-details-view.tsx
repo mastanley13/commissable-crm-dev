@@ -32,6 +32,7 @@ import { ActivityNoteEditModal } from "./activity-note-edit-modal"
 import { ActivityBulkOwnerModal } from "./activity-bulk-owner-modal"
 import { ActivityBulkStatusModal } from "./activity-bulk-status-modal"
 import { ConfirmDialog } from "./confirm-dialog"
+import { TwoStageDeleteDialog } from "./two-stage-delete-dialog"
 import { RevenueScheduleCreateModal } from "./revenue-schedule-create-modal"
 import { useAuth } from "@/lib/auth-context"
 import { useToasts } from "@/components/toast"
@@ -1873,9 +1874,8 @@ export function OpportunityDetailsView({
   const [selectedRoles, setSelectedRoles] = useState<string[]>([])
   const [showRoleColumnSettings, setShowRoleColumnSettings] = useState(false)
   const [showCreateRoleModal, setShowCreateRoleModal] = useState(false)
-  const [roleBulkDeleteTargets, setRoleBulkDeleteTargets] = useState<OpportunityRoleRow[]>([])
-  const [roleDeleteLoading, setRoleDeleteLoading] = useState(false)
-  const [roleDeleteError, setRoleDeleteError] = useState<string | null>(null)
+  const [roleDeleteTargets, setRoleDeleteTargets] = useState<OpportunityRoleRow[]>([])
+  const [showRoleDeleteDialog, setShowRoleDeleteDialog] = useState(false)
 
   const {
     columns: rolePreferenceColumns,
@@ -2157,8 +2157,8 @@ useEffect(() => {
     setSelectedRoles([])
     setRoleStatusFilter("active")
     setRoleCurrentPage(1)
-    setRoleBulkDeleteTargets([])
-    setRoleDeleteError(null)
+    setShowRoleDeleteDialog(false)
+    setRoleDeleteTargets([])
   }, [opportunity?.id])
 
   const selectedRoleRows = useMemo(() => {
@@ -2341,80 +2341,93 @@ useEffect(() => {
       return
     }
 
-    setRoleDeleteError(null)
-    setRoleBulkDeleteTargets(targets)
+    setRoleDeleteTargets(targets)
+    setShowRoleDeleteDialog(true)
   }, [canDeleteRoles, selectedRoleRows, showError])
 
-  const handleConfirmBulkRoleDelete = useCallback(async () => {
-    if (roleBulkDeleteTargets.length === 0) {
-      return
-    }
+  const closeRoleDeleteDialog = useCallback(() => {
+    setShowRoleDeleteDialog(false)
+    setRoleDeleteTargets([])
+  }, [])
 
-    setRoleDeleteLoading(true)
-    setRoleDeleteError(null)
-
+  const deleteRoleById = useCallback(async (
+    roleId: string,
+    reason?: string
+  ): Promise<{ success: boolean; error?: string }> => {
     try {
-      const outcomes = await Promise.allSettled(
-        roleBulkDeleteTargets.map(async target => {
-          const response = await fetch(`/api/opportunities/roles/${target.id}`, { method: "DELETE" })
-          if (!response.ok) {
-            const payload = await response.json().catch(() => null)
-            throw new Error(payload?.error ?? "Failed to delete role")
-          }
-          return target.id
-        })
-      )
-
-      const failures: Array<{ target: OpportunityRoleRow; message: string }> = []
-      let successCount = 0
-
-      outcomes.forEach((result, index) => {
-        const target = roleBulkDeleteTargets[index]
-        if (result.status === "fulfilled") {
-          successCount += 1
-          return
-        }
-        const message = result.reason instanceof Error ? result.reason.message : "Failed to delete role"
-        failures.push({ target, message })
+      const trimmedReason = typeof reason === "string" ? reason.trim() : ""
+      const response = await fetch(`/api/opportunities/roles/${roleId}`, {
+        method: "DELETE",
+        ...(trimmedReason
+          ? {
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ reason: trimmedReason })
+            }
+          : {})
       })
 
-      if (successCount > 0) {
-        showSuccess(
-          `Deleted ${successCount} role${successCount === 1 ? "" : "s"}`,
-          "The selected roles have been removed."
-        )
-        await onRefresh?.()
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null)
+        return { success: false, error: payload?.error ?? "Failed to delete role" }
       }
 
-      if (failures.length > 0) {
-        const detail = failures
-          .map(item => `${item.target.fullName || item.target.role || "Role"}: ${item.message}`)
-          .join("; ")
-        setRoleDeleteError(detail)
-        showError("Failed to delete some roles", detail)
-        setSelectedRoles(failures.map(item => item.target.id))
-        setRoleBulkDeleteTargets(failures.map(item => item.target))
+      return { success: true }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to delete role"
+      return { success: false, error: message }
+    }
+  }, [])
+
+  const handleBulkPermanentRoleDelete = useCallback(async (
+    entities: Array<{ id: string; name?: string }>,
+    reason?: string
+  ): Promise<{ success: boolean; error?: string }> => {
+    if (!entities || entities.length === 0) {
+      return { success: false, error: "No roles selected" }
+    }
+
+    const outcomes = await Promise.allSettled(entities.map(entity => deleteRoleById(entity.id, reason)))
+
+    let successCount = 0
+    const failures: Array<{ id: string; message: string }> = []
+
+    outcomes.forEach((result, index) => {
+      const id = entities[index]?.id ?? ""
+      if (result.status === "fulfilled") {
+        if (result.value.success) {
+          successCount += 1
+        } else {
+          failures.push({ id, message: result.value.error ?? "Failed to delete role" })
+        }
         return
       }
+      const message = result.reason instanceof Error ? result.reason.message : "Failed to delete role"
+      failures.push({ id, message })
+    })
 
+    if (successCount > 0) {
+      showSuccess(
+        `Deleted ${successCount} role${successCount === 1 ? "" : "s"}`,
+        "The selected roles have been removed."
+      )
       setSelectedRoles([])
-      setRoleBulkDeleteTargets([])
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Unable to delete selected roles."
-      setRoleDeleteError(message)
-      showError("Failed to delete roles", message)
-    } finally {
-      setRoleDeleteLoading(false)
+      await onRefresh?.()
     }
-  }, [roleBulkDeleteTargets, onRefresh, showError, showSuccess])
 
-  const handleCancelBulkRoleDelete = useCallback(() => {
-    if (roleDeleteLoading) {
-      return
+    if (failures.length > 0) {
+      const preview = failures
+        .slice(0, 5)
+        .map(item => `- ${item.id.slice(0, 8)}: ${item.message}`)
+        .join("\n")
+      return {
+        success: false,
+        error: `${failures.length} role(s) failed to delete.\n\n${preview}` +
+          (failures.length > 5 ? `\n- and ${failures.length - 5} more` : "")
+      }
     }
-    setRoleBulkDeleteTargets([])
-    setRoleDeleteError(null)
-  }, [roleDeleteLoading])
+
+    return { success: true }
+  }, [deleteRoleById, onRefresh, showSuccess])
 
   const canEditAnyLineItems = hasAnyPermission(["opportunities.manage"])
   const canEditAssignedLineItems = hasPermission("opportunities.edit.assigned")
@@ -4866,7 +4879,6 @@ useEffect(() => {
     () => ({
       selectedCount: selectedRoles.length,
       entityName: "roles",
-      isBusy: roleDeleteLoading,
       actions: [
         {
           key: "role-delete",
@@ -4887,7 +4899,7 @@ useEffect(() => {
         },
       ],
     }),
-    [selectedRoles.length, roleDeleteLoading, canDeleteRoles, openBulkRoleDeleteDialog, handleBulkRoleExportCsv]
+    [selectedRoles.length, canDeleteRoles, openBulkRoleDeleteDialog, handleBulkRoleExportCsv]
   )
 
   const activityBulkActions = useMemo(
@@ -5419,19 +5431,40 @@ useEffect(() => {
         error={lineItemDeleteError}
       />
 
-      <ConfirmDialog
-        isOpen={roleBulkDeleteTargets.length > 0}
-        title="Delete Selected Roles"
-        description={
-          roleBulkDeleteTargets.length === 1
-            ? `Delete ${roleBulkDeleteTargets[0]?.fullName || roleBulkDeleteTargets[0]?.role || "this role"}? This action cannot be undone.`
-            : `Delete ${roleBulkDeleteTargets.length.toLocaleString()} selected roles? This action cannot be undone.`
+
+      <TwoStageDeleteDialog
+        isOpen={showRoleDeleteDialog}
+        onClose={closeRoleDeleteDialog}
+        entity="Role"
+        entityName={
+          roleDeleteTargets.length > 0
+            ? `${roleDeleteTargets.length} role${roleDeleteTargets.length === 1 ? "" : "s"}`
+            : "Role"
         }
-        confirmLabel="Delete"
-        onConfirm={handleConfirmBulkRoleDelete}
-        onCancel={handleCancelBulkRoleDelete}
-        loading={roleDeleteLoading}
-        error={roleDeleteError}
+        entityId={roleDeleteTargets[0]?.id || ""}
+        multipleEntities={
+          roleDeleteTargets.length > 0
+            ? roleDeleteTargets.map(role => ({
+                id: role.id,
+                name: role.fullName || role.role || "Role",
+                roleName: role.role || "",
+                email: role.email || "",
+                workPhone: role.workPhone || "",
+                mobile: role.mobile || ""
+              }))
+            : undefined
+        }
+        entityLabelPlural="Roles"
+        isDeleted={true}
+        onSoftDelete={async () => ({ success: false, error: "Roles cannot be deactivated." })}
+        onPermanentDelete={deleteRoleById}
+        onBulkPermanentDelete={handleBulkPermanentRoleDelete}
+        userCanPermanentDelete={true}
+        modalSize="revenue-schedules"
+        requireReason
+        primaryActionLabel="Apply"
+        noteLabel="Legend"
+        note="Roles are removed from this opportunity. Deleting a role does not delete the underlying contact record."
       />
     </>
   )
