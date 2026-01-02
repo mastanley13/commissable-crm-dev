@@ -702,24 +702,20 @@ export async function DELETE(request: NextRequest, { params }: { params: { oppor
         return NextResponse.json({ error: "Opportunity not found" }, { status: 404 })
       }
 
-      // Guardrails: prevent permanent deletion when dependent records exist (matches DB FK restrictions).
-      const [roleCount, productCount] = await Promise.all([
-        prisma.opportunityRole.count({ where: { tenantId, opportunityId: existing.id } }),
-        prisma.opportunityProduct.count({ where: { tenantId, opportunityId: existing.id } })
-      ])
+      // Guardrails:
+      // - OpportunityRole has an FK that can block Opportunity deletion; roles are lightweight so we remove them automatically.
+      // - OpportunityProduct has an FK that blocks Opportunity deletion; users must delete products via the Products tab workflow.
+      const productCount = await prisma.$transaction(async tx => {
+        await tx.opportunityRole.deleteMany({ where: { tenantId, opportunityId: existing.id } })
+        return tx.opportunityProduct.count({ where: { tenantId, opportunityId: existing.id } })
+      })
 
-      if (roleCount > 0 || productCount > 0) {
-        const parts: string[] = []
-        if (productCount > 0) {
-          parts.push(`${productCount} product line item(s)`)
-        }
-        if (roleCount > 0) {
-          parts.push(`${roleCount} role(s)`)
-        }
-        const detail = parts.join(" and ")
+      if (productCount > 0) {
         return NextResponse.json(
           {
-            error: `Cannot permanently delete opportunity while it has ${detail}. Delete dependent records first.`
+            error:
+              `Cannot permanently delete opportunity while it has ${productCount} product line item(s) (including inactive). ` +
+              `Switch the Products tab filter to Inactive and delete the remaining line items first.`
           },
           { status: 409 }
         )
@@ -755,7 +751,11 @@ export async function DELETE(request: NextRequest, { params }: { params: { oppor
         const prismaError = error as { code?: string; meta?: any }
         if (prismaError.code === "P2003") {
           return NextResponse.json(
-            { error: "Cannot delete opportunity due to related records. Delete dependent records first." },
+            {
+              error:
+                "Cannot delete opportunity due to related records. " +
+                "If Products/Roles look empty, switch their status filters to Inactive to reveal hidden records, then delete them and try again."
+            },
             { status: 409 }
           )
         }

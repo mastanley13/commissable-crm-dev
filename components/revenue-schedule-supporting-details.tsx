@@ -28,6 +28,7 @@ import { TicketCreateModal } from "@/components/ticket-create-modal"
 import { useAuth } from "@/lib/auth-context"
 import type { HistoryRow } from "./opportunity-types"
 import { SectionContainer } from "@/components/section/SectionContainer"
+import { TabDescription } from "@/components/section/TabDescription"
 import { KeyValueGrid, type KeyValueItem } from "@/components/section/KeyValueGrid"
 import { PillTabs } from "@/components/section/PillTabs"
 import { EmptyState } from "@/components/section/EmptyState"
@@ -2081,12 +2082,12 @@ export const RevenueScheduleSupportingDetails = forwardRef<
             >
               <div className="border border-gray-200 rounded-lg overflow-hidden">
                 <div className="bg-gray-50 px-3 pb-3 pt-3 space-y-3">
-                  <p className="text-[11px] text-gray-500 italic">
+                  <TabDescription>
                     This section displays metadata from vendor/distributor deposit line items as they are reconciled
                     with this revenue schedule. Known ID fields (Account, Order, Customer, Location, Service) update
                     the Opportunity Details tab. Other metadata fields not present on the schedule are added here
                     dynamically. Data is read-only.
-                  </p>
+                  </TabDescription>
 
                   <div className="grid grid-cols-1 gap-3 lg:grid-cols-4">
                     <div className="border border-gray-200 rounded-lg bg-white overflow-hidden">
@@ -2216,12 +2217,12 @@ export const RevenueScheduleSupportingDetails = forwardRef<
             >
               <div className="border border-gray-200 rounded-lg overflow-hidden">
                 <div className="bg-gray-50 px-3 pb-3 pt-3 space-y-3">
-                  <p className="text-[11px] text-gray-500 italic">
+                  <TabDescription>
                     This section displays metadata from vendor/distributor deposit line items as they are reconciled
                     with this revenue schedule. Known ID fields (Account, Order, Customer, Location, Service) update
                     the Opportunity Details tab. Other metadata fields not present on the schedule are added here
                     dynamically. Data is read-only.
-                  </p>
+                  </TabDescription>
 
                   {matches.length > 1 ? (
                     <PillTabs
@@ -2722,9 +2723,9 @@ export const RevenueScheduleSupportingDetails = forwardRef<
         sectionContent = schedule?.id ? (
           <div className="border-x border-b border-gray-200 bg-white px-3 pb-3 pt-0">
             <div className="border-t-2 border-t-primary-600 -mx-3 px-3 pt-3">
-              <p className="text-[11px] text-gray-500 italic mb-3">
+              <TabDescription>
                 {TAB_DESCRIPTIONS["history"]}
-              </p>
+              </TabDescription>
               <AuditHistoryTab
                 entityName="RevenueSchedule"
                 entityId={schedule.id}
@@ -2816,9 +2817,9 @@ export const RevenueScheduleSupportingDetails = forwardRef<
               <div className="border-x border-b border-gray-200 bg-white px-3 pb-3 pt-0">
                 <div className="border-t-2 border-t-primary-600 -mx-3 px-3 pt-3">
                   {activeSectionId && TAB_DESCRIPTIONS[activeSectionId] && (
-                    <p className="text-[11px] text-gray-500 italic mb-3">
+                    <TabDescription>
                       {TAB_DESCRIPTIONS[activeSectionId]}
-                    </p>
+                    </TabDescription>
                   )}
 
                   {sectionContent ?? (

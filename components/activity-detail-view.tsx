@@ -152,7 +152,7 @@ function ContextLinks({ activity }: { activity: ActivityDetailRecord }) {
     <div className="rounded-2xl border border-gray-200 bg-white shadow-sm">
       <div className="border-b border-gray-200 px-6 py-4">
         <h3 className="text-sm font-semibold text-gray-900">Linked Records</h3>
-        <TabDescription className="mt-1 mb-0">This section shows the accounts, contacts, opportunities, and revenue schedules connected to this activity. Click any link to navigate to the related record.</TabDescription>
+        <TabDescription>This section shows the accounts, contacts, opportunities, and revenue schedules connected to this activity. Click any link to navigate to the related record.</TabDescription>
       </div>
       <dl className="grid gap-4 px-6 py-5">
         {contexts.map(({ label, value, href }) => (
@@ -294,7 +294,7 @@ export function ActivityDetailView({ activity, loading, error, onRefresh }: Acti
             <div className="rounded-2xl border border-gray-200 bg-white shadow-sm">
               <div className="border-b border-gray-200 px-6 py-4">
                 <h3 className="text-sm font-semibold text-gray-900">Audit</h3>
-                <TabDescription className="mt-1 mb-0">This section displays key lifecycle events including creation, updates, and ownership changes for this activity.</TabDescription>
+                <TabDescription>This section displays key lifecycle events including creation, updates, and ownership changes for this activity.</TabDescription>
               </div>
               <dl className="grid gap-4 px-6 py-5">
                 <div>

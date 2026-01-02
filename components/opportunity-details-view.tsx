@@ -5014,9 +5014,11 @@ useEffect(() => {
 
               <div className="flex flex-1 flex-col min-h-0 overflow-hidden">
                 {activeTab === "summary" ? (
-                  <div className="border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-3 px-3 pb-3">
-                    <TabDescription>{TAB_DESCRIPTIONS.summary}</TabDescription>
-                    <SummaryTab opportunity={opportunity} />
+                  <div className="border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0 px-3 pb-3">
+                    <div className="border-t-2 border-t-primary-600 -mr-3 pt-3">
+                      <TabDescription>{TAB_DESCRIPTIONS.summary}</TabDescription>
+                      <SummaryTab opportunity={opportunity} />
+                    </div>
                   </div>
                 ) : activeTab === "products" ? (
                   <div className="grid flex-1 grid-rows-[auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0 px-3 pb-0">
@@ -5232,9 +5234,11 @@ useEffect(() => {
                     </div>
                   </div>
                 ) : activeTab === "details" ? (
-                  <div className="border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-3 px-3 pb-3">
-                    <TabDescription>{TAB_DESCRIPTIONS.details}</TabDescription>
-                    <DetailsIdentifiersTab opportunity={opportunity} />
+                  <div className="border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0 px-3 pb-3">
+                    <div className="border-t-2 border-t-primary-600 -mr-3 pt-3">
+                      <TabDescription>{TAB_DESCRIPTIONS.details}</TabDescription>
+                      <DetailsIdentifiersTab opportunity={opportunity} />
+                    </div>
                   </div>
                 ) : activeTab === "history" ? (
                   <AuditHistoryTab

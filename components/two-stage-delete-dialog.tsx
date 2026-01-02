@@ -88,7 +88,7 @@ export function TwoStageDeleteDialog({
   const reasonTrimmed = reason.trim()
   const reasonMissing = requireReason && reasonTrimmed.length === 0
   const initialFooterDisabled = disallowActiveDelete || reasonMissing
-  const initialFooterPrimaryLabel = primaryActionLabel ?? (entity === 'Account' ? 'Apply' : 'Delete')
+  const initialFooterPrimaryLabel = primaryActionLabel ?? 'Delete'
   const initialFooterNoteLabel = noteLabel ?? (entity === 'Account' ? 'Legend' : 'Note')
 
   // Reset state when dialog opens/closes
@@ -1002,10 +1002,7 @@ export function TwoStageDeleteDialog({
               type="button"
               onClick={() => setStage(isDeleted ? 'confirm-permanent' : 'confirm-soft')}
               disabled={initialFooterDisabled}
-              className={initialFooterPrimaryLabel === 'Apply'
-                ? 'inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300'
-                : 'inline-flex items-center gap-2 rounded-md bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-red-300'
-              }
+              className="inline-flex items-center gap-2 rounded-md bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-red-300"
               title={disallowActiveDelete ? 'Deactivate the record before deleting' : reasonMissing ? 'Provide a reason before deleting' : 'Delete'}
             >
               {initialFooterPrimaryLabel}
