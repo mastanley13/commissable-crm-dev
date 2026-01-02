@@ -20,6 +20,13 @@ import {
   type SourceScheduleData,
 } from '@/components/revenue-schedule-clone-modal'
 import { RevenueBulkApplyPanel } from '@/components/revenue-bulk-apply-panel'
+import {
+  computeRevenueScheduleMetricsFromDisplay,
+  formatCurrencyUSD,
+  formatPercentFraction,
+  isBlankDisplay,
+  parseCurrencyDisplay,
+} from '@/lib/revenue-schedule-math'
 
 // Local UUID v1-v5 matcher used to detect schedule IDs vs. human codes
 const UUID_REGEX = /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i
@@ -356,30 +363,19 @@ const TABLE_BOTTOM_RESERVE = 110
 const TABLE_MIN_BODY_HEIGHT = 320
 
 const parseCurrency = (value: unknown): number => {
+  if (value === null || value === undefined) return 0
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0
   if (typeof value !== 'string') return 0
-  const trimmed = value.trim()
-  if (!trimmed) return 0
-  const negative = trimmed.startsWith('(') && trimmed.endsWith(')')
-  const numeric = trimmed.replace(/[$,()\s]/g, '')
-  const n = Number(numeric || '0')
-  return negative ? -n : n
+  return parseCurrencyDisplay(value) ?? 0
 }
 
 const formatCurrency = (n: number): string => {
-  try {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(n)
-  } catch {
-    return `$${n.toFixed(2)}`
-  }
+  return formatCurrencyUSD(n)
 }
 
 const formatPercent = (f: number | null): string => {
   if (f === null || !Number.isFinite(f)) return '-'
-  try {
-    return new Intl.NumberFormat('en-US', { style: 'percent', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(f)
-  } catch {
-    return `${(f * 100).toFixed(2)}%`
-  }
+  return formatPercentFraction(f)
 }
 
 const normalizePageSize = (value: number): number => {
@@ -710,29 +706,38 @@ export default function RevenueSchedulesPage() {
     }
     const isBlank = (value: unknown) => {
       if (typeof value !== 'string') return true
-      const trimmed = value.trim()
-      return trimmed === '' || trimmed === '-'
+      return isBlankDisplay(value)
     }
     const lines = [
       headers.join(','),
       ...rows.map(row => {
         const rawGross = row.expectedUsageGross ?? row.expectedUsage
         const rawAdj = row.expectedUsageAdjustment ?? row.usageAdjustment
-        const gross = parseCurrency(rawGross)
-        const adj = parseCurrency(rawAdj)
-        const net = gross + adj
         const rawActualUsage = row.actualUsage
-        const actualUsageValue = parseCurrency(rawActualUsage)
-        const usageBalance = net - actualUsageValue
-        const commissionDiff = parseCurrency(row.expectedCommissionNet) - parseCurrency(row.actualCommission)
+        const computed = computeRevenueScheduleMetricsFromDisplay({
+          quantity: row.quantity,
+          priceEach: row.priceEach,
+          expectedUsageGross: rawGross,
+          expectedUsage: row.expectedUsage,
+          expectedUsageAdjustment: rawAdj,
+          expectedUsageNet: row.expectedUsageNet,
+          actualUsage: rawActualUsage,
+          expectedCommissionGross: row.expectedCommissionGross,
+          expectedCommissionAdjustment: row.expectedCommissionAdjustment,
+          expectedCommissionNet: row.expectedCommissionNet,
+          actualCommission: row.actualCommission,
+          expectedCommissionRatePercent: (row as any).expectedCommissionRatePercent ?? null,
+          actualCommissionRatePercent: (row as any).actualCommissionRatePercent ?? null,
+        })
         const hasNetInputs = !isBlank(rawGross) || !isBlank(rawAdj)
         const hasActualUsage = !isBlank(rawActualUsage)
         const hasCommissionInputs = !isBlank(row.expectedCommissionNet) || !isBlank(row.actualCommission)
-        const expectedRateFraction = hasNetInputs && net > 0 ? (parseCurrency(row.expectedCommissionNet) / net) : null
-        const actualRateFraction = hasActualUsage && actualUsageValue > 0 ? (parseCurrency(row.actualCommission) / actualUsageValue) : null
-        const rateDiffFraction = (expectedRateFraction !== null && actualRateFraction !== null)
-          ? (expectedRateFraction - actualRateFraction)
-          : null
+        const net = computed.expectedUsageNet ?? 0
+        const usageBalance = computed.usageDifference ?? 0
+        const commissionDiff = computed.commissionDifference ?? 0
+        const expectedRateFraction = computed.expectedRateFraction
+        const actualRateFraction = computed.actualRateFraction
+        const rateDiffFraction = computed.commissionRateDifferenceFraction
         const fmtPct = (f: number | null) => f === null ? '-' : `${(f * 100).toFixed(2)}%`
 
         return [
@@ -1130,8 +1135,7 @@ export default function RevenueSchedulesPage() {
   const withComputed = useMemo(() => {
     const isBlank = (value: unknown) => {
       if (typeof value !== 'string') return true
-      const trimmed = value.trim()
-      return trimmed === '' || trimmed === '-'
+      return isBlankDisplay(value)
     }
 
     return filteredByStatusAndColumns.map(row => {
@@ -1140,32 +1144,37 @@ export default function RevenueSchedulesPage() {
       const rawActualUsage = (row as any).actualUsage
       const rawExpectedCommission = (row as any).expectedCommissionNet
       const rawActualCommission = (row as any).actualCommission
-      const gross = parseCurrency(rawGross)
-      const adj = parseCurrency(rawAdj)
-      const netValue = gross + adj
       const hasNetInputs = !isBlank(rawGross) || !isBlank(rawAdj)
+      const hasActualUsage = !isBlank(rawActualUsage)
+      const hasCommissionInputs = !isBlank(rawExpectedCommission) || !isBlank(rawActualCommission)
+
+      const computed = computeRevenueScheduleMetricsFromDisplay({
+        expectedUsageGross: rawGross,
+        expectedUsage: (row as any).expectedUsage,
+        expectedUsageAdjustment: rawAdj,
+        expectedUsageNet: (row as any).expectedUsageNet,
+        actualUsage: rawActualUsage,
+        expectedCommissionGross: (row as any).expectedCommissionGross,
+        expectedCommissionAdjustment: (row as any).expectedCommissionAdjustment,
+        expectedCommissionNet: rawExpectedCommission,
+        actualCommission: rawActualCommission,
+        expectedCommissionRatePercent: null,
+        actualCommissionRatePercent: null,
+      })
+
+      const netValue = computed.expectedUsageNet ?? 0
       const netDisplay = hasNetInputs ? formatCurrency(netValue) : '-'
 
-      const actualUsageValue = parseCurrency(rawActualUsage)
-      const hasActualUsage = !isBlank(rawActualUsage)
-      const usageBalanceValue = netValue - actualUsageValue
+      const usageBalanceValue = computed.usageDifference ?? 0
       const usageBalanceDisplay = hasActualUsage || hasNetInputs ? formatCurrency(usageBalanceValue) : '-'
 
-      const expectedCommissionValue = parseCurrency(rawExpectedCommission)
-      const actualCommissionValue = parseCurrency(rawActualCommission)
-      const hasCommissionInputs = !isBlank(rawExpectedCommission) || !isBlank(rawActualCommission)
-      const commissionDifferenceValue = expectedCommissionValue - actualCommissionValue
+      const commissionDifferenceValue = computed.commissionDifference ?? 0
       const commissionDifferenceDisplay = hasCommissionInputs ? formatCurrency(commissionDifferenceValue) : '-'
 
-      // Derived commission rate percentages (fractions)
-      const expectedRateFraction = hasNetInputs && netValue !== 0 ? (expectedCommissionValue / netValue) : null
-      const actualRateFraction = hasActualUsage && actualUsageValue !== 0 ? (actualCommissionValue / actualUsageValue) : null
-      const rateDiffFraction = (expectedRateFraction !== null && actualRateFraction !== null)
-        ? (expectedRateFraction - actualRateFraction)
-        : null
-      const expectedRateDisplay = (expectedRateFraction !== null) ? formatPercent(expectedRateFraction) : '-'
-      const actualRateDisplay = (actualRateFraction !== null) ? formatPercent(actualRateFraction) : '-'
-      const rateDiffDisplay = (rateDiffFraction !== null) ? formatPercent(rateDiffFraction) : '-'
+      const expectedRateDisplay = computed.expectedRateFraction !== null ? formatPercent(computed.expectedRateFraction) : '-'
+      const actualRateDisplay = computed.actualRateFraction !== null ? formatPercent(computed.actualRateFraction) : '-'
+      const rateDiffDisplay =
+        computed.commissionRateDifferenceFraction !== null ? formatPercent(computed.commissionRateDifferenceFraction) : '-'
 
       return {
         ...row,

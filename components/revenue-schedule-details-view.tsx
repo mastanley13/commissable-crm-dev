@@ -5,6 +5,14 @@ import { Loader2, AlertCircle } from "lucide-react"
 import { useCallback, useMemo, useRef, useState, type ReactNode } from "react"
 
 import { cn } from "@/lib/utils"
+import {
+  computeRevenueScheduleMetricsFromDisplay,
+  formatCurrencyUSD,
+  formatSignedCurrencyDiff,
+  formatSignedPercentDiff,
+  isBlankDisplay,
+  parsePercentFractionDisplay
+} from "@/lib/revenue-schedule-math"
 import { RevenueScheduleSupportingDetails, type RevenueScheduleSupportingDetailsHandle } from "./revenue-schedule-supporting-details"
 import { useEntityEditor } from "@/hooks/useEntityEditor"
 import { useUnsavedChangesPrompt } from "@/hooks/useUnsavedChangesPrompt"
@@ -236,43 +244,6 @@ function FinancialSummarySection({
   const [collapsed, setCollapsed] = useState(false)
   const [splitMode, setSplitMode] = useState<"percent" | "amount">("percent")
 
-  const isBlank = (value?: string | null) => {
-    if (value === null || value === undefined) return true
-    const trimmed = value.trim()
-    return trimmed.length === 0 || trimmed === "-"
-  }
-
-  const parseCurrencyMaybe = (value?: string | null): number | null => {
-    if (isBlank(value)) return null
-    const cleaned = value.replace(/[^0-9.-]/g, "")
-    const numeric = Number(cleaned)
-    return Number.isFinite(numeric) ? numeric : null
-  }
-
-  const parseNumberMaybe = (value?: string | null): number | null => {
-    if (isBlank(value)) return null
-    const cleaned = value.replace(/[^0-9.-]/g, "")
-    const numeric = Number(cleaned)
-    return Number.isFinite(numeric) ? numeric : null
-  }
-
-  // Returns a fraction (0.18) from "18%", "18", or "0.18".
-  const parsePercentFractionMaybe = (value?: string | null): number | null => {
-    if (isBlank(value)) return null
-    const cleaned = value.replace(/[^0-9.-]/g, "")
-    const numeric = Number(cleaned)
-    if (!Number.isFinite(numeric)) return null
-
-    const hasPercent = value?.includes("%") ?? false
-    const absValue = Math.abs(numeric)
-    if (hasPercent) return numeric / 100
-    if (absValue <= 1) return numeric
-    return numeric / 100
-  }
-
-  const formatMoney = (value: number): string =>
-    new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2 }).format(value)
-
   const inlineQuantity = enableInlineEditing ? (quantityField?.value as string | null | undefined) : null
   const inlinePriceEach = enableInlineEditing ? (priceEachField?.value as string | null | undefined) : null
   const inlineUsageAdj = enableInlineEditing
@@ -283,94 +254,53 @@ function FinancialSummarySection({
     : null
   const inlineExpectedRate = enableInlineEditing ? (expectedRateField?.value as string | null | undefined) : null
 
-  const quantityNumber = parseNumberMaybe(inlineQuantity ?? schedule.quantity)
-  const priceEachNumber = parseCurrencyMaybe(inlinePriceEach ?? schedule.priceEach)
-  const expectedUsageGrossNumber =
-    quantityNumber !== null && priceEachNumber !== null
-      ? quantityNumber * priceEachNumber
-      : parseCurrencyMaybe(schedule.expectedUsageGross ?? schedule.expectedUsage ?? null)
-
-  const expectedUsageAdjustmentNumber =
-    parseCurrencyMaybe(inlineUsageAdj ?? schedule.expectedUsageAdjustment) ?? 0
-  const hasUsageInputs =
-    !isBlank(inlineQuantity ?? schedule.quantity) ||
-    !isBlank(inlinePriceEach ?? schedule.priceEach) ||
-    !isBlank(inlineUsageAdj ?? schedule.expectedUsageAdjustment) ||
-    !isBlank(schedule.expectedUsageGross ?? schedule.expectedUsage ?? null)
-
-  const expectedUsageNetNumber =
-    hasUsageInputs && expectedUsageGrossNumber !== null
-      ? expectedUsageGrossNumber + expectedUsageAdjustmentNumber
-      : hasUsageInputs
-        ? expectedUsageAdjustmentNumber
-        : parseCurrencyMaybe(schedule.expectedUsageNet) ?? null
+  const metrics = computeRevenueScheduleMetricsFromDisplay({
+    quantity: inlineQuantity ?? schedule.quantity,
+    priceEach: inlinePriceEach ?? schedule.priceEach,
+    expectedUsageGross: schedule.expectedUsageGross ?? schedule.expectedUsage ?? null,
+    expectedUsage: schedule.expectedUsage ?? null,
+    expectedUsageAdjustment: inlineUsageAdj ?? schedule.expectedUsageAdjustment,
+    expectedUsageNet: schedule.expectedUsageNet,
+    actualUsage: schedule.actualUsage,
+    expectedCommissionGross: schedule.expectedCommissionGross,
+    expectedCommissionAdjustment: inlineCommissionAdj ?? schedule.expectedCommissionAdjustment,
+    expectedCommissionNet: schedule.expectedCommissionNet,
+    actualCommission: schedule.actualCommission,
+    expectedCommissionRatePercent: inlineExpectedRate ?? schedule.expectedCommissionRatePercent,
+    actualCommissionRatePercent: schedule.actualCommissionRatePercent
+  })
 
   const expectedUsageGrossDisplay =
-    expectedUsageGrossNumber !== null
-      ? formatMoney(expectedUsageGrossNumber)
+    metrics.expectedUsageGross !== null
+      ? formatCurrencyUSD(metrics.expectedUsageGross)
       : schedule.expectedUsageGross ?? schedule.expectedUsage ?? null
   const expectedUsageNetDisplay =
-    expectedUsageNetNumber !== null ? formatMoney(expectedUsageNetNumber) : schedule.expectedUsageNet ?? expectedUsageGrossDisplay
-
-  const actualUsageMaybe = parseCurrencyMaybe(schedule.actualUsage)
-  const hasActualUsage = !isBlank(schedule.actualUsage)
-  const usageDifferenceNumber =
-    expectedUsageNetNumber !== null || hasActualUsage
-      ? (expectedUsageNetNumber ?? 0) - (actualUsageMaybe ?? 0)
-      : null
-
-  const expectedRateFraction = parsePercentFractionMaybe(inlineExpectedRate ?? schedule.expectedCommissionRatePercent)
-  const expectedCommissionGrossNumber =
-    expectedUsageNetNumber !== null && expectedRateFraction !== null
-      ? expectedUsageNetNumber * expectedRateFraction
-      : parseCurrencyMaybe(schedule.expectedCommissionGross ?? null) ?? parseCurrencyMaybe(schedule.expectedCommissionNet ?? null)
-
-  const expectedCommissionAdjustmentNumber =
-    parseCurrencyMaybe(inlineCommissionAdj ?? schedule.expectedCommissionAdjustment) ?? 0
-  const hasCommissionInputs =
-    !isBlank(inlineCommissionAdj ?? schedule.expectedCommissionAdjustment) ||
-    !isBlank(schedule.expectedCommissionGross ?? null) ||
-    !isBlank(schedule.expectedCommissionNet ?? null) ||
-    !isBlank(schedule.actualCommission)
-
-  const expectedCommissionNetNumber =
-    expectedCommissionGrossNumber !== null
-      ? expectedCommissionGrossNumber + expectedCommissionAdjustmentNumber
-      : hasCommissionInputs
-        ? expectedCommissionAdjustmentNumber
-        : parseCurrencyMaybe(schedule.expectedCommissionNet) ?? null
+    metrics.expectedUsageNet !== null
+      ? formatCurrencyUSD(metrics.expectedUsageNet)
+      : schedule.expectedUsageNet ?? expectedUsageGrossDisplay
 
   const commissionExpectedDisplay =
-    expectedCommissionGrossNumber !== null
-      ? formatMoney(expectedCommissionGrossNumber)
+    metrics.expectedCommissionGross !== null
+      ? formatCurrencyUSD(metrics.expectedCommissionGross)
       : schedule.expectedCommissionGross ?? schedule.expectedCommissionNet ?? null
   const commissionNetDisplay =
-    expectedCommissionNetNumber !== null ? formatMoney(expectedCommissionNetNumber) : schedule.expectedCommissionNet ?? commissionExpectedDisplay
-
-  const actualCommissionMaybe = parseCurrencyMaybe(schedule.actualCommission)
-  const commissionDifferenceNumber =
-    expectedCommissionNetNumber !== null || !isBlank(schedule.actualCommission)
-      ? (expectedCommissionNetNumber ?? 0) - (actualCommissionMaybe ?? 0)
-      : null
-
-  // Prefer the API-provided actual rate when present, otherwise derive it from usage/commission.
-  const actualRateFractionFromApi = parsePercentFractionMaybe(schedule.actualCommissionRatePercent)
-  const actualRateFractionDerived =
-    actualUsageMaybe !== null && actualUsageMaybe !== 0 && actualCommissionMaybe !== null ? actualCommissionMaybe / actualUsageMaybe : null
-  const actualRateFraction = actualRateFractionFromApi ?? actualRateFractionDerived
-  const commissionRateDifferenceNumber =
-    expectedRateFraction !== null && actualRateFraction !== null ? expectedRateFraction - actualRateFraction : null
+    metrics.expectedCommissionNet !== null
+      ? formatCurrencyUSD(metrics.expectedCommissionNet)
+      : schedule.expectedCommissionNet ?? commissionExpectedDisplay
 
   const splitsDisplay = (() => {
-    const housePercent = schedule.houseSplitPercent ?? "--"
-    const houseRepPercent = schedule.houseRepSplitPercent ?? "--"
-    const subagentPercent = schedule.subagentSplitPercent ?? "--"
+    const housePercent = schedule.houseSplitPercent ?? null
+    const houseRepPercent = schedule.houseRepSplitPercent ?? null
+    const subagentPercent = schedule.subagentSplitPercent ?? null
 
     if (splitMode === "percent") {
-      const houseFraction = parsePercentFractionMaybe(housePercent) ?? 0
-      const houseRepFraction = parsePercentFractionMaybe(houseRepPercent) ?? 0
-      const subagentFraction = parsePercentFractionMaybe(subagentPercent) ?? 0
-      const anySplitPresent = !isBlank(schedule.houseSplitPercent) || !isBlank(schedule.houseRepSplitPercent) || !isBlank(schedule.subagentSplitPercent)
+      const houseFraction = parsePercentFractionDisplay(housePercent) ?? 0
+      const houseRepFraction = parsePercentFractionDisplay(houseRepPercent) ?? 0
+      const subagentFraction = parsePercentFractionDisplay(subagentPercent) ?? 0
+      const anySplitPresent =
+        !isBlankDisplay(schedule.houseSplitPercent) ||
+        !isBlankDisplay(schedule.houseRepSplitPercent) ||
+        !isBlankDisplay(schedule.subagentSplitPercent)
       const totalFraction = anySplitPresent ? houseFraction + houseRepFraction + subagentFraction : null
       const formattedTotal = totalFraction !== null ? `${(totalFraction * 100).toFixed(2)}%` : "--"
       return {
@@ -381,19 +311,19 @@ function FinancialSummarySection({
       }
     }
 
-    const totalCommission = actualCommissionMaybe ?? expectedCommissionNetNumber ?? null
+    const totalCommission = metrics.actualCommission ?? metrics.expectedCommissionNet ?? null
     if (totalCommission === null || totalCommission === 0) {
       return {
         house: schedule.houseSplitPercent ?? "--",
         houseRep: schedule.houseRepSplitPercent ?? "--",
         subagent: schedule.subagentSplitPercent ?? "--",
-        total: totalCommission === 0 ? formatMoney(0) : "--"
+        total: totalCommission === 0 ? formatCurrencyUSD(0) : "--"
       }
     }
 
-    const houseFraction = parsePercentFractionMaybe(schedule.houseSplitPercent) ?? 0
-    const houseRepFraction = parsePercentFractionMaybe(schedule.houseRepSplitPercent) ?? 0
-    const subagentFraction = parsePercentFractionMaybe(schedule.subagentSplitPercent) ?? 0
+    const houseFraction = parsePercentFractionDisplay(schedule.houseSplitPercent) ?? 0
+    const houseRepFraction = parsePercentFractionDisplay(schedule.houseRepSplitPercent) ?? 0
+    const subagentFraction = parsePercentFractionDisplay(schedule.subagentSplitPercent) ?? 0
 
     const houseAmount = totalCommission * houseFraction
     const houseRepAmount = totalCommission * houseRepFraction
@@ -402,54 +332,35 @@ function FinancialSummarySection({
     const totalAmount = houseAmount + houseRepAmount + subagentAmount
 
     return {
-      house: formatMoney(houseAmount),
-      houseRep: formatMoney(houseRepAmount),
-      subagent: formatMoney(subagentAmount),
-      total: formatMoney(totalAmount)
+      house: formatCurrencyUSD(houseAmount),
+      houseRep: formatCurrencyUSD(houseRepAmount),
+      subagent: formatCurrencyUSD(subagentAmount),
+      total: formatCurrencyUSD(totalAmount)
     }
   })()
 
-  const formatDiff = (value: number | null): string => {
-    if (value === null) return "--"
-    if (!Number.isFinite(value) || value === 0) return "$0.00"
-    const formatted = formatMoney(Math.abs(value))
-    return value > 0 ? `+${formatted}` : `-${formatted}`
-  }
-
-  const formatPercentDiff = (value: number | null): string => {
-    if (value === null) return "--"
-    if (!Number.isFinite(value) || value === 0) return "0.00%"
-    const formatter = new Intl.NumberFormat("en-US", {
-      style: "percent",
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    })
-    const formatted = formatter.format(Math.abs(value))
-    return value > 0 ? `+${formatted}` : `-${formatted}`
-  }
-
   const usageDiffClass =
-    usageDifferenceNumber === null
+    metrics.usageDifference === null
       ? "text-gray-500"
-      : usageDifferenceNumber === 0
+      : metrics.usageDifference === 0
         ? "text-gray-800"
-        : usageDifferenceNumber > 0
+        : metrics.usageDifference > 0
           ? "text-green-700"
           : "text-red-700"
   const commissionDiffClass =
-    commissionDifferenceNumber === null
+    metrics.commissionDifference === null
       ? "text-gray-500"
-      : commissionDifferenceNumber === 0
+      : metrics.commissionDifference === 0
       ? "text-gray-800"
-      : commissionDifferenceNumber > 0
+      : metrics.commissionDifference > 0
         ? "text-green-700"
         : "text-red-700"
   const commissionRateDiffClass =
-    commissionRateDifferenceNumber === null
+    metrics.commissionRateDifferenceFraction === null
       ? "text-gray-500"
-      : commissionRateDifferenceNumber === 0
+      : metrics.commissionRateDifferenceFraction === 0
       ? "text-gray-800"
-      : commissionRateDifferenceNumber > 0
+      : metrics.commissionRateDifferenceFraction > 0
         ? "text-green-700"
         : "text-red-700"
 
@@ -560,7 +471,9 @@ function FinancialSummarySection({
               <div className="mt-auto flex items-center gap-1 rounded bg-gray-100 -mx-1 px-1 py-0.5 pt-0.5 border-t border-gray-300 min-h-[18px]">
                 <span className="flex-1 font-bold text-gray-700">Usage Difference (+/-)</span>
                 <span className="w-3 text-center font-bold text-gray-900">=</span>
-                <span className={cn("w-20 text-right font-bold", usageDiffClass)}>{formatDiff(usageDifferenceNumber)}</span>
+                <span className={cn("w-20 text-right font-bold", usageDiffClass)}>
+                  {formatSignedCurrencyDiff(metrics.usageDifference)}
+                </span>
               </div>
             </div>
           </div>
@@ -620,7 +533,9 @@ function FinancialSummarySection({
               <div className="mt-auto flex items-center gap-1 rounded bg-gray-100 -mx-1 px-1 py-0.5 pt-0.5 border-t border-gray-300 min-h-[18px]">
                 <span className="flex-1 font-bold text-gray-700">Commission Difference</span>
                 <span className="w-3 text-center font-bold text-gray-900">=</span>
-                <span className={cn("w-20 text-right font-bold", commissionDiffClass)}>{formatDiff(commissionDifferenceNumber)}</span>
+                <span className={cn("w-20 text-right font-bold", commissionDiffClass)}>
+                  {formatSignedCurrencyDiff(metrics.commissionDifference)}
+                </span>
               </div>
             </div>
           </div>
@@ -756,7 +671,9 @@ function FinancialSummarySection({
               <div className="mt-auto flex items-center gap-1 rounded bg-gray-100 -mx-1 px-1 py-0.5 pt-0.5 border-t border-gray-300 min-h-[18px]">
                 <span className="flex-1 font-bold text-gray-700">Commission Rate Difference</span>
                 <span className="w-3 text-center font-bold text-gray-900">=</span>
-                <span className={cn("w-20 text-right font-bold", commissionRateDiffClass)}>{formatPercentDiff(commissionRateDifferenceNumber)}</span>
+                <span className={cn("w-20 text-right font-bold", commissionRateDiffClass)}>
+                  {formatSignedPercentDiff(metrics.commissionRateDifferenceFraction)}
+                </span>
               </div>
             </div>
           </div>

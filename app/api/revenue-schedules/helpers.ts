@@ -1,5 +1,6 @@
 import { Prisma, RevenueScheduleStatus } from "@prisma/client"
 import { getRevenueTypeLabel } from "@/lib/revenue-types"
+import { computeRevenueScheduleMetrics } from "@/lib/revenue-schedule-math"
 
 export type RevenueScheduleWithRelations = Prisma.RevenueScheduleGetPayload<{
   include: {
@@ -322,15 +323,26 @@ function getEffectiveSplitFractions(schedule: RevenueScheduleWithRelations): {
 export function mapRevenueScheduleToListItem(schedule: RevenueScheduleWithRelations): RevenueScheduleListItem {
   const expectedUsage = toNumber(schedule.expectedUsage ?? schedule.opportunityProduct?.expectedUsage)
   const usageAdjustment = toNumber(schedule.usageAdjustment)
-  const expectedUsageNet = expectedUsage + usageAdjustment
   const actualUsage = toNumber(schedule.actualUsage)
-  const usageBalance = expectedUsageNet - actualUsage
 
   const expectedCommission = toNumber(schedule.expectedCommission ?? schedule.opportunityProduct?.expectedCommission)
   const expectedCommissionAdjustment = toNumber(schedule.actualCommissionAdjustment)
-  const expectedCommissionNet = expectedCommission + expectedCommissionAdjustment
   const actualCommission = toNumber(schedule.actualCommission)
-  const commissionDifference = expectedCommissionNet - actualCommission
+
+  const metrics = computeRevenueScheduleMetrics({
+    expectedUsageGross: expectedUsage,
+    expectedUsageAdjustment: usageAdjustment,
+    actualUsage,
+    expectedCommissionGross: expectedCommission,
+    expectedCommissionAdjustment,
+    actualCommission
+  })
+
+  const expectedUsageNet = metrics.expectedUsageNet ?? expectedUsage + usageAdjustment
+  const usageBalance = metrics.usageDifference ?? expectedUsageNet - actualUsage
+  const expectedCommissionNet =
+    metrics.expectedCommissionNet ?? expectedCommission + expectedCommissionAdjustment
+  const commissionDifference = metrics.commissionDifference ?? expectedCommissionNet - actualCommission
 
   const statusInfo = mapStatus(schedule.status, usageBalance, commissionDifference)
 
@@ -403,15 +415,19 @@ export function mapRevenueScheduleToDetail(schedule: RevenueScheduleWithRelation
   const expectedCommissionRate = schedule.product?.commissionPercent ?? null
   const productRevenueType = schedule.product?.revenueType ?? null
 
-  const actualCommissionNumber = toNumber(schedule.actualCommission)
-  const actualUsageNumber = toNumber(schedule.actualUsage)
-
-  const actualCommissionRate = actualUsageNumber > 0 ? actualCommissionNumber / actualUsageNumber : null
-  const expectedCommissionRateFraction = expectedCommissionRate ? toNumber(expectedCommissionRate) / 100 : null
-  const commissionRateDifference =
-    expectedCommissionRateFraction !== null && actualCommissionRate !== null
-      ? expectedCommissionRateFraction - actualCommissionRate
-      : null
+  const expectedCommissionRateFraction = expectedCommissionRate !== null ? toNumber(expectedCommissionRate) / 100 : null
+  const metrics = computeRevenueScheduleMetrics({
+    expectedUsageGross: toNumber(schedule.expectedUsage ?? schedule.opportunityProduct?.expectedUsage),
+    expectedUsageAdjustment: toNumber(schedule.usageAdjustment),
+    expectedUsageNet: null,
+    actualUsage: toNumber(schedule.actualUsage),
+    expectedCommissionGross: toNumber(schedule.expectedCommission ?? schedule.opportunityProduct?.expectedCommission),
+    expectedCommissionAdjustment: toNumber(schedule.actualCommissionAdjustment),
+    expectedCommissionNet: null,
+    actualCommission: toNumber(schedule.actualCommission),
+    expectedRateFraction: expectedCommissionRateFraction,
+    actualRateFraction: null
+  })
 
   const splits = getEffectiveSplitFractions(schedule)
 
@@ -420,9 +436,9 @@ export function mapRevenueScheduleToDetail(schedule: RevenueScheduleWithRelation
     legalName: schedule.account?.accountLegalName ?? null,
     shippingAddress: formatAddress(schedule.account?.shippingAddress),
     billingAddress: formatAddress(schedule.account?.billingAddress),
-    expectedCommissionRatePercent: formatPercent(expectedCommissionRateFraction),
-    actualCommissionRatePercent: formatPercent(actualCommissionRate),
-    commissionRateDifference: formatPercent(commissionRateDifference),
+    expectedCommissionRatePercent: formatPercent(metrics.expectedRateFraction),
+    actualCommissionRatePercent: formatPercent(metrics.actualRateFraction),
+    commissionRateDifference: formatPercent(metrics.commissionRateDifferenceFraction),
     houseSplitPercent: formatPercentFromFraction(splits.house),
     houseRepSplitPercent: formatPercentFromFraction(splits.houseRep),
     subagentSplitPercent: formatPercentFromFraction(splits.subagent),

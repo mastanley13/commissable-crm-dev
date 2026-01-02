@@ -1738,10 +1738,6 @@ export const RevenueScheduleSupportingDetails = forwardRef<
       return (
         <div className="space-y-3">
           <div className="border-2 border-gray-400 rounded-lg overflow-hidden bg-white">
-            <div className="bg-blue-500 text-white px-3 py-2 border-b-2 border-blue-700">
-              <h4 className="text-[11px] font-semibold">Account, Order, Customer, Location &amp; Service IDs</h4>
-            </div>
-
             <ListHeader
               inTab
               compact
