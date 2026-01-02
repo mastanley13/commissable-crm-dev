@@ -570,6 +570,16 @@ export async function DELETE(request: NextRequest, { params }: { params: { produ
         return NextResponse.json({ error: "Product id is required" }, { status: 400 })
       }
 
+      let reason: string | null = null
+      try {
+        const body = await request.json().catch(() => null) as any
+        if (body && typeof body.reason === "string") {
+          reason = body.reason.trim() || null
+        }
+      } catch (_) {
+        // ignore missing/invalid JSON bodies
+      }
+
       const tenantId = req.user.tenantId
       const existing = await prisma.product.findFirst({
         where: { id: productId, tenantId },
@@ -629,6 +639,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { produ
           isActive: existing.isActive,
           priceEach: existing.priceEach,
           commissionPercent: existing.commissionPercent,
+          reason,
         },
         undefined
       )

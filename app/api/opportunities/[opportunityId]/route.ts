@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { LeadSource, OpportunityStage, OpportunityStatus, AuditAction } from "@prisma/client"
+import { LeadSource, OpportunityStage, OpportunityStatus, AuditAction, RevenueScheduleStatus } from "@prisma/client"
 import { prisma } from "@/lib/db"
 import { withPermissions } from "@/lib/api-auth"
 import { hasAnyPermission } from "@/lib/auth"
@@ -284,6 +284,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { opport
         return NextResponse.json({ error: "Opportunity id is required" }, { status: 400 })
       }
 
+      const bypassConstraints = new URL(request.url).searchParams.get("bypassConstraints") === "true"
       const payload = await request.json().catch(() => null)
       if (!payload || typeof payload !== "object") {
         return NextResponse.json({ error: "Invalid request payload" }, { status: 400 })
@@ -410,12 +411,57 @@ export async function PATCH(request: NextRequest, { params }: { params: { opport
         hasChanges = true
       }
 
+      // Loss Reason (optional string) - used when deactivating opportunities from the Delete modal
+      if ("lossReason" in payload) {
+        if (payload.lossReason === null) {
+          data.lossReason = null
+        } else if (typeof payload.lossReason === "string") {
+          const trimmed = payload.lossReason.trim()
+          data.lossReason = trimmed.length > 0 ? trimmed : null
+        }
+        hasChanges = true
+      }
+
       if (typeof payload.status === "string") {
         return NextResponse.json({ error: "Opportunity status is managed automatically by stage" }, { status: 400 })
       }
 
       // Allow explicit active/inactive toggles using the dedicated `active` flag.
       if (typeof payload.active === "boolean") {
+        if (!payload.active && !bypassConstraints) {
+          const activeRevenueScheduleCount = await prisma.revenueSchedule.count({
+            where: {
+              tenantId: req.user.tenantId,
+              opportunityId: existing.id,
+              deletedAt: null,
+              status: {
+                in: [
+                  RevenueScheduleStatus.Unreconciled,
+                  RevenueScheduleStatus.Underpaid,
+                  RevenueScheduleStatus.Overpaid
+                ]
+              }
+            }
+          })
+
+          if (activeRevenueScheduleCount > 0) {
+            return NextResponse.json(
+              {
+                error: "Opportunity has active revenue schedules and cannot be deleted.",
+                constraints: [
+                  {
+                    entity: "Revenue Schedules",
+                    field: "opportunityId",
+                    count: activeRevenueScheduleCount,
+                    message: `Cannot delete opportunity with ${activeRevenueScheduleCount} active revenue schedule(s). Please complete or cancel revenue schedules first.`
+                  }
+                ]
+              },
+              { status: 409 }
+            )
+          }
+        }
+
         const currentStage = existing.stage as OpportunityStageValue
         const isTerminalStage =
           currentStage === OpportunityStage.ClosedLost ||
@@ -629,6 +675,16 @@ export async function DELETE(request: NextRequest, { params }: { params: { oppor
         return NextResponse.json({ error: "Opportunity id is required" }, { status: 400 })
       }
 
+      let reason: string | null = null
+      try {
+        const body = await request.json().catch(() => null) as any
+        if (body && typeof body.reason === "string") {
+          reason = body.reason.trim() || null
+        }
+      } catch (_) {
+        // ignore missing/invalid JSON bodies
+      }
+
       const tenantId = req.user.tenantId
       const existing = await prisma.opportunity.findFirst({
         where: { id: opportunityId, tenantId },
@@ -660,7 +716,8 @@ export async function DELETE(request: NextRequest, { params }: { params: { oppor
           stage: existing.stage,
           leadSource: existing.leadSource,
           ownerId: existing.ownerId,
-          accountId: existing.accountId
+          accountId: existing.accountId,
+          reason
         },
         undefined
       )

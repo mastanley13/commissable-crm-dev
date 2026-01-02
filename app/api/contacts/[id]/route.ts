@@ -527,6 +527,16 @@ export async function DELETE(
         const stage = url.searchParams.get('stage') || 'soft'
         const bypassConstraints = url.searchParams.get('bypassConstraints') === 'true'
 
+        let reason: string | null = null
+        try {
+          const body = await request.json().catch(() => null) as any
+          if (body && typeof body.reason === 'string') {
+            reason = body.reason.trim() || null
+          }
+        } catch (_) {
+          // ignore missing/invalid JSON bodies
+        }
+
         const existingContact = await prisma.contact.findFirst({
           where: {
             id: contactId,
@@ -551,29 +561,32 @@ export async function DELETE(
         if (stage === 'soft') {
           // Check for dependencies unless bypassing constraints
           if (!bypassConstraints) {
-            const constraints = []
-            
+            const constraints: Array<{ entity: string; field: string; count: number; message: string }> = []
+             
             if (existingContact.activities.length > 0) {
               constraints.push({
-                type: 'activities',
+                entity: 'Activities',
+                field: 'contactId',
                 count: existingContact.activities.length,
-                message: `This contact has ${existingContact.activities.length} associated activities`
+                message: `Cannot delete contact with ${existingContact.activities.length} associated activity record(s). Please delete or reassign activities first.`
               })
             }
-            
+             
             if (opportunityCount > 0) {
               constraints.push({
-                type: 'opportunities', 
+                entity: 'Opportunities',
+                field: 'accountId',
                 count: opportunityCount,
-                message: `This contact has ${opportunityCount} associated opportunities`
+                message: `Cannot delete contact while the associated account has ${opportunityCount} opportunity record(s).`
               })
             }
-            
+             
             if (existingContact.groupMembers.length > 0) {
               constraints.push({
-                type: 'groups',
+                entity: 'Groups',
+                field: 'contactId',
                 count: existingContact.groupMembers.length, 
-                message: `This contact belongs to ${existingContact.groupMembers.length} groups`
+                message: `Cannot delete contact while it belongs to ${existingContact.groupMembers.length} group(s). Remove it from groups first.`
               })
             }
 
@@ -596,7 +609,7 @@ export async function DELETE(
           })
 
           // Log audit event for soft deletion
-          await logContactAudit(
+              await logContactAudit(
             AuditAction.Delete,
             contactId,
             userId,
@@ -611,7 +624,10 @@ export async function DELETE(
               workPhone: existingContact.workPhone,
               mobilePhone: existingContact.mobilePhone,
               accountId: existingContact.accountId,
-              deletedAt: null
+              deletedAt: null,
+              stage: 'soft',
+              bypassConstraints,
+              reason
             },
             { deletedAt: new Date() }
       )
@@ -669,7 +685,9 @@ export async function DELETE(
               workPhone: existingContact.workPhone,
               mobilePhone: existingContact.mobilePhone,
               accountId: existingContact.accountId,
-              deletedAt: existingContact.deletedAt
+              deletedAt: existingContact.deletedAt,
+              stage: 'permanent',
+              reason
             },
             undefined
       )

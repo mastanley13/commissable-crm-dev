@@ -535,7 +535,7 @@ export default function AccountsPage() {
       let next =
         status === "active"
           ? records.filter((record) => record.active)
-          : [...records];
+          : records.filter((record) => !record.isDeleted);
 
       if (Array.isArray(columnFilterState) && columnFilterState.length > 0) {
         columnFilterState.forEach((filter) => {
@@ -704,6 +704,24 @@ export default function AccountsPage() {
       showError(
         "Accounts unavailable",
         "Unable to locate the selected accounts. Refresh the page and try again."
+      );
+      return;
+    }
+
+    const deletedCount = targets.filter((account) => account.isDeleted).length;
+    if (deletedCount > 0) {
+      showError(
+        "Accounts already deleted",
+        "Some selected accounts have already been deleted. Use Admin → Archive to review or restore deleted accounts."
+      );
+      return;
+    }
+
+    const activeCount = targets.filter((account) => account.active).length;
+    if (activeCount > 0) {
+      showError(
+        "Deactivate accounts first",
+        "Selected accounts must be Inactive before they can be deleted. Use the Status bulk action to mark them inactive, then delete."
       );
       return;
     }
@@ -1137,11 +1155,21 @@ export default function AccountsPage() {
 
   const softDeleteAccountRequest = useCallback(async (
     accountId: string,
-    bypassConstraints?: boolean
+    bypassConstraints?: boolean,
+    reason?: string
   ): Promise<{ success: boolean; constraints?: DeletionConstraint[]; error?: string }> => {
     try {
       const url = `/api/accounts/${accountId}?stage=soft${bypassConstraints ? "&bypassConstraints=true" : ""}`;
-      const response = await fetch(url, { method: "DELETE" });
+      const trimmedReason = typeof reason === "string" ? reason.trim() : "";
+      const response = await fetch(url, {
+        method: "DELETE",
+        ...(trimmedReason
+          ? {
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ reason: trimmedReason }),
+            }
+          : {}),
+      });
 
       if (!response.ok) {
         let data: any = null;
@@ -1168,45 +1196,18 @@ export default function AccountsPage() {
       return { success: false, error: message };
     }
   }, []);
-  const deactivateAccountRequest = useCallback(async (accountId: string): Promise<{ success: boolean; error?: string }> => {
-    try {
-      const response = await fetch(`/api/accounts/${accountId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ active: false })
-      });
-
-      if (!response.ok) {
-        const data = await response.json().catch(() => null);
-        const message = typeof data?.error === "string" && data.error.length > 0
-          ? data.error
-          : "Failed to deactivate account";
-        return { success: false, error: message };
-      }
-
-      return { success: true };
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Unable to deactivate account";
-      return { success: false, error: message };
-    }
-  }, []);
 
   const handleSoftDelete = useCallback(async (
     accountId: string,
-    bypassConstraints?: boolean
+    bypassConstraints?: boolean,
+    reason?: string
   ): Promise<{ success: boolean; constraints?: DeletionConstraint[]; error?: string }> => {
-    const result = await softDeleteAccountRequest(accountId, bypassConstraints);
+    const result = await softDeleteAccountRequest(accountId, bypassConstraints, reason);
 
     if (result.success) {
-      setAccounts((previous) =>
-        previous.map((account) =>
-          account.id === accountId
-            ? { ...account, active: false, status: "Archived", isDeleted: true }
-            : account
-        )
-      );
+      setAccounts((previous) => previous.filter((account) => account.id !== accountId));
       setSelectedAccounts((prev) => prev.filter((id) => id !== accountId));
-      showSuccess("Account deleted", "The account has been soft deleted and can be restored if needed.");
+      showSuccess("Account deleted", "The account was moved to Archive and can be restored by an Admin if needed.");
     }
 
     return result;
@@ -1215,7 +1216,8 @@ export default function AccountsPage() {
   const executeBulkSoftDelete = useCallback(
     async (
       targets: AccountRow[],
-      bypassConstraints?: boolean
+      bypassConstraints?: boolean,
+      reason?: string
     ): Promise<{ success: boolean; constraints?: DeletionConstraint[]; error?: string }> => {
       if (!targets || targets.length === 0) {
         showError("No accounts selected", "Select at least one account to delete.");
@@ -1225,63 +1227,34 @@ export default function AccountsPage() {
       setBulkActionLoading(true);
 
       try {
-        const deactivateCandidates = targets.filter((account) => account.active);
-        const deletionCandidates = targets.filter((account) => !account.active && !account.isDeleted);
-
-        const deactivatedIds: string[] = [];
-        const deactivationFailures: Array<{ account: AccountRow; message: string }> = [];
-
-        if (deactivateCandidates.length > 0) {
-          const results = await Promise.allSettled(
-            deactivateCandidates.map((account) => deactivateAccountRequest(account.id))
-          );
-
-          results.forEach((result, index) => {
-            const account = deactivateCandidates[index];
-            if (result.status === "fulfilled" && result.value.success) {
-              deactivatedIds.push(account.id);
-            } else {
-              const message =
-                result.status === "fulfilled"
-                  ? result.value.error || "Failed to deactivate account"
-                  : result.reason instanceof Error
-                    ? result.reason.message
-                    : "Failed to deactivate account";
-
-              deactivationFailures.push({ account, message });
-            }
-          });
-
-          if (deactivatedIds.length > 0) {
-            const updatedAccounts = new Set(deactivatedIds);
-            setAccounts((previous) =>
-              previous.map((account) =>
-                updatedAccounts.has(account.id)
-                  ? { ...account, active: false, status: "Inactive", isDeleted: false }
-                  : account
-              )
-            );
-
-            showSuccess(
-              `Marked ${deactivatedIds.length} account${deactivatedIds.length === 1 ? "" : "s"} inactive`,
-              "Inactive status is required before deletion."
-            );
-          }
+        const deletedCount = targets.filter((account) => account.isDeleted).length;
+        if (deletedCount > 0) {
+          const message =
+            deletedCount === targets.length
+              ? "Selected accounts are already deleted. Use Admin → Archive to review or restore deleted accounts."
+              : "Some selected accounts are already deleted. Remove them from selection and try again.";
+          showError("Bulk delete blocked", message);
+          return { success: false, error: message };
         }
+
+        const activeCount = targets.filter((account) => account.active).length;
+        if (activeCount > 0) {
+          const message =
+            activeCount === targets.length
+              ? "Selected accounts must be Inactive before they can be deleted."
+              : "Some selected accounts are Active. Only Inactive accounts can be deleted.";
+          showError("Bulk delete blocked", `${message} Use the Status bulk action to mark them inactive first.`);
+          return { success: false, error: message };
+        }
+
+        const deletionCandidates = targets.filter((account) => !account.active && !account.isDeleted);
 
         const softDeleteSuccessIds: string[] = [];
         const softDeleteFailures: Array<{ account: AccountRow; message: string }> = [];
         const constraintResults: Array<{ account: AccountRow; constraints: DeletionConstraint[] }> = [];
 
-        const deleteCandidateById = new Map<string, AccountRow>();
-        deletionCandidates.forEach((account) => deleteCandidateById.set(account.id, account));
-        const deactivatedIdSet = new Set(deactivatedIds);
-        deactivateCandidates
-          .filter((account) => deactivatedIdSet.has(account.id))
-          .forEach((account) => deleteCandidateById.set(account.id, account));
-
-        for (const account of Array.from(deleteCandidateById.values())) {
-          const result = await softDeleteAccountRequest(account.id, bypassConstraints);
+        for (const account of deletionCandidates) {
+          const result = await softDeleteAccountRequest(account.id, bypassConstraints, reason);
 
           if (result.success) {
             softDeleteSuccessIds.push(account.id);
@@ -1297,22 +1270,15 @@ export default function AccountsPage() {
 
         if (softDeleteSuccessIds.length > 0) {
           const successSet = new Set(softDeleteSuccessIds);
-          setAccounts((previous) =>
-            previous.map((account) =>
-              successSet.has(account.id)
-                ? { ...account, active: false, status: "Archived", isDeleted: true }
-                : account
-            )
-          );
+          setAccounts((previous) => previous.filter((account) => !successSet.has(account.id)));
 
           showSuccess(
-            `Soft deleted ${softDeleteSuccessIds.length} account${softDeleteSuccessIds.length === 1 ? "" : "s"}`,
-            "Deleted accounts can be restored later if needed."
+            `Deleted ${softDeleteSuccessIds.length} account${softDeleteSuccessIds.length === 1 ? "" : "s"}`,
+            "Deleted accounts are moved to Archive and can be restored by an Admin if needed."
           );
         }
 
         const failureIds = [
-          ...deactivationFailures.map(({ account }) => account.id),
           ...softDeleteFailures.map(({ account }) => account.id),
           ...constraintResults.map(({ account }) => account.id),
         ];
@@ -1321,11 +1287,9 @@ export default function AccountsPage() {
         setSelectedAccounts((previous) => previous.filter((id) => failureIdSet.has(id)));
         setBulkDeleteTargets(targets.filter((account) => failureIdSet.has(account.id)));
 
-        if (deactivationFailures.length > 0 || softDeleteFailures.length > 0) {
-          const message = [
-            ...deactivationFailures.map(({ account, message }) => `${account.accountName || "Account"}: ${message}`),
-            ...softDeleteFailures.map(({ account, message }) => `${account.accountName || "Account"}: ${message}`),
-          ]
+        if (softDeleteFailures.length > 0) {
+          const message = softDeleteFailures
+            .map(({ account, message }) => `${account.accountName || "Account"}: ${message}`)
             .filter(Boolean)
             .join("; ");
 
@@ -1349,7 +1313,7 @@ export default function AccountsPage() {
           return { success: false, error: "Some accounts could not be deleted." };
         }
 
-        return { success: deactivatedIds.length > 0 || softDeleteSuccessIds.length > 0 };
+        return { success: softDeleteSuccessIds.length > 0 };
       } catch (error) {
         const message = error instanceof Error ? error.message : "Unable to delete selected accounts.";
         showError("Bulk delete failed", message);
@@ -1359,7 +1323,6 @@ export default function AccountsPage() {
       }
     },
     [
-      deactivateAccountRequest,
       softDeleteAccountRequest,
       setAccounts,
       setBulkActionLoading,
@@ -1372,11 +1335,19 @@ export default function AccountsPage() {
 
 
   const handlePermanentDelete = useCallback(async (
-    accountId: string
+    accountId: string,
+    reason?: string
   ): Promise<{ success: boolean, error?: string }> => {
     try {
+      const trimmedReason = typeof reason === "string" ? reason.trim() : "";
       const response = await fetch(`/api/accounts/${accountId}?stage=permanent`, {
-        method: "DELETE"
+        method: "DELETE",
+        ...(trimmedReason
+          ? {
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ reason: trimmedReason }),
+            }
+          : {}),
       });
 
       if (!response.ok) {
@@ -1556,8 +1527,8 @@ export default function AccountsPage() {
                   </span>
                 </button>
 
-                {/* Delete action - only for inactive */}
-                {isRowInactive(row) && (
+                {/* Delete action - only for inactive (not already deleted) */}
+                {isRowInactive(row) && !row.isDeleted && (
                   <div className="flex gap-0.5">
                     <button
                       type="button"
@@ -1624,7 +1595,7 @@ export default function AccountsPage() {
         return {
           ...column,
           render: (_value: unknown, row: AccountRow) => {
-            if (!isRowInactive(row)) return null;
+            if (!isRowInactive(row) || row.isDeleted) return null;
             return (
               <div className="flex gap-1">
                 <button
@@ -1794,7 +1765,21 @@ export default function AccountsPage() {
             ? bulkDeleteTargets.map((account) => ({
                 id: account.id,
                 name: account.accountName || "Unknown Account",
+                accountType: account.accountType || "",
+                legalName: account.accountLegalName || "",
+                accountOwner: account.accountOwner || "",
               }))
+            : undefined
+        }
+        entitySummary={
+          bulkDeleteTargets.length === 0 && accountToDelete
+            ? {
+                id: accountToDelete.id,
+                name: accountToDelete.accountName || "Unknown Account",
+                accountType: accountToDelete.accountType || "",
+                legalName: accountToDelete.accountLegalName || "",
+                accountOwner: accountToDelete.accountOwner || "",
+              }
             : undefined
         }
         entityLabelPlural="Accounts"
@@ -1806,18 +1791,22 @@ export default function AccountsPage() {
         onSoftDelete={handleSoftDelete}
         onBulkSoftDelete={
           bulkDeleteTargets.length > 0
-            ? (entities, bypassConstraints) =>
+            ? (entities, bypassConstraints, reason) =>
                 executeBulkSoftDelete(
                   bulkDeleteTargets.filter((account) =>
                     entities.some((entity) => entity.id === account.id)
                   ),
-                  bypassConstraints
+                  bypassConstraints,
+                  reason
                 )
             : undefined
         }
         onPermanentDelete={handlePermanentDelete}
         onRestore={handleRestore}
         userCanPermanentDelete={userCanPermanentDelete}
+        modalSize="revenue-schedules"
+        requireReason
+        note="Accounts cannot be deleted when they have active contacts, open/on-hold opportunities, billing (won) opportunities, child accounts, or active revenue schedules. If constraints are detected, you'll see them listed and can only proceed with Force Delete (which may orphan related records)."
       />
       <ToastContainer />
     </CopyProtectionWrapper>

@@ -532,6 +532,16 @@ export async function DELETE(
         const stage = url.searchParams.get('stage') || 'soft'
         const bypassConstraints = url.searchParams.get('bypassConstraints') === 'true'
 
+        let reason: string | null = null
+        try {
+          const body = await request.json().catch(() => null) as any
+          if (body && typeof body.reason === 'string') {
+            reason = body.reason.trim() || null
+          }
+        } catch (_) {
+          // ignore missing/invalid JSON bodies
+        }
+
         const tenantId = req.user.tenantId
         const userId = req.user.id
 
@@ -571,7 +581,8 @@ export async function DELETE(
             {
               accountName: existing.accountName,
               accountLegalName: existing.accountLegalName,
-              stage: 'permanent'
+              stage: 'permanent',
+              reason
             },
             undefined
           )
@@ -584,6 +595,13 @@ export async function DELETE(
         }
 
         // Default: Soft deletion
+        if (existing.status === AccountStatus.Active) {
+          return NextResponse.json(
+            { error: "Deactivate the account before deleting." },
+            { status: 400 }
+          )
+        }
+
         const result = await softDeleteEntity('Account', accountId, tenantId, userId, bypassConstraints)
         
         if (!result.success) {
@@ -606,7 +624,8 @@ export async function DELETE(
             accountName: existing.accountName,
             accountLegalName: existing.accountLegalName,
             stage: 'soft',
-            bypassConstraints
+            bypassConstraints,
+            reason
           },
           { status: AccountStatus.Archived }
         )

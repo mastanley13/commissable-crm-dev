@@ -620,30 +620,44 @@ export default function ProductsPage() {
     }
   }, [canEditProducts, reloadProducts, requireAdminForEdit, showError, showSuccess])
 
-  const handleProductDelete = useCallback(async (productId: string) => {
+  const handleProductDelete = useCallback(async (
+    productId: string,
+    reason?: string,
+  ): Promise<{ success: boolean; error?: string }> => {
     if (!canEditProducts) {
       requireAdminForEdit()
-      return
+      return { success: false, error: 'Admin access required' }
     }
 
     try {
-      const response = await fetch(`/api/products/${productId}`, { method: 'DELETE' })
+      const trimmedReason = typeof reason === 'string' ? reason.trim() : ''
+      const response = await fetch(`/api/products/${productId}`, {
+        method: 'DELETE',
+        ...(trimmedReason
+          ? {
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ reason: trimmedReason }),
+            }
+          : {}),
+      })
       if (!response.ok) {
         const payload = await response.json().catch(() => null)
-        throw new Error(payload?.error ?? 'Failed to delete product')
+        return { success: false, error: payload?.error ?? 'Failed to delete product' }
       }
 
       setProducts((previous) => previous.filter((product) => product.id !== productId))
       setSelectedProducts((previous) => previous.filter((id) => id !== productId))
       showSuccess('Product deleted', 'The product has been removed.')
       await reloadProducts()
-      setProductToDelete(null)
-      setShowDeleteDialog(false)
+      return { success: true }
     } catch (err) {
       console.error('Failed to delete product', err)
-      showError('Unable to delete product', err instanceof Error ? err.message : 'Please try again later.')
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : 'Please try again later.',
+      }
     }
-  }, [canEditProducts, reloadProducts, requireAdminForEdit, showError, showSuccess])
+  }, [canEditProducts, reloadProducts, requireAdminForEdit, showSuccess])
 
   const openDeleteDialog = useCallback((targets: ProductRow[]) => {
     if (!canEditProducts) {
@@ -706,7 +720,10 @@ export default function ProductsPage() {
     setBulkDeleteTargets([])
     setProductToDelete(null)
   }, [])
-  const executeBulkProductDelete = useCallback(async (targets: ProductRow[]) => {
+  const executeBulkProductDelete = useCallback(async (
+    targets: ProductRow[],
+    reason?: string,
+  ): Promise<{ success: boolean; error?: string }> => {
     if (!canEditProducts) {
       requireAdminForEdit()
       return { success: false, error: 'Admin access required' }
@@ -720,9 +737,18 @@ export default function ProductsPage() {
     setBulkActionLoading(true)
 
     try {
+      const trimmedReason = typeof reason === 'string' ? reason.trim() : ''
       const outcomes = await Promise.allSettled(
         targets.map(async (target) => {
-          const response = await fetch(`/api/products/${target.id}`, { method: 'DELETE' })
+          const response = await fetch(`/api/products/${target.id}`, {
+            method: 'DELETE',
+            ...(trimmedReason
+              ? {
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ reason: trimmedReason }),
+                }
+              : {}),
+          })
           if (!response.ok) {
             const payload = await response.json().catch(() => null)
             throw new Error(payload?.error ?? 'Failed to delete product')
@@ -757,12 +783,12 @@ export default function ProductsPage() {
       }
 
       if (failures.length > 0) {
-        const detail = failures
-          .map((item) => `${item.product.productNameHouse || item.product.productNameVendor}: ${item.message}`)
-          .join('; ')
-        showError('Failed to delete some products', detail)
-        return { success: false, error: detail }
-      }
+          const detail = failures
+            .map((item) => `${item.product.productNameHouse || item.product.productNameVendor}: ${item.message}`)
+            .join('; ')
+          showError('Failed to delete some products', detail)
+          return { success: false, error: detail }
+        }
 
       return { success: true }
     } finally {
@@ -1684,22 +1710,30 @@ export default function ProductsPage() {
               ? bulkDeleteTargets.every((product) => !product.active)
               : productToDelete ? !productToDelete.active : false
           }
-          onSoftDelete={async (id) => {
-            await handleProductDelete(id)
-            return { success: true }
+          onSoftDelete={async (id, _bypassConstraints, reason) => {
+            const result = await handleProductDelete(id, reason)
+            return result.success ? { success: true } : { success: false, error: result.error }
           }}
-          onBulkSoftDelete={async (entities) => {
+          onBulkSoftDelete={async (entities, _bypassConstraints, reason) => {
             const targets = products.filter((product) =>
               entities.some((entity) => entity.id === product.id),
             )
-            const result = await executeBulkProductDelete(targets)
+            const result = await executeBulkProductDelete(targets, reason)
             return result
           }}
-          onPermanentDelete={async (id) => {
-            await handleProductDelete(id)
-            return { success: true }
+          onPermanentDelete={async (id, reason) => {
+            const result = await handleProductDelete(id, reason)
+            return result
           }}
           userCanPermanentDelete
+          disallowActiveDelete={
+            bulkDeleteTargets.length > 0
+              ? bulkDeleteTargets.some((product) => !!product.active)
+              : Boolean(productToDelete?.active)
+          }
+          modalSize="revenue-schedules"
+          requireReason
+          note="Products cannot be deleted when they are tied to revenue schedules. Only inactive products without revenue schedules can be deleted."
         />
       ) : null}
 

@@ -89,6 +89,7 @@ export async function GET(request: NextRequest) {
         const query = searchParams.get("q")?.trim() ?? ""
         const accountTypeName = searchParams.get("accountType")?.trim() ?? ""
         const status = searchParams.get("status")?.trim() ?? ""
+        const includeArchived = searchParams.get("includeArchived") === "true"
         const ownerId = searchParams.get("ownerId")?.trim() ?? ""
 
         const whereClause: Record<string, unknown> = { tenantId }
@@ -108,11 +109,17 @@ export async function GET(request: NextRequest) {
         }
 
         if (status) {
-          if (status.toLowerCase() === "active") {
-            whereClause.status = "Active"
-          } else if (status.toLowerCase() === "inactive") {
-            whereClause.status = "Inactive"
+          const normalized = status.toLowerCase()
+          if (normalized === "active") {
+            whereClause.status = AccountStatus.Active
+          } else if (normalized === "inactive") {
+            whereClause.status = AccountStatus.Inactive
+          } else if (normalized === "archived" || normalized === "deleted") {
+            whereClause.status = AccountStatus.Archived
           }
+        } else if (!includeArchived) {
+          // Default: hide soft-deleted (Archived) records from the main Accounts list.
+          whereClause.status = { not: AccountStatus.Archived }
         }
 
         if (ownerId) {

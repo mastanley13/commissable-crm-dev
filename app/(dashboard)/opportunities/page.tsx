@@ -862,16 +862,28 @@ export default function OpportunitiesPage() {
   )
 
   const softDeleteOpportunityById = useCallback(
-    async (opportunityId: string): Promise<{ success: boolean; error?: string }> => {
+    async (
+      opportunityId: string,
+      bypassConstraints?: boolean,
+      reason?: string,
+    ): Promise<{ success: boolean; constraints?: DeletionConstraint[]; error?: string }> => {
       try {
-        const response = await fetch(`/api/opportunities/${opportunityId}`, {
+        const trimmedReason = typeof reason === 'string' ? reason.trim() : ''
+        const url = `/api/opportunities/${opportunityId}${bypassConstraints ? '?bypassConstraints=true' : ''}`
+        const response = await fetch(url, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ active: false }),
+          body: JSON.stringify({
+            active: false,
+            ...(trimmedReason ? { lossReason: trimmedReason } : {}),
+          }),
         })
 
         if (!response.ok) {
           const payload = await response.json().catch(() => null)
+          if (response.status === 409 && Array.isArray(payload?.constraints)) {
+            return { success: false, constraints: payload.constraints as DeletionConstraint[] }
+          }
           return { success: false, error: payload?.error ?? 'Failed to update opportunity status' }
         }
 
@@ -944,9 +956,18 @@ export default function OpportunitiesPage() {
   )
 
   const deleteOpportunityById = useCallback(
-    async (opportunityId: string): Promise<{ success: boolean; error?: string }> => {
+    async (opportunityId: string, reason?: string): Promise<{ success: boolean; error?: string }> => {
       try {
-        const response = await fetch(`/api/opportunities/${opportunityId}`, { method: 'DELETE' })
+        const trimmedReason = typeof reason === 'string' ? reason.trim() : ''
+        const response = await fetch(`/api/opportunities/${opportunityId}`, {
+          method: 'DELETE',
+          ...(trimmedReason
+            ? {
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ reason: trimmedReason }),
+              }
+            : {}),
+        })
 
         if (!response.ok) {
           const payload = await response.json().catch(() => null)
@@ -968,9 +989,10 @@ export default function OpportunitiesPage() {
   const handleOpportunitySoftDelete = useCallback(
     async (
       opportunityId: string,
-      _bypassConstraints?: boolean,
+      bypassConstraints?: boolean,
+      reason?: string,
     ): Promise<{ success: boolean; constraints?: DeletionConstraint[]; error?: string }> => {
-      const result = await softDeleteOpportunityById(opportunityId)
+      const result = await softDeleteOpportunityById(opportunityId, bypassConstraints, reason)
 
       if (result.success) {
         showSuccess('Opportunity deleted', 'The opportunity has been marked as inactive.')
@@ -987,7 +1009,8 @@ export default function OpportunitiesPage() {
   const executeBulkOpportunitySoftDelete = useCallback(
     async (
       targets: OpportunityRow[],
-      _bypassConstraints?: boolean,
+      bypassConstraints?: boolean,
+      reason?: string,
     ): Promise<{ success: boolean; constraints?: DeletionConstraint[]; error?: string }> => {
       if (!targets || targets.length === 0) {
         return { success: false, error: 'No opportunities selected' }
@@ -997,19 +1020,24 @@ export default function OpportunitiesPage() {
 
       try {
         const outcomes = await Promise.allSettled(
-          targets.map((target) => softDeleteOpportunityById(target.id)),
+          targets.map((target) => softDeleteOpportunityById(target.id, bypassConstraints, reason)),
         )
 
         const failures: Array<{ opportunity: OpportunityRow; message: string }> = []
+        const constraintResults: Array<{ opportunity: OpportunityRow; constraints: DeletionConstraint[] }> = []
 
         outcomes.forEach((result, index) => {
           const opportunity = targets[index]
           if (result.status === 'fulfilled') {
             if (!result.value.success) {
-              failures.push({
-                opportunity,
-                message: result.value.error ?? 'Failed to delete opportunity',
-              })
+              if (result.value.constraints && result.value.constraints.length > 0) {
+                constraintResults.push({ opportunity, constraints: result.value.constraints })
+              } else {
+                failures.push({
+                  opportunity,
+                  message: result.value.error ?? 'Failed to delete opportunity',
+                })
+              }
             }
           } else {
             const message =
@@ -1017,6 +1045,16 @@ export default function OpportunitiesPage() {
             failures.push({ opportunity, message })
           }
         })
+
+        if (constraintResults.length > 0) {
+          const aggregatedConstraints = constraintResults.flatMap(item =>
+            item.constraints.map(constraint => ({
+              ...constraint,
+              message: `${item.opportunity.opportunityName || "Opportunity"}: ${constraint.message}`,
+            }))
+          )
+          return { success: false, constraints: aggregatedConstraints }
+        }
 
         if (failures.length === 0) {
           showSuccess(
@@ -1227,8 +1265,8 @@ export default function OpportunitiesPage() {
   )
 
   const handleOpportunityPermanentDelete = useCallback(
-    async (opportunityId: string) => {
-      const result = await deleteOpportunityById(opportunityId)
+    async (opportunityId: string, reason?: string) => {
+      const result = await deleteOpportunityById(opportunityId, reason)
 
       if (result.success) {
         showSuccess('Opportunity deleted', 'The opportunity has been permanently deleted.')
@@ -1660,18 +1698,22 @@ export default function OpportunitiesPage() {
         onSoftDelete={handleOpportunitySoftDelete}
         onBulkSoftDelete={
           bulkDeleteTargets.length > 0
-            ? async (entities, bypassConstraints) =>
+            ? async (entities, bypassConstraints, reason) =>
                 executeBulkOpportunitySoftDelete(
                   bulkDeleteTargets.filter((opportunity) =>
                     entities.some((entity) => entity.id === opportunity.id),
                   ),
                   bypassConstraints,
+                  reason,
                 )
             : undefined
         }
         onPermanentDelete={handleOpportunityPermanentDelete}
         onRestore={handleOpportunityRestore}
         userCanPermanentDelete
+        modalSize="revenue-schedules"
+        requireReason
+        note="Opportunities cannot be deleted when they have active revenue schedules. If constraints are detected, you'll see them listed and can only proceed with Force Delete (which may leave related data in an inconsistent state)."
       />
 
       <ColumnChooserModal

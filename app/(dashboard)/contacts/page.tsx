@@ -605,11 +605,21 @@ export default function ContactsPage() {
 
   const softDeleteContactRequest = useCallback(async (
     contactId: string,
-    bypassConstraints?: boolean
+    bypassConstraints?: boolean,
+    reason?: string
   ): Promise<{ success: boolean; constraints?: DeletionConstraint[]; error?: string }> => {
     try {
       const url = `/api/contacts/${contactId}?stage=soft${bypassConstraints ? "&bypassConstraints=true" : ""}`
-      const response = await fetch(url, { method: "DELETE" })
+      const trimmedReason = typeof reason === "string" ? reason.trim() : ""
+      const response = await fetch(url, {
+        method: "DELETE",
+        ...(trimmedReason
+          ? {
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ reason: trimmedReason }),
+            }
+          : {}),
+      })
 
       if (!response.ok) {
         let data: any = null
@@ -671,9 +681,10 @@ export default function ContactsPage() {
 
   const handleSoftDelete = useCallback(async (
     contactId: string,
-    bypassConstraints?: boolean
+    bypassConstraints?: boolean,
+    reason?: string
   ): Promise<{ success: boolean; constraints?: DeletionConstraint[]; error?: string }> => {
-    const result = await softDeleteContactRequest(contactId, bypassConstraints)
+    const result = await softDeleteContactRequest(contactId, bypassConstraints, reason)
 
     if (result.success) {
       setContacts(previous =>
@@ -691,7 +702,8 @@ export default function ContactsPage() {
   }, [setContacts, showSuccess, softDeleteContactRequest])
   const executeBulkSoftDelete = useCallback(async (
     targets: ContactRow[],
-    bypassConstraints?: boolean
+    bypassConstraints?: boolean,
+    reason?: string
   ): Promise<{ success: boolean; constraints?: DeletionConstraint[]; error?: string }> => {
     if (!targets || targets.length === 0) {
       return { success: false, error: "No contacts selected" }
@@ -752,7 +764,7 @@ export default function ContactsPage() {
       const deletionFailures: Array<{ contact: ContactRow; message: string }> = []
 
       for (const contact of deletionCandidates) {
-        const result = await softDeleteContactRequest(contact.id, bypassConstraints)
+        const result = await softDeleteContactRequest(contact.id, bypassConstraints, reason)
 
         if (result.success) {
           deletionSuccessIds.push(contact.id)
@@ -1128,11 +1140,19 @@ export default function ContactsPage() {
   }, [])
 
   const handlePermanentDelete = useCallback(async (
-    contactId: string
+    contactId: string,
+    reason?: string
   ): Promise<{ success: boolean, error?: string }> => {
     try {
+      const trimmedReason = typeof reason === "string" ? reason.trim() : ""
       const response = await fetch(`/api/contacts/${contactId}?stage=permanent`, {
-        method: "DELETE"
+        method: "DELETE",
+        ...(trimmedReason
+          ? {
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ reason: trimmedReason }),
+            }
+          : {}),
       });
 
       if (!response.ok) {
@@ -1475,12 +1495,13 @@ export default function ContactsPage() {
         onSoftDelete={handleSoftDelete}
         onBulkSoftDelete={
           bulkDeleteTargets.length > 0
-            ? async (entities, bypassConstraints) =>
+            ? async (entities, bypassConstraints, reason) =>
                 executeBulkSoftDelete(
                   bulkDeleteTargets.filter(contact =>
                     entities.some(entity => entity.id === contact.id)
                   ),
-                  bypassConstraints
+                  bypassConstraints,
+                  reason
                 )
             : undefined
         }
@@ -1492,6 +1513,9 @@ export default function ContactsPage() {
             ? bulkDeleteTargets.some(contact => !!contact.active || !!contact.isPrimary)
             : (!!contactToDelete?.active || !!contactToDelete?.isPrimary)
         }
+        modalSize="revenue-schedules"
+        requireReason
+        note="Contacts cannot be deleted while they are Active or Primary, or when they have related records (activities, opportunities, or group memberships). If constraints are detected, you'll see them listed and can only proceed with Force Delete (which may orphan related records)."
       />
       <ToastContainer />
     </CopyProtectionWrapper>

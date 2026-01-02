@@ -1401,16 +1401,26 @@ const [groupsPageSize, setGroupsPageSize] = useState(100)
 
   const handleSoftDelete = useCallback(async (
     contactId: string, 
-    bypassConstraints?: boolean
+    bypassConstraints?: boolean,
+    reason?: string
   ): Promise<{ success: boolean, constraints?: DeletionConstraint[], error?: string }> => {
     try {
       const url = `/api/contacts/${contactId}?stage=soft${bypassConstraints ? '&bypassConstraints=true' : ''}`;
-      const response = await fetch(url, { method: "DELETE" });
+      const trimmedReason = typeof reason === "string" ? reason.trim() : ""
+      const response = await fetch(url, {
+        method: "DELETE",
+        ...(trimmedReason
+          ? {
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ reason: trimmedReason }),
+            }
+          : {}),
+      });
 
       if (!response.ok) {
         const data = await response.json();
-        if (response.status === 409 && data.constraints) {
-          return { success: false, constraints: data.constraints };
+        if (response.status === 409 && Array.isArray(data?.constraints)) {
+          return { success: false, constraints: data.constraints as DeletionConstraint[] };
         }
         return { success: false, error: data.error || "Failed to delete contact" };
       }
@@ -1430,11 +1440,19 @@ const [groupsPageSize, setGroupsPageSize] = useState(100)
   }, [contact, onContactUpdated]);
 
   const handlePermanentDelete = useCallback(async (
-    contactId: string
+    contactId: string,
+    reason?: string
   ): Promise<{ success: boolean, error?: string }> => {
     try {
+      const trimmedReason = typeof reason === "string" ? reason.trim() : ""
       const response = await fetch(`/api/contacts/${contactId}?stage=permanent`, {
-        method: "DELETE"
+        method: "DELETE",
+        ...(trimmedReason
+          ? {
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ reason: trimmedReason }),
+            }
+          : {}),
       });
 
       if (!response.ok) {
@@ -1870,9 +1888,11 @@ const [groupsPageSize, setGroupsPageSize] = useState(100)
 
   const softDeleteContactOpportunity = useCallback(async (
     opportunityId: string,
-    bypassConstraints?: boolean
+    bypassConstraints?: boolean,
+    reason?: string
   ): Promise<{ success: boolean; constraints?: DeletionConstraint[]; error?: string }> => {
     try {
+      const trimmedReason = typeof reason === "string" ? reason.trim() : ""
       const endpoint = bypassConstraints
         ? `/api/opportunities/${opportunityId}?bypassConstraints=true`
         : `/api/opportunities/${opportunityId}`
@@ -1880,7 +1900,10 @@ const [groupsPageSize, setGroupsPageSize] = useState(100)
       const response = await fetch(endpoint, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ active: false })
+        body: JSON.stringify({
+          active: false,
+          ...(trimmedReason ? { lossReason: trimmedReason } : {}),
+        })
       })
       const payload = await response.json().catch(() => null)
 
@@ -1903,9 +1926,10 @@ const [groupsPageSize, setGroupsPageSize] = useState(100)
 
   const handleOpportunitySoftDelete = useCallback(async (
     opportunityId: string,
-    bypassConstraints?: boolean
+    bypassConstraints?: boolean,
+    reason?: string
   ): Promise<{ success: boolean; constraints?: DeletionConstraint[]; error?: string }> => {
-    const result = await softDeleteContactOpportunity(opportunityId, bypassConstraints)
+    const result = await softDeleteContactOpportunity(opportunityId, bypassConstraints, reason)
 
     if (result.success) {
       showSuccess("Opportunity archived", "The opportunity has been marked as inactive.")
@@ -1925,10 +1949,20 @@ const [groupsPageSize, setGroupsPageSize] = useState(100)
   }, [refreshContactData, showError, showSuccess, softDeleteContactOpportunity]);
 
   const handleOpportunityPermanentDelete = useCallback(async (
-    opportunityId: string
+    opportunityId: string,
+    reason?: string
   ): Promise<{ success: boolean; error?: string }> => {
     try {
-      const response = await fetch(`/api/opportunities/${opportunityId}`, { method: "DELETE" })
+      const trimmedReason = typeof reason === "string" ? reason.trim() : ""
+      const response = await fetch(`/api/opportunities/${opportunityId}`, {
+        method: "DELETE",
+        ...(trimmedReason
+          ? {
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ reason: trimmedReason }),
+            }
+          : {}),
+      })
       const payload = await response.json().catch(() => null)
 
       if (!response.ok) {
@@ -1952,10 +1986,11 @@ const [groupsPageSize, setGroupsPageSize] = useState(100)
 
   const executeContactOpportunityBulkSoftDelete = useCallback(async (
     entities: Array<{ id: string; name?: string; subtitle?: string }>,
-    bypassConstraints?: boolean
+    bypassConstraints?: boolean,
+    reason?: string
   ): Promise<{ success: boolean; constraints?: DeletionConstraint[]; error?: string }> => {
     const results = await Promise.all(
-      entities.map(entity => softDeleteContactOpportunity(entity.id, bypassConstraints))
+      entities.map(entity => softDeleteContactOpportunity(entity.id, bypassConstraints, reason))
     )
 
     const successfulIds = entities
@@ -3546,6 +3581,9 @@ useEffect(() => {
         onPermanentDelete={handlePermanentDelete}
         onRestore={handleRestore}
         userCanPermanentDelete={true} // TODO: Check user permissions
+        modalSize="revenue-schedules"
+        requireReason
+        note="Contacts cannot be deleted while they are Active or Primary, or when they have related records (activities, opportunities, or group memberships). If constraints are detected, you'll see them listed and can only proceed with Force Delete (which may orphan related records)."
       />
 
       <TwoStageDeleteDialog
@@ -3580,18 +3618,22 @@ useEffect(() => {
         onSoftDelete={handleOpportunitySoftDelete}
         onBulkSoftDelete={
           opportunityDeleteTargets.length > 0
-            ? (entities, bypassConstraints) =>
+            ? (entities, bypassConstraints, reason) =>
                 executeContactOpportunityBulkSoftDelete(
                   opportunityDeleteTargets.filter(opportunity =>
                     entities.some(entity => entity.id === opportunity.id)
                   ),
-                  bypassConstraints
+                  bypassConstraints,
+                  reason
                 )
             : undefined
         }
         onPermanentDelete={handleOpportunityPermanentDelete}
         onRestore={handleOpportunityRestore}
         userCanPermanentDelete={opportunityDeleteTargets.length === 0}
+        modalSize="revenue-schedules"
+        requireReason
+        note="Opportunities cannot be deleted when they have active revenue schedules. If constraints are detected, you'll see them listed and can only proceed with Force Delete (which may leave related data in an inconsistent state)."
       />
 
       <TwoStageDeleteDialog
@@ -3605,6 +3647,9 @@ useEffect(() => {
         onPermanentDelete={handleGroupPermanentDelete}
         onRestore={handleGroupRestore}
         userCanPermanentDelete={true}
+        modalSize="revenue-schedules"
+        requireReason
+        note="Groups may not be deletable when they have related records. If constraints are detected, you'll see them listed and can only proceed with Force Delete (which may orphan related records)."
       />
 
       {contact && (
