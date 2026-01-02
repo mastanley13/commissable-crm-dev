@@ -9,6 +9,7 @@ import type { BulkActionsGridProps } from "./bulk-actions-grid"
 import { calculateMinWidth } from "@/lib/column-width-utils"
 import { cn } from "@/lib/utils"
 import type { DepositLineItemRow, SuggestedMatchScheduleRow } from "@/lib/mock-data"
+import { useAuth } from "@/lib/auth-context"
 import { useToasts } from "./toast"
 import { ColumnChooserModal } from "./column-chooser-modal"
 import { useTablePreferences } from "@/hooks/useTablePreferences"
@@ -317,7 +318,9 @@ export function DepositReconciliationDetailView({
   onDepositDeleted,
   onBackToReconciliation,
 }: DepositReconciliationDetailViewProps) {
+  const { hasPermission } = useAuth()
   const { showSuccess, showError, ToastContainer } = useToasts()
+  const canManageReconciliation = hasPermission("reconciliation.manage")
   const [lineTab, setLineTab] = useState<LineTabKey>("all")
   const [scheduleTab, setScheduleTab] = useState<ScheduleTabKey>("suggested")
   const [lineSearch, setLineSearch] = useState("")
@@ -1839,6 +1842,10 @@ export function DepositReconciliationDetailView({
   }, [scheduleRows, selectedSchedules, showError, showSuccess])
 
   const handleDeleteDeposit = useCallback(async () => {
+    if (!canManageReconciliation) {
+      showError("Delete failed", "Insufficient permissions.")
+      return
+    }
     if (!metadata?.id) {
       showError("Delete failed", "Deposit id is missing.")
       return
@@ -1872,7 +1879,15 @@ export function DepositReconciliationDetailView({
     } finally {
       setDeleteLoading(false)
     }
-  }, [deleteLoading, metadata?.id, onBackToReconciliation, onDepositDeleted, showError, showSuccess])
+  }, [
+    canManageReconciliation,
+    deleteLoading,
+    metadata?.id,
+    onBackToReconciliation,
+    onDepositDeleted,
+    showError,
+    showSuccess,
+  ])
 
   const lineBulkActions = useMemo<BulkActionsGridProps>(
     () => ({
@@ -2286,13 +2301,13 @@ export function DepositReconciliationDetailView({
                 <button
                   type="button"
                   onClick={handleDeleteDeposit}
-                  disabled={deleteLoading}
+                  disabled={deleteLoading || !canManageReconciliation}
                   className={cn(
                     "inline-flex h-9 w-9 items-center justify-center rounded-full border border-red-200 bg-white text-red-600 shadow-sm transition hover:bg-red-50",
-                    deleteLoading ? "cursor-not-allowed opacity-60" : "",
+                    deleteLoading || !canManageReconciliation ? "cursor-not-allowed opacity-60" : "",
                   )}
                   aria-label="Delete Deposit"
-                  title="Delete Deposit"
+                  title={canManageReconciliation ? "Delete Deposit" : "Insufficient permissions"}
                 >
                   <Trash2 className="h-4 w-4" />
                 </button>

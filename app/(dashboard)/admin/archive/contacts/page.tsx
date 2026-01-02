@@ -35,8 +35,9 @@ export default function AdminArchivedContactsPage() {
   const { hasPermission, user } = useAuth()
   const { showError, showSuccess, ToastContainer } = useToasts()
 
-  const canManageArchive = hasPermission('contacts.manage') || hasPermission('contacts.delete')
+  const canManageArchive = hasPermission('contacts.manage') || hasPermission('contacts.read')
   const userCanPermanentDelete = hasPermission('contacts.delete')
+  const userCanRestore = hasPermission('contacts.manage')
 
   const [contacts, setContacts] = useState<ContactArchiveRow[]>([])
   const [loading, setLoading] = useState(false)
@@ -270,7 +271,7 @@ export default function AdminArchivedContactsPage() {
     setBulkDeleteTargets(targets)
     setContactToDelete(null)
     setShowDeleteDialog(true)
-  }, [contacts, selectedContacts.length, showError])
+  }, [contacts, selectedContacts, showError])
 
   const closeDeleteDialog = () => {
     setShowDeleteDialog(false)
@@ -291,6 +292,7 @@ export default function AdminArchivedContactsPage() {
           tone: 'primary' as const,
           onClick: handleBulkRestore,
           tooltip: (count: number) => `Restore ${count} archived contact${count === 1 ? '' : 's'}`,
+          disabled: !userCanRestore,
         },
         {
           key: 'permanent-delete',
@@ -303,7 +305,7 @@ export default function AdminArchivedContactsPage() {
         },
       ],
     }
-  }, [bulkActionLoading, handleBulkRestore, openBulkPermanentDeleteDialog, selectedContacts.length, userCanPermanentDelete])
+  }, [bulkActionLoading, handleBulkRestore, openBulkPermanentDeleteDialog, selectedContacts.length, userCanPermanentDelete, userCanRestore])
 
   const columns: Column[] = useMemo(() => {
     return [
@@ -355,13 +357,14 @@ export default function AdminArchivedContactsPage() {
           <div className="flex items-center gap-2">
             <button
               type="button"
-              className="rounded-md border border-gray-300 bg-white px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-gray-600 hover:bg-gray-50"
+              className="rounded-md border border-gray-300 bg-white px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
               onClick={(event) => {
                 event.preventDefault()
                 event.stopPropagation()
                 handleRestore(row.id).catch(console.error)
               }}
-              title="Restore contact"
+              disabled={!userCanRestore}
+              title={userCanRestore ? 'Restore contact' : 'Insufficient permissions'}
             >
               Restore
             </button>
@@ -382,14 +385,14 @@ export default function AdminArchivedContactsPage() {
         ),
       },
     ]
-  }, [handleRestore, requestRowDeletion, userCanPermanentDelete])
+  }, [handleRestore, requestRowDeletion, userCanPermanentDelete, userCanRestore])
 
   if (!canManageArchive) {
     return (
       <div className="p-6">
         <h1 className="text-xl font-semibold text-gray-900">Archived Contacts</h1>
         <p className="mt-2 text-sm text-gray-600">
-          Access denied. You need contact management permissions to view archived contacts.
+          Access denied. You need contact access permissions to view archived contacts.
         </p>
         {user?.role?.name ? <p className="mt-2 text-xs text-gray-500">Role: {user.role.name}</p> : null}
       </div>
@@ -448,14 +451,28 @@ export default function AdminArchivedContactsPage() {
             ? bulkDeleteTargets.map((contact) => ({
                 id: contact.id,
                 name: contact.fullName || 'Contact',
+                email: contact.emailAddress ?? '',
+                workPhone: contact.workPhone ?? '',
+                mobile: contact.mobile ?? '',
               }))
+            : undefined
+        }
+        entitySummary={
+          bulkDeleteTargets.length === 0 && contactToDelete
+            ? {
+                id: contactToDelete.id,
+                name: contactToDelete.fullName || 'Unknown Contact',
+                email: contactToDelete.emailAddress ?? '',
+                workPhone: contactToDelete.workPhone ?? '',
+                mobile: contactToDelete.mobile ?? '',
+              }
             : undefined
         }
         entityLabelPlural="Contacts"
         isDeleted={true}
         onSoftDelete={async () => ({ success: false, error: 'Archived contacts cannot be soft deleted again.' })}
         onPermanentDelete={handlePermanentDelete}
-        onRestore={handleRestore}
+        onRestore={userCanRestore ? handleRestore : undefined}
         userCanPermanentDelete={userCanPermanentDelete}
         modalSize="revenue-schedules"
         requireReason

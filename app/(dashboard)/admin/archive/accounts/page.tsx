@@ -33,8 +33,9 @@ export default function AdminArchivedAccountsPage() {
   const { hasPermission, user } = useAuth()
   const { showError, showSuccess, ToastContainer } = useToasts()
 
-  const canManageArchive = hasPermission('accounts.manage') || hasPermission('accounts.delete')
-  const userCanPermanentDelete = hasPermission('accounts.delete')
+  const canManageArchive = hasPermission('accounts.manage') || hasPermission('accounts.read')
+  const userCanPermanentDelete = hasPermission('accounts.manage') && hasPermission('accounts.delete')
+  const userCanRestore = hasPermission('accounts.manage')
 
   const [accounts, setAccounts] = useState<AccountArchiveRow[]>([])
   const [loading, setLoading] = useState(false)
@@ -288,6 +289,7 @@ export default function AdminArchivedAccountsPage() {
           tone: 'primary' as const,
           onClick: handleBulkRestore,
           tooltip: (count: number) => `Restore ${count} archived account${count === 1 ? '' : 's'}`,
+          disabled: !userCanRestore,
         },
         {
           key: 'permanent-delete',
@@ -300,7 +302,7 @@ export default function AdminArchivedAccountsPage() {
         },
       ],
     }
-  }, [bulkActionLoading, handleBulkRestore, openBulkPermanentDeleteDialog, selectedAccounts.length, userCanPermanentDelete])
+  }, [bulkActionLoading, handleBulkRestore, openBulkPermanentDeleteDialog, selectedAccounts.length, userCanPermanentDelete, userCanRestore])
 
   const columns: Column[] = useMemo(() => {
     return [
@@ -335,13 +337,14 @@ export default function AdminArchivedAccountsPage() {
           <div className="flex items-center gap-2">
             <button
               type="button"
-              className="rounded-md border border-gray-300 bg-white px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-gray-600 hover:bg-gray-50"
+              className="rounded-md border border-gray-300 bg-white px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
               onClick={(event) => {
                 event.preventDefault()
                 event.stopPropagation()
                 handleRestore(row.id).catch(console.error)
               }}
-              title="Restore account"
+              disabled={!userCanRestore}
+              title={userCanRestore ? 'Restore account' : 'Insufficient permissions'}
             >
               Restore
             </button>
@@ -362,14 +365,14 @@ export default function AdminArchivedAccountsPage() {
         ),
       },
     ]
-  }, [handleRestore, requestRowDeletion, userCanPermanentDelete])
+  }, [handleRestore, requestRowDeletion, userCanPermanentDelete, userCanRestore])
 
   if (!canManageArchive) {
     return (
       <div className="p-6">
         <h1 className="text-xl font-semibold text-gray-900">Archived Accounts</h1>
         <p className="mt-2 text-sm text-gray-600">
-          Access denied. You need account management permissions to view archived accounts.
+          Access denied. You need account access permissions to view archived accounts.
         </p>
         {user?.role?.name ? (
           <p className="mt-2 text-xs text-gray-500">Role: {user.role.name}</p>
@@ -453,7 +456,7 @@ export default function AdminArchivedAccountsPage() {
         isDeleted={true}
         onSoftDelete={async () => ({ success: false, error: 'Archived accounts cannot be soft deleted again.' })}
         onPermanentDelete={handlePermanentDelete}
-        onRestore={handleRestore}
+        onRestore={userCanRestore ? handleRestore : undefined}
         userCanPermanentDelete={userCanPermanentDelete}
         modalSize="revenue-schedules"
         requireReason

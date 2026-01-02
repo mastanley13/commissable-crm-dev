@@ -29,6 +29,8 @@ export async function GET(request: NextRequest) {
       const endDateParam = searchParams.get("endDate")
       const sortColumn = searchParams.get("sort") ?? "scheduleDate"
       const sortDirection = searchParams.get("direction") === "asc" ? "asc" : "desc"
+      const includeDeleted = searchParams.get("includeDeleted") === "true"
+      const deletedOnly = searchParams.get("deletedOnly") === "true"
 
       // Define locally to decouple from client-only components
       type ColumnFilter = { columnId: string; value: string; operator?: "equals" | "contains" | "starts_with" | "ends_with" }
@@ -47,7 +49,17 @@ export async function GET(request: NextRequest) {
 
       const dedupedFilters = dedupeColumnFilters(columnFilters)
 
-      const where: Prisma.RevenueScheduleWhereInput = { tenantId, deletedAt: null }
+      const where: Prisma.RevenueScheduleWhereInput = { tenantId }
+
+      // Deleted filters:
+      // - default: exclude soft-deleted schedules
+      // - includeDeleted=true: include both active + deleted schedules
+      // - deletedOnly=true: only soft-deleted schedules (overrides includeDeleted)
+      if (deletedOnly) {
+        where.deletedAt = { not: null }
+      } else if (!includeDeleted) {
+        where.deletedAt = null
+      }
 
       const andFilters: Prisma.RevenueScheduleWhereInput[] = []
 

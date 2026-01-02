@@ -13,15 +13,20 @@ const percentFormatter = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 2
 })
 
-export function isBlankDisplay(value: DisplayValue): boolean {
-  if (value === null || value === undefined) return true
+function getTrimmedNonBlankDisplayValue(value: DisplayValue): string | null {
+  if (value === null || value === undefined) return null
   const trimmed = value.trim()
-  return trimmed.length === 0 || trimmed === "-" || trimmed === "--"
+  if (trimmed.length === 0 || trimmed === "-" || trimmed === "--") return null
+  return trimmed
+}
+
+export function isBlankDisplay(value: DisplayValue): boolean {
+  return getTrimmedNonBlankDisplayValue(value) === null
 }
 
 export function parseCurrencyDisplay(value: DisplayValue): number | null {
-  if (isBlankDisplay(value)) return null
-  const trimmed = value.trim()
+  const trimmed = getTrimmedNonBlankDisplayValue(value)
+  if (trimmed === null) return null
   const negativeParens = trimmed.startsWith("(") && trimmed.endsWith(")")
   const cleaned = trimmed.replace(/[^0-9.-]/g, "")
   const numeric = Number(cleaned)
@@ -31,8 +36,8 @@ export function parseCurrencyDisplay(value: DisplayValue): number | null {
 }
 
 export function parseNumberDisplay(value: DisplayValue): number | null {
-  if (isBlankDisplay(value)) return null
-  const trimmed = value.trim()
+  const trimmed = getTrimmedNonBlankDisplayValue(value)
+  if (trimmed === null) return null
   const negativeParens = trimmed.startsWith("(") && trimmed.endsWith(")")
   const cleaned = trimmed.replace(/[^0-9.-]/g, "")
   const numeric = Number(cleaned)
@@ -43,8 +48,8 @@ export function parseNumberDisplay(value: DisplayValue): number | null {
 
 // Returns a fraction (0.18) from "18%", "18", or "0.18".
 export function parsePercentFractionDisplay(value: DisplayValue): number | null {
-  if (isBlankDisplay(value)) return null
-  const trimmed = value.trim()
+  const trimmed = getTrimmedNonBlankDisplayValue(value)
+  if (trimmed === null) return null
   const negativeParens = trimmed.startsWith("(") && trimmed.endsWith(")")
   const cleaned = trimmed.replace(/[^0-9.-]/g, "")
   const numeric = Number(cleaned)

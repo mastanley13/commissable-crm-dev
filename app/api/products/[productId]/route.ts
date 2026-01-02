@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
-import { AuditAction } from "@prisma/client"
+import { AuditAction, OpportunityStatus, RevenueScheduleStatus, Prisma } from "@prisma/client"
 import { withAuth } from "@/lib/api-auth"
 import { hasAnyPermission } from "@/lib/auth"
 import { logProductAudit } from "@/lib/audit"
@@ -598,24 +598,104 @@ export async function DELETE(request: NextRequest, { params }: { params: { produ
         return NextResponse.json({ error: "Product not found" }, { status: 404 })
       }
 
-      // Block deletion if any revenue schedules exist for this product (past or future)
-      const scheduleCount = await prisma.revenueSchedule.count({
-        where: { tenantId, productId }
-      })
-
-      if (scheduleCount > 0) {
+      if (existing.isActive) {
         return NextResponse.json(
-          { error: "Cannot delete product because it has revenue schedules. Inactivate the product instead." },
+          { error: "Cannot delete an active product. Inactivate the product instead." },
           { status: 409 }
         )
       }
 
-      const relatedLineItems = await prisma.opportunityProduct.findMany({
-        where: { tenantId, productId },
-        select: { id: true }
+      const activeRevenueScheduleWhere = {
+        tenantId,
+        productId,
+        deletedAt: null,
+        status: { not: RevenueScheduleStatus.Reconciled },
+      } satisfies Prisma.RevenueScheduleWhereInput
+
+      // Block deletion only when the product is referenced by active (non-deleted, non-reconciled) schedules.
+      const activeScheduleCount = await prisma.revenueSchedule.count({
+        where: activeRevenueScheduleWhere,
       })
 
+      if (activeScheduleCount > 0) {
+        const blockingSchedules = await prisma.revenueSchedule.findMany({
+          where: activeRevenueScheduleWhere,
+          select: { id: true, scheduleNumber: true, status: true },
+          orderBy: { createdAt: "desc" },
+          take: 5,
+        })
+
+        const labels = blockingSchedules.map((s) => s.scheduleNumber ?? s.id)
+        const suffix = activeScheduleCount > labels.length ? ` and ${activeScheduleCount - labels.length} more` : ""
+        const list = labels.length > 0 ? ` (${labels.join(", ")}${suffix})` : ""
+
+        return NextResponse.json(
+          { error: `Cannot delete product because it is used by active revenue schedules${list}. Delete or reconcile those schedules first.` },
+          { status: 409 }
+        )
+      }
+
+      // Block deletion when the product is used on active opportunities (open/on-hold).
+      const activeOpportunityLineItemWhere = {
+        tenantId,
+        productId,
+        active: true,
+        opportunity: {
+          active: true,
+          status: { in: [OpportunityStatus.Open, OpportunityStatus.OnHold] },
+        },
+      } satisfies Prisma.OpportunityProductWhereInput
+
+      const activeOpportunityLineItemCount = await prisma.opportunityProduct.count({
+        where: activeOpportunityLineItemWhere,
+      })
+
+      if (activeOpportunityLineItemCount > 0) {
+        const blockingLineItems = await prisma.opportunityProduct.findMany({
+          where: activeOpportunityLineItemWhere,
+          select: {
+            id: true,
+            opportunity: { select: { id: true, name: true, status: true, stage: true } },
+          },
+          take: 5,
+        })
+        const names = blockingLineItems
+          .map((li) => li.opportunity?.name ?? li.opportunity?.id ?? "Opportunity")
+          .filter(Boolean)
+        const suffix =
+          activeOpportunityLineItemCount > names.length ? ` and ${activeOpportunityLineItemCount - names.length} more` : ""
+        const list = names.length > 0 ? ` (${names.join(", ")}${suffix})` : ""
+
+        return NextResponse.json(
+          { error: `Cannot delete product because it is used on active opportunities${list}. Remove the product from those opportunities first.` },
+          { status: 409 }
+        )
+      }
+
+      const [relatedLineItems, detachableScheduleIds] = await Promise.all([
+        prisma.opportunityProduct.findMany({
+          where: { tenantId, productId },
+          select: { id: true },
+        }),
+        prisma.revenueSchedule.findMany({
+          where: {
+            tenantId,
+            productId,
+            OR: [{ deletedAt: { not: null } }, { status: RevenueScheduleStatus.Reconciled }],
+          },
+          select: { id: true },
+        }),
+      ])
+
       await prisma.$transaction(async tx => {
+        if (detachableScheduleIds.length > 0) {
+          const ids = detachableScheduleIds.map((s) => s.id)
+          await tx.revenueSchedule.updateMany({
+            where: { tenantId, id: { in: ids } },
+            data: { productId: null, opportunityProductId: null },
+          })
+        }
+
         if (relatedLineItems.length > 0) {
           await tx.opportunityProduct.deleteMany({
             where: { tenantId, productId }

@@ -129,8 +129,6 @@ export function DynamicTable({
   const tableRef = useRef<HTMLDivElement>(null)
   const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const selectAllRef = useRef<HTMLInputElement | null>(null)
-  const lastInteractedIndexRef = useRef<number | null>(null)
-  const lastSelectionActionRef = useRef<boolean>(true)
   const selectedCountOnPage = useMemo(() => {
     if (!Array.isArray(data) || data.length === 0) return 0
     const selectedSet = new Set(selectedItems)
@@ -159,18 +157,6 @@ export function DynamicTable({
   useEffect(() => {
     columnsRef.current = columns
   }, [columns])
-
-  useEffect(() => {
-    if (selectedItems.length === 0) {
-      lastInteractedIndexRef.current = null
-      lastSelectionActionRef.current = true
-      return
-    }
-
-    if (lastInteractedIndexRef.current !== null && lastInteractedIndexRef.current >= data.length) {
-      lastInteractedIndexRef.current = data.length - 1
-    }
-  }, [data.length, selectedItems.length])
 
   useEffect(() => {
     if (!fillContainerWidth) {
@@ -662,7 +648,7 @@ export function DynamicTable({
       totalTableWidth: containerWidth,
       shouldUseFullWidth: true
     }
-  }, [visibleColumns, isManuallyResized, fillContainerWidth, measuredContainerWidth, preferOverflowHorizontalScroll, resizing])
+  }, [visibleColumns, isManuallyResized, fillContainerWidth, measuredContainerWidth, preferOverflowHorizontalScroll, resizing, useSpacerMode])
 
   const gridStyles = useMemo(() => ({
     gridTemplateColumns: gridTemplate,
@@ -862,91 +848,6 @@ export function DynamicTable({
     setDraggedColumn(null)
   }
 
-  // Checkbox selection handler used by the built-in "checkbox" column type.
-  // We drive selection from the checkbox's checked state via onChange instead
-  // of relying on click + preventDefault, to avoid focus/scroll quirks when
-  // checkboxes are visually hidden and nested inside scroll containers.
-  const handleCheckboxChange = useCallback((
-    event: React.ChangeEvent<HTMLInputElement>,
-    row: any,
-    rowIndex: number
-  ) => {
-    event.stopPropagation()
-
-    if (!onItemSelect) {
-      return
-    }
-
-    const rowId = getRowId(row)
-    if (!rowId) {
-      return
-    }
-
-    const currentlyChecked = event.target.checked
-
-    const { shiftKey, metaKey, ctrlKey } = event as React.ChangeEvent<HTMLInputElement> & {
-      shiftKey: boolean
-      metaKey: boolean
-      ctrlKey: boolean
-    }
-    const hasModifier = shiftKey || metaKey || ctrlKey
-    const selectedSet = new Set(selectedItems)
-
-    const resolveRow = (itemId: string) => data.find(entry => getRowId(entry) === itemId)
-
-    const desiredState = shiftKey && lastInteractedIndexRef.current !== null
-      ? lastSelectionActionRef.current
-      : hasModifier
-        ? !currentlyChecked
-        : true
-
-    if (!hasModifier) {
-      for (const existingId of Array.from(selectedSet)) {
-        if (existingId === rowId) continue
-        const existingRow = resolveRow(existingId)
-        onItemSelect(existingId, false, existingRow)
-        selectedSet.delete(existingId)
-      }
-    }
-
-    const applySelection = (targetRow: any) => {
-      const targetId = getRowId(targetRow)
-      if (!targetId) return
-
-      const isSelected = selectedSet.has(targetId)
-      if (isSelected === desiredState) return
-
-      onItemSelect(targetId, desiredState, targetRow)
-      if (desiredState) {
-        selectedSet.add(targetId)
-      } else {
-        selectedSet.delete(targetId)
-      }
-    }
-
-    if (shiftKey && lastInteractedIndexRef.current !== null) {
-      const anchorIndex = lastInteractedIndexRef.current
-      const [start, end] =
-        anchorIndex < rowIndex ? [anchorIndex, rowIndex] : [rowIndex, anchorIndex]
-
-      for (let idx = start; idx <= end; idx++) {
-        const targetRow = data[idx]
-        if (!targetRow) continue
-        applySelection(targetRow)
-      }
-    } else {
-      applySelection(row)
-    }
-
-    lastInteractedIndexRef.current = rowIndex
-    lastSelectionActionRef.current = desiredState
-
-    // Remove focus from the sr-only checkbox to prevent browsers from
-    // auto-scrolling the nearest scroll container to "reveal" the input,
-    // which can create a jarring jump when selecting rows that were not
-    // initially visible.
-    event.target.blur()
-  }, [data, onItemSelect, selectedItems])
   const renderCell = useCallback((column: Column, value: any, row: any, index: number) => {
     if (column.render) {
       return column.render(value, row, index)
@@ -1032,7 +933,7 @@ export function DynamicTable({
       default:
         return <span className="block truncate min-w-0 flex-1">{value}</span>
     }
-  }, [handleCheckboxChange, selectedItems, onToggle])
+  }, [selectedItems, onItemSelect, onToggle])
 
   const shouldRenderPagination = Boolean(pagination && (alwaysShowPagination || data.length > 0))
   const paginationStart = pagination

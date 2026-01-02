@@ -670,6 +670,24 @@ export async function DELETE(request: NextRequest, { params }: { params: { reven
         return NextResponse.json({ error: "Revenue schedule id is required" }, { status: 400 })
       }
 
+      const url = new URL(request.url)
+      const stage = (url.searchParams.get("stage") ?? "soft").toLowerCase()
+
+      let deleteReason: string | null = null
+      try {
+        const body = await request.json().catch(() => null) as any
+        if (body && typeof body.reason === "string") {
+          deleteReason = body.reason.trim() || null
+        }
+      } catch (_) {
+        // ignore missing/invalid JSON bodies
+      }
+
+      if (!deleteReason) {
+        const queryReason = url.searchParams.get("reason")
+        deleteReason = typeof queryReason === "string" && queryReason.trim().length > 0 ? queryReason.trim() : null
+      }
+
       const roleCode = (req.user.role?.code ?? "").toLowerCase()
       const isAdmin = roleCode === "admin"
       const isAccounting = roleCode === "accounting"
@@ -701,10 +719,6 @@ export async function DELETE(request: NextRequest, { params }: { params: { reven
         return NextResponse.json({ error: "Revenue schedule not found" }, { status: 404 })
       }
 
-      if (schedule.deletedAt) {
-        return NextResponse.json({ success: true })
-      }
-
       const usageFields = [
         schedule.actualUsage,
         schedule.actualUsageAdjustment,
@@ -717,14 +731,86 @@ export async function DELETE(request: NextRequest, { params }: { params: { reven
         return Number.isFinite(n) && Math.abs(n) > 0.0001
       })
 
-      const [matchCount, reconCount, primaryDepositCount] = await Promise.all([
+      const [matchCount, reconCount, primaryDepositCount, activityCount, ticketCount, payoutCount] = await Promise.all([
         prisma.depositLineMatch.count({ where: { tenantId, revenueScheduleId } }),
         prisma.reconciliationItem.count({ where: { tenantId, revenueScheduleId } }),
-        prisma.depositLineItem.count({ where: { tenantId, primaryRevenueScheduleId: revenueScheduleId } })
+        prisma.depositLineItem.count({ where: { tenantId, primaryRevenueScheduleId: revenueScheduleId } }),
+        prisma.activity.count({ where: { tenantId, revenueScheduleId } }),
+        prisma.ticket.count({ where: { tenantId, revenueScheduleId } }),
+        prisma.commissionPayout.count({ where: { tenantId, revenueScheduleId } }),
       ])
 
+      const label = schedule.scheduleNumber ?? schedule.id
+
+      if (stage === "permanent") {
+        if (!isAdmin) {
+          return NextResponse.json({ error: "Only Admin role can permanently delete revenue schedules" }, { status: 403 })
+        }
+
+        if (!schedule.deletedAt) {
+          return NextResponse.json(
+            { error: "Revenue schedule must be deleted (archived) before permanent deletion" },
+            { status: 400 }
+          )
+        }
+
+        if (
+          hasAppliedMonies ||
+          matchCount > 0 ||
+          reconCount > 0 ||
+          primaryDepositCount > 0 ||
+          activityCount > 0 ||
+          ticketCount > 0 ||
+          payoutCount > 0
+        ) {
+          const reason =
+            hasAppliedMonies
+              ? "has usage or commission applied"
+              : matchCount > 0
+                ? "has deposit matches"
+                : reconCount > 0
+                  ? "is in reconciliation"
+                  : primaryDepositCount > 0
+                    ? "is linked to deposit lines"
+                    : activityCount > 0
+                      ? "has activities"
+                      : ticketCount > 0
+                        ? "has tickets"
+                        : "has commission payouts"
+
+          return NextResponse.json(
+            { error: `Cannot permanently delete revenue schedule ${label} because it ${reason}.` },
+            { status: 409 }
+          )
+        }
+
+        const previousValues: Record<string, unknown> = {
+          deletedAt: schedule.deletedAt,
+          deleteReason,
+          stage: "permanent"
+        }
+
+        await prisma.revenueSchedule.delete({ where: { id: revenueScheduleId } })
+
+        await logRevenueScheduleAudit(
+          AuditAction.Delete,
+          revenueScheduleId,
+          req.user.id,
+          tenantId,
+          request,
+          previousValues,
+          undefined,
+        )
+
+        return NextResponse.json({ success: true, stage: "permanent" })
+      }
+
+      // Default: soft delete (archive)
+      if (schedule.deletedAt) {
+        return NextResponse.json({ success: true, stage: "soft" })
+      }
+
       if (hasAppliedMonies || matchCount > 0 || reconCount > 0 || primaryDepositCount > 0) {
-        const label = schedule.scheduleNumber ?? schedule.id
         const reason = hasAppliedMonies
           ? "has usage or commission applied"
           : matchCount > 0
@@ -733,23 +819,24 @@ export async function DELETE(request: NextRequest, { params }: { params: { reven
               ? "is in reconciliation"
               : "is linked to deposit lines"
 
-          return NextResponse.json(
-            { error: `Cannot delete revenue schedule ${label} because it ${reason}.` },
-            { status: 409 }
-          )
-        }
+        return NextResponse.json(
+          { error: `Cannot delete revenue schedule ${label} because it ${reason}.` },
+          { status: 409 }
+        )
+      }
 
-      const deleteReason = request.nextUrl.searchParams.get("reason") || null
       const deletedAt = new Date()
 
       const previousValues: Record<string, unknown> = {
         deletedAt: schedule.deletedAt,
         deleteReason,
+        stage: "soft"
       }
 
       const newValues: Record<string, unknown> = {
         deletedAt,
         deleteReason,
+        stage: "soft"
       }
 
       await prisma.revenueSchedule.update({
@@ -770,7 +857,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { reven
         newValues,
       )
 
-      return NextResponse.json({ success: true })
+      return NextResponse.json({ success: true, stage: "soft" })
     } catch (error) {
       console.error("Failed to delete revenue schedule", error)
       return NextResponse.json(

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db"
 import { withAuth } from "@/lib/api-auth"
 import { AuditAction } from "@prisma/client"
 import { logRevenueScheduleAudit } from "@/lib/audit"
+import { hasPermission } from "@/lib/auth"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -19,9 +20,11 @@ export async function POST(
 
     const roleCode = (req.user.role?.code ?? "").toLowerCase()
     const isAdmin = roleCode === "admin"
-    if (!isAdmin) {
+    const isAccounting = roleCode === "accounting"
+    const canManage = hasPermission(req.user, "revenue-schedules.manage")
+    if (!isAdmin && !isAccounting && !canManage) {
       return NextResponse.json(
-        { error: "Only Admin role can restore revenue schedules" },
+        { error: "Insufficient permissions to restore revenue schedules" },
         { status: 403 }
       )
     }

@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { Shield, Users, Settings, Key, Database, UserCheck, Beaker, Shuffle, Archive } from 'lucide-react'
+import { AdminSystemOverview } from '@/components/admin-system-overview'
 
 const adminSections = [
   {
@@ -85,18 +86,18 @@ export default function AdminPage() {
           <p className="text-gray-600">Manage users, roles, and system configurations</p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {adminSections.map((section, index) => {
             const Icon = section.icon
             return (
               <Link key={index} href={section.href}>
-                <div className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-lg transition-shadow cursor-pointer group">
-                  <div className="flex items-start space-x-4">
-                    <div className={`${section.color} rounded-lg p-3 group-hover:scale-110 transition-transform`}>
-                      <Icon className="h-6 w-6 text-white" />
+                <div className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-lg transition-shadow cursor-pointer group">
+                  <div className="flex items-start space-x-3">
+                    <div className={`${section.color} rounded-lg p-2 group-hover:scale-110 transition-transform`}>
+                      <Icon className="h-5 w-5 text-white" />
                     </div>
                     <div className="flex-1">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-2 group-hover:text-blue-600 transition-colors">
+                      <h3 className="text-base font-semibold text-gray-900 mb-1 group-hover:text-blue-600 transition-colors">
                         {section.title}
                       </h3>
                       <p className="text-gray-600 text-sm">
@@ -110,28 +111,7 @@ export default function AdminPage() {
           })}
         </div>
 
-        {/* Quick Stats */}
-        <div className="mt-12">
-          <h2 className="text-xl font-semibold text-gray-900 mb-6">System Overview</h2>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-            <div className="bg-white rounded-lg border border-gray-200 p-6">
-              <div className="text-2xl font-bold text-blue-600 mb-1">3</div>
-              <div className="text-sm text-gray-600">Active Users</div>
-            </div>
-            <div className="bg-white rounded-lg border border-gray-200 p-6">
-              <div className="text-2xl font-bold text-indigo-600 mb-1">3</div>
-              <div className="text-sm text-gray-600">User Roles</div>
-            </div>
-            <div className="bg-white rounded-lg border border-gray-200 p-6">
-              <div className="text-2xl font-bold text-green-600 mb-1">99.9%</div>
-              <div className="text-sm text-gray-600">System Uptime</div>
-            </div>
-            <div className="bg-white rounded-lg border border-gray-200 p-6">
-              <div className="text-2xl font-bold text-purple-600 mb-1">1,234</div>
-              <div className="text-sm text-gray-600">Total Records</div>
-            </div>
-          </div>
-        </div>
+        <AdminSystemOverview />
       </div>
     </div>
   )

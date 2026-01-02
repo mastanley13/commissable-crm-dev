@@ -3588,6 +3588,17 @@ useEffect(() => {
         entity="Contact"
         entityName={contact ? `${contact.firstName} ${contact.lastName}` : "Unknown Contact"}
         entityId={contact?.id || ""}
+        entitySummary={
+          contact
+            ? {
+                id: contact.id,
+                name: `${contact.firstName} ${contact.lastName}`,
+                email: contact.emailAddress ?? "",
+                workPhone: formatPhoneNumber(contact.workPhone ?? ""),
+                mobile: formatPhoneNumber(contact.mobilePhone ?? ""),
+              }
+            : undefined
+        }
         isDeleted={isDeleted}
         onSoftDelete={handleSoftDelete}
         onPermanentDelete={handlePermanentDelete}

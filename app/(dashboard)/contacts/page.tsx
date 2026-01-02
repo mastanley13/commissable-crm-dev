@@ -1482,8 +1482,22 @@ export default function ContactsPage() {
           bulkDeleteTargets.length > 0
             ? bulkDeleteTargets.map(contact => ({
                 id: contact.id,
-                name: contact.fullName || "Unknown Contact"
+                name: contact.fullName || "Unknown Contact",
+                email: contact.emailAddress || "",
+                workPhone: formatPhoneNumber(contact.workPhone),
+                mobile: formatPhoneNumber(contact.mobile)
               }))
+            : undefined
+        }
+        entitySummary={
+          bulkDeleteTargets.length === 0 && contactToDelete
+            ? {
+                id: contactToDelete.id,
+                name: contactToDelete.fullName || "Unknown Contact",
+                email: contactToDelete.emailAddress || "",
+                workPhone: formatPhoneNumber(contactToDelete.workPhone),
+                mobile: formatPhoneNumber(contactToDelete.mobile)
+              }
             : undefined
         }
         entityLabelPlural="Contacts"

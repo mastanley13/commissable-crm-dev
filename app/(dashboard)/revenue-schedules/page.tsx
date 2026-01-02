@@ -20,6 +20,7 @@ import {
   type SourceScheduleData,
 } from '@/components/revenue-schedule-clone-modal'
 import { RevenueBulkApplyPanel } from '@/components/revenue-bulk-apply-panel'
+import { RevenueScheduleStatusModal } from '@/components/revenue-schedule-status-modal'
 import {
   computeRevenueScheduleMetricsFromDisplay,
   formatCurrencyUSD,
@@ -408,6 +409,9 @@ export default function RevenueSchedulesPage() {
   const tableAreaNodeRef = useRef<HTMLDivElement | null>(null)
   const [revenueBulkPrompt, setRevenueBulkPrompt] = useState<RevenueFillDownPrompt | null>(null)
   const [revenueBulkApplying, setRevenueBulkApplying] = useState(false)
+  const [statusModalOpen, setStatusModalOpen] = useState(false)
+  const [statusModalSchedules, setStatusModalSchedules] = useState<any[]>([])
+  const [statusModalDefaultAction, setStatusModalDefaultAction] = useState<'deactivate' | 'delete'>('delete')
 
   const selectedScheduleRows = useMemo(() => {
     if (selectedSchedules.length === 0) {
@@ -432,6 +436,21 @@ export default function RevenueSchedulesPage() {
       return parsed > 0 ? -parsed : parsed
     }
     return parsed
+  }, [])
+
+  const openStatusModal = useCallback((targets: any[], action: 'deactivate' | 'delete' = 'delete') => {
+    if (!targets || targets.length === 0) {
+      showError('No items selected', 'Select at least one item to delete.')
+      return
+    }
+    setStatusModalSchedules(targets)
+    setStatusModalDefaultAction(action)
+    setStatusModalOpen(true)
+  }, [showError])
+
+  const closeStatusModal = useCallback(() => {
+    setStatusModalOpen(false)
+    setStatusModalSchedules([])
   }, [])
 
   const normalizeSortValue = useCallback((value: unknown) => {
@@ -658,11 +677,13 @@ export default function RevenueSchedulesPage() {
       showError('No items selected', 'Select at least one item to delete.')
       return
     }
-    const remainingIds = new Set(selectedSchedules)
-    setRevenueSchedules(prev => prev.filter(row => !remainingIds.has(row.id)))
-    setSelectedSchedules([])
-    showSuccess('Deleted', 'Selected schedules have been removed from the list.')
-  }, [selectedSchedules, showError, showSuccess])
+    const rows = selectedScheduleRows
+    if (!rows.length) {
+      showError('Items not available', 'Unable to locate the selected items. Refresh and try again.')
+      return
+    }
+    openStatusModal(rows, 'delete')
+  }, [openStatusModal, selectedScheduleRows, selectedSchedules.length, showError])
 
   const handleBulkExportSchedules = useCallback(() => {
     if (selectedSchedules.length === 0) {
@@ -880,12 +901,13 @@ export default function RevenueSchedulesPage() {
   }, [cloneTargetId, handleCloneModalClose, router, showError, showSuccess])
 
   const handleDeleteRow = useCallback((scheduleId: string) => {
-    // Client-side delete placeholder; wire to API when available
-    setRevenueSchedules(prev => prev.filter(row => row.id !== scheduleId))
-    setFilteredRevenueSchedules(prev => prev.filter(row => row.id !== scheduleId))
-    setSelectedSchedules(prev => prev.filter(id => id !== scheduleId))
-    showSuccess('Deleted', 'Schedule has been removed from the list.')
-  }, [showSuccess])
+    const targetRow = revenueSchedules.find(row => row.id === scheduleId)
+    if (!targetRow) {
+      showError('Schedule unavailable', 'Unable to locate the selected schedule. Refresh and try again.')
+      return
+    }
+    openStatusModal([targetRow], 'delete')
+  }, [openStatusModal, revenueSchedules, showError])
 
   // Pagination handlers
   const handlePageChange = useCallback((page: number) => {
@@ -1676,6 +1698,18 @@ export default function RevenueSchedulesPage() {
         isSubmitting={revenueBulkApplying}
         entityLabelSingular="revenue schedule"
         entityLabelPlural="revenue schedules"
+      />
+
+      <RevenueScheduleStatusModal
+        isOpen={statusModalOpen}
+        schedules={statusModalSchedules}
+        defaultAction={statusModalDefaultAction}
+        title="Manage Revenue Schedules"
+        onClose={closeStatusModal}
+        onSuccess={async () => {
+          setSelectedSchedules([])
+          await fetchRevenueSchedules()
+        }}
       />
 
       <ToastContainer />

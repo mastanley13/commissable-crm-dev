@@ -606,7 +606,7 @@ export function RevenueScheduleCreateModal({
       : activeTab === "split"
         ? "Update Split"
         : activeTab === "status"
-          ? "Apply"
+          ? statusForm.action === "delete" ? "Delete" : "Deactivate"
           : "Undo Match"
 
   const primaryDisabled = submitting || (
@@ -1937,7 +1937,12 @@ export function RevenueScheduleCreateModal({
             type="button"
             onClick={handlePrimary}
             disabled={primaryDisabled}
-            className="inline-flex items-center gap-2 rounded-md bg-primary-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-primary-300"
+            className={cn(
+              "inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-semibold text-white transition disabled:cursor-not-allowed",
+              activeTab === "status"
+                ? "bg-red-600 hover:bg-red-700 disabled:bg-red-300"
+                : "bg-primary-600 hover:bg-primary-700 disabled:bg-primary-300"
+            )}
           >
             {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
             {primaryLabel}

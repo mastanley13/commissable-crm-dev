@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { TicketStatus } from "@prisma/client"
-import { withAuth } from "@/lib/api-auth"
+import { withAuth, withPermissions } from "@/lib/api-auth"
+import { hasPermission } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 
 export const runtime = "nodejs"
@@ -123,5 +124,133 @@ export async function GET(
       return NextResponse.json({ error: "Failed to load ticket" }, { status: 500 })
     }
   })
+}
+
+function isTicketStatus(value: unknown): value is TicketStatus {
+  return typeof value === "string" && (Object.values(TicketStatus) as string[]).includes(value)
+}
+
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: { ticketId: string } }
+) {
+  return withPermissions(
+    request,
+    ["tickets.edit.all", "tickets.edit.assigned", "tickets.delete"],
+    async (req) => {
+      try {
+        const ticketId = params.ticketId
+        const tenantId = req.user.tenantId
+
+        if (!ticketId) {
+          return NextResponse.json({ error: "Ticket id is required" }, { status: 400 })
+        }
+
+        const ticket = await prisma.ticket.findFirst({
+          where: { id: ticketId, tenantId },
+          select: { id: true, status: true, closedAt: true, assignedToId: true }
+        })
+
+        if (!ticket) {
+          return NextResponse.json({ error: "Ticket not found" }, { status: 404 })
+        }
+
+        const canEditAll = hasPermission(req.user, "tickets.edit.all") || hasPermission(req.user, "tickets.delete")
+        if (!canEditAll) {
+          const assignedToId = ticket.assignedToId
+          const isAssigned = Boolean(assignedToId && assignedToId === req.user.id)
+          if (!isAssigned) {
+            return NextResponse.json({ error: "Insufficient permissions" }, { status: 403 })
+          }
+        }
+
+        const payload = await request.json().catch(() => ({} as any))
+
+        let nextStatus: TicketStatus | null = null
+        let nextClosedAt: Date | null | undefined = undefined
+
+        if (typeof payload?.active === "boolean") {
+          if (payload.active) {
+            nextStatus = TicketStatus.Open
+            nextClosedAt = null
+          } else {
+            nextStatus = TicketStatus.Closed
+            nextClosedAt = ticket.closedAt ?? new Date()
+          }
+        } else if (isTicketStatus(payload?.status)) {
+          nextStatus = payload.status
+          const isClosed = nextStatus === TicketStatus.Closed || nextStatus === TicketStatus.Resolved
+          nextClosedAt = isClosed ? (ticket.closedAt ?? new Date()) : null
+        }
+
+        if (!nextStatus) {
+          return NextResponse.json({ error: "No valid fields provided" }, { status: 400 })
+        }
+
+        const updated = await prisma.ticket.update({
+          where: { id: ticketId },
+          data: {
+            status: nextStatus,
+            closedAt: nextClosedAt
+          }
+        })
+
+        return NextResponse.json({
+          data: {
+            id: updated.id,
+            status: updated.status,
+            closedAt: updated.closedAt
+          }
+        })
+      } catch (error) {
+        console.error("Failed to update ticket", error)
+        return NextResponse.json({ error: "Failed to update ticket" }, { status: 500 })
+      }
+    }
+  )
+}
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: { ticketId: string } }
+) {
+  return withPermissions(
+    request,
+    ["tickets.delete"],
+    async (req) => {
+      try {
+        const ticketId = params.ticketId
+        const tenantId = req.user.tenantId
+
+        if (!ticketId) {
+          return NextResponse.json({ error: "Ticket id is required" }, { status: 400 })
+        }
+
+        const existing = await prisma.ticket.findFirst({
+          where: { id: ticketId, tenantId },
+          select: { id: true }
+        })
+
+        if (!existing) {
+          return NextResponse.json({ error: "Ticket not found" }, { status: 404 })
+        }
+
+        await prisma.ticket.delete({ where: { id: existing.id } })
+        return NextResponse.json({ success: true })
+      } catch (error) {
+        console.error("Failed to delete ticket", error)
+        if (error && typeof error === "object" && "code" in error) {
+          const prismaError = error as { code?: string }
+          if (prismaError.code === "P2003" || prismaError.code === "P2014") {
+            return NextResponse.json(
+              { error: "Cannot delete ticket due to related records." },
+              { status: 409 }
+            )
+          }
+        }
+        return NextResponse.json({ error: "Failed to delete ticket" }, { status: 500 })
+      }
+    }
+  )
 }
 

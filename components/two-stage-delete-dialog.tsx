@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, type ReactNode } from 'react'
 import { AlertTriangle, Trash2, RotateCcw, Shield, X, ChevronRight, Info } from 'lucide-react'
 import type { DeletionConstraint } from '@/lib/deletion'
 
@@ -103,6 +103,111 @@ export function TwoStageDeleteDialog({
   }, [isOpen])
 
   if (!isOpen) return null
+
+  type SelectedTableColumn = {
+    header: string
+    render: (item: DeleteDialogEntitySummary) => ReactNode
+  }
+
+  const SelectedTableCheckboxCell = ({ title }: { title?: string }) => (
+    <div className="flex items-center justify-center gap-2 pr-2" title={title}>
+      <input
+        type="checkbox"
+        className="h-4 w-4 rounded border-slate-400 text-primary-600 accent-primary-600"
+        checked
+        onChange={() => {}}
+        aria-label="Selected"
+      />
+    </div>
+  )
+
+  const renderSelectedGridTable = ({
+    items,
+    minWidth = 880,
+    gridCols,
+    columns,
+  }: {
+    items: DeleteDialogEntitySummary[]
+    minWidth?: number
+    gridCols: string
+    columns: SelectedTableColumn[]
+  }) => (
+    <div className="mt-3 h-56 overflow-y-auto rounded-lg border border-gray-200">
+      <div style={{ minWidth }}>
+        <div className={`grid ${gridCols} border-b bg-gray-50 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500`}>
+          <div className="text-center">Selected</div>
+          {columns.map(col => (
+            <div key={col.header}>{col.header}</div>
+          ))}
+        </div>
+        {items.map(item => (
+          <div
+            key={item.id}
+            title={`ID: ${item.id}`}
+            className={`grid ${gridCols} items-center border-b px-3 py-2 text-xs text-gray-700 last:border-b-0`}
+          >
+            <SelectedTableCheckboxCell />
+            {columns.map(col => (
+              <div key={col.header} className="truncate">
+                {col.render(item) || '--'}
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+
+  const renderSelectedAccountsTable = (items: DeleteDialogEntitySummary[]) =>
+    renderSelectedGridTable({
+      items,
+      minWidth: 880,
+      gridCols: "grid-cols-[auto_minmax(0,2.2fr)_minmax(0,1.2fr)_minmax(0,2fr)_minmax(0,1.4fr)]",
+      columns: [
+        { header: "Account Name", render: item => <span className="font-semibold text-gray-900">{item.name || "--"}</span> },
+        { header: "Account Type", render: item => item.accountType || "--" },
+        { header: "Legal Name", render: item => item.legalName || "--" },
+        { header: "Account Owner", render: item => item.accountOwner || "--" },
+      ],
+    })
+
+  const renderSelectedContactsTable = (items: DeleteDialogEntitySummary[]) =>
+    renderSelectedGridTable({
+      items,
+      minWidth: 880,
+      gridCols: "grid-cols-[auto_minmax(0,2.2fr)_minmax(0,2.3fr)_minmax(0,1.2fr)_minmax(0,1.2fr)]",
+      columns: [
+        { header: "Contact Name", render: item => <span className="font-semibold text-gray-900">{item.name || "--"}</span> },
+        { header: "Email", render: item => item.email || "--" },
+        { header: "Work Phone", render: item => item.workPhone || "--" },
+        { header: "Mobile", render: item => item.mobile || "--" },
+      ],
+    })
+
+  const renderSelectedRolesTable = (items: DeleteDialogEntitySummary[]) =>
+    renderSelectedGridTable({
+      items,
+      minWidth: 880,
+      gridCols: "grid-cols-[auto_minmax(0,1.2fr)_minmax(0,2fr)_minmax(0,2fr)_minmax(0,1.2fr)_minmax(0,1.2fr)]",
+      columns: [
+        { header: "Role", render: item => item.roleName || item.subtitle || "--" },
+        { header: "Full Name", render: item => <span className="font-semibold text-gray-900">{item.name || "--"}</span> },
+        { header: "Email", render: item => item.email || "--" },
+        { header: "Work Phone", render: item => item.workPhone || "--" },
+        { header: "Mobile", render: item => item.mobile || "--" },
+      ],
+    })
+
+  const renderSelectedGenericTable = (items: DeleteDialogEntitySummary[]) =>
+    renderSelectedGridTable({
+      items,
+      minWidth: 880,
+      gridCols: "grid-cols-[auto_minmax(0,2.2fr)_minmax(0,2.8fr)]",
+      columns: [
+        { header: "Name", render: item => <span className="font-semibold text-gray-900">{item.name || "--"}</span> },
+        { header: "Details", render: item => item.subtitle || "--" },
+      ],
+    })
 
   const handleBulkPermanentDelete = async () => {
     if (!Array.isArray(multipleEntities) || multipleEntities.length === 0) {
@@ -311,6 +416,7 @@ export function TwoStageDeleteDialog({
   const renderInitialStage = () => {
     if (hasMultipleEntities) {
       const showAccountsTable = entity === 'Account'
+      const showContactsTable = entity === 'Contact'
       const showRolesTable = entity === 'Opportunity Role' || entity === 'OpportunityRole' || entity === 'Role'
       const bulkDescription = isDeleted
         ? `This will permanently remove the selected ${lowerPluralLabel}. This action cannot be undone.`
@@ -332,91 +438,18 @@ export function TwoStageDeleteDialog({
             </div>
           </div>
 
-          {showAccountsTable ? (
-            <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 mb-6">
-              <p className="text-sm text-gray-600 mb-2">
-                Selected {pluralLabel} ({multipleEntities!.length})
-              </p>
-              <div className="max-h-[420px] overflow-y-auto rounded-lg border border-gray-200 bg-white">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-gray-100 text-gray-600">
-                    <tr>
-                      <th className="px-3 py-2">Account Name</th>
-                      <th className="px-3 py-2">Account Type</th>
-                      <th className="px-3 py-2">Legal Name</th>
-                      <th className="px-3 py-2">Account Owner</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {multipleEntities!.map(item => (
-                      <tr key={item.id} className="border-t border-gray-100 text-gray-700">
-                        <td className="px-3 py-2">
-                          <div className="font-semibold text-gray-900">{item.name || '--'}</div>
-                          <div className="text-[11px] text-gray-500">ID: {item.id.slice(0, 8)}...</div>
-                        </td>
-                        <td className="px-3 py-2">{item.accountType || '--'}</td>
-                        <td className="px-3 py-2">{item.legalName || '--'}</td>
-                        <td className="px-3 py-2">{item.accountOwner || '--'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          ) : showRolesTable ? (
-            <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 mb-6">
-              <p className="text-sm text-gray-600 mb-2">
-                Selected {pluralLabel} ({multipleEntities!.length})
-              </p>
-              <div className="max-h-[420px] overflow-y-auto rounded-lg border border-gray-200 bg-white">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-gray-100 text-gray-600">
-                    <tr>
-                      <th className="px-3 py-2">Role</th>
-                      <th className="px-3 py-2">Full Name</th>
-                      <th className="px-3 py-2">Email</th>
-                      <th className="px-3 py-2">Work Phone</th>
-                      <th className="px-3 py-2">Mobile</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {multipleEntities!.map(item => (
-                      <tr key={item.id} className="border-t border-gray-100 text-gray-700">
-                        <td className="px-3 py-2">{item.roleName || item.subtitle || '--'}</td>
-                        <td className="px-3 py-2">
-                          <div className="font-semibold text-gray-900">{item.name || '--'}</div>
-                          <div className="text-[11px] text-gray-500">ID: {item.id.slice(0, 8)}...</div>
-                        </td>
-                        <td className="px-3 py-2">{item.email || '--'}</td>
-                        <td className="px-3 py-2">{item.workPhone || '--'}</td>
-                        <td className="px-3 py-2">{item.mobile || '--'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          ) : (
-            <div className="bg-gray-50 rounded-lg p-4 mb-6">
-              <p className="text-sm text-gray-600 mb-2">
-                Selected {pluralLabel} ({multipleEntities!.length})
-              </p>
-              <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                {multipleEntities!.map(item => (
-                  <div
-                    key={item.id}
-                    className="rounded border border-gray-200 bg-white px-3 py-2"
-                  >
-                    <p className="font-medium text-gray-900">{item.name}</p>
-                    <p className="text-xs text-gray-500">ID: {item.id.slice(0, 8)}...</p>
-                    {item.subtitle && (
-                      <p className="text-xs text-gray-500 mt-1">{item.subtitle}</p>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+          <div className="mb-6">
+            <p className="text-sm text-gray-600">
+              Selected {pluralLabel} ({multipleEntities!.length})
+            </p>
+            {showAccountsTable
+              ? renderSelectedAccountsTable(multipleEntities!)
+              : showContactsTable
+                ? renderSelectedContactsTable(multipleEntities!)
+                : showRolesTable
+                  ? renderSelectedRolesTable(multipleEntities!)
+                  : renderSelectedGenericTable(multipleEntities!)}
+          </div>
 
           {requireReason ? (
             <div className="mb-4">
@@ -567,34 +600,16 @@ export function TwoStageDeleteDialog({
           </div>
         </div>
 
-        {entity === 'Account' && entitySummary ? (
-          <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 mb-6">
-            <p className="text-sm text-gray-600 mb-2">
-              Selected {pluralLabel} (1)
-            </p>
-            <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-gray-100 text-gray-600">
-                  <tr>
-                    <th className="px-3 py-2">Account Name</th>
-                    <th className="px-3 py-2">Account Type</th>
-                    <th className="px-3 py-2">Legal Name</th>
-                    <th className="px-3 py-2">Account Owner</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr className="border-t border-gray-100 text-gray-700">
-                    <td className="px-3 py-2">
-                      <div className="font-semibold text-gray-900">{entitySummary.name || '--'}</div>
-                      <div className="text-[11px] text-gray-500">ID: {entitySummary.id.slice(0, 8)}...</div>
-                    </td>
-                    <td className="px-3 py-2">{entitySummary.accountType || '--'}</td>
-                    <td className="px-3 py-2">{entitySummary.legalName || '--'}</td>
-                    <td className="px-3 py-2">{entitySummary.accountOwner || '--'}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+        {isRevenueSchedulesSize ? (
+          <div className="mb-6">
+            <p className="text-sm text-gray-600">Selected {pluralLabel} (1)</p>
+            {entity === 'Account' && entitySummary
+              ? renderSelectedAccountsTable([entitySummary])
+              : entity === 'Contact' && entitySummary
+                ? renderSelectedContactsTable([entitySummary])
+                : entity === 'Opportunity Role' || entity === 'OpportunityRole' || entity === 'Role'
+                  ? renderSelectedRolesTable([entitySummary ?? { id: entityId, name: effectiveEntityName }])
+                  : renderSelectedGenericTable([entitySummary ?? { id: entityId, name: effectiveEntityName }])}
           </div>
         ) : (
           <div className="bg-gray-50 rounded-lg p-4 mb-6">
@@ -777,24 +792,17 @@ export function TwoStageDeleteDialog({
             </div>
           </div>
 
-          <div className="bg-gray-50 rounded-lg p-4 mb-6">
-            <p className="text-sm text-gray-600 mb-2">
+          <div className="mb-6">
+            <p className="text-sm text-gray-600">
               Selected {pluralLabel} ({multipleEntities!.length})
             </p>
-            <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-              {multipleEntities!.map(item => (
-                <div
-                  key={item.id}
-                  className="rounded border border-gray-200 bg-white px-3 py-2"
-                >
-                  <p className="font-medium text-gray-900">{item.name}</p>
-                  <p className="text-xs text-gray-500">ID: {item.id.slice(0, 8)}...</p>
-                  {item.subtitle && (
-                    <p className="text-xs text-gray-500 mt-1">{item.subtitle}</p>
-                  )}
-                </div>
-              ))}
-            </div>
+            {entity === 'Account'
+              ? renderSelectedAccountsTable(multipleEntities!)
+              : entity === 'Contact'
+                ? renderSelectedContactsTable(multipleEntities!)
+                : entity === 'Opportunity Role' || entity === 'OpportunityRole' || entity === 'Role'
+                  ? renderSelectedRolesTable(multipleEntities!)
+                  : renderSelectedGenericTable(multipleEntities!)}
           </div>
 
           {!isRevenueSchedulesSize && (
@@ -865,14 +873,27 @@ export function TwoStageDeleteDialog({
           </div>
         </div>
 
-        <div className="bg-gray-50 rounded-lg p-4 mb-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="font-medium text-gray-900">{effectiveEntityName}</p>
-              <p className="text-sm text-gray-600">{entity}</p>
+        {isRevenueSchedulesSize ? (
+          <div className="mb-6">
+            <p className="text-sm text-gray-600">Selected {pluralLabel} (1)</p>
+            {entity === 'Account' && entitySummary
+              ? renderSelectedAccountsTable([entitySummary])
+              : entity === 'Contact' && entitySummary
+                ? renderSelectedContactsTable([entitySummary])
+                : entity === 'Opportunity Role' || entity === 'OpportunityRole' || entity === 'Role'
+                  ? renderSelectedRolesTable([entitySummary ?? { id: entityId, name: effectiveEntityName }])
+                  : renderSelectedGenericTable([entitySummary ?? { id: entityId, name: effectiveEntityName }])}
+          </div>
+        ) : (
+          <div className="bg-gray-50 rounded-lg p-4 mb-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-medium text-gray-900">{effectiveEntityName}</p>
+                <p className="text-sm text-gray-600">{entity}</p>
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         {!isRevenueSchedulesSize && (
           <div className="flex justify-end gap-3">

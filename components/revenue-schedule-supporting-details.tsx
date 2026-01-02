@@ -1738,42 +1738,40 @@ export const RevenueScheduleSupportingDetails = forwardRef<
 
       return (
         <div className="space-y-3">
-          <div className="border-2 border-gray-400 rounded-lg overflow-hidden bg-white">
-            <ListHeader
-              inTab
-              compact
-              searchPlaceholder="Search IDs"
-              onSearch={query => setOpportunityDetailsSearch(query)}
-              onFilterChange={() => {}}
-              showStatusFilter={false}
-              showCreateButton={false}
-              filterColumns={opportunityDetailsFilterColumns}
-              columnFilters={opportunityDetailsColumnFilters}
-              onColumnFiltersChange={setOpportunityDetailsColumnFilters}
-              onSettingsClick={() => setOpportunityDetailsColumnChooserOpen(true)}
-            />
+          <ListHeader
+            inTab
+            compact
+            searchPlaceholder="Search IDs"
+            onSearch={query => setOpportunityDetailsSearch(query)}
+            onFilterChange={() => {}}
+            showStatusFilter={false}
+            showCreateButton={false}
+            filterColumns={opportunityDetailsFilterColumns}
+            columnFilters={opportunityDetailsColumnFilters}
+            onColumnFiltersChange={setOpportunityDetailsColumnFilters}
+            onSettingsClick={() => setOpportunityDetailsColumnChooserOpen(true)}
+          />
 
-            <DynamicTable
-              columns={opportunityDetailsColumnsWithRender}
-              data={sortedRows}
-              loading={false}
-              emptyMessage="No IDs to display."
-              onColumnsChange={handleOpportunityDetailsColumnsChange}
-              onSort={(columnId, direction) => setOpportunityDetailsSort({ columnId, direction })}
-              fillContainerWidth
-              autoSizeColumns
-              maxBodyHeight={260}
-              alwaysShowPagination={false}
-              className="border-0 rounded-none"
-            />
+          <DynamicTable
+            columns={opportunityDetailsColumnsWithRender}
+            data={sortedRows}
+            loading={false}
+            emptyMessage="No IDs to display."
+            onColumnsChange={handleOpportunityDetailsColumnsChange}
+            onSort={(columnId, direction) => setOpportunityDetailsSort({ columnId, direction })}
+            fillContainerWidth
+            autoSizeColumns
+            maxBodyHeight={260}
+            alwaysShowPagination={false}
+            className="border-0 rounded-none"
+          />
 
-            <ColumnChooserModal
-              isOpen={opportunityDetailsColumnChooserOpen}
-              columns={opportunityDetailsColumnsWithRender}
-              onApply={handleOpportunityDetailsColumnsChange}
-              onClose={() => setOpportunityDetailsColumnChooserOpen(false)}
-            />
-          </div>
+          <ColumnChooserModal
+            isOpen={opportunityDetailsColumnChooserOpen}
+            columns={opportunityDetailsColumnsWithRender}
+            onApply={handleOpportunityDetailsColumnsChange}
+            onClose={() => setOpportunityDetailsColumnChooserOpen(false)}
+          />
         </div>
       )
     }
@@ -2081,7 +2079,7 @@ export const RevenueScheduleSupportingDetails = forwardRef<
               hideHeader
             >
               <div className="border border-gray-200 rounded-lg overflow-hidden">
-                <div className="bg-gray-50 px-3 pb-3 pt-3 space-y-3">
+                <div className="bg-gray-50 px-3 pb-3 space-y-3">
                   <TabDescription>
                     This section displays metadata from vendor/distributor deposit line items as they are reconciled
                     with this revenue schedule. Known ID fields (Account, Order, Customer, Location, Service) update
@@ -2216,7 +2214,7 @@ export const RevenueScheduleSupportingDetails = forwardRef<
               hideHeader
             >
               <div className="border border-gray-200 rounded-lg overflow-hidden">
-                <div className="bg-gray-50 px-3 pb-3 pt-3 space-y-3">
+                <div className="bg-gray-50 px-3 pb-3 space-y-3">
                   <TabDescription>
                     This section displays metadata from vendor/distributor deposit line items as they are reconciled
                     with this revenue schedule. Known ID fields (Account, Order, Customer, Location, Service) update
@@ -2721,21 +2719,15 @@ export const RevenueScheduleSupportingDetails = forwardRef<
         break
       case "history":
         sectionContent = schedule?.id ? (
-          <div className="border-x border-b border-gray-200 bg-white px-3 pb-3 pt-0">
-            <div className="border-t-2 border-t-primary-600 -mx-3 px-3 pt-3">
-              <TabDescription>
-                {TAB_DESCRIPTIONS["history"]}
-              </TabDescription>
-              <AuditHistoryTab
-                entityName="RevenueSchedule"
-                entityId={schedule.id}
-                tableBodyMaxHeight={300}
-                rowActionLabel={canRestoreSchedule ? "Restore" : undefined}
-                rowActionRenderer={canRestoreSchedule ? historyRowActionRenderer : undefined}
-                reloadToken={historyReloadToken}
-              />
-            </div>
-          </div>
+          <AuditHistoryTab
+            entityName="RevenueSchedule"
+            entityId={schedule.id}
+            tableBodyMaxHeight={300}
+            rowActionLabel={canRestoreSchedule ? "Restore" : undefined}
+            rowActionRenderer={canRestoreSchedule ? historyRowActionRenderer : undefined}
+            reloadToken={historyReloadToken}
+            description={TAB_DESCRIPTIONS["history"]}
+          />
         ) : (
           <EmptyState title="No history available." description="Save this schedule to view audit history." />
         )
@@ -2815,7 +2807,7 @@ export const RevenueScheduleSupportingDetails = forwardRef<
               sectionContent
             ) : (
               <div className="border-x border-b border-gray-200 bg-white px-3 pb-3 pt-0">
-                <div className="border-t-2 border-t-primary-600 -mx-3 px-3 pt-3">
+                <div className="border-t-2 border-t-primary-600 -mr-3 min-w-0 overflow-hidden">
                   {activeSectionId && TAB_DESCRIPTIONS[activeSectionId] && (
                     <TabDescription>
                       {TAB_DESCRIPTIONS[activeSectionId]}

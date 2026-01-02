@@ -184,12 +184,18 @@ export async function GET(request: NextRequest) {
         const columnFiltersInput = parseJsonArray<ColumnFilterInput>(columnFiltersParam)
         const filterGroupsInput = parseJsonArray<FilterGroupInput>(filterGroupsParam)
         const includeDeleted = searchParams.get("includeDeleted") === "true"
+        const deletedOnly = searchParams.get("deletedOnly") === "true"
 
         // Build where clause
         const whereClause: any = { tenantId }
 
-        // Exclude soft-deleted contacts by default
-        if (!includeDeleted) {
+        // Deleted filters:
+        // - default: exclude soft-deleted contacts
+        // - includeDeleted=true: include both active + deleted contacts
+        // - deletedOnly=true: only soft-deleted contacts (overrides includeDeleted)
+        if (deletedOnly) {
+          whereClause.deletedAt = { not: null }
+        } else if (!includeDeleted) {
           whereClause.deletedAt = null
         }
 
