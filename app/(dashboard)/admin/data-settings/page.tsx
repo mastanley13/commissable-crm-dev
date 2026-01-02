@@ -1961,37 +1961,72 @@ function AccountTypeSettings({ editMode }: { editMode: boolean }) {
     setConfirmDelete(item)
   }
 
-  const handleConfirmDelete = async () => {
-    if (!confirmDelete) return
-
+  const deactivateAccountTypeForDialog = async (
+    accountTypeId: string,
+    _reason?: string
+  ): Promise<{ success: boolean; error?: string }> => {
     try {
-      setDeletingId(confirmDelete.id)
+      setSavingId(accountTypeId)
+      setError(null)
+      const res = await fetch("/api/admin/data-settings/account-types", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: accountTypeId, isActive: false })
+      })
+      const json = await res.json().catch(() => null)
+      if (!res.ok) {
+        const message = json?.error ?? "Failed to update account type"
+        setError(message)
+        return { success: false, error: message }
+      }
+      const updated: AccountTypeSetting = json.data
+      setItems(prev => prev.map(it => (it.id === updated.id ? updated : it)))
+      setConfirmDelete(null)
+      return { success: true }
+    } catch (err) {
+      console.error(err)
+      const message =
+        err instanceof Error ? err.message : "Failed to update account type"
+      setError(message)
+      return { success: false, error: message }
+    } finally {
+      setSavingId(null)
+    }
+  }
+
+  const deleteAccountTypeForDialog = async (
+    accountTypeId: string,
+    _bypassConstraints?: boolean,
+    _reason?: string
+  ): Promise<{
+    success: boolean
+    constraints?: DeletionConstraint[]
+    error?: string
+  }> => {
+    try {
+      setDeletingId(accountTypeId)
       setError(null)
       const res = await fetch("/api/admin/data-settings/account-types", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: confirmDelete.id })
+        body: JSON.stringify({ id: accountTypeId })
       })
+      const parsed = await res.json().catch(() => null)
       if (!res.ok) {
-        let message = "Failed to delete account type"
-        try {
-          const parsed = await res.json()
-          if (parsed && typeof parsed.error === "string") {
-            message = parsed.error
-          }
-        } catch {
-          // Ignore JSON parse errors
-        }
-        throw new Error(message)
+        const message = parsed?.error ?? "Failed to delete account type"
+        setError(message)
+        return { success: false, error: message }
       }
 
-      setItems(prev => prev.filter(it => it.id !== confirmDelete.id))
+      setItems(prev => prev.filter(it => it.id !== accountTypeId))
       setConfirmDelete(null)
+      return { success: true }
     } catch (err) {
       console.error(err)
-      setError(
+      const message =
         err instanceof Error ? err.message : "Failed to delete account type"
-      )
+      setError(message)
+      return { success: false, error: message }
     } finally {
       setDeletingId(null)
     }
@@ -2305,39 +2340,36 @@ function AccountTypeSettings({ editMode }: { editMode: boolean }) {
         </div>
       </form>
 
-      {confirmDelete && (
-        <div className="fixed inset-0 z-30 flex items-center justify-center bg-black bg-opacity-50">
-          <div className="w-full max-w-md rounded-lg bg-white p-4 shadow-xl">
-            <h3 className="text-base font-semibold text-gray-900">
-              Delete Account Type
-            </h3>
-            <p className="mt-2 text-sm text-gray-600">
-              Are you sure you want to delete{" "}
-              <span className="font-semibold">{confirmDelete.name}</span>? This
-              will remove it from future dropdowns. The type is not currently
-              used on any accounts or contacts.
-            </p>
-            <div className="mt-4 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setConfirmDelete(null)}
-                className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmDelete}
-                disabled={deletingId === confirmDelete.id}
-                className="inline-flex items-center rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                <Trash2 className="mr-1.5 h-4 w-4" />
-                {deletingId === confirmDelete.id ? "Deleting..." : "Delete"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <TwoStageDeleteDialog
+        isOpen={Boolean(confirmDelete)}
+        onClose={() => setConfirmDelete(null)}
+        entity="Account Type"
+        entityName={confirmDelete?.name ?? "Account Type"}
+        entityId={confirmDelete?.id ?? ""}
+        entitySummary={
+          confirmDelete
+            ? {
+                id: confirmDelete.id,
+                name: confirmDelete.name,
+                subtitle: confirmDelete.code ? `Code: ${confirmDelete.code}` : undefined
+              }
+            : undefined
+        }
+        isDeleted={false}
+        onDeactivate={deactivateAccountTypeForDialog}
+        onSoftDelete={deleteAccountTypeForDialog}
+        onPermanentDelete={async (id, reason) => {
+          const result = await deleteAccountTypeForDialog(id, undefined, reason)
+          return result.success
+            ? { success: true }
+            : { success: false, error: result.error }
+        }}
+        userCanPermanentDelete={false}
+        disallowActiveDelete={Boolean(confirmDelete?.isActive)}
+        modalSize="revenue-schedules"
+        requireReason
+        note="Deactivation hides this value from dropdowns. Delete removes it permanently (and is blocked if it has usage)."
+      />
     </div>
   )
 }
@@ -2590,37 +2622,78 @@ function RevenueTypeSettings({ editMode }: { editMode: boolean }) {
     setConfirmDeleteCode(item.code)
   }
 
-  const handleConfirmDelete = async () => {
-    if (!confirmDeleteCode) return
+  const confirmDeleteItem = confirmDeleteCode
+    ? items.find(item => item.code === confirmDeleteCode) ?? null
+    : null
 
+  const deactivateRevenueTypeForDialog = async (
+    revenueTypeCode: string,
+    _reason?: string
+  ): Promise<{ success: boolean; error?: string }> => {
     try {
-      setDeletingCode(confirmDeleteCode)
+      setSavingCode(revenueTypeCode)
+      setError(null)
+      const enabledCodes = items
+        .filter(it => it.isEnabled && it.code !== revenueTypeCode)
+        .map(it => it.code)
+      const res = await fetch("/api/admin/data-settings/revenue-types", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabledCodes })
+      })
+      const json = await res.json().catch(() => null)
+      if (!res.ok) {
+        const message = json?.error ?? "Failed to update revenue types"
+        setError(message)
+        return { success: false, error: message }
+      }
+      setItems(json.data ?? [])
+      setConfirmDeleteCode(null)
+      return { success: true }
+    } catch (err) {
+      console.error(err)
+      const message =
+        err instanceof Error ? err.message : "Failed to update revenue types"
+      setError(message)
+      return { success: false, error: message }
+    } finally {
+      setSavingCode(null)
+    }
+  }
+
+  const deleteRevenueTypeForDialog = async (
+    revenueTypeCode: string,
+    _bypassConstraints?: boolean,
+    _reason?: string
+  ): Promise<{
+    success: boolean
+    constraints?: DeletionConstraint[]
+    error?: string
+  }> => {
+    try {
+      setDeletingCode(revenueTypeCode)
       setError(null)
       const res = await fetch("/api/admin/data-settings/revenue-types", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code: confirmDeleteCode })
+        body: JSON.stringify({ code: revenueTypeCode })
       })
+      const parsed = await res.json().catch(() => null)
       if (!res.ok) {
-        let message = "Failed to delete revenue type"
-        try {
-          const parsed = await res.json()
-          if (parsed && typeof parsed.error === "string") {
-            message = parsed.error
-          }
-        } catch {
-          // Ignore JSON parse errors
-        }
-        throw new Error(message)
+        const message = parsed?.error ?? "Failed to delete revenue type"
+        setError(message)
+        return { success: false, error: message }
       }
 
-      setItems(prev => prev.filter(it => it.code !== confirmDeleteCode))
+      setItems(prev => prev.filter(it => it.code !== revenueTypeCode))
       setConfirmDeleteCode(null)
+      return { success: true }
     } catch (err) {
       console.error(err)
-      setError(
+      const message =
         err instanceof Error ? err.message : "Failed to delete revenue type"
-      )
+      setError(message)
+      return { success: false, error: message }
     } finally {
       setDeletingCode(null)
     }
@@ -2891,37 +2964,36 @@ function RevenueTypeSettings({ editMode }: { editMode: boolean }) {
         </div>
       </form>
 
-      {confirmDeleteCode && (
-        <div className="fixed inset-0 z-30 flex items-center justify-center bg-black bg-opacity-50">
-          <div className="w-full max-w-md rounded-lg bg-white p-4 shadow-xl">
-            <h3 className="text-base font-semibold text-gray-900">
-              Delete Revenue Type
-            </h3>
-            <p className="mt-2 text-sm text-gray-600">
-              Are you sure you want to delete this custom revenue type? This
-              will remove it from future dropdowns.
-            </p>
-            <div className="mt-4 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setConfirmDeleteCode(null)}
-                className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmDelete}
-                disabled={deletingCode === confirmDeleteCode}
-                className="inline-flex items-center rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                <Trash2 className="mr-1.5 h-4 w-4" />
-                {deletingCode === confirmDeleteCode ? "Deleting..." : "Delete"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <TwoStageDeleteDialog
+        isOpen={Boolean(confirmDeleteCode)}
+        onClose={() => setConfirmDeleteCode(null)}
+        entity="Revenue Type"
+        entityName={confirmDeleteItem?.label ?? confirmDeleteCode ?? "Revenue Type"}
+        entityId={confirmDeleteCode ?? ""}
+        entitySummary={
+          confirmDeleteCode
+            ? {
+                id: confirmDeleteCode,
+                name: confirmDeleteItem?.label ?? confirmDeleteCode,
+                subtitle: confirmDeleteItem ? `Code: ${confirmDeleteItem.code}` : undefined
+              }
+            : undefined
+        }
+        isDeleted={false}
+        onDeactivate={deactivateRevenueTypeForDialog}
+        onSoftDelete={deleteRevenueTypeForDialog}
+        onPermanentDelete={async (id, reason) => {
+          const result = await deleteRevenueTypeForDialog(id, undefined, reason)
+          return result.success
+            ? { success: true }
+            : { success: false, error: result.error }
+        }}
+        userCanPermanentDelete={false}
+        disallowActiveDelete={Boolean(confirmDeleteItem?.isEnabled)}
+        modalSize="revenue-schedules"
+        requireReason
+        note="Deactivation hides this value from dropdowns. Delete removes it permanently."
+      />
     </div>
   )
 }

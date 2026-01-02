@@ -1871,6 +1871,9 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
   const [activityBulkActionLoading, setActivityBulkActionLoading] = useState(false)
   const [showActivityBulkOwnerModal, setShowActivityBulkOwnerModal] = useState(false)
   const [showActivityBulkStatusModal, setShowActivityBulkStatusModal] = useState(false)
+  const [activityDeleteTargets, setActivityDeleteTargets] = useState<AccountActivityRow[]>([])
+  const [activityToDelete, setActivityToDelete] = useState<AccountActivityRow | null>(null)
+  const [showActivityDeleteDialog, setShowActivityDeleteDialog] = useState(false)
   const [contactsPage, setContactsPage] = useState(1)
   const [contactsPageSize, setContactsPageSize] = useState(100)
   const [showContactsColumnSettings, setShowContactsColumnSettings] = useState(false)
@@ -2901,17 +2904,10 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
   }, [showSuccess, onRefresh])
 
   const handleDeleteActivity = useCallback(async (activity: AccountActivityRow) => {
-    if (!confirm(`Are you sure you want to delete this activity?`)) return
-    try {
-      const response = await fetch(`/api/activities/${activity.id}`, { method: 'DELETE' })
-      if (!response.ok) throw new Error('Failed to delete activity')
-      showSuccess("Activity deleted", "The activity has been removed.")
-      onRefresh?.()
-    } catch (error) {
-      console.error('Delete activity error:', error)
-      showError("Failed to delete activity", error instanceof Error ? error.message : "Please try again.")
-    }
-  }, [showSuccess, showError, onRefresh])
+    setActivityToDelete(activity)
+    setActivityDeleteTargets([])
+    setShowActivityDeleteDialog(true)
+  }, [])
 
   const handleToggleActivityStatus = useCallback(async (activity: AccountActivityRow, newStatus: boolean) => {
     if (!activity?.id) {
@@ -2959,27 +2955,11 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
     setEditingGroup(null)
   }, [])
 
-  const handleDeleteGroup = useCallback(async (group: AccountGroupRow) => {
-    if (!confirm(`Are you sure you want to delete the group "${group.groupName}"?`)) {
-      return
-    }
-    
-    try {
-      const response = await fetch(`/api/groups/${group.id}`, {
-        method: 'DELETE',
-      })
-      
-      if (!response.ok) {
-        throw new Error('Failed to delete group')
-      }
-      
-      showSuccess("Group deleted", "The group has been removed.")
-      onRefresh?.()
-    } catch (error) {
-      console.error('Delete group error:', error)
-      showError("Failed to delete group", error instanceof Error ? error.message : "Please try again.")
-    }
-  }, [showSuccess, showError, onRefresh])
+  const handleDeleteGroup = useCallback((group: AccountGroupRow) => {
+    setGroupDeleteTargets([])
+    setGroupToDelete(group)
+    setShowGroupDeleteDialog(true)
+  }, [])
 
   const handleToggleGroupStatus = useCallback(async (group: AccountGroupRow, newStatus: boolean) => {
     if (!group?.id) {
@@ -3012,6 +2992,166 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
       showError("Failed to update group", message);
     }
   }, [showSuccess, showError, onRefresh])
+
+  const closeActivityDeleteDialog = useCallback(() => {
+    setShowActivityDeleteDialog(false)
+    setActivityToDelete(null)
+    setActivityDeleteTargets([])
+  }, [])
+
+  const deactivateActivityForDialog = useCallback(async (
+    activityId: string,
+    _reason?: string
+  ): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const response = await fetch(`/api/activities/${activityId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "Completed" })
+      })
+      const payload = await response.json().catch(() => null)
+      if (!response.ok) {
+        const message = payload?.error ?? "Failed to update activity status"
+        showError("Failed to deactivate activity", message)
+        return { success: false, error: message }
+      }
+      showSuccess("Activity deactivated", "The activity was marked Completed.")
+      onRefresh?.()
+      return { success: true }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to deactivate activity"
+      showError("Failed to deactivate activity", message)
+      return { success: false, error: message }
+    }
+  }, [onRefresh, showError, showSuccess])
+
+  const bulkDeactivateActivitiesForDialog = useCallback(async (
+    entities: Array<{ id: string; name: string }>,
+    _reason?: string
+  ): Promise<{ success: boolean; error?: string }> => {
+    const ids = entities.map(entity => entity.id)
+    if (ids.length === 0) {
+      return { success: false, error: "No activities selected to deactivate" }
+    }
+
+    const results = await Promise.allSettled(
+      ids.map(async id => {
+        const response = await fetch(`/api/activities/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "Completed" })
+        })
+        if (!response.ok) {
+          const payload = await response.json().catch(() => null)
+          throw new Error(payload?.error ?? "Failed to update activity status")
+        }
+      })
+    )
+
+    const failures = results
+      .map((result, index) => ({ result, index }))
+      .filter(({ result }) => result.status === "rejected")
+      .map(({ result, index }) => {
+        const name = entities[index]?.name || `Activity ${ids[index]?.slice(0, 8)}...`
+        const error =
+          result.status === "rejected"
+            ? (result.reason instanceof Error ? result.reason.message : "Failed to update activity")
+            : "Failed to update activity"
+        return `- ${name}: ${error}`
+      })
+
+    if (failures.length > 0) {
+      onRefresh?.()
+      setSelectedActivities([])
+      showError(
+        "Some activities could not be deactivated",
+        failures.slice(0, 5).join("\n") + (failures.length > 5 ? `\n- and ${failures.length - 5} more` : "")
+      )
+      return { success: false, error: `${failures.length} of ${ids.length} activities could not be deactivated.` }
+    }
+
+    onRefresh?.()
+    setSelectedActivities([])
+    showSuccess(
+      `Deactivated ${ids.length} activit${ids.length === 1 ? "y" : "ies"}`,
+      "The selected activities were marked Completed."
+    )
+    return { success: true }
+  }, [onRefresh, showError, showSuccess])
+
+  const deleteActivityForDialog = useCallback(async (
+    activityId: string,
+    _bypassConstraints?: boolean,
+    _reason?: string
+  ): Promise<{ success: boolean; constraints?: DeletionConstraint[]; error?: string }> => {
+    try {
+      const response = await fetch(`/api/activities/${activityId}`, { method: "DELETE" })
+      const payload = await response.json().catch(() => null)
+      if (!response.ok) {
+        const message = payload?.error ?? "Failed to delete activity"
+        showError("Failed to delete activity", message)
+        return { success: false, error: message }
+      }
+      setSelectedActivities(prev => prev.filter(id => id !== activityId))
+      showSuccess("Activity deleted", "The activity has been removed.")
+      onRefresh?.()
+      return { success: true }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to delete activity"
+      showError("Failed to delete activity", message)
+      return { success: false, error: message }
+    }
+  }, [onRefresh, showError, showSuccess])
+
+  const bulkDeleteActivitiesForDialog = useCallback(async (
+    entities: Array<{ id: string; name: string }>,
+    _bypassConstraints?: boolean,
+    _reason?: string
+  ): Promise<{ success: boolean; constraints?: DeletionConstraint[]; error?: string }> => {
+    const ids = entities.map(entity => entity.id)
+    if (ids.length === 0) {
+      return { success: false, error: "No activities selected to delete" }
+    }
+
+    const results = await Promise.allSettled(
+      ids.map(async id => {
+        const response = await fetch(`/api/activities/${id}`, { method: "DELETE" })
+        if (!response.ok) {
+          const payload = await response.json().catch(() => null)
+          throw new Error(payload?.error ?? "Failed to delete activity")
+        }
+      })
+    )
+
+    const failures = results
+      .map((result, index) => ({ result, index }))
+      .filter(({ result }) => result.status === "rejected")
+      .map(({ result, index }) => {
+        const name = entities[index]?.name || `Activity ${ids[index]?.slice(0, 8)}...`
+        const error =
+          result.status === "rejected"
+            ? (result.reason instanceof Error ? result.reason.message : "Failed to delete activity")
+            : "Failed to delete activity"
+        return `- ${name}: ${error}`
+      })
+
+    setSelectedActivities([])
+    onRefresh?.()
+
+    if (failures.length > 0) {
+      showError(
+        "Some activities could not be deleted",
+        failures.slice(0, 5).join("\n") + (failures.length > 5 ? `\n- and ${failures.length - 5} more` : "")
+      )
+      return { success: false, error: `${failures.length} of ${ids.length} activities could not be deleted.` }
+    }
+
+    showSuccess(
+      `Deleted ${ids.length} activit${ids.length === 1 ? "y" : "ies"}`,
+      "The selected activities have been removed."
+    )
+    return { success: true }
+  }, [onRefresh, showError, showSuccess])
 
   const deactivateGroupForDialog = useCallback(async (
     groupId: string,
@@ -3096,6 +3236,111 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
       return { success: false, error: message }
     }
   }, [onRefresh, showError, showSuccess])
+
+  const mapGroupConstraints = useCallback((raw: unknown, groupName?: string): DeletionConstraint[] => {
+    if (!Array.isArray(raw)) {
+      return []
+    }
+    return raw.map((constraint: any) => {
+      const message =
+        typeof constraint?.message === "string"
+          ? constraint.message
+          : "Blocked by related records."
+      const prefixed = groupName ? `${groupName}: ${message}` : message
+      return {
+        entity: "Group",
+        field: typeof constraint?.type === "string" ? constraint.type : "constraint",
+        count: typeof constraint?.count === "number" ? constraint.count : 0,
+        message: prefixed
+      }
+    })
+  }, [])
+
+  const deleteGroupForDialog = useCallback(async (
+    groupId: string,
+    bypassConstraints?: boolean,
+    _reason?: string
+  ): Promise<{ success: boolean; constraints?: DeletionConstraint[]; error?: string }> => {
+    try {
+      const url = `/api/groups/${groupId}${bypassConstraints ? "?force=true" : ""}`
+      const response = await fetch(url, { method: "DELETE" })
+      const payload = await response.json().catch(() => null)
+
+      if (!response.ok) {
+        if (response.status === 409) {
+          const groupName =
+            groupDeleteTargets.find(group => group.id === groupId)?.groupName ??
+            groupToDelete?.groupName
+          const constraints = mapGroupConstraints(payload?.constraints, groupName)
+          if (constraints.length > 0) {
+            return { success: false, constraints }
+          }
+        }
+        const message = payload?.error ?? "Failed to delete group"
+        return { success: false, error: message }
+      }
+
+      setSelectedGroups(previous => previous.filter(id => id !== groupId))
+      onRefresh?.()
+      return { success: true }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to delete group"
+      return { success: false, error: message }
+    }
+  }, [groupDeleteTargets, groupToDelete, mapGroupConstraints, onRefresh])
+
+  const bulkDeleteGroupsForDialog = useCallback(async (
+    entities: Array<{ id: string; name: string }>,
+    bypassConstraints?: boolean,
+    reason?: string
+  ): Promise<{ success: boolean; constraints?: DeletionConstraint[]; error?: string }> => {
+    if (!entities || entities.length === 0) {
+      return { success: false, error: "No groups selected" }
+    }
+
+    const constraints: DeletionConstraint[] = []
+    const failures: Array<{ id: string; name: string; message: string }> = []
+    const successIds: string[] = []
+
+    for (const entity of entities) {
+      const result = await deleteGroupForDialog(entity.id, bypassConstraints, reason)
+      if (result.success) {
+        successIds.push(entity.id)
+        continue
+      }
+      if (result.constraints && result.constraints.length > 0) {
+        constraints.push(...result.constraints)
+        continue
+      }
+      failures.push({
+        id: entity.id,
+        name: entity.name,
+        message: result.error || "Failed to delete group"
+      })
+    }
+
+    if (constraints.length > 0) {
+      return { success: false, constraints }
+    }
+
+    if (successIds.length > 0) {
+      setSelectedGroups(previous => previous.filter(id => !successIds.includes(id)))
+      onRefresh?.()
+    }
+
+    if (failures.length > 0) {
+      const detail = failures
+        .slice(0, 5)
+        .map(item => `${item.name || item.id.slice(0, 8) + "..."}: ${item.message}`)
+        .join("; ")
+      const message =
+        failures.length > 5 ? `${detail}; and ${failures.length - 5} more` : detail
+      showError("Some groups could not be deleted", message)
+      return { success: false, error: message }
+    }
+
+    return { success: true }
+  }, [deleteGroupForDialog, onRefresh, showError])
 
   const handleGroupEditSuccess = () => {
     setShowGroupEditModal(false)
@@ -5050,48 +5295,22 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
       return
     }
 
-    const confirmed = window.confirm(
-      `Delete ${selectedActivities.length} selected activit${
-        selectedActivities.length === 1 ? "y" : "ies"
-      }? This action cannot be undone.`
+    const targets = (account?.activities ?? []).filter(activity =>
+      selectedActivities.includes(activity.id)
     )
 
-    if (!confirmed) {
+    if (targets.length === 0) {
+      showError(
+        "Activities unavailable",
+        "Unable to locate the selected activities. Refresh and try again."
+      )
       return
     }
 
-    try {
-      setActivityBulkActionLoading(true)
-      let successCount = 0
-      let failureCount = 0
-
-      for (const id of selectedActivities) {
-        try {
-          const response = await fetch(`/api/activities/${id}`, { method: "DELETE" })
-          if (response.ok) {
-            successCount++
-          } else {
-            failureCount++
-          }
-        } catch {
-          failureCount++
-        }
-      }
-
-      if (successCount > 0) {
-        showSuccess(
-          `Deleted ${successCount} activit${successCount === 1 ? "y" : "ies"}`,
-          failureCount > 0 ? `${failureCount} failed. Refresh and try again.` : ""
-        )
-        setSelectedActivities([])
-        onRefresh?.()
-      } else if (failureCount > 0) {
-        showError("Failed to delete activities", "Please refresh the page and try again.")
-      }
-    } finally {
-      setActivityBulkActionLoading(false)
-    }
-  }, [selectedActivities, onRefresh, showError, showSuccess])
+    setActivityToDelete(null)
+    setActivityDeleteTargets(targets)
+    setShowActivityDeleteDialog(true)
+  }, [selectedActivities, account?.activities, showError])
 
   const handleBulkActivityExportCsv = useCallback(() => {
     if (selectedActivities.length === 0) {
@@ -5743,6 +5962,59 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
           onSubmit={handleBulkActivityStatusUpdate}
           isSubmitting={activityBulkActionLoading}
         />
+        <TwoStageDeleteDialog
+          isOpen={showActivityDeleteDialog}
+          onClose={closeActivityDeleteDialog}
+          entity="Activity"
+          entityName={
+            activityDeleteTargets.length > 0
+              ? `${activityDeleteTargets.length} activit${activityDeleteTargets.length === 1 ? "y" : "ies"}`
+              : (activityToDelete?.description || activityToDelete?.activityType || "Activity")
+          }
+          entityId={
+            activityDeleteTargets.length > 0
+              ? activityDeleteTargets[0]?.id || ""
+              : activityToDelete?.id || ""
+          }
+          multipleEntities={
+            activityDeleteTargets.length > 0
+              ? activityDeleteTargets.map(activity => ({
+                  id: activity.id,
+                  name: activity.description || activity.activityType || "Activity",
+                  subtitle: [
+                    activity.activityType ? `Type: ${activity.activityType}` : null,
+                    activity.activityDate ? `Date: ${formatDate(activity.activityDate)}` : null,
+                    activity.activityStatus ? `Status: ${activity.activityStatus}` : null
+                  ]
+                    .filter(Boolean)
+                    .join(" • ") || undefined
+                }))
+              : undefined
+          }
+          entityLabelPlural="Activities"
+          isDeleted={false}
+          onDeactivate={deactivateActivityForDialog}
+          onBulkDeactivate={
+            activityDeleteTargets.length > 0 ? bulkDeactivateActivitiesForDialog : undefined
+          }
+          onSoftDelete={deleteActivityForDialog}
+          onBulkSoftDelete={
+            activityDeleteTargets.length > 0 ? bulkDeleteActivitiesForDialog : undefined
+          }
+          onPermanentDelete={async (id, reason) => {
+            const result = await deleteActivityForDialog(id, undefined, reason)
+            return result.success ? { success: true } : { success: false, error: result.error }
+          }}
+          userCanPermanentDelete={false}
+          disallowActiveDelete={
+            activityDeleteTargets.length > 0
+              ? activityDeleteTargets.some(activity => !!activity.active)
+              : Boolean(activityToDelete?.active)
+          }
+          modalSize="revenue-schedules"
+          requireReason
+          note="Activities should be completed before they can be deleted. Use Deactivate to mark them Completed."
+        />
 
         <OpportunityBulkOwnerModal
           isOpen={showOpportunityBulkOwnerModal}
@@ -5854,74 +6126,17 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
           }
           entityLabelPlural="Groups"
           isDeleted={false}
-          onSoftDelete={async (id, bypass) => {
-            try {
-              const response = await fetch(`/api/groups/${id}`, {
-                method: "PATCH",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ isActive: false })
-              })
-              if (!response.ok) {
-                const payload = await response.json().catch(() => null)
-                if (response.status === 409 && payload?.constraints) {
-                  return { success: false, constraints: payload.constraints }
-                }
-                return { success: false, error: payload?.error || "Failed to update group" }
-              }
-              onRefresh?.()
-              return { success: true }
-            } catch (error) {
-              return { success: false, error: error instanceof Error ? error.message : "Unexpected error" }
-            }
-          }}
-          onBulkSoftDelete={
-            groupDeleteTargets.length > 0
-              ? async (entities, bypass) => {
-                  const outcomes = await Promise.allSettled(
-                    entities.map(async e => {
-                      const res = await fetch(`/api/groups/${e.id}`, {
-                        method: "PATCH",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ isActive: false })
-                      })
-                      if (!res.ok) {
-                        const payload = await res.json().catch(() => null)
-                        if (res.status === 409 && payload?.constraints) {
-                          throw { constraints: payload.constraints }
-                        }
-                        throw new Error(payload?.error || "Failed to update group")
-                      }
-                      return e.id
-                    })
-                  )
-                  const anyConstraint = outcomes.find(o => o.status === "rejected" && (o as any).reason?.constraints)
-                  if (anyConstraint && (anyConstraint as any).reason?.constraints) {
-                    return { success: false, constraints: (anyConstraint as any).reason.constraints }
-                  }
-                  const anyError = outcomes.find(o => o.status === "rejected")
-                  if (anyError) {
-                    return { success: false, error: "Some updates failed" }
-                  }
-                  onRefresh?.()
-                  return { success: true }
-                }
-              : undefined
+          onDeactivate={deactivateGroupForDialog}
+          onBulkDeactivate={
+            groupDeleteTargets.length > 0 ? bulkDeactivateGroupsForDialog : undefined
           }
-          onPermanentDelete={async (id) => {
-            try {
-              const res = await fetch(`/api/groups/${id}`, { method: "DELETE" })
-              if (!res.ok) {
-                const payload = await res.json().catch(() => null)
-                if (res.status === 409 && payload?.constraints) {
-                  return { success: false, error: "Blocked by constraints" }
-                }
-                return { success: false, error: payload?.error || "Failed to delete group" }
-              }
-              onRefresh?.()
-              return { success: true }
-            } catch (error) {
-              return { success: false, error: error instanceof Error ? error.message : "Unexpected error" }
-            }
+          onSoftDelete={deleteGroupForDialog}
+          onBulkSoftDelete={
+            groupDeleteTargets.length > 0 ? bulkDeleteGroupsForDialog : undefined
+          }
+          onPermanentDelete={async (id, reason) => {
+            const result = await deleteGroupForDialog(id, true, reason)
+            return result.success ? { success: true } : { success: false, error: result.error }
           }}
           onRestore={async (id) => {
             try {
@@ -5940,10 +6155,10 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
               return { success: false, error: error instanceof Error ? error.message : "Unexpected error" }
             }
           }}
-          userCanPermanentDelete={true}
+          userCanPermanentDelete={false}
           modalSize="revenue-schedules"
           requireReason
-          note="Groups may not be deletable when they have related records. If constraints are detected, you'll see them listed and can only proceed with Force Delete (which may orphan related records)."
+          note="Deactivation marks groups inactive. Delete permanently removes the group; if members are attached you may need Force Delete."
         />
         {/* Column Chooser Modals for each tab */}
         <ColumnChooserModal
