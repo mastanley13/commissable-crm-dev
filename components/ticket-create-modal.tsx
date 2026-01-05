@@ -373,7 +373,8 @@ export function TicketCreateModal({
         </div>
 
         <form onSubmit={handleSubmit} className="max-h-[80vh] overflow-y-auto px-6 py-5">
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            {/* Row 1: Core Ticket Information */}
             <div>
               <label className={labelCls}>Ticket Number</label>
               <input
@@ -384,6 +385,43 @@ export function TicketCreateModal({
               />
             </div>
 
+            <div>
+              <label className={labelCls}>Issue<span className="ml-1 text-red-500">*</span></label>
+              <input
+                type="text"
+                value={form.issue}
+                onChange={event => setForm(prev => ({ ...prev, issue: event.target.value }))}
+                className={inputCls}
+                placeholder="Enter issue"
+                required
+              />
+            </div>
+
+            <div>
+              <label className={labelCls}>Ticket Type</label>
+              <select
+                value={form.ticketType}
+                onChange={event => setForm(prev => ({ ...prev, ticketType: event.target.value }))}
+                className={`${inputCls} pr-6`}
+              >
+                <option value="">Select</option>
+                {TICKET_TYPE_OPTIONS.map(option => (
+                  <option key={option} value={option}>{option}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className={labelCls}>Last Activity Date</label>
+              <input
+                type="text"
+                value={form.lastActivityDate || "YYYY-MM-DD"}
+                disabled
+                className={inputCls}
+              />
+            </div>
+
+            {/* Row 2-3: Relationship Fields */}
             <div className="relative">
               <label className={labelCls}>Vendor Name</label>
               <input
@@ -421,63 +459,6 @@ export function TicketCreateModal({
                   ))}
                   {vendorLoading && (
                     <div className="px-3 py-2 text-xs text-gray-500">Loading vendors…</div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            <div className="relative">
-              <label className={labelCls}>Revenue Schedule</label>
-              <input
-                type="text"
-                value={form.revenueScheduleName || revenueScheduleQuery}
-                placeholder="Select revenue schedule"
-                onChange={event => {
-                  setRevenueScheduleQuery(event.target.value)
-                  setForm(prev => ({
-                    ...prev,
-                    revenueScheduleId: "",
-                    revenueScheduleName: "",
-                    productNameVendor: ""
-                  }))
-                }}
-                onFocus={() => setShowRevenueScheduleDropdown(true)}
-                onBlur={() => setTimeout(() => setShowRevenueScheduleDropdown(false), 120)}
-                className={inputCls}
-              />
-              {showRevenueScheduleDropdown && revenueScheduleOptions.length > 0 && (
-                <div className={dropdownCls}>
-                  {revenueScheduleOptions.map(option => (
-                    <button
-                      key={option.value}
-                      type="button"
-                      onClick={() => {
-                        const scheduleOpportunityId = (option.meta?.opportunityId as string) || ""
-                        const scheduleOpportunityName = (option.meta?.opportunityName as string) || ""
-                        const scheduleShortId = scheduleOpportunityId
-                          ? scheduleOpportunityId.slice(0, 8).toUpperCase()
-                          : ""
-
-                        setForm(prev => ({
-                          ...prev,
-                          revenueScheduleId: option.value,
-                          revenueScheduleName: option.label,
-                          productNameVendor: (option.meta?.productNameVendor as string) || prev.productNameVendor,
-                          opportunityId: scheduleOpportunityId || prev.opportunityId,
-                          opportunityName: scheduleOpportunityName || prev.opportunityName,
-                          opportunityShortId: scheduleShortId || prev.opportunityShortId
-                        }))
-                        setRevenueScheduleQuery(option.label)
-                        setShowRevenueScheduleDropdown(false)
-                      }}
-                      className="block w-full px-3 py-2 text-left text-sm hover:bg-primary-50 focus:bg-primary-50"
-                    >
-                      <div className="font-medium text-gray-900">{option.label}</div>
-                      {option.subLabel && <div className="text-xs text-gray-500">{option.subLabel}</div>}
-                    </button>
-                  ))}
-                  {revenueScheduleLoading && (
-                    <div className="px-3 py-2 text-xs text-gray-500">Loading revenue schedules…</div>
                   )}
                 </div>
               )}
@@ -573,42 +554,64 @@ export function TicketCreateModal({
               )}
             </div>
 
-            <div>
-              <label className={labelCls}>Issue<span className="ml-1 text-red-500">*</span></label>
+            <div className="relative">
+              <label className={labelCls}>Revenue Schedule</label>
               <input
                 type="text"
-                value={form.issue}
-                onChange={event => setForm(prev => ({ ...prev, issue: event.target.value }))}
-                className={inputCls}
-                placeholder="Enter issue"
-                required
-              />
-            </div>
-
-            <div>
-              <label className={labelCls}>Ticket Type</label>
-              <select
-                value={form.ticketType}
-                onChange={event => setForm(prev => ({ ...prev, ticketType: event.target.value }))}
-                className={`${inputCls} pr-6`}
-              >
-                <option value="">Select</option>
-                {TICKET_TYPE_OPTIONS.map(option => (
-                  <option key={option} value={option}>{option}</option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className={labelCls}>Last Activity Date</label>
-              <input
-                type="text"
-                value={form.lastActivityDate || "YYYY-MM-DD"}
-                disabled
+                value={form.revenueScheduleName || revenueScheduleQuery}
+                placeholder="Select revenue schedule"
+                onChange={event => {
+                  setRevenueScheduleQuery(event.target.value)
+                  setForm(prev => ({
+                    ...prev,
+                    revenueScheduleId: "",
+                    revenueScheduleName: "",
+                    productNameVendor: ""
+                  }))
+                }}
+                onFocus={() => setShowRevenueScheduleDropdown(true)}
+                onBlur={() => setTimeout(() => setShowRevenueScheduleDropdown(false), 120)}
                 className={inputCls}
               />
+              {showRevenueScheduleDropdown && revenueScheduleOptions.length > 0 && (
+                <div className={dropdownCls}>
+                  {revenueScheduleOptions.map(option => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => {
+                        const scheduleOpportunityId = (option.meta?.opportunityId as string) || ""
+                        const scheduleOpportunityName = (option.meta?.opportunityName as string) || ""
+                        const scheduleShortId = scheduleOpportunityId
+                          ? scheduleOpportunityId.slice(0, 8).toUpperCase()
+                          : ""
+
+                        setForm(prev => ({
+                          ...prev,
+                          revenueScheduleId: option.value,
+                          revenueScheduleName: option.label,
+                          productNameVendor: (option.meta?.productNameVendor as string) || prev.productNameVendor,
+                          opportunityId: scheduleOpportunityId || prev.opportunityId,
+                          opportunityName: scheduleOpportunityName || prev.opportunityName,
+                          opportunityShortId: scheduleShortId || prev.opportunityShortId
+                        }))
+                        setRevenueScheduleQuery(option.label)
+                        setShowRevenueScheduleDropdown(false)
+                      }}
+                      className="block w-full px-3 py-2 text-left text-sm hover:bg-primary-50 focus:bg-primary-50"
+                    >
+                      <div className="font-medium text-gray-900">{option.label}</div>
+                      {option.subLabel && <div className="text-xs text-gray-500">{option.subLabel}</div>}
+                    </button>
+                  ))}
+                  {revenueScheduleLoading && (
+                    <div className="px-3 py-2 text-xs text-gray-500">Loading revenue schedules…</div>
+                  )}
+                </div>
+              )}
             </div>
 
+            {/* Row 4: Supporting Information */}
             <div>
               <label className={labelCls}>Opportunity ID</label>
               <input
@@ -630,7 +633,8 @@ export function TicketCreateModal({
               />
             </div>
 
-            <div className="md:col-span-2 lg:col-span-3">
+            {/* Row 5: Notes (Full Width) */}
+            <div className="md:col-span-2">
               <label className={labelCls}>Notes</label>
               <textarea
                 value={form.notes}

@@ -407,6 +407,7 @@ export const RevenueScheduleSupportingDetails = forwardRef<
   const [opportunityDetailsColumnFilters, setOpportunityDetailsColumnFilters] = useState<ColumnFilter[]>([])
   const [opportunityDetailsColumnChooserOpen, setOpportunityDetailsColumnChooserOpen] = useState<boolean>(false)
   const [opportunityDetailsSort, setOpportunityDetailsSort] = useState<{ columnId: string; direction: "asc" | "desc" } | null>(null)
+  const [opportunityDetailsPage, setOpportunityDetailsPage] = useState<number>(1)
 
   // Transactions tab – dynamic table state (client-side)
   const [transactionsSearch, setTransactionsSearch] = useState<string>("")
@@ -805,8 +806,109 @@ export const RevenueScheduleSupportingDetails = forwardRef<
 
   const {
     columns: opportunityDetailsPreferenceColumns,
-    handleColumnsChange: handleOpportunityDetailsColumnsChange
+    handleColumnsChange: handleOpportunityDetailsColumnsChange,
+    pageSize: opportunityDetailsPageSize,
+    handlePageSizeChange: handleOpportunityDetailsPageSizeChange
   } = useTablePreferences("revenue-schedule:opportunity-details", RS_OPPORTUNITY_DETAILS_BASE_COLUMNS, { defaultPageSize: 10 })
+
+  const opportunityDetailsRows = useMemo(() => {
+    return [
+      {
+        id: "house",
+        label: "HOUSE",
+        accountId: schedule?.accountId ?? null,
+        orderId: schedule?.orderIdHouse ?? null,
+        customerId: schedule?.customerIdHouse ?? null,
+        locationId: schedule?.locationId ?? null,
+        serviceId: schedule?.revenueSchedule ?? null
+      },
+      {
+        id: "vendor",
+        label: "VENDOR",
+        accountId: schedule?.vendorId ?? null,
+        orderId: schedule?.orderIdVendor ?? null,
+        customerId: schedule?.customerIdVendor ?? null,
+        locationId: null,
+        serviceId: null
+      },
+      {
+        id: "distributor",
+        label: "DISTRIBUTOR",
+        accountId: schedule?.distributorId ?? null,
+        orderId: schedule?.orderIdDistributor ?? null,
+        customerId: schedule?.customerIdDistributor ?? null,
+        locationId: null,
+        serviceId: null
+      },
+      {
+        id: "customer",
+        label: "CUSTOMER",
+        accountId: null,
+        orderId: null,
+        customerId: null,
+        locationId: null,
+        serviceId: null
+      }
+    ]
+  }, [schedule])
+
+  const opportunityDetailsSortedRows = useMemo(() => {
+    const normalizedSearch = opportunityDetailsSearch.trim().toLowerCase()
+    const searchedRows = normalizedSearch.length
+      ? opportunityDetailsRows.filter(row =>
+          Object.values(row).some(value => String(value ?? "").toLowerCase().includes(normalizedSearch))
+        )
+      : opportunityDetailsRows
+
+    const filteredRows = applySimpleFilters(searchedRows as any, opportunityDetailsColumnFilters)
+
+    if (!opportunityDetailsSort) return filteredRows
+    const { columnId, direction } = opportunityDetailsSort
+    const order = direction === "asc" ? 1 : -1
+    const withIndex = filteredRows.map((row, index) => ({ row, index }))
+    withIndex.sort((a, b) => {
+      const aValue = String((a.row as any)[columnId] ?? "")
+      const bValue = String((b.row as any)[columnId] ?? "")
+      const cmp = aValue.localeCompare(bValue)
+      if (cmp !== 0) return cmp * order
+      return a.index - b.index
+    })
+    return withIndex.map(entry => entry.row)
+  }, [opportunityDetailsColumnFilters, opportunityDetailsRows, opportunityDetailsSearch, opportunityDetailsSort])
+
+  const opportunityDetailsTotalPages = useMemo(() => {
+    return Math.max(1, Math.ceil(opportunityDetailsSortedRows.length / opportunityDetailsPageSize))
+  }, [opportunityDetailsPageSize, opportunityDetailsSortedRows.length])
+
+  useEffect(() => {
+    if (opportunityDetailsPage > opportunityDetailsTotalPages) {
+      setOpportunityDetailsPage(opportunityDetailsTotalPages)
+    }
+  }, [opportunityDetailsPage, opportunityDetailsTotalPages])
+
+  const opportunityDetailsEffectivePage = useMemo(() => {
+    return Math.min(opportunityDetailsPage, opportunityDetailsTotalPages)
+  }, [opportunityDetailsPage, opportunityDetailsTotalPages])
+
+  const opportunityDetailsPagedRows = useMemo(() => {
+    const startIndex = (opportunityDetailsEffectivePage - 1) * opportunityDetailsPageSize
+    return opportunityDetailsSortedRows.slice(startIndex, startIndex + opportunityDetailsPageSize)
+  }, [opportunityDetailsEffectivePage, opportunityDetailsPageSize, opportunityDetailsSortedRows])
+
+  const opportunityDetailsPagination = useMemo<PaginationInfo>(
+    () => ({
+      page: opportunityDetailsEffectivePage,
+      pageSize: opportunityDetailsPageSize,
+      total: opportunityDetailsSortedRows.length,
+      totalPages: opportunityDetailsTotalPages
+    }),
+    [
+      opportunityDetailsEffectivePage,
+      opportunityDetailsPageSize,
+      opportunityDetailsSortedRows.length,
+      opportunityDetailsTotalPages
+    ]
+  )
 
   const opportunityDetailsFilterColumns = useMemo(
     () =>
@@ -1675,94 +1777,45 @@ export const RevenueScheduleSupportingDetails = forwardRef<
 
   const renderOpportunityDetails = () => {
     if (enableRedesign) {
-      const rows = [
-        {
-          id: "house",
-          label: "HOUSE",
-          accountId: schedule?.accountId ?? null,
-          orderId: schedule?.orderIdHouse ?? null,
-          customerId: schedule?.customerIdHouse ?? null,
-          locationId: schedule?.locationId ?? null,
-          serviceId: schedule?.revenueSchedule ?? null
-        },
-        {
-          id: "vendor",
-          label: "VENDOR",
-          accountId: schedule?.vendorId ?? null,
-          orderId: schedule?.orderIdVendor ?? null,
-          customerId: schedule?.customerIdVendor ?? null,
-          locationId: null,
-          serviceId: null
-        },
-        {
-          id: "distributor",
-          label: "DISTRIBUTOR",
-          accountId: schedule?.distributorId ?? null,
-          orderId: schedule?.orderIdDistributor ?? null,
-          customerId: schedule?.customerIdDistributor ?? null,
-          locationId: null,
-          serviceId: null
-        },
-        {
-          id: "customer",
-          label: "CUSTOMER",
-          accountId: null,
-          orderId: null,
-          customerId: null,
-          locationId: null,
-          serviceId: null
-        }
-      ]
-
-      const normalizedSearch = opportunityDetailsSearch.trim().toLowerCase()
-      const searchedRows = normalizedSearch.length
-        ? rows.filter(row => Object.values(row).some(value => String(value ?? "").toLowerCase().includes(normalizedSearch)))
-        : rows
-
-      const filteredRows = applySimpleFilters(searchedRows as any, opportunityDetailsColumnFilters)
-
-      const sortedRows = (() => {
-        if (!opportunityDetailsSort) return filteredRows
-        const { columnId, direction } = opportunityDetailsSort
-        const order = direction === "asc" ? 1 : -1
-        const withIndex = filteredRows.map((row, index) => ({ row, index }))
-        withIndex.sort((a, b) => {
-          const aValue = String((a.row as any)[columnId] ?? "")
-          const bValue = String((b.row as any)[columnId] ?? "")
-          const cmp = aValue.localeCompare(bValue)
-          if (cmp !== 0) return cmp * order
-          return a.index - b.index
-        })
-        return withIndex.map(entry => entry.row)
-      })()
-
       return (
         <div className="space-y-3">
           <ListHeader
             inTab
             compact
             searchPlaceholder="Search IDs"
-            onSearch={query => setOpportunityDetailsSearch(query)}
+            onSearch={query => {
+              setOpportunityDetailsSearch(query)
+              setOpportunityDetailsPage(1)
+            }}
             onFilterChange={() => {}}
             showStatusFilter={false}
             showCreateButton={false}
             filterColumns={opportunityDetailsFilterColumns}
             columnFilters={opportunityDetailsColumnFilters}
-            onColumnFiltersChange={setOpportunityDetailsColumnFilters}
+            onColumnFiltersChange={next => {
+              setOpportunityDetailsColumnFilters(next)
+              setOpportunityDetailsPage(1)
+            }}
             onSettingsClick={() => setOpportunityDetailsColumnChooserOpen(true)}
           />
 
           <DynamicTable
             columns={opportunityDetailsColumnsWithRender}
-            data={sortedRows}
+            data={opportunityDetailsPagedRows}
             loading={false}
             emptyMessage="No IDs to display."
             onColumnsChange={handleOpportunityDetailsColumnsChange}
             onSort={(columnId, direction) => setOpportunityDetailsSort({ columnId, direction })}
+            pagination={opportunityDetailsPagination}
+            onPageChange={setOpportunityDetailsPage}
+            onPageSizeChange={size => {
+              setOpportunityDetailsPage(1)
+              void handleOpportunityDetailsPageSizeChange(size)
+            }}
             fillContainerWidth
             autoSizeColumns
             maxBodyHeight={260}
-            alwaysShowPagination={false}
+            alwaysShowPagination
             className="border-0 rounded-none"
           />
 
