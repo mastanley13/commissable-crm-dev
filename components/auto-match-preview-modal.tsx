@@ -46,7 +46,7 @@ export function AutoMatchPreviewModal({
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50" onClick={onCancel}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50">
       <div
         className="w-full max-w-2xl rounded-2xl bg-white shadow-xl"
         onClick={event => event.stopPropagation()}

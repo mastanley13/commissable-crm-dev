@@ -104,7 +104,7 @@ export async function GET(request: NextRequest) {
             tenantId,
             ...(includeInactive ? {} : { isActive: true })
           },
-          orderBy: { displayOrder: "asc" },
+          orderBy: { name: "asc" },
           include: {
             _count: {
               select: {

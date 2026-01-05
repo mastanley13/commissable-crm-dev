@@ -458,7 +458,7 @@ export function AccountEditModal({ isOpen, onClose, onSuccess, account }: Accoun
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 backdrop-blur-sm">
       <div
         className="w-full max-w-5xl rounded-xl bg-white shadow-xl"
         onClick={event => event.stopPropagation()}
@@ -468,14 +468,6 @@ export function AccountEditModal({ isOpen, onClose, onSuccess, account }: Accoun
             <h2 className="text-lg font-semibold text-gray-900">Edit Account</h2>
             <p className="text-sm text-gray-500">Update the account information below.</p>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-md px-3 py-1 text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-700"
-            aria-label="Close modal"
-          >
-            Close
-          </button>
         </div>
 
         <form onSubmit={handleSubmit} className="px-6 py-6">

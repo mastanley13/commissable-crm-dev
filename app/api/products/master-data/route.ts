@@ -16,14 +16,14 @@ export async function GET(request: NextRequest) {
           tenantId,
           isActive: true
         },
-        orderBy: { displayOrder: "asc" }
+        orderBy: { name: "asc" }
       }),
       prisma.productSubtype.findMany({
         where: {
           tenantId,
           isActive: true
         },
-        orderBy: { displayOrder: "asc" },
+        orderBy: { name: "asc" },
         include: {
           family: {
             select: { id: true, name: true }

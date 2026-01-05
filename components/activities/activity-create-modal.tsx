@@ -1,7 +1,7 @@
 ﻿"use client"
 
 import { useEffect, useMemo, useState } from 'react'
-import { X, Plus, Loader2 } from 'lucide-react'
+import { Plus, Loader2 } from 'lucide-react'
 import { ActivityStatus, ActivityType } from '@prisma/client'
 import { DEFAULT_OPEN_ACTIVITY_STATUS } from '@/lib/activity-status'
 import { useToasts } from '@/components/toast'
@@ -242,9 +242,6 @@ export function ActivityCreateModal({ isOpen, onClose, onCreated, defaultAccount
       <div className="w-full max-w-5xl h-[900px] flex flex-col rounded-xl bg-white shadow-xl">
         <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
           <h2 className="text-lg font-semibold text-gray-900">Create Activity</h2>
-          <button type="button" className="rounded p-1 text-gray-500 hover:text-gray-700" onClick={() => { resetForm(); onClose() }}>
-            <X className="h-5 w-5" />
-          </button>
         </div>
         <form onSubmit={handleSubmit} className="flex-1 px-6 py-4">
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">

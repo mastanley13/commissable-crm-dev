@@ -806,7 +806,7 @@ export default function ProductsPage() {
     setBulkDeleteTargets([])
     setProductToDelete(product)
     setShowDeleteDialog(true)
-  }, [canEditProducts, requireAdminForEdit, showWarning])
+  }, [canEditProducts, requireAdminForEdit])
 
   const closeDeleteDialog = useCallback(() => {
     setShowDeleteDialog(false)

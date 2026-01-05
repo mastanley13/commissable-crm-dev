@@ -68,7 +68,7 @@ export function ColumnSettingsModal({ isOpen, columns, onApply, onClose }: Colum
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/40" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/40">
       <div
         className="w-full max-w-lg rounded-xl bg-white shadow-xl"
         onClick={event => event.stopPropagation()}
@@ -78,13 +78,6 @@ export function ColumnSettingsModal({ isOpen, columns, onApply, onClose }: Colum
             <h2 className="text-lg font-semibold text-gray-900">Customize Columns</h2>
             <p className="text-sm text-gray-500">Show, hide, and reorder the columns that appear in this table.</p>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-md px-3 py-1 text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-700"
-          >
-            Close
-          </button>
         </header>
 
         <div className="px-6 py-4 space-y-4">

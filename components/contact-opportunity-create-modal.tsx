@@ -1,7 +1,7 @@
 ﻿"use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { Loader2, X } from "lucide-react"
+import { Loader2 } from "lucide-react"
 import { useToasts } from "@/components/toast"
 import { getOpportunityStageOptions, type OpportunityStageOption } from "@/lib/opportunity-stage"
 
@@ -320,14 +320,6 @@ export function ContactOpportunityCreateModal({ isOpen, contactName, accountId, 
             <h2 className="text-lg font-semibold text-gray-900">New Opportunity for {contactName ?? "this contact"}</h2>
             <p className="text-sm text-gray-500">Capture potential revenue tied to this relationship.</p>
           </div>
-          <button
-            type="button"
-            onClick={handleClose}
-            className="rounded p-1 text-gray-500 transition hover:bg-gray-100 hover:text-gray-700"
-            aria-label="Close"
-          >
-            <X className="h-5 w-5" />
-          </button>
         </div>
 
         <form onSubmit={handleSubmit} className="max-h-[80vh] overflow-y-auto px-6 py-5">

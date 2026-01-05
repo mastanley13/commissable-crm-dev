@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { Calendar, X } from "lucide-react"
+import { Calendar } from "lucide-react"
 
 interface RevenueBulkApplyPanelProps {
   isOpen: boolean
@@ -95,15 +95,6 @@ export function RevenueBulkApplyPanel({
               {`Apply to selected ${pluralLabel}`}
             </h2>
           </div>
-          <button
-            type="button"
-            onClick={handleClose}
-            className="rounded-full p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 disabled:cursor-not-allowed disabled:opacity-60"
-            aria-label="Close"
-            disabled={isSubmitting}
-          >
-            <X className="h-4 w-4" />
-          </button>
         </div>
 
         <div className="flex-1 overflow-y-auto px-6 py-5">

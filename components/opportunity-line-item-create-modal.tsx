@@ -2,9 +2,9 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react"
 
-import { X } from "lucide-react"
 import { useToasts } from "@/components/toast"
 import { formatCurrencyDisplay, formatDecimalToFixed, formatPercentDisplay, normalizeDecimalInput } from "@/lib/number-format"
+import { sortByPicklistName } from "@/lib/picklist-sort"
 
 interface ProductOption {
   id: string
@@ -423,11 +423,13 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
               }))
               .filter((s: ProductSubtypeOption) => s.name.trim().length > 0)
           : []
-        setMasterFamilies(families)
-        setMasterSubtypes(subtypes)
+        const sortedFamilies = sortByPicklistName(families)
+        const sortedSubtypes = sortByPicklistName(subtypes)
+        setMasterFamilies(sortedFamilies)
+        setMasterSubtypes(sortedSubtypes)
 
-        const vendorFamilies = families.map(f => f.name)
-        const vendorSubtypes = subtypes.map(s => s.name)
+        const vendorFamilies = sortedFamilies.map(f => f.name)
+        const vendorSubtypes = sortedSubtypes.map(s => s.name)
         setFamilyOptions(vendorFamilies)
         setSubtypeOptions(vendorSubtypes)
       })
@@ -699,9 +701,6 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
             <p className="text-xs font-semibold uppercase tracking-wide text-primary-600">{activeTab === "add" ? "Add Line Item" : "Create Product"}</p>
             <h2 className="text-lg font-semibold text-gray-900">{activeTab === "add" ? "Add Existing Product" : "Create New Product"}</h2>
           </div>
-          <button type="button" onClick={onClose} className="rounded-full p-1 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600" aria-label="Close" disabled={loading}>
-            <X className="h-5 w-5" />
-          </button>
         </div>
 
           {/* Tab Switch */}

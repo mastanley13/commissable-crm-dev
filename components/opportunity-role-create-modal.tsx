@@ -1,7 +1,7 @@
 "use client"
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react"
-import { Loader2, X } from "lucide-react"
+import { Loader2 } from "lucide-react"
 import { useToasts } from "@/components/toast"
 
 interface ContactOption {
@@ -234,14 +234,6 @@ export function OpportunityRoleCreateModal({ isOpen, opportunityId, onClose, onS
             <p className="text-xs font-semibold uppercase text-primary-600">Add Opportunity Role</p>
             <h2 className="text-lg font-semibold text-gray-900">Add Role</h2>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700"
-            aria-label="Close"
-          >
-            <X className="h-5 w-5" />
-          </button>
         </div>
 
         <form onSubmit={handleSubmit}>

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { ActivityStatus, ActivityType } from "@prisma/client"
 import { DEFAULT_OPEN_ACTIVITY_STATUS } from "@/lib/activity-status"
-import { Loader2, X } from "lucide-react"
+import { Loader2 } from "lucide-react"
 import { useToasts } from "@/components/toast"
 
 interface SelectOption {
@@ -189,15 +189,6 @@ export function ActivityNoteEditModal({ isOpen, activityId, accountId, contactId
             <h2 className="text-lg font-semibold text-gray-900">Edit Activity & Note</h2>
             <p className="text-sm text-gray-500">Update the activity details for this record.</p>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-full p-1 text-gray-500 transition hover:bg-gray-100 hover:text-gray-700"
-            aria-label="Close"
-            disabled={loading}
-          >
-            <X className="h-5 w-5" />
-          </button>
         </div>
 
         {fetching ? (

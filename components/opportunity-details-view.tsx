@@ -303,14 +303,14 @@ export const REVENUE_TABLE_BASE_COLUMNS: Column[] = [
     type: "multi-action",
     hideable: false
   },
-  { id: "productNameVendor", label: "Vendor - Product Name", width: 220, minWidth: calculateMinWidth({ label: "Vendor - Product Name", type: "text", sortable: true }), accessor: "productNameVendor", sortable: true },
-  { id: "vendorName", label: "Vendor Name", width: 200, minWidth: calculateMinWidth({ label: "Vendor Name", type: "text", sortable: true }), accessor: "vendorName", sortable: true },
-  { id: "distributorName", label: "Distributor Name", width: 200, minWidth: calculateMinWidth({ label: "Distributor Name", type: "text", sortable: true }), accessor: "distributorName", sortable: true },
-  { id: "accountName", label: "Account Name", width: 220, minWidth: calculateMinWidth({ label: "Account Name", type: "text", sortable: true }), accessor: "accountName", sortable: true },
-  { id: "opportunityName", label: "Opportunity Name", width: 220, minWidth: calculateMinWidth({ label: "Opportunity Name", type: "text", sortable: true }), accessor: "opportunityName", sortable: true },
-  { id: "scheduleNumber", label: "Revenue Schedule", width: 180, minWidth: calculateMinWidth({ label: "Revenue Schedule", type: "text", sortable: true }), accessor: "scheduleNumber", sortable: true },
-  { id: "scheduleDate", label: "Schedule Date", width: 160, minWidth: calculateMinWidth({ label: "Schedule Date", type: "text", sortable: true }), accessor: "scheduleDate", sortable: true },
   { id: "status", label: "Status", width: 120, minWidth: 110, accessor: "status", sortable: true },
+  { id: "distributorName", label: "Distributor Name", width: 200, minWidth: calculateMinWidth({ label: "Distributor Name", type: "text", sortable: true }), accessor: "distributorName", sortable: true },
+  { id: "vendorName", label: "Vendor Name", width: 200, minWidth: calculateMinWidth({ label: "Vendor Name", type: "text", sortable: true }), accessor: "vendorName", sortable: true },
+  { id: "opportunityName", label: "Opportunity Name", width: 220, minWidth: calculateMinWidth({ label: "Opportunity Name", type: "text", sortable: true }), accessor: "opportunityName", sortable: true },
+  { id: "productNameVendor", label: "Vendor - Product Name", width: 220, minWidth: calculateMinWidth({ label: "Vendor - Product Name", type: "text", sortable: true }), accessor: "productNameVendor", sortable: true },
+  { id: "scheduleDate", label: "Schedule Date", width: 160, minWidth: calculateMinWidth({ label: "Schedule Date", type: "text", sortable: true }), accessor: "scheduleDate", sortable: true },
+  { id: "accountName", label: "Account Name", width: 220, minWidth: calculateMinWidth({ label: "Account Name", type: "text", sortable: true }), accessor: "accountName", sortable: true },
+  { id: "scheduleNumber", label: "Revenue Schedule", width: 180, minWidth: calculateMinWidth({ label: "Revenue Schedule", type: "text", sortable: true }), accessor: "scheduleNumber", sortable: true },
   { id: "quantity", label: "Quantity", width: 100, minWidth: 90, accessor: "quantity", sortable: true },
   { id: "unitPrice", label: "Price Each", width: 140, minWidth: calculateMinWidth({ label: "Price Each", type: "text", sortable: true }), accessor: "unitPrice", sortable: true },
   { id: "expectedUsageGross", label: "Expected Usage Gross", width: 200, minWidth: calculateMinWidth({ label: "Expected Usage Gross", type: "text", sortable: true }), accessor: "expectedUsageGross", sortable: true },
@@ -2588,6 +2588,47 @@ useEffect(() => {
     }))
   }, [opportunity])
 
+  const compareDefaultOpportunityRevenueScheduleSort = useCallback(
+    (a: OpportunityRevenueScheduleRecord, b: OpportunityRevenueScheduleRecord) => {
+      const normalizeText = (value: unknown) => {
+        if (value === null || value === undefined) {
+          return { missing: true, value: "" }
+        }
+        const text = String(value).trim().toLowerCase()
+        return { missing: text.length === 0, value: text }
+      }
+
+      const normalizeDate = (value: string | null | undefined) => {
+        const formatted = formatDate(value)
+        if (!formatted || formatted === "--") {
+          return { missing: true, value: "" }
+        }
+        return { missing: false, value: formatted }
+      }
+
+      const compareKey = (aKey: { missing: boolean; value: string }, bKey: { missing: boolean; value: string }) => {
+        if (aKey.missing !== bKey.missing) {
+          return aKey.missing ? 1 : -1
+        }
+        if (aKey.value === bKey.value) return 0
+        return aKey.value.localeCompare(bKey.value)
+      }
+
+      const comparisons = [
+        compareKey(normalizeText(a.distributorName), normalizeText(b.distributorName)),
+        compareKey(normalizeText(a.vendorName), normalizeText(b.vendorName)),
+        compareKey(normalizeText(a.opportunityName), normalizeText(b.opportunityName)),
+        compareKey(normalizeText(a.productNameVendor), normalizeText(b.productNameVendor)),
+        compareKey(normalizeDate(a.scheduleDate), normalizeDate(b.scheduleDate)),
+        compareKey(normalizeText(a.scheduleNumber), normalizeText(b.scheduleNumber)),
+        compareKey(normalizeText(a.id), normalizeText(b.id)),
+      ]
+
+      return comparisons.find(result => result !== 0) ?? 0
+    },
+    []
+  )
+
   const filteredRevenueRows = useMemo(() => {
     let rows = [...revenueRows]
 
@@ -2666,10 +2707,19 @@ useEffect(() => {
         if (aStr === bStr) return 0
         return aStr < bStr ? -1 * multiplier : 1 * multiplier
       })
+    } else {
+      rows.sort(compareDefaultOpportunityRevenueScheduleSort)
     }
 
     return rows
-  }, [revenueRows, revenueStatusFilter, revenueSearchQuery, revenueColumnFilters, revenueSort])
+  }, [
+    revenueRows,
+    revenueStatusFilter,
+    revenueSearchQuery,
+    revenueColumnFilters,
+    revenueSort,
+    compareDefaultOpportunityRevenueScheduleSort,
+  ])
 
   const paginatedRevenueRows = useMemo(() => {
     const start = (revenueCurrentPage - 1) * revenuePageSize

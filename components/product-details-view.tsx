@@ -4,6 +4,7 @@ import Link from "next/link"
 import { ReactNode, useCallback, useMemo, useEffect, useState } from "react"
 import { Edit, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { sortByPicklistName } from "@/lib/picklist-sort"
 import { EditableField } from "./editable-field"
 import { useToasts } from "./toast"
 import { useEntityEditor, type EntityEditor } from "@/hooks/useEntityEditor"
@@ -718,8 +719,8 @@ interface EditableProductHeaderProps {
               .filter((s: ProductSubtypePicklistOption) => s.name.length > 0)
           : []
 
-        setProductFamilies(families)
-        setProductSubtypes(subtypes)
+        setProductFamilies(sortByPicklistName(families))
+        setProductSubtypes(sortByPicklistName(subtypes))
         setPicklistError(null)
       } catch (error) {
         if (!cancelled) {

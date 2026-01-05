@@ -403,14 +403,6 @@ export function ActivityNoteCreateModal({
             <p className="text-xs font-semibold uppercase text-primary-600">{activeTab === "activity" ? "Create Activity" : "Create Note"}</p>
             <h2 className="text-lg font-semibold text-gray-900">{headerTitle}</h2>
           </div>
-          <button
-            type="button"
-            onClick={handleClose}
-            className="rounded p-1 text-gray-500 transition hover:bg-gray-100 hover:text-gray-700"
-            aria-label="Close"
-          >
-            <X className="h-5 w-5" />
-          </button>
         </div>
 
         {/* Tab Switch */}

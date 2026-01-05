@@ -45,6 +45,15 @@ const revenueScheduleColumns: Column[] = [
     accessor: 'checkbox',
   },
   {
+    id: 'scheduleStatus', // 04.00.022
+    label: 'Status',
+    width: 160,
+    minWidth: calculateMinWidth({ label: 'Status', type: 'text', sortable: true }),
+    maxWidth: 220,
+    sortable: true,
+    type: 'text',
+  },
+  {
     id: 'distributorName', // 04.00.000
     label: 'Distributor Name',
     width: 180,
@@ -66,15 +75,6 @@ const revenueScheduleColumns: Column[] = [
         {value}
       </span>
     ),
-  },
-  {
-    id: 'accountName',
-    label: 'Account Name',
-    width: 200,
-    minWidth: calculateMinWidth({ label: 'Account Name', type: 'text', sortable: true }),
-    maxWidth: 300,
-    sortable: true,
-    type: 'text',
   },
   {
     id: 'opportunityName',
@@ -105,6 +105,15 @@ const revenueScheduleColumns: Column[] = [
     width: 160,
     minWidth: calculateMinWidth({ label: 'Schedule Date', type: 'text', sortable: true }),
     maxWidth: 220,
+    sortable: true,
+    type: 'text',
+  },
+  {
+    id: 'accountName',
+    label: 'Account Name',
+    width: 200,
+    minWidth: calculateMinWidth({ label: 'Account Name', type: 'text', sortable: true }),
+    maxWidth: 300,
     sortable: true,
     type: 'text',
   },
@@ -264,15 +273,6 @@ const revenueScheduleColumns: Column[] = [
     sortable: true,
     type: 'text',
     hidden: true,
-  },
-  {
-    id: 'scheduleStatus', // 04.00.022
-    label: 'Status',
-    width: 160,
-    minWidth: calculateMinWidth({ label: 'Status', type: 'text', sortable: true }),
-    maxWidth: 220,
-    sortable: true,
-    type: 'text',
   },
   {
     id: 'expectedCommissionRatePercent',
@@ -466,6 +466,36 @@ export default function RevenueSchedulesPage() {
     const asString = String(value).trim()
     return { type: 'string' as const, value: asString.toLowerCase() }
   }, [parseDisplayNumber])
+
+  const compareDefaultRevenueScheduleSort = useCallback((a: any, b: any) => {
+    const normalizeKey = (value: unknown) => {
+      if (value === null || value === undefined) {
+        return { missing: true, value: '' }
+      }
+      const text = String(value).trim().toLowerCase()
+      return { missing: text.length === 0, value: text }
+    }
+
+    const compareKey = (aKey: { missing: boolean; value: string }, bKey: { missing: boolean; value: string }) => {
+      if (aKey.missing !== bKey.missing) {
+        return aKey.missing ? 1 : -1
+      }
+      if (aKey.value === bKey.value) return 0
+      return aKey.value.localeCompare(bKey.value)
+    }
+
+    const comparisons = [
+      compareKey(normalizeKey(a?.distributorName), normalizeKey(b?.distributorName)),
+      compareKey(normalizeKey(a?.vendorName), normalizeKey(b?.vendorName)),
+      compareKey(normalizeKey(a?.opportunityName), normalizeKey(b?.opportunityName)),
+      compareKey(normalizeKey(a?.productNameVendor), normalizeKey(b?.productNameVendor)),
+      compareKey(normalizeKey(a?.revenueScheduleDate), normalizeKey(b?.revenueScheduleDate)),
+      compareKey(normalizeKey(a?.revenueScheduleName), normalizeKey(b?.revenueScheduleName)),
+      compareKey(normalizeKey(a?.id), normalizeKey(b?.id)),
+    ]
+
+    return comparisons.find(result => result !== 0) ?? 0
+  }, [])
 
   const fetchRevenueSchedules = useCallback(async () => {
     setLoading(true)
@@ -1139,11 +1169,14 @@ export default function RevenueSchedulesPage() {
         const bValue = String(bNormalized.value ?? '')
         return aValue.localeCompare(bValue) * factor
       })
+    } else {
+      next = [...next].sort(compareDefaultRevenueScheduleSort)
     }
 
     return next
   }, [
     activeFilter,
+    compareDefaultRevenueScheduleSort,
     columnFilters,
     endDate,
     filteredRevenueSchedules,

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, ChevronLeft, ChevronRight, Users, Calculator, CheckCircle } from "lucide-react";
+import { ChevronLeft, ChevronRight, Users, Calculator, CheckCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface AccountRowSummary {
@@ -564,12 +564,6 @@ export function AccountReassignmentModal({
               </h2>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
-          >
-            <X className="h-5 w-5" />
-          </button>
         </div>
 
         {/* Progress Steps */}

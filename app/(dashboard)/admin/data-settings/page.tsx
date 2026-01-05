@@ -6,6 +6,7 @@ import { Trash2 } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
 import { TwoStageDeleteDialog } from "@/components/two-stage-delete-dialog"
 import type { DeletionConstraint } from "@/lib/deletion"
+import { sortByPicklistName } from "@/lib/picklist-sort"
 
 type SectionId = "manage-fields"
 
@@ -274,7 +275,7 @@ function ProductSubtypeSettings({ editMode }: { editMode: boolean }) {
 
         const json = await res.json()
 
-        setSubtypes(json.data ?? [])
+        setSubtypes(sortByPicklistName(json.data ?? []))
       } catch (err) {
         console.error(err)
         setError(
@@ -334,7 +335,9 @@ function ProductSubtypeSettings({ editMode }: { editMode: boolean }) {
       if (!res.ok) throw new Error("Failed to update product subtype")
       const json = await res.json()
       const updated: ProductSubtypeType = json.data
-      setSubtypes(prev => prev.map(s => (s.id === updated.id ? updated : s)))
+      setSubtypes(prev =>
+        sortByPicklistName(prev.map(s => (s.id === updated.id ? updated : s)))
+      )
     } catch (err) {
       console.error(err)
       setError(
@@ -368,7 +371,7 @@ function ProductSubtypeSettings({ editMode }: { editMode: boolean }) {
       if (!res.ok) throw new Error("Failed to create product subtype")
       const json = await res.json()
       const created: ProductSubtypeType = json.data
-      setSubtypes(prev => [...prev, created])
+      setSubtypes(prev => sortByPicklistName([...prev, created]))
       setNewName("")
       setNewDescription("")
       setPage(1)
@@ -431,7 +434,7 @@ function ProductSubtypeSettings({ editMode }: { editMode: boolean }) {
       const json = await res.json()
       const updated: ProductSubtypeType = json.data
       setSubtypes(prev =>
-        prev.map(s => (s.id === updated.id ? updated : s))
+        sortByPicklistName(prev.map(s => (s.id === updated.id ? updated : s)))
       )
       setDrafts(prev => ({
         ...prev,
@@ -519,7 +522,9 @@ function ProductSubtypeSettings({ editMode }: { editMode: boolean }) {
         return { success: false, error: message }
       }
       const updated: ProductSubtypeType = json.data
-      setSubtypes(prev => prev.map(s => (s.id === updated.id ? updated : s)))
+      setSubtypes(prev =>
+        sortByPicklistName(prev.map(s => (s.id === updated.id ? updated : s)))
+      )
       setConfirmDelete(null)
       return { success: true }
     } catch (err) {
@@ -1059,7 +1064,7 @@ function ProductFamilySettings({ editMode }: { editMode: boolean }) {
         )
         if (!res.ok) throw new Error("Failed to load product family types")
         const json = await res.json()
-        setFamilies(json.data ?? [])
+        setFamilies(sortByPicklistName(json.data ?? []))
       } catch (err) {
         console.error(err)
         setError(
@@ -1118,7 +1123,9 @@ function ProductFamilySettings({ editMode }: { editMode: boolean }) {
       if (!res.ok) throw new Error("Failed to update product family type")
       const json = await res.json()
       const updated: ProductFamilyType = json.data
-      setFamilies(prev => prev.map(f => (f.id === updated.id ? updated : f)))
+      setFamilies(prev =>
+        sortByPicklistName(prev.map(f => (f.id === updated.id ? updated : f)))
+      )
     } catch (err) {
       console.error(err)
       setError(
@@ -1152,7 +1159,7 @@ function ProductFamilySettings({ editMode }: { editMode: boolean }) {
       if (!res.ok) throw new Error("Failed to create product family type")
       const json = await res.json()
       const created: ProductFamilyType = json.data
-      setFamilies(prev => [...prev, created])
+      setFamilies(prev => sortByPicklistName([...prev, created]))
       setNewName("")
       setNewDescription("")
     } catch (err) {
@@ -1214,7 +1221,7 @@ function ProductFamilySettings({ editMode }: { editMode: boolean }) {
       const json = await res.json()
       const updated: ProductFamilyType = json.data
       setFamilies(prev =>
-        prev.map(f => (f.id === updated.id ? updated : f))
+        sortByPicklistName(prev.map(f => (f.id === updated.id ? updated : f)))
       )
       setDrafts(prev => ({
         ...prev,
@@ -1310,7 +1317,9 @@ function ProductFamilySettings({ editMode }: { editMode: boolean }) {
         return { success: false, error: message }
       }
       const updated: ProductFamilyType = json.data
-      setFamilies(prev => prev.map(f => (f.id === updated.id ? updated : f)))
+      setFamilies(prev =>
+        sortByPicklistName(prev.map(f => (f.id === updated.id ? updated : f)))
+      )
       setConfirmDelete(null)
       return { success: true }
     } catch (err) {

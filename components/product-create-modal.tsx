@@ -1,10 +1,11 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Loader2, X } from "lucide-react"
+import { Loader2 } from "lucide-react"
 import { useToasts } from "./toast"
 import { EditableSwitch } from "./editable-field"
 import { formatCurrencyDisplay, formatDecimalToFixed, formatPercentDisplay, normalizeDecimalInput } from "@/lib/number-format"
+import { sortByPicklistName } from "@/lib/picklist-sort"
 import { PicklistCombobox } from "./picklist-combobox"
 import { SelectCombobox } from "./select-combobox"
 
@@ -251,13 +252,15 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
               }))
               .filter((s: ProductSubtypeOption) => s.name.trim().length > 0)
           : []
-        setMasterFamilies(families)
-        setMasterSubtypes(subtypes)
+        const sortedFamilies = sortByPicklistName(families)
+        const sortedSubtypes = sortByPicklistName(subtypes)
+        setMasterFamilies(sortedFamilies)
+        setMasterSubtypes(sortedSubtypes)
 
-        const vendorFamilies = families.map(f => f.name)
+        const vendorFamilies = sortedFamilies.map(f => f.name)
         setFamilyOptions(vendorFamilies)
 
-        const houseFamilies = families.map(f => f.name)
+        const houseFamilies = sortedFamilies.map(f => f.name)
         setHouseFamilyOptions(houseFamilies)
       })
       .catch((error) => {
@@ -668,15 +671,6 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
           <div>
             <h2 className="text-lg font-semibold text-gray-900">Create New Product</h2>
           </div>
-          <button
-            type="button"
-            onClick={handleClose}
-            className="rounded-full p-1.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
-            aria-label="Close modal"
-            disabled={loading}
-          >
-            <X className="h-5 w-5" />
-          </button>
         </div>
 
         <form id="product-create-form" onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-6 py-3">

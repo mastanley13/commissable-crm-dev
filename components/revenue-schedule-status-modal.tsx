@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Info, Loader2, X } from "lucide-react"
+import { Info, Loader2 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { useToasts } from "@/components/toast"
@@ -296,14 +296,6 @@ export function RevenueScheduleStatusModal({
             <p className="text-xs font-semibold uppercase text-primary-600">Deactivate or Delete</p>
             <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
           </div>
-          <button
-            type="button"
-            onClick={handleClose}
-            className="rounded p-1 text-gray-500 transition hover:bg-gray-100 hover:text-gray-700"
-            aria-label="Close"
-          >
-            <X className="h-5 w-5" />
-          </button>
         </div>
 
         <div className="flex-1 overflow-y-auto px-6 py-5">
@@ -474,4 +466,3 @@ export function RevenueScheduleStatusModal({
     </div>
   )
 }
-

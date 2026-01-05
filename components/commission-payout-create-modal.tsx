@@ -1,7 +1,7 @@
 "use client"
 
 import { FormEvent, useEffect, useMemo, useState } from "react"
-import { Loader2, X } from "lucide-react"
+import { Loader2 } from "lucide-react"
 
 import { useToasts } from "@/components/toast"
 
@@ -92,14 +92,6 @@ export function CommissionPayoutCreateModal({
             <h2 className="text-sm font-semibold text-gray-900">Record Payment</h2>
             <p className="text-xs text-gray-500">Adds a payout transaction for this revenue schedule.</p>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-full p-1 text-gray-500 hover:bg-gray-100"
-            aria-label="Close"
-          >
-            <X className="h-4 w-4" />
-          </button>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4 px-4 py-4">

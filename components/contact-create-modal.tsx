@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Loader2, X } from "lucide-react"
+import { Loader2 } from "lucide-react"
 
 import { formatPhoneNumber } from "@/lib/validation-shared"
 import { useToasts } from "./toast"
@@ -374,14 +374,6 @@ export function ContactCreateModal({ isOpen, onClose, onSuccess, options, defaul
             <h2 className="text-lg font-semibold text-gray-900">Create New Contact</h2>
             <p className="text-sm text-gray-500">Enter the information required for the new contact.</p>
           </div>
-          <button
-            type="button"
-            onClick={handleClose}
-            className="rounded-md px-3 py-1 text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-700"
-            aria-label="Close modal"
-          >
-            <X className="h-4 w-4" />
-          </button>
         </div>
 
         <form onSubmit={handleSubmit} className="px-6 py-6">

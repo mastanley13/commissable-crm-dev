@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Info, Loader2, X } from "lucide-react"
+import { Info, Loader2 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { useToasts } from "@/components/toast"
@@ -1190,14 +1190,6 @@ export function RevenueScheduleCreateModal({
             </p>
             <h2 className="text-lg font-semibold text-gray-900">Manage Revenue Schedules for {opportunityName}</h2>
           </div>
-          <button
-            type="button"
-            onClick={handleClose}
-            className="rounded p-1 text-gray-500 transition hover:bg-gray-100 hover:text-gray-700"
-            aria-label="Close"
-          >
-            <X className="h-5 w-5" />
-          </button>
         </div>
 
         <div className="border-b border-gray-200 px-6 pt-4">

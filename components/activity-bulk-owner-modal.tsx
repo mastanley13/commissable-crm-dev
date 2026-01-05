@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { X } from "lucide-react"
 
 interface OwnerOption {
   value: string
@@ -47,15 +46,6 @@ export function ActivityBulkOwnerModal({
       <div className="w-full max-w-md overflow-hidden rounded-lg bg-white shadow-xl">
         <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
           <h2 className="text-lg font-semibold text-gray-900">Change Owner</h2>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-full p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
-            aria-label="Close"
-            disabled={isSubmitting}
-          >
-            <X className="h-4 w-4" />
-          </button>
         </div>
 
         <div className="px-6 py-5">

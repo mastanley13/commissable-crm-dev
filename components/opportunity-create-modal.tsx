@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { LeadSource, OpportunityStage } from "@prisma/client"
-import { ChevronDown, Loader2, X } from "lucide-react"
+import { ChevronDown, Loader2 } from "lucide-react"
 import { getOpportunityStageOptions, type OpportunityStageOption } from "@/lib/opportunity-stage"
 import { useToasts } from "@/components/toast"
 import { formatDecimalToFixed, formatPercentDisplay, normalizeDecimalInput } from "@/lib/number-format"
@@ -614,14 +614,6 @@ export function OpportunityCreateModal({
             <p className="text-xs font-semibold uppercase text-primary-600">Create Opportunity</p>
             <h2 className="text-lg font-semibold text-gray-900">Add new opportunity</h2>
           </div>
-          <button
-            type="button"
-            onClick={handleClose}
-            className="rounded p-1 text-gray-500 transition hover:bg-gray-100 hover:text-gray-700"
-            aria-label="Close create opportunity modal"
-          >
-            <X className="h-5 w-5" />
-          </button>
         </div>
 
         <form onSubmit={handleSubmit} className="max-h-[90vh] overflow-y-auto px-6 py-5">

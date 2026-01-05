@@ -292,9 +292,6 @@ export function GroupCreateModal({ isOpen, accountId, accountName, onClose, onCr
               )}
             </h2>
           </div>
-          <button type="button" onClick={onClose} className="rounded p-1 text-gray-500 transition hover:bg-gray-100 hover:text-gray-700">
-            <X className="h-5 w-5" />
-          </button>
         </div>
         {/* Tab Switch */}
         <div className="px-6 pt-4">

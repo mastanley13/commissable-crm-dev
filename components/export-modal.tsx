@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Download, FileText, X, CheckCircle, AlertCircle, Settings } from "lucide-react"
+import { Download, FileText, CheckCircle, AlertCircle, Settings } from "lucide-react"
 
 export interface FilterState {
   [key: string]: any
@@ -191,7 +191,7 @@ export function ExportModal({ entityType, isOpen, onClose, currentFilters, visib
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 backdrop-blur-sm">
       <div
         className="w-full max-w-3xl rounded-xl bg-white shadow-xl"
         onClick={e => e.stopPropagation()}
@@ -208,12 +208,6 @@ export function ExportModal({ entityType, isOpen, onClose, currentFilters, visib
               {step === 'completed' && 'Export completed successfully'}
             </p>
           </div>
-          <button
-            onClick={onClose}
-            className="rounded-md px-3 py-1 text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-700"
-          >
-            <X className="h-4 w-4" />
-          </button>
         </div>
 
         {/* Progress Steps */}

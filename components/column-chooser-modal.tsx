@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { ArrowLeft, ArrowRight, X, GripVertical } from "lucide-react"
+import { ArrowLeft, ArrowRight, GripVertical } from "lucide-react"
 import type { Column } from "@/components/dynamic-table"
 import { cn } from "@/lib/utils"
 
@@ -214,7 +214,7 @@ export function ColumnChooserModal({ isOpen, columns, onApply, onClose }: Column
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/40" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/40">
       <div
         className="w-full max-w-4xl rounded-xl bg-white shadow-xl"
         onClick={e => e.stopPropagation()}
@@ -222,13 +222,6 @@ export function ColumnChooserModal({ isOpen, columns, onApply, onClose }: Column
         {/* Header */}
         <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4 bg-blue-600">
           <h2 className="text-lg font-semibold text-white">Choose Columns</h2>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-md p-1 text-white hover:bg-blue-700"
-          >
-            <X className="h-5 w-5" />
-          </button>
         </div>
 
         {/* Content */}

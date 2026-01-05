@@ -197,15 +197,6 @@ export function OpportunityEditModal({ isOpen, opportunityId, onClose, onSuccess
       <div className="w-full max-w-2xl overflow-hidden rounded-lg bg-white shadow-xl">
         <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
           <h2 className="text-lg font-semibold text-gray-900">Edit Opportunity</h2>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-full p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
-            aria-label="Close"
-            disabled={loading}
-          >
-            <X className="h-5 w-5" />
-          </button>
         </div>
 
         {fetching ? (

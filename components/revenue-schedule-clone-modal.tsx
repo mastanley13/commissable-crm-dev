@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { formatCurrencyDisplay, formatDecimalToFixed, normalizeDecimalInput } from "@/lib/number-format"
 
@@ -114,15 +113,6 @@ export function RevenueScheduleCloneModal({
           <div>
             <h2 className="text-lg font-semibold text-gray-900">Copy/Extend Revenue Schedule</h2>
           </div>
-          <button
-            type="button"
-            className="rounded-full p-1 text-gray-500 hover:bg-gray-100"
-            onClick={onCancel}
-            disabled={submitting}
-            aria-label="Close"
-          >
-            <X className="h-4 w-4" />
-          </button>
         </div>
 
         <div className="space-y-4 px-6 py-4">

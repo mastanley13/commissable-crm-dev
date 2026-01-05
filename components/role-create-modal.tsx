@@ -198,9 +198,6 @@ export function RoleCreateModal({ isOpen, onClose, onCreated }: RoleCreateModalP
             <p className="text-xs font-semibold uppercase text-primary-600">Create Role</p>
             <h2 className="text-lg font-semibold text-gray-900">New Role</h2>
           </div>
-          <button type="button" onClick={onClose} className="rounded p-1 text-gray-500 transition hover:bg-gray-100 hover:text-gray-700">
-            <X className="h-5 w-5" />
-          </button>
         </div>
 
         <form onSubmit={handleSubmit} className="max-h-[80vh] overflow-y-auto px-6 py-5">

@@ -1,7 +1,7 @@
 "use client"
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react"
-import { Loader2, Search, X } from "lucide-react"
+import { Loader2, Search } from "lucide-react"
 import { useToasts } from "@/components/toast"
 import { OpportunityLineItemRecord } from "./opportunity-types"
 import { getRevenueTypeLabel } from "@/lib/revenue-types"
@@ -337,15 +337,6 @@ export function OpportunityLineItemEditModal({
             </p>
             <h2 className="text-lg font-semibold text-gray-900">Update Opportunity Product</h2>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-full p-1 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
-            aria-label="Close"
-            disabled={loading}
-          >
-            <X className="h-5 w-5" />
-          </button>
         </div>
 
         <form className="max-h-[80vh] overflow-y-auto px-6 py-6" onSubmit={handleSubmit}>

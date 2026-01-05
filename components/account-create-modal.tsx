@@ -411,14 +411,6 @@ export function AccountCreateModal({ isOpen, onClose, onSubmit }: AccountCreateM
           <div>
             <h2 className="text-lg font-semibold text-gray-900">Add Account</h2>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-md px-3 py-1 text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-700"
-            aria-label="Close modal"
-          >
-            Close
-          </button>
         </div>
 
         <form onSubmit={handleSubmit} className="px-6 py-6">

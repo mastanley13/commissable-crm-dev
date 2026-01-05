@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, Shield, Users, Building, FileText, DollarSign, Activity, Ticket, Settings, Database, Eye, Edit, Trash, Download, Upload, UserCheck, Lock, Info, CheckCircle } from 'lucide-react'
+import { Shield, Users, Building, FileText, DollarSign, Activity, Ticket, Settings, Database, Eye, Edit, Trash, Download, Upload, UserCheck, Lock, Info, CheckCircle } from 'lucide-react'
 
 export interface RolePermission {
   id: string
@@ -375,13 +375,6 @@ export function RoleEditModal({ isOpen, role, loading = false, error, onClose, o
                 className="rounded-full border border-gray-300 px-5 py-2 text-sm font-semibold text-gray-600 hover:border-primary-400 hover:text-primary-600"
               >
                 Cancel
-              </button>
-              <button
-                onClick={onClose}
-                className="rounded-full border border-gray-200 p-2 text-gray-400 transition hover:border-gray-300 hover:text-gray-600"
-                aria-label="Close"
-              >
-                <X className="h-5 w-5" />
               </button>
             </div>
           </div>

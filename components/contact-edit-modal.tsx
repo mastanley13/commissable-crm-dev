@@ -417,7 +417,7 @@ export function ContactEditModal({ isOpen, onClose, onSuccess, contact }: Contac
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 backdrop-blur-sm" onClick={handleClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 backdrop-blur-sm">
       <div
         className="w-full max-w-5xl rounded-xl bg-white shadow-xl"
         onClick={event => event.stopPropagation()}

@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { Loader2, X } from "lucide-react"
+import { Loader2 } from "lucide-react"
 import { LeadSource, OpportunityStage } from "@prisma/client"
 import { getOpportunityStageOptions, type OpportunityStageOption } from "@/lib/opportunity-stage"
 import { useToasts } from "@/components/toast"
@@ -406,9 +406,6 @@ export function OpportunityCreateModal({ isOpen, accountId, accountName, onClose
             <p className="text-xs font-semibold uppercase text-primary-600">Create Opportunity</p>
             <h2 className="text-lg font-semibold text-gray-900">New Opportunity for {accountName}</h2>
           </div>
-          <button type="button" onClick={onClose} className="rounded p-1 text-gray-500 transition hover:bg-gray-100 hover:text-gray-700">
-            <X className="h-5 w-5" />
-          </button>
         </div>
         <form onSubmit={handleSubmit} className="max-h-[80vh] overflow-y-auto px-6 py-5">
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">

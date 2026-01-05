@@ -261,7 +261,7 @@ export function ImportModal({ entityType, isOpen, onClose, onSuccess }: ImportMo
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 backdrop-blur-sm" onClick={handleClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 backdrop-blur-sm">
       <div
         className="w-full max-w-4xl rounded-xl bg-white shadow-xl"
         onClick={e => e.stopPropagation()}
@@ -287,12 +287,6 @@ export function ImportModal({ entityType, isOpen, onClose, onSuccess }: ImportMo
             >
               <Download className="h-4 w-4" />
               Template
-            </button>
-            <button
-              onClick={handleClose}
-              className="rounded-md px-3 py-1 text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-700"
-            >
-              <X className="h-4 w-4" />
             </button>
           </div>
         </div>

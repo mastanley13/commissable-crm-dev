@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { AccountStatus, AuditAction } from "@prisma/client"
+import { AccountStatus, AuditAction, type Prisma } from "@prisma/client"
 import { prisma } from "@/lib/db"
 import { mapAccountToListRow, accountIncludeForList } from "./helpers"
 import { withPermissions, createErrorResponse } from "@/lib/api-auth"
@@ -91,6 +91,9 @@ export async function GET(request: NextRequest) {
         const status = searchParams.get("status")?.trim() ?? ""
         const includeArchived = searchParams.get("includeArchived") === "true"
         const ownerId = searchParams.get("ownerId")?.trim() ?? ""
+        const sortBy = searchParams.get("sortBy")?.trim() ?? ""
+        const sortDir = searchParams.get("sortDir")?.trim() ?? ""
+        const filtersRaw = searchParams.get("filters")?.trim() ?? ""
 
         const whereClause: Record<string, unknown> = { tenantId }
         const normalizedStatus = status.toLowerCase()
@@ -127,11 +130,100 @@ export async function GET(request: NextRequest) {
           whereClause.ownerId = ownerId
         }
 
+        if (filtersRaw.length > 0) {
+          try {
+            const parsed = JSON.parse(filtersRaw)
+            if (Array.isArray(parsed)) {
+              const allowedColumns = new Set([
+                "accountName",
+                "accountLegalName",
+                "accountType",
+                "accountOwner",
+                "status",
+              ])
+
+              const andClauses: Array<Record<string, unknown>> = []
+
+              for (const entry of parsed) {
+                const columnId = typeof entry?.columnId === "string" ? entry.columnId : ""
+                const value = typeof entry?.value === "string" ? entry.value.trim() : ""
+                const operator = typeof entry?.operator === "string" ? entry.operator : "contains"
+
+                if (!columnId || !value || !allowedColumns.has(columnId)) continue
+
+                const stringOp = (() => {
+                  if (operator === "equals") return { equals: value, mode: "insensitive" as const }
+                  if (operator === "starts_with") return { startsWith: value, mode: "insensitive" as const }
+                  if (operator === "ends_with") return { endsWith: value, mode: "insensitive" as const }
+                  return { contains: value, mode: "insensitive" as const }
+                })()
+
+                if (columnId === "accountName") {
+                  andClauses.push({ accountName: stringOp })
+                  continue
+                }
+
+                if (columnId === "accountLegalName") {
+                  andClauses.push({ accountLegalName: stringOp })
+                  continue
+                }
+
+                if (columnId === "accountType") {
+                  andClauses.push({ accountType: { is: { name: stringOp } } })
+                  continue
+                }
+
+                if (columnId === "accountOwner") {
+                  andClauses.push({ owner: { is: { fullName: stringOp } } })
+                  continue
+                }
+
+                if (columnId === "status") {
+                  const normalized = value.toLowerCase()
+                  if (normalized === "active") {
+                    andClauses.push({ status: AccountStatus.Active })
+                  } else if (normalized === "inactive") {
+                    andClauses.push({ status: AccountStatus.Inactive })
+                  } else if (normalized === "archived" || normalized === "deleted") {
+                    andClauses.push({ status: AccountStatus.Archived })
+                  }
+                }
+              }
+
+              if (andClauses.length > 0) {
+                const existingAnd = Array.isArray(whereClause.AND) ? (whereClause.AND as any[]) : []
+                whereClause.AND = [...existingAnd, ...andClauses]
+              }
+            }
+          } catch (err) {
+            console.warn("Ignoring invalid accounts filters param", err)
+          }
+        }
+
+        const normalizedSortBy = sortBy.toLowerCase()
+        const normalizedSortDir = sortDir.toLowerCase()
+        const sortDirection = normalizedSortDir === "asc" ? "asc" : "desc"
+
+        const orderBy: Prisma.AccountOrderByWithRelationInput | Prisma.AccountOrderByWithRelationInput[] = (() => {
+          if (normalizedSortBy === "accountname") return [{ accountName: sortDirection }, { id: "asc" }]
+          if (normalizedSortBy === "accountlegalname") return [{ accountLegalName: sortDirection }, { id: "asc" }]
+          if (normalizedSortBy === "updatedat") return [{ updatedAt: sortDirection }, { id: "asc" }]
+          if (normalizedSortBy === "createdat") return [{ createdAt: sortDirection }, { id: "asc" }]
+          if (normalizedSortBy === "status") return [{ status: sortDirection }, { id: "asc" }]
+          if (normalizedSortBy === "accounttype") {
+            return [{ accountType: { name: sortDirection } }, { id: "asc" }]
+          }
+          if (normalizedSortBy === "accountowner") {
+            return [{ owner: { fullName: sortDirection } }, { id: "asc" }]
+          }
+          return archivedOnly ? { updatedAt: "desc" } : { createdAt: "desc" }
+        })()
+
         const [accounts, total] = await Promise.all([
           prisma.account.findMany({
             where: whereClause,
             include: accountIncludeForList,
-            orderBy: archivedOnly ? { updatedAt: "desc" } : { createdAt: "desc" },
+            orderBy,
             skip: (page - 1) * pageSize,
             take: pageSize
           }),

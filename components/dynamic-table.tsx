@@ -1043,6 +1043,7 @@ export function DynamicTable({
                                 "inline-flex items-center gap-2 min-w-0 max-w-full text-left rounded-sm px-1 -mx-1",
                                 "cursor-pointer hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-white/70"
                               )}
+                              draggable
                               onClick={event => {
                                 event.preventDefault()
                                 event.stopPropagation()

@@ -121,7 +121,7 @@ export function TwoStageDeleteDialog({
       setReason('')
       setPrimaryAction(disallowActiveDelete && onDeactivate ? 'deactivate' : 'delete')
     }
-  }, [isOpen])
+  }, [disallowActiveDelete, isOpen, onDeactivate])
 
   if (!isOpen) return null
 
@@ -1196,15 +1196,6 @@ export function TwoStageDeleteDialog({
              stage === 'confirm-restore' ? 'Restore Record' :
              'Delete Record'}
           </h2>
-          <button
-            onClick={onClose}
-            className={isRevenueSchedulesSize
-              ? 'rounded p-1 text-gray-500 transition hover:bg-gray-100 hover:text-gray-700'
-              : 'text-gray-400 hover:text-gray-600 transition-colors'
-            }
-          >
-            <X className="h-5 w-5" />
-          </button>
         </div>
 
         <div className={isRevenueSchedulesSize ? 'flex-1 overflow-y-auto' : ''}>
