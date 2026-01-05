@@ -46,6 +46,8 @@ interface AccountAddressResponse {
     shippingAddress?: AddressPayload | null
     billingAddress?: AddressPayload | null
     billingSameAsShipping?: boolean
+    accountTypeId?: string | null
+    accountType?: string | null
   }
 }
 
@@ -115,6 +117,11 @@ export function ContactCreateModal({ isOpen, onClose, onSuccess, options, defaul
   const [addresses, setAddresses] = useState<AddressState>({ shipping: null, billing: null, billingSameAsShipping: false })
   const [addressLoading, setAddressLoading] = useState(false)
   const [addressError, setAddressError] = useState<string | null>(null)
+  const [accountTypeFallback, setAccountTypeFallback] = useState<{
+    accountId: string
+    accountTypeId: string | null
+    accountTypeName: string
+  } | null>(null)
 
   const { showError, showSuccess } = useToasts()
 
@@ -125,11 +132,15 @@ export function ContactCreateModal({ isOpen, onClose, onSuccess, options, defaul
     return options.accounts.find(account => account.value === formData.accountId)
   }, [options?.accounts, formData.accountId])
 
+  const resolvedAccountTypeId = selectedAccount?.accountTypeId ?? accountTypeFallback?.accountTypeId ?? ""
+  const resolvedAccountTypeName = selectedAccount?.accountTypeName ?? accountTypeFallback?.accountTypeName ?? ""
+
   const resetState = useCallback(() => {
     setFormData(buildInitialContactForm(defaultAccountId))
     setAddresses({ shipping: null, billing: null, billingSameAsShipping: false })
     setAddressError(null)
     setError(null)
+    setAccountTypeFallback(null)
   }, [defaultAccountId])
 
   useEffect(() => {
@@ -146,6 +157,7 @@ export function ContactCreateModal({ isOpen, onClose, onSuccess, options, defaul
     if (!formData.accountId) {
       setAddresses({ shipping: null, billing: null, billingSameAsShipping: false })
       setAddressError(null)
+      setAccountTypeFallback(null)
       return
     }
 
@@ -174,6 +186,14 @@ export function ContactCreateModal({ isOpen, onClose, onSuccess, options, defaul
           billing: billingAddress,
           billingSameAsShipping: sameAsShip
         })
+
+        const accountTypeId = typeof payload.data?.accountTypeId === "string" ? payload.data.accountTypeId.trim() : ""
+        const accountTypeName = typeof payload.data?.accountType === "string" ? payload.data.accountType.trim() : ""
+        setAccountTypeFallback({
+          accountId: formData.accountId,
+          accountTypeId: accountTypeId.length > 0 ? accountTypeId : null,
+          accountTypeName
+        })
       } catch (err) {
         if (controller.signal.aborted) {
           return
@@ -182,6 +202,7 @@ export function ContactCreateModal({ isOpen, onClose, onSuccess, options, defaul
         console.error("Failed to load account addresses", err)
         setAddresses({ shipping: null, billing: null, billingSameAsShipping: false })
         setAddressError(err instanceof Error ? err.message : "Unable to load account addresses")
+        setAccountTypeFallback(null)
       } finally {
         if (!controller.signal.aborted) {
           setAddressLoading(false)
@@ -242,7 +263,7 @@ export function ContactCreateModal({ isOpen, onClose, onSuccess, options, defaul
       return
     }
 
-    if (!selectedAccount?.accountTypeId) {
+    if (!resolvedAccountTypeId) {
       const message = "Selected account does not have a contact type configured."
       setError(message)
       showError("Validation Error", message)
@@ -448,7 +469,7 @@ export function ContactCreateModal({ isOpen, onClose, onSuccess, options, defaul
                 <input
                   id="contact-contact-type"
                   type="text"
-                  value={selectedAccount?.accountTypeName || ""}
+                  value={resolvedAccountTypeName || ""}
                   readOnly
                   className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
                   placeholder="Select an account to view contact type"

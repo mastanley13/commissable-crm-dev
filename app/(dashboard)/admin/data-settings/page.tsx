@@ -34,6 +34,7 @@ interface ProductFamilyType {
   description: string | null
   isActive: boolean
   isSystem: boolean
+  subtypeCount?: number
   usageCount?: number
 }
 
@@ -45,6 +46,7 @@ interface ProductSubtypeType {
   isActive: boolean
   isSystem: boolean
   productFamilyId: string | null
+  usageCount?: number
   family?: {
     id: string
     name: string
@@ -68,6 +70,13 @@ interface RevenueTypeSetting {
   category: "NRC" | "MRC"
   isEnabled: boolean
   isSystem: boolean
+  usageCount?: number
+}
+
+const COUNT_FORMATTER = new Intl.NumberFormat()
+
+function formatCount(value: number | null | undefined) {
+  return COUNT_FORMATTER.format(value ?? 0)
 }
 
 type FieldId =
@@ -336,7 +345,11 @@ function ProductSubtypeSettings({ editMode }: { editMode: boolean }) {
       const json = await res.json()
       const updated: ProductSubtypeType = json.data
       setSubtypes(prev =>
-        sortByPicklistName(prev.map(s => (s.id === updated.id ? updated : s)))
+        sortByPicklistName(
+          prev.map(s =>
+            s.id === updated.id ? { ...updated, usageCount: s.usageCount } : s
+          )
+        )
       )
     } catch (err) {
       console.error(err)
@@ -371,7 +384,9 @@ function ProductSubtypeSettings({ editMode }: { editMode: boolean }) {
       if (!res.ok) throw new Error("Failed to create product subtype")
       const json = await res.json()
       const created: ProductSubtypeType = json.data
-      setSubtypes(prev => sortByPicklistName([...prev, created]))
+      setSubtypes(prev =>
+        sortByPicklistName([...prev, { ...created, usageCount: 0 }])
+      )
       setNewName("")
       setNewDescription("")
       setPage(1)
@@ -434,7 +449,11 @@ function ProductSubtypeSettings({ editMode }: { editMode: boolean }) {
       const json = await res.json()
       const updated: ProductSubtypeType = json.data
       setSubtypes(prev =>
-        sortByPicklistName(prev.map(s => (s.id === updated.id ? updated : s)))
+        sortByPicklistName(
+          prev.map(s =>
+            s.id === updated.id ? { ...updated, usageCount: s.usageCount } : s
+          )
+        )
       )
       setDrafts(prev => ({
         ...prev,
@@ -500,6 +519,13 @@ function ProductSubtypeSettings({ editMode }: { editMode: boolean }) {
     if (subtype.isSystem) {
       return
     }
+
+    if ((subtype.usageCount ?? 0) > 0) {
+      setError(
+        "Product subtypes that are currently used by products cannot be deleted."
+      )
+      return
+    }
     setConfirmDelete(subtype)
   }
 
@@ -523,7 +549,11 @@ function ProductSubtypeSettings({ editMode }: { editMode: boolean }) {
       }
       const updated: ProductSubtypeType = json.data
       setSubtypes(prev =>
-        sortByPicklistName(prev.map(s => (s.id === updated.id ? updated : s)))
+        sortByPicklistName(
+          prev.map(s =>
+            s.id === updated.id ? { ...updated, usageCount: s.usageCount } : s
+          )
+        )
       )
       setConfirmDelete(null)
       return { success: true }
@@ -607,6 +637,12 @@ function ProductSubtypeSettings({ editMode }: { editMode: boolean }) {
                   </div>
                 </th>
                 <th
+                  className="px-4 py-2 text-right font-medium text-gray-700 whitespace-nowrap"
+                  style={{ width: "10%" }}
+                >
+                  Count
+                </th>
+                <th
                   className="px-4 py-2 text-left font-medium text-gray-700"
                   style={{ width: "24%" }}
                 >
@@ -620,7 +656,7 @@ function ProductSubtypeSettings({ editMode }: { editMode: boolean }) {
                 </th>
                 <th
                   className="px-4 py-2 text-left font-medium text-gray-700"
-                  style={{ width: "40%" }}
+                  style={{ width: "30%" }}
                 >
                   Description
                 </th>
@@ -629,14 +665,14 @@ function ProductSubtypeSettings({ editMode }: { editMode: boolean }) {
             <tbody className="divide-y divide-gray-200">
               {loading && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-4 text-center text-gray-500">
+                  <td colSpan={6} className="px-4 py-4 text-center text-gray-500">
                     Loading product subtypes...
                   </td>
                 </tr>
               )}
               {!loading && subtypes.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-4 text-center text-gray-500">
+                  <td colSpan={6} className="px-4 py-4 text-center text-gray-500">
                     No product subtypes found.
                   </td>
                 </tr>
@@ -650,9 +686,17 @@ function ProductSubtypeSettings({ editMode }: { editMode: boolean }) {
                           <button
                             type="button"
                             onClick={() => handleRequestDelete(subtype)}
-                            disabled={deletingId === subtype.id || bulkSaving}
+                            disabled={
+                              deletingId === subtype.id ||
+                              bulkSaving ||
+                              (subtype.usageCount ?? 0) > 0
+                            }
                             className="inline-flex items-center rounded-full border border-red-200 bg-red-50 p-1 text-red-600 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-40"
-                            title="Delete this product subtype"
+                            title={
+                              (subtype.usageCount ?? 0) > 0
+                                ? "Cannot delete a product subtype that is used by products"
+                                : "Delete this product subtype"
+                            }
                           >
                             <Trash2 className="h-4 w-4" />
                           </button>
@@ -691,6 +735,12 @@ function ProductSubtypeSettings({ editMode }: { editMode: boolean }) {
                           ? "Enabled"
                           : "Disabled"}
                       </button>
+                    </td>
+                    <td
+                      className="px-4 py-2 align-top text-right text-xs text-gray-600 whitespace-nowrap"
+                      title="Products using this value"
+                    >
+                      {formatCount(subtype.usageCount)}
                     </td>
                     <td className="px-4 py-2 align-top">
                       <div className="flex items-center space-x-2">
@@ -1124,7 +1174,17 @@ function ProductFamilySettings({ editMode }: { editMode: boolean }) {
       const json = await res.json()
       const updated: ProductFamilyType = json.data
       setFamilies(prev =>
-        sortByPicklistName(prev.map(f => (f.id === updated.id ? updated : f)))
+        sortByPicklistName(
+          prev.map(f =>
+            f.id === updated.id
+              ? {
+                  ...updated,
+                  subtypeCount: f.subtypeCount,
+                  usageCount: f.usageCount
+                }
+              : f
+          )
+        )
       )
     } catch (err) {
       console.error(err)
@@ -1159,7 +1219,12 @@ function ProductFamilySettings({ editMode }: { editMode: boolean }) {
       if (!res.ok) throw new Error("Failed to create product family type")
       const json = await res.json()
       const created: ProductFamilyType = json.data
-      setFamilies(prev => sortByPicklistName([...prev, created]))
+      setFamilies(prev =>
+        sortByPicklistName([
+          ...prev,
+          { ...created, subtypeCount: 0, usageCount: 0 }
+        ])
+      )
       setNewName("")
       setNewDescription("")
     } catch (err) {
@@ -1221,7 +1286,17 @@ function ProductFamilySettings({ editMode }: { editMode: boolean }) {
       const json = await res.json()
       const updated: ProductFamilyType = json.data
       setFamilies(prev =>
-        sortByPicklistName(prev.map(f => (f.id === updated.id ? updated : f)))
+        sortByPicklistName(
+          prev.map(f =>
+            f.id === updated.id
+              ? {
+                  ...updated,
+                  subtypeCount: f.subtypeCount,
+                  usageCount: f.usageCount
+                }
+              : f
+          )
+        )
       )
       setDrafts(prev => ({
         ...prev,
@@ -1288,9 +1363,16 @@ function ProductFamilySettings({ editMode }: { editMode: boolean }) {
       return
     }
 
-    if ((family.usageCount ?? 0) > 0) {
+    if ((family.subtypeCount ?? 0) > 0) {
       setError(
         "Product families that still have product subtypes cannot be deleted. Remove or reassign those subtypes first."
+      )
+      return
+    }
+
+    if ((family.usageCount ?? 0) > 0) {
+      setError(
+        "Product families that are currently used by products cannot be deleted."
       )
       return
     }
@@ -1318,7 +1400,17 @@ function ProductFamilySettings({ editMode }: { editMode: boolean }) {
       }
       const updated: ProductFamilyType = json.data
       setFamilies(prev =>
-        sortByPicklistName(prev.map(f => (f.id === updated.id ? updated : f)))
+        sortByPicklistName(
+          prev.map(f =>
+            f.id === updated.id
+              ? {
+                  ...updated,
+                  subtypeCount: f.subtypeCount,
+                  usageCount: f.usageCount
+                }
+              : f
+          )
+        )
       )
       setConfirmDelete(null)
       return { success: true }
@@ -1402,6 +1494,12 @@ function ProductFamilySettings({ editMode }: { editMode: boolean }) {
                   </div>
                 </th>
                 <th
+                  className="px-4 py-2 text-right font-medium text-gray-700 whitespace-nowrap"
+                  style={{ width: "10%" }}
+                >
+                  Count
+                </th>
+                <th
                   className="px-4 py-2 text-left font-medium text-gray-700"
                   style={{ width: "24%" }}
                 >
@@ -1415,7 +1513,7 @@ function ProductFamilySettings({ editMode }: { editMode: boolean }) {
                 </th>
                 <th
                   className="px-4 py-2 text-left font-medium text-gray-700"
-                  style={{ width: "40%" }}
+                  style={{ width: "30%" }}
                 >
                   Description
                 </th>
@@ -1424,14 +1522,14 @@ function ProductFamilySettings({ editMode }: { editMode: boolean }) {
             <tbody className="divide-y divide-gray-200">
               {loading && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-4 text-center text-gray-500">
+                  <td colSpan={6} className="px-4 py-4 text-center text-gray-500">
                     Loading product family types...
                   </td>
                 </tr>
               )}
               {!loading && families.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-4 text-center text-gray-500">
+                  <td colSpan={6} className="px-4 py-4 text-center text-gray-500">
                     No product family types found.
                   </td>
                 </tr>
@@ -1448,12 +1546,15 @@ function ProductFamilySettings({ editMode }: { editMode: boolean }) {
                             disabled={
                               deletingId === family.id ||
                               bulkSaving ||
+                              (family.subtypeCount ?? 0) > 0 ||
                               (family.usageCount ?? 0) > 0
                             }
                             className="inline-flex items-center rounded-full border border-red-200 bg-red-50 p-1 text-red-600 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-40"
                             title={
-                              (family.usageCount ?? 0) > 0
+                              (family.subtypeCount ?? 0) > 0
                                 ? "Cannot delete a product family that still has product subtypes"
+                                : (family.usageCount ?? 0) > 0
+                                ? "Cannot delete a product family that is used by products"
                                 : "Delete this product family"
                             }
                           >
@@ -1494,6 +1595,12 @@ function ProductFamilySettings({ editMode }: { editMode: boolean }) {
                           ? "Enabled"
                           : "Disabled"}
                       </button>
+                    </td>
+                    <td
+                      className="px-4 py-2 align-top text-right text-xs text-gray-600 whitespace-nowrap"
+                      title="Products using this value"
+                    >
+                      {formatCount(family.usageCount)}
                     </td>
                     <td className="px-4 py-2 align-top">
                       <div className="flex items-center space-x-2">
@@ -1796,7 +1903,11 @@ function AccountTypeSettings({ editMode }: { editMode: boolean }) {
       if (!res.ok) throw new Error("Failed to update account type")
       const json = await res.json()
       const updated: AccountTypeSetting = json.data
-      setItems(prev => prev.map(it => (it.id === updated.id ? updated : it)))
+      setItems(prev =>
+        prev.map(it =>
+          it.id === updated.id ? { ...updated, usageCount: it.usageCount } : it
+        )
+      )
     } catch (err) {
       console.error(err)
       setError(err instanceof Error ? err.message : "Failed to update account type")
@@ -1828,7 +1939,7 @@ function AccountTypeSettings({ editMode }: { editMode: boolean }) {
       if (!res.ok) throw new Error("Failed to create account type")
       const json = await res.json()
       const created: AccountTypeSetting = json.data
-      setItems(prev => [...prev, created])
+      setItems(prev => [...prev, { ...created, usageCount: 0 }])
       setNewName("")
       setNewDescription("")
       setPage(1)
@@ -1890,7 +2001,11 @@ function AccountTypeSettings({ editMode }: { editMode: boolean }) {
       }
       const json = await res.json()
       const updated: AccountTypeSetting = json.data
-      setItems(prev => prev.map(it => (it.id === updated.id ? updated : it)))
+      setItems(prev =>
+        prev.map(it =>
+          it.id === updated.id ? { ...updated, usageCount: it.usageCount } : it
+        )
+      )
       setDrafts(prev => ({
         ...prev,
         [updated.id]: {
@@ -1989,7 +2104,11 @@ function AccountTypeSettings({ editMode }: { editMode: boolean }) {
         return { success: false, error: message }
       }
       const updated: AccountTypeSetting = json.data
-      setItems(prev => prev.map(it => (it.id === updated.id ? updated : it)))
+      setItems(prev =>
+        prev.map(it =>
+          it.id === updated.id ? { ...updated, usageCount: it.usageCount } : it
+        )
+      )
       setConfirmDelete(null)
       return { success: true }
     } catch (err) {
@@ -2078,6 +2197,12 @@ function AccountTypeSettings({ editMode }: { editMode: boolean }) {
                   </div>
                 </th>
                 <th
+                  className="px-4 py-2 text-right font-medium text-gray-700 whitespace-nowrap"
+                  style={{ width: "10%" }}
+                >
+                  Count
+                </th>
+                <th
                   className="px-4 py-2 text-left font-medium text-gray-700"
                   style={{ width: "24%" }}
                 >
@@ -2091,7 +2216,7 @@ function AccountTypeSettings({ editMode }: { editMode: boolean }) {
                 </th>
                 <th
                   className="px-4 py-2 text-left font-medium text-gray-700"
-                  style={{ width: "40%" }}
+                  style={{ width: "30%" }}
                 >
                   Description
                 </th>
@@ -2100,14 +2225,14 @@ function AccountTypeSettings({ editMode }: { editMode: boolean }) {
             <tbody className="divide-y divide-gray-200">
               {loading && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-4 text-center text-gray-500">
+                  <td colSpan={6} className="px-4 py-4 text-center text-gray-500">
                     Loading account types...
                   </td>
                 </tr>
               )}
               {!loading && items.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-4 text-center text-gray-500">
+                  <td colSpan={6} className="px-4 py-4 text-center text-gray-500">
                     No account types found.
                   </td>
                 </tr>
@@ -2170,6 +2295,12 @@ function AccountTypeSettings({ editMode }: { editMode: boolean }) {
                           ? "Enabled"
                           : "Disabled"}
                       </button>
+                    </td>
+                    <td
+                      className="px-4 py-2 align-top text-right text-xs text-gray-600 whitespace-nowrap"
+                      title="Accounts + Contacts using this value"
+                    >
+                      {formatCount(item.usageCount)}
                     </td>
                     <td className="px-4 py-2 align-top">
                       <div className="flex items-center space-x-2">
@@ -2628,6 +2759,13 @@ function RevenueTypeSettings({ editMode }: { editMode: boolean }) {
     if (item.isSystem) {
       return
     }
+
+    if ((item.usageCount ?? 0) > 0) {
+      setError(
+        "Revenue types that are currently used by products cannot be deleted."
+      )
+      return
+    }
     setConfirmDeleteCode(item.code)
   }
 
@@ -2745,6 +2883,12 @@ function RevenueTypeSettings({ editMode }: { editMode: boolean }) {
                   </div>
                 </th>
                 <th
+                  className="px-4 py-2 text-right font-medium text-gray-700 whitespace-nowrap"
+                  style={{ width: "10%" }}
+                >
+                  Count
+                </th>
+                <th
                   className="px-4 py-2 text-left font-medium text-gray-700"
                   style={{ width: "24%" }}
                 >
@@ -2758,7 +2902,7 @@ function RevenueTypeSettings({ editMode }: { editMode: boolean }) {
                 </th>
                 <th
                   className="px-4 py-2 text-left font-medium text-gray-700"
-                  style={{ width: "40%" }}
+                  style={{ width: "30%" }}
                 >
                   Description
                 </th>
@@ -2767,14 +2911,14 @@ function RevenueTypeSettings({ editMode }: { editMode: boolean }) {
             <tbody className="divide-y divide-gray-200">
               {loading && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-4 text-center text-gray-500">
+                  <td colSpan={6} className="px-4 py-4 text-center text-gray-500">
                     Loading revenue types...
                   </td>
                 </tr>
               )}
               {!loading && items.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-4 text-center text-gray-500">
+                  <td colSpan={6} className="px-4 py-4 text-center text-gray-500">
                     No revenue types found.
                   </td>
                 </tr>
@@ -2788,9 +2932,17 @@ function RevenueTypeSettings({ editMode }: { editMode: boolean }) {
                           <button
                             type="button"
                             onClick={() => handleRequestDelete(item)}
-                            disabled={deletingCode === item.code || bulkSaving}
+                            disabled={
+                              deletingCode === item.code ||
+                              bulkSaving ||
+                              (item.usageCount ?? 0) > 0
+                            }
                             className="inline-flex items-center rounded-full border border-red-200 bg-red-50 p-1 text-red-600 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-40"
-                            title="Delete this revenue type"
+                            title={
+                              (item.usageCount ?? 0) > 0
+                                ? "Cannot delete a revenue type that is used by products"
+                                : "Delete this revenue type"
+                            }
                           >
                             <Trash2 className="h-4 w-4" />
                           </button>
@@ -2829,6 +2981,12 @@ function RevenueTypeSettings({ editMode }: { editMode: boolean }) {
                           ? "Enabled"
                           : "Disabled"}
                       </button>
+                    </td>
+                    <td
+                      className="px-4 py-2 align-top text-right text-xs text-gray-600 whitespace-nowrap"
+                      title="Products using this value"
+                    >
+                      {formatCount(item.usageCount)}
                     </td>
                     <td className="px-4 py-2 align-top">
                       <div className="min-h-[20px] text-xs font-medium text-gray-900">

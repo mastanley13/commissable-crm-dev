@@ -1,29 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
 import { withAuth } from "@/lib/api-auth"
-import { reportsData } from "@/lib/mock-data"
+import { createReport, listReports, type ReportRecord } from "@/lib/reports-store"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
-
-type ReportRow = {
-  id: string
-  reportName: string
-  reportType: string
-  createdDate: string
-  lastRun: string | null
-  status: string
-  description?: string | null
-}
-
-let inMemoryReports: ReportRow[] = [...reportsData.map(report => ({
-  id: String(report.id),
-  reportName: report.reportName,
-  reportType: report.reportType,
-  createdDate: report.createdDate,
-  lastRun: report.lastRun ?? null,
-  status: report.status ?? "Completed",
-  description: (report as any).description ?? null
-}))]
 
 function parseColumnFilters(raw: string | null): Array<{ columnId: string; value: string }> {
   if (!raw) return []
@@ -49,6 +29,7 @@ export async function GET(request: NextRequest) {
       const pageSizeParam = Number(searchParams.get("pageSize") ?? "25")
       const query = searchParams.get("q")?.trim() ?? ""
       const statusFilter = (searchParams.get("status") ?? "all").toLowerCase()
+      const recordStatus = (searchParams.get("recordStatus") ?? "all").toLowerCase()
       const sortByParam = searchParams.get("sortBy") ?? "reportName"
       const sortDirParam = searchParams.get("sortDir") === "desc" ? "desc" : "asc"
       const columnFilters = parseColumnFilters(searchParams.get("columnFilters"))
@@ -56,7 +37,13 @@ export async function GET(request: NextRequest) {
       const page = Number.isFinite(pageParam) && pageParam > 0 ? pageParam : 1
       const pageSize = Number.isFinite(pageSizeParam) && pageSizeParam > 0 ? Math.min(pageSizeParam, 100) : 25
 
-      let rows = [...inMemoryReports]
+      let rows: ReportRecord[] = listReports()
+
+      if (recordStatus === "inactive") {
+        rows = rows.filter(row => !row.active)
+      } else if (recordStatus === "active") {
+        rows = rows.filter(row => row.active)
+      }
 
       if (statusFilter === "completed") {
         rows = rows.filter(row => row.status?.toLowerCase() === "completed")
@@ -96,7 +83,7 @@ export async function GET(request: NextRequest) {
         )
       }
 
-      const sortableFields: Record<string, keyof ReportRow> = {
+      const sortableFields: Record<string, keyof ReportRecord> = {
         reportName: "reportName",
         reportType: "reportType",
         createdDate: "createdDate",
@@ -148,19 +135,7 @@ export async function POST(request: NextRequest) {
 
       const reportType = typeof payload.reportType === "string" ? payload.reportType : "Custom"
       const description = typeof payload.description === "string" ? payload.description.trim() : null
-      const createdDate = new Date().toISOString().slice(0, 10)
-
-      const report: ReportRow = {
-        id: typeof crypto.randomUUID === "function" ? crypto.randomUUID() : `${Date.now()}`,
-        reportName,
-        reportType,
-        createdDate,
-        lastRun: null,
-        status: "Draft",
-        description
-      }
-
-      inMemoryReports = [report, ...inMemoryReports]
+      const report = createReport({ reportName, reportType, description })
 
       return NextResponse.json({ data: report }, { status: 201 })
     } catch (error) {

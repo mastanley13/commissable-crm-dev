@@ -746,7 +746,7 @@ export const RevenueScheduleSupportingDetails = forwardRef<
     () => [
       {
         id: "label",
-        label: "",
+        label: "Type",
         width: 120,
         minWidth: 90,
         maxWidth: 180,
@@ -2080,21 +2080,14 @@ export const RevenueScheduleSupportingDetails = forwardRef<
             >
               <div className="border border-gray-200 rounded-lg overflow-hidden">
                 <div className="bg-gray-50 px-3 pb-3 space-y-3">
-                  <TabDescription>
-                    This section displays metadata from vendor/distributor deposit line items as they are reconciled
-                    with this revenue schedule. Known ID fields (Account, Order, Customer, Location, Service) update
-                    the Opportunity Details tab. Other metadata fields not present on the schedule are added here
-                    dynamically. Data is read-only.
-                  </TabDescription>
-
                   <div className="grid grid-cols-1 gap-3 lg:grid-cols-4">
                     <div className="border border-gray-200 rounded-lg bg-white overflow-hidden">
-                      <div className="bg-gray-100 border-b border-gray-200 px-3 py-1.5 flex items-center justify-between">
+                      <div className="bg-blue-500 border-b-2 border-blue-700 px-3 py-1.5 flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <span className="inline-flex items-center rounded bg-blue-500 px-2 py-0.5 text-[10px] font-semibold text-white">
+                          <span className="inline-flex items-center rounded bg-white px-2 py-0.5 text-[10px] font-semibold text-blue-700">
                             Commission Deposit
                           </span>
-                          <span className="text-[11px] font-semibold text-gray-700">
+                          <span className="text-[11px] font-semibold text-white">
                             No matched deposits
                           </span>
                         </div>
@@ -2132,11 +2125,11 @@ export const RevenueScheduleSupportingDetails = forwardRef<
                         key={`meta-column-empty-${columnIndex}`}
                         className="border border-gray-200 rounded-lg bg-white overflow-hidden"
                       >
-                        <div className="bg-gray-100 border-b border-gray-200 px-3 py-1.5 flex items-center">
-                          <span className="inline-flex items-center rounded bg-gray-400 px-2 py-0.5 text-[10px] font-semibold text-white">
+                        <div className="bg-blue-500 border-b-2 border-blue-700 px-3 py-1.5 flex items-center">
+                          <span className="inline-flex items-center rounded bg-white px-2 py-0.5 text-[10px] font-semibold text-blue-700">
                             --
                           </span>
-                          <span className="ml-2 text-[11px] font-semibold text-gray-700">
+                          <span className="ml-2 text-[11px] font-semibold text-white">
                             No Data
                           </span>
                         </div>
@@ -2215,13 +2208,6 @@ export const RevenueScheduleSupportingDetails = forwardRef<
             >
               <div className="border border-gray-200 rounded-lg overflow-hidden">
                 <div className="bg-gray-50 px-3 pb-3 space-y-3">
-                  <TabDescription>
-                    This section displays metadata from vendor/distributor deposit line items as they are reconciled
-                    with this revenue schedule. Known ID fields (Account, Order, Customer, Location, Service) update
-                    the Opportunity Details tab. Other metadata fields not present on the schedule are added here
-                    dynamically. Data is read-only.
-                  </TabDescription>
-
                   {matches.length > 1 ? (
                     <PillTabs
                       tabs={matches.map(match => ({
@@ -2235,12 +2221,12 @@ export const RevenueScheduleSupportingDetails = forwardRef<
 
                   <div className="grid grid-cols-1 gap-3 lg:grid-cols-4">
                     <div className="border border-gray-200 rounded-lg bg-white overflow-hidden">
-                      <div className="bg-gray-100 border-b border-gray-200 px-3 py-1.5 flex items-center justify-between">
+                      <div className="bg-blue-500 border-b-2 border-blue-700 px-3 py-1.5 flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <span className="inline-flex items-center rounded bg-blue-500 px-2 py-0.5 text-[10px] font-semibold text-white">
+                          <span className="inline-flex items-center rounded bg-white px-2 py-0.5 text-[10px] font-semibold text-blue-700">
                             Commission Deposit
                           </span>
-                          <span className="text-[11px] font-semibold text-gray-700">
+                          <span className="text-[11px] font-semibold text-white">
                             {activeCard.depositName ?? activeCard.depositId ?? activeCard.id}
                           </span>
                         </div>
@@ -2296,11 +2282,11 @@ export const RevenueScheduleSupportingDetails = forwardRef<
                         key={`meta-column-${columnIndex}`}
                         className="border border-gray-200 rounded-lg bg-white overflow-hidden"
                       >
-                        <div className="bg-gray-100 border-b border-gray-200 px-3 py-1.5 flex items-center">
-                          <span className="inline-flex items-center rounded bg-gray-400 px-2 py-0.5 text-[10px] font-semibold text-white">
+                        <div className="bg-blue-500 border-b-2 border-blue-700 px-3 py-1.5 flex items-center">
+                          <span className="inline-flex items-center rounded bg-white px-2 py-0.5 text-[10px] font-semibold text-blue-700">
                             {columnEntries.length ? "Meta" : "--"}
                           </span>
-                          <span className="ml-2 text-[11px] font-semibold text-gray-700">
+                          <span className="ml-2 text-[11px] font-semibold text-white">
                             {columnEntries.length ? "Metadata" : "No Data"}
                           </span>
                         </div>

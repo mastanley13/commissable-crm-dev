@@ -26,6 +26,7 @@ interface CustomRevenueTypeDefinition {
 interface ApiRevenueTypeDefinition extends CustomRevenueTypeDefinition {
   isEnabled: boolean
   isSystem: boolean
+  usageCount: number
 }
 
 function normalizeCode(value: string): string {
@@ -174,7 +175,8 @@ async function buildRevenueTypeResponse(
         description: override?.description ?? def.description,
         category: def.category,
         isEnabled: enabledCodes.has(def.code),
-        isSystem: true
+        isSystem: true,
+        usageCount: 0
       }
     })
 
@@ -186,10 +188,31 @@ async function buildRevenueTypeResponse(
       description: def.description,
       category: def.category,
       isEnabled: enabledCodes.has(def.code),
-      isSystem: false
+      isSystem: false,
+      usageCount: 0
     }))
 
-  return [...canonicalData, ...customData]
+  const response = [...canonicalData, ...customData]
+
+  if (response.length === 0) return response
+
+  const usageRows = await prisma.product.groupBy({
+    by: ["revenueType"],
+    where: {
+      tenantId,
+      revenueType: { in: response.map(item => item.code) }
+    },
+    _count: { _all: true }
+  })
+
+  const usageByCode = new Map<string, number>(
+    usageRows.map(row => [row.revenueType, row._count._all] as const)
+  )
+
+  return response.map(item => ({
+    ...item,
+    usageCount: usageByCode.get(item.code) ?? 0
+  }))
 }
 
 export async function GET(request: NextRequest) {
@@ -326,7 +349,8 @@ export async function POST(request: NextRequest) {
           description,
           category,
           isEnabled: true,
-          isSystem: false
+          isSystem: false,
+          usageCount: 0
         }
 
         return NextResponse.json({ data: created }, { status: 201 })
@@ -494,13 +518,21 @@ export async function PUT(request: NextRequest) {
         const updatedDef =
           updatedCustom.find(def => def.code === code) ?? canonical!
 
+        const usageCount = await prisma.product.count({
+          where: {
+            tenantId,
+            revenueType: updatedDef.code
+          }
+        })
+
         const response: ApiRevenueTypeDefinition = {
           code: updatedDef.code,
           label: updatedDef.label,
           description: updatedDef.description,
           category: updatedDef.category,
           isEnabled: enabledCodes.has(updatedDef.code),
-          isSystem: canonical ? true : false
+          isSystem: canonical ? true : false,
+          usageCount
         }
 
         return NextResponse.json({ data: response })
@@ -541,6 +573,20 @@ export async function DELETE(request: NextRequest) {
       }
 
       try {
+        const usageCount = await prisma.product.count({
+          where: {
+            tenantId,
+            revenueType: code
+          }
+        })
+
+        if (usageCount > 0) {
+          return createErrorResponse(
+            "Cannot delete a revenue type that is currently used by products.",
+            400
+          )
+        }
+
         const existingCustom = await getCustomDefinitionsForTenant(tenantId)
 
         const index = existingCustom.findIndex(def => def.code === code)

@@ -82,6 +82,9 @@ This doc summarizes likely causes/blockers based on a code review of the current
 - The Opportunity line item attach path enforces “single Distributor/Vendor per Opportunity” (`assertVendorDistributorConsistentForOpportunity`).
 - If vendor/distributor is left blank for new products while the Opportunity already has a canonical pair, attaches will fail.
 
+**Design doc**
+- See `docs/notes/2026-01-05-new-product-popup-without-vendor-distributor.md` for a full “current vs proposed workflows” breakdown and phased implementation plan.
+
 **Possible approaches (product/engineering decision)**
 - **Keep the invariant** and make the UI smarter:
   - Prefill/lock vendor/distributor to the Opportunity’s canonical pair; allow “unknown” only when the Opportunity has no canonical pair yet.

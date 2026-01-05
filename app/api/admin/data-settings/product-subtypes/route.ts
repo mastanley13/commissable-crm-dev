@@ -121,7 +121,27 @@ export async function GET(request: NextRequest) {
           }
         })
 
-        return NextResponse.json({ data: subtypes })
+        const usageCounts = await Promise.all(
+          subtypes.map(subtype =>
+            prisma.product.count({
+              where: {
+                tenantId,
+                OR: [
+                  { productSubtypeHouse: subtype.name },
+                  { productSubtypeVendor: subtype.name },
+                  { distributorProductSubtype: subtype.name }
+                ]
+              }
+            })
+          )
+        )
+
+        const data = subtypes.map((subtype, index) => ({
+          ...subtype,
+          usageCount: usageCounts[index] ?? 0
+        }))
+
+        return NextResponse.json({ data })
       } catch (error) {
         console.error("Failed to load product subtypes", error)
         return createErrorResponse("Failed to load product subtypes", 500)
@@ -305,6 +325,24 @@ export async function DELETE(request: NextRequest) {
         if (existing.isSystem) {
           return createErrorResponse(
             "System product subtypes cannot be deleted",
+            400
+          )
+        }
+
+        const usageCount = await prisma.product.count({
+          where: {
+            tenantId,
+            OR: [
+              { productSubtypeHouse: existing.name },
+              { productSubtypeVendor: existing.name },
+              { distributorProductSubtype: existing.name }
+            ]
+          }
+        })
+
+        if (usageCount > 0) {
+          return createErrorResponse(
+            "Cannot delete a product subtype that is currently used by products.",
             400
           )
         }

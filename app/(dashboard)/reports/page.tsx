@@ -385,14 +385,25 @@ export default function ReportsPage() {
     reportId: string,
     _reason?: string
   ): Promise<{ success: boolean; error?: string }> => {
-    setReports(previous =>
-      previous.map(report =>
-        report.id === reportId ? { ...report, active: false, status: "Inactive" } : report
-      )
-    )
-    showSuccess("Report deactivated", "The report was marked inactive.")
-    return { success: true }
-  }, [showSuccess])
+    try {
+      const response = await fetch(`/api/reports/${reportId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ active: false }),
+      })
+      const payload = await response.json().catch(() => null)
+      if (!response.ok) {
+        return { success: false, error: payload?.error ?? "Failed to deactivate report" }
+      }
+
+      showSuccess("Report deactivated", "The report was marked inactive.")
+      await reloadReports()
+      return { success: true }
+    } catch (err) {
+      console.error(err)
+      return { success: false, error: err instanceof Error ? err.message : "Unable to deactivate report" }
+    }
+  }, [reloadReports, showSuccess])
 
   const bulkDeactivateReportsForDialog = useCallback(async (
     entities: Array<{ id: string; name: string }>,
@@ -402,50 +413,55 @@ export default function ReportsPage() {
       return { success: false, error: "No reports selected" }
     }
 
-    const ids = new Set(entities.map(entity => entity.id))
-    setReports(previous =>
-      previous.map(report => (ids.has(report.id) ? { ...report, active: false, status: "Inactive" } : report))
-    )
-    showSuccess(
-      `Marked ${entities.length} report${entities.length === 1 ? "" : "s"} inactive`,
-      "Inactive reports can be deleted if needed."
-    )
-    return { success: true }
-  }, [showSuccess])
+    try {
+      const results = await Promise.allSettled(
+        entities.map(entity =>
+          fetch(`/api/reports/${entity.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ active: false }),
+          })
+        )
+      )
 
-  const deleteReportsLocally = useCallback((ids: string[]) => {
-    if (ids.length === 0) {
-      return
+      const failures = results.filter(result => result.status === "rejected" || (result.status === "fulfilled" && !result.value.ok))
+      if (failures.length > 0) {
+        showError("Some deactivations failed", "One or more reports could not be marked inactive.")
+      }
+
+      showSuccess(
+        `Marked ${entities.length - failures.length} report${entities.length - failures.length === 1 ? "" : "s"} inactive`,
+        "Inactive reports can be deleted if needed."
+      )
+
+      await reloadReports()
+      return failures.length === entities.length ? { success: false, error: "Failed to deactivate reports" } : { success: true }
+    } catch (err) {
+      console.error(err)
+      return { success: false, error: err instanceof Error ? err.message : "Unable to deactivate reports" }
     }
-
-    const idSet = new Set(ids)
-    setReports(previous => previous.filter(report => !idSet.has(report.id)))
-    setSelectedReportIds(previous => previous.filter(id => !idSet.has(id)))
-    setPagination(prev => {
-      const nextTotal = Math.max(0, prev.total - ids.length)
-      const nextTotalPages = Math.max(1, Math.ceil(nextTotal / prev.pageSize))
-      const nextPage = Math.min(prev.page, nextTotalPages)
-      if (nextPage !== prev.page) {
-        setPage(nextPage)
-      }
-      return {
-        ...prev,
-        total: nextTotal,
-        totalPages: nextTotalPages,
-        page: nextPage
-      }
-    })
-  }, [])
+  }, [reloadReports, showError, showSuccess])
 
   const deleteReportForDialog = useCallback(async (
     reportId: string,
     _bypassConstraints?: boolean,
     _reason?: string
   ): Promise<{ success: boolean; constraints?: DeletionConstraint[]; error?: string }> => {
-    deleteReportsLocally([reportId])
-    showSuccess("Report deleted", "The report has been removed.")
-    return { success: true }
-  }, [deleteReportsLocally, showSuccess])
+    try {
+      const response = await fetch(`/api/reports/${reportId}`, { method: "DELETE" })
+      const payload = await response.json().catch(() => null)
+      if (!response.ok) {
+        return { success: false, error: payload?.error ?? "Failed to delete report" }
+      }
+
+      showSuccess("Report deleted", "The report has been removed.")
+      await reloadReports()
+      return { success: true }
+    } catch (err) {
+      console.error(err)
+      return { success: false, error: err instanceof Error ? err.message : "Unable to delete report" }
+    }
+  }, [reloadReports, showSuccess])
 
   const bulkDeleteReportsForDialog = useCallback(async (
     entities: Array<{ id: string; name: string }>,
@@ -456,14 +472,33 @@ export default function ReportsPage() {
       return { success: false, error: "No reports selected" }
     }
 
-    const ids = entities.map(entity => entity.id)
-    deleteReportsLocally(ids)
-    showSuccess(
-      `Deleted ${ids.length} report${ids.length === 1 ? "" : "s"}`,
-      "The selected reports have been removed."
-    )
-    return { success: true }
-  }, [deleteReportsLocally, showSuccess])
+    try {
+      const results = await Promise.allSettled(
+        entities.map(entity =>
+          fetch(`/api/reports/${entity.id}`, { method: "DELETE" })
+        )
+      )
+
+      const failures = results.filter(result => result.status === "rejected" || (result.status === "fulfilled" && !result.value.ok))
+      if (failures.length > 0) {
+        showError("Some deletes failed", "One or more reports could not be deleted.")
+      }
+
+      const deletedCount = entities.length - failures.length
+      if (deletedCount > 0) {
+        showSuccess(
+          `Deleted ${deletedCount} report${deletedCount === 1 ? "" : "s"}`,
+          "The selected reports have been removed."
+        )
+      }
+
+      await reloadReports()
+      return failures.length === entities.length ? { success: false, error: "Failed to delete reports" } : { success: true }
+    } catch (err) {
+      console.error(err)
+      return { success: false, error: err instanceof Error ? err.message : "Unable to delete reports" }
+    }
+  }, [reloadReports, showError, showSuccess])
 
   const handleBulkReassign = useCallback(() => {
     if (selectedReportIds.length === 0) {

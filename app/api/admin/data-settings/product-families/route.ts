@@ -114,7 +114,22 @@ export async function GET(request: NextRequest) {
           }
         })
 
-        const data = families.map(family => ({
+        const productUsageCounts = await Promise.all(
+          families.map(family =>
+            prisma.product.count({
+              where: {
+                tenantId,
+                OR: [
+                  { productFamilyHouse: family.name },
+                  { productFamilyVendor: family.name },
+                  { distributorProductFamily: family.name }
+                ]
+              }
+            })
+          )
+        )
+
+        const data = families.map((family, index) => ({
           id: family.id,
           tenantId: family.tenantId,
           code: family.code,
@@ -125,7 +140,8 @@ export async function GET(request: NextRequest) {
           displayOrder: family.displayOrder,
           createdAt: family.createdAt,
           updatedAt: family.updatedAt,
-          usageCount: family._count?.subtypes ?? 0
+          subtypeCount: family._count?.subtypes ?? 0,
+          usageCount: productUsageCounts[index] ?? 0
         }))
 
         return NextResponse.json({ data })
@@ -316,6 +332,24 @@ export async function DELETE(request: NextRequest) {
         if ((existing._count?.subtypes ?? 0) > 0) {
           return createErrorResponse(
             "Cannot delete a product family that still has product subtypes. Remove or reassign those subtypes first.",
+            400
+          )
+        }
+
+        const productUsageCount = await prisma.product.count({
+          where: {
+            tenantId,
+            OR: [
+              { productFamilyHouse: existing.name },
+              { productFamilyVendor: existing.name },
+              { distributorProductFamily: existing.name }
+            ]
+          }
+        })
+
+        if (productUsageCount > 0) {
+          return createErrorResponse(
+            "Cannot delete a product family that is currently used by products.",
             400
           )
         }
