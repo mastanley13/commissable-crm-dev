@@ -1,20 +1,25 @@
 'use client'
 
 import Link from 'next/link'
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { RotateCcw, Trash2 } from 'lucide-react'
-import { ListHeader } from '@/components/list-header'
+import { useRouter } from 'next/navigation'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { Check, Download, RotateCcw, Trash2 } from 'lucide-react'
+import { AccountStatusFilterDropdown } from '@/components/account-status-filter-dropdown'
+import { ColumnChooserModal } from '@/components/column-chooser-modal'
+import { ListHeader, type ColumnFilter as ListColumnFilter } from '@/components/list-header'
 import { CopyProtectionWrapper } from '@/components/copy-protection'
 import { DynamicTable, type Column, type PaginationInfo } from '@/components/dynamic-table'
 import { TwoStageDeleteDialog } from '@/components/two-stage-delete-dialog'
 import { useAuth } from '@/lib/auth-context'
 import { useToasts } from '@/components/toast'
+import { useTablePreferences } from '@/hooks/useTablePreferences'
 
 type OpportunityArchiveRow = {
   id: string
   opportunityName: string
   opportunityId?: string
   accountId?: string | null
+  accountLegalName?: string
   accountName?: string
   owner?: string
   stage?: string
@@ -24,6 +29,38 @@ type OpportunityArchiveRow = {
   isDeleted: boolean
 }
 
+type SortState = { columnId: string; direction: 'asc' | 'desc' }
+
+const TABLE_BOTTOM_RESERVE = 110
+const TABLE_MIN_BODY_HEIGHT = 320
+
+const ARCHIVE_OPPORTUNITY_BASE_COLUMNS: Column[] = [
+  { id: 'select', label: 'Select', width: 110, minWidth: 80, maxWidth: 220, type: 'checkbox', hideable: false },
+  { id: 'opportunityName', label: 'Opportunity Name', width: 260, minWidth: 200, sortable: true, hideable: false },
+  { id: 'accountLegalName', label: 'Account Legal Name', width: 260, minWidth: 200, sortable: true },
+  { id: 'owner', label: 'Owner', width: 200, sortable: true },
+  { id: 'stage', label: 'Stage', width: 200, sortable: true },
+  { id: 'status', label: 'Status', width: 140, sortable: true },
+  { id: 'closeDate', label: 'Close Date', width: 140, sortable: true },
+  { id: 'opportunityId', label: 'Opportunity ID', width: 160, sortable: false, hidden: true },
+  { id: 'accountName', label: 'Account Name', width: 220, sortable: false, hidden: true },
+]
+
+const ARCHIVE_OPPORTUNITY_FILTER_OPTIONS: Array<{ id: string; label: string }> = [
+  { id: 'opportunityName', label: 'Opportunity Name' },
+  { id: 'closeDate', label: 'Close Date' },
+  { id: 'stage', label: 'Opportunity Stage' },
+  { id: 'owner', label: 'Owner' },
+  { id: 'accountLegalName', label: 'Account Legal Name' },
+  { id: 'orderIdHouse', label: 'House - Order ID' },
+  { id: 'accountIdVendor', label: 'Vendor - Account ID' },
+  { id: 'customerIdVendor', label: 'Vendor - Customer ID' },
+  { id: 'locationId', label: 'Location ID' },
+  { id: 'opportunityId', label: 'Opportunity ID' },
+  { id: 'referredBy', label: 'Lead Source' },
+  { id: 'status', label: 'Status' },
+]
+
 function formatDate(value?: string | null) {
   if (!value) return ''
   const parsed = new Date(value)
@@ -31,14 +68,43 @@ function formatDate(value?: string | null) {
   return parsed.toLocaleDateString()
 }
 
+function escapeCsv(value: unknown): string {
+  const str = value == null ? '' : String(value)
+  if (/[",\r\n]/.test(str)) {
+    return `"${str.replace(/"/g, '""')}"`
+  }
+  return str
+}
+
 export default function AdminArchivedOpportunitiesPage() {
   const { hasPermission, user } = useAuth()
   const { showError, showSuccess, ToastContainer } = useToasts()
+  const router = useRouter()
 
   const canManageArchive =
     hasPermission('opportunities.manage') || hasPermission('opportunities.delete') || hasPermission('accounts.manage')
+  const userCanRestore =
+    hasPermission('opportunities.manage') ||
+    hasPermission('opportunities.edit.all') ||
+    hasPermission('opportunities.edit.assigned') ||
+    hasPermission('accounts.manage') ||
+    hasPermission('accounts.update')
   const userCanPermanentDelete =
     hasPermission('opportunities.delete') || hasPermission('opportunities.manage') || hasPermission('opportunities.edit.all')
+
+  const {
+    columns: preferenceColumns,
+    loading: preferenceLoading,
+    saving: preferenceSaving,
+    error: preferenceError,
+    pageSize: preferencePageSize,
+    hasUnsavedChanges,
+    lastSaved,
+    handleColumnsChange,
+    handlePageSizeChange: persistPageSizeChange,
+    saveChanges,
+    saveChangesOnModalClose,
+  } = useTablePreferences('opportunities:archive', ARCHIVE_OPPORTUNITY_BASE_COLUMNS, { defaultPageSize: 25 })
 
   const [opportunities, setOpportunities] = useState<OpportunityArchiveRow[]>([])
   const [loading, setLoading] = useState(false)
@@ -47,33 +113,59 @@ export default function AdminArchivedOpportunitiesPage() {
 
   const [selectedOpportunityIds, setSelectedOpportunityIds] = useState<string[]>([])
   const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(25)
   const [searchQuery, setSearchQuery] = useState('')
+  const [viewFilter, setViewFilter] = useState<'active' | 'inactive' | 'all'>('active')
+  const [sortState, setSortState] = useState<SortState | null>(null)
+  const [columnFilters, setColumnFilters] = useState<ListColumnFilter[]>([])
   const [totalRecords, setTotalRecords] = useState(0)
+  const [tableBodyHeight, setTableBodyHeight] = useState<number>()
+  const tableAreaNodeRef = useRef<HTMLDivElement | null>(null)
+
+  const [showColumnSettings, setShowColumnSettings] = useState(false)
 
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [opportunityToDelete, setOpportunityToDelete] = useState<OpportunityArchiveRow | null>(null)
   const [bulkDeleteTargets, setBulkDeleteTargets] = useState<OpportunityArchiveRow[]>([])
 
   const paginationInfo: PaginationInfo = useMemo(() => {
-    const totalPages = Math.max(1, Math.ceil(totalRecords / pageSize))
+    const totalPages = Math.max(1, Math.ceil(totalRecords / preferencePageSize))
     return {
       page,
-      pageSize,
+      pageSize: preferencePageSize,
       total: totalRecords,
       totalPages,
     }
-  }, [page, pageSize, totalRecords])
+  }, [page, preferencePageSize, totalRecords])
 
   const reloadOpportunities = useCallback(async () => {
     setLoading(true)
     try {
       const params = new URLSearchParams()
-      params.set('status', 'inactive')
+
+      params.set('status', viewFilter === 'all' ? 'all' : 'inactive')
+
       params.set('page', String(page))
-      params.set('pageSize', String(pageSize))
+      params.set('pageSize', String(preferencePageSize))
       if (searchQuery.trim().length > 0) {
         params.set('q', searchQuery.trim())
+      }
+
+      if (sortState) {
+        params.set('sort', sortState.columnId)
+        params.set('direction', sortState.direction)
+      }
+
+      const sanitizedFilters = columnFilters
+        .filter((filter) => filter && typeof filter.columnId === 'string')
+        .map((filter) => ({
+          columnId: String(filter.columnId),
+          value: typeof filter.value === 'string' ? filter.value : String(filter.value ?? ''),
+          operator: typeof filter.operator === 'string' ? filter.operator : undefined,
+        }))
+        .filter((filter) => filter.columnId.length > 0 && filter.value.trim().length > 0)
+
+      if (sanitizedFilters.length > 0) {
+        params.set('filters', JSON.stringify(sanitizedFilters))
       }
 
       const response = await fetch(`/api/opportunities?${params.toString()}`, { cache: 'no-store' })
@@ -99,15 +191,58 @@ export default function AdminArchivedOpportunitiesPage() {
     } finally {
       setLoading(false)
     }
-  }, [page, pageSize, searchQuery])
+  }, [columnFilters, page, preferencePageSize, searchQuery, sortState, viewFilter])
 
   useEffect(() => {
     if (!canManageArchive) return
     reloadOpportunities().catch(console.error)
   }, [canManageArchive, reloadOpportunities])
 
+  const measureTableArea = useCallback(() => {
+    const node = tableAreaNodeRef.current
+    if (!node) return
+
+    const measured = node.getBoundingClientRect().height
+    const nextHeight = Math.max(TABLE_MIN_BODY_HEIGHT, Math.floor(measured - TABLE_BOTTOM_RESERVE))
+    setTableBodyHeight(nextHeight)
+  }, [])
+
+  useLayoutEffect(() => {
+    if (typeof window === 'undefined') return
+    measureTableArea()
+    window.addEventListener('resize', measureTableArea)
+    return () => window.removeEventListener('resize', measureTableArea)
+  }, [measureTableArea])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const observer = new ResizeObserver(() => {
+      measureTableArea()
+    })
+    if (tableAreaNodeRef.current) {
+      observer.observe(tableAreaNodeRef.current)
+    }
+    return () => observer.disconnect()
+  }, [measureTableArea])
+
   const handleSearch = useCallback((query: string) => {
     setSearchQuery(query)
+    setPage(1)
+  }, [])
+
+  const handleViewFilterChange = useCallback((next: 'active' | 'inactive' | 'all') => {
+    setViewFilter(next)
+    setSelectedOpportunityIds([])
+    setPage(1)
+  }, [])
+
+  const handleSort = useCallback((columnId: string, direction: 'asc' | 'desc') => {
+    setSortState({ columnId, direction })
+    setPage(1)
+  }, [])
+
+  const handleColumnFiltersChange = useCallback((filters: ListColumnFilter[]) => {
+    setColumnFilters(filters)
     setPage(1)
   }, [])
 
@@ -116,9 +251,9 @@ export default function AdminArchivedOpportunitiesPage() {
   }, [])
 
   const handlePageSizeChange = useCallback((nextPageSize: number) => {
-    setPageSize(nextPageSize)
+    persistPageSizeChange(nextPageSize)
     setPage(1)
-  }, [])
+  }, [persistPageSizeChange])
 
   const handleOpportunitySelect = useCallback((opportunityId: string, selected: boolean) => {
     setSelectedOpportunityIds((previous) => {
@@ -136,6 +271,13 @@ export default function AdminArchivedOpportunitiesPage() {
     }
     setSelectedOpportunityIds([])
   }, [opportunities])
+
+  const handleRowClick = useCallback(
+    (row: OpportunityArchiveRow) => {
+      router.push(`/opportunities/${row.id}`)
+    },
+    [router],
+  )
 
   const restoreOpportunityRequest = useCallback(async (opportunityId: string): Promise<{ success: boolean; error?: string }> => {
     try {
@@ -172,9 +314,9 @@ export default function AdminArchivedOpportunitiesPage() {
       return
     }
 
-    const targets = opportunities.filter((row) => selectedOpportunityIds.includes(row.id))
+    const targets = opportunities.filter((row) => selectedOpportunityIds.includes(row.id) && !row.active)
     if (targets.length === 0) {
-      showError('Opportunities unavailable', 'Unable to locate the selected opportunities. Refresh and try again.')
+      showError('No archived opportunities selected', 'All selected opportunities are already active.')
       return
     }
 
@@ -251,10 +393,14 @@ export default function AdminArchivedOpportunitiesPage() {
   }, [])
 
   const requestRowDeletion = useCallback((row: OpportunityArchiveRow) => {
+    if (!row.isDeleted) {
+      showError('Not archived', 'Only archived opportunities can be permanently deleted from this page.')
+      return
+    }
     setBulkDeleteTargets([])
     setOpportunityToDelete(row)
     setShowDeleteDialog(true)
-  }, [])
+  }, [showError])
 
   const openBulkPermanentDeleteDialog = useCallback(() => {
     if (selectedOpportunityIds.length === 0) {
@@ -262,9 +408,9 @@ export default function AdminArchivedOpportunitiesPage() {
       return
     }
 
-    const targets = opportunities.filter((row) => selectedOpportunityIds.includes(row.id))
+    const targets = opportunities.filter((row) => selectedOpportunityIds.includes(row.id) && row.isDeleted)
     if (targets.length === 0) {
-      showError('Opportunities unavailable', 'Unable to locate the selected opportunities. Refresh and try again.')
+      showError('No archived opportunities selected', 'Only archived opportunities can be permanently deleted here.')
       return
     }
 
@@ -292,6 +438,48 @@ export default function AdminArchivedOpportunitiesPage() {
           tone: 'primary' as const,
           onClick: handleBulkRestore,
           tooltip: (count: number) => `Restore ${count} archived opportunit${count === 1 ? 'y' : 'ies'}`,
+          disabled: !userCanRestore,
+        },
+        {
+          key: 'export',
+          label: 'Export CSV',
+          icon: Download,
+          tone: 'info' as const,
+          onClick: () => {
+            const rows = opportunities.filter((row) => selectedOpportunityIds.includes(row.id))
+            if (rows.length === 0) {
+              showError('No opportunities selected', 'Select at least one opportunity to export.')
+              return
+            }
+
+            const lines = [
+              ['Opportunity Name', 'Opportunity ID', 'Account Legal Name', 'Owner', 'Stage', 'Status', 'Close Date'].join(','),
+              ...rows.map((row) =>
+                [
+                  escapeCsv(row.opportunityName),
+                  escapeCsv(row.opportunityId),
+                  escapeCsv(row.accountLegalName || row.accountName),
+                  escapeCsv(row.owner),
+                  escapeCsv(row.stage),
+                  escapeCsv(row.status),
+                  escapeCsv(formatDate(row.closeDate)),
+                ].join(','),
+              ),
+            ].join('\r\n')
+
+            const blob = new Blob([lines], { type: 'text/csv;charset=utf-8;' })
+            const url = URL.createObjectURL(blob)
+            const link = document.createElement('a')
+            link.href = url
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
+            link.download = `opportunities-${viewFilter === 'active' ? 'archived' : viewFilter}-${timestamp}.csv`
+            document.body.appendChild(link)
+            link.click()
+            document.body.removeChild(link)
+            URL.revokeObjectURL(url)
+            showSuccess('Export complete', 'Check your downloads for the CSV file.')
+          },
+          tooltip: (count: number) => `Export ${count} opportunit${count === 1 ? 'y' : 'ies'} to CSV`,
         },
         {
           key: 'permanent-delete',
@@ -305,86 +493,146 @@ export default function AdminArchivedOpportunitiesPage() {
         },
       ],
     }
-  }, [bulkActionLoading, handleBulkRestore, openBulkPermanentDeleteDialog, selectedOpportunityIds.length, userCanPermanentDelete])
+  }, [
+    bulkActionLoading,
+    handleBulkRestore,
+    openBulkPermanentDeleteDialog,
+    opportunities,
+    selectedOpportunityIds,
+    showError,
+    showSuccess,
+    userCanPermanentDelete,
+    userCanRestore,
+    viewFilter,
+  ])
 
-  const columns: Column[] = useMemo(() => {
-    return [
-      { id: 'select', label: 'Select', width: 70, type: 'checkbox', resizable: false, hideable: false },
-      {
-        id: 'opportunityName',
-        label: 'Opportunity',
-        width: 280,
-        sortable: true,
-        render: (value: string, row: OpportunityArchiveRow) => (
-          <Link href={`/opportunities/${row.id}`} className="text-blue-600 hover:underline">
-            {value || '--'}
-          </Link>
-        ),
-      },
-      {
-        id: 'accountName',
-        label: 'Account',
-        width: 220,
-        sortable: true,
-        render: (value: string, row: OpportunityArchiveRow) => {
-          const label = value || '--'
-          if (row.accountId) {
+  const tableColumns: Column[] = useMemo(() => {
+    return preferenceColumns.map((column) => {
+      if (column.id === 'select') {
+        return {
+          ...column,
+          render: (_value: unknown, row: OpportunityArchiveRow) => {
+            const checked = selectedOpportunityIds.includes(row.id)
+            const canRestoreRow = userCanRestore && !row.active
+            const canDeleteRow = userCanPermanentDelete && row.isDeleted
             return (
-              <Link href={`/accounts/${row.accountId}`} className="text-blue-600 hover:underline">
-                {label}
-              </Link>
+              <div className="flex items-center gap-2" data-disable-row-click="true">
+                <button
+                  type="button"
+                  role="checkbox"
+                  aria-checked={checked}
+                  aria-label={`Select opportunity ${row.opportunityName || row.id}`}
+                  className={`flex h-4 w-4 items-center justify-center rounded border transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-1 ${
+                    checked ? 'border-primary-500 bg-primary-600 text-white' : 'border-gray-300 bg-white text-transparent'
+                  }`}
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    handleOpportunitySelect(row.id, !checked)
+                  }}
+                  onMouseDown={(event) => event.preventDefault()}
+                >
+                  <Check className="h-3 w-3" aria-hidden="true" />
+                </button>
+
+                <button
+                  type="button"
+                  className="p-1 rounded transition-colors text-emerald-600 hover:text-emerald-800 disabled:cursor-not-allowed disabled:text-gray-300"
+                  onClick={(event) => {
+                    event.preventDefault()
+                    event.stopPropagation()
+                    void handleRestore(row.id)
+                  }}
+                  disabled={!canRestoreRow}
+                  aria-label="Restore opportunity"
+                  title={canRestoreRow ? 'Restore opportunity' : row.active ? 'Already active' : 'Insufficient permissions'}
+                >
+                  <RotateCcw className="h-4 w-4" aria-hidden="true" />
+                </button>
+
+                <button
+                  type="button"
+                  className="p-1 rounded transition-colors text-red-500 hover:text-red-700 disabled:cursor-not-allowed disabled:text-gray-300"
+                  onClick={(event) => {
+                    event.preventDefault()
+                    event.stopPropagation()
+                    requestRowDeletion(row)
+                  }}
+                  disabled={!canDeleteRow}
+                  aria-label="Permanently delete opportunity"
+                  title={
+                    !row.isDeleted
+                      ? 'Only archived opportunities can be permanently deleted here'
+                      : canDeleteRow
+                        ? 'Permanently delete'
+                        : 'Insufficient permissions'
+                  }
+                >
+                  <Trash2 className="h-4 w-4" aria-hidden="true" />
+                </button>
+              </div>
             )
-          }
-          return <span>{label}</span>
-        },
-      },
-      { id: 'owner', label: 'Owner', width: 180, sortable: true },
-      { id: 'stage', label: 'Stage', width: 200, sortable: true },
-      { id: 'status', label: 'Status', width: 140, sortable: true },
-      {
-        id: 'closeDate',
-        label: 'Close Date',
-        width: 140,
-        sortable: true,
-        render: (value: string | null | undefined) => formatDate(value) || '--',
-      },
-      {
-        id: 'actions',
-        label: 'Actions',
-        width: 140,
-        resizable: false,
-        render: (_value: unknown, row: OpportunityArchiveRow) => (
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              className="rounded-md border border-gray-300 bg-white px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-gray-600 hover:bg-gray-50"
-              onClick={(event) => {
-                event.preventDefault()
-                event.stopPropagation()
-                handleRestore(row.id).catch(console.error)
-              }}
-              title="Restore opportunity"
-            >
-              Restore
-            </button>
-            <button
-              type="button"
-              className="rounded-md bg-red-600 px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-red-300"
-              onClick={(event) => {
-                event.preventDefault()
-                event.stopPropagation()
-                requestRowDeletion(row)
-              }}
-              disabled={!userCanPermanentDelete}
-              title={userCanPermanentDelete ? 'Permanently delete' : 'Insufficient permissions'}
-            >
-              Delete
-            </button>
-          </div>
-        ),
-      },
-    ]
-  }, [handleRestore, requestRowDeletion, userCanPermanentDelete])
+          },
+        }
+      }
+
+      if (column.id === 'opportunityName') {
+        return {
+          ...column,
+          render: (value: string, row: OpportunityArchiveRow) => (
+            <Link href={`/opportunities/${row.id}`} className="text-blue-600 hover:underline">
+              {value || '--'}
+            </Link>
+          ),
+        }
+      }
+
+      if (column.id === 'accountLegalName') {
+        return {
+          ...column,
+          render: (value: string, row: OpportunityArchiveRow) => {
+            const label = value || row.accountName || '--'
+            if (row.accountId) {
+              return (
+                <Link href={`/accounts/${row.accountId}`} className="text-blue-600 hover:underline">
+                  {label}
+                </Link>
+              )
+            }
+            return <span>{label}</span>
+          },
+        }
+      }
+
+      if (column.id === 'closeDate') {
+        return { ...column, render: (value: string | null | undefined) => formatDate(value) || '--' }
+      }
+
+      return column
+    })
+  }, [
+    handleOpportunitySelect,
+    handleRestore,
+    preferenceColumns,
+    requestRowDeletion,
+    selectedOpportunityIds,
+    userCanPermanentDelete,
+    userCanRestore,
+  ])
+
+  const pageTitle = useMemo(() => {
+    if (viewFilter === 'all') return 'ALL OPPORTUNITIES'
+    return 'ARCHIVED OPPORTUNITIES'
+  }, [viewFilter])
+
+  const searchPlaceholder = useMemo(() => {
+    if (viewFilter === 'all') return 'Search all opportunities...'
+    return 'Search archived opportunities...'
+  }, [viewFilter])
+
+  const emptyMessage = useMemo(() => {
+    if (viewFilter === 'all') return 'No opportunities found'
+    return 'No archived opportunities found'
+  }, [viewFilter])
 
   if (!canManageArchive) {
     return (
@@ -401,24 +649,43 @@ export default function AdminArchivedOpportunitiesPage() {
   return (
     <CopyProtectionWrapper className="dashboard-page-container">
       <ListHeader
-        pageTitle="ARCHIVED OPPORTUNITIES"
-        searchPlaceholder="Search archived opportunities..."
+        pageTitle={pageTitle}
+        searchPlaceholder={searchPlaceholder}
         onSearch={handleSearch}
         showStatusFilter={false}
-        showColumnFilters={false}
+        leftAccessory={
+          <AccountStatusFilterDropdown
+            value={viewFilter}
+            options={['active', 'all']}
+            labels={{ active: 'Archived', all: 'All' }}
+            onChange={handleViewFilterChange}
+          />
+        }
+        showColumnFilters
+        filterColumns={ARCHIVE_OPPORTUNITY_FILTER_OPTIONS}
+        columnFilters={columnFilters}
+        onColumnFiltersChange={handleColumnFiltersChange}
         showCreateButton={false}
+        onSettingsClick={() => setShowColumnSettings(true)}
+        hasUnsavedTableChanges={hasUnsavedChanges}
+        isSavingTableChanges={preferenceSaving}
+        lastTableSaved={lastSaved || undefined}
+        onSaveTableChanges={saveChanges}
         bulkActions={bulkActions}
       />
 
-      {error ? <div className="px-4 text-sm text-red-600">{error}</div> : null}
+      {(error || preferenceError) ? <div className="px-4 text-sm text-red-600">{error || preferenceError}</div> : null}
 
       <div className="flex-1 min-h-0 p-4 pt-0 flex flex-col gap-4">
-        <div className="flex-1 min-h-0">
+        <div ref={tableAreaNodeRef} className="flex-1 min-h-0">
           <DynamicTable
-            columns={columns}
+            columns={tableColumns}
             data={opportunities}
-            loading={loading}
-            emptyMessage="No archived opportunities found"
+            onSort={handleSort}
+            onRowClick={handleRowClick}
+            loading={loading || preferenceLoading}
+            emptyMessage={emptyMessage}
+            onColumnsChange={handleColumnsChange}
             pagination={paginationInfo}
             onPageChange={handlePageChange}
             onPageSizeChange={handlePageSizeChange}
@@ -426,10 +693,23 @@ export default function AdminArchivedOpportunitiesPage() {
             onItemSelect={handleOpportunitySelect}
             onSelectAll={handleSelectAll}
             fillContainerWidth
+            autoSizeColumns={false}
             alwaysShowPagination
+            hasLoadedPreferences={!preferenceLoading}
+            maxBodyHeight={tableBodyHeight}
           />
         </div>
       </div>
+
+      <ColumnChooserModal
+        isOpen={showColumnSettings}
+        columns={preferenceColumns}
+        onApply={handleColumnsChange}
+        onClose={async () => {
+          setShowColumnSettings(false)
+          await saveChangesOnModalClose()
+        }}
+      />
 
       <TwoStageDeleteDialog
         isOpen={showDeleteDialog}
@@ -454,10 +734,14 @@ export default function AdminArchivedOpportunitiesPage() {
             : undefined
         }
         entityLabelPlural="Opportunities"
-        isDeleted={true}
+        isDeleted={
+          bulkDeleteTargets.length > 0
+            ? bulkDeleteTargets.every((opportunity) => opportunity.isDeleted)
+            : opportunityToDelete?.isDeleted ?? false
+        }
         onSoftDelete={async () => ({ success: false, error: 'Archived opportunities cannot be soft deleted again.' })}
         onPermanentDelete={handlePermanentDelete}
-        onRestore={handleRestore}
+        onRestore={userCanRestore ? handleRestore : undefined}
         userCanPermanentDelete={userCanPermanentDelete}
         modalSize="revenue-schedules"
         requireReason

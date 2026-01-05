@@ -450,8 +450,41 @@ export async function POST(request: NextRequest) {
       if (error?.code === "P2002") {
         return NextResponse.json({ error: "A product with this vendor part number already exists" }, { status: 409 })
       }
+
+      if (error?.code === "P2003") {
+        const meta = typeof error?.meta === "object" && error.meta ? error.meta : null
+        const fieldName = typeof (meta as any)?.field_name === "string" ? (meta as any).field_name : ""
+        const hint =
+          fieldName.includes("vendorAccountId") || fieldName.includes("distributorAccountId")
+            ? "Re-select Vendor/Distributor from the dropdown and try again."
+            : fieldName.includes("createdById") || fieldName.includes("updatedById")
+              ? "Your user record may be missing in the database. Try logging out/in or reseeding dev data."
+              : "Please try again."
+
+        return NextResponse.json(
+          {
+            error: "Invalid reference on product create.",
+            details:
+              process.env.NODE_ENV !== "production"
+                ? { code: error.code, message: error.message, meta: error.meta }
+                : undefined,
+            hint
+          },
+          { status: 400 }
+        )
+      }
+
       console.error("Failed to create product", error)
-      return NextResponse.json({ error: "Failed to create product" }, { status: 500 })
+      return NextResponse.json(
+        {
+          error: "Failed to create product",
+          details:
+            process.env.NODE_ENV !== "production"
+              ? { code: error?.code, message: error?.message, meta: error?.meta }
+              : undefined
+        },
+        { status: 500 }
+      )
     }
   })
 }

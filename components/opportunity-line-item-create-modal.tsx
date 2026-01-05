@@ -147,6 +147,11 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
 
   const vendorDistributorLocked = Boolean(vendorDistributorLock?.locked)
 
+  const familyIdByName = useMemo(
+    () => new Map(masterFamilies.map((family) => [family.name, family.id] as const)),
+    [masterFamilies]
+  )
+
   const filteredCatalogProducts = useMemo(() => {
     const query = productInput.trim().toLowerCase()
     if (!query) {
@@ -589,11 +594,6 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
     }
   }, [isOpen])
 
-  const familyIdByName = useMemo(
-    () => new Map(masterFamilies.map((family) => [family.name, family.id] as const)),
-    [masterFamilies]
-  )
-
   const vendorSubtypePicklist = useMemo(
     () => getAllowedSubtypesForFamilyName(masterSubtypes, familyIdByName, productFamilyVendorInput),
     [masterSubtypes, familyIdByName, productFamilyVendorInput]
@@ -703,7 +703,17 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
         }
       } else if (!createRes.ok) {
         const errorPayload = await createRes.json().catch(()=>null)
-        throw new Error(errorPayload?.error || 'Failed to create product')
+        const serverErrors = errorPayload?.errors
+        const firstServerError =
+          serverErrors && typeof serverErrors === "object"
+            ? (Object.values(serverErrors as Record<string, unknown>).find(value => typeof value === "string") as string | undefined)
+            : undefined
+        const detailsMessage =
+          errorPayload?.details && typeof errorPayload.details === "object" && typeof errorPayload.details.message === "string"
+            ? errorPayload.details.message
+            : undefined
+        const hint = typeof errorPayload?.hint === "string" ? errorPayload.hint : undefined
+        throw new Error(firstServerError ?? hint ?? detailsMessage ?? errorPayload?.error ?? 'Failed to create product')
       }
 
       if (!createdProductId) {

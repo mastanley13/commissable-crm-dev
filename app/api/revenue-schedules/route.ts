@@ -205,6 +205,12 @@ export async function GET(request: NextRequest) {
         orderBy.push({ vendor: { accountName: sortDirection } })
       } else if (sortColumn === "distributorName") {
         orderBy.push({ distributor: { accountName: sortDirection } })
+      } else if (sortColumn === "productNameVendor") {
+        orderBy.push({ product: { productNameVendor: sortDirection } })
+      } else if (sortColumn === "scheduleStatus") {
+        orderBy.push({ status: sortDirection })
+      } else if (sortColumn === "deletedAt") {
+        orderBy.push({ deletedAt: sortDirection })
       } else if (sortColumn === "expectedUsageNet") {
         orderBy.push({ expectedUsage: sortDirection })
       } else if (sortColumn === "expectedCommissionNet") {

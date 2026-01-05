@@ -1,33 +1,95 @@
 'use client'
 
 import Link from 'next/link'
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { RotateCcw, Trash2 } from 'lucide-react'
-import { ListHeader } from '@/components/list-header'
+import { useRouter } from 'next/navigation'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { Check, Download, RotateCcw, Trash2 } from 'lucide-react'
+import { AccountStatusFilterDropdown } from '@/components/account-status-filter-dropdown'
+import { ColumnChooserModal } from '@/components/column-chooser-modal'
 import { CopyProtectionWrapper } from '@/components/copy-protection'
 import { DynamicTable, type Column, type PaginationInfo } from '@/components/dynamic-table'
+import { ListHeader, type ColumnFilter as ListColumnFilter } from '@/components/list-header'
 import { TwoStageDeleteDialog } from '@/components/two-stage-delete-dialog'
-import { useAuth } from '@/lib/auth-context'
 import { useToasts } from '@/components/toast'
+import { useAuth } from '@/lib/auth-context'
+import { useTablePreferences } from '@/hooks/useTablePreferences'
 
 type ProductArchiveRow = {
   id: string
   productNameHouse: string
   productNameVendor: string
   partNumberVendor: string
+  distributorId?: string | null
   distributorName: string
+  vendorId?: string | null
   vendorName: string
+  revenueType?: string
   revenueTypeLabel?: string
   hasRevenueSchedules?: boolean
   active: boolean
 }
 
+type SortState = { columnId: string; direction: 'asc' | 'desc' }
+
+const TABLE_BOTTOM_RESERVE = 110
+const TABLE_MIN_BODY_HEIGHT = 320
+
+const ARCHIVE_PRODUCT_BASE_COLUMNS: Column[] = [
+  { id: 'select', label: 'Select', width: 110, minWidth: 80, maxWidth: 220, type: 'checkbox', hideable: false },
+  { id: 'productNameHouse', label: 'House Product', width: 260, minWidth: 200, sortable: true, hideable: false },
+  { id: 'productNameVendor', label: 'Vendor Product', width: 260, minWidth: 200, sortable: true },
+  { id: 'partNumberVendor', label: 'Part #', width: 160, sortable: true },
+  { id: 'distributorName', label: 'Distributor', width: 220, sortable: true },
+  { id: 'vendorName', label: 'Vendor', width: 220, sortable: true },
+  { id: 'revenueType', label: 'Revenue Type', width: 180, sortable: true },
+  { id: 'hasRevenueSchedules', label: 'Has Schedules', width: 140, sortable: false },
+]
+
+const ARCHIVE_PRODUCT_FILTER_OPTIONS: Array<{ id: string; label: string }> = [
+  { id: 'productNameVendor', label: 'Vendor - Product Name' },
+  { id: 'productNameHouse', label: 'House - Product Name' },
+  { id: 'distributorName', label: 'Distributor Name' },
+  { id: 'vendorName', label: 'Vendor Name' },
+  { id: 'partNumberVendor', label: 'Vendor - Part Number' },
+  { id: 'revenueType', label: 'Revenue Type' },
+  { id: 'active', label: 'Active (Y/N)' },
+  { id: 'hasRevenueSchedules', label: 'Has Revenue Schedules (Y/N)' },
+]
+
+function escapeCsv(value: unknown): string {
+  const str = value == null ? '' : String(value)
+  if (/[",\r\n]/.test(str)) {
+    return `"${str.replace(/"/g, '""')}"`
+  }
+  return str
+}
+
 export default function AdminArchivedProductsPage() {
   const { hasPermission, user } = useAuth()
   const { showError, showSuccess, ToastContainer } = useToasts()
+  const router = useRouter()
 
-  const canManageArchive = hasPermission('products.read') || hasPermission('products.update') || hasPermission('products.delete')
+  const roleCode = (user?.role?.code ?? '').toLowerCase()
+  const isAdmin = roleCode === 'admin' || roleCode.includes('admin')
+
+  const canManageArchive =
+    isAdmin || hasPermission('products.read') || hasPermission('products.update') || hasPermission('products.delete')
   const userCanPermanentDelete = hasPermission('products.delete')
+  const userCanRestore = isAdmin
+
+  const {
+    columns: preferenceColumns,
+    loading: preferenceLoading,
+    saving: preferenceSaving,
+    error: preferenceError,
+    pageSize: preferencePageSize,
+    hasUnsavedChanges,
+    lastSaved,
+    handleColumnsChange,
+    handlePageSizeChange: persistPageSizeChange,
+    saveChanges,
+    saveChangesOnModalClose,
+  } = useTablePreferences('products:archive', ARCHIVE_PRODUCT_BASE_COLUMNS, { defaultPageSize: 25 })
 
   const [products, setProducts] = useState<ProductArchiveRow[]>([])
   const [loading, setLoading] = useState(false)
@@ -36,33 +98,61 @@ export default function AdminArchivedProductsPage() {
 
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(25)
   const [searchQuery, setSearchQuery] = useState('')
+  const [viewFilter, setViewFilter] = useState<'active' | 'inactive' | 'all'>('active')
+  const [sortState, setSortState] = useState<SortState | null>(null)
+  const [columnFilters, setColumnFilters] = useState<ListColumnFilter[]>([])
   const [totalRecords, setTotalRecords] = useState(0)
 
+  const [tableBodyHeight, setTableBodyHeight] = useState<number>()
+  const tableAreaNodeRef = useRef<HTMLDivElement | null>(null)
+
+  const [showColumnSettings, setShowColumnSettings] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [productToDelete, setProductToDelete] = useState<ProductArchiveRow | null>(null)
   const [bulkDeleteTargets, setBulkDeleteTargets] = useState<ProductArchiveRow[]>([])
 
   const paginationInfo: PaginationInfo = useMemo(() => {
-    const totalPages = Math.max(1, Math.ceil(totalRecords / pageSize))
-    return {
-      page,
-      pageSize,
-      total: totalRecords,
-      totalPages,
-    }
-  }, [page, pageSize, totalRecords])
+    const totalPages = Math.max(1, Math.ceil(totalRecords / preferencePageSize))
+    return { page, pageSize: preferencePageSize, total: totalRecords, totalPages }
+  }, [page, preferencePageSize, totalRecords])
 
   const reloadProducts = useCallback(async () => {
     setLoading(true)
     try {
       const params = new URLSearchParams()
-      params.set('status', 'inactive')
+
+      if (viewFilter === 'active') {
+        params.set('status', 'inactive')
+      } else if (viewFilter === 'inactive') {
+        params.set('status', 'active')
+      } else {
+        params.set('status', 'all')
+      }
+
       params.set('page', String(page))
-      params.set('pageSize', String(pageSize))
+      params.set('pageSize', String(preferencePageSize))
+
       if (searchQuery.trim().length > 0) {
         params.set('q', searchQuery.trim())
+      }
+
+      if (sortState) {
+        params.set('sort', sortState.columnId)
+        params.set('direction', sortState.direction)
+      }
+
+      const sanitizedFilters = columnFilters
+        .filter((filter) => filter && typeof filter.columnId === 'string')
+        .map((filter) => ({
+          columnId: String(filter.columnId),
+          value: typeof filter.value === 'string' ? filter.value : String(filter.value ?? ''),
+          operator: typeof filter.operator === 'string' ? filter.operator : undefined,
+        }))
+        .filter((filter) => filter.columnId.length > 0 && filter.value.trim().length > 0)
+
+      if (sanitizedFilters.length > 0) {
+        params.set('filters', JSON.stringify(sanitizedFilters))
       }
 
       const response = await fetch(`/api/products?${params.toString()}`, { cache: 'no-store' })
@@ -88,12 +178,59 @@ export default function AdminArchivedProductsPage() {
     } finally {
       setLoading(false)
     }
-  }, [page, pageSize, searchQuery])
+  }, [columnFilters, page, preferencePageSize, searchQuery, sortState, viewFilter])
 
   useEffect(() => {
     if (!canManageArchive) return
     reloadProducts().catch(console.error)
   }, [canManageArchive, reloadProducts])
+
+  const measureTableArea = useCallback(() => {
+    const node = tableAreaNodeRef.current
+    if (!node || typeof window === 'undefined') return
+
+    const rect = node.getBoundingClientRect()
+    const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0
+    if (viewportHeight <= 0) return
+
+    const available = viewportHeight - rect.top - TABLE_BOTTOM_RESERVE
+    if (!Number.isFinite(available)) return
+
+    const nextHeight = Math.max(TABLE_MIN_BODY_HEIGHT, Math.floor(available))
+    if (nextHeight !== tableBodyHeight) {
+      setTableBodyHeight(nextHeight)
+    }
+  }, [tableBodyHeight])
+
+  const tableAreaRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      tableAreaNodeRef.current = node
+      if (node && typeof window !== 'undefined') {
+        window.requestAnimationFrame(() => {
+          measureTableArea()
+        })
+      }
+    },
+    [measureTableArea],
+  )
+
+  useLayoutEffect(() => {
+    measureTableArea()
+  }, [measureTableArea])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const handleResize = () => measureTableArea()
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [measureTableArea])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    window.requestAnimationFrame(() => {
+      measureTableArea()
+    })
+  }, [measureTableArea, products.length, selectedIds.length, loading, preferenceLoading, page, preferencePageSize, viewFilter])
 
   const handleSearch = useCallback((query: string) => {
     setSearchQuery(query)
@@ -104,8 +241,27 @@ export default function AdminArchivedProductsPage() {
     setPage(nextPage)
   }, [])
 
-  const handlePageSizeChange = useCallback((nextPageSize: number) => {
-    setPageSize(nextPageSize)
+  const handlePageSizeChange = useCallback(
+    (nextPageSize: number) => {
+      persistPageSizeChange(nextPageSize)
+      setPage(1)
+    },
+    [persistPageSizeChange],
+  )
+
+  const handleViewFilterChange = useCallback((next: 'active' | 'inactive' | 'all') => {
+    setViewFilter(next)
+    setSelectedIds([])
+    setPage(1)
+  }, [])
+
+  const handleSort = useCallback((columnId: string, direction: 'asc' | 'desc') => {
+    setSortState({ columnId, direction })
+    setPage(1)
+  }, [])
+
+  const handleColumnFiltersChange = useCallback((filters: ListColumnFilter[]) => {
+    setColumnFilters(filters)
     setPage(1)
   }, [])
 
@@ -118,13 +274,23 @@ export default function AdminArchivedProductsPage() {
     })
   }, [])
 
-  const handleSelectAll = useCallback((selected: boolean) => {
-    if (selected) {
-      setSelectedIds(products.map((row) => row.id))
-      return
-    }
-    setSelectedIds([])
-  }, [products])
+  const handleSelectAll = useCallback(
+    (selected: boolean) => {
+      if (selected) {
+        setSelectedIds(products.map((row) => row.id))
+        return
+      }
+      setSelectedIds([])
+    },
+    [products],
+  )
+
+  const handleRowClick = useCallback(
+    (row: ProductArchiveRow) => {
+      router.push(`/products/${row.id}`)
+    },
+    [router],
+  )
 
   const restoreProductRequest = useCallback(async (productId: string): Promise<{ success: boolean; error?: string }> => {
     try {
@@ -145,15 +311,22 @@ export default function AdminArchivedProductsPage() {
     }
   }, [])
 
-  const handleRestore = useCallback(async (productId: string): Promise<{ success: boolean; error?: string }> => {
-    const result = await restoreProductRequest(productId)
-    if (result.success) {
-      setProducts((previous) => previous.filter((row) => row.id !== productId))
-      setSelectedIds((previous) => previous.filter((id) => id !== productId))
-      showSuccess('Product restored', 'The product was restored and removed from Archive.')
-    }
-    return result
-  }, [restoreProductRequest, showSuccess])
+  const handleRestore = useCallback(
+    async (productId: string): Promise<{ success: boolean; error?: string }> => {
+      const result = await restoreProductRequest(productId)
+      if (result.success) {
+        setProducts((previous) =>
+          viewFilter === 'active'
+            ? previous.filter((row) => row.id !== productId)
+            : previous.map((row) => (row.id === productId ? { ...row, active: true } : row)),
+        )
+        setSelectedIds((previous) => previous.filter((id) => id !== productId))
+        showSuccess('Product restored', 'The product was restored and removed from Archive.')
+      }
+      return result
+    },
+    [restoreProductRequest, showSuccess, viewFilter],
+  )
 
   const handleBulkRestore = useCallback(async () => {
     if (selectedIds.length === 0) {
@@ -161,9 +334,9 @@ export default function AdminArchivedProductsPage() {
       return
     }
 
-    const targets = products.filter((row) => selectedIds.includes(row.id))
+    const targets = products.filter((row) => selectedIds.includes(row.id) && !row.active)
     if (targets.length === 0) {
-      showError('Products unavailable', 'Unable to locate the selected products. Refresh and try again.')
+      showError('No archived products selected', 'Only archived products can be restored.')
       return
     }
 
@@ -190,7 +363,11 @@ export default function AdminArchivedProductsPage() {
 
       if (restoredIds.length > 0) {
         const restoredSet = new Set(restoredIds)
-        setProducts((previous) => previous.filter((row) => !restoredSet.has(row.id)))
+        setProducts((previous) =>
+          viewFilter === 'active'
+            ? previous.filter((row) => !restoredSet.has(row.id))
+            : previous.map((row) => (restoredSet.has(row.id) ? { ...row, active: true } : row)),
+        )
         setSelectedIds((previous) => previous.filter((id) => !restoredSet.has(id)))
         showSuccess(
           `Restored ${restoredIds.length} product${restoredIds.length === 1 ? '' : 's'}`,
@@ -208,42 +385,44 @@ export default function AdminArchivedProductsPage() {
     } finally {
       setBulkActionLoading(false)
     }
-  }, [products, restoreProductRequest, selectedIds, showError, showSuccess])
+  }, [products, restoreProductRequest, selectedIds, showError, showSuccess, viewFilter])
 
-  const handlePermanentDelete = useCallback(async (
-    productId: string,
-    reason?: string,
-  ): Promise<{ success: boolean; error?: string }> => {
-    try {
-      const trimmedReason = typeof reason === 'string' ? reason.trim() : ''
-      const response = await fetch(`/api/products/${productId}`, {
-        method: 'DELETE',
-        ...(trimmedReason
-          ? {
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ reason: trimmedReason }),
-            }
-          : {}),
-      })
+  const handlePermanentDelete = useCallback(
+    async (productId: string, reason?: string): Promise<{ success: boolean; error?: string }> => {
+      try {
+        const trimmedReason = typeof reason === 'string' ? reason.trim() : ''
+        const response = await fetch(`/api/products/${productId}`, {
+          method: 'DELETE',
+          ...(trimmedReason ? { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason: trimmedReason }) } : {}),
+        })
 
-      const payload = await response.json().catch(() => null)
-      if (!response.ok) {
-        return { success: false, error: payload?.error ?? 'Failed to permanently delete product' }
+        const payload = await response.json().catch(() => null)
+        if (!response.ok) {
+          return { success: false, error: payload?.error ?? 'Failed to permanently delete product' }
+        }
+
+        setProducts((previous) => previous.filter((row) => row.id !== productId))
+        setSelectedIds((previous) => previous.filter((id) => id !== productId))
+        return { success: true }
+      } catch (err) {
+        return { success: false, error: err instanceof Error ? err.message : 'Unable to permanently delete product' }
       }
+    },
+    [],
+  )
 
-      setProducts((previous) => previous.filter((row) => row.id !== productId))
-      setSelectedIds((previous) => previous.filter((id) => id !== productId))
-      return { success: true }
-    } catch (err) {
-      return { success: false, error: err instanceof Error ? err.message : 'Unable to permanently delete product' }
-    }
-  }, [])
-
-  const requestRowDeletion = useCallback((row: ProductArchiveRow) => {
-    setBulkDeleteTargets([])
-    setProductToDelete(row)
-    setShowDeleteDialog(true)
-  }, [])
+  const requestRowDeletion = useCallback(
+    (row: ProductArchiveRow) => {
+      if (row.active) {
+        showError('Not archived', 'Only archived products can be permanently deleted from this page.')
+        return
+      }
+      setBulkDeleteTargets([])
+      setProductToDelete(row)
+      setShowDeleteDialog(true)
+    },
+    [showError],
+  )
 
   const openBulkPermanentDeleteDialog = useCallback(() => {
     if (selectedIds.length === 0) {
@@ -251,9 +430,9 @@ export default function AdminArchivedProductsPage() {
       return
     }
 
-    const targets = products.filter((row) => selectedIds.includes(row.id))
+    const targets = products.filter((row) => selectedIds.includes(row.id) && !row.active)
     if (targets.length === 0) {
-      showError('Products unavailable', 'Unable to locate the selected products. Refresh and try again.')
+      showError('No archived products selected', 'Only archived products can be permanently deleted here.')
       return
     }
 
@@ -268,6 +447,42 @@ export default function AdminArchivedProductsPage() {
     setBulkDeleteTargets([])
   }
 
+  const handleBulkExportCsv = useCallback(() => {
+    const rows = products.filter((row) => selectedIds.includes(row.id))
+    if (rows.length === 0) {
+      showError('No products selected', 'Select at least one product to export.')
+      return
+    }
+
+    const lines = [
+      ['House Product', 'Vendor Product', 'Part #', 'Distributor', 'Vendor', 'Revenue Type', 'Has Schedules', 'Active'].join(','),
+      ...rows.map((row) =>
+        [
+          escapeCsv(row.productNameHouse),
+          escapeCsv(row.productNameVendor),
+          escapeCsv(row.partNumberVendor),
+          escapeCsv(row.distributorName),
+          escapeCsv(row.vendorName),
+          escapeCsv(row.revenueTypeLabel ?? row.revenueType),
+          escapeCsv(row.hasRevenueSchedules ? 'Yes' : 'No'),
+          escapeCsv(row.active ? 'Yes' : 'No'),
+        ].join(','),
+      ),
+    ].join('\r\n')
+
+    const blob = new Blob([lines], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
+    link.download = `products-${viewFilter === 'active' ? 'archived' : viewFilter}-${timestamp}.csv`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+    showSuccess('Export complete', 'Check your downloads for the CSV file.')
+  }, [products, selectedIds, showError, showSuccess, viewFilter])
+
   const bulkActions = useMemo(() => {
     return {
       selectedCount: selectedIds.length,
@@ -281,6 +496,15 @@ export default function AdminArchivedProductsPage() {
           tone: 'primary' as const,
           onClick: handleBulkRestore,
           tooltip: (count: number) => `Restore ${count} archived product${count === 1 ? '' : 's'}`,
+          disabled: !userCanRestore,
+        },
+        {
+          key: 'export',
+          label: 'Export CSV',
+          icon: Download,
+          tone: 'info' as const,
+          onClick: handleBulkExportCsv,
+          tooltip: (count: number) => `Export ${count} product${count === 1 ? '' : 's'} to CSV`,
         },
         {
           key: 'permanent-delete',
@@ -293,79 +517,147 @@ export default function AdminArchivedProductsPage() {
         },
       ],
     }
-  }, [bulkActionLoading, handleBulkRestore, openBulkPermanentDeleteDialog, selectedIds.length, userCanPermanentDelete])
+  }, [
+    bulkActionLoading,
+    handleBulkExportCsv,
+    handleBulkRestore,
+    openBulkPermanentDeleteDialog,
+    selectedIds.length,
+    userCanPermanentDelete,
+    userCanRestore,
+  ])
 
-  const columns: Column[] = useMemo(() => {
-    return [
-      { id: 'select', label: 'Select', width: 70, type: 'checkbox', resizable: false, hideable: false },
-      {
-        id: 'productNameHouse',
-        label: 'Product (House)',
-        width: 260,
-        sortable: true,
-        render: (value: string, row: ProductArchiveRow) => (
-          <Link href={`/products/${row.id}`} className="text-blue-600 hover:underline">
-            {value || row.productNameVendor || '--'}
-          </Link>
-        ),
-      },
-      { id: 'productNameVendor', label: 'Product (Vendor)', width: 240, sortable: true },
-      { id: 'partNumberVendor', label: 'Part #', width: 160, sortable: true },
-      { id: 'distributorName', label: 'Distributor', width: 220, sortable: true },
-      { id: 'vendorName', label: 'Vendor', width: 220, sortable: true },
-      { id: 'revenueTypeLabel', label: 'Revenue Type', width: 180, sortable: true },
-      {
-        id: 'hasRevenueSchedules',
-        label: 'Has Schedules',
-        width: 120,
-        sortable: true,
-        render: (value: unknown) => (value ? 'Yes' : 'No'),
-      },
-      {
-        id: 'actions',
-        label: 'Actions',
-        width: 140,
-        resizable: false,
-        render: (_value: unknown, row: ProductArchiveRow) => (
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              className="rounded-md border border-gray-300 bg-white px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-gray-600 hover:bg-gray-50"
-              onClick={(event) => {
-                event.preventDefault()
-                event.stopPropagation()
-                handleRestore(row.id).catch(console.error)
-              }}
-              title="Restore product"
-            >
-              Restore
-            </button>
-            <button
-              type="button"
-              className="rounded-md bg-red-600 px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-red-300"
-              onClick={(event) => {
-                event.preventDefault()
-                event.stopPropagation()
-                requestRowDeletion(row)
-              }}
-              disabled={!userCanPermanentDelete}
-              title={userCanPermanentDelete ? 'Permanently delete' : 'Insufficient permissions'}
-            >
-              Delete
-            </button>
-          </div>
-        ),
-      },
-    ]
-  }, [handleRestore, requestRowDeletion, userCanPermanentDelete])
+  const tableColumns: Column[] = useMemo(() => {
+    return preferenceColumns.map((column) => {
+      if (column.id === 'select') {
+        return {
+          ...column,
+          render: (_value: unknown, row: ProductArchiveRow) => {
+            const checked = selectedIds.includes(row.id)
+            const canRestoreRow = userCanRestore && !row.active
+            const canDeleteRow = userCanPermanentDelete && !row.active
+            return (
+              <div className="flex items-center gap-2" data-disable-row-click="true">
+                <button
+                  type="button"
+                  role="checkbox"
+                  aria-checked={checked}
+                  aria-label={`Select product ${row.productNameHouse || row.productNameVendor || row.id}`}
+                  className={`flex h-4 w-4 items-center justify-center rounded border transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-1 ${
+                    checked ? 'border-primary-500 bg-primary-600 text-white' : 'border-gray-300 bg-white text-transparent'
+                  }`}
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    handleSelect(row.id, !checked)
+                  }}
+                  onMouseDown={(event) => event.preventDefault()}
+                >
+                  <Check className="h-3 w-3" aria-hidden="true" />
+                </button>
+
+                <button
+                  type="button"
+                  className="p-1 rounded transition-colors text-emerald-600 hover:text-emerald-800 disabled:cursor-not-allowed disabled:text-gray-300"
+                  onClick={(event) => {
+                    event.preventDefault()
+                    event.stopPropagation()
+                    void handleRestore(row.id)
+                  }}
+                  disabled={!canRestoreRow}
+                  aria-label="Restore product"
+                  title={
+                    row.active ? 'Already active' : canRestoreRow ? 'Restore product' : 'Admin role required'
+                  }
+                >
+                  <RotateCcw className="h-4 w-4" aria-hidden="true" />
+                </button>
+
+                <button
+                  type="button"
+                  className="p-1 rounded transition-colors text-red-500 hover:text-red-700 disabled:cursor-not-allowed disabled:text-gray-300"
+                  onClick={(event) => {
+                    event.preventDefault()
+                    event.stopPropagation()
+                    requestRowDeletion(row)
+                  }}
+                  disabled={!canDeleteRow}
+                  aria-label="Permanently delete product"
+                  title={
+                    row.active
+                      ? 'Only archived products can be permanently deleted here'
+                      : canDeleteRow
+                        ? 'Permanently delete'
+                        : 'Insufficient permissions'
+                  }
+                >
+                  <Trash2 className="h-4 w-4" aria-hidden="true" />
+                </button>
+              </div>
+            )
+          },
+        }
+      }
+
+      if (column.id === 'productNameHouse') {
+        return {
+          ...column,
+          render: (value: string, row: ProductArchiveRow) => (
+            <Link href={`/products/${row.id}`} className="text-blue-600 hover:underline">
+              {value || '--'}
+            </Link>
+          ),
+        }
+      }
+
+      if (column.id === 'productNameVendor') {
+        return {
+          ...column,
+          render: (value: string, row: ProductArchiveRow) => (
+            <Link href={`/products/${row.id}`} className="text-blue-600 hover:underline">
+              {value || '--'}
+            </Link>
+          ),
+        }
+      }
+
+      if (column.id === 'revenueType') {
+        return {
+          ...column,
+          render: (_value: unknown, row: ProductArchiveRow) => row.revenueTypeLabel || row.revenueType || '--',
+        }
+      }
+
+      if (column.id === 'hasRevenueSchedules') {
+        return { ...column, render: (_value: unknown, row: ProductArchiveRow) => (row.hasRevenueSchedules ? 'Yes' : 'No') }
+      }
+
+      return column
+    })
+  }, [handleRestore, handleSelect, preferenceColumns, requestRowDeletion, selectedIds, userCanPermanentDelete, userCanRestore])
+
+  const pageTitle = useMemo(() => {
+    if (viewFilter === 'inactive') return 'ACTIVE PRODUCTS'
+    if (viewFilter === 'all') return 'ALL PRODUCTS'
+    return 'ARCHIVED PRODUCTS'
+  }, [viewFilter])
+
+  const searchPlaceholder = useMemo(() => {
+    if (viewFilter === 'inactive') return 'Search active products...'
+    if (viewFilter === 'all') return 'Search all products...'
+    return 'Search archived products...'
+  }, [viewFilter])
+
+  const emptyMessage = useMemo(() => {
+    if (viewFilter === 'inactive') return 'No active products found'
+    if (viewFilter === 'all') return 'No products found'
+    return 'No archived products found'
+  }, [viewFilter])
 
   if (!canManageArchive) {
     return (
       <div className="p-6">
         <h1 className="text-xl font-semibold text-gray-900">Archived Products</h1>
-        <p className="mt-2 text-sm text-gray-600">
-          Access denied. You need catalog permissions to view archived products.
-        </p>
+        <p className="mt-2 text-sm text-gray-600">Access denied. You need catalog permissions to view archived products.</p>
         {user?.role?.name ? <p className="mt-2 text-xs text-gray-500">Role: {user.role.name}</p> : null}
       </div>
     )
@@ -374,24 +666,43 @@ export default function AdminArchivedProductsPage() {
   return (
     <CopyProtectionWrapper className="dashboard-page-container">
       <ListHeader
-        pageTitle="ARCHIVED PRODUCTS"
-        searchPlaceholder="Search archived products..."
+        pageTitle={pageTitle}
+        searchPlaceholder={searchPlaceholder}
         onSearch={handleSearch}
         showStatusFilter={false}
-        showColumnFilters={false}
+        leftAccessory={
+          <AccountStatusFilterDropdown
+            value={viewFilter}
+            options={['active', 'inactive', 'all']}
+            labels={{ active: 'Archived', inactive: 'Active', all: 'All' }}
+            onChange={handleViewFilterChange}
+          />
+        }
+        showColumnFilters
+        filterColumns={ARCHIVE_PRODUCT_FILTER_OPTIONS}
+        columnFilters={columnFilters}
+        onColumnFiltersChange={handleColumnFiltersChange}
         showCreateButton={false}
+        onSettingsClick={() => setShowColumnSettings(true)}
+        hasUnsavedTableChanges={hasUnsavedChanges}
+        isSavingTableChanges={preferenceSaving}
+        lastTableSaved={lastSaved || undefined}
+        onSaveTableChanges={saveChanges}
         bulkActions={bulkActions}
       />
 
-      {error ? <div className="px-4 text-sm text-red-600">{error}</div> : null}
+      {(error || preferenceError) ? <div className="px-4 text-sm text-red-600">{error || preferenceError}</div> : null}
 
       <div className="flex-1 min-h-0 p-4 pt-0 flex flex-col gap-4">
-        <div className="flex-1 min-h-0">
+        <div ref={tableAreaRef} className="flex-1 min-h-0">
           <DynamicTable
-            columns={columns}
+            columns={tableColumns}
             data={products}
-            loading={loading}
-            emptyMessage="No archived products found"
+            onSort={handleSort}
+            onRowClick={handleRowClick}
+            loading={loading || preferenceLoading}
+            emptyMessage={emptyMessage}
+            onColumnsChange={handleColumnsChange}
             pagination={paginationInfo}
             onPageChange={handlePageChange}
             onPageSizeChange={handlePageSizeChange}
@@ -399,10 +710,23 @@ export default function AdminArchivedProductsPage() {
             onItemSelect={handleSelect}
             onSelectAll={handleSelectAll}
             fillContainerWidth
+            autoSizeColumns={false}
             alwaysShowPagination
+            hasLoadedPreferences={!preferenceLoading}
+            maxBodyHeight={tableBodyHeight}
           />
         </div>
       </div>
+
+      <ColumnChooserModal
+        isOpen={showColumnSettings}
+        columns={preferenceColumns}
+        onApply={handleColumnsChange}
+        onClose={async () => {
+          setShowColumnSettings(false)
+          await saveChangesOnModalClose()
+        }}
+      />
 
       <TwoStageDeleteDialog
         isOpen={showDeleteDialog}
@@ -413,11 +737,7 @@ export default function AdminArchivedProductsPage() {
             ? `${bulkDeleteTargets.length} product${bulkDeleteTargets.length === 1 ? '' : 's'}`
             : productToDelete?.productNameHouse || productToDelete?.productNameVendor || 'Unknown Product'
         }
-        entityId={
-          bulkDeleteTargets.length > 0
-            ? bulkDeleteTargets[0]?.id || ''
-            : productToDelete?.id || ''
-        }
+        entityId={bulkDeleteTargets.length > 0 ? bulkDeleteTargets[0]?.id || '' : productToDelete?.id || ''}
         multipleEntities={
           bulkDeleteTargets.length > 0
             ? bulkDeleteTargets.map((row) => ({
@@ -427,18 +747,21 @@ export default function AdminArchivedProductsPage() {
             : undefined
         }
         entityLabelPlural="Products"
-        isDeleted={true}
+        isDeleted={
+          bulkDeleteTargets.length > 0
+            ? bulkDeleteTargets.every((product) => !product.active)
+            : !(productToDelete?.active ?? true)
+        }
         onSoftDelete={async () => ({ success: false, error: 'Archived products cannot be soft deleted again.' })}
         onPermanentDelete={handlePermanentDelete}
-        onRestore={handleRestore}
+        onRestore={userCanRestore ? handleRestore : undefined}
         userCanPermanentDelete={userCanPermanentDelete}
         modalSize="revenue-schedules"
         requireReason
-        note="Legend: Archived products are inactive. Restore will return them to the Catalog. Permanent delete is irreversible and may be blocked if the product has revenue schedules."
+        note="Legend: Archived products are inactive. Restore will return them to the Catalog. Permanent delete is irreversible and may be blocked if the product has active revenue schedules or is used on active opportunities."
       />
 
       <ToastContainer />
     </CopyProtectionWrapper>
   )
 }
-

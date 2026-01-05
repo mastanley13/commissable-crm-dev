@@ -35,16 +35,13 @@ All archive pages mark many columns as `sortable: true`, but do **not** pass `on
 
 - `components/dynamic-table.tsx` (see `handleSort` and lack of any internal data sorting)
 - Examples of archive tables missing `onSort`:
-  - `app/(dashboard)/admin/archive/opportunities/page.tsx`
-  - `app/(dashboard)/admin/archive/revenue-schedules/page.tsx`
-  - `app/(dashboard)/admin/archive/products/page.tsx`
   - `app/(dashboard)/admin/archive/groups/page.tsx`
   - `app/(dashboard)/admin/archive/tickets/page.tsx`
   - `app/(dashboard)/admin/archive/activities/page.tsx`
 
 ### 2) Column filters are disabled across archive pages
 
-Most archive headers explicitly disable column filters (Archived Accounts + Archived Contacts are now exceptions):
+Most archive headers explicitly disable column filters (Archived Accounts + Archived Contacts + Archived Opportunities + Archived Revenue Schedules + Archived Products are now exceptions):
 
 - `ListHeader` is typically called with `showColumnFilters={false}` and no filter state props.
 
@@ -55,7 +52,7 @@ Standard lists commonly expose column settings (`onSettingsClick` → `ColumnCho
 - no settings button
 - no `ColumnChooserModal`
 - no preference persistence hooks
-- (Exception) Archived Accounts + Archived Contacts now include column chooser + persisted preferences.
+- (Exception) Archived Accounts + Archived Contacts + Archived Opportunities + Archived Revenue Schedules + Archived Products now include column chooser + persisted preferences.
 - no `onColumnsChange` passed into `DynamicTable` (so even drag/resize changes can’t be saved upstream)
 
 ### 4) Export / richer bulk actions are missing
@@ -147,12 +144,9 @@ Archived Contacts has been upgraded to match the “standard table” UX in thes
 - Main list: `app/(dashboard)/opportunities/page.tsx`
 - Archive list: `app/(dashboard)/admin/archive/opportunities/page.tsx`
 
-Missing features in archive (vs main):
+Remaining differences in archive (vs main):
 
-- **Working sort** (no `onSort`).
-- **Filters parity** (main has status filter + column filters; archive disables).
-- **Column settings + saved preferences**.
-- **Bulk actions parity** (main has owner/status/export; archive does not).
+- Main Opportunities includes additional module-specific bulk actions (owner reassignment, status updates, deactivate) and edit flows; archive page focuses on archive workflows.
 
 Column parity notes:
 
@@ -163,6 +157,19 @@ Archive metadata note:
 
 - Opportunities archive does not show a dedicated “Archived On” timestamp (only “Close Date”).
 
+#### Archived Opportunities parity features added (implemented)
+
+Archived Opportunities has been upgraded to match the “standard table” UX in these areas:
+
+- **Working sort (server-side)**: `DynamicTable` `onSort` wired and forwarded to `/api/opportunities` via `sort`/`direction` (`app/(dashboard)/admin/archive/opportunities/page.tsx` + `app/api/opportunities/route.ts`).
+- **Column filters UI (server-side)**: `ListHeader` column filters enabled and forwarded to `/api/opportunities` via `filters` JSON (`app/(dashboard)/admin/archive/opportunities/page.tsx` + `app/api/opportunities/route.ts`).
+- **Status / quick filter**: quick dropdown added for `Archived` / `All` (maps to `status=inactive` or `status=all`) (`app/(dashboard)/admin/archive/opportunities/page.tsx`).
+- **Column settings + persisted preferences**: `ColumnChooserModal` + `useTablePreferences('opportunities:archive', …)` for column order, widths, hidden columns, and page size (`app/(dashboard)/admin/archive/opportunities/page.tsx`).
+- **Drag reorder + resize**: column drag reorder and resize are enabled and persisted (`app/(dashboard)/admin/archive/opportunities/page.tsx`, `components/dynamic-table.tsx`, `app/globals.css`).
+- **Bulk actions**: `Restore`, `Export CSV`, and `Delete Permanently` are available as standard bulk actions (`app/(dashboard)/admin/archive/opportunities/page.tsx`).
+- **Row navigation**: row click navigates to the Opportunity details page (`/opportunities/[opportunityId]`) (`app/(dashboard)/admin/archive/opportunities/page.tsx`).
+- **Row-level actions**: Restore + Delete moved into the selection column as icon buttons (green `RotateCcw` for restore, red `Trash2` for delete) (`app/(dashboard)/admin/archive/opportunities/page.tsx`).
+
 ---
 
 ### Revenue Schedules
@@ -170,12 +177,9 @@ Archive metadata note:
 - Main list: `app/(dashboard)/revenue-schedules/page.tsx`
 - Archive list: `app/(dashboard)/admin/archive/revenue-schedules/page.tsx`
 
-Missing features in archive (vs main):
+Remaining differences in archive (vs main):
 
-- **Working sort** (no `onSort`).
-- **Filters parity** (main has status/date quick filters + column filters; archive disables).
-- **Column settings + saved preferences** (main supports save table changes; archive does not).
-- **Bulk actions parity** (main supports export + other workflow actions; archive only restore/permanent delete).
+- Main Revenue Schedules includes additional module-specific workflows (date range + quick status filters, bulk apply, status management, clone); archive page focuses on archive workflows.
 
 Column parity notes:
 
@@ -186,6 +190,19 @@ Archive metadata note:
 
 - Revenue schedules archive uses `deletedAt` as “Archived On” (`app/(dashboard)/admin/archive/revenue-schedules/page.tsx`).
 
+#### Archived Revenue Schedules parity features added (implemented)
+
+Archived Revenue Schedules has been upgraded to match the “standard table” UX in these areas:
+
+- **Working sort (server-side)**: `DynamicTable` `onSort` wired and forwarded to `/api/revenue-schedules` via `sort`/`direction` (`app/(dashboard)/admin/archive/revenue-schedules/page.tsx` + `app/api/revenue-schedules/route.ts`).
+- **Column filters UI (server-side)**: `ListHeader` column filters enabled and forwarded to `/api/revenue-schedules` via `filters` JSON (`app/(dashboard)/admin/archive/revenue-schedules/page.tsx` + `app/api/revenue-schedules/route.ts`).
+- **Status / quick filter**: quick dropdown added for `Archived` / `All` (maps to `includeDeleted=true&deletedOnly=true` or `includeDeleted=true`) (`app/(dashboard)/admin/archive/revenue-schedules/page.tsx`).
+- **Column settings + persisted preferences**: `ColumnChooserModal` + `useTablePreferences('revenue-schedules:archive', …)` for column order, widths, hidden columns, and page size (`app/(dashboard)/admin/archive/revenue-schedules/page.tsx`).
+- **Drag reorder + resize**: column drag reorder and resize are enabled and persisted (`app/(dashboard)/admin/archive/revenue-schedules/page.tsx`, `components/dynamic-table.tsx`, `app/globals.css`).
+- **Bulk actions**: `Restore`, `Export CSV`, and `Delete Permanently` are available as standard bulk actions (`app/(dashboard)/admin/archive/revenue-schedules/page.tsx`).
+- **Row navigation**: row click navigates to the Revenue Schedule details page (`/revenue-schedules/[revenueScheduleId]`) (`app/(dashboard)/admin/archive/revenue-schedules/page.tsx`).
+- **Row-level actions**: Restore + Delete moved into the selection column as icon buttons (green `RotateCcw` for restore, red `Trash2` for delete) (`app/(dashboard)/admin/archive/revenue-schedules/page.tsx`).
+
 ---
 
 ### Products (Catalog)
@@ -193,17 +210,28 @@ Archive metadata note:
 - Main list: `app/(dashboard)/products/page.tsx`
 - Archive list: `app/(dashboard)/admin/archive/products/page.tsx`
 
-Missing features in archive (vs main):
+Remaining differences in archive (vs main):
 
-- **Working sort** (no `onSort`).
-- **Filters parity** (main uses filter options + column filters; archive disables).
-- **Column settings + saved preferences**.
-- **Bulk actions parity** (main provides export + other actions; archive only restore/permanent delete).
+- Main Catalog includes additional module-specific workflows (create + edit flows, active status toggles, richer columns); archive page focuses on archive workflows.
+- Restore is Admin-only (the API enforces this), so non-admins can still view but cannot restore.
 
 Column parity notes:
 
 - Archive list shows a subset (house/vendor names, part #, distributor/vendor, revenue type, has schedules).
 - Archive list does **not** show an “Archived On” timestamp column.
+
+#### Archived Products parity features added (implemented)
+
+Archived Products has been upgraded to match the “standard table” UX in these areas:
+
+- **Working sort (server-side)**: `DynamicTable` `onSort` wired and forwarded to `/api/products` via `sort`/`direction` (`app/(dashboard)/admin/archive/products/page.tsx` + `app/api/products/route.ts`).
+- **Column filters UI (server-side)**: `ListHeader` column filters enabled and forwarded to `/api/products` via `filters` JSON (`app/(dashboard)/admin/archive/products/page.tsx` + `app/api/products/route.ts`).
+- **Status / quick filter**: quick dropdown added for `Archived` / `Active` / `All` (maps to `status=inactive`, `status=active`, or `status=all`) (`app/(dashboard)/admin/archive/products/page.tsx`).
+- **Column settings + persisted preferences**: `ColumnChooserModal` + `useTablePreferences('products:archive', …)` for column order, widths, hidden columns, and page size (`app/(dashboard)/admin/archive/products/page.tsx`).
+- **Drag reorder + resize**: column drag reorder and resize are enabled and persisted (`app/(dashboard)/admin/archive/products/page.tsx`, `components/dynamic-table.tsx`, `app/globals.css`).
+- **Bulk actions**: `Restore`, `Export CSV`, and `Delete Permanently` are available as standard bulk actions (`app/(dashboard)/admin/archive/products/page.tsx`).
+- **Row navigation**: row click navigates to the Product details page (`/products/[productId]`) (`app/(dashboard)/admin/archive/products/page.tsx`).
+- **Row-level actions**: Restore + Delete moved into the selection column as icon buttons (green `RotateCcw` for restore, red `Trash2` for delete) (`app/(dashboard)/admin/archive/products/page.tsx`).
 
 ---
 

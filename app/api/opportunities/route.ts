@@ -196,6 +196,52 @@ export async function GET(request: NextRequest) {
             case "opportunityName":
               filterConditions.push({ name: { contains: rawValue, mode: "insensitive" } })
               break
+            case "accountLegalName":
+              filterConditions.push({ account: { accountLegalName: { contains: rawValue, mode: "insensitive" } } })
+              break
+            case "orderIdHouse":
+              filterConditions.push({ orderIdHouse: { contains: rawValue, mode: "insensitive" } })
+              break
+            case "accountIdVendor":
+              filterConditions.push({ accountIdVendor: { contains: rawValue, mode: "insensitive" } })
+              break
+            case "customerIdVendor":
+              filterConditions.push({ customerIdVendor: { contains: rawValue, mode: "insensitive" } })
+              break
+            case "locationId":
+              filterConditions.push({ locationId: { contains: rawValue, mode: "insensitive" } })
+              break
+            case "opportunityId": {
+              const uuidRegex =
+                /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+              if (uuidRegex.test(rawValue)) {
+                filterConditions.push({ id: rawValue })
+              } else {
+                // Backwards-compatible behavior: Opportunity ID is often a derived display field (id slice).
+                // The closest persisted search key is orderIdHouse.
+                filterConditions.push({ orderIdHouse: { contains: rawValue, mode: "insensitive" } })
+              }
+              break
+            }
+            case "closeDate": {
+              const parsedDate = new Date(rawValue)
+              if (Number.isNaN(parsedDate.getTime())) {
+                break
+              }
+
+              const startOfDay = new Date(parsedDate)
+              startOfDay.setHours(0, 0, 0, 0)
+              const endOfDay = new Date(startOfDay)
+              endOfDay.setDate(endOfDay.getDate() + 1)
+
+              filterConditions.push({
+                OR: [
+                  { actualCloseDate: { gte: startOfDay, lt: endOfDay } },
+                  { estimatedCloseDate: { gte: startOfDay, lt: endOfDay } },
+                ],
+              })
+              break
+            }
             case "stage": {
               const matches = (Object.values(OpportunityStage) as string[]).filter(stage =>
                 stage.toLowerCase().includes(valueLower)

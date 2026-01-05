@@ -540,7 +540,7 @@ model OpportunityProduct {
   productCodeSnapshot        String?
   productNameHouseSnapshot   String?
   productNameVendorSnapshot  String?
-  revenueTypeSnapshot        RevenueType?
+  revenueTypeSnapshot        String?
   priceEachSnapshot          Decimal?                 @db.Decimal(16, 2)
   commissionPercentSnapshot  Decimal?                 @db.Decimal(5, 2)
   distributorNameSnapshot    String?
@@ -599,7 +599,7 @@ model Product {
   productNameHouse              String
   productNameVendor             String?
   description                   String?
-  revenueType                   RevenueType
+  revenueType                   String
   commissionPercent             Decimal?             @db.Decimal(5, 2)
   priceEach                     Decimal?             @db.Decimal(16, 2)
   isActive                      Boolean              @default(true)
@@ -1274,15 +1274,6 @@ enum LeadSource {
   Outbound
   Partner
   Other
-}
-
-enum RevenueType {
-  NRC_PerItem
-  NRC_Percent
-  NRC_FlatFee
-  NRC_Resale
-  MRC_ThirdParty
-  MRC_House
 }
 
 enum RevenueScheduleType {
