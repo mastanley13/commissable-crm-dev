@@ -74,6 +74,14 @@ interface ProductSubtypeOption {
   familyName: string | null
 }
 
+type VendorDistributorLock = {
+  locked: boolean
+  distributorAccountId: string | null
+  distributorName: string | null
+  vendorAccountId: string | null
+  vendorName: string | null
+}
+
 function getAllowedSubtypesForFamilyName(
   subtypes: ProductSubtypeOption[],
   familyIdByName: Map<string, string>,
@@ -132,8 +140,82 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
   const [masterSubtypes, setMasterSubtypes] = useState<ProductSubtypeOption[]>([])
   const [masterDataError, setMasterDataError] = useState<string | null>(null)
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const [vendorDistributorLock, setVendorDistributorLock] = useState<VendorDistributorLock | null>(null)
+  const [vendorDistributorLockLoading, setVendorDistributorLockLoading] = useState(false)
 
   const { showError, showSuccess } = useToasts()
+
+  const vendorDistributorLocked = Boolean(vendorDistributorLock?.locked)
+
+  const filteredCatalogProducts = useMemo(() => {
+    const query = productInput.trim().toLowerCase()
+    if (!query) {
+      return productOptions
+    }
+
+    return productOptions.filter((product) => {
+      const name = product.name.toLowerCase()
+      const productCode = (product.productCode ?? "").toLowerCase()
+      const vendorName = (product.vendorName ?? "").toLowerCase()
+
+      return (
+        name.includes(query) ||
+        productCode.includes(query) ||
+        vendorName.includes(query)
+      )
+    })
+  }, [productInput, productOptions])
+
+  const showNoCatalogProductsFound = useMemo(() => {
+    if (!isOpen) return false
+    if (activeTab !== "add") return false
+    if (!productInput.trim()) return false
+    if (loading) return false
+    return filteredCatalogProducts.length === 0
+  }, [activeTab, filteredCatalogProducts.length, isOpen, loading, productInput])
+
+  const showCatalogSelectionHint = useMemo(() => {
+    if (!isOpen) return false
+    if (activeTab !== "add") return false
+    if (!productInput.trim()) return false
+    if (loading) return false
+    if (form.productId) return false
+    return filteredCatalogProducts.length > 0
+  }, [activeTab, filteredCatalogProducts.length, form.productId, isOpen, loading, productInput])
+
+  const switchToCreateWithCatalogFields = useCallback(() => {
+    const nextProductName = productInput.trim()
+    if (nextProductName) {
+      setProductNameVendor(prev => (prev.trim() ? prev : nextProductName))
+      setProductNameHouse(prev => (prev.trim() ? prev : nextProductName))
+    }
+
+    const family = (catalogFamilyFilter || catalogFamilyInput).trim()
+    if (family && familyOptions.includes(family)) {
+      setProductFamilyVendorInput(family)
+    }
+
+    const subtype = (catalogSubtypeFilter || catalogSubtypeInput).trim()
+    if (subtype) {
+      const allowed = getAllowedSubtypesForFamilyName(masterSubtypes, familyIdByName, family || productFamilyVendorInput)
+      if (allowed.includes(subtype)) {
+        setProductSubtypeVendor(subtype)
+      }
+    }
+
+    setShowProductDropdown(false)
+    setActiveTab("create")
+  }, [
+    catalogFamilyFilter,
+    catalogFamilyInput,
+    catalogSubtypeFilter,
+    catalogSubtypeInput,
+    familyIdByName,
+    familyOptions,
+    masterSubtypes,
+    productFamilyVendorInput,
+    productInput,
+  ])
 
   // Accounts lookup (Distributor/Vendor)
   const fetchAccounts = useCallback(async (type: 'Distributor' | 'Vendor', query: string) => {
@@ -371,6 +453,8 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
     setMasterFamilies([]); setMasterSubtypes([])
     setMasterDataError(null)
     setSubmitError(null)
+    setVendorDistributorLock(null)
+    setVendorDistributorLockLoading(false)
     const now = new Date(); const first = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1))
     setForm(prev => ({ ...prev, commissionStartDate: first.toISOString().slice(0,10) }))
     // Default to Add Product from Catalog when modal opens
@@ -378,6 +462,66 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
     setUnitPriceFocused(false)
     setCommissionPercentFocused(false)
   }, [isOpen])
+
+  // Detect and lock vendor/distributor context when an opportunity already has line items.
+  useEffect(() => {
+    if (!isOpen) return
+    let cancelled = false
+    setVendorDistributorLockLoading(true)
+
+    fetch(`/api/opportunities/${opportunityId}/vendor-distributor`, { cache: "no-store" })
+      .then(async (res) => {
+        const payload = await res.json().catch(() => null)
+        if (!res.ok) {
+          const message = typeof payload?.error === "string" ? payload.error : "Failed to load opportunity vendor/distributor context"
+          throw new Error(message)
+        }
+        return payload
+      })
+      .then((payload) => {
+        if (cancelled) return
+
+        const data = payload?.data ?? null
+        const next: VendorDistributorLock = {
+          locked: Boolean(data?.locked),
+          distributorAccountId: typeof data?.distributorAccountId === "string" ? data.distributorAccountId : null,
+          distributorName: typeof data?.distributorName === "string" ? data.distributorName : null,
+          vendorAccountId: typeof data?.vendorAccountId === "string" ? data.vendorAccountId : null,
+          vendorName: typeof data?.vendorName === "string" ? data.vendorName : null,
+        }
+
+        setVendorDistributorLock(next)
+
+        if (next.locked) {
+          setSelectedDistributorId(next.distributorAccountId ?? "")
+          setSelectedVendorId(next.vendorAccountId ?? "")
+          setDistributorInput(next.distributorName ?? "")
+          setVendorInput(next.vendorName ?? "")
+          setShowDistributorDropdown(false)
+          setShowVendorDropdown(false)
+        }
+      })
+      .catch((error) => {
+        if (cancelled) return
+        console.error("Failed to load opportunity vendor/distributor context", error)
+        setVendorDistributorLock({
+          locked: false,
+          distributorAccountId: null,
+          distributorName: null,
+          vendorAccountId: null,
+          vendorName: null,
+        })
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setVendorDistributorLockLoading(false)
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [isOpen, opportunityId])
 
   // Load product options (revenue types) once when modal opens
   useEffect(() => {
@@ -739,6 +883,17 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
               </div>
             </div>
           )}
+
+          {vendorDistributorLocked && (
+            <div className="px-6 pt-3">
+              <div className="mb-3 rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900">
+                This Opportunity is locked to a single Distributor/Vendor based on existing line items:
+                <span className="ml-2 font-semibold">
+                  {(vendorDistributorLock?.distributorName ?? "—")} / {(vendorDistributorLock?.vendorName ?? "—")}
+                </span>
+              </div>
+            </div>
+          )}
   
           {activeTab === "add" && (
           <form className="max-h-[80vh] overflow-y-auto px-6 py-3" onSubmit={handleSubmit}>
@@ -754,6 +909,7 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
                     onBlur={()=>setTimeout(()=>setShowDistributorDropdown(false),200)}
                     placeholder="Type or select distributor"
                     className={inputCls}
+                    disabled={loading || vendorDistributorLockLoading || vendorDistributorLocked}
                   />
                   {showDistributorDropdown && distributorOptions.length > 0 && (
                     <div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
@@ -775,6 +931,7 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
                     onBlur={()=>setTimeout(()=>setShowVendorDropdown(false),200)}
                     placeholder="Type or select vendor"
                     className={inputCls}
+                    disabled={loading || vendorDistributorLockLoading || vendorDistributorLocked}
                   />
                   {showVendorDropdown && vendorOptions.length > 0 && (
                     <div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
@@ -881,10 +1038,7 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
                     />
                     {showProductDropdown && (
                       <div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
-                        {productOptions.filter(p=>{
-                          const q = productInput.toLowerCase();
-                          return !q || p.name.toLowerCase().includes(q) || (p.productCode??'').toLowerCase().includes(q) || (p.vendorName??'').toLowerCase().includes(q)
-                        }).map(option => {
+                        {filteredCatalogProducts.map(option => {
                           const metaParts = [
                             option.productCode ?? '',
                             option.vendorName ?? '',
@@ -915,6 +1069,33 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
                       </div>
                     )}
                   </div>
+                  {showNoCatalogProductsFound && (
+                    <div className="mt-2 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">
+                      No matching catalog product found.{" "}
+                      <button
+                        type="button"
+                        className="font-semibold text-primary-700 underline underline-offset-2 hover:text-primary-800"
+                        onClick={switchToCreateWithCatalogFields}
+                      >
+                        Create New Product
+                      </button>
+                      <span className="text-amber-800"> (your current fields will carry over).</span>
+                    </div>
+                  )}
+                  {!showNoCatalogProductsFound && showCatalogSelectionHint && (
+                    <div className="mt-2 rounded-md border border-slate-200 bg-slate-50 p-2 text-xs text-slate-800">
+                      Select a product from the dropdown list to enable{" "}
+                      <span className="font-semibold">Add</span>.{" "}
+                      <button
+                        type="button"
+                        className="font-semibold text-primary-700 underline underline-offset-2 hover:text-primary-800"
+                        onClick={() => setShowProductDropdown(true)}
+                      >
+                        Show matches
+                      </button>
+                      .
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1070,6 +1251,7 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
                     onBlur={()=>setTimeout(()=>setShowDistributorDropdown(false),200)}
                     placeholder="Type distributor name"
                     className={inputCls}
+                    disabled={loading || vendorDistributorLockLoading || vendorDistributorLocked}
                   />
                   {showDistributorDropdown && distributorOptions.length > 0 && (
                     <div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
@@ -1091,6 +1273,7 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
                     onBlur={()=>setTimeout(()=>setShowVendorDropdown(false),200)}
                     placeholder="Type vendor name"
                     className={inputCls}
+                    disabled={loading || vendorDistributorLockLoading || vendorDistributorLocked}
                   />
                   {showVendorDropdown && vendorOptions.length > 0 && (
                     <div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
