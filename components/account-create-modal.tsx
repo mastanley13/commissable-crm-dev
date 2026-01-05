@@ -3,6 +3,7 @@
 import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react"
 import { useAuth } from "@/lib/auth-context"
 import { SelectCombobox } from "./select-combobox"
+import { ModalHeader } from "./ui/modal-header"
 
 export interface AddressFormValues {
   line1: string
@@ -407,11 +408,7 @@ export function AccountCreateModal({ isOpen, onClose, onSubmit }: AccountCreateM
       <div
         className="w-full max-w-5xl h-[900px] flex flex-col rounded-xl bg-white shadow-xl"
       >
-        <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900">Add Account</h2>
-          </div>
-        </div>
+        <ModalHeader kicker="Create Account" title="Add Account" />
 
         <form onSubmit={handleSubmit} className="px-6 py-6">
           {formError && (

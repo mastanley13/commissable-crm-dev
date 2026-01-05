@@ -1,5 +1,7 @@
 "use client"
 
+import { ModalHeader } from "./ui/modal-header"
+
 interface ConfirmDialogProps {
   isOpen: boolean
   title: string
@@ -15,7 +17,6 @@ interface ConfirmDialogProps {
 export function ConfirmDialog({
   isOpen,
   title,
-  description,
   confirmLabel = "Confirm",
   cancelLabel = "Cancel",
   onConfirm,
@@ -33,17 +34,14 @@ export function ConfirmDialog({
         className="w-full max-w-md rounded-xl bg-white shadow-xl"
         onClick={event => event.stopPropagation()}
       >
-        <div className="px-6 py-5">
-          <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
-          {description && (
-            <p className="mt-2 text-sm text-gray-500">{description}</p>
-          )}
-          {error && (
-            <div className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+        <ModalHeader kicker="Confirm" title={title} />
+        {error ? (
+          <div className="px-6 py-4">
+            <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
               {error}
             </div>
-          )}
-        </div>
+          </div>
+        ) : null}
         <div className="flex items-center justify-end gap-3 border-t border-gray-200 px-6 py-4">
           <button
             type="button"

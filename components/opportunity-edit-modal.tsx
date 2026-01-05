@@ -5,6 +5,7 @@ import { LeadSource, OpportunityStage, OpportunityStatus } from "@prisma/client"
 import { getOpportunityStageOptions, isOpportunityStageAutoManaged, isOpportunityStageValue, type OpportunityStageOption } from "@/lib/opportunity-stage"
 import { Loader2, X } from "lucide-react"
 import { useToasts } from "@/components/toast"
+import { ModalHeader } from "@/components/ui/modal-header"
 
 interface SelectOption {
   value: string
@@ -195,9 +196,7 @@ export function OpportunityEditModal({ isOpen, opportunityId, onClose, onSuccess
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="w-full max-w-2xl overflow-hidden rounded-lg bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
-          <h2 className="text-lg font-semibold text-gray-900">Edit Opportunity</h2>
-        </div>
+        <ModalHeader kicker="Edit Opportunity" title="Update Opportunity Details" />
 
         {fetching ? (
           <div className="flex flex-col items-center justify-center gap-3 px-6 py-20">

@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react"
 import { Loader2, Search } from "lucide-react"
 import { useToasts } from "@/components/toast"
+import { ModalHeader } from "@/components/ui/modal-header"
 import { OpportunityLineItemRecord } from "./opportunity-types"
 import { getRevenueTypeLabel } from "@/lib/revenue-types"
 import { formatCurrencyDisplay, formatDecimalToFixed, normalizeDecimalInput } from "@/lib/number-format"
@@ -330,14 +331,7 @@ export function OpportunityLineItemEditModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 px-4">
       <div className="w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-primary-600">
-              Edit Line Item
-            </p>
-            <h2 className="text-lg font-semibold text-gray-900">Update Opportunity Product</h2>
-          </div>
-        </div>
+        <ModalHeader kicker="Edit Line Item" title="Update Opportunity Product" />
 
         <form className="max-h-[80vh] overflow-y-auto px-6 py-6" onSubmit={handleSubmit}>
           <div className="space-y-6">

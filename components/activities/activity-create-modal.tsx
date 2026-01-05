@@ -5,6 +5,7 @@ import { Plus, Loader2 } from 'lucide-react'
 import { ActivityStatus, ActivityType } from '@prisma/client'
 import { DEFAULT_OPEN_ACTIVITY_STATUS } from '@/lib/activity-status'
 import { useToasts } from '@/components/toast'
+import { ModalHeader } from '@/components/ui/modal-header'
 
 interface Option {
   value: string
@@ -240,9 +241,7 @@ export function ActivityCreateModal({ isOpen, onClose, onCreated, defaultAccount
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
       <div className="w-full max-w-5xl h-[900px] flex flex-col rounded-xl bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
-          <h2 className="text-lg font-semibold text-gray-900">Create Activity</h2>
-        </div>
+        <ModalHeader kicker="Create Activity" title="Log Activity" />
         <form onSubmit={handleSubmit} className="flex-1 px-6 py-4">
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="col-span-1">

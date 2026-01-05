@@ -2030,9 +2030,6 @@ export function DepositReconciliationDetailView({
           <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
             <div>
               <h2 className="text-lg font-semibold text-slate-900">Review matches before reconciliation</h2>
-              <p className="text-xs text-slate-500">
-                Matched line items and schedules will be reconciled when you confirm.
-              </p>
             </div>
             <button
               type="button"
@@ -2099,9 +2096,6 @@ export function DepositReconciliationDetailView({
           <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
             <div>
               <h2 className="text-lg font-semibold text-slate-900">Review reconciled items</h2>
-              <p className="text-xs text-slate-500">
-                The reconciled line items and schedules below will be returned to an open state when you unreconcile this deposit.
-              </p>
             </div>
             <button
               type="button"

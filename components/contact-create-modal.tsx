@@ -5,6 +5,7 @@ import { Loader2 } from "lucide-react"
 
 import { formatPhoneNumber } from "@/lib/validation-shared"
 import { useToasts } from "./toast"
+import { ModalHeader } from "./ui/modal-header"
 
 interface ContactOptions {
   accountTypes: Array<{ value: string; label: string; code: string }>
@@ -369,12 +370,7 @@ export function ContactCreateModal({ isOpen, onClose, onSuccess, options, defaul
       <div
         className="w-full max-w-5xl h-[900px] flex flex-col rounded-xl bg-white shadow-xl"
       >
-        <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900">Create New Contact</h2>
-            <p className="text-sm text-gray-500">Enter the information required for the new contact.</p>
-          </div>
-        </div>
+        <ModalHeader kicker="Create Contact" title="Create New Contact" />
 
         <form onSubmit={handleSubmit} className="px-6 py-6">
           {error && (

@@ -35,8 +35,6 @@ All archive pages mark many columns as `sortable: true`, but do **not** pass `on
 
 - `components/dynamic-table.tsx` (see `handleSort` and lack of any internal data sorting)
 - Examples of archive tables missing `onSort`:
-  - `app/(dashboard)/admin/archive/accounts/page.tsx`
-  - `app/(dashboard)/admin/archive/contacts/page.tsx`
   - `app/(dashboard)/admin/archive/opportunities/page.tsx`
   - `app/(dashboard)/admin/archive/revenue-schedules/page.tsx`
   - `app/(dashboard)/admin/archive/products/page.tsx`
@@ -46,9 +44,9 @@ All archive pages mark many columns as `sortable: true`, but do **not** pass `on
 
 ### 2) Column filters are disabled across archive pages
 
-Archive headers explicitly disable column filters:
+Most archive headers explicitly disable column filters (Archived Accounts + Archived Contacts are now exceptions):
 
-- `ListHeader` is always called with `showColumnFilters={false}` and no filter state props.
+- `ListHeader` is typically called with `showColumnFilters={false}` and no filter state props.
 
 ### 3) Column settings / saved preferences are missing in archive pages
 
@@ -57,6 +55,7 @@ Standard lists commonly expose column settings (`onSettingsClick` → `ColumnCho
 - no settings button
 - no `ColumnChooserModal`
 - no preference persistence hooks
+- (Exception) Archived Accounts + Archived Contacts now include column chooser + persisted preferences.
 - no `onColumnsChange` passed into `DynamicTable` (so even drag/resize changes can’t be saved upstream)
 
 ### 4) Export / richer bulk actions are missing
@@ -95,6 +94,19 @@ Archive metadata note:
 
 - Accounts archive uses `updatedAt` labeled “Archived On” (`app/(dashboard)/admin/archive/accounts/page.tsx`).
 
+#### Archived Accounts parity features added (implemented)
+
+Archived Accounts has been upgraded to match the “standard table” UX in these areas:
+
+- **Working sort (server-side)**: `DynamicTable` `onSort` wired and forwarded to `/api/accounts` via `sortBy`/`sortDir` (`app/(dashboard)/admin/archive/accounts/page.tsx` + `app/api/accounts/route.ts`).
+- **Column filters UI (server-side)**: `ListHeader` column filters enabled and forwarded to `/api/accounts` via `filters` JSON (`app/(dashboard)/admin/archive/accounts/page.tsx` + `app/api/accounts/route.ts`).
+- **Status / quick filter**: quick dropdown added for `Archived` / `Inactive` / `All` (maps to `status=archived`, `status=inactive`, or `includeArchived=true`) (`app/(dashboard)/admin/archive/accounts/page.tsx`).
+- **Column settings + persisted preferences**: `ColumnChooserModal` + `useTablePreferences('accounts:archive', …)` for column order, widths, hidden columns, and page size (`app/(dashboard)/admin/archive/accounts/page.tsx`).
+- **Drag reorder + resize**: column drag reorder and resize are enabled and persisted (including the `Select All` column) (`components/dynamic-table.tsx`, `app/globals.css`, `app/(dashboard)/admin/archive/accounts/page.tsx`).
+- **Bulk actions**: `Restore`, `Export CSV`, and `Delete Permanently` are available as standard bulk actions (`app/(dashboard)/admin/archive/accounts/page.tsx`).
+- **Row navigation**: row click navigates to the Account details page (`/accounts/[accountId]`) (`app/(dashboard)/admin/archive/accounts/page.tsx`).
+- **Row-level actions**: Restore + Delete moved into the selection column as icon buttons (green `RotateCcw` for restore, red `Trash2` for delete) (`app/(dashboard)/admin/archive/accounts/page.tsx`).
+
 ---
 
 ### Contacts
@@ -102,12 +114,9 @@ Archive metadata note:
 - Main list: `app/(dashboard)/contacts/page.tsx`
 - Archive list: `app/(dashboard)/admin/archive/contacts/page.tsx`
 
-Missing features in archive (vs main):
+Remaining differences in archive (vs main):
 
-- **Working sort** (no `onSort`).
-- **Filters parity** (main supports status + multiple column filters; archive disables them).
-- **Column settings + saved preferences**.
-- **Bulk actions parity** (reassign/status/export are present in main; archive only restore/permanent delete).
+- Main Contacts includes additional module-specific bulk actions (owner reassignment, status updates, deactivate), plus create/edit flows; archive page currently focuses on archive workflows.
 
 Column parity notes:
 
@@ -117,6 +126,19 @@ Column parity notes:
 Archive metadata note:
 
 - Contacts archive uses `deletedAt` labeled “Archived On” (`app/(dashboard)/admin/archive/contacts/page.tsx`).
+
+#### Archived Contacts parity features added (implemented)
+
+Archived Contacts has been upgraded to match the “standard table” UX in these areas:
+
+- **Working sort (server-side)**: `DynamicTable` `onSort` wired and forwarded to `/api/contacts` via `sortBy`/`sortDir` (`app/(dashboard)/admin/archive/contacts/page.tsx` + `app/api/contacts/route.ts`).
+- **Column filters UI (server-side)**: `ListHeader` column filters enabled and forwarded to `/api/contacts` via `columnFilters` JSON (`app/(dashboard)/admin/archive/contacts/page.tsx` + `app/api/contacts/route.ts`).
+- **Status / quick filter**: quick dropdown added for `Archived` / `Active` / `All` (maps to `includeDeleted=true&deletedOnly=true`, default active-only, or `includeDeleted=true`) (`app/(dashboard)/admin/archive/contacts/page.tsx`).
+- **Column settings + persisted preferences**: `ColumnChooserModal` + `useTablePreferences('contacts:archive', …)` for column order, widths, hidden columns, and page size (`app/(dashboard)/admin/archive/contacts/page.tsx`).
+- **Drag reorder + resize**: column drag reorder and resize are enabled and persisted (`app/(dashboard)/admin/archive/contacts/page.tsx`, `components/dynamic-table.tsx`, `app/globals.css`).
+- **Bulk actions**: `Restore`, `Export CSV`, and `Delete Permanently` are available as standard bulk actions (`app/(dashboard)/admin/archive/contacts/page.tsx`).
+- **Row navigation**: row click navigates to the Contact details page (`/contacts/[contactId]`) (`app/(dashboard)/admin/archive/contacts/page.tsx`).
+- **Row-level actions**: Restore + Delete moved into the selection column as icon buttons (green `RotateCcw` for restore, red `Trash2` for delete) (`app/(dashboard)/admin/archive/contacts/page.tsx`).
 
 ---
 
@@ -413,4 +435,3 @@ Acceptance criteria (if implemented):
   - selection across pages (and how “select all” behaves with server pagination)
   - filter/search resets selection appropriately
 - Update docs and add a small parity checklist to prevent drift.
-

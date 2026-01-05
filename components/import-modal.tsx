@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useRef } from "react"
 import { Upload, FileText, X, AlertCircle, CheckCircle, Download } from "lucide-react"
+import { ModalHeader } from "./ui/modal-header"
 
 export interface ImportResult {
   totalRows: number
@@ -266,21 +267,10 @@ export function ImportModal({ entityType, isOpen, onClose, onSuccess }: ImportMo
         className="w-full max-w-4xl rounded-xl bg-white shadow-xl"
         onClick={e => e.stopPropagation()}
       >
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900">
-              Import {entityType.charAt(0).toUpperCase() + entityType.slice(1)}
-            </h2>
-            <p className="text-sm text-gray-500">
-              {step === 'upload' && 'Upload a CSV or Excel file to import data'}
-              {step === 'mapping' && 'Map CSV columns to system fields'}
-              {step === 'validation' && 'Review validation results'}
-              {step === 'processing' && 'Processing import...'}
-              {step === 'results' && 'Import completed'}
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
+        <ModalHeader
+          kicker="Import"
+          title={`Import ${entityType.charAt(0).toUpperCase() + entityType.slice(1)}`}
+          right={
             <button
               onClick={downloadTemplate}
               className="inline-flex items-center gap-2 rounded-lg bg-gray-100 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200"
@@ -288,8 +278,8 @@ export function ImportModal({ entityType, isOpen, onClose, onSuccess }: ImportMo
               <Download className="h-4 w-4" />
               Template
             </button>
-          </div>
-        </div>
+          }
+        />
 
         {/* Progress Steps */}
         <div className="border-b border-gray-200 px-6 py-4">

@@ -2,6 +2,7 @@
 
 import { Fragment } from "react"
 import { cn } from "@/lib/utils"
+import { ModalHeader } from "./ui/modal-header"
 
 export interface AutoMatchPreviewLine {
   lineId: string
@@ -51,12 +52,10 @@ export function AutoMatchPreviewModal({
         className="w-full max-w-2xl rounded-2xl bg-white shadow-xl"
         onClick={event => event.stopPropagation()}
       >
+        <ModalHeader kicker="AI Matching" title="Run AI Matching" />
+
         <div className="px-6 py-5">
-          <h2 className="text-lg font-semibold text-slate-900">Run AI Matching</h2>
-          <p className="mt-2 text-sm text-slate-600">
-            Review the lines eligible for automatic matching. Only exact matches (Pass A) within the tenant variance tolerance will be applied.
-          </p>
-          <ol className="mt-3 list-decimal space-y-1 pl-5 text-sm text-slate-700">
+          <ol className="list-decimal space-y-1 pl-5 text-sm text-slate-700">
             <li>Preview auto-matches (Pass A exact) for the deposit.</li>
             <li>Apply auto-matches, then review fuzzy suggestions manually.</li>
             <li>Confirm allocations, then finalize the deposit.</li>

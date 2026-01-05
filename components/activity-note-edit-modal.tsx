@@ -5,6 +5,7 @@ import { ActivityStatus, ActivityType } from "@prisma/client"
 import { DEFAULT_OPEN_ACTIVITY_STATUS } from "@/lib/activity-status"
 import { Loader2 } from "lucide-react"
 import { useToasts } from "@/components/toast"
+import { ModalHeader } from "@/components/ui/modal-header"
 
 interface SelectOption {
   value: string
@@ -184,12 +185,7 @@ export function ActivityNoteEditModal({ isOpen, activityId, accountId, contactId
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="w-full max-w-3xl overflow-hidden rounded-xl bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900">Edit Activity & Note</h2>
-            <p className="text-sm text-gray-500">Update the activity details for this record.</p>
-          </div>
-        </div>
+        <ModalHeader kicker="Edit Activity" title="Update Activity & Note" />
 
         {fetching ? (
           <div className="flex flex-col items-center justify-center gap-3 px-6 py-16">

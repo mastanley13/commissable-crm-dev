@@ -53,8 +53,8 @@ export function OpportunityCreateModal({ isOpen, accountId, accountName, onClose
     referredByContactId: "",
     subAgent: "",
     subagentContactId: "",
-    houseRepPercent: "",
-    subagentPercent: "",
+    houseRepPercent: "0.00",
+    subagentPercent: "0.00",
     description: ""
   })
   const [accountLegalName, setAccountLegalName] = useState<string>("")
@@ -89,53 +89,87 @@ export function OpportunityCreateModal({ isOpen, accountId, accountName, onClose
       referredByContactId: "",
       subAgent: "",
       subagentContactId: "",
-      houseRepPercent: "",
-      subagentPercent: "",
+      houseRepPercent: "0.00",
+      subagentPercent: "0.00",
       description: ""
     })
+    setAccountLegalName("")
     setContactQuery("")
     setOwnerQuery("")
     setSubagentQuery("")
 
-    // Fetch account legal name
-    if (accountId) {
-      fetch(`/api/accounts/${accountId}`, { cache: "no-store" })
-        .then(async response => {
-          if (response.ok) {
-            const payload = await response.json()
-            setAccountLegalName(payload?.data?.accountLegalName ?? "")
-          }
-        })
-        .catch(() => {
-          setAccountLegalName("")
-        })
-    }
-
     setOptionsLoading(true)
-    fetch("/api/admin/users?limit=100&status=Active", { cache: "no-store" })
-      .then(async response => {
+    let cancelled = false
+
+    ;(async () => {
+      let preferredOwnerId: string | null = null
+
+      if (accountId) {
+        try {
+          const response = await fetch(`/api/accounts/${accountId}`, { cache: "no-store" })
+          if (response.ok) {
+            const payload = await response.json().catch(() => null)
+            const legalName = typeof payload?.data?.accountLegalName === "string" ? payload.data.accountLegalName : ""
+            const ownerIdCandidate = typeof payload?.data?.ownerId === "string" ? payload.data.ownerId.trim() : ""
+
+            if (!cancelled) {
+              setAccountLegalName(legalName ?? "")
+            }
+
+            preferredOwnerId = ownerIdCandidate.length > 0 ? ownerIdCandidate : null
+          }
+        } catch {
+          if (!cancelled) {
+            setAccountLegalName("")
+          }
+        }
+      }
+
+      try {
+        const response = await fetch("/api/admin/users?limit=100&status=Active", { cache: "no-store" })
         if (!response.ok) {
           throw new Error("Failed to load owners")
         }
-        const payload = await response.json()
+        const payload = await response.json().catch(() => null)
         const items = Array.isArray(payload?.data?.users) ? payload.data.users : []
-        const ownerOptions = items.map((user: any) => ({
-          value: user.id,
-          label: user.fullName || user.email
+        const ownerOptions: SelectOption[] = items.map((user: any): SelectOption => ({
+          value: String(user.id ?? ""),
+          label: user.fullName || user.email || ""
         }))
+
+        if (cancelled) {
+          return
+        }
+
         setOwners(ownerOptions)
 
-        // Set default owner to first user and populate query
-        if (ownerOptions.length > 0) {
-          setForm(prev => ({ ...prev, ownerId: ownerOptions[0].value }))
-          setOwnerQuery(ownerOptions[0].label)
+        const preferred =
+          preferredOwnerId != null
+            ? ownerOptions.find(option => option.value === preferredOwnerId) ?? null
+            : null
+        const fallback = ownerOptions.length > 0 ? ownerOptions[0] : null
+        const defaultOption = preferred ?? fallback
+
+        if (defaultOption) {
+          setForm(prev => (prev.ownerId ? prev : { ...prev, ownerId: defaultOption.value }))
+          setOwnerQuery(prev => (prev.trim().length > 0 ? prev : defaultOption.label))
         }
-      })
-      .catch(() => {
+      } catch {
+        if (cancelled) {
+          return
+        }
         setOwners([])
         showError("Unable to load owners", "Please try again later")
-      })
-      .finally(() => setOptionsLoading(false))
+      } finally {
+        if (!cancelled) {
+          setOptionsLoading(false)
+        }
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
   }, [isOpen, accountId, showError])
 
   useEffect(() => {
@@ -584,7 +618,7 @@ export function OpportunityCreateModal({ isOpen, accountId, accountName, onClose
                       key={option.value}
                       type="button"
                       onClick={() => {
-                        setForm(prev => ({ ...prev, subAgent: option.label, subagentContactId: null as any }))
+                        setForm(prev => ({ ...prev, subAgent: option.label, subagentContactId: option.value }))
                         setSubagentQuery(option.label)
                         setShowSubagentDropdown(false)
                       }}

@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { Loader2 } from "lucide-react"
 
 import { useToasts } from "./toast"
+import { ModalHeader } from "./ui/modal-header"
 
 interface ContactOptions {
   accountTypes: Array<{ value: string; label: string; code: string }>
@@ -422,12 +423,7 @@ export function ContactEditModal({ isOpen, onClose, onSuccess, contact }: Contac
         className="w-full max-w-5xl rounded-xl bg-white shadow-xl"
         onClick={event => event.stopPropagation()}
       >
-        <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900">Edit Contact</h2>
-            <p className="text-sm text-gray-500">Update the contact information below.</p>
-          </div>
-        </div>
+        <ModalHeader kicker="Edit Contact" title="Update Contact Details" />
 
         <form onSubmit={handleSubmit} className="px-6 py-6">
           {(error || optionsLoading) && (

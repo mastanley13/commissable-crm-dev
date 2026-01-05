@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react"
 import { Loader2 } from "lucide-react"
 
 import { useToasts } from "@/components/toast"
+import { ModalHeader } from "@/components/ui/modal-header"
 
 type SplitType = "House" | "HouseRep" | "Subagent"
 
@@ -87,14 +88,9 @@ export function CommissionPayoutCreateModal({
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 p-4">
       <div className="w-full max-w-lg rounded-2xl bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
-          <div>
-            <h2 className="text-sm font-semibold text-gray-900">Record Payment</h2>
-            <p className="text-xs text-gray-500">Adds a payout transaction for this revenue schedule.</p>
-          </div>
-        </div>
+        <ModalHeader kicker="Record Payment" title="Record Payment" />
 
-        <form onSubmit={handleSubmit} className="space-y-4 px-4 py-4">
+        <form onSubmit={handleSubmit} className="space-y-4 px-6 py-4">
           <div>
             <label className={labelCls}>Split</label>
             <select

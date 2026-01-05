@@ -12,6 +12,13 @@ import { checkDeletionConstraints, softDeleteEntity, permanentDeleteEntity, rest
 import { ensureActiveOwnerOrNull } from "@/lib/validation"
 import { hasPermission } from "@/lib/auth"
 
+const UUID_REGEX = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/
+
+function isUuid(value: string | null | undefined): value is string {
+  if (!value) return false
+  return UUID_REGEX.test(value.trim())
+}
+
 type AddressInput = {
   line1: string
   city: string
@@ -256,8 +263,8 @@ export async function GET(
           ...(includeDeletedContacts ? {} : { deletedAt: null }) // Archived accounts may need archived contacts visible for cleanup.
         },
         include: { accountType: { select: { name: true } } },
-        orderBy: { createdAt: "desc" }
-      }),
+         orderBy: { createdAt: "desc" }
+       }),
       prisma.opportunity.findMany({
         where: { tenantId, accountId },
         include: { 
@@ -288,6 +295,45 @@ export async function GET(
       })
     ])
 
+    const referredByContactIds = Array.from(
+      new Set(
+        opportunities
+          .map(opportunity => (typeof (opportunity as any)?.referredBy === "string" ? String((opportunity as any).referredBy) : null))
+          .filter(isUuid)
+      )
+    )
+
+    const referredByContacts = referredByContactIds.length > 0
+      ? await prisma.contact.findMany({
+          where: {
+            tenantId,
+            id: { in: referredByContactIds }
+          },
+          select: {
+            id: true,
+            fullName: true
+          }
+        })
+      : []
+
+    const referredByContactNameById = new Map<string, string>(
+      referredByContacts
+        .filter(contact => typeof contact.fullName === "string" && contact.fullName.trim().length > 0)
+        .map(contact => [contact.id, contact.fullName.trim()])
+    )
+
+    const opportunityRows = opportunities.map(opportunity => {
+      const row = mapOpportunityToRow(opportunity as any) as any
+      const referredByValue = typeof row?.referredBy === "string" ? row.referredBy.trim() : ""
+      if (isUuid(referredByValue)) {
+        const name = referredByContactNameById.get(referredByValue)
+        if (name) {
+          row.referredBy = name
+        }
+      }
+      return row
+    })
+
     const data = {
       id: account.id,
       accountName: account.accountName,
@@ -313,7 +359,7 @@ export async function GET(
         Boolean(account.shippingSyncBilling) ||
         (!account.billingAddressId && Boolean(account.shippingAddressId)),
       contacts: contacts.map(mapAccountContactRow),
-      opportunities: opportunities.map(mapOpportunityToRow),
+      opportunities: opportunityRows,
       groups: groupMembers.map(mapAccountGroupRow),
       activities: activities.map(activity => mapAccountActivityRow(account.accountName, activity))
     }

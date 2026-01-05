@@ -350,9 +350,6 @@ export function RoleEditModal({ isOpen, role, loading = false, error, onClose, o
               <h2 className="mt-1 text-2xl font-semibold text-gray-900">
                 {role ? `Edit Role: ${role.name}` : 'Edit Role'}
               </h2>
-              <p className="mt-1 text-sm text-gray-500">
-                {role ? `${role.userCount} user${role.userCount !== 1 ? 's' : ''} assigned` : ''}
-              </p>
               {templateApplied && (
                 <div className="mt-2 flex items-center gap-2">
                   <div className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full font-medium">

@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react"
 
 import { useToasts } from "@/components/toast"
+import { ModalHeader } from "@/components/ui/modal-header"
 import { formatCurrencyDisplay, formatDecimalToFixed, formatPercentDisplay, normalizeDecimalInput } from "@/lib/number-format"
 import { sortByPicklistName } from "@/lib/picklist-sort"
 
@@ -696,12 +697,10 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 px-4">
       <div className="w-full max-w-5xl h-[900px] overflow-hidden rounded-2xl bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b border-gray-200 px-6 py-3">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-primary-600">{activeTab === "add" ? "Add Line Item" : "Create Product"}</p>
-            <h2 className="text-lg font-semibold text-gray-900">{activeTab === "add" ? "Add Existing Product" : "Create New Product"}</h2>
-          </div>
-        </div>
+        <ModalHeader
+          kicker={activeTab === "add" ? "Add Line Item" : "Create Product"}
+          title={activeTab === "add" ? "Add Existing Product" : "Create New Product"}
+        />
 
           {/* Tab Switch */}
           <div className="px-6 pt-3">

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { Download, FileText, CheckCircle, AlertCircle, Settings } from "lucide-react"
+import { ModalHeader } from "./ui/modal-header"
 
 export interface FilterState {
   [key: string]: any
@@ -196,19 +197,10 @@ export function ExportModal({ entityType, isOpen, onClose, currentFilters, visib
         className="w-full max-w-3xl rounded-xl bg-white shadow-xl"
         onClick={e => e.stopPropagation()}
       >
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900">
-              Export {entityType.charAt(0).toUpperCase() + entityType.slice(1)}
-            </h2>
-            <p className="text-sm text-gray-500">
-              {step === 'settings' && 'Configure your export settings'}
-              {step === 'processing' && 'Generating export file...'}
-              {step === 'completed' && 'Export completed successfully'}
-            </p>
-          </div>
-        </div>
+        <ModalHeader
+          kicker="Export"
+          title={`Export ${entityType.charAt(0).toUpperCase() + entityType.slice(1)}`}
+        />
 
         {/* Progress Steps */}
         <div className="border-b border-gray-200 px-6 py-4">

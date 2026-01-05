@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import type { Column } from "@/components/dynamic-table"
 import { cn } from "@/lib/utils"
+import { ModalHeader } from "./ui/modal-header"
 
 interface ColumnSettingsModalProps {
   isOpen: boolean
@@ -73,12 +74,7 @@ export function ColumnSettingsModal({ isOpen, columns, onApply, onClose }: Colum
         className="w-full max-w-lg rounded-xl bg-white shadow-xl"
         onClick={event => event.stopPropagation()}
       >
-        <header className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900">Customize Columns</h2>
-            <p className="text-sm text-gray-500">Show, hide, and reorder the columns that appear in this table.</p>
-          </div>
-        </header>
+        <ModalHeader kicker="Column Settings" title="Customize Columns" />
 
         <div className="px-6 py-4 space-y-4">
           <div className="flex items-center justify-between text-sm">

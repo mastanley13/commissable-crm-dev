@@ -3,6 +3,7 @@
 import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react"
 import { useToasts } from "./toast"
 import { SelectCombobox } from "./select-combobox"
+import { ModalHeader } from "./ui/modal-header"
 
 export interface AddressFormValues {
   line1: string
@@ -463,12 +464,7 @@ export function AccountEditModal({ isOpen, onClose, onSuccess, account }: Accoun
         className="w-full max-w-5xl rounded-xl bg-white shadow-xl"
         onClick={event => event.stopPropagation()}
       >
-        <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900">Edit Account</h2>
-            <p className="text-sm text-gray-500">Update the account information below.</p>
-          </div>
-        </div>
+        <ModalHeader kicker="Edit Account" title="Update Account Details" />
 
         <form onSubmit={handleSubmit} className="px-6 py-6">
           {formError && (

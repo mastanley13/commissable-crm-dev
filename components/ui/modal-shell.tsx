@@ -2,6 +2,7 @@
 
 import { useEffect, type ReactNode } from 'react'
 import clsx from 'clsx'
+import { ModalHeader } from './modal-header'
 
 export type ModalShellSize = 'sm' | 'md' | 'lg' | 'xl'
 
@@ -14,8 +15,8 @@ const SIZE_CLASSES: Record<ModalShellSize, string> = {
 
 interface ModalShellProps {
   isOpen: boolean
+  kicker?: string
   title?: string
-  description?: string
   size?: ModalShellSize
   children: ReactNode
   footer?: ReactNode
@@ -25,8 +26,8 @@ interface ModalShellProps {
 
 export function ModalShell({
   isOpen,
+  kicker,
   title,
-  description,
   size = 'lg',
   children,
   footer,
@@ -60,12 +61,7 @@ export function ModalShell({
         )}
       >
         {title ? (
-          <div className="border-b border-gray-200 px-6 py-3">
-            <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
-            {description ? (
-              <p className="mt-1 text-sm text-gray-500">{description}</p>
-            ) : null}
-          </div>
+          <ModalHeader kicker={kicker} title={title} />
         ) : null}
 
         <div className="min-h-0 flex-1">{children}</div>

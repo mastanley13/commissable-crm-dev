@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { Check, X } from "lucide-react"
+import { ModalHeader } from "./ui/modal-header"
 
 interface AccountBulkStatusModalProps {
   isOpen: boolean
@@ -35,9 +36,7 @@ export function AccountBulkStatusModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="w-full max-w-md overflow-hidden rounded-lg bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
-          <h2 className="text-lg font-semibold text-gray-900">Update Status</h2>
-        </div>
+        <ModalHeader kicker="Bulk Action" title="Update Status" />
 
         <div className="px-6 py-5">
           <p className="text-sm text-gray-600">

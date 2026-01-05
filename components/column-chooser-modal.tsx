@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { ArrowLeft, ArrowRight, GripVertical } from "lucide-react"
 import type { Column } from "@/components/dynamic-table"
 import { cn } from "@/lib/utils"
+import { ModalHeader } from "./ui/modal-header"
 
 interface ColumnChooserModalProps {
   isOpen: boolean
@@ -219,10 +220,7 @@ export function ColumnChooserModal({ isOpen, columns, onApply, onClose }: Column
         className="w-full max-w-4xl rounded-xl bg-white shadow-xl"
         onClick={e => e.stopPropagation()}
       >
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4 bg-blue-600">
-          <h2 className="text-lg font-semibold text-white">Choose Columns</h2>
-        </div>
+        <ModalHeader kicker="Column Settings" title="Choose Columns" />
 
         {/* Content */}
         <div className="p-6">

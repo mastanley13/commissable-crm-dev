@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect, useCallback } from "react"
+import React, { useState, useEffect, useCallback, useRef } from "react"
 import { CheckCircle, XCircle, AlertCircle, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -124,6 +124,21 @@ function ToastComponent({ toast, onRemove }: ToastProps) {
   )
 }
 
+interface ToastViewportProps {
+  toasts: Toast[]
+  onRemove: (id: string) => void
+}
+
+function ToastViewport({ toasts, onRemove }: ToastViewportProps) {
+  return (
+    <div className="fixed top-4 right-4 z-50 space-y-2">
+      {toasts.map((toast) => (
+        <ToastComponent key={toast.id} toast={toast} onRemove={onRemove} />
+      ))}
+    </div>
+  )
+}
+
 // Toast context and hook
 interface ToastContextType {
   showToast: (toast: Omit<Toast, "id">) => void
@@ -168,15 +183,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       {children}
       
       {/* Toast Container */}
-      <div className="fixed top-4 right-4 z-50 space-y-2">
-        {toasts.map(toast => (
-          <ToastComponent
-            key={toast.id}
-            toast={toast}
-            onRemove={removeToast}
-          />
-        ))}
-      </div>
+      <ToastViewport toasts={toasts} onRemove={removeToast} />
     </ToastContext.Provider>
   )
 }
@@ -218,17 +225,15 @@ export function useToasts() {
     showToast({ type: "info", title, message })
   }, [showToast])
 
-  const ToastContainer = () => (
-    <div className="fixed top-4 right-4 z-50 space-y-2">
-      {toasts.map(toast => (
-        <ToastComponent
-          key={toast.id}
-          toast={toast}
-          onRemove={removeToast}
-        />
-      ))}
-    </div>
-  )
+  const toastsRef = useRef(toasts)
+  toastsRef.current = toasts
+
+  const removeToastRef = useRef(removeToast)
+  removeToastRef.current = removeToast
+
+  const ToastContainer = useCallback(() => {
+    return <ToastViewport toasts={toastsRef.current} onRemove={removeToastRef.current} />
+  }, [])
 
   return {
     showToast,

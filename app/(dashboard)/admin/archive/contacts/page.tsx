@@ -1,14 +1,18 @@
 'use client'
 
 import Link from 'next/link'
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { RotateCcw, Trash2 } from 'lucide-react'
-import { ListHeader } from '@/components/list-header'
+import { useRouter } from 'next/navigation'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Check, Download, RotateCcw, Trash2 } from 'lucide-react'
+import { AccountStatusFilterDropdown } from '@/components/account-status-filter-dropdown'
+import { ColumnChooserModal } from '@/components/column-chooser-modal'
 import { CopyProtectionWrapper } from '@/components/copy-protection'
 import { DynamicTable, type Column, type PaginationInfo } from '@/components/dynamic-table'
+import { ListHeader } from '@/components/list-header'
 import { TwoStageDeleteDialog } from '@/components/two-stage-delete-dialog'
-import { useAuth } from '@/lib/auth-context'
 import { useToasts } from '@/components/toast'
+import { useAuth } from '@/lib/auth-context'
+import { useTablePreferences } from '@/hooks/useTablePreferences'
 
 type ContactArchiveRow = {
   id: string
@@ -24,6 +28,37 @@ type ContactArchiveRow = {
   isDeleted?: boolean
 }
 
+type ListColumnFilter = {
+  columnId: string
+  value: string
+  operator?: 'equals' | 'contains' | 'starts_with' | 'ends_with'
+}
+
+type SortState = { columnId: string; direction: 'asc' | 'desc' }
+
+const TABLE_BOTTOM_RESERVE = 110
+const TABLE_MIN_BODY_HEIGHT = 320
+
+const ARCHIVE_CONTACT_BASE_COLUMNS: Column[] = [
+  { id: 'select', label: 'Select', width: 110, minWidth: 80, maxWidth: 220, type: 'checkbox', hideable: false },
+  { id: 'fullName', label: 'Contact Name', width: 260, minWidth: 200, sortable: true, hideable: false },
+  { id: 'jobTitle', label: 'Job Title', width: 200, sortable: true },
+  { id: 'accountName', label: 'Account', width: 220, sortable: true },
+  { id: 'emailAddress', label: 'Email', width: 240, sortable: true },
+  { id: 'ownerName', label: 'Owner', width: 180, sortable: true },
+  { id: 'deletedAt', label: 'Archived On', width: 140, sortable: true },
+  { id: 'workPhone', label: 'Work Phone', width: 160, sortable: false, hidden: true },
+  { id: 'mobile', label: 'Mobile', width: 160, sortable: false, hidden: true },
+]
+
+const ARCHIVE_CONTACT_FILTER_OPTIONS: Array<{ id: string; label: string }> = [
+  { id: 'fullName', label: 'Contact Name' },
+  { id: 'jobTitle', label: 'Job Title' },
+  { id: 'accountName', label: 'Account' },
+  { id: 'emailAddress', label: 'Email' },
+  { id: 'ownerName', label: 'Owner' },
+]
+
 function formatDate(value?: string | null) {
   if (!value) return ''
   const parsed = new Date(value)
@@ -31,13 +66,36 @@ function formatDate(value?: string | null) {
   return parsed.toLocaleDateString()
 }
 
+function escapeCsv(value: unknown): string {
+  const str = value == null ? '' : String(value)
+  if (/[",\r\n]/.test(str)) {
+    return `"${str.replace(/"/g, '""')}"`
+  }
+  return str
+}
+
 export default function AdminArchivedContactsPage() {
   const { hasPermission, user } = useAuth()
   const { showError, showSuccess, ToastContainer } = useToasts()
+  const router = useRouter()
 
   const canManageArchive = hasPermission('contacts.manage') || hasPermission('contacts.read')
   const userCanPermanentDelete = hasPermission('contacts.delete')
   const userCanRestore = hasPermission('contacts.manage')
+
+  const {
+    columns: preferenceColumns,
+    loading: preferenceLoading,
+    saving: preferenceSaving,
+    error: preferenceError,
+    pageSize: preferencePageSize,
+    hasUnsavedChanges,
+    lastSaved,
+    handleColumnsChange,
+    handlePageSizeChange: persistPageSizeChange,
+    saveChanges,
+    saveChangesOnModalClose,
+  } = useTablePreferences('contacts:archive', ARCHIVE_CONTACT_BASE_COLUMNS, { defaultPageSize: 25 })
 
   const [contacts, setContacts] = useState<ContactArchiveRow[]>([])
   const [loading, setLoading] = useState(false)
@@ -46,40 +104,63 @@ export default function AdminArchivedContactsPage() {
 
   const [selectedContacts, setSelectedContacts] = useState<string[]>([])
   const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(25)
   const [searchQuery, setSearchQuery] = useState('')
+  const [viewFilter, setViewFilter] = useState<'active' | 'inactive' | 'all'>('active')
+  const [sortState, setSortState] = useState<SortState | null>(null)
+  const [columnFilters, setColumnFilters] = useState<ListColumnFilter[]>([])
   const [totalRecords, setTotalRecords] = useState(0)
+  const [tableBodyHeight, setTableBodyHeight] = useState<number>()
+  const tableAreaNodeRef = useRef<HTMLDivElement | null>(null)
 
+  const [showColumnSettings, setShowColumnSettings] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [contactToDelete, setContactToDelete] = useState<ContactArchiveRow | null>(null)
   const [bulkDeleteTargets, setBulkDeleteTargets] = useState<ContactArchiveRow[]>([])
 
   const paginationInfo: PaginationInfo = useMemo(() => {
-    const totalPages = Math.max(1, Math.ceil(totalRecords / pageSize))
-    return {
-      page,
-      pageSize,
-      total: totalRecords,
-      totalPages,
-    }
-  }, [page, pageSize, totalRecords])
+    const totalPages = Math.max(1, Math.ceil(totalRecords / preferencePageSize))
+    return { page, pageSize: preferencePageSize, total: totalRecords, totalPages }
+  }, [page, preferencePageSize, totalRecords])
 
   const reloadContacts = useCallback(async () => {
     setLoading(true)
     try {
       const params = new URLSearchParams()
-      params.set('includeDeleted', 'true')
-      params.set('deletedOnly', 'true')
+
+      if (viewFilter === 'active') {
+        params.set('includeDeleted', 'true')
+        params.set('deletedOnly', 'true')
+      } else if (viewFilter === 'all') {
+        params.set('includeDeleted', 'true')
+      }
+
       params.set('page', String(page))
-      params.set('pageSize', String(pageSize))
+      params.set('pageSize', String(preferencePageSize))
       if (searchQuery.trim().length > 0) {
         params.set('q', searchQuery.trim())
+      }
+
+      if (sortState) {
+        params.set('sortBy', sortState.columnId)
+        params.set('sortDir', sortState.direction)
+      }
+
+      const sanitizedFilters = columnFilters
+        .filter((filter) => filter && typeof filter.columnId === 'string')
+        .map((filter) => ({
+          columnId: filter.columnId,
+          value: typeof filter.value === 'string' ? filter.value.trim() : '',
+          operator: filter.operator,
+        }))
+        .filter((filter) => filter.columnId.length > 0 && filter.value.length > 0)
+      if (sanitizedFilters.length > 0) {
+        params.set('columnFilters', JSON.stringify(sanitizedFilters))
       }
 
       const response = await fetch(`/api/contacts?${params.toString()}`, { cache: 'no-store' })
       const payload = await response.json().catch(() => null)
       if (!response.ok) {
-        throw new Error(payload?.error ?? 'Failed to load archived contacts')
+        throw new Error(payload?.error ?? 'Failed to load contacts')
       }
 
       const rows: ContactArchiveRow[] = Array.isArray(payload?.data) ? payload.data : []
@@ -95,19 +176,86 @@ export default function AdminArchivedContactsPage() {
       setSelectedContacts([])
       setBulkDeleteTargets([])
       setTotalRecords(0)
-      setError('Unable to load archived contacts')
+      setError(err instanceof Error ? err.message : 'Unable to load contacts')
     } finally {
       setLoading(false)
     }
-  }, [page, pageSize, searchQuery])
+  }, [columnFilters, page, preferencePageSize, searchQuery, sortState, viewFilter])
 
   useEffect(() => {
     if (!canManageArchive) return
-    reloadContacts().catch(console.error)
+    void reloadContacts()
   }, [canManageArchive, reloadContacts])
+
+  const measureTableArea = useCallback(() => {
+    const node = tableAreaNodeRef.current
+    if (!node || typeof window === 'undefined') {
+      return
+    }
+
+    const rect = node.getBoundingClientRect()
+    const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0
+    if (viewportHeight <= 0) {
+      return
+    }
+
+    const available = viewportHeight - rect.top - TABLE_BOTTOM_RESERVE
+    if (!Number.isFinite(available)) {
+      return
+    }
+
+    const nextHeight = Math.max(TABLE_MIN_BODY_HEIGHT, Math.floor(available))
+    if (nextHeight !== tableBodyHeight) {
+      setTableBodyHeight(nextHeight)
+    }
+  }, [tableBodyHeight])
+
+  const tableAreaRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      tableAreaNodeRef.current = node
+      if (node && typeof window !== 'undefined') {
+        window.requestAnimationFrame(() => {
+          measureTableArea()
+        })
+      }
+    },
+    [measureTableArea],
+  )
+
+  useEffect(() => {
+    measureTableArea()
+  }, [measureTableArea])
+
+  useEffect(() => {
+    const handleResize = () => measureTableArea()
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [measureTableArea])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    window.requestAnimationFrame(() => {
+      measureTableArea()
+    })
+  }, [contacts.length, loading, measureTableArea, page, preferenceLoading, selectedContacts.length, viewFilter])
 
   const handleSearch = useCallback((query: string) => {
     setSearchQuery(query)
+    setPage(1)
+  }, [])
+
+  const handleViewFilterChange = useCallback((next: 'active' | 'inactive' | 'all') => {
+    setViewFilter(next)
+    setPage(1)
+  }, [])
+
+  const handleColumnFiltersChange = useCallback((filters: ListColumnFilter[]) => {
+    setColumnFilters(filters)
+    setPage(1)
+  }, [])
+
+  const handleSort = useCallback((columnId: string, direction: 'asc' | 'desc') => {
+    setSortState({ columnId, direction })
     setPage(1)
   }, [])
 
@@ -115,10 +263,13 @@ export default function AdminArchivedContactsPage() {
     setPage(nextPage)
   }, [])
 
-  const handlePageSizeChange = useCallback((nextPageSize: number) => {
-    setPageSize(nextPageSize)
-    setPage(1)
-  }, [])
+  const handlePageSizeChange = useCallback(
+    (nextPageSize: number) => {
+      void persistPageSizeChange(nextPageSize)
+      setPage(1)
+    },
+    [persistPageSizeChange],
+  )
 
   const handleContactSelect = useCallback((contactId: string, selected: boolean) => {
     setSelectedContacts((previous) => {
@@ -129,13 +280,23 @@ export default function AdminArchivedContactsPage() {
     })
   }, [])
 
-  const handleSelectAll = useCallback((selected: boolean) => {
-    if (selected) {
-      setSelectedContacts(contacts.map((contact) => contact.id))
-      return
-    }
-    setSelectedContacts([])
-  }, [contacts])
+  const handleSelectAll = useCallback(
+    (selected: boolean) => {
+      if (selected) {
+        setSelectedContacts(contacts.map((contact) => contact.id))
+        return
+      }
+      setSelectedContacts([])
+    },
+    [contacts],
+  )
+
+  const handleRowClick = useCallback(
+    (row: ContactArchiveRow) => {
+      router.push(`/contacts/${row.id}`)
+    },
+    [router],
+  )
 
   const restoreContactRequest = useCallback(async (contactId: string): Promise<{ success: boolean; error?: string }> => {
     try {
@@ -156,19 +317,22 @@ export default function AdminArchivedContactsPage() {
     }
   }, [])
 
-  const handleRestore = useCallback(async (contactId: string): Promise<{ success: boolean; error?: string }> => {
-    const result = await restoreContactRequest(contactId)
-    if (result.success) {
-      setContacts((previous) => previous.filter((contact) => contact.id !== contactId))
-      setSelectedContacts((previous) => previous.filter((id) => id !== contactId))
-      showSuccess('Contact restored', 'The contact was restored and removed from Archive.')
-    }
-    return result
-  }, [restoreContactRequest, showSuccess])
+  const handleRestore = useCallback(
+    async (contactId: string): Promise<{ success: boolean; error?: string }> => {
+      const result = await restoreContactRequest(contactId)
+      if (result.success) {
+        setContacts((previous) => previous.filter((contact) => contact.id !== contactId))
+        setSelectedContacts((previous) => previous.filter((id) => id !== contactId))
+        showSuccess('Contact restored', 'The contact was restored and removed from Archive.')
+      }
+      return result
+    },
+    [restoreContactRequest, showSuccess],
+  )
 
   const handleBulkRestore = useCallback(async () => {
     if (selectedContacts.length === 0) {
-      showError('No contacts selected', 'Select at least one archived contact to restore.')
+      showError('No contacts selected', 'Select at least one contact to restore.')
       return
     }
 
@@ -221,34 +385,34 @@ export default function AdminArchivedContactsPage() {
     }
   }, [contacts, restoreContactRequest, selectedContacts, showError, showSuccess])
 
-  const handlePermanentDelete = useCallback(async (
-    contactId: string,
-    reason?: string,
-  ): Promise<{ success: boolean; error?: string }> => {
-    try {
-      const trimmedReason = typeof reason === 'string' ? reason.trim() : ''
-      const response = await fetch(`/api/contacts/${contactId}?stage=permanent`, {
-        method: 'DELETE',
-        ...(trimmedReason
-          ? {
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ reason: trimmedReason }),
-            }
-          : {}),
-      })
+  const handlePermanentDelete = useCallback(
+    async (contactId: string, reason?: string): Promise<{ success: boolean; error?: string }> => {
+      try {
+        const trimmedReason = typeof reason === 'string' ? reason.trim() : ''
+        const response = await fetch(`/api/contacts/${contactId}?stage=permanent`, {
+          method: 'DELETE',
+          ...(trimmedReason
+            ? {
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ reason: trimmedReason }),
+              }
+            : {}),
+        })
 
-      if (!response.ok) {
-        const data = await response.json().catch(() => null)
-        return { success: false, error: data?.error || 'Failed to permanently delete contact' }
+        if (!response.ok) {
+          const data = await response.json().catch(() => null)
+          return { success: false, error: data?.error || 'Failed to permanently delete contact' }
+        }
+
+        setContacts((previous) => previous.filter((contact) => contact.id !== contactId))
+        setSelectedContacts((previous) => previous.filter((id) => id !== contactId))
+        return { success: true }
+      } catch (err) {
+        return { success: false, error: err instanceof Error ? err.message : 'Unable to permanently delete contact' }
       }
-
-      setContacts((previous) => previous.filter((contact) => contact.id !== contactId))
-      setSelectedContacts((previous) => previous.filter((id) => id !== contactId))
-      return { success: true }
-    } catch (err) {
-      return { success: false, error: err instanceof Error ? err.message : 'Unable to permanently delete contact' }
-    }
-  }, [])
+    },
+    [],
+  )
 
   const requestRowDeletion = useCallback((row: ContactArchiveRow) => {
     setBulkDeleteTargets([])
@@ -258,7 +422,7 @@ export default function AdminArchivedContactsPage() {
 
   const openBulkPermanentDeleteDialog = useCallback(() => {
     if (selectedContacts.length === 0) {
-      showError('No contacts selected', 'Select at least one archived contact to permanently delete.')
+      showError('No contacts selected', 'Select at least one contact to permanently delete.')
       return
     }
 
@@ -273,11 +437,46 @@ export default function AdminArchivedContactsPage() {
     setShowDeleteDialog(true)
   }, [contacts, selectedContacts, showError])
 
-  const closeDeleteDialog = () => {
+  const closeDeleteDialog = useCallback(() => {
     setShowDeleteDialog(false)
     setContactToDelete(null)
     setBulkDeleteTargets([])
-  }
+  }, [])
+
+  const handleBulkExportCsv = useCallback(async () => {
+    if (selectedContacts.length === 0) {
+      showError('No contacts selected', 'Select at least one contact to export.')
+      return
+    }
+
+    const rows = contacts.filter((contact) => selectedContacts.includes(contact.id))
+    if (rows.length === 0) {
+      showError('Nothing to export', 'The selected contacts are not on this page. Reload and try again.')
+      return
+    }
+
+    const header = ['Contact ID', 'Full Name', 'Job Title', 'Account', 'Email', 'Owner', 'Archived On']
+    const lines = [
+      header.map(escapeCsv).join(','),
+      ...rows.map((row) =>
+        [row.id, row.fullName, row.jobTitle, row.accountName, row.emailAddress, row.ownerName, row.deletedAt]
+          .map(escapeCsv)
+          .join(','),
+      ),
+    ]
+
+    const blob = new Blob([lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
+    link.download = `contacts-${viewFilter === 'active' ? 'archived' : viewFilter}-${timestamp}.csv`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+    showSuccess('Export complete', 'Check your downloads for the CSV file.')
+  }, [contacts, selectedContacts, showError, showSuccess, viewFilter])
 
   const bulkActions = useMemo(() => {
     return {
@@ -291,8 +490,17 @@ export default function AdminArchivedContactsPage() {
           icon: RotateCcw,
           tone: 'primary' as const,
           onClick: handleBulkRestore,
-          tooltip: (count: number) => `Restore ${count} archived contact${count === 1 ? '' : 's'}`,
+          tooltip: (count: number) => `Restore ${count} contact${count === 1 ? '' : 's'}`,
           disabled: !userCanRestore,
+        },
+        {
+          key: 'export',
+          label: 'Export CSV',
+          icon: Download,
+          tone: 'info' as const,
+          onClick: handleBulkExportCsv,
+          tooltip: (count: number) => `Export ${count} contact${count === 1 ? '' : 's'} to CSV`,
+          disabled: selectedContacts.length === 0,
         },
         {
           key: 'permanent-delete',
@@ -300,92 +508,145 @@ export default function AdminArchivedContactsPage() {
           icon: Trash2,
           tone: 'danger' as const,
           onClick: openBulkPermanentDeleteDialog,
-          tooltip: (count: number) => `Permanently delete ${count} archived contact${count === 1 ? '' : 's'}`,
+          tooltip: (count: number) => `Permanently delete ${count} contact${count === 1 ? '' : 's'}`,
           disabled: !userCanPermanentDelete,
         },
       ],
     }
-  }, [bulkActionLoading, handleBulkRestore, openBulkPermanentDeleteDialog, selectedContacts.length, userCanPermanentDelete, userCanRestore])
+  }, [
+    bulkActionLoading,
+    handleBulkExportCsv,
+    handleBulkRestore,
+    openBulkPermanentDeleteDialog,
+    selectedContacts.length,
+    userCanPermanentDelete,
+    userCanRestore,
+  ])
 
-  const columns: Column[] = useMemo(() => {
-    return [
-      { id: 'select', label: 'Select', width: 70, type: 'checkbox', resizable: false, hideable: false },
-      {
-        id: 'fullName',
-        label: 'Contact Name',
-        width: 260,
-        sortable: true,
-        render: (value: string, row: ContactArchiveRow) => (
-          <Link href={`/contacts/${row.id}`} className="text-blue-600 hover:underline">
-            {value || '--'}
-          </Link>
-        ),
-      },
-      { id: 'jobTitle', label: 'Job Title', width: 200, sortable: true },
-      {
-        id: 'accountName',
-        label: 'Account',
-        width: 220,
-        sortable: true,
-        render: (value: string, row: ContactArchiveRow) => {
-          const label = value || '--'
-          if (row.accountId) {
+  const tableColumns: Column[] = useMemo(() => {
+    return preferenceColumns.map((column) => {
+      if (column.id === 'select') {
+        return {
+          ...column,
+          render: (_value: unknown, row: ContactArchiveRow) => {
+            const checked = selectedContacts.includes(row.id)
             return (
-              <Link href={`/accounts/${row.accountId}`} className="text-blue-600 hover:underline">
-                {label}
-              </Link>
+              <div className="flex items-center gap-2" data-disable-row-click="true">
+                <button
+                  type="button"
+                  role="checkbox"
+                  aria-checked={checked}
+                  aria-label={`Select contact ${row.fullName || row.id}`}
+                  className={`flex h-4 w-4 items-center justify-center rounded border transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-1 ${
+                    checked
+                      ? 'border-primary-500 bg-primary-600 text-white'
+                      : 'border-gray-300 bg-white text-transparent'
+                  }`}
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    handleContactSelect(row.id, !checked)
+                  }}
+                  onMouseDown={(event) => event.preventDefault()}
+                >
+                  <Check className="h-3 w-3" aria-hidden="true" />
+                </button>
+
+                <button
+                  type="button"
+                  className="p-1 rounded transition-colors text-emerald-600 hover:text-emerald-800 disabled:cursor-not-allowed disabled:text-gray-300"
+                  onClick={(event) => {
+                    event.preventDefault()
+                    event.stopPropagation()
+                    void handleRestore(row.id)
+                  }}
+                  disabled={!userCanRestore}
+                  aria-label="Restore contact"
+                  title={userCanRestore ? 'Restore contact' : 'Insufficient permissions'}
+                >
+                  <RotateCcw className="h-4 w-4" aria-hidden="true" />
+                </button>
+
+                <button
+                  type="button"
+                  className="p-1 rounded transition-colors text-red-500 hover:text-red-700 disabled:cursor-not-allowed disabled:text-gray-300"
+                  onClick={(event) => {
+                    event.preventDefault()
+                    event.stopPropagation()
+                    requestRowDeletion(row)
+                  }}
+                  disabled={!userCanPermanentDelete}
+                  aria-label="Permanently delete contact"
+                  title={userCanPermanentDelete ? 'Permanently delete' : 'Insufficient permissions'}
+                >
+                  <Trash2 className="h-4 w-4" aria-hidden="true" />
+                </button>
+              </div>
             )
-          }
-          return <span>{label}</span>
-        },
-      },
-      { id: 'emailAddress', label: 'Email', width: 240, sortable: true },
-      { id: 'ownerName', label: 'Owner', width: 180, sortable: true },
-      {
-        id: 'deletedAt',
-        label: 'Archived On',
-        width: 140,
-        sortable: true,
-        render: (value: string | null | undefined) => formatDate(value) || '--',
-      },
-      {
-        id: 'actions',
-        label: 'Actions',
-        width: 140,
-        resizable: false,
-        render: (_value: unknown, row: ContactArchiveRow) => (
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              className="rounded-md border border-gray-300 bg-white px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
-              onClick={(event) => {
-                event.preventDefault()
-                event.stopPropagation()
-                handleRestore(row.id).catch(console.error)
-              }}
-              disabled={!userCanRestore}
-              title={userCanRestore ? 'Restore contact' : 'Insufficient permissions'}
-            >
-              Restore
-            </button>
-            <button
-              type="button"
-              className="rounded-md bg-red-600 px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-red-300"
-              onClick={(event) => {
-                event.preventDefault()
-                event.stopPropagation()
-                requestRowDeletion(row)
-              }}
-              disabled={!userCanPermanentDelete}
-              title={userCanPermanentDelete ? 'Permanently delete' : 'Insufficient permissions'}
-            >
-              Delete
-            </button>
-          </div>
-        ),
-      },
-    ]
-  }, [handleRestore, requestRowDeletion, userCanPermanentDelete, userCanRestore])
+          },
+        }
+      }
+
+      if (column.id === 'fullName') {
+        return {
+          ...column,
+          render: (value: string, row: ContactArchiveRow) => (
+            <Link href={`/contacts/${row.id}`} className="text-blue-600 hover:underline">
+              {value || '--'}
+            </Link>
+          ),
+        }
+      }
+
+      if (column.id === 'accountName') {
+        return {
+          ...column,
+          render: (value: string, row: ContactArchiveRow) => {
+            const label = value || '--'
+            if (row.accountId) {
+              return (
+                <Link href={`/accounts/${row.accountId}`} className="text-blue-600 hover:underline">
+                  {label}
+                </Link>
+              )
+            }
+            return <span>{label}</span>
+          },
+        }
+      }
+
+      if (column.id === 'deletedAt') {
+        return { ...column, render: (value: string | null | undefined) => formatDate(value) || '--' }
+      }
+
+      return column
+    })
+  }, [
+    handleContactSelect,
+    handleRestore,
+    preferenceColumns,
+    requestRowDeletion,
+    selectedContacts,
+    userCanPermanentDelete,
+    userCanRestore,
+  ])
+
+  const pageTitle = useMemo(() => {
+    if (viewFilter === 'inactive') return 'ACTIVE CONTACTS'
+    if (viewFilter === 'all') return 'ALL CONTACTS'
+    return 'ARCHIVED CONTACTS'
+  }, [viewFilter])
+
+  const searchPlaceholder = useMemo(() => {
+    if (viewFilter === 'inactive') return 'Search active contacts...'
+    if (viewFilter === 'all') return 'Search all contacts...'
+    return 'Search archived contacts...'
+  }, [viewFilter])
+
+  const emptyMessage = useMemo(() => {
+    if (viewFilter === 'inactive') return 'No active contacts found'
+    if (viewFilter === 'all') return 'No contacts found'
+    return 'No archived contacts found'
+  }, [viewFilter])
 
   if (!canManageArchive) {
     return (
@@ -402,24 +663,43 @@ export default function AdminArchivedContactsPage() {
   return (
     <CopyProtectionWrapper className="dashboard-page-container">
       <ListHeader
-        pageTitle="ARCHIVED CONTACTS"
-        searchPlaceholder="Search archived contacts..."
+        pageTitle={pageTitle}
+        searchPlaceholder={searchPlaceholder}
         onSearch={handleSearch}
         showStatusFilter={false}
-        showColumnFilters={false}
+        leftAccessory={
+          <AccountStatusFilterDropdown
+            value={viewFilter}
+            options={['active', 'inactive', 'all']}
+            labels={{ active: 'Archived', inactive: 'Active', all: 'All' }}
+            onChange={handleViewFilterChange}
+          />
+        }
+        showColumnFilters
+        filterColumns={ARCHIVE_CONTACT_FILTER_OPTIONS}
+        columnFilters={columnFilters}
+        onColumnFiltersChange={handleColumnFiltersChange}
         showCreateButton={false}
+        onSettingsClick={() => setShowColumnSettings(true)}
+        hasUnsavedTableChanges={hasUnsavedChanges}
+        isSavingTableChanges={preferenceSaving}
+        lastTableSaved={lastSaved || undefined}
+        onSaveTableChanges={saveChanges}
         bulkActions={bulkActions}
       />
 
-      {error ? <div className="px-4 text-sm text-red-600">{error}</div> : null}
+      {(error || preferenceError) ? <div className="px-4 text-sm text-red-600">{error || preferenceError}</div> : null}
 
       <div className="flex-1 min-h-0 p-4 pt-0 flex flex-col gap-4">
-        <div className="flex-1 min-h-0">
+        <div ref={tableAreaRef} className="flex-1 min-h-0">
           <DynamicTable
-            columns={columns}
+            columns={tableColumns}
             data={contacts}
-            loading={loading}
-            emptyMessage="No archived contacts found"
+            onSort={handleSort}
+            onRowClick={handleRowClick}
+            loading={loading || preferenceLoading}
+            emptyMessage={emptyMessage}
+            onColumnsChange={handleColumnsChange}
             pagination={paginationInfo}
             onPageChange={handlePageChange}
             onPageSizeChange={handlePageSizeChange}
@@ -427,10 +707,23 @@ export default function AdminArchivedContactsPage() {
             onItemSelect={handleContactSelect}
             onSelectAll={handleSelectAll}
             fillContainerWidth
+            autoSizeColumns={false}
             alwaysShowPagination
+            hasLoadedPreferences={!preferenceLoading}
+            maxBodyHeight={tableBodyHeight}
           />
         </div>
       </div>
+
+      <ColumnChooserModal
+        isOpen={showColumnSettings}
+        columns={preferenceColumns}
+        onApply={handleColumnsChange}
+        onClose={async () => {
+          setShowColumnSettings(false)
+          await saveChangesOnModalClose()
+        }}
+      />
 
       <TwoStageDeleteDialog
         isOpen={showDeleteDialog}
@@ -441,11 +734,7 @@ export default function AdminArchivedContactsPage() {
             ? `${bulkDeleteTargets.length} contact${bulkDeleteTargets.length === 1 ? '' : 's'}`
             : contactToDelete?.fullName || 'Unknown Contact'
         }
-        entityId={
-          bulkDeleteTargets.length > 0
-            ? bulkDeleteTargets[0]?.id || ''
-            : contactToDelete?.id || ''
-        }
+        entityId={bulkDeleteTargets.length > 0 ? bulkDeleteTargets[0]?.id || '' : contactToDelete?.id || ''}
         multipleEntities={
           bulkDeleteTargets.length > 0
             ? bulkDeleteTargets.map((contact) => ({

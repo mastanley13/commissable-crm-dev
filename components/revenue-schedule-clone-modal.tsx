@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { cn } from "@/lib/utils"
 import { formatCurrencyDisplay, formatDecimalToFixed, normalizeDecimalInput } from "@/lib/number-format"
+import { ModalHeader } from "./ui/modal-header"
 
 export interface SourceScheduleData {
   scheduleNumber: string | null
@@ -109,11 +110,7 @@ export function RevenueScheduleCloneModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
       <div className="w-full max-w-2xl rounded-lg bg-white shadow-2xl">
-        <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900">Copy/Extend Revenue Schedule</h2>
-          </div>
-        </div>
+        <ModalHeader kicker="Revenue Schedule" title="Copy/Extend Revenue Schedule" />
 
         <div className="space-y-4 px-6 py-4">
           {sourceSchedule && (

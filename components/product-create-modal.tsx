@@ -8,6 +8,7 @@ import { formatCurrencyDisplay, formatDecimalToFixed, formatPercentDisplay, norm
 import { sortByPicklistName } from "@/lib/picklist-sort"
 import { PicklistCombobox } from "./picklist-combobox"
 import { SelectCombobox } from "./select-combobox"
+import { ModalHeader } from "./ui/modal-header"
 
 type SelectOption = { value: string; label: string }
 
@@ -667,11 +668,7 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 px-4 backdrop-blur-sm">
       <div className="w-[1024px] max-w-5xl h-[900px] max-h-[98vh] flex flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
-        <div className="flex items-center justify-between border-b border-gray-200 px-6 py-2">
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900">Create New Product</h2>
-          </div>
-        </div>
+        <ModalHeader kicker="Create Product" title="Create New Product" />
 
         <form id="product-create-form" onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-6 py-3">
           <div className="space-y-3">

@@ -42,7 +42,10 @@ const SORTABLE_FIELDS = {
   jobTitle: "jobTitle", 
   emailAddress: "emailAddress",
   createdAt: "createdAt",
-  contactType: "accountType.name"
+  contactType: "accountType.name",
+  deletedAt: "deletedAt",
+  accountName: "account.accountName",
+  ownerName: "ownerName"
 }
 interface ColumnFilterInput {
   columnId: string
@@ -165,9 +168,10 @@ export async function GET(request: NextRequest) {
         const query = searchParams.get("q")?.trim() ?? ""
 
         // Sorting
-        const sortBy = searchParams.get("sortBy") ?? "createdAt"
-        const sortDir = searchParams.get("sortDir") === "asc" ? "asc" : "desc"
-        
+        const sortBy = searchParams.get("sortBy")?.trim() ?? "createdAt"
+        const sortDir = searchParams.get("sortDir")?.trim().toLowerCase()
+        const sortDirection = sortDir === "asc" ? "asc" : "desc"
+         
         // Validate sort field
         const sortField = SORTABLE_FIELDS[sortBy as keyof typeof SORTABLE_FIELDS] || "createdAt"
         
@@ -295,14 +299,15 @@ export async function GET(request: NextRequest) {
           ]
         }
 
-        // Build orderBy clause
-        let orderBy: any = {}
-        if (sortField === "accountType.name") {
-
-          orderBy = { accountType: { name: sortDir } }
-        } else {
-          orderBy[sortField] = sortDir
-        }
+        const orderBy: any = (() => {
+          if (sortField === "accountType.name") return [{ accountType: { name: sortDirection } }, { id: "asc" }]
+          if (sortField === "account.accountName") return [{ account: { accountName: sortDirection } }, { id: "asc" }]
+          if (sortField === "ownerName") {
+            return [{ owner: { lastName: sortDirection } }, { owner: { firstName: sortDirection } }, { id: "asc" }]
+          }
+          if (sortField === "deletedAt") return [{ deletedAt: sortDirection }, { id: "asc" }]
+          return [{ [sortField]: sortDirection }, { id: "asc" }]
+        })()
 
         const [contacts, total] = await Promise.all([
           prisma.contact.findMany({
