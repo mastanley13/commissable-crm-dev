@@ -295,9 +295,51 @@ export default function DepositUploadListPage() {
 
   const requiredFieldsComplete = requiredDepositFieldIds.every(fieldId => Boolean(canonicalFieldMapping[fieldId]))
 
+  const getBackButtonConfig = () => {
+    switch (activeStep) {
+      case 'create-template':
+        return {
+          label: 'Back to Reconciliation',
+          onClick: () => router.push('/reconciliation'),
+        }
+      case 'map-fields':
+        return {
+          label: 'Back to Create Deposit',
+          onClick: goToCreateTemplate,
+        }
+      case 'review':
+        return {
+          label: 'Back to Map Fields',
+          onClick: () => setActiveStep('map-fields'),
+        }
+      case 'confirm':
+        return {
+          label: 'Back to Review',
+          onClick: handleBackToReview,
+          disabled: importSubmitting,
+        }
+      default:
+        return null
+    }
+  }
+
+  const backButtonConfig = getBackButtonConfig()
+
   return (
     <div className="dashboard-page-container bg-gray-50">
       <div className="flex-1 min-h-0 overflow-y-auto">
+        {backButtonConfig && (
+          <div className="flex items-center justify-end border-b border-gray-200 bg-white px-4 py-2 md:px-6">
+            <button
+              type="button"
+              onClick={backButtonConfig.onClick}
+              disabled={backButtonConfig.disabled}
+              className="inline-flex items-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {backButtonConfig.label}
+            </button>
+          </div>
+        )}
         <div className="p-4 space-y-4 pb-28 md:p-6 md:space-y-5">
           <div>
             <h1 className="text-2xl font-semibold text-gray-900">Deposit Reconciliation</h1>
@@ -313,7 +355,6 @@ export default function DepositUploadListPage() {
               onFileChange={handleFileChange}
               onProceed={goToMapFields}
               onFormStateChange={updateFormState}
-              onBack={() => router.push('/reconciliation')}
             />
           ) : null}
 
@@ -329,7 +370,6 @@ export default function DepositUploadListPage() {
               onColumnSelectionChange={handleColumnSelectionChange}
               onCreateCustomField={handleCreateCustomFieldForColumn}
               canProceed={requiredFieldsComplete && Boolean(csvHeaders.length) && !parsingError}
-              onBack={goToCreateTemplate}
               onProceed={goToReview}
             />
           ) : null}
@@ -340,7 +380,6 @@ export default function DepositUploadListPage() {
               sampleRows={sampleRows}
               fieldMapping={canonicalFieldMapping}
               validationIssues={validationIssues}
-              onBack={() => setActiveStep('map-fields')}
               onProceed={handleProceedFromReview}
             />
           ) : null}
@@ -351,7 +390,6 @@ export default function DepositUploadListPage() {
               submitting={importSubmitting}
               error={importError}
               result={importResult}
-              onBack={handleBackToReview}
               onSubmit={handleConfirmSubmit}
             />
           ) : null}

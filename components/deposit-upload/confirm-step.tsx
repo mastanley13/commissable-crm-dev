@@ -57,15 +57,7 @@ export function ConfirmStep({ importSummary, submitting, error, result, onBack, 
         </div>
       )}
 
-      <div className="flex items-center justify-between border-t border-gray-100 pt-4">
-        <button
-          type="button"
-          onClick={onBack}
-          className="inline-flex items-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
-          disabled={submitting}
-        >
-          Back to Review
-        </button>
+      <div className="flex items-center justify-end border-t border-gray-100 pt-4">
         <button
           type="button"
           onClick={onSubmit}

@@ -446,18 +446,7 @@ export function CreateTemplateStep({
         </label>
       </div>
 
-      <div className="flex items-center justify-between border-t border-gray-200 pt-4">
-        {onBack ? (
-          <button
-            type="button"
-            onClick={onBack}
-            className="inline-flex items-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-          >
-            Back to Reconciliation
-          </button>
-        ) : (
-          <div />
-        )}
+      <div className="flex items-center justify-end border-t border-gray-200 pt-4">
         <button
           type="button"
           onClick={onProceed}
