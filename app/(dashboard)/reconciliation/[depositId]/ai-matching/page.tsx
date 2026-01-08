@@ -166,7 +166,7 @@ export default function AutoMatchPage() {
               <div className="text-xs uppercase tracking-wide text-slate-500">Run AI Matching</div>
               <div className="text-lg font-semibold text-slate-900">{depositName || depositParam || "Deposit"}</div>
               <div className="text-xs text-slate-500">
-                Preview exact matches, apply them, then return to finalize reconciliation.
+                Preview matches at your confidence threshold, apply them, then return to finalize reconciliation.
               </div>
             </div>
           </div>
@@ -175,15 +175,14 @@ export default function AutoMatchPage() {
           ) : null}
         </div>
 
-        <div className="rounded-lg border border-slate-200 bg-white shadow-sm">
+          <div className="rounded-lg border border-slate-200 bg-white shadow-sm">
           <div className="border-b border-slate-100 px-6 py-4">
             <p className="text-sm text-slate-700">
-              Review the lines eligible for automatic matching. Only exact matches (Pass A) within the tenant variance
-              tolerance are applied automatically.
+              Review the lines eligible for automatic matching. Matches at or above your confidence threshold are applied automatically.
             </p>
             <ol className="mt-3 list-decimal space-y-1 pl-5 text-sm text-slate-700">
-              <li>Preview auto-matches (Pass A exact) for the deposit.</li>
-              <li>Apply auto-matches, then review fuzzy suggestions manually.</li>
+              <li>Preview matches that meet your confidence threshold.</li>
+              <li>Apply matches, then review remaining suggestions manually.</li>
               <li>Confirm allocations, then finalize the deposit.</li>
             </ol>
           </div>
@@ -203,7 +202,7 @@ export default function AutoMatchPage() {
               <div className="mb-3 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
                 Auto-matched <span className="font-semibold">{applySummary.autoMatched}</span> of{" "}
                 <span className="font-semibold">{applySummary.processed}</span> lines · Already matched:{" "}
-                {applySummary.alreadyMatched} · Fuzzy-only: {applySummary.fuzzyOnly} · No candidates:{" "}
+                {applySummary.alreadyMatched} · Below threshold: {applySummary.belowThreshold} · No candidates:{" "}
                 {applySummary.noCandidates} · Errors: {applySummary.errors}
               </div>
             ) : null}
@@ -217,7 +216,7 @@ export default function AutoMatchPage() {
               <>
                 <div className="text-xs text-slate-600">
                   Processed {preview.processed} lines · Already matched: {preview.alreadyMatched} · Eligible for
-                  auto-match: {preview.autoMatchCandidates.length} · Fuzzy-only: {preview.fuzzyOnly} · No candidates:{" "}
+                  auto-match: {preview.autoMatchCandidates.length} · Below threshold: {preview.belowThreshold} · No candidates:{" "}
                   {preview.noCandidates} · Errors: {preview.errors}
                 </div>
                 {hasCandidates ? (
@@ -256,7 +255,7 @@ export default function AutoMatchPage() {
                   </div>
                 ) : (
                   <div className="mt-4 rounded-md border border-dashed border-slate-200 px-3 py-2 text-sm text-slate-500">
-                    No lines qualify for automatic matching. Review fuzzy suggestions manually.
+                    No lines qualify for automatic matching at your threshold. Review suggestions manually.
                   </div>
                 )}
               </>

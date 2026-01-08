@@ -49,7 +49,9 @@ model Tenant {
   deposits                Deposit[]
   depositLineItems        DepositLineItem[]
   depositLineMatches      DepositLineMatch[]
+  revenueTypes            RevenueType[]
   systemSettings          SystemSetting[]
+  userSettings            UserSetting[]
   tablePreferences        TablePreference[]
   tickets                 Ticket[]
   commissionPayouts        CommissionPayout[]
@@ -158,6 +160,7 @@ model User {
   opportunityRolesCreated     OpportunityRole[]        @relation("OpportunityRoleCreatedBy")
   opportunityRolesUpdated     OpportunityRole[]        @relation("OpportunityRoleUpdatedBy")
   tablePreferences            TablePreference[]
+  userSettings                UserSetting[]
   ticketsAssigned             Ticket[]                 @relation("TicketAssignee")
   ticketsCreated              Ticket[]                 @relation("TicketCreatedBy")
   createdBy                   User?                    @relation("UserCreatedBy", fields: [createdById], references: [id])
@@ -661,6 +664,7 @@ model RevenueSchedule {
   subagentSplitPercentOverride Decimal?           @db.Decimal(5, 4)
   isSelected                 Boolean               @default(false)
   notes                      String?
+  comments                   String?
   createdById                String?               @db.Uuid
   updatedById                String?               @db.Uuid
   createdAt                  DateTime              @default(now())
@@ -1170,6 +1174,42 @@ model SystemSetting {
   tenant      Tenant             @relation(fields: [tenantId], references: [id])
 
   @@unique([tenantId, key])
+}
+
+model RevenueType {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String   @db.Uuid
+  code         String
+  label        String
+  description  String?
+  category     String
+  isActive     Boolean  @default(true)
+  isSystem     Boolean  @default(false)
+  displayOrder Int      @default(1000)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, code])
+  @@index([tenantId, isActive])
+  @@index([tenantId])
+  @@map("revenue_types")
+}
+
+model UserSetting {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @db.Uuid
+  userId      String   @db.Uuid
+  key         String
+  value       Json?
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  user        User     @relation(fields: [userId], references: [id])
+
+  @@unique([userId, key])
+  @@index([tenantId, userId])
 }
 
 enum TenantStatus {

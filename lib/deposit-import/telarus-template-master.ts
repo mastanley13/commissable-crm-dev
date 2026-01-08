@@ -2,11 +2,13 @@ import fs from "fs"
 import path from "path"
 import Papa from "papaparse"
 import { depositFieldDefinitions } from "./fields"
+import { normalizeKey } from "./normalize"
 import {
   createEmptyDepositMapping,
   type DepositFieldId,
   type DepositMappingConfigV1,
 } from "./template-mapping"
+import type { TelarusTemplateFieldsV1, TelarusTemplateFieldV1 } from "./telarus-template-fields"
 
 interface TelarusRow {
   templateMapName: string
@@ -36,6 +38,7 @@ export interface TelarusTemplateMatch {
   companyName: string
   templateId: string | null
   mapping: DepositMappingConfigV1
+  templateFields: TelarusTemplateFieldsV1
 }
 
 const TELARUS_MASTER_CSV_PATH = path.join(
@@ -71,14 +74,6 @@ const COMMISSABLE_LABEL_TO_DEPOSIT_FIELD_ID: Partial<Record<string, DepositField
 
   // Dates
   "Payment Date": "paymentDate",
-}
-
-function normalizeKey(value: string) {
-  return value
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim()
-    .replace(/\s+/g, " ")
 }
 
 function scoreCandidate(needle: string, haystack: string) {
@@ -211,13 +206,6 @@ function loadTelarusIndex() {
   return cachedIndex
 }
 
-function addProductColumnHeuristic(mapping: DepositMappingConfigV1, headerName: string, label: string) {
-  const normalized = normalizeKey(label)
-  if (!normalized.startsWith("vendor")) return
-  if (!(normalized.includes("product") || normalized.includes("part number") || normalized.includes("sku"))) return
-  mapping.columns[headerName] = { mode: "product" }
-}
-
 export function findTelarusTemplateMatch(params: {
   distributorName: string
   vendorName: string
@@ -265,21 +253,40 @@ export function findTelarusTemplateMatch(params: {
     customFields: { ...base.customFields },
   }
 
+  const templateFieldsByHeader = new Map<string, TelarusTemplateFieldV1>()
+
   for (const row of rowsToApply) {
     const label = row.commissableFieldLabel
     const headerName = row.telarusFieldName
     if (!label || !headerName) continue
+
+    if (!templateFieldsByHeader.has(headerName)) {
+      templateFieldsByHeader.set(headerName, {
+        telarusFieldName: headerName,
+        commissableFieldLabel: label,
+        fieldId: row.fieldId || null,
+        commissionType: row.commissionType || null,
+        block: row.block,
+      })
+    }
 
     const fieldId = COMMISSABLE_LABEL_TO_DEPOSIT_FIELD_ID[label]
     if (fieldId && depositFieldIds.has(fieldId)) {
       mapping.line[fieldId] = headerName
       continue
     }
-
-    addProductColumnHeuristic(mapping, headerName, label)
   }
 
-  if (Object.keys(mapping.line).length === 0 && Object.keys(mapping.columns).length === 0) {
+  const templateFields: TelarusTemplateFieldsV1 = {
+    version: 1,
+    templateMapName: best.group.templateMapName,
+    origin: best.group.origin,
+    companyName: best.group.companyName,
+    templateId: best.group.templateId || null,
+    fields: Array.from(templateFieldsByHeader.values()),
+  }
+
+  if (templateFields.fields.length === 0) {
     return null
   }
 
@@ -289,6 +296,6 @@ export function findTelarusTemplateMatch(params: {
     companyName: best.group.companyName,
     templateId: best.group.templateId || null,
     mapping,
+    templateFields,
   }
 }
-

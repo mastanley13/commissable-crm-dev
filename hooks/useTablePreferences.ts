@@ -58,7 +58,7 @@ function applyPreferences(columns: Column[], preference: TablePreferencePayload 
     const hiddenSet = new Set(preference.hiddenColumns)
     orderedColumns = orderedColumns.map(column => ({
       ...column,
-      hidden: hiddenSet.has(column.id)
+      hidden: column.hideable !== false ? hiddenSet.has(column.id) : false
     }))
   }
 

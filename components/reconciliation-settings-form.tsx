@@ -2,26 +2,55 @@
 
 import { useState, useEffect } from 'react'
 import { useReconciliationSettings } from '@/hooks/useReconciliationSettings'
+import { useReconciliationUserSettings } from '@/hooks/useReconciliationUserSettings'
 
 export function ReconciliationSettingsForm() {
-  const { settings, loading, error, save } = useReconciliationSettings()
+  const {
+    settings: tenantSettings,
+    loading: tenantLoading,
+    error: tenantError,
+    save: saveTenantSettings,
+  } = useReconciliationSettings()
+  const {
+    settings: userSettings,
+    loading: userLoading,
+    error: userError,
+    save: saveUserSettings,
+  } = useReconciliationUserSettings()
   const [varianceTolerance, setVarianceTolerance] = useState(0)
+  const [suggestedMatchesMinConfidence, setSuggestedMatchesMinConfidence] = useState(75)
+  const [autoMatchMinConfidence, setAutoMatchMinConfidence] = useState(95)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
 
   useEffect(() => {
-    if (settings?.varianceTolerance !== undefined) {
-      setVarianceTolerance(settings.varianceTolerance * 100)
+    if (tenantSettings?.varianceTolerance !== undefined) {
+      setVarianceTolerance(tenantSettings.varianceTolerance * 100)
     }
-  }, [settings])
+  }, [tenantSettings])
+
+  useEffect(() => {
+    if (userSettings?.suggestedMatchesMinConfidence !== undefined) {
+      setSuggestedMatchesMinConfidence(Math.round(userSettings.suggestedMatchesMinConfidence * 100))
+    }
+    if (userSettings?.autoMatchMinConfidence !== undefined) {
+      setAutoMatchMinConfidence(Math.round(userSettings.autoMatchMinConfidence * 100))
+    }
+  }, [userSettings])
 
   const handleSave = async () => {
     setSaving(true)
     setMessage('')
     try {
-      await save({
-        varianceTolerance: varianceTolerance / 100
-      })
+      await Promise.all([
+        saveTenantSettings({
+          varianceTolerance: varianceTolerance / 100,
+        }),
+        saveUserSettings({
+          suggestedMatchesMinConfidence: suggestedMatchesMinConfidence / 100,
+          autoMatchMinConfidence: autoMatchMinConfidence / 100,
+        }),
+      ])
       setMessage('Settings saved successfully!')
     } catch (err) {
       setMessage('Failed to save settings')
@@ -30,6 +59,9 @@ export function ReconciliationSettingsForm() {
     }
   }
 
+  const loading = tenantLoading || userLoading
+  const error = tenantError || userError
+
   return (
     <div className="space-y-6">
       <div>
@@ -37,7 +69,7 @@ export function ReconciliationSettingsForm() {
           Reconciliation Settings
         </h2>
         <p className="mt-1 text-sm text-slate-600">
-          Configure tenant-wide reconciliation matching defaults
+          Configure reconciliation matching behavior
         </p>
       </div>
 
@@ -45,10 +77,15 @@ export function ReconciliationSettingsForm() {
         <div>Loading...</div>
       ) : (
         <div className="space-y-4">
+          {error ? (
+            <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {error}
+            </div>
+          ) : null}
           {/* Variance Tolerance Field */}
           <div className="space-y-2">
             <label className="block text-sm font-medium text-slate-800">
-              Variance Tolerance (percent)
+              Variance Tolerance (tenant default, percent)
             </label>
             <input
               type="number"
@@ -61,6 +98,54 @@ export function ReconciliationSettingsForm() {
             />
             <p className="text-xs text-slate-500">
               Used by Pass A matching and auto-match algorithms. Stored at tenant level.
+            </p>
+          </div>
+
+          {/* Suggested Matches Confidence (Per-user) */}
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-slate-800">
+              Suggested Matches Display Confidence (your preference)
+            </label>
+            <div className="flex items-center gap-4">
+              <input
+                type="range"
+                min="0"
+                max="100"
+                step="1"
+                value={suggestedMatchesMinConfidence}
+                onChange={e => setSuggestedMatchesMinConfidence(Number(e.target.value))}
+                className="w-full"
+              />
+              <div className="w-14 text-right text-sm text-slate-700 tabular-nums">
+                {suggestedMatchesMinConfidence}%
+              </div>
+            </div>
+            <p className="text-xs text-slate-500">
+              Filters the Suggested Matches table to show schedules at or above this confidence.
+            </p>
+          </div>
+
+          {/* Auto-match Confidence (Per-user) */}
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-slate-800">
+              AI Auto-Match Confidence (your preference)
+            </label>
+            <div className="flex items-center gap-4">
+              <input
+                type="range"
+                min="0"
+                max="100"
+                step="1"
+                value={autoMatchMinConfidence}
+                onChange={e => setAutoMatchMinConfidence(Number(e.target.value))}
+                className="w-full"
+              />
+              <div className="w-14 text-right text-sm text-slate-700 tabular-nums">
+                {autoMatchMinConfidence}%
+              </div>
+            </div>
+            <p className="text-xs text-slate-500">
+              AI Matching will only auto-apply the top candidate when confidence meets or exceeds this threshold.
             </p>
           </div>
 

@@ -20,6 +20,11 @@ import {
   type DepositColumnSelection,
   type DepositCustomFieldSection,
 } from '@/lib/deposit-import/template-mapping'
+import {
+  extractTelarusTemplateFieldsFromTemplateConfig,
+  stripTelarusGeneratedCustomFields,
+  type TelarusTemplateFieldsV1,
+} from '@/lib/deposit-import/telarus-template-fields'
 
 type WizardStep = 'create-template' | 'map-fields' | 'review' | 'confirm'
 
@@ -49,6 +54,7 @@ export default function DepositUploadListPage() {
   const [parsingError, setParsingError] = useState<string | null>(null)
   const [mapping, setMapping] = useState<DepositMappingConfigV1>(() => createEmptyDepositMapping())
   const [templateMapping, setTemplateMapping] = useState<DepositMappingConfigV1 | null>(null)
+  const [templateFields, setTemplateFields] = useState<TelarusTemplateFieldsV1 | null>(null)
   const [validationIssues, setValidationIssues] = useState<string[]>([])
   const [importSummary, setImportSummary] = useState<{ totalRows: number; mappedFields: number } | null>(null)
   const [importSubmitting, setImportSubmitting] = useState(false)
@@ -75,6 +81,7 @@ export default function DepositUploadListPage() {
     setSelectedFile(file)
     setMapping(createEmptyDepositMapping())
     setTemplateMapping(null)
+    setTemplateFields(null)
     setCsvHeaders([])
     setSampleRows([])
     setParsedRowCount(0)
@@ -98,6 +105,7 @@ export default function DepositUploadListPage() {
         setParsedRowCount(parsed.rows.length)
 
         let templateMapping: DepositMappingConfigV1 | null = null
+        let templateFields: TelarusTemplateFieldsV1 | null = null
         const distributorAccountId = formState.distributorAccountId?.trim() ?? ''
         const vendorAccountId = formState.vendorAccountId?.trim() ?? ''
 
@@ -115,7 +123,8 @@ export default function DepositUploadListPage() {
               const payload = await response.json().catch(() => null)
               const rawConfig = payload?.data?.[0]?.config
               if (rawConfig) {
-                templateMapping = extractDepositMappingFromTemplateConfig(rawConfig)
+                templateMapping = stripTelarusGeneratedCustomFields(extractDepositMappingFromTemplateConfig(rawConfig))
+                templateFields = extractTelarusTemplateFieldsFromTemplateConfig(rawConfig)
               }
             } else {
               // Soft-fail on template lookup; fall back to auto-mapping only.
@@ -127,6 +136,7 @@ export default function DepositUploadListPage() {
         }
 
         setTemplateMapping(templateMapping)
+        setTemplateFields(templateFields)
         setMapping(seedDepositMapping({ headers, templateMapping }))
       } catch (error) {
         if (cancelled) return
@@ -137,6 +147,7 @@ export default function DepositUploadListPage() {
         setParsingError(error instanceof Error ? error.message : 'Unable to read file')
         setMapping(createEmptyDepositMapping())
         setTemplateMapping(null)
+        setTemplateFields(null)
       }
     }
     void parse()
@@ -302,6 +313,7 @@ export default function DepositUploadListPage() {
               onFileChange={handleFileChange}
               onProceed={goToMapFields}
               onFormStateChange={updateFormState}
+              onBack={() => router.push('/reconciliation')}
             />
           ) : null}
 
@@ -312,6 +324,7 @@ export default function DepositUploadListPage() {
               sampleRows={sampleRows}
               mapping={mapping}
               templateMapping={templateMapping}
+              templateFields={templateFields}
               parsingError={parsingError}
               onColumnSelectionChange={handleColumnSelectionChange}
               onCreateCustomField={handleCreateCustomFieldForColumn}

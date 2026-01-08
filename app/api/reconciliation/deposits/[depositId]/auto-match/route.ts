@@ -9,13 +9,14 @@ import { prisma } from "@/lib/db"
 import { matchDepositLine } from "@/lib/matching/deposit-matcher"
 import { recomputeDepositAggregates } from "@/lib/matching/deposit-aggregates"
 import { getTenantMatchingPreferences } from "@/lib/matching/settings"
+import { getUserReconciliationConfidencePreferences } from "@/lib/matching/user-confidence-settings"
 import { logMatchingMetric } from "@/lib/matching/metrics"
 
 interface AutoMatchSummary {
   processed: number
   autoMatched: number
   alreadyMatched: number
-  fuzzyOnly: number
+  belowThreshold: number
   noCandidates: number
   errors: number
 }
@@ -52,12 +53,13 @@ export async function POST(request: NextRequest, { params }: { params: { deposit
     })
 
     const prefs = await getTenantMatchingPreferences(tenantId)
+    const userPrefs = await getUserReconciliationConfidencePreferences(tenantId, req.user.id)
 
     const summary: AutoMatchSummary = {
       processed: lineItems.length,
       autoMatched: 0,
       alreadyMatched: 0,
-      fuzzyOnly: 0,
+      belowThreshold: 0,
       noCandidates: 0,
       errors: 0,
     }
@@ -86,8 +88,8 @@ export async function POST(request: NextRequest, { params }: { params: { deposit
           summary.noCandidates += 1
           continue
         }
-        if (top.matchType !== "exact" || top.matchConfidence < 1) {
-          summary.fuzzyOnly += 1
+        if (top.matchConfidence < userPrefs.autoMatchMinConfidence) {
+          summary.belowThreshold += 1
           continue
         }
         topCandidateId = top.revenueScheduleId

@@ -5223,9 +5223,10 @@ useEffect(() => {
     <>
       <div className="flex h-full flex-col overflow-hidden">
         <div className="flex flex-1 min-h-0 flex-col overflow-hidden px-4 sm:px-6 lg:px-8">
-          <div className="w-full xl:max-w-[1800px]">
-            <div className="flex flex-col gap-4">
+          <div className="flex flex-1 flex-col min-h-0 overflow-hidden">
+            <div className="w-full xl:max-w-[1800px]">
               {headerNode}
+            </div>
 
             <div className="flex flex-1 flex-col min-h-0 overflow-hidden">
               <div className="flex flex-wrap gap-1 border-x border-t border-gray-200 bg-gray-100 pt-2 px-3 pb-0">
@@ -5536,7 +5537,6 @@ useEffect(() => {
             />
           </div>
         </div>
-      </div>
       </div>
 
       <RevenueBulkApplyPanel

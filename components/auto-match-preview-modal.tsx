@@ -19,7 +19,7 @@ export interface AutoMatchPreviewLine {
 export interface AutoMatchPreviewSummary {
   processed: number
   alreadyMatched: number
-  fuzzyOnly: number
+  belowThreshold: number
   noCandidates: number
   errors: number
   autoMatchCandidates: AutoMatchPreviewLine[]
@@ -56,8 +56,8 @@ export function AutoMatchPreviewModal({
 
         <div className="px-6 py-5">
           <ol className="list-decimal space-y-1 pl-5 text-sm text-slate-700">
-            <li>Preview auto-matches (Pass A exact) for the deposit.</li>
-            <li>Apply auto-matches, then review fuzzy suggestions manually.</li>
+            <li>Preview matches that meet your confidence threshold.</li>
+            <li>Apply matches, then review remaining suggestions manually.</li>
             <li>Confirm allocations, then finalize the deposit.</li>
           </ol>
           {error ? (
@@ -75,7 +75,7 @@ export function AutoMatchPreviewModal({
           ) : preview ? (
             <>
               <div className="mt-4 text-xs text-slate-600">
-                Processed {preview.processed} lines · Already matched: {preview.alreadyMatched} · Eligible for auto-match: {preview.autoMatchCandidates.length} · Fuzzy-only: {preview.fuzzyOnly} · No candidates: {preview.noCandidates} · Errors: {preview.errors}
+                Processed {preview.processed} lines · Already matched: {preview.alreadyMatched} · Eligible for auto-match: {preview.autoMatchCandidates.length} · Below threshold: {preview.belowThreshold} · No candidates: {preview.noCandidates} · Errors: {preview.errors}
               </div>
               {preview.autoMatchCandidates.length ? (
                 <div className="mt-3 max-h-64 overflow-y-auto rounded-lg border border-slate-200">
@@ -113,7 +113,7 @@ export function AutoMatchPreviewModal({
                 </div>
               ) : (
                 <div className="mt-4 rounded-md border border-dashed border-slate-200 px-3 py-2 text-sm text-slate-500">
-                  No lines qualify for automatic matching. Review fuzzy suggestions manually.
+                  No lines qualify for automatic matching at your threshold. Review suggestions manually.
                 </div>
               )}
             </>

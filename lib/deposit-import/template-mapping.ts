@@ -1,4 +1,5 @@
 import { depositFieldDefinitions } from "./fields"
+import { normalizeKey } from "./normalize"
 
 export type DepositFieldId = (typeof depositFieldDefinitions)[number]["id"]
 
@@ -140,15 +141,6 @@ export function serializeDepositMappingForTemplate(mapping: DepositMappingConfig
   }
 }
 
-function normalizeKey(value: string) {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/[\s\-_./\\]+/g, " ")
-    .replace(/[^a-z0-9 ]/g, "")
-    .replace(/\s+/g, " ")
-}
-
 const AUTO_FIELD_SYNONYMS: Partial<Record<DepositFieldId, string[]>> = {
   usage: [
     "usage",
@@ -217,6 +209,31 @@ function findBestHeader(headers: string[], candidates: string[], used: Set<strin
     return header
   }
   return null
+}
+
+function buildNormalizedHeaderMap(headers: string[]) {
+  const map = new Map<string, string | null>()
+  for (const header of headers) {
+    const key = normalizeKey(header)
+    if (!key) continue
+    if (!map.has(key)) {
+      map.set(key, header)
+      continue
+    }
+    // Mark ambiguous if multiple headers normalize to the same key.
+    map.set(key, null)
+  }
+  return map
+}
+
+function resolveHeaderFromTemplate(headers: string[], normalizedMap: Map<string, string | null>, templateHeader: string) {
+  if (headers.includes(templateHeader)) return templateHeader
+  const lower = templateHeader.toLowerCase()
+  const caseInsensitive = headers.find(header => header.toLowerCase() === lower)
+  if (caseInsensitive) return caseInsensitive
+  const normalized = normalizeKey(templateHeader)
+  const normalizedMatch = normalized ? normalizedMap.get(normalized) ?? null : null
+  return normalizedMatch
 }
 
 export function applyAutoMapping(headers: string[], mapping: DepositMappingConfigV1): DepositMappingConfigV1 {
@@ -374,16 +391,28 @@ export function seedDepositMapping(params: {
 
   if (params.templateMapping) {
     const merged = cloneMapping(params.templateMapping)
+    const normalizedHeaders = buildNormalizedHeaderMap(params.headers)
     // Only keep line mappings that exist in the current upload.
     for (const [fieldId, columnName] of Object.entries(merged.line)) {
       if (!columnName) continue
-      if (!params.headers.includes(columnName)) {
+      const resolved = resolveHeaderFromTemplate(params.headers, normalizedHeaders, columnName)
+      if (!resolved) {
         delete merged.line[fieldId as DepositFieldId]
+        continue
+      }
+      if (resolved !== columnName) {
+        merged.line[fieldId as DepositFieldId] = resolved
       }
     }
     // Only keep column configs that exist in the current upload.
     for (const columnName of Object.keys(merged.columns)) {
-      if (!params.headers.includes(columnName)) {
+      const resolved = resolveHeaderFromTemplate(params.headers, normalizedHeaders, columnName)
+      if (!resolved) {
+        delete merged.columns[columnName]
+        continue
+      }
+      if (resolved !== columnName) {
+        merged.columns[resolved] = merged.columns[columnName]!
         delete merged.columns[columnName]
       }
     }

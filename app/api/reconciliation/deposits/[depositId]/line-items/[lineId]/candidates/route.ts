@@ -3,12 +3,14 @@ import { candidatesToSuggestedRows, matchDepositLine } from "@/lib/matching/depo
 import { withPermissions, createErrorResponse } from "@/lib/api-auth"
 import { prisma } from "@/lib/db"
 import { getTenantMatchingPreferences } from "@/lib/matching/settings"
+import { getUserReconciliationConfidencePreferences } from "@/lib/matching/user-confidence-settings"
 
 export async function GET(request: NextRequest, { params }: { params: { depositId: string; lineId: string } }) {
   return withPermissions(request, ["reconciliation.view"], async (req) => {
     const depositId = params?.depositId?.trim()
     const lineId = params?.lineId?.trim()
     const tenantId = req.user.tenantId
+    const userId = req.user.id
     const searchParams = request.nextUrl.searchParams
     const includeFutureSchedulesParam = searchParams.get("includeFutureSchedules")
     const useHierarchicalMatchingParam = searchParams.get("useHierarchicalMatching")
@@ -73,8 +75,13 @@ export async function GET(request: NextRequest, { params }: { params: { depositI
       },
     )
 
+    const userPrefs = await getUserReconciliationConfidencePreferences(tenantId, userId)
+    const filtered = mapped.filter(
+      row => row.status !== "Suggested" || row.matchConfidence >= userPrefs.suggestedMatchesMinConfidence,
+    )
+
     return NextResponse.json({
-      data: mapped,
+      data: filtered,
     })
   })
 }

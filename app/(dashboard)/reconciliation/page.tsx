@@ -833,17 +833,6 @@ useEffect(() => {
   }
 }, [preferencePageSize, pageSize])
 
-  const handleMonthClick = useCallback((monthIndex: number) => {
-    setSelectedMonth(previous => {
-      const year = previous.getFullYear()
-      const month = previous.getMonth()
-      if (month === monthIndex) {
-        return previous
-      }
-      return new Date(year, monthIndex, 1)
-    })
-    setCurrentPage(1)
-  }, [])
 
   const handleMonthStep = useCallback(
     (direction: 'prev' | 'next') => {
@@ -1131,26 +1120,6 @@ useEffect(() => {
               <span className="sr-only">Next month</span>
               <span aria-hidden="true">{'>'}</span>
             </button>
-          </div>
-          <div className="flex flex-wrap gap-1">
-            {MONTHS.map((monthName, index) => {
-              const isSelected = index === selectedMonthIndex
-              return (
-                <button
-                  key={monthName}
-                  type="button"
-                  onClick={() => handleMonthClick(index)}
-                  className={cn(
-                    'px-2 py-1 text-xs rounded-full border transition-colors',
-                    isSelected
-                      ? 'border-primary-600 bg-primary-50 text-primary-700 font-semibold'
-                      : 'border-slate-200 bg-white text-slate-600 hover:border-primary-300 hover:text-primary-700',
-                  )}
-                >
-                  {monthName.slice(0, 3)}
-                </button>
-              )
-            })}
           </div>
         </div>
       </div>

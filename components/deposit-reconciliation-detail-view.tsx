@@ -41,7 +41,7 @@ export interface AutoMatchSummary {
   processed: number
   autoMatched: number
   alreadyMatched: number
-  fuzzyOnly: number
+  belowThreshold: number
   noCandidates: number
   errors: number
 }
@@ -57,7 +57,7 @@ const depositFieldLabels = {
   accountName: "Account Name",
   vendorName: "Vendor Name",
   productName: "Vendor - Product Name",
-  usage: "Usage",
+  usage: "Actual Usage",
   usageAllocated: "Usage Allocated",
   usageUnallocated: "Usage Unallocated",
   commissionRate: "Actual Commission Rate %",
@@ -405,6 +405,22 @@ export function DepositReconciliationDetailView({
   const normalizedScheduleTableHeight =
     sharedTableBodyHeight ?? scheduleTableBodyHeight ?? DEFAULT_TABLE_BODY_HEIGHT
 
+  const selectedLineForMatch = useMemo(() => {
+    const lineId = selectedLineItems[0]
+    if (!lineId) return null
+    return lineItemRows.find(item => item.id === lineId) ?? null
+  }, [lineItemRows, selectedLineItems])
+
+  const matchButtonDisabledReason = useMemo(() => {
+    if (matchingLineId || undoingLineId) return "Update in progress"
+    if (!selectedLineForMatch) return "Select a deposit line item above"
+    if (selectedLineForMatch.reconciled) return "Reconciled line items cannot be changed"
+    if (selectedLineForMatch.status === "Ignored") return "Ignored line items cannot be matched"
+    if (selectedSchedules.length === 0) return "Select a suggested schedule below"
+    if (selectedSchedules.length > 1) return "Select only one schedule to match"
+    return null
+  }, [matchingLineId, undoingLineId, selectedLineForMatch, selectedSchedules.length])
+
   const matchedLineItems = useMemo(
     () =>
       lineItemRows.filter(
@@ -516,11 +532,26 @@ export function DepositReconciliationDetailView({
         showError("No line selected", "Select a deposit line item to match.")
         return
       }
-      const scheduleId = selectedSchedulesRef.current[0]
-      if (!scheduleId) {
+      const targetLine = lineItemRows.find(item => item.id === lineId)
+      if (targetLine?.reconciled) {
+        showError("Line locked", "Reconciled line items cannot be changed.")
+        return
+      }
+      if (targetLine?.status === "Ignored") {
+        showError("Line ignored", "Ignored line items cannot be matched.")
+        return
+      }
+
+      const selectedSchedulesNow = selectedSchedulesRef.current
+      if (selectedSchedulesNow.length === 0) {
         showError("No schedule selected", "Select a suggested schedule to match.")
         return
       }
+      if (selectedSchedulesNow.length > 1) {
+        showError("Too many schedules selected", "Select only one suggested schedule to match.")
+        return
+      }
+      const scheduleId = selectedSchedulesNow[0]!
       try {
         matchingLineIdRef.current = lineId
         setMatchingLineId(lineId)
@@ -552,8 +583,17 @@ export function DepositReconciliationDetailView({
         setMatchingLineId(null)
       }
     },
-    [metadata.id, onLineSelectionChange, onMatchApplied, showError, showSuccess]
+    [lineItemRows, metadata.id, onLineSelectionChange, onMatchApplied, showError, showSuccess]
   )
+
+  const handleMatchSelected = useCallback(() => {
+    const lineId = selectedLineItemsRef.current[0]
+    if (!lineId) {
+      showError("No line selected", "Select a deposit line item to match.")
+      return
+    }
+    void handleRowMatchClick(lineId)
+  }, [handleRowMatchClick, showError])
 
   const unmatchLineById = useCallback(
     async (lineId?: string | null) => {
@@ -1012,56 +1052,18 @@ export function DepositReconciliationDetailView({
           const isBusy =
             matchingLineIdRef.current === row.id || undoingLineIdRef.current === row.id
 
-          const isMatched = row.status === "Matched" || row.status === "Partially Matched"
-
-          const canToggle =
-            Boolean(row.id) &&
-            !row.reconciled &&
-            displayStatus !== "Ignored"
-
-          const title = !canToggle
-            ? displayStatus === "Ignored"
-              ? "Ignored line items cannot be matched from this view."
-              : row.reconciled
-                ? "Reconciled line items cannot be changed."
-                : undefined
-            : isMatched
-              ? "Click to unmatch this line item."
-              : "Select a suggested schedule below, then click to match."
-
           return (
-            <button
-              type="button"
-              title={title}
-              aria-label={`Deposit status: ${displayStatus}. ${
-                !canToggle
-                  ? "No actions available."
-                  : isMatched
-                    ? "Click to unmatch."
-                    : "Click to match to the selected schedule."
-              }`}
-              disabled={!canToggle || isBusy}
-              onClick={event => {
-                event.stopPropagation()
-                if (!row.id || !canToggle || isBusy) return
-                if (isMatched) {
-                  void unmatchLineById(row.id)
-                } else {
-                  void handleRowMatchClick(row.id)
-                }
-              }}
+            <span
               className={cn(
-                "inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold transition",
+                "inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold",
                 toneClass,
-                canToggle ? "hover:opacity-90" : "",
-                !canToggle ? "cursor-default" : "cursor-pointer",
-                isBusy ? "opacity-70 cursor-not-allowed" : ""
+                isBusy ? "opacity-70" : ""
               )}
               data-disable-row-click="true"
             >
               <span className={cn("mr-2 inline-block h-2 w-2 rounded-full", dotClass)} />
               {isBusy ? "Updating..." : displayStatus}
-            </button>
+            </span>
           )
         }
       },
@@ -1143,6 +1145,7 @@ export function DepositReconciliationDetailView({
         width: 140,
         minWidth: 140,
         sortable: true,
+        hideable: false,
         render: (value: number) => currencyFormatter.format(value)
       },
       {
@@ -1175,6 +1178,7 @@ export function DepositReconciliationDetailView({
         width: 160,
         minWidth: 140,
         sortable: true,
+        hideable: false,
         render: (value: number) => currencyFormatter.format(value)
       },
       {
@@ -1215,7 +1219,7 @@ export function DepositReconciliationDetailView({
         sortable: true
       }
     ]
-  }, [currencyFormatter, percentFormatter, dateFormatter, handleRowMatchClick, unmatchLineById])
+  }, [currencyFormatter, percentFormatter, dateFormatter])
 
   const baseScheduleColumns = useMemo<Column[]>(() => {
     const minTextWidth = (label: string) => calculateMinWidth({ label, type: "text", sortable: false })
@@ -1417,6 +1421,7 @@ export function DepositReconciliationDetailView({
         width: 200,
         minWidth: minTextWidth(scheduleFieldLabels.actualUsage),
         sortable: true,
+        hideable: false,
         render: (value: number) => currencyFormatter.format(value)
       },
       {
@@ -1468,6 +1473,7 @@ export function DepositReconciliationDetailView({
         width: 200,
         minWidth: minTextWidth(scheduleFieldLabels.actualCommission),
         sortable: true,
+        hideable: false,
         render: (value: number) => currencyFormatter.format(value)
       },
       {
@@ -2006,8 +2012,8 @@ export function DepositReconciliationDetailView({
           {autoMatchSummary.alreadyMatched > 0 ? (
               <> · Already matched: {autoMatchSummary.alreadyMatched}</>
             ) : null}
-            {autoMatchSummary.fuzzyOnly > 0 ? (
-              <> · Fuzzy-only: {autoMatchSummary.fuzzyOnly}</>
+            {autoMatchSummary.belowThreshold > 0 ? (
+              <> · Below threshold: {autoMatchSummary.belowThreshold}</>
             ) : null}
             {autoMatchSummary.noCandidates > 0 ? (
               <> · No candidates: {autoMatchSummary.noCandidates}</>
@@ -2348,6 +2354,21 @@ export function DepositReconciliationDetailView({
             columnFilters={scheduleColumnFilters}
             onColumnFiltersChange={handleScheduleColumnFiltersChange}
             onSettingsClick={() => setShowScheduleColumnSettings(true)}
+            preSearchAccessory={
+              <button
+                type="button"
+                onClick={handleMatchSelected}
+                disabled={Boolean(matchButtonDisabledReason)}
+                title={matchButtonDisabledReason ?? "Match selected line item to the selected schedule"}
+                className={cn(
+                  "inline-flex h-9 items-center justify-center gap-2 rounded bg-primary-600 px-3 text-sm font-semibold text-white shadow-sm transition hover:bg-primary-700",
+                  matchButtonDisabledReason ? "cursor-not-allowed opacity-60 hover:bg-primary-600" : ""
+                )}
+              >
+                <ClipboardCheck className="h-4 w-4" />
+                Match
+              </button>
+            }
             leftAccessory={
               <div className="flex items-center gap-3">
                 <ReconciliationScheduleStatusFilterDropdown

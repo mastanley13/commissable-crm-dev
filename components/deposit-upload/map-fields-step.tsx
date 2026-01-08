@@ -4,12 +4,14 @@ import { useEffect, useState } from "react"
 import { FileSpreadsheet, AlertTriangle, ChevronLeft, ChevronRight, ChevronDown, Check } from "lucide-react"
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu"
 import { depositFieldDefinitions, requiredDepositFieldIds } from "@/lib/deposit-import/fields"
+import { normalizeKey } from "@/lib/deposit-import/normalize"
 import {
   getColumnSelection,
   type DepositMappingConfigV1,
   type DepositColumnSelection,
   type DepositCustomFieldSection,
 } from "@/lib/deposit-import/template-mapping"
+import type { TelarusTemplateFieldsV1 } from "@/lib/deposit-import/telarus-template-fields"
 
 const PREVIEW_PAGE_SIZE = 1
 
@@ -19,6 +21,7 @@ interface MapFieldsStepProps {
   sampleRows: string[][]
   mapping: DepositMappingConfigV1
   templateMapping: DepositMappingConfigV1 | null
+  templateFields: TelarusTemplateFieldsV1 | null
   parsingError: string | null
   onColumnSelectionChange: (columnName: string, selection: DepositColumnSelection) => void
   onCreateCustomField: (columnName: string, input: { label: string; section: DepositCustomFieldSection }) => void
@@ -33,6 +36,7 @@ export function MapFieldsStep({
   sampleRows,
   mapping,
   templateMapping,
+  templateFields,
   parsingError,
   onColumnSelectionChange,
   onCreateCustomField,
@@ -80,28 +84,54 @@ export function MapFieldsStep({
 
   const columnRows = csvHeaders.map((header, index) => ({ header, index }))
 
-  const templateMatchedRows = columnRows.filter(({ header }) => {
-    if (!templateMapping) return false
-    const selection = getColumnSelection(mapping, header)
-
-    if (selection.type === "canonical") {
-      return Boolean(templateMapping.line?.[selection.fieldId])
+  const normalizedHeaderLookup = new Map<string, string>()
+  for (const header of csvHeaders) {
+    const key = normalizeKey(header)
+    if (key && !normalizedHeaderLookup.has(key)) {
+      normalizedHeaderLookup.set(key, header)
     }
+  }
 
-    const templateColumn = templateMapping.columns?.[header]
-    if (!templateColumn) return false
-
-    if (selection.type === "custom") {
-      return templateColumn.mode === "custom" && templateColumn.customKey === selection.customKey
+  const templateHintByNormalizedHeader = new Map<string, string>()
+  if (templateFields?.fields?.length) {
+    for (const field of templateFields.fields) {
+      const key = normalizeKey(field.telarusFieldName)
+      if (!key || templateHintByNormalizedHeader.has(key)) continue
+      templateHintByNormalizedHeader.set(key, field.commissableFieldLabel)
     }
+  }
 
-    if (selection.type === "product") return templateColumn.mode === "product"
-    if (selection.type === "ignore") return templateColumn.mode === "ignore"
-    return false
-  })
+  const templateColumnCandidates = new Set<string>()
+  if (templateMapping) {
+    for (const columnName of Object.values(templateMapping.line ?? {})) {
+      if (typeof columnName === "string" && columnName.trim()) {
+        templateColumnCandidates.add(columnName)
+      }
+    }
+    for (const columnName of Object.keys(templateMapping.columns ?? {})) {
+      if (columnName.trim()) templateColumnCandidates.add(columnName)
+    }
+  }
 
-  const templateMatchedIndexes = new Set(templateMatchedRows.map(row => row.index))
-  const additionalRows = columnRows.filter(row => !templateMatchedIndexes.has(row.index))
+  if (templateFields?.fields?.length) {
+    for (const field of templateFields.fields) {
+      if (field.telarusFieldName?.trim()) templateColumnCandidates.add(field.telarusFieldName)
+    }
+  }
+
+  const templateColumnNames = new Set<string>()
+  for (const candidate of templateColumnCandidates) {
+    if (csvHeaders.includes(candidate)) {
+      templateColumnNames.add(candidate)
+      continue
+    }
+    const resolved = normalizedHeaderLookup.get(normalizeKey(candidate))
+    if (resolved) templateColumnNames.add(resolved)
+  }
+
+  const templateRows = columnRows.filter(({ header }) => templateColumnNames.has(header))
+  const templateIndexes = new Set(templateRows.map(row => row.index))
+  const additionalRows = columnRows.filter(row => !templateIndexes.has(row.index))
 
   const updateCustomDraft = (
     draftKey: string,
@@ -215,6 +245,7 @@ export function MapFieldsStep({
 
               let statusLabel = "Unmapped"
               let statusClass = "border-gray-200 bg-gray-50 text-gray-600"
+              const templateHint = templateHintByNormalizedHeader.get(normalizeKey(header))
 
               if (selection.type === "canonical") {
                 statusLabel = mappedField?.required ? "Required mapped" : "Mapped"
@@ -228,6 +259,9 @@ export function MapFieldsStep({
               } else if (selection.type === "ignore") {
                 statusLabel = "Ignored"
                 statusClass = "border-gray-200 bg-gray-50 text-gray-500"
+              } else if (selection.type === "additional" && templateHint) {
+                statusLabel = "Template field"
+                statusClass = "border-amber-300 bg-amber-50 text-amber-800"
               } else if (selection.type === "additional") {
                 statusLabel = "Additional info"
                 statusClass = "border-gray-200 bg-gray-50 text-gray-600"
@@ -412,6 +446,12 @@ export function MapFieldsStep({
                       </DropdownMenu.Portal>
                     </DropdownMenu.Root>
 
+                    {templateHint && !customDefinition && selection.type !== "canonical" ? (
+                      <p className="text-xs text-gray-600">
+                        Template suggests: <span className="font-semibold">{templateHint}</span>.
+                      </p>
+                    ) : null}
+
                     {customDefinition ? (
                       <p className="text-xs text-gray-600">
                         This column is mapped to a custom{" "}
@@ -525,25 +565,24 @@ export function MapFieldsStep({
 
           <div className="mt-4 space-y-4">
             {renderColumnTable({
-              title: "Template-mapped columns",
-              description: templateMapping
-                ? "Columns where your current selection still matches the saved Distributor/Vendor template mapping."
-                : "No saved template mapping was found for the selected Distributor/Vendor.",
-              rows: templateMatchedRows,
-              emptyLabel: templateMapping
-                ? "No columns currently match the saved template mapping."
-                : "Select a Distributor and Vendor with a saved mapping to pre-fill this section.",
+              title: `Template-mapped columns (${templateRows.length})`,
+              description:
+                templateRows.length > 0
+                  ? "Columns included in the saved Distributor/Vendor template mapping."
+                  : "No saved template mapping was found for the selected Distributor/Vendor.",
+              rows: templateRows,
+              emptyLabel: "Select a Distributor and Vendor with a saved mapping to pre-fill this section.",
             })}
 
             {renderColumnTable({
-              title: "Additional columns",
-              description: "All other columns (unmapped, ignored, or mapped differently than the template).",
+              title: `Additional columns (${additionalRows.length})`,
+              description: "All other columns (not included in the template mapping).",
               rows: additionalRows,
               emptyLabel: "No additional columns found.",
             })}
           </div>
 
-          {false ? (
+          {/*
           <div className="mt-3 rounded-lg border border-gray-200 text-sm text-gray-700">
             <div className="hidden border-b border-gray-200 bg-gray-50 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500 md:grid md:grid-cols-[minmax(0,1.3fr)_minmax(0,1.5fr)_120px_minmax(0,1.7fr)]">
               <div>Field label in file</div>
@@ -827,7 +866,7 @@ export function MapFieldsStep({
               })}
             </div>
           </div>
-          ) : null}
+          */}
         </div>
       ) : null}
 

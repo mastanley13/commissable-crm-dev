@@ -4,6 +4,7 @@ import { withPermissions, createErrorResponse } from "@/lib/api-auth"
 import { prisma } from "@/lib/db"
 import { matchDepositLine } from "@/lib/matching/deposit-matcher"
 import { getTenantMatchingPreferences } from "@/lib/matching/settings"
+import { getUserReconciliationConfidencePreferences } from "@/lib/matching/user-confidence-settings"
 
 interface AutoMatchPreviewLine {
   lineId: string
@@ -20,7 +21,7 @@ interface AutoMatchPreviewLine {
 interface AutoMatchPreviewSummary {
   processed: number
   alreadyMatched: number
-  fuzzyOnly: number
+  belowThreshold: number
   noCandidates: number
   errors: number
   autoMatchCandidates: AutoMatchPreviewLine[]
@@ -59,11 +60,12 @@ export async function POST(request: NextRequest, { params }: { params: { deposit
     })
 
     const prefs = await getTenantMatchingPreferences(tenantId)
+    const userPrefs = await getUserReconciliationConfidencePreferences(tenantId, req.user.id)
 
     const summary: AutoMatchPreviewSummary = {
       processed: lineItems.length,
       alreadyMatched: 0,
-      fuzzyOnly: 0,
+      belowThreshold: 0,
       noCandidates: 0,
       errors: 0,
       autoMatchCandidates: [],
@@ -90,8 +92,8 @@ export async function POST(request: NextRequest, { params }: { params: { deposit
           summary.noCandidates += 1
           continue
         }
-        if (top.matchType !== "exact" || top.matchConfidence < 1) {
-          summary.fuzzyOnly += 1
+        if (top.matchConfidence < userPrefs.autoMatchMinConfidence) {
+          summary.belowThreshold += 1
           continue
         }
         summary.autoMatchCandidates.push({

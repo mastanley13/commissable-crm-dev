@@ -9,6 +9,11 @@ import {
   type DepositFieldId,
   type DepositMappingConfigV1,
 } from "@/lib/deposit-import/template-mapping"
+import {
+  serializeTelarusTemplateFieldsForTemplate,
+  type TelarusTemplateFieldV1,
+  type TelarusTemplateFieldsV1,
+} from "@/lib/deposit-import/telarus-template-fields"
 
 const prisma = new PrismaClient()
 
@@ -227,20 +232,50 @@ async function main() {
       line[fieldId] = headerName
     }
 
-    if (Object.keys(line).length === 0) {
+    const mapping: DepositMappingConfigV1 = {
+      ...base,
+      line,
+    }
+
+    const templateFieldsByHeader = new Map<string, TelarusTemplateFieldV1>()
+    for (const row of rowsToApply) {
+      const label = row.commissableFieldLabel
+      const headerName = row.telarusFieldName
+      if (!label || !headerName) continue
+      if (templateFieldsByHeader.has(headerName)) continue
+      templateFieldsByHeader.set(headerName, {
+        telarusFieldName: headerName,
+        commissableFieldLabel: label,
+        fieldId: row.fieldId || null,
+        commissionType: row.commissionType || null,
+        block: row.block,
+      })
+    }
+
+    const telarusTemplateFields: TelarusTemplateFieldsV1 = {
+      version: 1,
+      templateMapName: group.templateMapName,
+      origin,
+      companyName,
+      templateId: group.templateId || null,
+      fields: Array.from(templateFieldsByHeader.values()),
+    }
+
+    if (Object.keys(mapping.line).length === 0 && telarusTemplateFields.fields.length === 0) {
       console.warn(
         `No deposit field mappings derived for Telarus template "${group.templateMapName}" (${distributorName} / ${vendorName}); skipping.`,
       )
       continue
     }
 
-    const mapping: DepositMappingConfigV1 = {
-      ...base,
-      line,
-    }
-
-    const baseConfig = serializeDepositMappingForTemplate(mapping)
-    const config: Prisma.InputJsonValue = baseConfig as unknown as Prisma.InputJsonValue
+    const config: Prisma.InputJsonValue = {
+      ...(serializeDepositMappingForTemplate(mapping) as unknown as Prisma.JsonObject),
+      ...(serializeTelarusTemplateFieldsForTemplate(telarusTemplateFields) as unknown as Prisma.JsonObject),
+      telarusTemplateId: group.templateId || null,
+      telarusOrigin: origin,
+      telarusCompanyName: companyName,
+      telarusTemplateMapName: group.templateMapName,
+    } as unknown as Prisma.InputJsonValue
 
     const existingTemplate = await prisma.reconciliationTemplate.findFirst({
       where: {
@@ -271,11 +306,7 @@ async function main() {
           vendorAccountId: vendor.id,
           createdByUserId: await resolveSystemUserId(tenantId),
           createdByContactId: null,
-          config: {
-            ...(baseConfig as unknown as Prisma.JsonObject),
-            telarusTemplateId: group.templateId || null,
-            telarusOrigin: origin,
-          } as unknown as Prisma.JsonObject,
+          config: config as unknown as Prisma.JsonObject,
         },
       })
       console.log(
