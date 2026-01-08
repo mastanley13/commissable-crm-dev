@@ -18,6 +18,7 @@ interface MapFieldsStepProps {
   csvHeaders: string[]
   sampleRows: string[][]
   mapping: DepositMappingConfigV1
+  templateMapping: DepositMappingConfigV1 | null
   parsingError: string | null
   onColumnSelectionChange: (columnName: string, selection: DepositColumnSelection) => void
   onCreateCustomField: (columnName: string, input: { label: string; section: DepositCustomFieldSection }) => void
@@ -31,6 +32,7 @@ export function MapFieldsStep({
   csvHeaders,
   sampleRows,
   mapping,
+  templateMapping,
   parsingError,
   onColumnSelectionChange,
   onCreateCustomField,
@@ -76,6 +78,31 @@ export function MapFieldsStep({
 
   const missingRequired = requiredDepositFieldIds.filter(fieldId => !canonicalFieldMapping[fieldId])
 
+  const columnRows = csvHeaders.map((header, index) => ({ header, index }))
+
+  const templateMatchedRows = columnRows.filter(({ header }) => {
+    if (!templateMapping) return false
+    const selection = getColumnSelection(mapping, header)
+
+    if (selection.type === "canonical") {
+      return Boolean(templateMapping.line?.[selection.fieldId])
+    }
+
+    const templateColumn = templateMapping.columns?.[header]
+    if (!templateColumn) return false
+
+    if (selection.type === "custom") {
+      return templateColumn.mode === "custom" && templateColumn.customKey === selection.customKey
+    }
+
+    if (selection.type === "product") return templateColumn.mode === "product"
+    if (selection.type === "ignore") return templateColumn.mode === "ignore"
+    return false
+  })
+
+  const templateMatchedIndexes = new Set(templateMatchedRows.map(row => row.index))
+  const additionalRows = columnRows.filter(row => !templateMatchedIndexes.has(row.index))
+
   const updateCustomDraft = (
     draftKey: string,
     updates: Partial<{ label: string; section: DepositCustomFieldSection }>,
@@ -106,6 +133,302 @@ export function MapFieldsStep({
       }
       return next
     })
+  }
+
+  const renderColumnTable = ({
+    title,
+    description,
+    rows,
+    emptyLabel,
+  }: {
+    title: string
+    description?: string
+    rows: Array<{ header: string; index: number }>
+    emptyLabel: string
+  }) => {
+    return (
+      <div className="rounded-lg border border-gray-200 text-sm text-gray-700">
+        <div className="flex flex-wrap items-start justify-between gap-2 border-b border-gray-200 bg-gray-50 px-3 py-2">
+          <div>
+            <p className="text-sm font-semibold text-gray-900">
+              {title} <span className="font-normal text-gray-500">({rows.length})</span>
+            </p>
+            {description ? <p className="mt-0.5 text-xs text-gray-600">{description}</p> : null}
+          </div>
+        </div>
+
+        <div className="hidden border-b border-gray-200 bg-gray-50 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500 md:grid md:grid-cols-[minmax(0,1.3fr)_minmax(0,1.5fr)_120px_minmax(0,1.7fr)]">
+          <div>Field label in file</div>
+          <div>Preview information</div>
+          <div>Status</div>
+          <div>Map to Commissable field</div>
+        </div>
+
+        {rows.length === 0 ? (
+          <div className="px-3 py-3 text-sm text-gray-500">{emptyLabel}</div>
+        ) : (
+          <div className="divide-y divide-gray-200">
+            {rows.map(({ header, index }) => {
+              const previewValues = previewWindow
+                .map(row => row[index] ?? "")
+                .filter(value => typeof value === "string" && value.trim().length > 0)
+              const selection = getColumnSelection(mapping, header)
+              const customDefinition =
+                selection.type === "custom" ? mapping.customFields[selection.customKey] : undefined
+
+              const selectedLabel =
+                selection.type === "canonical"
+                  ? depositFieldDefinitions.find(field => field.id === selection.fieldId)?.label ?? "Mapped field"
+                  : selection.type === "custom"
+                    ? customDefinition?.label ?? "Custom field"
+                    : selection.type === "product"
+                      ? "Product info column"
+                      : selection.type === "ignore"
+                        ? "Ignore this column"
+                        : "Additional info (no specific field)"
+
+              const draftKey = `${index}:${header}`
+              const draft = customDrafts[draftKey] ?? { label: header?.trim() ?? "", section: "additional" as const }
+              const isMenuOpen = openDropdownKey === draftKey
+
+              const closeMenu = () => {
+                setOpenDropdownKey(previous => (previous === draftKey ? null : previous))
+              }
+
+              const applySelection = (next: DepositColumnSelection) => {
+                onColumnSelectionChange(header, next)
+                closeMenu()
+              }
+
+              const handleCreateCustomFieldInline = () => {
+                const label = draft.label.trim()
+                if (!label) return
+                onCreateCustomField(header, { label, section: draft.section })
+                updateCustomDraft(draftKey, { label: "" })
+                closeMenu()
+              }
+
+              const mappedField =
+                selection.type === "canonical"
+                  ? depositFieldDefinitions.find(field => field.id === selection.fieldId)
+                  : undefined
+
+              let statusLabel = "Unmapped"
+              let statusClass = "border-gray-200 bg-gray-50 text-gray-600"
+
+              if (selection.type === "canonical") {
+                statusLabel = mappedField?.required ? "Required mapped" : "Mapped"
+                statusClass = "border-emerald-300 bg-emerald-50 text-emerald-700"
+              } else if (selection.type === "custom") {
+                statusLabel = "Custom field"
+                statusClass = "border-sky-300 bg-sky-50 text-sky-700"
+              } else if (selection.type === "product") {
+                statusLabel = "Product info"
+                statusClass = "border-indigo-300 bg-indigo-50 text-indigo-700"
+              } else if (selection.type === "ignore") {
+                statusLabel = "Ignored"
+                statusClass = "border-gray-200 bg-gray-50 text-gray-500"
+              } else if (selection.type === "additional") {
+                statusLabel = "Additional info"
+                statusClass = "border-gray-200 bg-gray-50 text-gray-600"
+              }
+
+              const columnName = header || "(unnamed column)"
+
+              return (
+                <div
+                  key={`${header}-${index}`}
+                  className="grid gap-3 px-3 py-3 md:grid-cols-[minmax(0,1.3fr)_minmax(0,1.5fr)_120px_minmax(0,1.7fr)] md:items-start"
+                >
+                  <div className="space-y-0.5">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 md:hidden">
+                      Field label in file
+                    </p>
+                    <p className="text-sm font-semibold text-gray-900 break-words">{columnName}</p>
+                  </div>
+
+                  <div className="space-y-0.5 text-xs text-gray-600">
+                    <p className="font-semibold uppercase tracking-wide text-gray-500 md:hidden">
+                      Preview information
+                    </p>
+                    {previewValues.length > 0 ? (
+                      previewValues.map((value, valueIndex) => (
+                        <p
+                          key={`${header}-preview-${valueIndex}`}
+                          className={valueIndex === 0 ? "truncate" : "truncate text-gray-500"}
+                          title={value}
+                        >
+                          {value}
+                        </p>
+                      ))
+                    ) : (
+                      <p className="text-gray-400">No sample values in these rows.</p>
+                    )}
+                  </div>
+
+                  <div className="space-y-0.5">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 md:hidden">
+                      Status
+                    </p>
+                    <span
+                      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold ${statusClass}`}
+                    >
+                      {statusLabel}
+                    </span>
+                  </div>
+
+                  <div className="space-y-2">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 md:hidden">
+                      Map to Commissable field
+                    </p>
+                    <DropdownMenu.Root
+                      open={isMenuOpen}
+                      onOpenChange={open => {
+                        if (open) {
+                          setOpenDropdownKey(draftKey)
+                          if (!customDrafts[draftKey]) {
+                            updateCustomDraft(draftKey, { label: header?.trim() ?? "", section: "additional" })
+                          }
+                          return
+                        }
+                        closeMenu()
+                      }}
+                    >
+                      <DropdownMenu.Trigger asChild>
+                        <button
+                          type="button"
+                          disabled={csvHeaders.length === 0}
+                          className="inline-flex w-full items-center justify-between gap-2 rounded border border-gray-300 bg-white px-2 py-1.5 text-left text-sm text-gray-900 focus:border-primary-500 focus:outline-none disabled:bg-gray-100"
+                          aria-label="Map to Commissable field"
+                        >
+                          <span className="truncate">{selectedLabel}</span>
+                          <ChevronDown className="h-4 w-4 text-gray-500" />
+                        </button>
+                      </DropdownMenu.Trigger>
+
+                      <DropdownMenu.Portal>
+                        <DropdownMenu.Content
+                          className="z-50 min-w-[320px] rounded-lg border border-gray-200 bg-white p-2 shadow-lg animate-in fade-in-0 zoom-in-95"
+                          sideOffset={6}
+                          align="start"
+                        >
+                          {!customDefinition ? (
+                            <div className="space-y-2">
+                              <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                                Create custom field
+                              </p>
+                              <input
+                                value={draft.label}
+                                onChange={event => updateCustomDraft(draftKey, { label: event.target.value })}
+                                onKeyDown={event => {
+                                  if (event.key === "Enter") {
+                                    event.preventDefault()
+                                    handleCreateCustomFieldInline()
+                                  }
+                                }}
+                                placeholder="Type new custom field label…"
+                                className="w-full rounded-md border border-gray-300 px-2 py-1 text-sm text-gray-900 focus:border-primary-500 focus:outline-none"
+                              />
+                              <div className="flex flex-wrap gap-2">
+                                <button
+                                  type="button"
+                                  className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs font-semibold ${draft.section === "additional" ? "border-primary-200 bg-primary-50 text-primary-700" : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"}`}
+                                  onClick={() => updateCustomDraft(draftKey, { section: "additional" })}
+                                >
+                                  Additional
+                                </button>
+                                <button
+                                  type="button"
+                                  className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs font-semibold ${draft.section === "product" ? "border-primary-200 bg-primary-50 text-primary-700" : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"}`}
+                                  onClick={() => updateCustomDraft(draftKey, { section: "product" })}
+                                >
+                                  Product
+                                </button>
+                                <button
+                                  type="button"
+                                  className="ml-auto inline-flex items-center gap-1 rounded-full bg-primary-600 px-3 py-1 text-xs font-semibold text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-gray-300"
+                                  onClick={handleCreateCustomFieldInline}
+                                  disabled={!draft.label.trim()}
+                                >
+                                  Create
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="rounded-md border border-gray-100 bg-gray-50 px-2 py-1.5 text-xs text-gray-700">
+                              <p className="font-semibold text-gray-900">Custom field</p>
+                              <p className="text-gray-600">
+                                {customDefinition.label} ({customDefinition.section === "product" ? "Product" : "Additional"})
+                              </p>
+                            </div>
+                          )}
+
+                          <DropdownMenu.Separator className="my-2 h-px bg-gray-200" />
+
+                          <div className="max-h-[320px] overflow-y-auto pr-1">
+                            <DropdownMenu.Item
+                              className="flex cursor-pointer items-center justify-between rounded-md px-2 py-1.5 text-sm text-gray-700 outline-none transition-colors hover:bg-gray-100 focus:bg-gray-100"
+                              onSelect={() => applySelection({ type: "additional" })}
+                            >
+                              <span>Additional info (no specific field)</span>
+                              {selection.type === "additional" ? <Check className="h-4 w-4 text-primary-600" /> : null}
+                            </DropdownMenu.Item>
+                            <DropdownMenu.Item
+                              className="flex cursor-pointer items-center justify-between rounded-md px-2 py-1.5 text-sm text-gray-700 outline-none transition-colors hover:bg-gray-100 focus:bg-gray-100"
+                              onSelect={() => applySelection({ type: "product" })}
+                            >
+                              <span>Product info column</span>
+                              {selection.type === "product" ? <Check className="h-4 w-4 text-primary-600" /> : null}
+                            </DropdownMenu.Item>
+                            <DropdownMenu.Item
+                              className="flex cursor-pointer items-center justify-between rounded-md px-2 py-1.5 text-sm text-gray-700 outline-none transition-colors hover:bg-gray-100 focus:bg-gray-100"
+                              onSelect={() => applySelection({ type: "ignore" })}
+                            >
+                              <span>Ignore this column</span>
+                              {selection.type === "ignore" ? <Check className="h-4 w-4 text-primary-600" /> : null}
+                            </DropdownMenu.Item>
+
+                            <div className="my-2 border-t border-gray-100" />
+                            <p className="px-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                              Map to Commissable field
+                            </p>
+                            {depositFieldDefinitions.map(field => (
+                              <DropdownMenu.Item
+                                key={field.id}
+                                className="flex cursor-pointer items-center justify-between rounded-md px-2 py-1.5 text-sm text-gray-700 outline-none transition-colors hover:bg-gray-100 focus:bg-gray-100"
+                                onSelect={() => applySelection({ type: "canonical", fieldId: field.id })}
+                              >
+                                <span className="truncate">
+                                  {field.label}
+                                  {field.required ? " (Required)" : ""}
+                                </span>
+                                {selection.type === "canonical" && selection.fieldId === field.id ? (
+                                  <Check className="h-4 w-4 text-primary-600" />
+                                ) : null}
+                              </DropdownMenu.Item>
+                            ))}
+                          </div>
+                        </DropdownMenu.Content>
+                      </DropdownMenu.Portal>
+                    </DropdownMenu.Root>
+
+                    {customDefinition ? (
+                      <p className="text-xs text-gray-600">
+                        This column is mapped to a custom{" "}
+                        {customDefinition.section === "product"
+                          ? "Product Information"
+                          : "Additional Information"}{" "}
+                        field: <span className="font-semibold">{customDefinition.label}</span>.
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+    )
   }
 
   return (
@@ -148,8 +471,8 @@ export function MapFieldsStep({
           <p className="font-semibold text-gray-900">Mapping guidance</p>
           <p className="mt-2 text-xs text-gray-600">
             Map required fields like Usage and Commission to columns from your uploaded file.
-            Optional fields can be left unmapped. These mappings apply to this upload only;
-            template-based mappings are not used in this version of the wizard.
+            Optional fields can be left unmapped. If a saved mapping exists for the selected
+            Distributor + Vendor, those columns appear in the Template-mapped section below.
           </p>
         </div>
       </div>
@@ -200,6 +523,27 @@ export function MapFieldsStep({
             ) : null}
           </div>
 
+          <div className="mt-4 space-y-4">
+            {renderColumnTable({
+              title: "Template-mapped columns",
+              description: templateMapping
+                ? "Columns where your current selection still matches the saved Distributor/Vendor template mapping."
+                : "No saved template mapping was found for the selected Distributor/Vendor.",
+              rows: templateMatchedRows,
+              emptyLabel: templateMapping
+                ? "No columns currently match the saved template mapping."
+                : "Select a Distributor and Vendor with a saved mapping to pre-fill this section.",
+            })}
+
+            {renderColumnTable({
+              title: "Additional columns",
+              description: "All other columns (unmapped, ignored, or mapped differently than the template).",
+              rows: additionalRows,
+              emptyLabel: "No additional columns found.",
+            })}
+          </div>
+
+          {false ? (
           <div className="mt-3 rounded-lg border border-gray-200 text-sm text-gray-700">
             <div className="hidden border-b border-gray-200 bg-gray-50 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500 md:grid md:grid-cols-[minmax(0,1.3fr)_minmax(0,1.5fr)_120px_minmax(0,1.7fr)]">
               <div>Field label in file</div>
@@ -483,6 +827,7 @@ export function MapFieldsStep({
               })}
             </div>
           </div>
+          ) : null}
         </div>
       ) : null}
 

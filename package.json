@@ -2,7 +2,7 @@
     "name": "commissable-crm",
     "version": "0.1.0",
     "private": true,
-    "scripts": {
+  "scripts": {
         "postinstall": "prisma generate",
         "predev": "prisma generate",
         "dev": "next dev",
@@ -13,11 +13,12 @@
         "db:generate": "prisma generate",
         "db:push": "prisma db push",
         "db:migrate": "prisma migrate dev",
-        "db:seed": "tsx prisma/seed.ts",
-        "seed:deposit-lines": "tsx scripts/seed-deposit-line-items.ts",
-        "db:studio": "prisma studio",
-        "report:subagents": "tsx scripts/list-subagent-accounts.ts"
-    },
+    "db:seed": "tsx prisma/seed.ts",
+    "seed:telarus-templates": "tsx scripts/seed-telarus-reconciliation-templates.ts",
+    "seed:deposit-lines": "tsx scripts/seed-deposit-line-items.ts",
+    "db:studio": "prisma studio",
+    "report:subagents": "tsx scripts/list-subagent-accounts.ts"
+  },
     "dependencies": {
         "@emnapi/runtime": "1.7.1",
         "@emnapi/wasi-threads": "1.1.0",

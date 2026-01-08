@@ -673,7 +673,9 @@ export function OpportunityCreateModal({ isOpen, accountId, accountName, onClose
                 type="text"
                 value={`${houseSplitPercent}%`}
                 readOnly
-                className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
+                disabled
+                title="Auto-calculated from House Rep % and Subagent %."
+                className="w-full cursor-not-allowed border-b-2 border-gray-200 bg-transparent px-0 py-1 text-xs text-gray-400"
               />
             </div>
             {/* Field 01.08..011: Opportunity Description - Required */}

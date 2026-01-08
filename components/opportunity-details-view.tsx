@@ -1219,6 +1219,9 @@ function EditableOpportunityHeader({
   const [referredByOptions, setReferredByOptions] = useState<ContactOption[]>([])
   const [referredByLoading, setReferredByLoading] = useState(false)
   const [showReferredByDropdown, setShowReferredByDropdown] = useState(false)
+  const [subagentOptions, setSubagentOptions] = useState<Array<{ value: string; label: string }>>([])
+  const [subagentLoading, setSubagentLoading] = useState(false)
+  const [showSubagentDropdown, setShowSubagentDropdown] = useState(false)
 
   useEffect(() => {
     if (!editor.draft) return
@@ -1329,6 +1332,78 @@ function EditableOpportunityHeader({
     }
   }, [referredField.value, showReferredByDropdown])
 
+  useEffect(() => {
+    if (!showSubagentDropdown) {
+      return
+    }
+
+    const controller = new AbortController()
+
+    const fetchSubagents = async () => {
+      setSubagentLoading(true)
+      try {
+        const params = new URLSearchParams({
+          page: "1",
+          pageSize: "50",
+          accountType: "Subagent",
+          status: "Active"
+        })
+
+        const query = typeof subAgentField.value === "string" ? subAgentField.value.trim() : ""
+        if (query.length > 0) {
+          params.set("q", query)
+        }
+
+        const response = await fetch(`/api/accounts?${params.toString()}`, {
+          cache: "no-store",
+          signal: controller.signal
+        })
+
+        if (!response.ok) {
+          throw new Error("Failed to load subagents")
+        }
+
+        const payload = await response.json().catch(() => null)
+        const items: any[] = Array.isArray(payload?.data) ? payload.data : []
+
+        const options = items
+          .map((item) => {
+            const name = (item.accountName ?? "").trim()
+            const legal = (item.accountLegalName ?? "").trim()
+            const label =
+              name && legal && name.toLowerCase() !== legal.toLowerCase()
+                ? `${name} (${legal})`
+                : name || legal || "Unnamed account"
+
+            return {
+              value: String(item.id ?? ""),
+              label
+            }
+          })
+          .filter(option => option.value.length > 0)
+
+        setSubagentOptions(options)
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          return
+        }
+        console.error("Unable to load subagents", error)
+        setSubagentOptions([])
+      } finally {
+        setSubagentLoading(false)
+      }
+    }
+
+    const debounce = setTimeout(() => {
+      void fetchSubagents()
+    }, 250)
+
+    return () => {
+      controller.abort()
+      clearTimeout(debounce)
+    }
+  }, [showSubagentDropdown, subAgentField.value])
+
   const renderRow = (
     label: string,
     control: ReactNode,
@@ -1398,12 +1473,52 @@ function EditableOpportunityHeader({
 
           {renderRow(
             "Subagent",
-            <EditableField.Input
-              className="w-full"
-              value={(subAgentField.value as string) ?? ""}
-              onChange={subAgentField.onChange}
-              onBlur={subAgentField.onBlur}
-            />,
+            <div className="relative w-full">
+              <EditableField.Input
+                className="w-full"
+                value={(subAgentField.value as string) ?? ""}
+                placeholder="Search or pick a subagent"
+                onChange={event => {
+                  subAgentField.onChange(event)
+                  setShowSubagentDropdown(true)
+                }}
+                onFocus={() => setShowSubagentDropdown(true)}
+                onBlur={() => {
+                  setTimeout(() => setShowSubagentDropdown(false), 160)
+                  subAgentField.onBlur()
+                }}
+              />
+              {showSubagentDropdown && (subagentLoading || subagentOptions.length > 0) && (
+                <div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
+                  {subagentLoading ? (
+                    <div className="px-3 py-2 text-sm text-gray-500">Loading...</div>
+                  ) : (
+                    subagentOptions.map(option => (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onMouseDown={event => event.preventDefault()}
+                        onClick={() => {
+                          editor.setField("subAgent", option.label)
+                          setShowSubagentDropdown(false)
+                        }}
+                        className="w-full px-3 py-2 text-left text-sm hover:bg-primary-50 focus:bg-primary-50 focus:outline-none"
+                      >
+                        <div className="font-medium text-gray-900">{option.label}</div>
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
+              {showSubagentDropdown &&
+                !subagentLoading &&
+                subagentOptions.length === 0 &&
+                String(subAgentField.value ?? "").trim().length > 0 && (
+                  <div className="absolute z-10 mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-lg">
+                    <div className="px-3 py-2 text-sm text-gray-500">No matching subagents found.</div>
+                  </div>
+                )}
+            </div>,
             editor.errors.subAgent
           )}
 
@@ -1711,6 +1826,7 @@ export function OpportunityDetailsView({
   const [activeTab, setActiveTab] = useState<TabKey>(getInitialTab())
 
   const isAssignedToUser = Boolean(opportunityOwnerId && opportunityOwnerId === authUser?.id)
+  const canManageAccounts = hasPermission("accounts.manage")
   const canEditOpportunity =
     hasPermission("accounts.manage") ||
     hasPermission("opportunities.manage") ||
@@ -1759,7 +1875,9 @@ export function OpportunityDetailsView({
         const body = await response.json().catch(() => null)
         const updatedRecord = body?.data as OpportunityDetailRecord | undefined
         showSuccess("Opportunity updated", "Changes saved.")
+
         await onRefresh?.()
+
         const nextForm = updatedRecord ? createOpportunityInlineForm(updatedRecord) : null
         return nextForm ?? draft
       } catch (error) {

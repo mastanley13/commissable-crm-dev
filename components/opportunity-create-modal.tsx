@@ -987,7 +987,9 @@ export function OpportunityCreateModal({
                   type="number"
                   value={houseSplitPercentDisplay}
                   readOnly
-                  className={`${inputClass} bg-gray-100 text-gray-700`}
+                  disabled
+                  title="Auto-calculated from House Rep % and Subagent %."
+                  className={`${inputClass} cursor-not-allowed bg-gray-100 text-gray-700`}
                 />
               </div>
 

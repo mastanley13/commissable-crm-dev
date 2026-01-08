@@ -43,6 +43,7 @@ import { ActivityBulkStatusModal } from "./activity-bulk-status-modal"
 import { ContactEditModal } from "./contact-edit-modal"
 import { ActivityNoteEditModal } from "./activity-note-edit-modal"
 import { EditableField } from "./editable-field"
+import { SelectCombobox } from "./select-combobox"
 import { useEntityEditor, type EntityEditor } from "@/hooks/useEntityEditor"
 import { useUnsavedChangesPrompt } from "@/hooks/useUnsavedChangesPrompt"
 import { FieldRow } from "./detail/FieldRow"
@@ -1262,19 +1263,22 @@ function EditableAccountHeader({
 
           {renderStandardRow(
             "Parent Account",
-            <EditableField.Select
+            <SelectCombobox
               value={(parentAccountField.value as string) ?? ""}
-              onChange={parentAccountField.onChange}
-              onBlur={parentAccountField.onBlur}
+              options={[{ value: "", label: "Not Linked" }, ...parentAccountOptions]}
+              placeholder="Search or pick a parent account"
               disabled={optionsLoading}
-            >
-              <option value="">Not Linked</option>
-              {parentAccountOptions.map(option => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </EditableField.Select>,
+              inputClassName={cn(
+                "w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs text-gray-900 transition focus:border-primary-500 focus:outline-none",
+                editor.errors.parentAccountId ? "border-red-500 focus:border-red-500" : null,
+                optionsLoading ? "cursor-not-allowed opacity-70" : null
+              )}
+              dropdownClassName="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg"
+              optionClassName="w-full px-3 py-2 text-left text-sm hover:bg-primary-50 focus:bg-primary-50 focus:outline-none"
+              emptyText="No matching accounts."
+              onBlur={() => parentAccountField.onBlur()}
+              onChange={(next) => editor.setField("parentAccountId", next)}
+            />,
             editor.errors.parentAccountId
           )}
 

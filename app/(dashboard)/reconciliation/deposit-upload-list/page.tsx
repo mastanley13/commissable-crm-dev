@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useCallback, ChangeEvent } from 'react'
 import { useRouter } from 'next/navigation'
-import { Stepper } from '@/components/stepper'
 import { useBreadcrumbs } from '@/lib/breadcrumb-context'
 import { CreateTemplateStep } from '@/components/deposit-upload/create-template-step'
 import { MapFieldsStep } from '@/components/deposit-upload/map-fields-step'
@@ -23,13 +22,6 @@ import {
 } from '@/lib/deposit-import/template-mapping'
 
 type WizardStep = 'create-template' | 'map-fields' | 'review' | 'confirm'
-
-const steps = [
-  { id: 'create-template', label: 'Create Deposit' },
-  { id: 'map-fields', label: 'Map Fields' },
-  { id: 'review', label: 'Review' },
-  { id: 'confirm', label: 'Confirm' },
-]
 
 const initialFormState: DepositUploadFormState = {
   depositName: '',
@@ -56,6 +48,7 @@ export default function DepositUploadListPage() {
   const [parsedRowCount, setParsedRowCount] = useState(0)
   const [parsingError, setParsingError] = useState<string | null>(null)
   const [mapping, setMapping] = useState<DepositMappingConfigV1>(() => createEmptyDepositMapping())
+  const [templateMapping, setTemplateMapping] = useState<DepositMappingConfigV1 | null>(null)
   const [validationIssues, setValidationIssues] = useState<string[]>([])
   const [importSummary, setImportSummary] = useState<{ totalRows: number; mappedFields: number } | null>(null)
   const [importSubmitting, setImportSubmitting] = useState(false)
@@ -81,6 +74,7 @@ export default function DepositUploadListPage() {
     const file = event.target.files?.[0] ?? null
     setSelectedFile(file)
     setMapping(createEmptyDepositMapping())
+    setTemplateMapping(null)
     setCsvHeaders([])
     setSampleRows([])
     setParsedRowCount(0)
@@ -132,6 +126,7 @@ export default function DepositUploadListPage() {
           }
         }
 
+        setTemplateMapping(templateMapping)
         setMapping(seedDepositMapping({ headers, templateMapping }))
       } catch (error) {
         if (cancelled) return
@@ -141,6 +136,7 @@ export default function DepositUploadListPage() {
         setParsedRowCount(0)
         setParsingError(error instanceof Error ? error.message : 'Unable to read file')
         setMapping(createEmptyDepositMapping())
+        setTemplateMapping(null)
       }
     }
     void parse()
@@ -295,12 +291,8 @@ export default function DepositUploadListPage() {
           <div>
             <h1 className="text-2xl font-semibold text-gray-900">Deposit Reconciliation</h1>
             <p className="text-sm text-gray-600 mt-1">
-              Upload deposit files, map fields, and confirm reconciliation in four guided steps.
+              Upload deposit files, map fields, review, and confirm reconciliation.
             </p>
-          </div>
-
-          <div className="pb-2">
-            <Stepper steps={steps} activeStepId={activeStep} />
           </div>
 
           {activeStep === 'create-template' ? (
@@ -319,6 +311,7 @@ export default function DepositUploadListPage() {
               csvHeaders={csvHeaders}
               sampleRows={sampleRows}
               mapping={mapping}
+              templateMapping={templateMapping}
               parsingError={parsingError}
               onColumnSelectionChange={handleColumnSelectionChange}
               onCreateCustomField={handleCreateCustomFieldForColumn}

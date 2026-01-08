@@ -126,8 +126,8 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
   const [selectedVendorId, setSelectedVendorId] = useState<string>("")
   const [productNameHouse, setProductNameHouse] = useState("")
   const [productNameVendor, setProductNameVendor] = useState("")
-  const [productFamilyVendorInput, setProductFamilyVendorInput] = useState("")
-  const [productSubtypeVendor, setProductSubtypeVendor] = useState("")
+  const [productFamilyHouseInput, setProductFamilyHouseInput] = useState("")
+  const [productSubtypeHouse, setProductSubtypeHouse] = useState("")
   const [productCode, setProductCode] = useState("")
   const [revenueType, setRevenueType] = useState("")
   const [revenueTypeOptions, setRevenueTypeOptions] = useState<Array<{ value: string; label: string }>>([])
@@ -191,20 +191,20 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
   const switchToCreateWithCatalogFields = useCallback(() => {
     const nextProductName = productInput.trim()
     if (nextProductName) {
-      setProductNameVendor(prev => (prev.trim() ? prev : nextProductName))
       setProductNameHouse(prev => (prev.trim() ? prev : nextProductName))
+      setProductNameVendor(prev => (prev.trim() ? prev : nextProductName))
     }
 
     const family = (catalogFamilyFilter || catalogFamilyInput).trim()
     if (family && familyOptions.includes(family)) {
-      setProductFamilyVendorInput(family)
+      setProductFamilyHouseInput(family)
     }
 
     const subtype = (catalogSubtypeFilter || catalogSubtypeInput).trim()
     if (subtype) {
-      const allowed = getAllowedSubtypesForFamilyName(masterSubtypes, familyIdByName, family || productFamilyVendorInput)
+      const allowed = getAllowedSubtypesForFamilyName(masterSubtypes, familyIdByName, family || productFamilyHouseInput)
       if (allowed.includes(subtype)) {
-        setProductSubtypeVendor(subtype)
+        setProductSubtypeHouse(subtype)
       }
     }
 
@@ -218,7 +218,7 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
     familyIdByName,
     familyOptions,
     masterSubtypes,
-    productFamilyVendorInput,
+    productFamilyHouseInput,
     productInput,
   ])
 
@@ -241,9 +241,9 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
     if (vendorInput.trim()) filters.push({ columnId: 'vendorName', value: vendorInput.trim() })
     if (selectedDistributorId) filters.push({ columnId: 'distributorId', value: selectedDistributorId })
     if (selectedVendorId) filters.push({ columnId: 'vendorId', value: selectedVendorId })
-    if (catalogFamilyFilter.trim()) filters.push({ columnId: 'productFamilyVendor', value: catalogFamilyFilter.trim() })
-    if (catalogSubtypeFilter.trim()) filters.push({ columnId: 'productSubtypeVendor', value: catalogSubtypeFilter.trim() })
-    if (productInput.trim()) filters.push({ columnId: 'productNameVendor', value: productInput.trim() })
+    if (catalogFamilyFilter.trim()) filters.push({ columnId: 'productFamilyHouse', value: catalogFamilyFilter.trim() })
+    if (catalogSubtypeFilter.trim()) filters.push({ columnId: 'productSubtypeHouse', value: catalogSubtypeFilter.trim() })
+    if (productInput.trim()) filters.push({ columnId: 'productNameHouse', value: productInput.trim() })
     if (filters.length > 0) params.set('filters', JSON.stringify(filters))
     const res = await fetch(`/api/products?${params.toString()}`, { cache: 'no-store' })
     if (!res.ok) { setProductOptions([]); return }
@@ -268,7 +268,7 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
       productSubtypeHouse: it.productSubtypeHouse ?? null
     }))
     setProductOptions(mapped)
-    const names = Array.from(new Set(mapped.map(p => p.productNameVendor || p.name).filter(Boolean))) as string[]
+    const names = Array.from(new Set(mapped.map(p => p.productNameHouse || p.name).filter(Boolean))) as string[]
     setProductNameOptions(names)
   }, [
     distributorInput,
@@ -380,17 +380,17 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
     setVendorInput(product.vendorName ?? "")
     setSelectedDistributorId(product.distributorId ?? "")
     setSelectedVendorId(product.vendorId ?? "")
-    setCatalogFamilyInput(product.productFamilyVendor ?? "")
-    setCatalogFamilyFilter(product.productFamilyVendor ?? "")
-    setCatalogSubtypeInput(product.productSubtypeVendor ?? "")
-    setCatalogSubtypeFilter(product.productSubtypeVendor ?? "")
+    setCatalogFamilyInput(product.productFamilyHouse ?? "")
+    setCatalogFamilyFilter(product.productFamilyHouse ?? "")
+    setCatalogSubtypeInput(product.productSubtypeHouse ?? "")
+    setCatalogSubtypeFilter(product.productSubtypeHouse ?? "")
     setProductInput(product.name)
     setForm(prev => ({
       ...prev,
       productId: product.id,
       quantity: "1",
       unitPrice: product.priceEach != null ? Number(product.priceEach).toFixed(2) : prev.unitPrice,
-      commissionPercent: product.commissionPercent != null ? Number(product.commissionPercent).toFixed(2) : prev.commissionPercent,
+      commissionPercent: product.commissionPercent != null ? (Number(product.commissionPercent) * 100).toFixed(2) : prev.commissionPercent,
       commissionStartDate: firstDate,
       schedulePeriods: "1"
     }))
@@ -413,7 +413,7 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
         setForm(prev => ({
           ...prev,
           unitPrice: price != null ? Number(price).toFixed(2) : prev.unitPrice,
-          commissionPercent: commission != null ? Number(commission).toFixed(2) : prev.commissionPercent,
+          commissionPercent: commission != null ? (Number(commission) * 100).toFixed(2) : prev.commissionPercent,
         }))
       } catch {
         // Silent failure – keep whatever values we already have
@@ -453,7 +453,7 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
     setDistributorInput(''); setVendorInput(''); setCatalogFamilyInput(''); setCatalogFamilyFilter(''); setCatalogSubtypeInput(''); setCatalogSubtypeFilter(''); setProductInput('')
     setDistributorOptions([]); setVendorOptions([]); setFamilyOptions([]); setSubtypeOptions([]); setProductNameOptions([]); setProductOptions([])
     setSelectedDistributorId(""); setSelectedVendorId("")
-    setProductNameHouse(""); setProductNameVendor(""); setProductFamilyVendorInput(""); setProductSubtypeVendor(""); setProductCode(""); setRevenueType(""); setProductActive(true)
+    setProductNameHouse(""); setProductNameVendor(""); setProductFamilyHouseInput(""); setProductSubtypeHouse(""); setProductCode(""); setRevenueType(""); setProductActive(true)
     setDedupeExactMatch(null); setDedupeLikelyMatches([])
     setMasterFamilies([]); setMasterSubtypes([])
     setMasterDataError(null)
@@ -594,9 +594,9 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
     }
   }, [isOpen])
 
-  const vendorSubtypePicklist = useMemo(
-    () => getAllowedSubtypesForFamilyName(masterSubtypes, familyIdByName, productFamilyVendorInput),
-    [masterSubtypes, familyIdByName, productFamilyVendorInput]
+  const houseSubtypePicklist = useMemo(
+    () => getAllowedSubtypesForFamilyName(masterSubtypes, familyIdByName, productFamilyHouseInput),
+    [masterSubtypes, familyIdByName, productFamilyHouseInput]
   )
 
   // Expected revenue auto-calc when quantity/price change
@@ -614,7 +614,7 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
     setForm(prev => ({
       ...prev,
       unitPrice: selectedProduct.priceEach != null ? Number(selectedProduct.priceEach).toFixed(2) : prev.unitPrice,
-      commissionPercent: selectedProduct.commissionPercent != null ? Number(selectedProduct.commissionPercent).toFixed(2) : prev.commissionPercent
+      commissionPercent: selectedProduct.commissionPercent != null ? (Number(selectedProduct.commissionPercent) * 100).toFixed(2) : prev.commissionPercent
     }))
   }, [selectedProduct])
 
@@ -652,6 +652,9 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
 
       const derivedProductNameHouse = (productNameHouse.trim() || productNameVendor.trim() || 'New Product').slice(0, 120)
       const derivedProductCode = (productCode.trim() || `AUTO-${Date.now()}-${Math.random().toString(36).slice(2,8).toUpperCase()}`).slice(0, 64)
+      const derivedProductNameVendor = (productNameVendor.trim() || derivedProductNameHouse).slice(0, 120)
+      const derivedFamily = productFamilyHouseInput.trim()
+      const derivedSubtype = productSubtypeHouse.trim()
         const productPayload: Record<string, unknown> = {
           productNameHouse: derivedProductNameHouse,
           productCode: derivedProductCode,
@@ -659,9 +662,11 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
           priceEach: form.unitPrice ? Number(form.unitPrice) : undefined,
           commissionPercent: form.commissionPercent ? Number(form.commissionPercent) : undefined,
           isActive: productActive,
-          productNameVendor: productNameVendor.trim() || undefined,
-          productFamilyVendor: productFamilyVendorInput.trim() || undefined,
-          productSubtypeVendor: productSubtypeVendor.trim() || undefined,
+          productFamilyHouse: derivedFamily || undefined,
+          productSubtypeHouse: derivedSubtype || undefined,
+          productNameVendor: derivedProductNameVendor || undefined,
+          productFamilyVendor: derivedFamily || undefined,
+          productSubtypeVendor: derivedSubtype || undefined,
           vendorAccountId: selectedVendorId || undefined,
           distributorAccountId: selectedDistributorId || undefined,
         }
@@ -758,7 +763,7 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
       } finally {
       setLoading(false)
     }
-  }, [revenueType, showError, runProductDedupe, productNameHouse, productNameVendor, productCode, form.unitPrice, form.commissionPercent, productActive, productFamilyVendorInput, productSubtypeVendor, selectedVendorId, selectedDistributorId, form.quantity, form.expectedUsage, form.expectedRevenue, form.expectedCommission, form.schedulePeriods, form.commissionStartDate, opportunityId, showSuccess, onSuccess, onClose, submitError])
+  }, [revenueType, showError, runProductDedupe, productNameHouse, productNameVendor, productCode, form.unitPrice, form.commissionPercent, productActive, productFamilyHouseInput, productSubtypeHouse, selectedVendorId, selectedDistributorId, form.quantity, form.expectedUsage, form.expectedRevenue, form.expectedCommission, form.schedulePeriods, form.commissionStartDate, opportunityId, showSuccess, onSuccess, onClose, submitError])
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -955,7 +960,7 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
                 </div>
 
                 <div className="relative">
-                  <label className={labelCls}>{badge(3)}Vendor - Product Family</label>
+                  <label className={labelCls}>{badge(3)}House - Product Family</label>
                   <input
                     value={catalogFamilyInput}
                     onChange={e=>{
@@ -996,7 +1001,7 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
                 </div>
 
                 <div className="relative">
-                  <label className={labelCls}>{badge(4)}Vendor - Product Subtype</label>
+                  <label className={labelCls}>{badge(4)}House - Product Subtype</label>
                   <input
                     value={catalogSubtypeInput}
                     onChange={e=>{
@@ -1034,7 +1039,7 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
                 </div>
                 <div>
                   <label className={labelCls}>
-                    {badge(5)}Vendor - Product Name<span className="ml-1 text-red-500">*</span>
+                    {badge(5)}House - Product Name<span className="ml-1 text-red-500">*</span>
                   </label>
                   <div className="relative">
                     <input
@@ -1064,7 +1069,7 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
                                 productId: option.id,
                                 quantity: "1",
                                 unitPrice: option.priceEach != null ? Number(option.priceEach).toFixed(2) : prev.unitPrice,
-                                commissionPercent: option.commissionPercent != null ? Number(option.commissionPercent).toFixed(2) : prev.commissionPercent,
+                                commissionPercent: option.commissionPercent != null ? (Number(option.commissionPercent) * 100).toFixed(2) : prev.commissionPercent,
                                 commissionStartDate: firstDate,
                                 schedulePeriods: "1"
                               }))
@@ -1298,16 +1303,16 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
 
                 <div className="relative">
                   <label className={labelCls}>
-                    {badge(3)}Vendor - Product Family<span className="ml-1 text-red-500">*</span>
+                    {badge(3)}House - Product Family<span className="ml-1 text-red-500">*</span>
                   </label>
                   <select
-                    value={productFamilyVendorInput}
+                    value={productFamilyHouseInput}
                     onChange={(e) => {
                       const nextFamily = e.target.value
-                      setProductFamilyVendorInput(nextFamily)
+                      setProductFamilyHouseInput(nextFamily)
                       const allowed = getAllowedSubtypesForFamilyName(masterSubtypes, familyIdByName, nextFamily)
-                      if (productSubtypeVendor.trim() && !allowed.includes(productSubtypeVendor.trim())) {
-                        setProductSubtypeVendor("")
+                      if (productSubtypeHouse.trim() && !allowed.includes(productSubtypeHouse.trim())) {
+                        setProductSubtypeHouse("")
                       }
                     }}
                     className={inputCls}
@@ -1323,15 +1328,15 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
                 </div>
 
                 <div className="relative">
-                  <label className={labelCls}>{badge(4)}Vendor - Product Subtype</label>
+                  <label className={labelCls}>{badge(4)}House - Product Subtype</label>
                   <select
-                    value={productSubtypeVendor}
-                    onChange={(e) => setProductSubtypeVendor(e.target.value)}
+                    value={productSubtypeHouse}
+                    onChange={(e) => setProductSubtypeHouse(e.target.value)}
                     className={inputCls}
-                    disabled={!productFamilyVendorInput.trim() || vendorSubtypePicklist.length === 0}
+                    disabled={!productFamilyHouseInput.trim() || houseSubtypePicklist.length === 0}
                   >
                     <option value="">Select</option>
-                    {vendorSubtypePicklist.map((sub) => (
+                    {houseSubtypePicklist.map((sub) => (
                       <option key={sub} value={sub}>
                         {sub}
                       </option>
@@ -1340,20 +1345,20 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
                 </div>
 
                 <div className="relative">
-                  <label className={labelCls}>{badge(5)}Vendor - Product Name</label>
+                  <label className={labelCls}>{badge(5)}House - Product Name</label>
                   <input
-                    value={productNameVendor}
-                    onChange={e=> { setProductNameVendor(e.target.value); setShowProductNameDropdown(true) }}
+                    value={productNameHouse}
+                    onChange={e=> { setProductNameHouse(e.target.value); setProductNameVendor(e.target.value); setShowProductNameDropdown(true) }}
                     onFocus={()=>setShowProductNameDropdown(true)}
                     onBlur={()=>setTimeout(()=>setShowProductNameDropdown(false),200)}
-                    placeholder="Vendor-facing product name"
+                    placeholder="House product name"
                     className={inputCls}
-                    disabled={!productFamilyVendorInput.trim()}
+                    disabled={!productFamilyHouseInput.trim()}
                   />
-                  {showProductNameDropdown && productNameOptions.length > 0 && productFamilyVendorInput.trim() && (
+                  {showProductNameDropdown && productNameOptions.length > 0 && productFamilyHouseInput.trim() && (
                     <div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
-                      {productNameOptions.filter(n => n.toLowerCase().includes((productNameVendor||'').toLowerCase())).map(name => (
-                        <button key={name} type="button" className="w-full px-3 py-2 text-left text-sm hover:bg-primary-50" onClick={()=>{ setProductNameVendor(name); setShowProductNameDropdown(false) }}>
+                      {productNameOptions.filter(n => n.toLowerCase().includes((productNameHouse||'').toLowerCase())).map(name => (
+                        <button key={name} type="button" className="w-full px-3 py-2 text-left text-sm hover:bg-primary-50" onClick={()=>{ setProductNameHouse(name); setProductNameVendor(name); setShowProductNameDropdown(false) }}>
                           <div className="font-medium text-gray-900">{name}</div>
                         </button>
                       ))}

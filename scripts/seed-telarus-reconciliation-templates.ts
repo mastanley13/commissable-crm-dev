@@ -21,6 +21,7 @@ interface TelarusRow {
   fieldId: string
   telarusFieldName: string
   commissableFieldLabel: string
+  block: "common" | "template"
 }
 
 // Mapping from high-value Commissable labels in the Telarus CSV
@@ -93,6 +94,7 @@ function loadTelarusCsv(): TelarusRow[] {
         fieldId: col5,
         telarusFieldName: col6,
         commissableFieldLabel: col7,
+        block: "common",
       })
       continue
     }
@@ -107,6 +109,7 @@ function loadTelarusCsv(): TelarusRow[] {
         fieldId: col5,
         telarusFieldName: col6,
         commissableFieldLabel: col7,
+        block: "template",
       })
     }
   }
@@ -115,11 +118,15 @@ function loadTelarusCsv(): TelarusRow[] {
 }
 
 async function main() {
+  const tenantIdOverride = process.env.TENANT_ID?.trim()
+  const tenantSlugOverride = process.env.TENANT_SLUG?.trim()
+
   const tenant =
-    (await prisma.tenant.findFirst({
-      orderBy: { createdAt: "asc" },
-      select: { id: true },
-    })) ?? null
+    (tenantIdOverride
+      ? await prisma.tenant.findFirst({ where: { id: tenantIdOverride }, select: { id: true } })
+      : tenantSlugOverride
+        ? await prisma.tenant.findFirst({ where: { slug: tenantSlugOverride }, select: { id: true } })
+        : await prisma.tenant.findFirst({ orderBy: { createdAt: "asc" }, select: { id: true } })) ?? null
 
   if (!tenant) {
     console.error("No tenant found; cannot seed Telarus templates.")
@@ -130,8 +137,17 @@ async function main() {
   const telarusRows = loadTelarusCsv()
 
   const groups = new Map<string, { templateMapName: string; templateId: string; rows: TelarusRow[] }>()
+  const commonRowsByOrigin = new Map<string, TelarusRow[]>()
 
   for (const row of telarusRows) {
+    if (row.block === "common") {
+      const originKey = (row.origin || "Telarus").trim().toLowerCase() || "telarus"
+      const existing = commonRowsByOrigin.get(originKey) ?? []
+      existing.push(row)
+      commonRowsByOrigin.set(originKey, existing)
+      continue
+    }
+
     const key = `${row.origin || "Telarus"}|${row.companyName || "ALL"}`
     const existing = groups.get(key)
     if (existing) {
@@ -147,6 +163,36 @@ async function main() {
 
   const depositFieldIds = new Set<DepositFieldId>(depositFieldDefinitions.map(field => field.id as DepositFieldId))
 
+  const resolveAccountByName = async (name: string) => {
+    const trimmed = name.trim()
+    if (!trimmed) return null
+
+    const exact =
+      (await prisma.account.findFirst({
+        where: { tenantId, accountName: { equals: trimmed, mode: "insensitive" } },
+        select: { id: true, accountName: true },
+      })) ?? null
+
+    if (exact) return exact
+
+    const partial = await prisma.account.findMany({
+      where: { tenantId, accountName: { contains: trimmed, mode: "insensitive" } },
+      select: { id: true, accountName: true },
+      take: 2,
+    })
+
+    if (partial.length === 1) {
+      console.warn(`Using partial account name match for "${trimmed}" -> "${partial[0]!.accountName}"`)
+      return partial[0]!
+    }
+
+    if (partial.length > 1) {
+      console.warn(`Ambiguous account name match for "${trimmed}" (multiple contains matches).`)
+    }
+
+    return null
+  }
+
   for (const [key, group] of Array.from(groups.entries())) {
     const [origin, companyName] = key.split("|")
     const distributorName = origin.trim()
@@ -154,21 +200,11 @@ async function main() {
 
     if (!distributorName || !vendorName || vendorName === "ALL") continue
 
-    const distributor = await prisma.account.findFirst({
-      where: {
-        tenantId,
-        accountName: { equals: distributorName, mode: "insensitive" },
-      },
-      select: { id: true },
-    })
+    const commonRows = commonRowsByOrigin.get(distributorName.toLowerCase()) ?? []
+    const rowsToApply = commonRows.length > 0 ? [...commonRows, ...group.rows] : group.rows
 
-    const vendor = await prisma.account.findFirst({
-      where: {
-        tenantId,
-        accountName: { equals: vendorName, mode: "insensitive" },
-      },
-      select: { id: true },
-    })
+    const distributor = await resolveAccountByName(distributorName)
+    const vendor = await resolveAccountByName(vendorName)
 
     if (!distributor || !vendor) {
       console.warn(
@@ -180,7 +216,7 @@ async function main() {
     const base = createEmptyDepositMapping()
     const line: Partial<Record<DepositFieldId, string>> = {}
 
-    for (const row of group.rows) {
+    for (const row of rowsToApply) {
       const label = row.commissableFieldLabel
       const headerName = row.telarusFieldName
       if (!label || !headerName) continue

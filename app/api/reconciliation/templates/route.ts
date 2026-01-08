@@ -2,6 +2,8 @@ import { Prisma } from '@prisma/client'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { withPermissions, createErrorResponse } from '@/lib/api-auth'
+import { findTelarusTemplateMatch } from '@/lib/deposit-import/telarus-template-master'
+import { serializeDepositMappingForTemplate } from '@/lib/deposit-import/template-mapping'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -57,10 +59,101 @@ export async function GET(request: NextRequest) {
         take,
       })
 
+      let resolvedTemplates = templates
+
+      const firstTemplate = resolvedTemplates[0]
+      const firstTemplateHasDepositMapping =
+        Boolean(firstTemplate?.config) &&
+        typeof firstTemplate?.config === 'object' &&
+        !Array.isArray(firstTemplate?.config) &&
+        typeof (firstTemplate?.config as any)?.depositMapping === 'object' &&
+        (firstTemplate?.config as any)?.depositMapping?.version === 1
+
+      if (query.length === 0 && (!firstTemplate || !firstTemplateHasDepositMapping)) {
+        const [distributor, vendor] = await Promise.all([
+          prisma.account.findFirst({
+            where: { tenantId, id: distributorAccountId },
+            select: { accountName: true },
+          }),
+          prisma.account.findFirst({
+            where: { tenantId, id: vendorAccountId },
+            select: { accountName: true },
+          }),
+        ])
+
+        const match =
+          distributor?.accountName && vendor?.accountName
+            ? findTelarusTemplateMatch({
+                distributorName: distributor.accountName,
+                vendorName: vendor.accountName,
+              })
+            : null
+
+        if (match) {
+          const config: Prisma.InputJsonValue = {
+            ...(serializeDepositMappingForTemplate(match.mapping) as unknown as Prisma.JsonObject),
+            telarusTemplateId: match.templateId,
+            telarusOrigin: match.origin,
+            telarusCompanyName: match.companyName,
+            telarusTemplateMapName: match.templateMapName,
+          } as unknown as Prisma.InputJsonValue
+
+          try {
+            if (firstTemplate) {
+              const updated = await prisma.reconciliationTemplate.update({
+                where: { id: firstTemplate.id },
+                data: {
+                  config,
+                  name: firstTemplate.name === 'Default deposit mapping' ? match.templateMapName : firstTemplate.name,
+                },
+                include: {
+                  distributor: { select: { accountName: true } },
+                  vendor: { select: { accountName: true } },
+                },
+              })
+              resolvedTemplates = [updated]
+            } else {
+              const created = await prisma.reconciliationTemplate.create({
+                data: {
+                  tenantId,
+                  name: match.templateMapName,
+                  description: 'Seeded from Telarus vendor map fields master CSV.',
+                  distributorAccountId,
+                  vendorAccountId,
+                  createdByUserId: req.user.id,
+                  createdByContactId: null,
+                  config,
+                },
+                include: {
+                  distributor: { select: { accountName: true } },
+                  vendor: { select: { accountName: true } },
+                },
+              })
+              resolvedTemplates = [created]
+            }
+          } catch (error: any) {
+            if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+              const existing = await prisma.reconciliationTemplate.findMany({
+                where: whereClause,
+                include: {
+                  distributor: { select: { accountName: true } },
+                  vendor: { select: { accountName: true } },
+                },
+                orderBy: { name: 'asc' },
+                take,
+              })
+              resolvedTemplates = existing
+            } else {
+              console.error('Failed to seed reconciliation template from Telarus CSV', error)
+            }
+          }
+        }
+      }
+
       return NextResponse.json({
-        data: templates.map(mapTemplate),
+        data: resolvedTemplates.map(mapTemplate),
         pagination: {
-          total: templates.length,
+          total: resolvedTemplates.length,
           pageSize: take,
         },
       })
