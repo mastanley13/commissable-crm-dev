@@ -92,7 +92,7 @@ export async function POST(
 
       await prisma.$transaction(async tx => {
         for (const src of sourceLineItems) {
-          await tx.opportunityProduct.create({
+          await (tx.opportunityProduct as any).create({
             data: {
               tenantId: src.tenantId,
               opportunityId: src.opportunityId,
@@ -105,6 +105,20 @@ export async function POST(
               commissionPercentSnapshot: src.commissionPercentSnapshot,
               distributorNameSnapshot: src.distributorNameSnapshot,
               vendorNameSnapshot: src.vendorNameSnapshot,
+              distributorAccountIdSnapshot: (src as any).distributorAccountIdSnapshot ?? null,
+              vendorAccountIdSnapshot: (src as any).vendorAccountIdSnapshot ?? null,
+              descriptionSnapshot: (src as any).descriptionSnapshot ?? null,
+              productFamilyHouseSnapshot: (src as any).productFamilyHouseSnapshot ?? null,
+              productSubtypeHouseSnapshot: (src as any).productSubtypeHouseSnapshot ?? null,
+              productFamilyVendorSnapshot: (src as any).productFamilyVendorSnapshot ?? null,
+              productSubtypeVendorSnapshot: (src as any).productSubtypeVendorSnapshot ?? null,
+              productNameDistributorSnapshot: (src as any).productNameDistributorSnapshot ?? null,
+              partNumberVendorSnapshot: (src as any).partNumberVendorSnapshot ?? null,
+              partNumberDistributorSnapshot: (src as any).partNumberDistributorSnapshot ?? null,
+              distributorProductFamilySnapshot: (src as any).distributorProductFamilySnapshot ?? null,
+              distributorProductSubtypeSnapshot: (src as any).distributorProductSubtypeSnapshot ?? null,
+              productDescriptionVendorSnapshot: (src as any).productDescriptionVendorSnapshot ?? null,
+              productDescriptionDistributorSnapshot: (src as any).productDescriptionDistributorSnapshot ?? null,
               quantity: src.quantity,
               unitPrice: src.unitPrice,
               expectedUsage: src.expectedUsage,

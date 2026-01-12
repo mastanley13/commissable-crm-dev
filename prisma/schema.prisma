@@ -548,6 +548,20 @@ model OpportunityProduct {
   commissionPercentSnapshot  Decimal?                 @db.Decimal(5, 2)
   distributorNameSnapshot    String?
   vendorNameSnapshot         String?
+  distributorAccountIdSnapshot String?                @db.Uuid
+  vendorAccountIdSnapshot      String?                @db.Uuid
+  descriptionSnapshot          String?
+  productFamilyHouseSnapshot   String?
+  productSubtypeHouseSnapshot  String?
+  productFamilyVendorSnapshot  String?
+  productSubtypeVendorSnapshot String?
+  productNameDistributorSnapshot String?
+  partNumberVendorSnapshot       String?
+  partNumberDistributorSnapshot  String?
+  distributorProductFamilySnapshot  String?
+  distributorProductSubtypeSnapshot String?
+  productDescriptionVendorSnapshot      String?
+  productDescriptionDistributorSnapshot String?
   quantity           Decimal?                 @db.Decimal(16, 2)
   unitPrice          Decimal?                 @db.Decimal(16, 2)
   expectedUsage      Decimal?                 @db.Decimal(16, 2)

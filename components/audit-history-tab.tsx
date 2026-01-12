@@ -17,6 +17,7 @@ type SupportedEntities =
   | "Account"
   | "Contact"
   | "Opportunity"
+  | "OpportunityProduct"
   | "Product"
   | "RevenueSchedule"
   | "Group"

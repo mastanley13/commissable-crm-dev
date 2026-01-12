@@ -21,9 +21,11 @@ async function getCanonicalPairForOpportunity(
   tenantId: string,
   opportunityId: string
 ): Promise<VendorDistributorPair | null> {
-  const lineItems = await db.opportunityProduct.findMany({
+  const lineItems = await (db as any).opportunityProduct.findMany({
     where: { tenantId, opportunityId },
     select: {
+      distributorAccountIdSnapshot: true,
+      vendorAccountIdSnapshot: true,
       product: {
         select: {
           distributorAccountId: true,
@@ -34,8 +36,8 @@ async function getCanonicalPairForOpportunity(
   })
 
   for (const item of lineItems) {
-    const distributorAccountId = item.product?.distributorAccountId ?? null
-    const vendorAccountId = item.product?.vendorAccountId ?? null
+    const distributorAccountId = (item as any).distributorAccountIdSnapshot ?? item.product?.distributorAccountId ?? null
+    const vendorAccountId = (item as any).vendorAccountIdSnapshot ?? item.product?.vendorAccountId ?? null
 
     if (distributorAccountId || vendorAccountId) {
       return { distributorAccountId, vendorAccountId }
@@ -62,7 +64,7 @@ export async function assertVendorDistributorConsistentForOpportunity(
   const canonical = await getCanonicalPairForOpportunity(db, tenantId, opportunityId)
 
   if (!canonical) {
-    // No existing context – any pair is acceptable.
+    // No existing context â€“ any pair is acceptable.
     return
   }
 

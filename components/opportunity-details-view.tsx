@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { Check, Copy, Loader2, Trash2, Calendar, Download, ToggleLeft, ToggleRight } from "lucide-react"
+import { Check, Copy, Loader2, Trash2, Calendar, Download, ToggleLeft, ToggleRight, ExternalLink } from "lucide-react"
 import { LeadSource, OpportunityStage, OpportunityStatus } from "@prisma/client"
 import { cn } from "@/lib/utils"
 import { ListHeader, type ColumnFilter } from "@/components/list-header"
@@ -774,7 +774,7 @@ function formatDate(value: string | null | undefined): string {
   // Treat all incoming timestamps as UTC-backed "calendar dates" so
   // that 2025-12-01T00:00:00.000Z always renders as 2025-12-01,
   // regardless of the user's local timezone. This avoids the
-  // off‑by‑one‑day behavior (showing 2025-11-30, 2025-12-31, etc.).
+  // offâ€‘byâ€‘oneâ€‘day behavior (showing 2025-11-30, 2025-12-31, etc.).
   const year = date.getUTCFullYear()
   const month = String(date.getUTCMonth() + 1).padStart(2, "0")
   const day = String(date.getUTCDate()).padStart(2, "0")
@@ -4912,14 +4912,27 @@ useEffect(() => {
             }
 
             return (
-              <Link
-                href={`/products/${row.productId}`}
-                className="cursor-pointer text-blue-600 hover:text-blue-800"
-                onClick={(event) => event.stopPropagation()}
-                prefetch={false}
-              >
-                {label}
-              </Link>
+              <div className="flex items-center gap-1">
+                <Link
+                  href={`/opportunities/${opportunity?.id ?? ""}/products/${row.id}`}
+                  className="cursor-pointer text-blue-600 hover:text-blue-800"
+                  onClick={(event) => event.stopPropagation()}
+                  prefetch={false}
+                >
+                  {label}
+                </Link>
+
+                <Link
+                  href={`/products/${row.productId}`}
+                  className="text-blue-600 hover:text-blue-800"
+                  onClick={event => event.stopPropagation()}
+                  prefetch={false}
+                  title="Open product catalog record"
+                  aria-label="Open product catalog record"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+                </Link>
+              </div>
             )
           }
         }
@@ -4936,14 +4949,27 @@ useEffect(() => {
             }
 
             return (
-              <Link
-                href={`/products/${row.productId}`}
-                className="cursor-pointer text-blue-600 hover:text-blue-800"
-                onClick={(event) => event.stopPropagation()}
-                prefetch={false}
-              >
-                {label}
-              </Link>
+              <div className="flex items-center gap-1">
+                <Link
+                  href={`/opportunities/${opportunity?.id ?? ""}/products/${row.id}`}
+                  className="cursor-pointer text-blue-600 hover:text-blue-800"
+                  onClick={(event) => event.stopPropagation()}
+                  prefetch={false}
+                >
+                  {label}
+                </Link>
+
+                <Link
+                  href={`/products/${row.productId}`}
+                  className="text-blue-600 hover:text-blue-800"
+                  onClick={event => event.stopPropagation()}
+                  prefetch={false}
+                  title="Open product catalog record"
+                  aria-label="Open product catalog record"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+                </Link>
+              </div>
             )
           }
         }

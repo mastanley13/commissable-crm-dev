@@ -107,7 +107,7 @@ function areAuditValuesEqual(a: unknown, b: unknown): boolean {
     return a.toString() === b.toString()
   }
 
-  // Fallback – different types or objects we don't normalise specially
+  // Fallback â€“ different types or objects we don't normalise specially
   return false
 }
 
@@ -224,6 +224,36 @@ export async function logProductAudit(
     action,
     entityName: 'Product',
     entityId: productId,
+    changedFields,
+    previousValues,
+    newValues,
+    ipAddress: getClientIP(request),
+    userAgent: getUserAgent(request)
+  })
+}
+
+/**
+ * Audit logging for opportunity product (OpportunityProduct) operations
+ */
+export async function logOpportunityProductAudit(
+  action: AuditAction,
+  opportunityProductId: string,
+  userId: string,
+  tenantId: string,
+  request: Request,
+  previousValues?: Record<string, unknown>,
+  newValues?: Record<string, unknown>
+): Promise<void> {
+  const changedFields = previousValues && newValues
+    ? getChangedFields(previousValues, newValues)
+    : undefined
+
+  await logAudit({
+    userId,
+    tenantId,
+    action,
+    entityName: 'OpportunityProduct',
+    entityId: opportunityProductId,
     changedFields,
     previousValues,
     newValues,

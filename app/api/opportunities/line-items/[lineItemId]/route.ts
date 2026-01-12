@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { Prisma, OpportunityProductStatus } from "@prisma/client"
+import { AuditAction, Prisma, OpportunityProductStatus } from "@prisma/client"
 import { prisma } from "@/lib/db"
 import { withPermissions } from "@/lib/api-auth"
 import { hasAnyPermission } from "@/lib/auth"
@@ -7,9 +7,31 @@ import { mapOpportunityProductToDetail } from "../../helpers"
 import { revalidateOpportunityPaths } from "../../revalidate"
 import { recalculateOpportunityStage } from "@/lib/opportunities/stage"
 import { assertVendorDistributorConsistentForOpportunity } from "@/lib/opportunities/vendor-distributor"
+import { logOpportunityProductAudit } from "@/lib/audit"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
+
+const OPPORTUNITY_LINE_ITEM_VIEW_ANY_PERMISSIONS = [
+  "opportunities.view.all",
+  "opportunities.edit.all",
+  "opportunities.manage",
+  "accounts.manage",
+  "accounts.read",
+  "opportunities.read"
+]
+
+const OPPORTUNITY_LINE_ITEM_VIEW_ASSIGNED_PERMISSIONS = [
+  "opportunities.view.assigned",
+  "opportunities.edit.assigned"
+]
+
+const OPPORTUNITY_LINE_ITEM_VIEW_PERMISSIONS = Array.from(
+  new Set([
+    ...OPPORTUNITY_LINE_ITEM_VIEW_ANY_PERMISSIONS,
+    ...OPPORTUNITY_LINE_ITEM_VIEW_ASSIGNED_PERMISSIONS
+  ])
+)
 
 const OPPORTUNITY_LINE_ITEM_EDIT_ANY_PERMISSIONS = [
   "opportunities.edit.all",
@@ -26,6 +48,199 @@ const OPPORTUNITY_LINE_ITEM_EDIT_PERMISSIONS = Array.from(
     ...OPPORTUNITY_LINE_ITEM_EDIT_ASSIGNED_PERMISSIONS
   ])
 )
+
+export async function GET(
+  request: NextRequest,
+  { params }: { params: { lineItemId: string } }
+) {
+  return withPermissions(request, OPPORTUNITY_LINE_ITEM_VIEW_PERMISSIONS, async req => {
+    try {
+      const { lineItemId } = params
+      if (!lineItemId) {
+        return NextResponse.json({ error: "Line item id is required" }, { status: 400 })
+      }
+
+      const tenantId = req.user.tenantId
+      const canViewAny = hasAnyPermission(req.user, OPPORTUNITY_LINE_ITEM_VIEW_ANY_PERMISSIONS)
+      const canViewAssigned = hasAnyPermission(req.user, OPPORTUNITY_LINE_ITEM_VIEW_ASSIGNED_PERMISSIONS)
+
+      if (!canViewAny && !canViewAssigned) {
+        return NextResponse.json({ error: "Insufficient permissions to view opportunity products" }, { status: 403 })
+      }
+
+      const lineItem = await prisma.opportunityProduct.findFirst({
+        where: { id: lineItemId, tenantId },
+        include: {
+          opportunity: { select: { id: true, name: true, ownerId: true } },
+          product: {
+            select: {
+              id: true,
+              productNameHouse: true,
+              productNameVendor: true,
+              productCode: true,
+              revenueType: true,
+              commissionPercent: true,
+              priceEach: true,
+              description: true,
+              productFamilyHouse: true,
+              productSubtypeHouse: true,
+              productFamilyVendor: true,
+              productSubtypeVendor: true,
+              productNameDistributor: true,
+              partNumberVendor: true,
+              partNumberDistributor: true,
+              distributorProductFamily: true,
+              distributorProductSubtype: true,
+              productDescriptionVendor: true,
+              productDescriptionDistributor: true,
+              distributorAccountId: true,
+              vendorAccountId: true,
+              distributor: { select: { id: true, accountName: true, accountNumber: true } },
+              vendor: { select: { id: true, accountName: true, accountNumber: true } }
+            }
+          }
+        }
+      })
+
+      if (!lineItem) {
+        return NextResponse.json({ error: "Line item not found" }, { status: 404 })
+      }
+
+      if (!canViewAny) {
+        if (!canViewAssigned || lineItem.opportunity?.ownerId !== req.user.id) {
+          return NextResponse.json(
+            { error: "Insufficient permissions to view this opportunity" },
+            { status: 403 }
+          )
+        }
+      }
+
+      const anyLineItem = lineItem as any
+      const product = lineItem.product
+      const toNumber = (value: unknown): number | null => {
+        if (value === null || value === undefined) return null
+        if (typeof value === "number") return Number.isFinite(value) ? value : null
+        if (typeof value === "string") {
+          const parsed = Number(value)
+          return Number.isFinite(parsed) ? parsed : null
+        }
+        if (typeof value === "object" && value && "toString" in value) {
+          const parsed = Number(String((value as any).toString()))
+          return Number.isFinite(parsed) ? parsed : null
+        }
+        return null
+      }
+
+      const distributorAccountId =
+        anyLineItem.distributorAccountIdSnapshot ?? product?.distributorAccountId ?? null
+      const vendorAccountId =
+        anyLineItem.vendorAccountIdSnapshot ?? product?.vendorAccountId ?? null
+
+      const [distributorAccount, vendorAccount] = await Promise.all([
+        distributorAccountId
+          ? prisma.account.findFirst({
+              where: { id: distributorAccountId, tenantId },
+              select: { id: true, accountName: true, accountNumber: true }
+            })
+          : Promise.resolve(null),
+        vendorAccountId
+          ? prisma.account.findFirst({
+              where: { id: vendorAccountId, tenantId },
+              select: { id: true, accountName: true, accountNumber: true }
+            })
+          : Promise.resolve(null)
+      ])
+
+      const data = {
+        id: lineItem.id,
+        opportunity: {
+          id: lineItem.opportunity?.id ?? "",
+          name: lineItem.opportunity?.name ?? ""
+        },
+        opportunityOwnerId: lineItem.opportunity?.ownerId ?? null,
+        catalogProductId: lineItem.productId,
+        productCode: lineItem.productCodeSnapshot ?? product?.productCode ?? "",
+        productNameHouse: lineItem.productNameHouseSnapshot ?? product?.productNameHouse ?? "",
+        productNameVendor: lineItem.productNameVendorSnapshot ?? product?.productNameVendor ?? null,
+        description: anyLineItem.descriptionSnapshot ?? product?.description ?? null,
+        productDescriptionHouse: anyLineItem.descriptionSnapshot ?? product?.description ?? null,
+        revenueType: lineItem.revenueTypeSnapshot ?? product?.revenueType ?? "",
+        commissionPercent: toNumber(lineItem.commissionPercentSnapshot ?? product?.commissionPercent ?? null),
+        priceEach: toNumber(lineItem.priceEachSnapshot ?? product?.priceEach ?? null),
+        isActive: lineItem.active !== false,
+        createdBy: null,
+        updatedBy: null,
+        distributor: distributorAccount
+          ? {
+              id: distributorAccount.id,
+              accountName: distributorAccount.accountName,
+              accountNumber: distributorAccount.accountNumber
+            }
+          : distributorAccountId
+            ? {
+                id: distributorAccountId,
+                accountName: anyLineItem.distributorNameSnapshot ?? "",
+                accountNumber: null
+              }
+            : product?.distributor
+              ? {
+                  id: product.distributor.id,
+                  accountName: product.distributor.accountName,
+                  accountNumber: product.distributor.accountNumber
+                }
+              : null,
+        vendor: vendorAccount
+          ? {
+              id: vendorAccount.id,
+              accountName: vendorAccount.accountName,
+              accountNumber: vendorAccount.accountNumber
+            }
+          : vendorAccountId
+            ? {
+                id: vendorAccountId,
+                accountName: anyLineItem.vendorNameSnapshot ?? "",
+                accountNumber: null
+              }
+            : product?.vendor
+              ? {
+                  id: product.vendor.id,
+                  accountName: product.vendor.accountName,
+                  accountNumber: product.vendor.accountNumber
+                }
+              : null,
+        productFamilyHouse:
+          anyLineItem.productFamilyHouseSnapshot ?? product?.productFamilyHouse ?? null,
+        productSubtypeHouse:
+          anyLineItem.productSubtypeHouseSnapshot ?? product?.productSubtypeHouse ?? null,
+        productFamilyVendor:
+          anyLineItem.productFamilyVendorSnapshot ?? product?.productFamilyVendor ?? null,
+        productSubtypeVendor:
+          anyLineItem.productSubtypeVendorSnapshot ?? product?.productSubtypeVendor ?? null,
+        productNameDistributor:
+          anyLineItem.productNameDistributorSnapshot ?? product?.productNameDistributor ?? null,
+        partNumberVendor:
+          anyLineItem.partNumberVendorSnapshot ?? product?.partNumberVendor ?? null,
+        partNumberDistributor:
+          anyLineItem.partNumberDistributorSnapshot ?? product?.partNumberDistributor ?? null,
+        distributorProductFamily:
+          anyLineItem.distributorProductFamilySnapshot ?? product?.distributorProductFamily ?? null,
+        distributorProductSubtype:
+          anyLineItem.distributorProductSubtypeSnapshot ?? product?.distributorProductSubtype ?? null,
+        productDescriptionVendor:
+          anyLineItem.productDescriptionVendorSnapshot ?? product?.productDescriptionVendor ?? null,
+        productDescriptionDistributor:
+          anyLineItem.productDescriptionDistributorSnapshot ?? product?.productDescriptionDistributor ?? null,
+        createdAt: lineItem.createdAt.toISOString(),
+        updatedAt: lineItem.updatedAt.toISOString()
+      }
+
+      return NextResponse.json({ success: true, data })
+    } catch (error) {
+      console.error("Failed to load opportunity product", error)
+      return NextResponse.json({ error: "Failed to load opportunity product" }, { status: 500 })
+    }
+  })
+}
 
 function isValidProductStatus(value: unknown): value is OpportunityProductStatus {
   return typeof value === "string" && (Object.values(OpportunityProductStatus) as string[]).includes(value)
@@ -125,7 +340,7 @@ export async function PATCH(
         }
       }
 
-      const updateData: Prisma.OpportunityProductUpdateInput = {}
+      const updateData: any = {}
       let activeUpdate: boolean | undefined
       let statusUpdate: OpportunityProductStatus | undefined
 
@@ -144,9 +359,21 @@ export async function PATCH(
             productCode: true,
             productNameHouse: true,
             productNameVendor: true,
+            description: true,
             revenueType: true,
             priceEach: true,
             commissionPercent: true,
+            productFamilyHouse: true,
+            productSubtypeHouse: true,
+            productFamilyVendor: true,
+            productSubtypeVendor: true,
+            productNameDistributor: true,
+            partNumberVendor: true,
+            partNumberDistributor: true,
+            distributorProductFamily: true,
+            distributorProductSubtype: true,
+            productDescriptionVendor: true,
+            productDescriptionDistributor: true,
             distributorAccountId: true,
             vendorAccountId: true,
             distributor: { select: { id: true, accountName: true } },
@@ -182,6 +409,169 @@ export async function PATCH(
         updateData.commissionPercentSnapshot = product.commissionPercent
         updateData.distributorNameSnapshot = product.distributor?.accountName ?? null
         updateData.vendorNameSnapshot = product.vendor?.accountName ?? null
+        updateData.distributorAccountIdSnapshot = product.distributorAccountId ?? null
+        updateData.vendorAccountIdSnapshot = product.vendorAccountId ?? null
+        updateData.descriptionSnapshot = product.description ?? null
+        updateData.productFamilyHouseSnapshot = product.productFamilyHouse ?? null
+        updateData.productSubtypeHouseSnapshot = product.productSubtypeHouse ?? null
+        updateData.productFamilyVendorSnapshot = product.productFamilyVendor ?? null
+        updateData.productSubtypeVendorSnapshot = product.productSubtypeVendor ?? null
+        updateData.productNameDistributorSnapshot = product.productNameDistributor ?? null
+        updateData.partNumberVendorSnapshot = product.partNumberVendor ?? null
+        updateData.partNumberDistributorSnapshot = product.partNumberDistributor ?? null
+        updateData.distributorProductFamilySnapshot = product.distributorProductFamily ?? null
+        updateData.distributorProductSubtypeSnapshot = product.distributorProductSubtype ?? null
+        updateData.productDescriptionVendorSnapshot = product.productDescriptionVendor ?? null
+        updateData.productDescriptionDistributorSnapshot = product.productDescriptionDistributor ?? null
+      }
+
+      if ("productNameHouse" in payload) {
+        const value = typeof payload.productNameHouse === "string" ? payload.productNameHouse.trim() : ""
+        updateData.productNameHouseSnapshot = value || null
+      }
+
+      if ("productNameVendor" in payload) {
+        const value = typeof payload.productNameVendor === "string" ? payload.productNameVendor.trim() : ""
+        updateData.productNameVendorSnapshot = value || null
+      }
+
+      if ("productCode" in payload) {
+        const value = typeof payload.productCode === "string" ? payload.productCode.trim() : ""
+        updateData.productCodeSnapshot = value || null
+      }
+
+      if ("productFamilyHouse" in payload) {
+        const value = typeof payload.productFamilyHouse === "string" ? payload.productFamilyHouse.trim() : ""
+        updateData.productFamilyHouseSnapshot = value || null
+      }
+
+      if ("productSubtypeHouse" in payload) {
+        const value = typeof payload.productSubtypeHouse === "string" ? payload.productSubtypeHouse.trim() : ""
+        updateData.productSubtypeHouseSnapshot = value || null
+      }
+
+      if ("productFamilyVendor" in payload) {
+        const value = typeof payload.productFamilyVendor === "string" ? payload.productFamilyVendor.trim() : ""
+        updateData.productFamilyVendorSnapshot = value || null
+      }
+
+      if ("productSubtypeVendor" in payload) {
+        const value = typeof payload.productSubtypeVendor === "string" ? payload.productSubtypeVendor.trim() : ""
+        updateData.productSubtypeVendorSnapshot = value || null
+      }
+
+      if ("productNameDistributor" in payload) {
+        const value = typeof payload.productNameDistributor === "string" ? payload.productNameDistributor.trim() : ""
+        updateData.productNameDistributorSnapshot = value || null
+      }
+
+      if ("partNumberVendor" in payload) {
+        const value = typeof payload.partNumberVendor === "string" ? payload.partNumberVendor.trim() : ""
+        updateData.partNumberVendorSnapshot = value || null
+      }
+
+      if ("partNumberDistributor" in payload) {
+        const value = typeof payload.partNumberDistributor === "string" ? payload.partNumberDistributor.trim() : ""
+        updateData.partNumberDistributorSnapshot = value || null
+      }
+
+      if ("distributorProductFamily" in payload) {
+        const value = typeof payload.distributorProductFamily === "string" ? payload.distributorProductFamily.trim() : ""
+        updateData.distributorProductFamilySnapshot = value || null
+      }
+
+      if ("distributorProductSubtype" in payload) {
+        const value = typeof payload.distributorProductSubtype === "string" ? payload.distributorProductSubtype.trim() : ""
+        updateData.distributorProductSubtypeSnapshot = value || null
+      }
+
+      if ("productDescriptionVendor" in payload) {
+        const value = typeof payload.productDescriptionVendor === "string" ? payload.productDescriptionVendor.trim() : ""
+        updateData.productDescriptionVendorSnapshot = value || null
+      }
+
+      if ("productDescriptionDistributor" in payload) {
+        const value = typeof payload.productDescriptionDistributor === "string" ? payload.productDescriptionDistributor.trim() : ""
+        updateData.productDescriptionDistributorSnapshot = value || null
+      }
+
+      if ("description" in payload) {
+        const value = typeof payload.description === "string" ? payload.description.trim() : ""
+        updateData.descriptionSnapshot = value || null
+      }
+
+      if ("revenueType" in payload) {
+        updateData.revenueTypeSnapshot = typeof payload.revenueType === "string" ? payload.revenueType : null
+      }
+
+      if ("priceEach" in payload) {
+        updateData.priceEachSnapshot = decimalFromNumber(parseNumberInput(payload.priceEach))
+      }
+
+      if ("commissionPercent" in payload) {
+        updateData.commissionPercentSnapshot = decimalFromNumber(parseNumberInput(payload.commissionPercent))
+      }
+
+      if ("vendorAccountId" in payload) {
+        const value = typeof payload.vendorAccountId === "string" ? payload.vendorAccountId.trim() : ""
+        const vendorId = value.length > 0 ? value : null
+        if (vendorId) {
+          const vendor = await prisma.account.findFirst({
+            where: { id: vendorId, tenantId },
+            select: { id: true, accountName: true }
+          })
+          if (!vendor) {
+            return NextResponse.json({ error: "Vendor not found" }, { status: 404 })
+          }
+          updateData.vendorAccountIdSnapshot = vendor.id
+          updateData.vendorNameSnapshot = vendor.accountName ?? null
+        } else {
+          updateData.vendorAccountIdSnapshot = null
+          updateData.vendorNameSnapshot = null
+        }
+      }
+
+      if ("distributorAccountId" in payload) {
+        const value = typeof payload.distributorAccountId === "string" ? payload.distributorAccountId.trim() : ""
+        const distributorId = value.length > 0 ? value : null
+        if (distributorId) {
+          const distributor = await prisma.account.findFirst({
+            where: { id: distributorId, tenantId },
+            select: { id: true, accountName: true }
+          })
+          if (!distributor) {
+            return NextResponse.json({ error: "Distributor not found" }, { status: 404 })
+          }
+          updateData.distributorAccountIdSnapshot = distributor.id
+          updateData.distributorNameSnapshot = distributor.accountName ?? null
+        } else {
+          updateData.distributorAccountIdSnapshot = null
+          updateData.distributorNameSnapshot = null
+        }
+      }
+
+      if (
+        ("vendorAccountId" in payload || "distributorAccountId" in payload) &&
+        existingLineItem.opportunity
+      ) {
+        const anyExisting = existingLineItem as any
+        const nextPair = {
+          distributorAccountId:
+            ("distributorAccountId" in payload
+              ? updateData.distributorAccountIdSnapshot ?? null
+              : anyExisting.distributorAccountIdSnapshot ?? existingLineItem.product?.distributorAccountId ?? null),
+          vendorAccountId:
+            ("vendorAccountId" in payload
+              ? updateData.vendorAccountIdSnapshot ?? null
+              : anyExisting.vendorAccountIdSnapshot ?? existingLineItem.product?.vendorAccountId ?? null)
+        }
+
+        await assertVendorDistributorConsistentForOpportunity(
+          prisma,
+          tenantId,
+          existingLineItem.opportunity.id,
+          nextPair
+        )
       }
 
       if ("quantity" in payload) {
@@ -261,12 +651,38 @@ export async function PATCH(
         return NextResponse.json({ error: "No updates provided" }, { status: 400 })
       }
 
-      const finalData: Prisma.OpportunityProductUpdateInput = { ...updateData }
+      const finalData: any = { ...updateData }
       if (activeUpdate !== undefined) {
-        ;(finalData as Prisma.OpportunityProductUpdateInput & { active?: boolean }).active = activeUpdate
+        finalData.active = activeUpdate
       }
       if (statusUpdate !== undefined) {
-        ;(finalData as Prisma.OpportunityProductUpdateInput & { status?: OpportunityProductStatus }).status = statusUpdate
+        finalData.status = statusUpdate
+      }
+
+      const previousValues = {
+        productCode: existingLineItem.productCodeSnapshot,
+        productNameHouse: existingLineItem.productNameHouseSnapshot,
+        productNameVendor: existingLineItem.productNameVendorSnapshot,
+        description: (existingLineItem as any).descriptionSnapshot ?? null,
+        revenueType: existingLineItem.revenueTypeSnapshot,
+        priceEach: existingLineItem.priceEachSnapshot ?? null,
+        commissionPercent: existingLineItem.commissionPercentSnapshot ?? null,
+        distributorAccountId: (existingLineItem as any).distributorAccountIdSnapshot ?? null,
+        vendorAccountId: (existingLineItem as any).vendorAccountIdSnapshot ?? null,
+        distributorName: existingLineItem.distributorNameSnapshot ?? null,
+        vendorName: existingLineItem.vendorNameSnapshot ?? null,
+        productFamilyHouse: (existingLineItem as any).productFamilyHouseSnapshot ?? null,
+        productSubtypeHouse: (existingLineItem as any).productSubtypeHouseSnapshot ?? null,
+        productFamilyVendor: (existingLineItem as any).productFamilyVendorSnapshot ?? null,
+        productSubtypeVendor: (existingLineItem as any).productSubtypeVendorSnapshot ?? null,
+        productNameDistributor: (existingLineItem as any).productNameDistributorSnapshot ?? null,
+        partNumberVendor: (existingLineItem as any).partNumberVendorSnapshot ?? null,
+        partNumberDistributor: (existingLineItem as any).partNumberDistributorSnapshot ?? null,
+        distributorProductFamily: (existingLineItem as any).distributorProductFamilySnapshot ?? null,
+        distributorProductSubtype: (existingLineItem as any).distributorProductSubtypeSnapshot ?? null,
+        productDescriptionVendor: (existingLineItem as any).productDescriptionVendorSnapshot ?? null,
+        productDescriptionDistributor: (existingLineItem as any).productDescriptionDistributorSnapshot ?? null,
+        isActive: existingLineItem.active !== false
       }
 
       const updatedLineItem = await prisma.opportunityProduct.update({
@@ -287,6 +703,42 @@ export async function PATCH(
           }
         }
       })
+
+      const newValues = {
+        productCode: updatedLineItem.productCodeSnapshot,
+        productNameHouse: updatedLineItem.productNameHouseSnapshot,
+        productNameVendor: updatedLineItem.productNameVendorSnapshot,
+        description: (updatedLineItem as any).descriptionSnapshot ?? null,
+        revenueType: updatedLineItem.revenueTypeSnapshot,
+        priceEach: updatedLineItem.priceEachSnapshot ?? null,
+        commissionPercent: updatedLineItem.commissionPercentSnapshot ?? null,
+        distributorAccountId: (updatedLineItem as any).distributorAccountIdSnapshot ?? null,
+        vendorAccountId: (updatedLineItem as any).vendorAccountIdSnapshot ?? null,
+        distributorName: updatedLineItem.distributorNameSnapshot ?? null,
+        vendorName: updatedLineItem.vendorNameSnapshot ?? null,
+        productFamilyHouse: (updatedLineItem as any).productFamilyHouseSnapshot ?? null,
+        productSubtypeHouse: (updatedLineItem as any).productSubtypeHouseSnapshot ?? null,
+        productFamilyVendor: (updatedLineItem as any).productFamilyVendorSnapshot ?? null,
+        productSubtypeVendor: (updatedLineItem as any).productSubtypeVendorSnapshot ?? null,
+        productNameDistributor: (updatedLineItem as any).productNameDistributorSnapshot ?? null,
+        partNumberVendor: (updatedLineItem as any).partNumberVendorSnapshot ?? null,
+        partNumberDistributor: (updatedLineItem as any).partNumberDistributorSnapshot ?? null,
+        distributorProductFamily: (updatedLineItem as any).distributorProductFamilySnapshot ?? null,
+        distributorProductSubtype: (updatedLineItem as any).distributorProductSubtypeSnapshot ?? null,
+        productDescriptionVendor: (updatedLineItem as any).productDescriptionVendorSnapshot ?? null,
+        productDescriptionDistributor: (updatedLineItem as any).productDescriptionDistributorSnapshot ?? null,
+        isActive: updatedLineItem.active !== false
+      }
+
+      await logOpportunityProductAudit(
+        AuditAction.Update,
+        updatedLineItem.id,
+        req.user.id,
+        tenantId,
+        request,
+        previousValues,
+        newValues
+      )
 
       await revalidateOpportunityPaths(existingLineItem.opportunity?.accountId ?? null)
       if (existingLineItem.opportunity) {
