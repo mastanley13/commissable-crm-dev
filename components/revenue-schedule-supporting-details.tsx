@@ -33,7 +33,6 @@ import { KeyValueGrid, type KeyValueItem } from "@/components/section/KeyValueGr
 import { PillTabs } from "@/components/section/PillTabs"
 import { EmptyState } from "@/components/section/EmptyState"
 import { ErrorBanner } from "@/components/section/ErrorBanner"
-import { LoadingState } from "@/components/section/LoadingState"
 import { CommissionPayoutCreateModal } from "@/components/commission-payout-create-modal"
 import { useToasts } from "@/components/toast"
 
@@ -396,7 +395,6 @@ export const RevenueScheduleSupportingDetails = forwardRef<
   const [transactionFilter, setTransactionFilter] = useState<"all" | "billings" | "deposits" | "payments">("all")
   const [paymentSplitFilter, setPaymentSplitFilter] = useState<"all" | "house" | "subagent" | "houseRep">("all")
 
-  const [payoutsLoading, setPayoutsLoading] = useState<boolean>(false)
   const [payoutsError, setPayoutsError] = useState<string | null>(null)
   const [payouts, setPayouts] = useState<SchedulePayoutRow[]>([])
 
@@ -1314,7 +1312,6 @@ export const RevenueScheduleSupportingDetails = forwardRef<
       return
     }
 
-    setPayoutsLoading(true)
     setPayoutsError(null)
 
     try {
@@ -1346,8 +1343,6 @@ export const RevenueScheduleSupportingDetails = forwardRef<
       console.error("Failed to load payouts", error)
       setPayouts([])
       setPayoutsError(error instanceof Error ? error.message : "Unable to load payouts")
-    } finally {
-      setPayoutsLoading(false)
     }
   }, [schedule?.id])
 
@@ -1544,7 +1539,7 @@ export const RevenueScheduleSupportingDetails = forwardRef<
       >
         <div className="space-y-2">
           {payoutsError ? <ErrorBanner message={payoutsError} /> : null}
-          {payoutsLoading ? <LoadingState label="Loading payouts..." /> : null}
+          
 
           <div className="grid gap-3 lg:grid-cols-3">
           {splitCards.map(split => {
@@ -1985,8 +1980,8 @@ export const RevenueScheduleSupportingDetails = forwardRef<
       <DynamicTable
         columns={activityColumnsWithRender}
         data={filteredActivities}
-        loading={activitiesLoading}
-        emptyMessage={activitiesError ?? "No data available in table"}
+        loading={false}
+        emptyMessage={activitiesLoading ? "" : (activitiesError ?? "No data available in table")}
         onColumnsChange={handleActivityColumnsChange}
         pagination={activitiesPagination}
         onPageChange={handleActivitiesPageChange}
@@ -2048,8 +2043,8 @@ export const RevenueScheduleSupportingDetails = forwardRef<
       <DynamicTable
         columns={ticketColumnsWithRender}
         data={tickets}
-        loading={ticketsLoading}
-        emptyMessage={ticketsError ?? "No data available in table"}
+        loading={false}
+        emptyMessage={ticketsLoading ? "" : (ticketsError ?? "No data available in table")}
         onColumnsChange={handleTicketColumnsChange}
         pagination={ticketsPagination}
         onPageChange={handleTicketsPageChange}
@@ -2098,7 +2093,7 @@ export const RevenueScheduleSupportingDetails = forwardRef<
               description="Vendor and distributor metadata from matched deposit line items."
               hideHeader
             >
-              <LoadingState label="Loading matched deposits..." />
+              <div className="min-h-[140px]" />
             </SectionContainer>
           )
         } else if (matchesError) {
@@ -2632,7 +2627,7 @@ export const RevenueScheduleSupportingDetails = forwardRef<
             hideHeader
           >
             {payoutsError ? <ErrorBanner message={payoutsError} /> : null}
-            {payoutsLoading ? <LoadingState label="Loading payouts..." /> : null}
+            
             <div className="space-y-2">
               <ListHeader
                 inTab

@@ -18,6 +18,7 @@ export interface Column {
   type?: "text" | "toggle" | "action" | "checkbox" | "email" | "phone" | "multi-action"
   accessor?: string
   render?: (value: any, row: any, index: number) => React.ReactNode
+  truncate?: boolean
   hidden?: boolean
   hideable?: boolean
 }
@@ -208,7 +209,7 @@ export function DynamicTable({
     tempSpan.style.fontWeight = '500'
     tempSpan.style.whiteSpace = 'normal'
     tempSpan.style.wordWrap = 'break-word'
-    tempSpan.style.padding = '12px 16px'
+    tempSpan.style.padding = '6px 12px'
 
     document.body.appendChild(tempSpan)
 
@@ -849,8 +850,30 @@ export function DynamicTable({
   }
 
   const renderCell = useCallback((column: Column, value: any, row: any, index: number) => {
+    const shouldTruncate =
+      typeof column.truncate === "boolean"
+        ? column.truncate
+        : column.type === undefined ||
+          column.type === "text" ||
+          column.type === "email" ||
+          column.type === "phone"
+
+    const title =
+      shouldTruncate && (typeof value === "string" || typeof value === "number")
+        ? String(value)
+        : undefined
+
+    const wrapTruncatedContent = (content: React.ReactNode) =>
+      shouldTruncate ? (
+        <span className="block min-w-0 flex-1 truncate" title={title}>
+          {content}
+        </span>
+      ) : (
+        content
+      )
+
     if (column.render) {
-      return column.render(value, row, index)
+      return wrapTruncatedContent(column.render(value, row, index))
     }
 
     switch (column.type) {
@@ -919,19 +942,28 @@ export function DynamicTable({
         )
       }
       case "email":
-        return (
-          <a href={`mailto:${value}`} className="text-blue-600 hover:text-blue-800 transition-colors">
+        return wrapTruncatedContent(
+          <a
+            href={`mailto:${value}`}
+            className="text-blue-600 hover:text-blue-800 transition-colors"
+          >
             {value}
           </a>
         )
       case "phone":
-        return (
+        return wrapTruncatedContent(
           <a href={`tel:${value}`} className="text-gray-900 hover:text-blue-600 transition-colors">
             {value}
           </a>
         )
       default:
-        return <span className="block truncate min-w-0 flex-1">{value}</span>
+        return shouldTruncate ? (
+          <span className="block truncate min-w-0 flex-1" title={title}>
+            {value}
+          </span>
+        ) : (
+          <span className="min-w-0 flex-1">{value}</span>
+        )
     }
   }, [selectedItems, onItemSelect, onToggle])
 

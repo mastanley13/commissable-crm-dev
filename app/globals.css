@@ -135,10 +135,10 @@ html, body {
 }
 
 .table-cell {
-  padding: 12px 16px;
+  padding: 6px 12px;
   display: flex;
   align-items: center;
-  min-height: 48px;
+  min-height: 36px;
   width: 100%;
   /* Remove default vertical dividers from body cells; header uses explicit borders */
   overflow: hidden; /* Enable text truncation with ellipsis */
