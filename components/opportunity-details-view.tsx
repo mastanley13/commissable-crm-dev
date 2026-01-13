@@ -992,7 +992,7 @@ function validateOpportunityForm(form: OpportunityInlineForm): Record<string, st
   }
   // Status isn't editable inline yet; allow empty values to pass validation.
   if (!form.ownerId) {
-    errors.ownerId = "Owner is required."
+    errors.ownerId = "House Rep is required."
   }
   if (!form.estimatedCloseDate) {
     errors.estimatedCloseDate = "Estimated close date is required."
@@ -1127,7 +1127,7 @@ function OpportunityHeader({
           <FieldRow label="Subagent">
             <div className={fieldBoxClass}>{opportunity.subAgent || "None"}</div>
           </FieldRow>
-          <FieldRow label="Owner">
+          <FieldRow label="House Rep">
             <div className={fieldBoxClass}>{opportunity.owner?.name || "--"}</div>
           </FieldRow>
           <FieldRow label="Opportunity Stage">
@@ -1529,7 +1529,7 @@ function EditableOpportunityHeader({
           )}
 
           {renderRow(
-            "Owner",
+            "House Rep",
             <EditableField.Select
               className="w-full"
               value={(ownerField.value as string) ?? ""}
@@ -1537,7 +1537,7 @@ function EditableOpportunityHeader({
               onBlur={ownerField.onBlur}
               disabled={ownersLoading}
             >
-              <option value="">Select owner</option>
+              <option value="">Select house rep</option>
               {ownerOptions.map(option => (
                 <option key={option.value} value={option.value}>
                   {option.label}
@@ -2336,7 +2336,7 @@ useEffect(() => {
                     disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"
                   )}
                   onClick={event => event.stopPropagation()}
-                  title={disabled ? "Opportunity Owner is informational and cannot be deleted." : undefined}
+                  title={disabled ? "House Rep is informational and cannot be deleted." : undefined}
                 >
                   <input
                     type="checkbox"

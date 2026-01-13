@@ -111,6 +111,7 @@ export interface RevenueScheduleListItem {
   opportunityId: string | null
   opportunityName: string | null
   opportunityOwnerName?: string | null
+  houseRepName?: string | null
   billingMonth?: string | null
   scheduleStatus: string
   inDispute: boolean
@@ -359,6 +360,7 @@ export function mapRevenueScheduleToListItem(schedule: RevenueScheduleWithRelati
     schedule.opportunityProduct?.productNameHouseSnapshot ?? schedule.product?.productNameHouse ?? null
 
   const opportunityOwnerName = schedule.opportunity?.owner?.fullName ?? null
+  const houseRepName = opportunityOwnerName
 
   return {
     id: schedule.id,
@@ -374,6 +376,7 @@ export function mapRevenueScheduleToListItem(schedule: RevenueScheduleWithRelati
     opportunityId: schedule.opportunity?.id ?? null,
     opportunityName: schedule.opportunity?.name ?? null,
     opportunityOwnerName,
+    houseRepName,
     billingMonth: null,
     scheduleStatus: statusInfo.status,
     inDispute: statusInfo.inDispute,

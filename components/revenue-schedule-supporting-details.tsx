@@ -1646,7 +1646,7 @@ export const RevenueScheduleSupportingDetails = forwardRef<
     const columnB: DetailLineProps[] = [
       { label: "Location ID", value: schedule?.locationId ?? undefined },
       { label: "Opportunity ID", value: schedule?.opportunityId ? String(schedule.opportunityId) : undefined },
-      { label: "Opportunity Owner", value: schedule?.opportunityOwnerName ?? undefined },
+      { label: "House Rep", value: schedule?.houseRepName ?? schedule?.opportunityOwnerName ?? undefined },
       { label: "House - Order ID", value: schedule?.orderIdHouse ?? undefined },
       {
         label: "Other - Order ID",

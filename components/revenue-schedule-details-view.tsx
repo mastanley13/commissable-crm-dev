@@ -972,7 +972,7 @@ export function RevenueScheduleDetailsView({
   const disputePillClass = schedule.inDispute ? "bg-rose-100 text-rose-700 border-rose-200" : "bg-emerald-100 text-emerald-700 border-emerald-200"
 
   const productNameHouse = schedule.productNameHouse ?? null
-  const opportunityOwnerName = schedule.opportunityOwnerName ?? null
+  const houseRepName = schedule.houseRepName ?? schedule.opportunityOwnerName ?? null
 
   const opportunityValue =
     schedule.opportunityId &&
@@ -1000,7 +1000,6 @@ export function RevenueScheduleDetailsView({
       label: "Product Name - House",
       value: productNameHouse ?? undefined
     },
-    { fieldId: "opportunityOwnerName", label: "Opportunity Owner", value: opportunityOwnerName ?? undefined },
   ]
 
   const columnTwo: FieldDefinition[] = [
@@ -1012,7 +1011,7 @@ export function RevenueScheduleDetailsView({
     {
       fieldId: "04.01.021",
       label: "House Rep",
-      value: schedule.houseRepName
+      value: houseRepName ?? undefined
     },
     {
       fieldId: "04.01.008",
