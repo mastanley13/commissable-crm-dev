@@ -256,6 +256,7 @@ function FinancialSummarySection({
   const valueLinkClass = "w-20 text-right font-medium text-blue-600"
   const inputClass = "w-20 text-right border-b-0 py-0 h-[18px] text-[11px] leading-[18px]"
   const cardHeaderClass = "mb-0.5 flex min-h-[24px] items-center justify-between border-b border-gray-300 pb-0.5"
+  const revenueMonthDisplay = schedule.revenueMonth ?? (schedule.revenueScheduleDate ? schedule.revenueScheduleDate.slice(0, 7) : null)
 
   const inlineQuantity = enableInlineEditing ? (quantityField?.value as string | null | undefined) : null
   const inlinePriceEach = enableInlineEditing ? (priceEachField?.value as string | null | undefined) : null
@@ -503,6 +504,11 @@ function FinancialSummarySection({
                 <span className={labelClass}>Billing Month</span>
                 <span className={opClass}></span>
                 <span className={valueClass}>{renderValue(schedule.billingMonth)}</span>
+              </div>
+              <div className={rowClass}>
+                <span className={labelClass}>Revenue Month</span>
+                <span className={opClass}></span>
+                <span className={valueClass}>{renderValue(revenueMonthDisplay)}</span>
               </div>
               <div className={cn(rowClass, "border-t border-gray-300")}>
                 <span className={labelClass}>Expected Commission</span>
@@ -965,7 +971,6 @@ export function RevenueScheduleDetailsView({
 
   const disputePillClass = schedule.inDispute ? "bg-rose-100 text-rose-700 border-rose-200" : "bg-emerald-100 text-emerald-700 border-emerald-200"
 
-  const revenueMonth = schedule.revenueMonth ?? (schedule.revenueScheduleDate ? schedule.revenueScheduleDate.slice(0, 7) : null)
   const productNameHouse = schedule.productNameHouse ?? null
   const opportunityOwnerName = schedule.opportunityOwnerName ?? null
 
@@ -990,7 +995,6 @@ export function RevenueScheduleDetailsView({
     { fieldId: "04.01.000", label: "Revenue Schedule Name", value: scheduleName },
     { fieldId: "04.01.001", label: "Revenue Schedule Date", value: scheduleDate },
     { fieldId: "04.01.007", label: "Opportunity", value: opportunityValue },
-    { fieldId: "revenueMonth", label: "Revenue Month", value: revenueMonth ?? undefined },
     {
       fieldId: "productNameHouse",
       label: "Product Name - House",
