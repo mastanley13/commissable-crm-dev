@@ -5,13 +5,13 @@ import { prisma } from "@/lib/db"
 import { recomputeDepositAggregates } from "@/lib/matching/deposit-aggregates"
 import { recomputeRevenueSchedules } from "@/lib/matching/revenue-schedule-status"
 import { getTenantVarianceTolerance } from "@/lib/matching/settings"
-import { logRevenueScheduleAudit } from "@/lib/audit"
+import { getClientIP, getUserAgent, logAudit, logRevenueScheduleAudit } from "@/lib/audit"
 
 export async function POST(
   request: NextRequest,
   { params }: { params: { depositId: string; lineId: string } },
 ) {
-  return withPermissions(request, ["reconciliation.view"], async req => {
+  return withPermissions(request, ["reconciliation.manage"], async req => {
     const depositId = params?.depositId?.trim()
     const lineId = params?.lineId?.trim()
     const tenantId = req.user.tenantId
@@ -127,6 +127,22 @@ export async function POST(
         },
       )
     }
+
+    await logAudit({
+      userId: req.user.id,
+      tenantId,
+      action: AuditAction.Delete,
+      entityName: "DepositLineMatch",
+      entityId: lineItem.id,
+      ipAddress: getClientIP(request),
+      userAgent: getUserAgent(request),
+      metadata: {
+        action: "RemoveAllocation",
+        depositId,
+        depositLineItemId: lineItem.id,
+        scheduleCount: (result.revenueSchedules ?? []).length,
+      },
+    })
 
     const { schedulesBefore: _schedulesBefore, ...responseData } = result as any
     return NextResponse.json({ data: responseData })

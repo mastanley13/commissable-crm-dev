@@ -5,7 +5,7 @@ import { prisma } from "@/lib/db"
 import { recomputeRevenueSchedules } from "@/lib/matching/revenue-schedule-status"
 import { getTenantMatchingPreferences } from "@/lib/matching/settings"
 import { logMatchingMetric } from "@/lib/matching/metrics"
-import { logRevenueScheduleAudit } from "@/lib/audit"
+import { getClientIP, getUserAgent, logAudit, logRevenueScheduleAudit } from "@/lib/audit"
 
 export async function POST(request: NextRequest, { params }: { params: { depositId: string } }) {
   return withPermissions(request, ["reconciliation.manage", "reconciliation.view"], async req => {
@@ -153,6 +153,23 @@ export async function POST(request: NextRequest, { params }: { params: { deposit
         },
       )
     }
+
+    await logAudit({
+      userId: req.user.id,
+      tenantId,
+      action: AuditAction.Update,
+      entityName: "Deposit",
+      entityId: depositId,
+      ipAddress: getClientIP(request),
+      userAgent: getUserAgent(request),
+      metadata: {
+        action: "Finalize",
+        status: updated.deposit?.status ?? null,
+        reconciled: updated.deposit?.reconciled ?? null,
+        reconciledAt: updated.deposit?.reconciledAt ?? null,
+        scheduleCount: (updated.revenueSchedules ?? []).length,
+      },
+    })
 
     const { schedulesBefore: _schedulesBefore, ...responseData } = updated as any
     return NextResponse.json({ data: responseData })

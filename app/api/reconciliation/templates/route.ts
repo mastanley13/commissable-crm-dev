@@ -1,11 +1,11 @@
-import { Prisma } from '@prisma/client'
+import { AuditAction, Prisma } from '@prisma/client'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { withPermissions, createErrorResponse } from '@/lib/api-auth'
+import { getClientIP, getUserAgent, logAudit } from '@/lib/audit'
 import { findTelarusTemplateMatch } from '@/lib/deposit-import/telarus-template-master'
-import { extractDepositMappingFromTemplateConfig, serializeDepositMappingForTemplate } from '@/lib/deposit-import/template-mapping'
+import { serializeDepositMappingForTemplate } from '@/lib/deposit-import/template-mapping'
 import {
-  extractTelarusTemplateFieldsFromTemplateConfig,
   serializeTelarusTemplateFieldsForTemplate,
 } from '@/lib/deposit-import/telarus-template-fields'
 
@@ -65,15 +65,8 @@ export async function GET(request: NextRequest) {
 
       let resolvedTemplates = templates
 
-      const firstTemplate = resolvedTemplates[0]
-      const firstTemplateHasDepositMapping =
-        Boolean(firstTemplate?.config) &&
-        typeof firstTemplate?.config === 'object' &&
-        !Array.isArray(firstTemplate?.config) &&
-        typeof (firstTemplate?.config as any)?.depositMapping === 'object' &&
-        (firstTemplate?.config as any)?.depositMapping?.version === 1
-
-      if (query.length === 0) {
+      // Seed a Telarus-derived template when none exist, but avoid mutating existing templates during list requests.
+      if (query.length === 0 && templates.length === 0) {
         const [distributor, vendor] = await Promise.all([
           prisma.account.findFirst({
             where: { tenantId, id: distributorAccountId },
@@ -94,109 +87,47 @@ export async function GET(request: NextRequest) {
             : null
 
         if (match) {
-          const existingConfig =
-            firstTemplate?.config &&
-            typeof firstTemplate.config === 'object' &&
-            !Array.isArray(firstTemplate.config)
-              ? (firstTemplate.config as Prisma.JsonObject)
-              : ({} as Prisma.JsonObject)
+          const config: Prisma.InputJsonValue = {
+            ...(serializeDepositMappingForTemplate(match.mapping) as unknown as Prisma.JsonObject),
+            ...(serializeTelarusTemplateFieldsForTemplate(match.templateFields) as unknown as Prisma.JsonObject),
+            telarusTemplateId: match.templateId,
+            telarusOrigin: match.origin,
+            telarusCompanyName: match.companyName,
+            telarusTemplateMapName: match.templateMapName,
+          } as unknown as Prisma.InputJsonValue
 
-          const existingDepositMapping = firstTemplateHasDepositMapping
-            ? extractDepositMappingFromTemplateConfig(existingConfig)
-            : null
-
-          const mergedMapping = existingDepositMapping
-            ? {
-                ...existingDepositMapping,
-                line: { ...(existingDepositMapping.line ?? {}) },
-                columns: { ...(existingDepositMapping.columns ?? {}) },
-                customFields: { ...(existingDepositMapping.customFields ?? {}) },
-              }
-            : null
-
-          const needsDepositMappingMerge =
-            !mergedMapping ||
-            Object.entries(match.mapping.line ?? {}).some(([fieldId, columnName]) => {
-              if (!columnName) return false
-              return !mergedMapping.line?.[fieldId as any]
+          try {
+            const created = await prisma.reconciliationTemplate.create({
+              data: {
+                tenantId,
+                name: match.templateMapName,
+                description: 'Seeded from Telarus vendor map fields master CSV.',
+                distributorAccountId,
+                vendorAccountId,
+                createdByUserId: req.user.id,
+                createdByContactId: null,
+                config,
+              },
+              include: {
+                distributor: { select: { accountName: true } },
+                vendor: { select: { accountName: true } },
+              },
             })
-
-          const existingTelarusFields = extractTelarusTemplateFieldsFromTemplateConfig(existingConfig)
-          const needsTelarusTemplateFields = !existingTelarusFields || existingTelarusFields.fields.length === 0
-
-          if (!needsDepositMappingMerge && !needsTelarusTemplateFields && firstTemplate) {
-            // Template exists and already contains at least the Telarus-derived info we would add.
-            // Return it as-is without mutating user-edited mappings.
-          } else {
-            const nextMapping = mergedMapping ?? match.mapping
-
-            if (mergedMapping) {
-              for (const [fieldId, columnName] of Object.entries(match.mapping.line ?? {})) {
-                if (!columnName) continue
-                if (!nextMapping.line?.[fieldId as any]) {
-                  ;(nextMapping.line as any)[fieldId] = columnName
-                }
-              }
-            }
-
-            const config: Prisma.InputJsonValue = {
-              ...existingConfig,
-              ...(serializeDepositMappingForTemplate(nextMapping) as unknown as Prisma.JsonObject),
-              ...(serializeTelarusTemplateFieldsForTemplate(match.templateFields) as unknown as Prisma.JsonObject),
-              telarusTemplateId: match.templateId,
-              telarusOrigin: match.origin,
-              telarusCompanyName: match.companyName,
-              telarusTemplateMapName: match.templateMapName,
-            } as unknown as Prisma.InputJsonValue
-
-            try {
-              if (firstTemplate) {
-                const updated = await prisma.reconciliationTemplate.update({
-                  where: { id: firstTemplate.id },
-                  data: {
-                    config,
-                    name: firstTemplate.name === 'Default deposit mapping' ? match.templateMapName : firstTemplate.name,
-                  },
-                  include: {
-                    distributor: { select: { accountName: true } },
-                    vendor: { select: { accountName: true } },
-                  },
-                })
-                resolvedTemplates = [updated]
-              } else {
-                const created = await prisma.reconciliationTemplate.create({
-                  data: {
-                    tenantId,
-                    name: match.templateMapName,
-                    description: 'Seeded from Telarus vendor map fields master CSV.',
-                    distributorAccountId,
-                    vendorAccountId,
-                    createdByUserId: req.user.id,
-                    createdByContactId: null,
-                    config,
-                  },
-                  include: {
-                    distributor: { select: { accountName: true } },
-                    vendor: { select: { accountName: true } },
-                  },
-                })
-                resolvedTemplates = [created]
-              }
-            } catch (error: any) {
-              if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-                const existing = await prisma.reconciliationTemplate.findMany({
-                  where: whereClause,
-                  include: {
-                    distributor: { select: { accountName: true } },
-                    vendor: { select: { accountName: true } },
-                  },
-                  orderBy: { name: 'asc' },
-                  take,
-                })
-                resolvedTemplates = existing
-              } else {
-                console.error('Failed to seed reconciliation template from Telarus CSV', error)
-              }
+            resolvedTemplates = [created]
+          } catch (error: any) {
+            if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+              // A template may have been created concurrently; return the latest list.
+              resolvedTemplates = await prisma.reconciliationTemplate.findMany({
+                where: whereClause,
+                include: {
+                  distributor: { select: { accountName: true } },
+                  vendor: { select: { accountName: true } },
+                },
+                orderBy: { name: 'asc' },
+                take,
+              })
+            } else {
+              console.error('Failed to seed reconciliation template from Telarus CSV', error)
             }
           }
         }
@@ -216,7 +147,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   return withPermissions(
     request,
-    ['reconciliation.view'],
+    ['reconciliation.manage'],
     async (req) => {
       try {
         const body = await request.json()
@@ -273,13 +204,28 @@ export async function POST(request: NextRequest) {
           },
         })
 
+        await logAudit({
+          userId,
+          tenantId,
+          action: AuditAction.Create,
+          entityName: 'ReconciliationTemplate',
+          entityId: template.id,
+          ipAddress: getClientIP(request),
+          userAgent: getUserAgent(request),
+          metadata: {
+            distributorAccountId: template.distributorAccountId,
+            vendorAccountId: template.vendorAccountId,
+            name: template.name,
+          },
+        })
+
         return NextResponse.json({
           data: mapTemplate(template),
           message: 'Template created',
         })
       } catch (error: any) {
         if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-          return createErrorResponse('Template already exists for this distributor and vendor', 409)
+          return createErrorResponse('Template already exists for this distributor/vendor/name', 409)
         }
 
         console.error('Failed to create reconciliation template', error)

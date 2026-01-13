@@ -5,7 +5,7 @@ import { prisma } from "@/lib/db"
 import { recomputeRevenueSchedules } from "@/lib/matching/revenue-schedule-status"
 import { getTenantMatchingPreferences } from "@/lib/matching/settings"
 import { logMatchingMetric } from "@/lib/matching/metrics"
-import { logRevenueScheduleAudit } from "@/lib/audit"
+import { getClientIP, getUserAgent, logAudit, logRevenueScheduleAudit } from "@/lib/audit"
 
 export async function DELETE(request: NextRequest, { params }: { params: { depositId: string } }) {
   return withPermissions(request, ["reconciliation.manage"], async req => {
@@ -111,6 +111,20 @@ export async function DELETE(request: NextRequest, { params }: { params: { depos
         },
       )
     }
+
+    await logAudit({
+      userId: req.user.id,
+      tenantId,
+      action: AuditAction.Delete,
+      entityName: "Deposit",
+      entityId: depositId,
+      ipAddress: getClientIP(request),
+      userAgent: getUserAgent(request),
+      metadata: {
+        action: "DeleteDeposit",
+        schedulesRecomputed: result.schedulesRecomputed ?? 0,
+      },
+    })
 
     const { schedulesBefore: _schedulesBefore, revenueSchedules: _revenueSchedules, ...responseData } = result as any
     return NextResponse.json({ data: responseData })

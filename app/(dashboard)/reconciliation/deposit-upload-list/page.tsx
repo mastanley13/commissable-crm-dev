@@ -28,6 +28,17 @@ import {
 
 type WizardStep = 'create-template' | 'map-fields' | 'review' | 'confirm'
 
+const generateIdempotencyKey = () => {
+  try {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+      return crypto.randomUUID()
+    }
+  } catch {
+    // fall back below
+  }
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`
+}
+
 const initialFormState: DepositUploadFormState = {
   depositName: '',
   depositReceivedDate: '',
@@ -63,6 +74,7 @@ export default function DepositUploadListPage() {
   const [importSubmitting, setImportSubmitting] = useState(false)
   const [importError, setImportError] = useState<string | null>(null)
   const [importResult, setImportResult] = useState<{ depositId: string } | null>(null)
+  const [idempotencyKey, setIdempotencyKey] = useState<string>(() => generateIdempotencyKey())
   const mappingHistoryRef = useRef<DepositMappingConfigV1[]>([])
   const [canUndo, setCanUndo] = useState(false)
 
@@ -84,6 +96,7 @@ export default function DepositUploadListPage() {
   const handleFileChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0] ?? null
     setSelectedFile(file)
+    setIdempotencyKey(generateIdempotencyKey())
     setMapping(createEmptyDepositMapping())
     setTemplateMapping(null)
     setTemplateFields(null)
@@ -320,6 +333,7 @@ export default function DepositUploadListPage() {
       formData.append('vendorAccountId', formState.vendorAccountId)
       formData.append('reconciliationTemplateId', formState.templateId)
       formData.append('saveTemplateMapping', formState.saveTemplateMapping ? 'true' : 'false')
+      formData.append('idempotencyKey', idempotencyKey)
       formData.append('createdByContactId', formState.createdByContactId)
       formData.append('mapping', JSON.stringify(mapping))
 

@@ -12,7 +12,7 @@ import { recomputeDepositAggregates } from "@/lib/matching/deposit-aggregates"
 import { recomputeRevenueScheduleFromMatches } from "@/lib/matching/revenue-schedule-status"
 import { getTenantVarianceTolerance } from "@/lib/matching/settings"
 import { logMatchingMetric } from "@/lib/matching/metrics"
-import { logRevenueScheduleAudit } from "@/lib/audit"
+import { getClientIP, getUserAgent, logAudit, logRevenueScheduleAudit } from "@/lib/audit"
 import { evaluateFlexDecision } from "@/lib/flex/revenue-schedule-flex-decision"
 import { recomputeDepositLineItemAllocations } from "@/lib/matching/deposit-line-allocations"
 import {
@@ -39,7 +39,7 @@ export async function POST(
   request: NextRequest,
   { params }: { params: { depositId: string; lineId: string } },
 ) {
-  return withPermissions(request, ["reconciliation.view"], async req => {
+  return withPermissions(request, ["reconciliation.manage"], async req => {
     const depositId = params?.depositId?.trim()
     const lineId = params?.lineId?.trim()
     const tenantId = req.user.tenantId
@@ -278,6 +278,28 @@ export async function POST(
         },
       )
     }
+
+    await logAudit({
+      userId: req.user.id,
+      tenantId,
+      action: result?.match?.id ? AuditAction.Update : AuditAction.Create,
+      entityName: "DepositLineMatch",
+      entityId: result?.match?.id ?? lineItem.id,
+      ipAddress: getClientIP(request),
+      userAgent: getUserAgent(request),
+      metadata: {
+        action: result?.match?.id ? "Allocate" : "FlexChargeback",
+        depositId,
+        depositLineItemId: lineItem.id,
+        revenueScheduleId,
+        usageAmount: allocationUsage,
+        commissionAmount: allocationCommission,
+        confidenceScore,
+        source: DepositLineMatchSource.Manual,
+        flexDecision: result?.flexDecision ?? null,
+        flexExecution: result?.flexExecution ?? null,
+      },
+    })
 
     return NextResponse.json({ data: result })
   })

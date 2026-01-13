@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
-import { RevenueScheduleFlexReasonCode } from "@prisma/client"
+import { AuditAction, RevenueScheduleFlexReasonCode } from "@prisma/client"
 import { withPermissions, createErrorResponse } from "@/lib/api-auth"
 import { prisma } from "@/lib/db"
 import { getTenantVarianceTolerance } from "@/lib/matching/settings"
 import { recomputeRevenueScheduleFromMatches } from "@/lib/matching/revenue-schedule-status"
 import { executeFlexAdjustmentSplit } from "@/lib/flex/revenue-schedule-flex-actions"
+import { getClientIP, getUserAgent, logAudit } from "@/lib/audit"
 import {
   applyExpectedDeltasToFutureSchedules,
   findFutureSchedulesInScope,
@@ -22,7 +23,7 @@ export async function POST(
   request: NextRequest,
   { params }: { params: { depositId: string; lineId: string } },
 ) {
-  return withPermissions(request, ["reconciliation.view"], async req => {
+  return withPermissions(request, ["reconciliation.manage"], async req => {
     const depositId = params?.depositId?.trim()
     const lineId = params?.lineId?.trim()
     const tenantId = req.user.tenantId
@@ -137,7 +138,25 @@ export async function POST(
       }
     })
 
+    await logAudit({
+      userId: req.user.id,
+      tenantId,
+      action: AuditAction.Update,
+      entityName: "DepositLineItem",
+      entityId: lineId,
+      ipAddress: getClientIP(request),
+      userAgent: getUserAgent(request),
+      metadata: {
+        action: "ApplyAIAdjustment",
+        depositId,
+        revenueScheduleId,
+        applyToFuture,
+        futureUpdatedCount: result.futureUpdate?.updatedScheduleIds?.length ?? 0,
+        futureUpdatedScheduleIds: result.futureUpdate?.updatedScheduleIds ?? [],
+        flexExecution: result.flexExecution ?? null,
+      },
+    })
+
     return NextResponse.json({ data: result })
   })
 }
-

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import {
+  AuditAction,
   DepositLineItemStatus,
   DepositLineMatchSource,
   DepositLineMatchStatus,
@@ -12,6 +13,7 @@ import { recomputeDepositLineItemAllocations } from "@/lib/matching/deposit-line
 import { getTenantMatchingPreferences } from "@/lib/matching/settings"
 import { getUserReconciliationConfidencePreferences } from "@/lib/matching/user-confidence-settings"
 import { logMatchingMetric } from "@/lib/matching/metrics"
+import { getClientIP, getUserAgent, logAudit } from "@/lib/audit"
 
 interface AutoMatchSummary {
   processed: number
@@ -120,6 +122,20 @@ export async function POST(request: NextRequest, { params }: { params: { deposit
         summary.errors += 1
       }
     }
+
+    await logAudit({
+      userId: req.user.id,
+      tenantId,
+      action: AuditAction.Update,
+      entityName: "Deposit",
+      entityId: depositId,
+      ipAddress: getClientIP(request),
+      userAgent: getUserAgent(request),
+      metadata: {
+        action: "AutoMatch",
+        summary,
+      },
+    })
 
     return NextResponse.json({ data: summary })
   })

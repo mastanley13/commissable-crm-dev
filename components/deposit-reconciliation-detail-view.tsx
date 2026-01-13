@@ -242,6 +242,21 @@ const scheduleStatusStyles: Record<SuggestedMatchScheduleRow["status"], string> 
   Unmatched: "bg-amber-50 text-amber-700 border border-amber-200"
 }
 
+function getAllocationStatusLabel(status: string): string {
+  switch (status) {
+    case "Matched":
+      return "Allocated"
+    case "Partially Matched":
+      return "Partially Allocated"
+    case "Unmatched":
+      return "Unallocated"
+    case "Reconciled":
+      return "Finalized"
+    default:
+      return status
+  }
+}
+
 const TABLE_CONTAINER_PADDING = 1
 const TABLE_BODY_MIN_HEIGHT = 200
 const TABLE_BODY_FOOTER_RESERVE = 1
@@ -668,7 +683,7 @@ export function DepositReconciliationDetailView({
     if (matchingLineId || undoingLineId) return "Update in progress"
     if (!selectedLineForMatch) return "Select a deposit line item above"
     if (selectedLineForMatch.reconciled) return "Reconciled line items cannot be changed"
-    if (selectedLineForMatch.status === "Ignored") return "Ignored line items cannot be matched"
+    if (selectedLineForMatch.status === "Ignored") return "Ignored line items cannot be allocated"
     if (selectedSchedules.length === 0) return "Select a schedule below"
     if (selectedSchedules.length > 1) return "Select only one schedule to match to"
 
@@ -717,7 +732,7 @@ export function DepositReconciliationDetailView({
     if (matchingLineId || undoingLineId) return "Update in progress"
     if (!selectedLineForMatch) return "Select a deposit line item above"
     if (selectedLineForMatch.reconciled) return "Reconciled line items cannot be changed"
-    if (selectedLineForMatch.status === "Ignored") return "Ignored line items cannot be matched"
+    if (selectedLineForMatch.status === "Ignored") return "Ignored line items cannot be allocated"
     return null
   }, [matchingLineId, undoingLineId, selectedLineForMatch])
 
@@ -894,11 +909,11 @@ export function DepositReconciliationDetailView({
 
         if (flexDecision?.action === "prompt") {
           setFlexPrompt({ lineId, scheduleId, decision: flexDecision })
-          showSuccess("Match saved", "Overage exceeds tolerance. Choose how to resolve the variance.")
+          showSuccess("Allocation saved", "Overage exceeds tolerance. Choose how to resolve the variance.")
           return
         }
 
-        showSuccess("Match saved", "The selected line item was matched to the schedule.")
+        showSuccess("Allocation saved", "The selected line item was allocated to the schedule.")
       } catch (err) {
         console.error("Failed to apply match", err)
         showError("Unable to match", err instanceof Error ? err.message : "Unknown error")
@@ -1462,7 +1477,7 @@ export function DepositReconciliationDetailView({
               data-disable-row-click="true"
             >
               <span className={cn("mr-2 inline-block h-2 w-2 rounded-full", dotClass)} />
-              {isBusy ? "Updating..." : displayStatus}
+              {isBusy ? "Updating..." : getAllocationStatusLabel(displayStatus)}
             </span>
           )
         }
@@ -1928,7 +1943,7 @@ export function DepositReconciliationDetailView({
         sortable: true,
         render: (value: SuggestedMatchScheduleRow["status"]) => (
           <span className={cn("inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold", scheduleStatusStyles[value])}>
-            {value}
+            {getAllocationStatusLabel(value)}
           </span>
         )
       }
@@ -2072,11 +2087,11 @@ export function DepositReconciliationDetailView({
 
       if (flexDecision?.action === "prompt") {
         setFlexPrompt({ lineId, scheduleId, decision: flexDecision })
-        showSuccess("Match saved", "Overage exceeds tolerance. Choose how to resolve the variance.")
+        showSuccess("Allocation saved", "Overage exceeds tolerance. Choose how to resolve the variance.")
         return
       }
 
-      showSuccess("Match saved", "The selected line item was matched to the schedule.")
+      showSuccess("Allocation saved", "The selected line item was allocated to the schedule.")
     } catch (err) {
       console.error("Failed to apply match", err)
       showError("Unable to match", err instanceof Error ? err.message : "Unknown error")
@@ -2522,14 +2537,14 @@ export function DepositReconciliationDetailView({
       actions: [
         {
           key: "match",
-          label: "Match",
+          label: "Allocate",
           icon: ClipboardCheck,
           tone: "primary",
           onClick: handleBulkLineMatch
         },
         {
           key: "unmatch",
-          label: "Remove Match",
+          label: "Remove Allocation",
           icon: Trash2,
           tone: "danger",
           onClick: handleBulkLineUnmatch
@@ -2632,7 +2647,7 @@ export function DepositReconciliationDetailView({
   ])
 
   return (
-    <div className="flex min-h-[calc(100vh-110px)] flex-col gap-2 px-3 pb-3 pt-2 sm:px-4">
+    <div className="flex min-h-[calc(100vh-110px)] flex-col gap-2 px-3 pb-3 pt-0 sm:px-4">
       {aiAdjustmentModal ? (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/40 px-4"
@@ -3247,9 +3262,9 @@ export function DepositReconciliationDetailView({
 
       <section className="flex min-h-0 flex-1 flex-col">
         <div className="border-b border-slate-100">
-          <div className="px-0">
-            <TabDescription className="mt-3 mb-2">
-              Review deposit line items and match deposit amounts to revenue schedules. Matches are editable until the
+          <div className="px-0 py-2">
+            <TabDescription className="my-0">
+              Review deposit line items and allocate deposit amounts to revenue schedules. Allocations are editable until the
               deposit is finalized.
             </TabDescription>
           </div>
@@ -3328,14 +3343,14 @@ export function DepositReconciliationDetailView({
 
       <section className="flex min-h-0 flex-1 flex-col">
         <div className="border-b border-slate-100">
-          <div className="px-0">
-            <TabDescription className="mt-3 mb-2">
+          <div className="px-0 py-2">
+            <TabDescription className="my-0">
               Select a revenue schedule, then match the selected deposit line item. Finalizing is a separate step that
               locks these allocations.
             </TabDescription>
           </div>
           <ListHeader
-            pageTitle="Suggested Matches - Revenue Schedules"
+            pageTitle="Suggested Allocations - Revenue Schedules"
             searchPlaceholder="Search revenue schedules"
             onSearch={setScheduleSearch}
             showStatusFilter={false}
@@ -3365,14 +3380,14 @@ export function DepositReconciliationDetailView({
                   type="button"
                   onClick={handleMatchSelected}
                   disabled={Boolean(matchButtonDisabledReason)}
-                  title={matchButtonDisabledReason ?? "Match the selected line item to the selected schedule"}
+                  title={matchButtonDisabledReason ?? "Allocate the selected line item to the selected schedule"}
                   className={cn(
                     "inline-flex h-9 items-center justify-center gap-2 rounded bg-primary-600 px-3 text-sm font-semibold text-white shadow-sm transition hover:bg-primary-700",
                     matchButtonDisabledReason ? "cursor-not-allowed opacity-60 hover:bg-primary-600" : ""
                   )}
                 >
                   <ClipboardCheck className="h-4 w-4" />
-                  Match
+                  Allocate
                 </button>
               </div>
             }
