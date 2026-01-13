@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { Column } from "@/components/dynamic-table"
+import { normalizeTablePreferencePayloadForColumns } from "@/lib/table-preferences-alias"
 
 interface TablePreferencePayload {
   columnOrder?: string[]
@@ -21,18 +22,20 @@ function cloneColumns(columns: Column[]): Column[] {
 }
 
 function applyPreferences(columns: Column[], preference: TablePreferencePayload | null): Column[] {
-  if (!preference) {
+  const normalized = normalizeTablePreferencePayloadForColumns(preference, columns) as TablePreferencePayload | null
+
+  if (!normalized) {
     return cloneColumns(columns)
   }
 
   const baseColumns = cloneColumns(columns)
   let orderedColumns = baseColumns
 
-  if (Array.isArray(preference.columnOrder) && preference.columnOrder.length) {
-    const columnOrderSet = new Set(preference.columnOrder)
+  if (Array.isArray(normalized.columnOrder) && normalized.columnOrder.length) {
+    const columnOrderSet = new Set(normalized.columnOrder)
 
     const ordered: Column[] = []
-    for (const columnId of preference.columnOrder) {
+    for (const columnId of normalized.columnOrder) {
       const column = baseColumns.find(col => col.id === columnId)
       if (column) {
         ordered.push({ ...column })
@@ -43,9 +46,9 @@ function applyPreferences(columns: Column[], preference: TablePreferencePayload 
     orderedColumns = [...ordered, ...missingColumns.map(col => ({ ...col }))]
   }
 
-  if (preference.columnWidths && typeof preference.columnWidths === "object") {
+  if (normalized.columnWidths && typeof normalized.columnWidths === "object") {
     orderedColumns = orderedColumns.map(column => {
-      const width = preference.columnWidths?.[column.id]
+      const width = normalized.columnWidths?.[column.id]
       if (typeof width === "number" && width > 0) {
         // Normalize width to integer to avoid sub-pixel gaps
         return { ...column, width: Math.round(width) }
@@ -54,8 +57,8 @@ function applyPreferences(columns: Column[], preference: TablePreferencePayload 
     })
   }
 
-  if (Array.isArray(preference.hiddenColumns)) {
-    const hiddenSet = new Set(preference.hiddenColumns)
+  if (Array.isArray(normalized.hiddenColumns)) {
+    const hiddenSet = new Set(normalized.hiddenColumns)
     orderedColumns = orderedColumns.map(column => ({
       ...column,
       hidden: column.hideable !== false ? hiddenSet.has(column.id) : false

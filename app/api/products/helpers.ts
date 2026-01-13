@@ -1,5 +1,6 @@
 import type { Product, Account } from "@prisma/client"
 import { getRevenueTypeLabel } from "@/lib/revenue-types"
+import { type OtherSource, resolveOtherSource, resolveOtherValue } from "@/lib/other-field"
 
 type ProductWithRelations = Product & {
   productSubtypeHouse?: string | null
@@ -25,9 +26,13 @@ export interface ProductListRow {
   productSubtypeHouse: string | null
   productSubtypeVendor: string | null
   productNameVendor: string
+  productNameOther?: string | null
   partNumberVendor: string
+  partNumberOther?: string | null
   productDescriptionHouse: string
   productDescriptionVendor: string | null
+  productDescriptionOther?: string | null
+  otherSource?: OtherSource | null
   distributorProductSubtype: string | null
   quantity: number | null
   priceEach: number | null
@@ -76,6 +81,16 @@ export function mapProductToRow(product: ProductWithRelations): ProductListRow {
   const priceEach = product.priceEach ? Number(product.priceEach) : null
   const revenueScheduleCount = product._count?.revenueSchedules ?? 0
 
+  const productNameOther = resolveOtherValue(product.productNameVendor, product.productNameDistributor).value
+  const partNumberVendor = product.partNumberVendor ?? product.productCode ?? null
+  const partNumberOther = resolveOtherValue(partNumberVendor, product.partNumberDistributor).value
+  const productDescriptionOther = resolveOtherValue(product.productDescriptionVendor, product.productDescriptionDistributor).value
+  const otherSource = resolveOtherSource([
+    [product.productNameVendor, product.productNameDistributor],
+    [product.partNumberVendor, product.partNumberDistributor],
+    [product.productDescriptionVendor, product.productDescriptionDistributor],
+  ])
+
   return {
     id: product.id,
     select: false,
@@ -90,9 +105,13 @@ export function mapProductToRow(product: ProductWithRelations): ProductListRow {
     productSubtypeHouse: product.productSubtypeHouse ?? null,
     productSubtypeVendor: product.productSubtypeVendor ?? null,
     productNameVendor: product.productNameVendor ?? "",
+    productNameOther,
     partNumberVendor: product.productCode ?? "",
+    partNumberOther,
     productDescriptionHouse: product.description ?? "",
     productDescriptionVendor: product.productDescriptionVendor ?? null,
+    productDescriptionOther,
+    otherSource,
     distributorProductSubtype: product.distributorProductSubtype ?? null,
     quantity: null,
     priceEach,

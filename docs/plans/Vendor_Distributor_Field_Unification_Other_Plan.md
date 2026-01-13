@@ -30,6 +30,8 @@ This plan is intentionally structured so we can ship "Other" without any destruc
   - Other - Part Number
   - Other - Product Description
 - **Vendor-first precedence implemented** anywhere we render unified values: `Other = Vendor ?? Distributor`.
+- **Phase 1 complete:** API responses now include computed fields (non-breaking) such as `accountIdOther`, `customerIdOther`, `orderIdOther`, `productNameOther`, `partNumberOther`, `productDescriptionOther`, and `otherSource` where applicable.
+- **Phase 2 complete (remaining duplicates):** Product and Opportunity Product detail views no longer show Distributor product fields; only unified `Other - ...` fields are displayed (Vendor-first fallback).
 - **UI-only removals shipped:** `Product Family - Vendor` and `Product Subtype - Vendor` are removed from UI surfaces (kept in DB/schema).
 - **Backend filter behavior updated** so filtering for vendor identifiers also searches distributor values (to match the unified "Other" intent):
   - Opportunities: `accountIdVendor`, `customerIdVendor`
@@ -40,12 +42,12 @@ This plan is intentionally structured so we can ship "Other" without any destruc
 ### What we intentionally did (to reduce risk)
 
 - **Phase 3 approach used:** Option **B** (reuse legacy *Vendor* column IDs internally, relabel to "Other", and remove/hide distributor-specific columns in UI where applicable). This minimizes preference migration work for the primary "Other" column.
+- **Phase 3 compatibility layer added:** table preference aliasing maps legacy Distributor column IDs to the unified "Other" columns so saved column sets do not disappear after the UI removal.
 
 ### What is still pending / follow-ups
 
-- **Optional:** Add explicit API response fields (e.g. `accountIdOther`, `customerIdOther`, `orderIdOther`, `otherSource`) to make the "Other" contract first-class instead of UI-derived.
-- **Preferences edge cases:** if any users previously had distributor-specific columns pinned/selected, confirm whether we need an alias/migration to map those to the unified "Other" column.
-- **CSV correction:** `03.04.113` missing `Field_Name` is still only documented here; decide whether to fix the CSV or record an agreed correction in this doc.
+- **Optional UI enhancement:** add `Other - Source` as a hidden-by-default column in list views/detail panels where users may need to see whether the unified value came from Vendor vs Distributor.
+- **CSV note:** `03.04.113` is not needed for this effort and can be ignored.
 
 ---
 
@@ -97,9 +99,9 @@ This is optional but strongly recommended if users need to understand which valu
 
 The CSV enumerates the specific pages/Field IDs where Vendor/Distributor labels appear and the desired "Other" replacement label. It also includes items marked `NONE DELETE` (UI-only removal).
 
-### Known CSV data issue to resolve before implementation
+### CSV note (confirmed)
 
-- `03.04.113` has a blank `Field_Name` (`Filtered_Vendor_Distributor_Fields(Sheet1).csv` row shows `Product Subtype - Vendor` with no field name). This row must be corrected (likely intended `Product_Subtype_Vendor`) so it can be tracked consistently.
+- The CSV row `03.04.113` (blank `Field_Name`) is **not needed** for this effort and can be ignored.
 
 ### "Other" renames called out by the CSV
 
@@ -118,7 +120,7 @@ The CSV "NEW FIELD" values are currently in the form `Account ID - Other`, etc. 
 ### Phase 0 - Spec finalization + inventory (required)
 
 1. Lock the canonical list of "Other" fields (table above).
-2. Fix the CSV row with missing `Field_Name` (or capture the correction in a short "Spec Corrections" section in this doc if the CSV must remain unchanged).
+2. Ignore `03.04.113` (blank `Field_Name`) since it is not needed for this effort.
 3. Inventory all UI and API surfaces that currently render any of:
    - `Account ID - Vendor` / `Account ID - Distributor`
    - `Customer ID - Vendor` / `Customer ID - Distributor`
@@ -239,13 +241,6 @@ Deliverable: existing vendor templates continue to map; future templates can use
 ---
 
 ## Appendix A - CSV-derived change inventory (grouped by Field_Name)
-
-### (missing Field_Name)
-- Old label(s): Product Subtype - Vendor
-- CSV new field: NONE DELETE
-- Field IDs: 03.04.113
-- Pages:
-  - Opportunities-3-4.1-Opportunity - Detail Page - Tab - Products - Add New Product to Catalog + Opp Page
 
 ### Account_ID_Vendor
 - Old label(s): Account ID - Vendor

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { DepositLineItemStatus } from "@prisma/client"
 import { prisma } from "@/lib/db"
 import { withPermissions, createErrorResponse } from "@/lib/api-auth"
+import { resolveOtherSource, resolveOtherValue } from "@/lib/other-field"
 
 const LINE_STATUS_LABEL: Record<DepositLineItemStatus, string> = {
   [DepositLineItemStatus.Unmatched]: "Unmatched",
@@ -37,6 +38,15 @@ function mapDepositMetadata(deposit: any) {
 }
 
 function mapDepositLineItem(deposit: any, line: any, index: number) {
+  const accountIdOther = resolveOtherValue(line.accountIdVendor, null)
+  const customerIdOther = resolveOtherValue(line.customerIdVendor, null)
+  const orderIdOther = resolveOtherValue(line.orderIdVendor, null)
+  const otherSource = resolveOtherSource([
+    [line.accountIdVendor, null],
+    [line.customerIdVendor, null],
+    [line.orderIdVendor, null],
+  ])
+
   return {
     id: line.id,
     status: LINE_STATUS_LABEL[line.status as DepositLineItemStatus] ?? "Unmatched",
@@ -55,6 +65,10 @@ function mapDepositLineItem(deposit: any, line: any, index: number) {
     accountId: line.accountIdVendor ?? line.accountId ?? "",
     customerIdVendor: line.customerIdVendor ?? "",
     orderIdVendor: line.orderIdVendor ?? "",
+    accountIdOther: accountIdOther.value ?? "",
+    customerIdOther: customerIdOther.value ?? "",
+    orderIdOther: orderIdOther.value ?? "",
+    otherSource,
     distributorName: line.distributorNameRaw ?? deposit.distributor?.accountName ?? "",
     locationId: line.locationId ?? line.account?.locationId ?? null,
     customerPurchaseOrder: line.customerPurchaseOrder ?? null,

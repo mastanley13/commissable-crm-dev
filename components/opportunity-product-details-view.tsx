@@ -101,7 +101,7 @@ export interface OpportunityProductDetailRecord {
   auditLog?: ProductAuditLogEntry[]
 }
 
-type TabKey = "distributor" | "vendor" | "history"
+type TabKey = "vendor" | "history"
 
 interface ProductDetailsViewProps {
   lineItem: OpportunityProductDetailRecord | null
@@ -160,14 +160,12 @@ function getAllowedSubtypesForFamilyName(
 }
 
 const TABS: { id: TabKey; label: string }[] = [
-  { id: "distributor", label: "Distributor" },
-  { id: "vendor", label: "Vendor" },
+  { id: "vendor", label: "Other" },
   { id: "history", label: "History" }
 ]
 
 const TAB_DESCRIPTIONS: Record<TabKey, string> = {
-  distributor: "This section displays distributor-specific product information including the distributor's product name, part number, family classification, and description.",
-  vendor: "This section displays vendor-specific product information including the vendor's product name, part number, family classification, and description.",
+  vendor: "This section displays Other product information (Vendor-first, fallback to Distributor) including product name, part number, and description.",
   history: "This section shows a complete audit log of all changes made to this opportunity product, including who made each change and when. Use the restore functionality to revert to previous versions if needed."
 }
 
@@ -551,42 +549,6 @@ function ProductHeader({ product, onEdit, activeTab, onTabSelect }: ProductHeade
       </div>
 
       {/* Tab Content */}
-      {activeTab === "distributor" && (
-        <div className="rounded-b-2xl border-x border-b border-gray-200 bg-white pt-0 px-3 pb-4">
-          <div className="border-t-2 border-t-primary-600 -mr-3 pt-3">
-            <TabDescription>{TAB_DESCRIPTIONS.distributor}</TabDescription>
-            <div className="space-y-1.5">
-            <FieldRow label="Distributor - Product Name">
-              <div className={fieldBoxClass}>
-                {product.productNameDistributor || <span className="text-gray-500">--</span>}
-              </div>
-            </FieldRow>
-            <FieldRow label="Distributor - Part Number">
-              <div className={fieldBoxClass}>
-                {product.partNumberDistributor || <span className="text-gray-500">--</span>}
-              </div>
-            </FieldRow>
-              <FieldRow label="Distributor - Product Family">
-                <div className={fieldBoxClass}>
-                  {product.distributorProductFamily || <span className="text-gray-500">--</span>}
-                </div>
-              </FieldRow>
-              <FieldRow label="Distributor - Product Subtype">
-                <div className={fieldBoxClass}>
-                  {product.distributorProductSubtype || <span className="text-gray-500">--</span>}
-                </div>
-              </FieldRow>
-            <div className="grid items-start gap-6 sm:grid-cols-[200px,1fr]">
-              <span className={cn(fieldLabelClass, "pt-1.5")}>Distributor - Description</span>
-              <div className={cn(fieldBoxClass, "min-h-[80px] items-start whitespace-pre-wrap py-2")}>
-                {product.productDescriptionDistributor || <span className="text-gray-500">--</span>}
-              </div>
-            </div>
-          </div>
-          </div>
-        </div>
-      )}
-
       {activeTab === "vendor" && (
         <div className="rounded-b-2xl border-x border-b border-gray-200 bg-white pt-0 px-3 pb-4">
           <div className="border-t-2 border-t-primary-600 -mr-3 pt-3">
@@ -594,18 +556,18 @@ function ProductHeader({ product, onEdit, activeTab, onTabSelect }: ProductHeade
             <div className="space-y-1.5">
             <FieldRow label="Other - Product Name">
               <div className={fieldBoxClass}>
-                {product.productNameVendor || <span className="text-gray-500">--</span>}
+                {product.productNameVendor || product.productNameDistributor || <span className="text-gray-500">--</span>}
               </div>
             </FieldRow>
             <FieldRow label="Other - Part Number">
               <div className={fieldBoxClass}>
-                {product.partNumberVendor || <span className="text-gray-500">--</span>}
+                {product.partNumberVendor || product.partNumberDistributor || <span className="text-gray-500">--</span>}
               </div>
             </FieldRow>
             <div className="grid items-start gap-6 sm:grid-cols-[200px,1fr]">
               <span className={cn(fieldLabelClass, "pt-1.5")}>Other - Product Description</span>
               <div className={cn(fieldBoxClass, "min-h-[80px] items-start whitespace-pre-wrap py-2")}>
-                {product.productDescriptionVendor || <span className="text-gray-500">--</span>}
+                {product.productDescriptionVendor || product.productDescriptionDistributor || <span className="text-gray-500">--</span>}
               </div>
             </div>
           </div>
@@ -645,12 +607,7 @@ interface EditableProductHeaderProps {
     const partNumberVendorField = editor.register("partNumberVendor")
     const familyVendorField = editor.register("productFamilyVendor")
     const subtypeVendorField = editor.register("productSubtypeVendor")
-    const nameDistributorField = editor.register("productNameDistributor")
-    const partNumberDistributorField = editor.register("partNumberDistributor")
-    const familyDistributorField = editor.register("distributorProductFamily")
-    const subtypeDistributorField = editor.register("distributorProductSubtype")
   const descVendorField = editor.register("productDescriptionVendor")
-  const descDistributorField = editor.register("productDescriptionDistributor")
   const vendorAccountField = editor.register("vendorAccountId")
   const distributorAccountField = editor.register("distributorAccountId")
 
@@ -765,8 +722,6 @@ interface EditableProductHeaderProps {
   const houseSubtypeValue = String(subtypeHouseField.value ?? "").trim()
   const vendorFamilyValue = String(familyVendorField.value ?? "").trim()
   const vendorSubtypeValue = String(subtypeVendorField.value ?? "").trim()
-  const distributorFamilyValue = String(familyDistributorField.value ?? "").trim()
-  const distributorSubtypeValue = String(subtypeDistributorField.value ?? "").trim()
 
   const houseSubtypePicklistNames = useMemo(
     () => getAllowedSubtypesForFamilyName(productSubtypes, familyIdByName, houseFamilyValue),
@@ -778,13 +733,8 @@ interface EditableProductHeaderProps {
     [productSubtypes, familyIdByName, vendorFamilyValue]
   )
 
-  const distributorSubtypePicklistNames = useMemo(
-    () => getAllowedSubtypesForFamilyName(productSubtypes, familyIdByName, distributorFamilyValue),
-    [productSubtypes, familyIdByName, distributorFamilyValue]
-  )
-
   const isActive = Boolean(activeField.value)
-  const productName = (nameField.value as string) || product.productNameVendor || "Product"
+  const productName = (nameField.value as string) || product.productNameVendor || product.productNameDistributor || "Product"
   const disableSave = editor.saving || !editor.isDirty
 
   const renderRow = (label: string, control: ReactNode, error?: string) => (
@@ -1023,94 +973,6 @@ interface EditableProductHeaderProps {
       </div>
 
       {/* Tab Content */}
-      {activeTab === "distributor" && (
-        <div className="rounded-b-2xl border-x border-b border-gray-200 bg-white pt-0 px-3 pb-4">
-          <div className="border-t-2 border-t-primary-600 -mr-3 pt-3">
-            <TabDescription>{TAB_DESCRIPTIONS.distributor}</TabDescription>
-            <div className="space-y-1.5">
-            {renderRow(
-              "Distributor - Product Name",
-              <EditableField.Input
-                value={(nameDistributorField?.value as string) ?? ""}
-                onChange={nameDistributorField.onChange}
-                onBlur={nameDistributorField.onBlur}
-                placeholder="Enter distributor product name"
-              />
-            )}
-
-            {renderRow(
-              "Distributor - Part Number",
-              <EditableField.Input
-                value={(partNumberDistributorField?.value as string) ?? ""}
-                onChange={partNumberDistributorField.onChange}
-                onBlur={partNumberDistributorField.onBlur}
-                placeholder="Enter distributor part #"
-              />
-            )}
-
-            {renderRow(
-              "Distributor - Product Family",
-              <PicklistCombobox
-                value={distributorFamilyValue}
-                options={familyPicklistNames}
-                placeholder="Search or pick a family"
-                disabled={familyPicklistNames.length === 0 && !distributorFamilyValue}
-                inputClassName={picklistInputCls}
-                dropdownClassName={dropdownCls}
-                optionClassName={optionBtnCls}
-                onBlur={familyDistributorField.onBlur}
-                onChange={(nextFamily) => {
-                  editor.setField("distributorProductFamily", nextFamily)
-                  const allowedSubtypes = getAllowedSubtypesForFamilyName(
-                    productSubtypes,
-                    familyIdByName,
-                    nextFamily
-                  )
-                  if (distributorSubtypeValue && !allowedSubtypes.includes(distributorSubtypeValue)) {
-                    editor.setField("distributorProductSubtype", "")
-                  }
-                  if (!nextFamily) {
-                    editor.setField("distributorProductSubtype", "")
-                  }
-                }}
-              />,
-              editor.errors.distributorProductFamily
-            )}
-
-              {renderRow(
-                "Distributor - Product Subtype",
-                <PicklistCombobox
-                  value={distributorSubtypeValue}
-                  options={distributorSubtypePicklistNames}
-                  placeholder="Search or pick a subtype"
-                  disabled={
-                    !distributorFamilyValue ||
-                    (distributorSubtypePicklistNames.length === 0 && !distributorSubtypeValue)
-                  }
-                  inputClassName={picklistInputCls}
-                  dropdownClassName={dropdownCls}
-                  optionClassName={optionBtnCls}
-                  onBlur={subtypeDistributorField.onBlur}
-                  onChange={(nextSubtype) => editor.setField("distributorProductSubtype", nextSubtype)}
-                />,
-                editor.errors.distributorProductSubtype
-              )}
-
-            {renderRow(
-              "Distributor - Description",
-              <EditableField.Textarea
-                rows={3}
-                value={(descDistributorField?.value as string) ?? ""}
-                onChange={descDistributorField.onChange}
-                onBlur={descDistributorField.onBlur}
-                placeholder="Add distributor description"
-              />
-            )}
-          </div>
-          </div>
-        </div>
-      )}
-
       {activeTab === "vendor" && (
         <div className="rounded-b-2xl border-x border-b border-gray-200 bg-white pt-0 px-3 pb-4">
           <div className="border-t-2 border-t-primary-600 -mr-3 pt-3">
@@ -1175,7 +1037,7 @@ export function OpportunityProductDetailsView({
   const canEditAssigned = hasPermission("opportunities.edit.assigned")
   const ownsOpportunity = Boolean(product?.opportunityOwnerId && product.opportunityOwnerId === user?.id)
   const shouldEnableInline = Boolean(product) && (canEditAny || (canEditAssigned && ownsOpportunity))
-  const [activeTab, setActiveTab] = useState<TabKey>("distributor")
+  const [activeTab, setActiveTab] = useState<TabKey>("vendor")
   
   // Lightweight options loader for vendor/distributor (uses contacts options endpoint)
   if (typeof window !== 'undefined' && !(window as any).__productAccountOptionsLoaded) {

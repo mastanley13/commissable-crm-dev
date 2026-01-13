@@ -1,6 +1,7 @@
 import { Prisma, RevenueScheduleStatus } from "@prisma/client"
 import { getRevenueTypeLabel } from "@/lib/revenue-types"
 import { computeRevenueScheduleMetrics } from "@/lib/revenue-schedule-math"
+import { type OtherSource, resolveOtherSource, resolveOtherValue } from "@/lib/other-field"
 
 export type RevenueScheduleWithRelations = Prisma.RevenueScheduleGetPayload<{
   include: {
@@ -134,6 +135,7 @@ export interface RevenueScheduleListItem {
   actualCommission: string | null
   commissionDifference: string | null
   customerIdDistributor: string | null
+  customerIdOther?: string | null
   customerIdHouse?: string | null
   distributorId?: string | null
   vendorId?: string | null
@@ -142,8 +144,10 @@ export interface RevenueScheduleListItem {
   customerIdVendor: string | null
   orderIdDistributor: string | null
   orderIdVendor: string | null
+  orderIdOther?: string | null
   orderIdHouse: string | null
   locationId: string | null
+  otherSource?: OtherSource | null
   active: boolean
 }
 
@@ -362,6 +366,19 @@ export function mapRevenueScheduleToListItem(schedule: RevenueScheduleWithRelati
   const opportunityOwnerName = schedule.opportunity?.owner?.fullName ?? null
   const houseRepName = opportunityOwnerName
 
+  const customerIdVendor = schedule.opportunity?.customerIdVendor ?? schedule.vendor?.accountNumber ?? null
+  const customerIdDistributor = schedule.opportunity?.customerIdDistributor ?? schedule.distributor?.accountNumber ?? null
+  const customerIdOther = resolveOtherValue(customerIdVendor, customerIdDistributor).value
+
+  const orderIdVendor = schedule.opportunity?.orderIdVendor ?? null
+  const orderIdDistributor = schedule.distributorOrderId ?? schedule.opportunity?.orderIdDistributor ?? null
+  const orderIdOther = resolveOtherValue(orderIdVendor, orderIdDistributor).value
+
+  const otherSource = resolveOtherSource([
+    [customerIdVendor, customerIdDistributor],
+    [orderIdVendor, orderIdDistributor],
+  ])
+
   return {
     id: schedule.id,
     revenueScheduleName: schedule.scheduleNumber ?? schedule.id,
@@ -398,17 +415,20 @@ export function mapRevenueScheduleToListItem(schedule: RevenueScheduleWithRelati
     expectedCommissionNet: formatCurrency(expectedCommissionNet),
     actualCommission: formatCurrency(actualCommission),
     commissionDifference: formatCurrency(commissionDifference),
-    customerIdDistributor: schedule.opportunity?.customerIdDistributor ?? schedule.distributor?.accountNumber ?? null,
+    customerIdDistributor,
+    customerIdOther,
     customerIdHouse: schedule.opportunity?.customerIdHouse ?? null,
     distributorId: schedule.distributor?.id ?? null,
     vendorId: schedule.vendor?.id ?? null,
     accountId: schedule.account?.id ?? null,
     productId: schedule.product?.id ?? null,
-    customerIdVendor: schedule.opportunity?.customerIdVendor ?? schedule.vendor?.accountNumber ?? null,
-    orderIdDistributor: schedule.distributorOrderId ?? schedule.opportunity?.orderIdDistributor ?? null,
-    orderIdVendor: schedule.opportunity?.orderIdVendor ?? null,
+    customerIdVendor,
+    orderIdDistributor,
+    orderIdVendor,
+    orderIdOther,
     orderIdHouse: schedule.orderIdHouse ?? schedule.opportunity?.orderIdHouse ?? null,
     locationId: schedule.opportunity?.locationId ?? schedule.account?.accountNumber ?? null,
+    otherSource,
     active: schedule.status !== RevenueScheduleStatus.Reconciled
   }
 }

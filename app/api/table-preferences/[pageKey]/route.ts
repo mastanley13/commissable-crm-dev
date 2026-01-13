@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
 import { withAuth } from "@/lib/api-auth"
+import { Prisma } from "@prisma/client"
+import { aliasColumnId, migrateTablePreferencePayload } from "@/lib/table-preferences-alias"
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic';
 
@@ -36,7 +38,7 @@ export async function GET(
         return NextResponse.json(null)
       }
 
-      return NextResponse.json({
+      const payload = {
         columnOrder: preference.columnOrder ?? null,
         columnWidths: preference.columnWidths ?? null,
         hiddenColumns: preference.hiddenColumns ?? null,
@@ -47,7 +49,9 @@ export async function GET(
           tenantId,
           userId
         }
-      })
+      }
+
+      return NextResponse.json(migrateTablePreferencePayload(payload))
     } catch (error) {
       console.error("Failed to load table preferences", error)
       const errorMessage = error instanceof Error ? error.message : String(error)
@@ -72,11 +76,40 @@ export async function POST(
       const userId = req.user.id
       const body = await request.json()
 
-      const columnOrder = Array.isArray(body.columnOrder) ? body.columnOrder : null
-      const columnWidths = body.columnWidths && typeof body.columnWidths === "object" ? body.columnWidths : null
-      const hiddenColumns = Array.isArray(body.hiddenColumns) ? body.hiddenColumns : null
+      const columnOrder = Array.isArray(body.columnOrder)
+        ? body.columnOrder.map((id: unknown) => (typeof id === "string" ? aliasColumnId(id) : "")).filter(Boolean)
+        : null
+      const hiddenColumns = Array.isArray(body.hiddenColumns)
+        ? body.hiddenColumns.map((id: unknown) => (typeof id === "string" ? aliasColumnId(id) : "")).filter(Boolean)
+        : null
+
+      const columnWidths: Record<string, number> | null =
+        body.columnWidths && typeof body.columnWidths === "object" && !Array.isArray(body.columnWidths)
+          ? Object.fromEntries(
+              Object.entries(body.columnWidths)
+                .map(([key, value]) => [aliasColumnId(key), value] as const)
+                .filter((entry): entry is readonly [string, number] => {
+                  const [, value] = entry
+                  return typeof value === "number" && Number.isFinite(value) && value > 0
+                })
+            )
+          : null
+
       const hasPageSize = Object.prototype.hasOwnProperty.call(body, "pageSize")
       const pageSize = hasPageSize ? normalizePageSize(body.pageSize) : undefined
+
+      const migrated = migrateTablePreferencePayload({
+        sortState: body.sortState ?? null,
+        filters: body.filters ?? null
+      }) as any
+
+      const columnOrderJson: Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput = columnOrder ?? Prisma.DbNull
+      const columnWidthsJson: Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput = columnWidths ?? Prisma.DbNull
+      const hiddenColumnsJson: Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput = hiddenColumns ?? Prisma.DbNull
+      const sortStateJson: Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput =
+        ((migrated?.sortState ?? body.sortState) as Prisma.InputJsonValue | null | undefined) ?? Prisma.DbNull
+      const filtersJson: Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput =
+        ((migrated?.filters ?? body.filters) as Prisma.InputJsonValue | null | undefined) ?? Prisma.DbNull
 
       await prisma.tablePreference.upsert({
         where: {
@@ -87,22 +120,22 @@ export async function POST(
         },
         update: {
           tenantId,
-          columnOrder,
-          columnWidths,
-          hiddenColumns,
-          sortState: body.sortState ?? null,
-          filters: body.filters ?? null,
+          columnOrder: columnOrderJson,
+          columnWidths: columnWidthsJson,
+          hiddenColumns: hiddenColumnsJson,
+          sortState: sortStateJson,
+          filters: filtersJson,
           ...(hasPageSize ? { pageSize } : {})
         },
         create: {
           tenantId,
           userId,
           pageKey,
-          columnOrder,
-          columnWidths,
-          hiddenColumns,
-          sortState: body.sortState ?? null,
-          filters: body.filters ?? null,
+          columnOrder: columnOrderJson,
+          columnWidths: columnWidthsJson,
+          hiddenColumns: hiddenColumnsJson,
+          sortState: sortStateJson,
+          filters: filtersJson,
           ...(hasPageSize ? { pageSize } : {})
         }
       })

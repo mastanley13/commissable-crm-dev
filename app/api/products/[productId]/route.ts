@@ -6,6 +6,7 @@ import { hasAnyPermission } from "@/lib/auth"
 import { logProductAudit } from "@/lib/audit"
 import { ensureNoneDirectDistributorAccount } from "@/lib/none-direct-distributor"
 import { isEnabledRevenueType } from "@/lib/server-revenue-types"
+import { resolveOtherSource, resolveOtherValue } from "@/lib/other-field"
 
 const PRODUCT_MUTATION_PERMISSIONS = [
   "products.update",
@@ -134,11 +135,23 @@ export async function GET(request: NextRequest, { params }: { params: { productI
 
       // Build response
       const anyProduct = product as any
+
+      const productNameOther = resolveOtherValue(product.productNameVendor, anyProduct.productNameDistributor ?? null).value
+      const partNumberVendorValue = (anyProduct.partNumberVendor ?? product.productCode ?? null) as string | null
+      const partNumberOther = resolveOtherValue(partNumberVendorValue, anyProduct.partNumberDistributor ?? null).value
+      const productDescriptionOther = resolveOtherValue(anyProduct.productDescriptionVendor ?? null, anyProduct.productDescriptionDistributor ?? null).value
+      const otherSource = resolveOtherSource([
+        [product.productNameVendor, anyProduct.productNameDistributor ?? null],
+        [anyProduct.partNumberVendor ?? null, anyProduct.partNumberDistributor ?? null],
+        [anyProduct.productDescriptionVendor ?? null, anyProduct.productDescriptionDistributor ?? null],
+      ])
+
       const data = {
         id: product.id,
         productCode: product.productCode,
         productNameHouse: product.productNameHouse,
         productNameVendor: product.productNameVendor,
+        productNameOther,
         partNumberHouse: (anyProduct.partNumberHouse ?? null) as string | null,
         description: product.description,
         productDescriptionHouse: product.description,
@@ -149,10 +162,13 @@ export async function GET(request: NextRequest, { params }: { params: { productI
         productNameDistributor: anyProduct.productNameDistributor ?? null,
         partNumberVendor: anyProduct.partNumberVendor ?? null,
         partNumberDistributor: anyProduct.partNumberDistributor ?? null,
+        partNumberOther,
         distributorProductFamily: anyProduct.distributorProductFamily ?? null,
         distributorProductSubtype: anyProduct.distributorProductSubtype ?? null,
         productDescriptionVendor: anyProduct.productDescriptionVendor ?? null,
         productDescriptionDistributor: anyProduct.productDescriptionDistributor ?? null,
+        productDescriptionOther,
+        otherSource,
         revenueType: product.revenueType,
         commissionPercent: product.commissionPercent !== null ? Number(product.commissionPercent) : null,
         priceEach: product.priceEach !== null ? Number(product.priceEach) : null,
@@ -546,7 +562,26 @@ export async function PATCH(request: NextRequest, { params }: { params: { produc
         newValues
       )
 
-      return NextResponse.json({ data: updated })
+      const updatedAny = updated as any
+      const productNameOther = resolveOtherValue(updated.productNameVendor, updatedAny.productNameDistributor ?? null).value
+      const partNumberVendorValue = (updatedAny.partNumberVendor ?? updated.productCode ?? null) as string | null
+      const partNumberOther = resolveOtherValue(partNumberVendorValue, updatedAny.partNumberDistributor ?? null).value
+      const productDescriptionOther = resolveOtherValue(updatedAny.productDescriptionVendor ?? null, updatedAny.productDescriptionDistributor ?? null).value
+      const otherSource = resolveOtherSource([
+        [updated.productNameVendor, updatedAny.productNameDistributor ?? null],
+        [updatedAny.partNumberVendor ?? null, updatedAny.partNumberDistributor ?? null],
+        [updatedAny.productDescriptionVendor ?? null, updatedAny.productDescriptionDistributor ?? null],
+      ])
+
+      return NextResponse.json({
+        data: {
+          ...updated,
+          productNameOther,
+          partNumberOther,
+          productDescriptionOther,
+          otherSource,
+        },
+      })
     } catch (error) {
       console.error("Failed to update product", error)
       return NextResponse.json({ error: "Failed to update product" }, { status: 500 })

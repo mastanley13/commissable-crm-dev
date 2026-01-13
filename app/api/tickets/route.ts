@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { TicketPriority, TicketSeverity, TicketStatus, type Prisma } from "@prisma/client"
 import { withAuth } from "@/lib/api-auth"
 import { prisma } from "@/lib/db"
+import { type OtherSource, resolveOtherSource, resolveOtherValue } from "@/lib/other-field"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -21,11 +22,16 @@ type TicketRow = {
   revenueSchedule: string
   opportunityName: string
   productNameVendor: string
+  productNameOther?: string
   accountIdVendor: string
+  accountIdOther?: string
   customerIdVendor: string
+  customerIdOther?: string
   description: string
   opportunityId: string
   orderIdVendor: string
+  orderIdOther?: string
+  otherSource?: OtherSource | null
   ticketNumber: string
   active: boolean
 }
@@ -50,8 +56,11 @@ type TicketWithRelations = Prisma.TicketGetPayload<{
         distributorName: true
         vendorName: true
         accountIdVendor: true
+        accountIdDistributor: true
         customerIdVendor: true
+        customerIdDistributor: true
         orderIdVendor: true
+        orderIdDistributor: true
         description: true
       }
     }
@@ -73,6 +82,7 @@ type TicketWithRelations = Prisma.TicketGetPayload<{
         product: {
           select: {
             productNameVendor: true
+            productNameDistributor: true
           }
         }
         opportunity: {
@@ -82,8 +92,11 @@ type TicketWithRelations = Prisma.TicketGetPayload<{
             distributorName: true
             vendorName: true
             accountIdVendor: true
+            accountIdDistributor: true
             customerIdVendor: true
+            customerIdDistributor: true
             orderIdVendor: true
+            orderIdDistributor: true
             description: true
           }
         }
@@ -167,6 +180,8 @@ function mapTicketToRow(ticket: TicketWithRelations): TicketRow {
   const opportunityIdDisplay = formatShortId(opportunity?.id ?? null)
 
   const productNameVendor = schedule?.product?.productNameVendor ?? ""
+  const productNameDistributor = schedule?.product?.productNameDistributor ?? ""
+  const productNameOther = resolveOtherValue(productNameVendor, productNameDistributor).value ?? ""
 
   const accountIdVendor =
     primaryLine?.accountIdVendor ??
@@ -182,6 +197,17 @@ function mapTicketToRow(ticket: TicketWithRelations): TicketRow {
     primaryLine?.orderIdVendor ??
     opportunity?.orderIdVendor ??
     ""
+
+  const accountIdOther = resolveOtherValue(accountIdVendor, opportunity?.accountIdDistributor ?? "").value ?? ""
+  const customerIdOther = resolveOtherValue(customerIdVendor, opportunity?.customerIdDistributor ?? "").value ?? ""
+  const orderIdOther = resolveOtherValue(orderIdVendor, opportunity?.orderIdDistributor ?? "").value ?? ""
+
+  const otherSource = resolveOtherSource([
+    [accountIdVendor, opportunity?.accountIdDistributor ?? ""],
+    [customerIdVendor, opportunity?.customerIdDistributor ?? ""],
+    [orderIdVendor, opportunity?.orderIdDistributor ?? ""],
+    [productNameVendor, productNameDistributor],
+  ])
 
   const ticketNumber = formatShortId(ticket.id)
 
@@ -207,11 +233,16 @@ function mapTicketToRow(ticket: TicketWithRelations): TicketRow {
     revenueSchedule: revenueScheduleName,
     opportunityName,
     productNameVendor,
+    productNameOther,
     accountIdVendor,
+    accountIdOther,
     customerIdVendor,
+    customerIdOther,
     description,
     opportunityId: opportunityIdDisplay,
     orderIdVendor,
+    orderIdOther,
+    otherSource,
     ticketNumber,
     active
   }

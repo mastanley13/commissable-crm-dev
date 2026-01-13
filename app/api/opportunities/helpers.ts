@@ -1,5 +1,6 @@
 import { ActivityStatus, OpportunityStatus, OpportunityStage, OpportunityType, RevenueScheduleStatus, OpportunityProductStatus } from "@prisma/client"
 import { isActivityOpen } from "@/lib/activity-status"
+import { resolveOtherSource, resolveOtherValue } from "@/lib/other-field"
 
 type RelatedAccount = {
   id?: string
@@ -252,14 +253,18 @@ export type OpportunityDetailSummary = {
     accountIdHouse?: string | null
     accountIdVendor?: string | null
     accountIdDistributor?: string | null
+    accountIdOther?: string | null
     customerIdHouse?: string | null
     customerIdVendor?: string | null
     customerIdDistributor?: string | null
+    customerIdOther?: string | null
     locationId?: string | null
     orderIdHouse?: string | null
     orderIdVendor?: string | null
     orderIdDistributor?: string | null
+    orderIdOther?: string | null
     customerPurchaseOrder?: string | null
+    otherSource?: "Vendor" | "Distributor" | null
   }
   subagentPercent?: number | null
   houseRepPercent?: number | null
@@ -502,6 +507,15 @@ export function mapOpportunityToRow(opportunity: OpportunityWithRelations) {
   const houseRepPercent = opportunity.houseRepPercent != null ? toNumber(opportunity.houseRepPercent) : null
   const houseSplitPercent = opportunity.houseSplitPercent != null ? toNumber(opportunity.houseSplitPercent) : null
 
+  const accountIdOther = resolveOtherValue(opportunity.accountIdVendor, opportunity.accountIdDistributor)
+  const customerIdOther = resolveOtherValue(opportunity.customerIdVendor, opportunity.customerIdDistributor)
+  const orderIdOther = resolveOtherValue(opportunity.orderIdVendor, opportunity.orderIdDistributor)
+  const otherSource = resolveOtherSource([
+    [opportunity.accountIdVendor, opportunity.accountIdDistributor],
+    [opportunity.customerIdVendor, opportunity.customerIdDistributor],
+    [opportunity.orderIdVendor, opportunity.orderIdDistributor],
+  ])
+
   return {
     id: opportunity.id,
     select: false,
@@ -532,13 +546,17 @@ export function mapOpportunityToRow(opportunity: OpportunityWithRelations) {
     accountIdHouse: opportunity.accountIdHouse ?? "",
     accountIdVendor: opportunity.accountIdVendor ?? "",
     accountIdDistributor: opportunity.accountIdDistributor ?? "",
+    accountIdOther: accountIdOther.value ?? "",
     customerIdHouse: opportunity.customerIdHouse ?? "",
     customerIdVendor: opportunity.customerIdVendor ?? "",
     customerIdDistributor: opportunity.customerIdDistributor ?? "",
+    customerIdOther: customerIdOther.value ?? "",
     locationId: opportunity.locationId ?? "",
     orderIdVendor: opportunity.orderIdVendor ?? "",
     orderIdDistributor: opportunity.orderIdDistributor ?? "",
+    orderIdOther: orderIdOther.value ?? "",
     customerPurchaseOrder: opportunity.customerPurchaseOrder ?? "",
+    otherSource,
     opportunityId: formattedOpportunityId,
     description: opportunity.description ?? "",
     isDeleted: !isActive
@@ -910,15 +928,24 @@ export function mapOpportunityToDetail(opportunity: OpportunityWithRelations): O
     accountIdHouse: opportunity.accountIdHouse ?? null,
     accountIdVendor: opportunity.accountIdVendor ?? null,
     accountIdDistributor: opportunity.accountIdDistributor ?? null,
+    accountIdOther: resolveOtherValue(opportunity.accountIdVendor, opportunity.accountIdDistributor).value,
     customerIdHouse: opportunity.customerIdHouse ?? null,
     customerIdVendor: opportunity.customerIdVendor ?? null,
     customerIdDistributor: opportunity.customerIdDistributor ?? null,
+    customerIdOther: resolveOtherValue(opportunity.customerIdVendor, opportunity.customerIdDistributor).value,
     locationId: opportunity.locationId ?? null,
     orderIdHouse: opportunity.orderIdHouse ?? null,
     orderIdVendor: opportunity.orderIdVendor ?? null,
     orderIdDistributor: opportunity.orderIdDistributor ?? null,
+    orderIdOther: resolveOtherValue(opportunity.orderIdVendor, opportunity.orderIdDistributor).value,
     customerPurchaseOrder: opportunity.customerPurchaseOrder ?? null
   }
+
+  const otherSource = resolveOtherSource([
+    [opportunity.accountIdVendor, opportunity.accountIdDistributor],
+    [opportunity.customerIdVendor, opportunity.customerIdDistributor],
+    [opportunity.orderIdVendor, opportunity.orderIdDistributor],
+  ])
 
   return {
     id: opportunity.id,
@@ -946,7 +973,7 @@ export function mapOpportunityToDetail(opportunity: OpportunityWithRelations): O
     houseSplitPercent: Number.isFinite(toNumber(opportunity.houseSplitPercent)) ? toNumber(opportunity.houseSplitPercent) : null,
     account,
     owner,
-    identifiers,
+    identifiers: { ...identifiers, otherSource },
     createdBy: opportunity.createdBy
       ? { id: opportunity.createdBy.id, name: opportunity.createdBy.fullName ?? null }
       : null,
