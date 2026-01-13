@@ -49,7 +49,6 @@ interface ProductFormState {
   isActive: boolean
   distributorAccountId: string
   vendorAccountId: string
-  productNameDistributor: string
   productFamilyVendor: string
   productSubtypeVendor: string
   productNameVendor: string
@@ -62,11 +61,7 @@ interface ProductFormState {
   partNumberHouse: string
   productFamilyHouse: string
   productSubtypeHouse: string
-  distributorProductSubtype: string
   description: string
-  partNumberDistributor: string
-  distributorProductFamily: string
-  productDescriptionDistributor: string
 }
 
 interface ProductFamilyOption {
@@ -98,7 +93,6 @@ const INITIAL_FORM: ProductFormState = {
   isActive: true,
   distributorAccountId: "",
   vendorAccountId: "",
-  productNameDistributor: "",
   productFamilyVendor: "",
   productSubtypeVendor: "",
   productNameVendor: "",
@@ -111,11 +105,7 @@ const INITIAL_FORM: ProductFormState = {
   partNumberHouse: "",
   productFamilyHouse: "",
   productSubtypeHouse: "",
-  distributorProductSubtype: "",
   description: "",
-  partNumberDistributor: "",
-  distributorProductFamily: "",
-  productDescriptionDistributor: "",
 }
 
 const labelCls = "mb-0.5 block text-[11px] font-semibold uppercase tracking-wide text-gray-500"
@@ -141,7 +131,6 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
   const [vendorInput, setVendorInput] = useState("")
   const [showDistributorDropdown, setShowDistributorDropdown] = useState(false)
   const [showVendorDropdown, setShowVendorDropdown] = useState(false)
-  const [familyOptions, setFamilyOptions] = useState<string[]>([])
   const [productOptions, setProductOptions] = useState<CatalogProductOption[]>([])
   const [houseFamilyOptions, setHouseFamilyOptions] = useState<string[]>([])
   const [houseProductNameOptions, setHouseProductNameOptions] = useState<string[]>([])
@@ -160,7 +149,6 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
     setErrors({})
     setDistributorInput("")
     setVendorInput("")
-    setFamilyOptions([])
     setProductOptions([])
     setHouseFamilyOptions([])
     setHouseProductNameOptions([])
@@ -254,9 +242,6 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
         setMasterFamilies(sortedFamilies)
         setMasterSubtypes(sortedSubtypes)
 
-        const vendorFamilies = sortedFamilies.map(f => f.name)
-        setFamilyOptions(vendorFamilies)
-
         const houseFamilies = sortedFamilies.map(f => f.name)
         setHouseFamilyOptions(houseFamilies)
       })
@@ -279,11 +264,6 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
   const houseSubtypePicklist = useMemo(
     () => getAllowedSubtypesForFamilyName(masterSubtypes, familyIdByName, form.productFamilyHouse),
     [masterSubtypes, familyIdByName, form.productFamilyHouse]
-  )
-
-  const distributorSubtypePicklist = useMemo(
-    () => getAllowedSubtypesForFamilyName(masterSubtypes, familyIdByName, form.distributorProductFamily),
-    [masterSubtypes, familyIdByName, form.distributorProductFamily]
   )
 
   const dropdownCls =
@@ -551,7 +531,6 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
         productNameVendor: option.productNameVendor ?? prev.productNameVendor,
         productFamilyHouse: option.productFamilyHouse ?? prev.productFamilyHouse,
         productSubtypeHouse: option.productSubtypeHouse ?? prev.productSubtypeHouse,
-        distributorProductSubtype: option.distributorProductSubtype ?? prev.distributorProductSubtype,
         productNameHouse: option.name || prev.productNameHouse,
         productCode: option.productCode ?? prev.productCode,
         revenueType: option.revenueType ?? prev.revenueType,
@@ -612,7 +591,6 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
           isActive: Boolean(form.isActive),
           distributorAccountId: form.distributorAccountId || null,
           vendorAccountId: form.vendorAccountId || null,
-          productNameDistributor: form.productNameDistributor.trim() || null,
           productFamilyVendor: derivedProductFamilyVendor,
           productSubtypeVendor: derivedProductSubtypeVendor,
           productNameVendor: derivedProductNameVendor,
@@ -626,10 +604,6 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
           productFamilyHouse: form.productFamilyHouse.trim() || null,
           productSubtypeHouse: form.productSubtypeHouse.trim() || null,
           description: form.description.trim() || null,
-          partNumberDistributor: form.partNumberDistributor.trim() || null,
-          distributorProductFamily: form.distributorProductFamily.trim() || null,
-          distributorProductSubtype: form.distributorProductSubtype.trim() || null,
-          productDescriptionDistributor: form.productDescriptionDistributor.trim() || null,
         }
 
         const response = await fetch("/api/products", {
@@ -1012,76 +986,15 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
             </div>
 
             <div className="grid gap-3 lg:grid-cols-2">
-              {/* Distributor column */}
+              {/* Other column */}
               <div className={columnCls}>
                 <div className="space-y-1">
-                  <label className={labelCls}>Distributor - Product Name</label>
-                  <input className={inputCls} value={form.productNameDistributor} onChange={handleChange("productNameDistributor")} placeholder="Enter distributor product name" />
-                </div>
-
-                <div className="space-y-1">
-                  <label className={labelCls}>Distributor - Part Number</label>
-                  <input className={inputCls} value={form.partNumberDistributor} onChange={handleChange("partNumberDistributor")} placeholder="Enter distributor part #" />
-                </div>
-
-                <div className="space-y-1">
-                  <label className={labelCls}>Distributor - Product Family</label>
-                  <PicklistCombobox
-                    value={form.distributorProductFamily}
-                    options={familyOptions}
-                    placeholder="Search or pick a family"
-                    disabled={familyOptions.length === 0}
-                    inputClassName={inputCls}
-                    dropdownClassName={dropdownCls}
-                    optionClassName={optionBtnCls}
-                    onChange={(nextFamily) => {
-                      setForm((prev) => {
-                        const allowedSubtypes = getAllowedSubtypesForFamilyName(
-                          masterSubtypes,
-                          familyIdByName,
-                          nextFamily
-                        )
-                        const currentSubtype = prev.distributorProductSubtype
-                        const keepSubtype = !currentSubtype || allowedSubtypes.includes(currentSubtype)
-                        return {
-                          ...prev,
-                          distributorProductFamily: nextFamily,
-                          distributorProductSubtype: nextFamily ? (keepSubtype ? currentSubtype : "") : "",
-                        }
-                      })
-                    }}
-                  />
-                  {errors.distributorProductFamily ? (
-                    <p className="text-[11px] text-rose-600">{errors.distributorProductFamily}</p>
-                  ) : null}
-                </div>
-
-                <div className="space-y-1">
-                  <label className={labelCls}>Distributor - Product Subtype</label>
-                  <PicklistCombobox
-                    value={form.distributorProductSubtype}
-                    options={distributorSubtypePicklist}
-                    placeholder="Search or pick a subtype"
-                    disabled={!form.distributorProductFamily.trim() || distributorSubtypePicklist.length === 0}
-                    inputClassName={inputCls}
-                    dropdownClassName={dropdownCls}
-                    optionClassName={optionBtnCls}
-                    onChange={(nextSubtype) =>
-                      setForm((prev) => ({ ...prev, distributorProductSubtype: nextSubtype }))
-                    }
-                  />
-                  {errors.distributorProductSubtype ? (
-                    <p className="text-[11px] text-rose-600">{errors.distributorProductSubtype}</p>
-                  ) : null}
-                </div>
-
-                <div className="space-y-1">
-                  <label className={labelCls}>Distributor - Description</label>
-                  <textarea rows={1} className={textAreaCls} value={form.productDescriptionDistributor} onChange={handleChange("productDescriptionDistributor")} placeholder="Add distributor description" />
+                  <label className={labelCls}>Other - Product Name</label>
+                  <input className={inputCls} value={form.productNameVendor} onChange={handleChange("productNameVendor")} placeholder="Enter other product name" />
                 </div>
               </div>
 
-              {/* Vendor column */}
+              {/* Other column */}
               <div className={columnCls}>
                 <div className="space-y-1">
                   <label className={labelCls}>Other - Part Number</label>
