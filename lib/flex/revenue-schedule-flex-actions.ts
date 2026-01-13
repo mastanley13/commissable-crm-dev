@@ -16,6 +16,7 @@ import { recomputeDepositAggregates } from "@/lib/matching/deposit-aggregates"
 import { recomputeDepositLineItemAllocations } from "@/lib/matching/deposit-line-allocations"
 import { logRevenueScheduleAudit } from "@/lib/audit"
 import { isBonusLikeProduct } from "@/lib/flex/bonus-detection"
+import { enqueueFlexReviewItem } from "@/lib/flex/flex-review-queue"
 
 type PrismaClientOrTx = PrismaClient | Prisma.TransactionClient
 
@@ -530,6 +531,27 @@ export async function executeFlexProductSplit(
     request,
   })
 
+  if (createdScheduleId) {
+    await enqueueFlexReviewItem(tx as any, {
+      tenantId,
+      createdById: userId,
+      revenueScheduleId: createdScheduleId,
+      flexClassification: RevenueScheduleFlexClassification.FlexProduct,
+      flexReasonCode: reasonCode,
+      sourceDepositId: depositId,
+      sourceDepositLineItemId: lineItemId,
+      title: "Flex Product created",
+      body: "A Flex Product revenue schedule was created during reconciliation and requires management review.",
+      metadata: {
+        kind: "FlexProduct",
+        depositId,
+        depositLineItemId: lineItemId,
+        revenueScheduleId: createdScheduleId,
+        flexReasonCode: reasonCode,
+      },
+    })
+  }
+
   return {
     applied: Boolean(createdScheduleId),
     action: "FlexProduct",
@@ -652,6 +674,25 @@ export async function createFlexProductForUnknownLine(
       flexReasonCode: RevenueScheduleFlexReasonCode.UnknownProduct,
     },
   )
+
+  await enqueueFlexReviewItem(tx as any, {
+    tenantId,
+    createdById: userId,
+    revenueScheduleId: schedule.id,
+    flexClassification: RevenueScheduleFlexClassification.FlexProduct,
+    flexReasonCode: RevenueScheduleFlexReasonCode.UnknownProduct,
+    sourceDepositId: depositId,
+    sourceDepositLineItemId: lineItemId,
+    title: "Flex Product created",
+    body: "An unknown-product Flex Product was created and requires management review.",
+    metadata: {
+      kind: "FlexProduct",
+      depositId,
+      depositLineItemId: lineItemId,
+      revenueScheduleId: schedule.id,
+      flexReasonCode: RevenueScheduleFlexReasonCode.UnknownProduct,
+    },
+  })
 
   return {
     applied: true,
@@ -783,6 +824,25 @@ export async function createFlexChargebackForNegativeLine(
     },
   )
 
+  await enqueueFlexReviewItem(tx as any, {
+    tenantId,
+    createdById: userId,
+    revenueScheduleId: schedule.id,
+    flexClassification: RevenueScheduleFlexClassification.FlexChargeback,
+    flexReasonCode: RevenueScheduleFlexReasonCode.ChargebackNegative,
+    sourceDepositId: depositId,
+    sourceDepositLineItemId: lineItemId,
+    title: "Chargeback pending approval",
+    body: "A Flex Chargeback was created and is pending approval before it can be applied to the deposit line.",
+    metadata: {
+      kind: "FlexChargeback",
+      depositId,
+      depositLineItemId: lineItemId,
+      revenueScheduleId: schedule.id,
+      flexReasonCode: RevenueScheduleFlexReasonCode.ChargebackNegative,
+    },
+  })
+
   return {
     applied: false,
     action: "ChargebackPending",
@@ -840,12 +900,12 @@ export async function createFlexChargebackReversalForPositiveLine(
       flexClassification: true,
       vendorAccountId: true,
       distributorAccountId: true,
-    } as any,
+    },
   })
   if (!parent) {
     throw new Error("Parent chargeback schedule not found")
   }
-  if ((parent as any).flexClassification !== RevenueScheduleFlexClassification.FlexChargeback) {
+  if (parent.flexClassification !== RevenueScheduleFlexClassification.FlexChargeback) {
     throw new Error("Parent schedule must be a Flex Chargeback")
   }
   if (parent.accountId !== line.deposit.accountId) {
@@ -932,6 +992,26 @@ export async function createFlexChargebackReversalForPositiveLine(
       flexReasonCode: RevenueScheduleFlexReasonCode.ChargebackReversal,
     },
   )
+
+  await enqueueFlexReviewItem(tx as any, {
+    tenantId,
+    createdById: userId,
+    revenueScheduleId: schedule.id,
+    flexClassification: RevenueScheduleFlexClassification.FlexChargebackReversal,
+    flexReasonCode: RevenueScheduleFlexReasonCode.ChargebackReversal,
+    sourceDepositId: depositId,
+    sourceDepositLineItemId: lineItemId,
+    title: "Chargeback reversal pending approval",
+    body: "A chargeback reversal (CB-REV) was created and is pending approval before it can be applied to the deposit line.",
+    metadata: {
+      kind: "FlexChargebackReversal",
+      depositId,
+      depositLineItemId: lineItemId,
+      revenueScheduleId: schedule.id,
+      parentChargebackScheduleId,
+      flexReasonCode: RevenueScheduleFlexReasonCode.ChargebackReversal,
+    },
+  })
 
   return {
     applied: false,
