@@ -191,7 +191,7 @@ const AUTO_FIELD_SYNONYMS: Partial<Record<DepositFieldId, string[]>> = {
     "recurring comm rate",
     "usage rate",
   ],
-  paymentDate: ["payment date", "deposit date", "date"],
+  paymentDate: ["commission payment date", "payment date", "deposit date", "date"],
   productNameRaw: ["product", "product name", "sku", "service", "plan"],
   partNumberRaw: [
     "part number",
@@ -214,15 +214,26 @@ function headerLooksLikeCommissionRate(normalizedHeader: string) {
   return normalizedHeader.includes("rate") || normalizedHeader.includes("percent") || normalizedHeader.includes("%")
 }
 
-function findBestHeader(headers: string[], candidates: string[], used: Set<string>, predicate?: (normalizedHeader: string) => boolean) {
-  const normalizedCandidates = new Set(candidates.map(normalizeKey))
-  for (const header of headers) {
-    if (used.has(header)) continue
-    const normalized = normalizeKey(header)
-    if (!normalizedCandidates.has(normalized)) continue
-    if (predicate && !predicate(normalized)) continue
-    return header
+function findBestHeader(
+  headers: string[],
+  candidates: string[],
+  used: Set<string>,
+  predicate?: (normalizedHeader: string) => boolean,
+) {
+  // Candidate order matters: "product code" should beat "product id" when both exist,
+  // and "total commission" should beat generic "commission" when both exist, etc.
+  const normalizedCandidates = candidates.map(normalizeKey).filter(Boolean) as string[]
+
+  for (const candidate of normalizedCandidates) {
+    for (const header of headers) {
+      if (used.has(header)) continue
+      const normalized = normalizeKey(header)
+      if (!normalized || normalized !== candidate) continue
+      if (predicate && !predicate(normalized)) continue
+      return header
+    }
   }
+
   return null
 }
 

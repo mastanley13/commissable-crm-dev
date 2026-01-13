@@ -4,26 +4,25 @@
 
 **Implemented (in code/UI)**
 - Deposit reconciliation matching updates revenue schedule `actualUsage` / `actualCommission` and recomputes schedule status using a tenant-configurable variance tolerance.
-- Reconciliation UI already displays Expected vs Actual and balances/differences (usage + commission).
-- Revenue Schedule audit history tab exists, and reconciliation actions write audit logs.
-- Revenue Schedule clone, delete/archive, and bulk edit tools exist (useful building blocks for manual “flex-style” housekeeping).
-- Revenue Schedule supports FLEX metadata (`flexClassification`, `flexReasonCode`, and source deposit IDs).
-- Matching returns `flexDecision` and executes Phase 0 policy on Match:
-  - within tolerance: auto-create + allocate an Adjustment entry (no modal),
-  - above tolerance: prompt (Adjust / Manual / Flex Product),
+- Phase 0 policy executes on Match:
+  - within tolerance: auto-create + allocate an Adjustment entry (no modal; toast/banner),
+  - above tolerance: prompt with Adjust / Manual Amount / Flex Product,
   - negative line: auto-create + allocate a Flex Chargeback entry (reversible before finalize).
-- Reconciliation UI supports resolving above-tolerance overages via modal and supports creating Flex Product / Chargeback entries from the allocation screen.
-- Month-to-month schedule extension job exists and is callable via a secured job endpoint.
+- Manual amount entry is implemented: user can enter a partial adjustment amount and the system creates a one-time manual Adjustment schedule.
+- Unknown product Flex Product creation is implemented and can be attached to a deal context by selecting a target schedule before clicking Create Flex Product.
+- Bonus/SPF is supported via a bonus-like heuristic; bonus-like variances are forced down the Adjustment path (Flex Product option removed).
+- Revenue Schedule list supports FLEX reporting (Flex Type/Reason columns), filtering, and CSV export of flex fields.
+- Revenue Schedule audit history tab exists; FLEX actions write audit logs; clone/delete/bulk-edit tools exist for schedule housekeeping.
+- Month-to-month schedule extension job exists and is callable via a secured job endpoint (requires a scheduler/cron in the deployment to run automatically).
 
-**Remaining (FLEX-specific)**
-- Expand bonus/SPF classification rules (beyond the current “bonus-like” heuristic) and confirm if/where bonus should auto-classify in reconciliation UX.
-- Decide whether to auto-create Flex Products during batch Auto-Match when overage is above tolerance (currently prompts only during interactive matching).
-- Optional cleanup: decide whether auto-created Flex Products should be retired automatically when their source line is unallocated (schedules are soft-deleted; products are retained).
+**Remaining / Follow-ups (FLEX-related)**
+- Define the product-side rules for "unknown product detection" (confidence threshold / unmapped vendor fields) so the system can prompt/suggest Flex Product automatically instead of requiring a manual click.
+- Decide whether FLEX prompting should consider commission variance (in addition to usage variance) for the "overage above tolerance" decision.
+- Operationalize month-to-month schedule extension by wiring the secured endpoint into the production scheduler (and adding monitoring/alerts).
 
 **Source of truth used to compile this handoff:**
-- *Commissable_Transcript_MeetingSummary_Jan-06-26.pdf* (meeting summary + transcript excerpts)【107:1†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L44-L65】【107:10†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L20-L31】
-- *working notes 11.11.25.docx* (change-order style checklist items for Revenue Schedules)【107:7†working notes 11.11.25.docx†L41-L46】【107:6†working notes 11.11.25.docx†L1-L21】
-
+- *Commissable_Transcript_MeetingSummary_Jan-06-26.pdf* (meeting summary + transcript excerpts)
+- *working notes 11.11.25.docx* (change-order style checklist items for Revenue Schedules)
 ---
 
 ## 1) What “FLEX schedules” means in this CRM context
@@ -178,6 +177,7 @@ There is an explicit question in the meeting about what flex “is going to look
 - Or something that happens in the background on system triggers?【111:0†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L35-L64】
 
 - [x] Decide UX approach and document it (implemented in deposit allocation/matching flow; flex entries are labeled + audited).
+> **Decision:** we are not building a separate "Flex schedules" section right now; FLEX is resolved in the deposit allocation/matching flow and reported via `flexClassification`/`flexReasonCode`.
 - [ ] If a dedicated UI section is chosen:
   - [ ] Add “Flex schedules” section on the Revenue Schedule screen
   - [ ] Provide “Create Flex Product” / “Create Adjustment” CTA for a selected schedule/deposit pair
@@ -270,9 +270,9 @@ These items were explicitly listed as changes to implement around revenue schedu
 - [x] **UI approach**: resolve in the deposit matching flow (modal only when overage exceeds tolerance)【111:0†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L35-L64】
 - [x] **Auto-config quantity**: create 1 next schedule at a time when exhausted (no N-month batch generation).
 - [ ] **Classification rules**:
-  - how to detect “unknown product”
-  - how to detect “bonus/SPF”
-  - whether FLEX decisioning should use commission variance in addition to usage variance (schedule status computes both; meeting references usage primarily)
+  - [ ] how to detect "unknown product" (mapping confidence/unmapped template fields)
+  - [x] how to detect "bonus/SPF" (bonus-like heuristic: revenueType/family/name; bonus forces Adjustment path)
+  - [ ] whether FLEX decisioning should use commission variance in addition to usage variance
 
 ---
 

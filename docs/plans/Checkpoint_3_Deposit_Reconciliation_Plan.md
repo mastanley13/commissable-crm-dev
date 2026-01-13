@@ -62,8 +62,7 @@ These already exist in the repo and should be used as the baseline:
   - Production build passes (`npm run build`)
 
 ### Pending (required to deploy these changes)
-- Apply migration to your database:
-  - `prisma/migrations/20260113093000_add_deposit_part_number_and_flex_product_fields/migration.sql`
+None (migration applied to the Cloud SQL database on 2026-01-13).
 
 ### Outlying incomplete items (from the Checkpoint 3 guides)
 These are the remaining items still marked incomplete in:

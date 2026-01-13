@@ -206,7 +206,7 @@ export function MapFieldsStep({
       <div className="rounded-lg border border-gray-200 text-sm text-gray-700">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 bg-gray-50 px-3 py-1.5">
           <p className="text-sm font-semibold text-gray-900">
-            {title} <span className="font-normal text-gray-500">({rows.length})</span>
+            {title}
           </p>
           {description ? (
             <button
@@ -328,7 +328,7 @@ export function MapFieldsStep({
                     )}
                   </div>
 
-                  <div className="flex flex-col justify-center gap-0.5">
+                  <div className="flex flex-col justify-center gap-0.5 md:items-center">
                     <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 md:hidden">
                       Status
                     </p>
@@ -341,7 +341,7 @@ export function MapFieldsStep({
                             : "bg-gray-500"
                       return (
                         <span
-                          className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0 text-[10px] font-semibold leading-4 ${statusClass}`}
+                          className={`inline-flex w-fit items-center gap-1 rounded-full border px-1.5 py-0 text-[10px] font-semibold leading-4 whitespace-nowrap ${statusClass}`}
                         >
                           <span className={`h-1.5 w-1.5 rounded-full ${dotClass}`} />
                           {statusLabel}
@@ -544,21 +544,23 @@ export function MapFieldsStep({
     <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-3 md:p-4 space-y-3">
       <div className="grid gap-3 md:grid-cols-2 md:items-start">
         <div className="flex items-center gap-3">
-          <div className="rounded-full bg-primary-50 p-2 text-primary-600">
-            <FileSpreadsheet className="h-5 w-5" />
+          <div className="rounded-full bg-primary-50 p-1.5 text-primary-600">
+            <FileSpreadsheet className="h-4 w-4" />
           </div>
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">Map Fields</h2>
-            <p className="text-sm text-gray-600">Match upload columns to Commissable fields.</p>
+            <h2 className="text-base font-semibold text-gray-900">Map Fields</h2>
+            <p className="text-xs text-gray-600">Match upload columns to Commissable fields.</p>
           </div>
         </div>
 
         <div className="rounded-xl border border-gray-100 bg-gray-50 p-3 text-sm text-gray-700">
-          <p className="font-semibold text-gray-900">Uploaded file</p>
+          <div className="flex items-center justify-between gap-2">
+            <p className="font-semibold text-gray-900">Uploaded file</p>
+            <p className="text-xs text-gray-500">Columns detected: {csvHeaders.length || "0"}</p>
+          </div>
           {file ? (
             <div className="mt-2 space-y-1 text-gray-600">
               <p>{file.name}</p>
-              <p className="text-xs text-gray-500">Columns detected: {csvHeaders.length || "0"}</p>
               {parsingError ? (
                 <p className="text-xs text-red-600">{parsingError}</p>
               ) : csvHeaders.length === 0 ? (
@@ -571,10 +573,13 @@ export function MapFieldsStep({
         </div>
       </div>
 
-      <div className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-xs text-gray-700 truncate" title="Map required fields like Usage and Commission to columns from your uploaded file. Optional fields can be left unmapped. If a saved mapping exists for the selected Distributor + Vendor, those columns (plus core fields) will appear in the Template-mapped section below.">
+      <p
+        className="text-xs text-gray-600 truncate"
+        title="Map required fields like Usage and Commission to columns from your uploaded file. Optional fields can be left unmapped. If a saved mapping exists for the selected Distributor + Vendor, those columns (plus core fields) will appear in the Template-mapped section below."
+      >
         Map required fields like Usage and Commission. Optional fields can stay unmapped; saved templates pre-fill when
         available.
-      </div>
+      </p>
 
       {parsingError ? (
         <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700 flex items-start gap-2">
