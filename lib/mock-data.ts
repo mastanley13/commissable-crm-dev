@@ -693,6 +693,7 @@ export type DepositLineItemRow = {
   lineItem: number
   productId?: string
   productName: string
+  partNumber: string
   usage: number
   usageAllocated: number
   usageUnallocated: number
@@ -721,6 +722,7 @@ export const depositLineItemsMock: DepositLineItemRow[] = [
     otherSource: "Vendor",
     lineItem: 1,
     productName: 'Ucaas 1 Seat - 12 Month',
+    partNumber: "PN-1001",
     usage: 600,
     usageAllocated: 300,
     usageUnallocated: 300,
@@ -743,6 +745,7 @@ export const depositLineItemsMock: DepositLineItemRow[] = [
     otherSource: "Distributor",
     lineItem: 2,
     productName: 'Ucaas 1 Seat - 12 Month',
+    partNumber: "PN-1002",
     usage: 1010,
     usageAllocated: 800,
     usageUnallocated: 210,

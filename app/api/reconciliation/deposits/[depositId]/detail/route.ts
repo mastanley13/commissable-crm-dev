@@ -55,6 +55,11 @@ function mapDepositLineItem(deposit: any, line: any, index: number) {
     vendorName: line.vendorNameRaw ?? line.vendorAccount?.accountName ?? deposit.vendor?.accountName ?? "Unknown Vendor",
     lineItem: line.lineNumber ?? index + 1,
     productName: line.productNameRaw ?? line.product?.productNameVendor ?? "Unknown Product",
+    partNumber:
+      line.partNumberRaw ??
+      line.product?.partNumberVendor ??
+      line.product?.partNumberHouse ??
+      "",
     usage: Number(line.usage ?? 0),
     usageAllocated: Number(line.usageAllocated ?? 0),
     usageUnallocated: Number(line.usageUnallocated ?? 0),
@@ -99,7 +104,7 @@ export async function GET(request: NextRequest, { params }: { params: { depositI
             include: {
               account: { select: { accountName: true, accountLegalName: true } },
               vendorAccount: { select: { accountName: true } },
-              product: { select: { productNameVendor: true } },
+              product: { select: { productNameVendor: true, partNumberVendor: true, partNumberHouse: true } },
             },
             orderBy: [{ lineNumber: "asc" }, { createdAt: "asc" }],
           },

@@ -18,7 +18,7 @@ export function ReconciliationSettingsForm() {
     save: saveUserSettings,
   } = useReconciliationUserSettings()
   const [varianceTolerance, setVarianceTolerance] = useState(0)
-  const [suggestedMatchesMinConfidence, setSuggestedMatchesMinConfidence] = useState(75)
+  const [suggestedMatchesMinConfidence, setSuggestedMatchesMinConfidence] = useState(70)
   const [autoMatchMinConfidence, setAutoMatchMinConfidence] = useState(95)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')

@@ -213,6 +213,7 @@ export async function POST(request: NextRequest) {
             customerIdVendor: resolveString('customerIdVendor'),
             orderIdVendor: resolveString('orderIdVendor'),
             productNameRaw: resolveString('productNameRaw'),
+            partNumberRaw: resolveString('partNumberRaw'),
             vendorNameRaw: resolveString('vendorNameRaw'),
             distributorNameRaw: resolveString('distributorNameRaw'),
             locationId: resolveString('locationId'),

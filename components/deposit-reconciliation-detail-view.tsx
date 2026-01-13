@@ -65,6 +65,11 @@ type FlexPromptState = {
   decision: FlexDecisionPayload
 }
 
+type AllocationDraft = {
+  usage: string
+  commission: string
+}
+
 type LineTabKey = DepositLineStatusFilterValue
 type ScheduleTabKey = ReconciliationScheduleFilterValue
 
@@ -345,7 +350,7 @@ export function DepositReconciliationDetailView({
   const { showSuccess, showError, ToastContainer } = useToasts()
   const canManageReconciliation = hasPermission("reconciliation.manage")
   const [confidencePrefs, setConfidencePrefs] = useState({
-    suggestedMatchesMinConfidence: 0.75,
+    suggestedMatchesMinConfidence: 0.7,
     autoMatchMinConfidence: 0.95,
   })
   const [confidencePrefsLoading, setConfidencePrefsLoading] = useState(false)
@@ -370,6 +375,7 @@ export function DepositReconciliationDetailView({
   const [showDeleteDepositDialog, setShowDeleteDepositDialog] = useState(false)
   const [flexPrompt, setFlexPrompt] = useState<FlexPromptState | null>(null)
   const [flexResolving, setFlexResolving] = useState(false)
+  const [allocationDraft, setAllocationDraft] = useState<AllocationDraft>({ usage: "", commission: "" })
   const {
     refCallback: lineTableAreaRefCallback,
     maxBodyHeight: lineTableBodyHeight,
@@ -387,6 +393,25 @@ export function DepositReconciliationDetailView({
   const matchingLineIdRef = useRef<string | null>(null)
   const undoingLineIdRef = useRef<string | null>(null)
   const confidenceSaveTimerRef = useRef<number | null>(null)
+  const allocationDraftRef = useRef<AllocationDraft>(allocationDraft)
+
+  useEffect(() => {
+    allocationDraftRef.current = allocationDraft
+  }, [allocationDraft])
+
+  const selectedScheduleForMatch = useMemo(() => {
+    const selected = selectedSchedules[0]
+    if (!selected) return null
+    return scheduleRows.find(row => row.id === selected) ?? null
+  }, [scheduleRows, selectedSchedules])
+
+  const parseAllocationInput = useCallback((value: string) => {
+    const trimmed = value.trim()
+    if (!trimmed) return null
+    const parsed = Number(trimmed)
+    if (!Number.isFinite(parsed)) return null
+    return parsed
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -520,6 +545,32 @@ export function DepositReconciliationDetailView({
     return lineItemRows.find(item => item.id === lineId) ?? null
   }, [lineItemRows, selectedLineItems])
 
+  useEffect(() => {
+    if (!selectedLineForMatch) {
+      setAllocationDraft({ usage: "", commission: "" })
+      return
+    }
+
+    const usageDefault =
+      typeof selectedScheduleForMatch?.allocatedUsage === "number"
+        ? selectedScheduleForMatch.allocatedUsage
+        : Number.isFinite(Number(selectedLineForMatch.usageUnallocated))
+          ? Number(selectedLineForMatch.usageUnallocated)
+          : Number(selectedLineForMatch.usage ?? 0)
+
+    const commissionDefault =
+      typeof selectedScheduleForMatch?.allocatedCommission === "number"
+        ? selectedScheduleForMatch.allocatedCommission
+        : Number.isFinite(Number(selectedLineForMatch.commissionUnallocated))
+          ? Number(selectedLineForMatch.commissionUnallocated)
+          : Number(selectedLineForMatch.commission ?? 0)
+
+    setAllocationDraft({
+      usage: String(Number.isFinite(usageDefault) ? usageDefault : 0),
+      commission: String(Number.isFinite(commissionDefault) ? commissionDefault : 0),
+    })
+  }, [selectedLineForMatch?.id, selectedScheduleForMatch?.id])
+
   const matchButtonDisabledReason = useMemo(() => {
     if (matchingLineId || undoingLineId) return "Update in progress"
     if (!selectedLineForMatch) return "Select a deposit line item above"
@@ -527,8 +578,41 @@ export function DepositReconciliationDetailView({
     if (selectedLineForMatch.status === "Ignored") return "Ignored line items cannot be allocated"
     if (selectedSchedules.length === 0) return "Select a schedule below"
     if (selectedSchedules.length > 1) return "Select only one schedule to allocate to"
+
+    const usageAmount = parseAllocationInput(allocationDraft.usage)
+    const commissionAmount = parseAllocationInput(allocationDraft.commission)
+    if (usageAmount === null || commissionAmount === null) {
+      return "Enter allocation amounts"
+    }
+    if (usageAmount < 0 || commissionAmount < 0) {
+      return "Negative amounts must be handled as a Flex/Chargeback"
+    }
+
+    const existingUsage = typeof selectedScheduleForMatch?.allocatedUsage === "number" ? selectedScheduleForMatch.allocatedUsage : 0
+    const existingCommission =
+      typeof selectedScheduleForMatch?.allocatedCommission === "number" ? selectedScheduleForMatch.allocatedCommission : 0
+
+    const allowedUsage = Number(selectedLineForMatch.usageUnallocated ?? 0) + existingUsage
+    const allowedCommission = Number(selectedLineForMatch.commissionUnallocated ?? 0) + existingCommission
+    if (usageAmount > allowedUsage + 0.005) {
+      return "Usage allocation exceeds remaining unallocated amount"
+    }
+    if (commissionAmount > allowedCommission + 0.005) {
+      return "Commission allocation exceeds remaining unallocated amount"
+    }
+
     return null
-  }, [matchingLineId, undoingLineId, selectedLineForMatch, selectedSchedules.length])
+  }, [
+    matchingLineId,
+    undoingLineId,
+    selectedLineForMatch,
+    selectedSchedules.length,
+    allocationDraft.usage,
+    allocationDraft.commission,
+    parseAllocationInput,
+    selectedScheduleForMatch?.allocatedUsage,
+    selectedScheduleForMatch?.allocatedCommission,
+  ])
 
   const createFlexButtonLabel = useMemo(() => {
     if (!selectedLineForMatch) return "Create Flex Product"
@@ -678,13 +762,17 @@ export function DepositReconciliationDetailView({
       try {
         matchingLineIdRef.current = lineId
         setMatchingLineId(lineId)
+        const usageAmount = parseAllocationInput(allocationDraftRef.current.usage)
+        const commissionAmount = parseAllocationInput(allocationDraftRef.current.commission)
         const response = await fetch(
           `/api/reconciliation/deposits/${encodeURIComponent(metadata.id)}/line-items/${encodeURIComponent(lineId)}/apply-match`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              revenueScheduleId: scheduleId
+              revenueScheduleId: scheduleId,
+              usageAmount: usageAmount ?? undefined,
+              commissionAmount: commissionAmount ?? undefined,
             })
           }
         )
@@ -726,7 +814,7 @@ export function DepositReconciliationDetailView({
         setMatchingLineId(null)
       }
     },
-    [lineItemRows, metadata.id, onLineSelectionChange, onMatchApplied, showError, showSuccess]
+    [lineItemRows, metadata.id, onLineSelectionChange, onMatchApplied, parseAllocationInput, showError, showSuccess]
   )
 
   const handleMatchSelected = useCallback(() => {
@@ -1836,6 +1924,8 @@ export function DepositReconciliationDetailView({
       return
     }
     try {
+      const usageAmount = parseAllocationInput(allocationDraftRef.current.usage)
+      const commissionAmount = parseAllocationInput(allocationDraftRef.current.commission)
       const response = await fetch(
         `/api/reconciliation/deposits/${encodeURIComponent(metadata.id)}/line-items/${encodeURIComponent(lineId)}/apply-match`,
         {
@@ -1843,6 +1933,8 @@ export function DepositReconciliationDetailView({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             revenueScheduleId: scheduleId,
+            usageAmount: usageAmount ?? undefined,
+            commissionAmount: commissionAmount ?? undefined,
           }),
         }
       )
@@ -1877,7 +1969,7 @@ export function DepositReconciliationDetailView({
       console.error("Failed to apply match", err)
       showError("Unable to allocate", err instanceof Error ? err.message : "Unknown error")
     }
-  }, [metadata.id, onMatchApplied, showError, showSuccess])
+  }, [metadata.id, onMatchApplied, parseAllocationInput, showError, showSuccess])
 
   const handleBulkLineUnmatch = useCallback(async () => {
     await unmatchLineById()
@@ -2715,6 +2807,37 @@ export function DepositReconciliationDetailView({
                   <Plus className="h-4 w-4" />
                   {createFlexButtonLabel}
                 </button>
+                <div className="flex h-9 items-center gap-2 rounded border border-slate-200 bg-white px-2 shadow-sm">
+                  <div className="flex items-center gap-1">
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Usage</span>
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      step="0.01"
+                      min={0}
+                      value={allocationDraft.usage}
+                      onChange={event => setAllocationDraft(prev => ({ ...prev, usage: event.target.value }))}
+                      disabled={!selectedLineForMatch || selectedLineForMatch.reconciled || selectedLineForMatch.status === "Ignored"}
+                      className="h-7 w-24 rounded border border-slate-200 bg-white px-2 text-sm text-slate-800 focus:border-primary-300 focus:outline-none focus:ring-1 focus:ring-primary-200 disabled:cursor-not-allowed disabled:bg-slate-50"
+                      aria-label="Allocate usage amount"
+                    />
+                  </div>
+                  <div className="h-5 w-px bg-slate-200" aria-hidden="true" />
+                  <div className="flex items-center gap-1">
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Commission</span>
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      step="0.01"
+                      min={0}
+                      value={allocationDraft.commission}
+                      onChange={event => setAllocationDraft(prev => ({ ...prev, commission: event.target.value }))}
+                      disabled={!selectedLineForMatch || selectedLineForMatch.reconciled || selectedLineForMatch.status === "Ignored"}
+                      className="h-7 w-24 rounded border border-slate-200 bg-white px-2 text-sm text-slate-800 focus:border-primary-300 focus:outline-none focus:ring-1 focus:ring-primary-200 disabled:cursor-not-allowed disabled:bg-slate-50"
+                      aria-label="Allocate commission amount"
+                    />
+                  </div>
+                </div>
                 <button
                   type="button"
                   onClick={handleMatchSelected}

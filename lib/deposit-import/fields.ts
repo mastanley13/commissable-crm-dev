@@ -55,6 +55,13 @@ export const depositFieldDefinitions: DepositFieldDefinition[] = [
     scope: "line",
   },
   {
+    id: "partNumberRaw",
+    label: "Other - Part Number",
+    description: 'Product code / part number (legacy label: "Vendor - Part Number").',
+    type: "string",
+    scope: "line",
+  },
+  {
     id: "usage",
     label: "Usage Amount",
     description: "Numeric value used for reconciliation.",

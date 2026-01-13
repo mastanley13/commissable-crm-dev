@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db"
 const SUGGESTED_MATCHES_MIN_CONFIDENCE_KEY = "reconciliation.suggestedMatchesMinConfidence"
 const AUTO_MATCH_MIN_CONFIDENCE_KEY = "reconciliation.autoMatchMinConfidence"
 
-const DEFAULT_SUGGESTED_MATCHES_MIN_CONFIDENCE = 0.75
+const DEFAULT_SUGGESTED_MATCHES_MIN_CONFIDENCE = 0.7
 const DEFAULT_AUTO_MATCH_MIN_CONFIDENCE = 0.95
 
 function deserializeSettingValue(raw: unknown): unknown {
@@ -126,4 +126,3 @@ export async function saveUserReconciliationConfidencePreferences(
     ),
   )
 }
-

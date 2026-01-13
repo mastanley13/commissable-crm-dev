@@ -791,6 +791,7 @@ model DepositLineItem {
   accountNameRaw            String?
   vendorNameRaw             String?
   productNameRaw            String?
+  partNumberRaw             String?
   distributorNameRaw        String?
   locationId                String?
   customerPurchaseOrder     String?
