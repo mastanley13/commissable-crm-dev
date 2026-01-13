@@ -113,11 +113,12 @@ Checkpoint 3 centers on delivering an end-to-end **deposit ingestion + reconcili
     - Versioning or “effective date” strategy decided so old deposits remain reproducible (**ASSUMED**—confirm).
 
 ### REC-004 — Upload file types + parse into normalized deposit + line items
-- [ ] **REC-004** Upload deposit file (CSV/Excel/PDF) and parse into `reconciliation_deposits` + `deposit_line_items`  
-  - Status: IN PROGRESS  
+- [x] **REC-004** Upload deposit file (CSV/Excel/PDF) and parse into `reconciliation_deposits` + `deposit_line_items`  
+  - Status: DONE  
   - Notes:
     - CSV/Excel parsing is implemented (`lib/deposit-import/parse-file.ts`) and import creates `Deposit` + `DepositLineItem` rows (`app/api/reconciliation/deposits/import/route.ts`).
-    - PDF import is not implemented.
+    - Checkpoint 3 input for REC-004 is CSV (examples: `Test data Telarus Report_Commission-2_2025-09.xlsx - Sheet1.csv`, `Test data Telarus Report_Commission-2_2025-09.xlsx - Sheet2.csv`).
+    - PDF import is not implemented (out of scope unless acceptance criteria change).
   - Definition of Done:
     - Create deposit record with metadata (distributor/vendor/template/upload date).
     - Parse file rows into normalized line items with mapped fields.
@@ -177,7 +178,14 @@ Checkpoint 3 centers on delivering an end-to-end **deposit ingestion + reconcili
 - [ ] **REC-014** Implement `reconciliation_matches` to support partial allocations (split/merge)  
   - Status: NOT STARTED  
   - Notes:
-    - DB has `DepositLineMatch` with `usageAmount`/`commissionAmount` (many-to-many capable), but the current UI/API workflow behaves like a single primary match per line and does not support true split/merge allocations.
+    - Core rule: allocations happen during Match/Allocate; reconciliation/finalize happens later (locks allocations + downstream status transitions).
+    - Required behaviors:
+      - Split: `1 deposit_line_item → many revenue_schedules`
+      - Merge: `many deposit_line_items → 1 revenue_schedule`
+    - Implementation approach:
+      - Allocation step: create/update rows in the junction table (`DepositLineMatch` today; conceptually `reconciliation_matches`) with `usageAmount` and `commissionAmount` per link.
+      - Running totals: recompute deposit allocated/unallocated + schedule actual usage/commission from allocations.
+      - Reconcile step: finalize allocations (mark reconciled/locked) separately from allocation.
   - Definition of Done:
     - A deposit line item can allocate across multiple revenue schedules and vice versa.
     - Each link stores `amount_matched` (and other needed detail).
@@ -224,7 +232,9 @@ Checkpoint 3 centers on delivering an end-to-end **deposit ingestion + reconcili
 ### REC-030 — Detect overages vs expected usage net and prompt for decision
 - [ ] **REC-030** Variance detector on match (pre-reconcile)  
   - Status: NOT STARTED  
-  - Notes: Variance tolerance currently drives schedule status computation (Reconciled/Overpaid/Underpaid), but no UI prompt/decision tree exists yet.
+  - Notes:
+    - Variance tolerance is configured via Settings > Reconciliation Settings (tenant default) and is used for thresholding.
+    - System computes overage/underage during matching using expected + adjustments vs actual allocated.
   - Definition of Done:
     - When proposed match creates an overage beyond configured variance, system prompts user.
     - Prompt occurs during matching (before final reconcile).
@@ -232,34 +242,40 @@ Checkpoint 3 centers on delivering an end-to-end **deposit ingestion + reconcili
 ### REC-031 — Variance decision tree (3 options) (Jan 6, 2026 meeting)
 - [ ] **REC-031** Implement 3-option variance decision flow  
   - Status: NOT STARTED  
+  - Notes: Trigger occurs during matching/allocation (before final reconcile).
   - Definition of Done:
     - Options: 1) AI adjustment, 2) Manual adjustment, 3) Create flex product.
-    - After choice, match proceeds and items move to “matched” state.
+    - After choice, match proceeds and items move to "matched" state.
 
 ### REC-032 — “Apply adjustment to this schedule” vs “all future schedules”
-- [ ] **REC-032** Support “adjust this schedule vs adjust all future schedules usage” behavior  
+- [ ] **REC-032** Support "adjust this schedule vs adjust all future schedules usage" behavior  
   - Status: NOT STARTED  
-  - Notes: Needs clarification on scope (see Open Questions)  
+  - Notes:
+    - Adjustments default to one-time (month-specific).
+    - Optional "Apply to future schedules for this product" behavior exists and updates future schedules in-scope.
   - Definition of Done:
     - UI offers the choice and applies correct updates.
+    - Confirm how "this product" is identified for future schedules (productId vs productName vs vendor SKU) and how far forward to apply.
 
 ### REC-033 — Flex products (unknown product, overage, bonus, chargeback)
 - [ ] **REC-033** Implement Flex Product creation option for unknown/out-of-tolerance items  
   - Status: NOT STARTED  
-  - Notes: Meeting mentions tolerance example 10% and unknown product handling  
+  - Notes: Flex product can be created when overage occurs (option 3 in REC-031) or when product is unknown.
   - Definition of Done:
     - User can create flex schedule/product from deposit line.
     - Flex schedules integrate into matching so deposit line can be allocated.
 
-### REC-034 — Underpayment behavior (possible conflict)
-- [ ] **REC-034** Decide and implement underpayment handling  
+### REC-034 - Underpayment / late payment behavior (clarified)
+- [ ] **REC-034** Implement underpayment + late/double payment rules  
   - Status: NOT STARTED  
   - Notes:
-    - Meeting suggests underpayment may not matter.
-    - Milestone 3 spec includes underpayment flex type (confirm).
+    - Underpayment does not trigger variance; schedules remain open with remaining balance.
+    - Late payment / double payment does not auto-adjust future schedules.
+    - System can allocate a single payment across multiple open schedules (catch-up behavior).
   - Definition of Done:
-    - Team decision documented.
-    - Implementation matches decided policy.
+    - Underpayment stays as open balance; no variance prompt.
+    - Catch-up allocations supported across multiple schedules.
+    - No automatic propagation to future schedules for late/double payments.
 
 ---
 
@@ -337,19 +353,25 @@ Checkpoint 3 centers on delivering an end-to-end **deposit ingestion + reconcili
 # Optional / Add-on items (verify scope)
 
 ### OPT-001 — Deposit Detail View drawer (CO-002-B)
-- [ ] **OPT-001** Implement Deposit Detail View on deposit row click (drawer/modal)  
-  - Status: IN PROGRESS  
-  - Notes: Confirm if required for Checkpoint 3 acceptance.
+- [x] **OPT-001** Implement Deposit Detail View on deposit row click (drawer/modal)  
+  - Status: DONE  
+  - Notes: Full-page deposit detail (`/reconciliation/[depositId]`) is acceptable for Checkpoint 3; drawer/modal is not required.
 
 ---
 
 # Open questions / Clarifications needed
 
-1. Split/merge requirement: M:N matching required now, or can ship 1:1 first?
-2. Variance limit: Where configured (global setting / per template / per user)?
-3. “Adjust all future schedules” scope: future schedules for what entity?
-4. Underpayment handling policy (meeting vs spec).
-5. Deposit file formats: which vendor templates must work first for acceptance?
+## Clarifications (resolved)
+
+- Deposit upload files for REC-004 are CSV (examples: `Test data Telarus Report_Commission-2_2025-09.xlsx - Sheet1.csv`, `Test data Telarus Report_Commission-2_2025-09.xlsx - Sheet2.csv`); PDF is not required for Checkpoint 3 acceptance.
+- OPT-001: full-page deposit detail is acceptable; drawer/modal is not required.
+- REC-014: split/merge allocations are required; Match/Allocate creates/updates junction rows and updates running totals; finalize/reconcile locks allocations later.
+- REC-030–REC-034: variance tolerance is configured in Settings > Reconciliation Settings; overage triggers a 3-option flow during matching; underpayment does not trigger variance and remains as open balance; late/double payments do not auto-adjust future schedules.
+
+## Remaining open questions
+
+1. **REC-032 scope:** confirm how "future schedules for this product" is identified (productId vs productName vs vendor SKU) and whether it is limited to the same opportunity/account.
+2. **REC-031 AI adjustment:** confirm whether "AI adjustment" is rules-based suggestion (v1) or calls an external AI model, and what fields it is allowed to update.
 
 ---
 

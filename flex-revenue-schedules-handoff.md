@@ -66,6 +66,11 @@ This also appears as an explicit requested feature:
   Context: an action item calls for “Add Actual Usage + Actual Commission to bottom grid; update on Match”【111:15†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L36-L37】, and discussion describes actual usage/commission filling in when Match is clicked【111:6†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L16-L21】.
 
 ### 2.2 Variance/tolerance detection (overage)
+
+> **PHASE 0 DECISION (confirmed):** only prompt when the **overage exceeds tolerance**.
+> - Within tolerance → auto-create a one-time adjustment and continue (no modal; toast/banner).
+> - Above tolerance → show modal (Adjust / Manual / Flex Product).
+> - Underpayment → no prompt; carry remaining balance forward.
 - [x] The system must compute **variance** between *Expected Usage Net* (schedule) and *Actual Usage* (from deposit allocations) after matching.
 - [ ] The system must support a configurable **tolerance/variance threshold** (example discussed: “tolerance to 10%”)【111:0†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L22-L23】.
 - [ ] **Only overage matters**; underage “doesn’t matter” in this flow【111:3†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L49-L50】.
@@ -85,6 +90,8 @@ This also appears as an explicit requested feature:
 - [ ] The UI flow should align with the “decision tree” discussed (adjust / manual / flex product)【111:3†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L38-L41】.
 
 **Trigger timing**
+
+> **PHASE 0 DECISION (confirmed):** resolve variances on **Match (allocation)**, not on Finalize/Reconcile.
 - [ ] Confirm whether the mismatch prompt occurs:
   - immediately after matching (before reconcile), or
   - on “Reconcile” click.
@@ -100,6 +107,8 @@ This also appears as an explicit requested feature:
 > **ASSUMED:** rules for “unknown product detection” (e.g., AI confidence cutoff, “unmapped fields” from vendor template) are outside the explicit FLEX excerpts; treat this as a dependency on the deposit mapping + matching system.
 
 ### 2.5 Chargeback (negative deposit line)
+
+> **PHASE 0 DECISION (confirmed):** auto-create a Flex Chargeback entry when a negative line is detected and auto-apply it, but keep it reversible prior to final reconcile.
 - [ ] If a deposit line item amount (usage and/or commission) is negative:
   - [ ] system should **suggest or automatically create** a Flex Chargeback product entry and apply the deposit allocation to it【111:14†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L32-L42】.
 - [ ] Flex chargebacks should be categorized (group/family) for reporting【103:1†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L50-L53】.
@@ -119,6 +128,8 @@ This also appears as an explicit requested feature:
 > **NOTE:** Another excerpt highlights that the two areas to worry about are (1) overage outside variance and (2) bonus automation【111:10†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L9-L14】.
 
 ### 2.8 Flex Auto-Config (schedule extension)
+
+> **PHASE 0 DECISION (confirmed):** create **exactly 1** next schedule at a time, starting on the **first of next month**, when Billing remains active and schedules are exhausted.
 - [ ] If an Opportunity Product is still in **Billing** status and future schedules are exhausted:
   - [ ] auto-create the next Revenue Schedule(s),
   - [ ] starting on the **first of the next month** (as discussed)【111:0†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L54-L55】,
@@ -244,6 +255,12 @@ These items were explicitly listed as changes to implement around revenue schedu
 ---
 
 ## 7) Open questions / decisions to log (do not block coding agent prep)
+
+### Phase 0 decisions (confirmed)
+- Trigger timing: resolve on **Match (allocation)**, not on Finalize/Reconcile.
+- Prompt policy: only prompt when the **overage exceeds tolerance**; within tolerance → auto-adjust with toast/banner.
+- Chargebacks: negative lines **auto-create and auto-apply** a Flex Chargeback entry (reversible prior to final reconcile).
+- Auto-config: create **1** next schedule at a time, starting **first of next month**, while Billing remains active.
 
 - [ ] **Prompt behavior**: always prompt on mismatch vs only above tolerance? (See note in §2.2)
 - [ ] **Chargeback automation**: auto-create vs user-confirmed?【111:14†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L39-L42】

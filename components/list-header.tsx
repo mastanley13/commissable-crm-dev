@@ -290,7 +290,7 @@ export function ListHeader({
 
   const hasFiltersApplied = groupedColumnFilters.length > 0;
 
-  const padY = compact ? "py-1" : "py-2"
+  const padY = inTab ? "py-0" : (compact ? "py-1" : "py-2")
   const gap = compact ? "gap-1.5" : "gap-2"
   const stackGap = compact ? "gap-0.5" : "gap-1"
   const inputYPadding = compact ? "py-1" : "py-1.5"

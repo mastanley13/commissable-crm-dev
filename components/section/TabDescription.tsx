@@ -7,7 +7,7 @@ interface TabDescriptionProps {
 
 export function TabDescription({ children, className }: TabDescriptionProps) {
   return (
-    <p className={cn("text-[11px] text-gray-500 italic mb-3", className)}>
+    <p className={cn("text-[11px] text-gray-500 italic mb-1.5 mt-1.5", className)}>
       {children}
     </p>
   )

@@ -266,6 +266,9 @@ const TAB_DESCRIPTIONS: Record<string, string> = {
   "history": "This section shows a complete audit log of all changes made to this revenue schedule, including who made each change and when. Use the restore functionality to revert to previous versions if needed."
 }
 
+const BLUE_CARD_HEADER_CLASSNAME = "bg-blue-500 border-b-2 border-blue-700 px-3 py-1.5 text-white"
+const BLUE_CARD_TITLE_CLASSNAME = "text-[11px] font-semibold text-white"
+
 export interface RevenueScheduleSupportingDetailsHandle {
   openTicketCreateModal: () => void
   openSection: (sectionId: string) => void
@@ -1558,15 +1561,13 @@ export const RevenueScheduleSupportingDetails = forwardRef<
               receivable > 0 && Math.abs(balance) < 0.005 ? "Paid in Full" : paid > 0 ? "Partial" : "Pending"
             return (
               <div key={split.id} className="overflow-hidden rounded-lg border border-gray-200 bg-white">
-                <div className="bg-blue-500 px-3 py-2 text-white border-b-2 border-blue-700">
-                  <div className="flex items-center justify-between gap-2">
-                    <h4 className="text-xs font-semibold">
-                      {split.label} - {split.percentLabel}
-                    </h4>
-                    <span className="rounded bg-white/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
-                      {payoutStatus}
-                    </span>
-                  </div>
+                <div className={cn(BLUE_CARD_HEADER_CLASSNAME, "flex items-center justify-between gap-2")}>
+                  <h4 className="text-[11px] font-semibold">
+                    {split.label} - {split.percentLabel}
+                  </h4>
+                  <span className="rounded bg-white/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
+                    {payoutStatus}
+                  </span>
                 </div>
                 <div className="space-y-2 p-2">
                   <div className="rounded bg-gray-50 p-2">
@@ -2130,75 +2131,73 @@ export const RevenueScheduleSupportingDetails = forwardRef<
               description="Vendor and distributor metadata from matched deposit line items."
               hideHeader
             >
-              <div className="border border-gray-200 rounded-lg overflow-hidden">
-                <div className="bg-gray-50 px-3 pb-3 space-y-3">
-                  <div className="grid grid-cols-1 gap-3 lg:grid-cols-4">
-                    <div className="border border-gray-200 rounded-lg bg-white overflow-hidden">
-                      <div className="bg-blue-500 border-b-2 border-blue-700 px-3 py-1.5 flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <span className="inline-flex items-center rounded bg-white px-2 py-0.5 text-[10px] font-semibold text-blue-700">
-                            Commission Deposit
-                          </span>
-                          <span className="text-[11px] font-semibold text-white">
-                            No matched deposits
-                          </span>
-                        </div>
-                      </div>
-                      <div className="space-y-1.5 p-3 text-[11px]">
-                        <div className="flex items-center justify-between">
-                          <span className="text-gray-600">Reconciled</span>
-                          <span className="font-medium text-gray-900">--</span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-gray-600">Payment Type</span>
-                          <span className="font-medium text-gray-900">--</span>
-                        </div>
-                        <div className="flex items-center justify-between gap-3">
-                          <span className="text-gray-600">Services</span>
-                          <span className="truncate font-medium text-gray-900">--</span>
-                        </div>
-                        <div className="flex items-center justify-between gap-3">
-                          <span className="text-gray-600">Other - Product Name</span>
-                          <span className="truncate font-medium text-gray-900">--</span>
-                        </div>
-                        <div className="flex items-center justify-between gap-3">
-                          <span className="text-gray-600">Sales ID</span>
-                          <span className="truncate font-medium text-gray-900">--</span>
-                        </div>
-                        <div className="flex items-center justify-between gap-3">
-                          <span className="text-gray-600">Product Code</span>
-                          <span className="truncate font-medium text-gray-900">--</span>
-                        </div>
+              <div className="space-y-3">
+                <div className="grid grid-cols-1 gap-3 lg:grid-cols-4">
+                  <div className="border border-gray-200 rounded-lg bg-white overflow-hidden">
+                    <div className={cn(BLUE_CARD_HEADER_CLASSNAME, "flex items-center justify-between")}>
+                      <div className="flex items-center gap-2">
+                        <span className="inline-flex items-center rounded bg-white px-2 py-0.5 text-[10px] font-semibold text-blue-700">
+                          Commission Deposit
+                        </span>
+                        <span className={BLUE_CARD_TITLE_CLASSNAME}>
+                          No matched deposits
+                        </span>
                       </div>
                     </div>
-
-                    {emptyColumns.map((columnEntries, columnIndex) => (
-                      <div
-                        key={`meta-column-empty-${columnIndex}`}
-                        className="border border-gray-200 rounded-lg bg-white overflow-hidden"
-                      >
-                        <div className="bg-blue-500 border-b-2 border-blue-700 px-3 py-1.5 flex items-center">
-                          <span className="inline-flex items-center rounded bg-white px-2 py-0.5 text-[10px] font-semibold text-blue-700">
-                            --
-                          </span>
-                          <span className="ml-2 text-[11px] font-semibold text-white">
-                            No Data
-                          </span>
-                        </div>
-                        <div className="space-y-1 p-3 text-[11px]">
-                          {Array.from({ length: 5 }).map((_, index) => (
-                            <div
-                              key={`placeholder-empty-${columnIndex}-${index}`}
-                              className="flex items-center justify-between"
-                            >
-                              <span className="text-gray-400">New Field</span>
-                              <span className="text-gray-300">--</span>
-                            </div>
-                          ))}
-                        </div>
+                    <div className="space-y-1.5 p-3 text-[11px]">
+                      <div className="flex items-center justify-between">
+                        <span className="text-gray-600">Reconciled</span>
+                        <span className="font-medium text-gray-900">--</span>
                       </div>
-                    ))}
+                      <div className="flex items-center justify-between">
+                        <span className="text-gray-600">Payment Type</span>
+                        <span className="font-medium text-gray-900">--</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-gray-600">Services</span>
+                        <span className="truncate font-medium text-gray-900">--</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-gray-600">Other - Product Name</span>
+                        <span className="truncate font-medium text-gray-900">--</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-gray-600">Sales ID</span>
+                        <span className="truncate font-medium text-gray-900">--</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-gray-600">Product Code</span>
+                        <span className="truncate font-medium text-gray-900">--</span>
+                      </div>
+                    </div>
                   </div>
+
+                  {emptyColumns.map((columnEntries, columnIndex) => (
+                    <div
+                      key={`meta-column-empty-${columnIndex}`}
+                      className="border border-gray-200 rounded-lg bg-white overflow-hidden"
+                    >
+                      <div className={cn(BLUE_CARD_HEADER_CLASSNAME, "flex items-center")}>
+                        <span className="inline-flex items-center rounded bg-white px-2 py-0.5 text-[10px] font-semibold text-blue-700">
+                          --
+                        </span>
+                        <span className={cn(BLUE_CARD_TITLE_CLASSNAME, "ml-2")}>
+                          No Data
+                        </span>
+                      </div>
+                      <div className="space-y-1 p-3 text-[11px]">
+                        {Array.from({ length: 5 }).map((_, index) => (
+                          <div
+                            key={`placeholder-empty-${columnIndex}-${index}`}
+                            className="flex items-center justify-between"
+                          >
+                            <span className="text-gray-400">New Field</span>
+                            <span className="text-gray-300">--</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             </SectionContainer>
@@ -2258,118 +2257,116 @@ export const RevenueScheduleSupportingDetails = forwardRef<
               description="Vendor and distributor metadata from matched deposit line items."
               hideHeader
             >
-              <div className="border border-gray-200 rounded-lg overflow-hidden">
-                <div className="bg-gray-50 px-3 pb-3 space-y-3">
-                  {matches.length > 1 ? (
-                    <PillTabs
-                      tabs={matches.map(match => ({
-                        id: match.id,
-                        label: match.depositName ?? match.depositId ?? match.id
-                      }))}
-                      activeId={activeCard.id}
-                      onChange={setActiveMatchId}
-                    />
-                  ) : null}
+              <div className="space-y-3">
+                {matches.length > 1 ? (
+                  <PillTabs
+                    tabs={matches.map(match => ({
+                      id: match.id,
+                      label: match.depositName ?? match.depositId ?? match.id
+                    }))}
+                    activeId={activeCard.id}
+                    onChange={setActiveMatchId}
+                  />
+                ) : null}
 
-                  <div className="grid grid-cols-1 gap-3 lg:grid-cols-4">
-                    <div className="border border-gray-200 rounded-lg bg-white overflow-hidden">
-                      <div className="bg-blue-500 border-b-2 border-blue-700 px-3 py-1.5 flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <span className="inline-flex items-center rounded bg-white px-2 py-0.5 text-[10px] font-semibold text-blue-700">
-                            Commission Deposit
-                          </span>
-                          <span className="text-[11px] font-semibold text-white">
-                            {activeCard.depositName ?? activeCard.depositId ?? activeCard.id}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="space-y-1.5 p-3 text-[11px]">
-                        <div className="flex items-center justify-between">
-                          <span className="text-gray-600">Reconciled</span>
-                          <span className="font-medium text-gray-900">
-                            {activeCard.reconciledAt ??
-                              activeCard.depositPaymentDate ??
-                              activeCard.linePaymentDate ??
-                              "--"}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-gray-600">Payment Type</span>
-                          <span className="font-medium text-gray-900">
-                            {activeCard.depositPaymentType ?? "--"}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between gap-3">
-                          <span className="text-gray-600">Services</span>
-                          <span className="truncate font-medium text-gray-900" title={servicesEntry?.[1] ?? ""}>
-                            {servicesEntry?.[1] ?? "--"}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between gap-3">
-                          <span className="text-gray-600">Other - Product Name</span>
-                          <span
-                            className="truncate font-medium text-gray-900"
-                            title={vendorProductNameEntry?.[1] ?? schedule?.productNameVendor ?? ""}
-                          >
-                            {vendorProductNameEntry?.[1] ?? schedule?.productNameVendor ?? "--"}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between gap-3">
-                          <span className="text-gray-600">Sales ID</span>
-                          <span className="truncate font-medium text-gray-900" title={salesIdEntry?.[1] ?? ""}>
-                            {salesIdEntry?.[1] ?? "--"}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between gap-3">
-                          <span className="text-gray-600">Product Code</span>
-                          <span className="truncate font-medium text-gray-900" title={productCodeEntry?.[1] ?? ""}>
-                            {productCodeEntry?.[1] ?? "--"}
-                          </span>
-                        </div>
+                <div className="grid grid-cols-1 gap-3 lg:grid-cols-4">
+                  <div className="border border-gray-200 rounded-lg bg-white overflow-hidden">
+                    <div className={cn(BLUE_CARD_HEADER_CLASSNAME, "flex items-center justify-between")}>
+                      <div className="flex items-center gap-2">
+                        <span className="inline-flex items-center rounded bg-white px-2 py-0.5 text-[10px] font-semibold text-blue-700">
+                          Commission Deposit
+                        </span>
+                        <span className={BLUE_CARD_TITLE_CLASSNAME}>
+                          {activeCard.depositName ?? activeCard.depositId ?? activeCard.id}
+                        </span>
                       </div>
                     </div>
-
-                    {columns.map((columnEntries, columnIndex) => (
-                      <div
-                        key={`meta-column-${columnIndex}`}
-                        className="border border-gray-200 rounded-lg bg-white overflow-hidden"
-                      >
-                        <div className="bg-blue-500 border-b-2 border-blue-700 px-3 py-1.5 flex items-center">
-                          <span className="inline-flex items-center rounded bg-white px-2 py-0.5 text-[10px] font-semibold text-blue-700">
-                            {columnEntries.length ? "Meta" : "--"}
-                          </span>
-                          <span className="ml-2 text-[11px] font-semibold text-white">
-                            {columnEntries.length ? "Metadata" : "No Data"}
-                          </span>
-                        </div>
-                        <div className="space-y-1 p-3 text-[11px]">
-                          {columnEntries.length
-                            ? columnEntries.map(([key, value]) => (
-                                <div
-                                  key={`${activeCard.id}-${columnIndex}-${key}`}
-                                  className="flex items-center justify-between gap-3"
-                                >
-                                  <span className="truncate text-gray-600" title={key}>
-                                    {key}
-                                  </span>
-                                  <span className="truncate font-medium text-gray-900" title={value}>
-                                    {value}
-                                  </span>
-                                </div>
-                              ))
-                            : Array.from({ length: 5 }).map((_, index) => (
-                                <div
-                                  key={`placeholder-${columnIndex}-${index}`}
-                                  className="flex items-center justify-between"
-                                >
-                                  <span className="text-gray-400">New Field</span>
-                                  <span className="text-gray-300">--</span>
-                                </div>
-                              ))}
-                        </div>
+                    <div className="space-y-1.5 p-3 text-[11px]">
+                      <div className="flex items-center justify-between">
+                        <span className="text-gray-600">Reconciled</span>
+                        <span className="font-medium text-gray-900">
+                          {activeCard.reconciledAt ??
+                            activeCard.depositPaymentDate ??
+                            activeCard.linePaymentDate ??
+                            "--"}
+                        </span>
                       </div>
-                    ))}
+                      <div className="flex items-center justify-between">
+                        <span className="text-gray-600">Payment Type</span>
+                        <span className="font-medium text-gray-900">
+                          {activeCard.depositPaymentType ?? "--"}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-gray-600">Services</span>
+                        <span className="truncate font-medium text-gray-900" title={servicesEntry?.[1] ?? ""}>
+                          {servicesEntry?.[1] ?? "--"}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-gray-600">Other - Product Name</span>
+                        <span
+                          className="truncate font-medium text-gray-900"
+                          title={vendorProductNameEntry?.[1] ?? schedule?.productNameVendor ?? ""}
+                        >
+                          {vendorProductNameEntry?.[1] ?? schedule?.productNameVendor ?? "--"}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-gray-600">Sales ID</span>
+                        <span className="truncate font-medium text-gray-900" title={salesIdEntry?.[1] ?? ""}>
+                          {salesIdEntry?.[1] ?? "--"}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-gray-600">Product Code</span>
+                        <span className="truncate font-medium text-gray-900" title={productCodeEntry?.[1] ?? ""}>
+                          {productCodeEntry?.[1] ?? "--"}
+                        </span>
+                      </div>
+                    </div>
                   </div>
+
+                  {columns.map((columnEntries, columnIndex) => (
+                    <div
+                      key={`meta-column-${columnIndex}`}
+                      className="border border-gray-200 rounded-lg bg-white overflow-hidden"
+                    >
+                      <div className={cn(BLUE_CARD_HEADER_CLASSNAME, "flex items-center")}>
+                        <span className="inline-flex items-center rounded bg-white px-2 py-0.5 text-[10px] font-semibold text-blue-700">
+                          {columnEntries.length ? "Meta" : "--"}
+                        </span>
+                        <span className={cn(BLUE_CARD_TITLE_CLASSNAME, "ml-2")}>
+                          {columnEntries.length ? "Metadata" : "No Data"}
+                        </span>
+                      </div>
+                      <div className="space-y-1 p-3 text-[11px]">
+                        {columnEntries.length
+                          ? columnEntries.map(([key, value]) => (
+                              <div
+                                key={`${activeCard.id}-${columnIndex}-${key}`}
+                                className="flex items-center justify-between gap-3"
+                              >
+                                <span className="truncate text-gray-600" title={key}>
+                                  {key}
+                                </span>
+                                <span className="truncate font-medium text-gray-900" title={value}>
+                                  {value}
+                                </span>
+                              </div>
+                            ))
+                          : Array.from({ length: 5 }).map((_, index) => (
+                              <div
+                                key={`placeholder-${columnIndex}-${index}`}
+                                className="flex items-center justify-between"
+                              >
+                                <span className="text-gray-400">New Field</span>
+                                <span className="text-gray-300">--</span>
+                              </div>
+                            ))}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             </SectionContainer>

@@ -95,7 +95,7 @@ Use these documents when deciding requirements and acceptance criteria:
 ### REC-002 — Deposit mapping UI redesign (two-panel; remove “Step 1–4 wizard”)
 > Requirement: Mapping UI should show **“known fields”** (standard fields we map into) and a second panel of **“extra fields that are non-blank and not yet mapped”**; remove current step-based wizard; add Cancel + Undo【91:4†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L10-L41】
 
-- [ ] **REC-002** Replace “Step 1–4” mapping wizard with two-panel mapping editor  
+- [ ] **REC-002** Replace "Step 1-4" mapping wizard with two-panel mapping editor  
   - Status: IN PROGRESS  
   - Notes:
     - Current implementation is still a step-based wizard (`app/(dashboard)/reconciliation/deposit-upload-list/page.tsx`) with column mapping (`components/deposit-upload/map-fields-step.tsx`).
@@ -117,12 +117,13 @@ Use these documents when deciding requirements and acceptance criteria:
     - Template mapping saved per (Distributor, Vendor, TemplateName).
     - Versioning or “effective date” strategy decided so old deposits remain reproducible (**ASSUMED**—confirm with team).
 
-### REC-004 — Upload file types + parse into normalized deposit + line items
-- [ ] **REC-004** Upload deposit file (CSV/Excel/PDF) and parse into `reconciliation_deposits` + `deposit_line_items`  
-  - Status: IN PROGRESS  
+### REC-004 - Upload file types + parse into normalized deposit + line items
+- [x] **REC-004** Upload deposit file (CSV/Excel/PDF) and parse into `reconciliation_deposits` + `deposit_line_items`  
+  - Status: DONE  
   - Notes:
     - CSV/Excel parsing is implemented (`lib/deposit-import/parse-file.ts`) and import creates `Deposit` + `DepositLineItem` rows (`app/api/reconciliation/deposits/import/route.ts`).
-    - PDF import is not implemented.
+    - Checkpoint 3 input for REC-004 is CSV (examples: `Test data Telarus Report_Commission-2_2025-09.xlsx - Sheet1.csv`, `Test data Telarus Report_Commission-2_2025-09.xlsx - Sheet2.csv`).
+    - PDF import is not implemented (out of scope unless acceptance criteria change).
   - DoD:
     - Create deposit record with metadata (distributor/vendor/template/upload date).
     - Parse file rows into normalized line items with mapped fields.
@@ -189,7 +190,14 @@ Use these documents when deciding requirements and acceptance criteria:
 - [ ] **REC-014** Implement `reconciliation_matches` to support partial allocations (split/merge)  
   - Status: NOT STARTED  
   - Notes:
-    - DB has `DepositLineMatch` with `usageAmount`/`commissionAmount` (many-to-many capable), but the current UI/API workflow behaves like a single primary match per line and does not support true split/merge allocations.
+    - Core rule: allocations happen during Match/Allocate; reconciliation/finalize happens later (locks allocations + downstream status transitions).
+    - Required behaviors:
+      - Split: `1 deposit_line_item → many revenue_schedules`
+      - Merge: `many deposit_line_items → 1 revenue_schedule`
+    - Implementation approach:
+      - Allocation step: create/update rows in the junction table (`DepositLineMatch` today; conceptually `reconciliation_matches`) with `usageAmount` and `commissionAmount` per link.
+      - Running totals: recompute deposit allocated/unallocated + schedule actual usage/commission from allocations.
+      - Reconcile step: finalize allocations (mark reconciled/locked) separately from allocation.
   - DoD:
     - A deposit line item can allocate across multiple revenue schedules and vice versa【228:11†Data Notebook LM 1.1.docx†L9-L11】.
     - Each link stores `amount_matched` and (ASSUMED) matched_usage vs matched_commission if needed.
@@ -243,7 +251,8 @@ Use these documents when deciding requirements and acceptance criteria:
 - [ ] **REC-030** Variance detector on match (pre-reconcile)  
   - Status: NOT STARTED  
   - Notes:
-    - Variance tolerance currently drives schedule status computation (Reconciled/Overpaid/Underpaid) in `lib/matching/revenue-schedule-status.ts`, but no UI prompt/decision tree exists yet.
+    - Variance tolerance is configured via Settings → Reconciliation Settings (tenant default) and is used for thresholding.
+    - System computes overage/underage during matching using expected + adjustments vs actual allocated.
   - DoD:
     - When a proposed match produces an overage beyond the configured variance limit, UI prompts the user.
     - Prompt occurs **before** final “Reconcile Matches” (i.e., during matching)【228:7†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L41-L46】.
@@ -253,6 +262,8 @@ Use these documents when deciding requirements and acceptance criteria:
 
 - [ ] **REC-031** Implement 3-option decision flow on variance  
   - Status: NOT STARTED  
+  - Notes:
+    - Trigger occurs during matching/allocation (before final reconcile).
   - DoD:
     - User can choose:
       1) AI-driven adjustment suggestion  
@@ -264,30 +275,37 @@ Use these documents when deciding requirements and acceptance criteria:
 - [ ] **REC-032** Support “adjust this schedule vs adjust all future schedules usage” behavior  
   - Status: NOT STARTED  
   - Notes:
+    - Adjustments default to one-time (month-specific).
+    - Optional “Apply to future schedules for this product” behavior exists and updates future schedules in-scope.
     - Transcript mentions the choice: “adjust this one, adjust all future schedules usage, or create a flex product…”【228:7†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L34-L36】  
   - DoD:
     - Implement UI choice and apply correct updates to revenue schedules.
-    - **Clarify** what “all future schedules” means (same opportunity? same product? same account?) — see Open Questions.
+    - Confirm how “this product” is identified for future schedules (productId vs productName vs vendor SKU) and how far forward to apply.
 
 ### REC-033 — Flex products (unknown product, overage, bonus, chargeback)
 - [ ] **REC-033** Implement Flex Product creation option for unknown products / out-of-tolerance items  
   - Status: NOT STARTED  
   - Notes:
+    - Flex product can be created when overage occurs (option 3 in REC-031) or when product is unknown.
     - Meeting: unknown product line items can be recorded by creating a flex product; tolerance example 10%【224:1†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L46-L50】  
     - Milestone 3 spec defines flex types and schedule date rules (see PDF). fileciteturn5file0  
   - DoD:
     - User can create flex schedule/product from deposit line.
     - Flex schedules integrate into matching so the deposit line can be allocated.
 
-### REC-034 — Underpayment behavior (possible conflict)
-- [ ] **REC-034** Decide and implement underpayment handling  
+### REC-034 — Underpayment / late payment behavior (clarified)
+- [ ] **REC-034** Implement underpayment + late/double payment rules  
   - Status: NOT STARTED  
   - Notes:
+    - Underpayment does not trigger variance; schedules remain open with remaining balance.
+    - Late payment / double payment does not auto-adjust future schedules.
+    - System can allocate a single payment across multiple open schedules (catch-up behavior).
     - Transcript: “There’s only overages… Under doesn’t matter.”【228:5†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L49-L50】  
     - Milestone 3 spec includes underpayment flex type (FLEX-U) (see PDF). fileciteturn5file0  
   - DoD:
-    - Team decision documented (Open Questions).
-    - Implementation matches decided policy.
+    - Underpayment stays as open balance; no variance prompt.
+    - Catch-up allocations supported across multiple schedules.
+    - No automatic propagation to future schedules for late/double payments.
 
 ---
 
@@ -368,8 +386,9 @@ Use these documents when deciding requirements and acceptance criteria:
 # Optional / Add-on items (verify scope)
 
 ### OPT-001 — Deposit Detail View drawer (CO-002-B)
-- [ ] **OPT-001** Implement Deposit Detail View on deposit row click (drawer/modal)  
-  - Status: IN PROGRESS  
+- [x] **OPT-001** Implement Deposit Detail View on deposit row click (drawer/modal)  
+  - Status: DONE  
+  - Notes: Full-page deposit detail (`/reconciliation/[depositId]`) is acceptable for Checkpoint 3; drawer/modal is not required.
   - Notes: This appears in change order CO-002-B; confirm whether it is required for Checkpoint 3 acceptance【103:0†CO-002-Commissable-CRM-Change-Order-12-4-25.docx†L13-L31】.
 
 ---
@@ -377,6 +396,20 @@ Use these documents when deciding requirements and acceptance criteria:
 # Open questions / Clarifications needed (add as discovered)
 
 > Add new questions here immediately when you find ambiguity.
+
+## Clarifications (resolved)
+
+- Deposit upload files for REC-004 are CSV (examples: `Test data Telarus Report_Commission-2_2025-09.xlsx - Sheet1.csv`, `Test data Telarus Report_Commission-2_2025-09.xlsx - Sheet2.csv`); PDF is not required for Checkpoint 3 acceptance.
+- OPT-001: full-page deposit detail is acceptable; drawer/modal is not required.
+- REC-014: split/merge allocations are required; Match/Allocate creates/updates junction rows and updates running totals; finalize/reconcile locks allocations later.
+- REC-030–REC-034: variance tolerance is configured in Settings > Reconciliation Settings; overage triggers a 3-option flow during matching; underpayment does not trigger variance and remains as open balance; late/double payments do not auto-adjust future schedules.
+
+## Remaining open questions
+
+- **REC-032 scope:** confirm how "future schedules for this product" is identified (productId vs productName vs vendor SKU) and whether it is limited to the same opportunity/account.
+- **REC-031 AI adjustment:** confirm whether "AI adjustment" is rules-based suggestion (v1) or calls an external AI model, and what fields it is allowed to update.
+
+## Historical questions (now resolved)
 
 1. **Split/merge requirement confirmation:** Is M:N matching required in the current checkpoint (Data Notebook says yes) or can we ship 1:1 first?【228:11†Data Notebook LM 1.1.docx†L9-L11】  
 2. **Variance limit definition:** Where is the variance configured (global setting? per vendor template? per user)? Transcript says it exists “in the background”【228:5†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L52-L54】.  
