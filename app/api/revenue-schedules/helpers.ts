@@ -2,6 +2,7 @@ import { Prisma, RevenueScheduleStatus } from "@prisma/client"
 import { getRevenueTypeLabel } from "@/lib/revenue-types"
 import { computeRevenueScheduleMetrics } from "@/lib/revenue-schedule-math"
 import { type OtherSource, resolveOtherSource, resolveOtherValue } from "@/lib/other-field"
+import { formatRevenueScheduleDisplayName } from "@/lib/flex/revenue-schedule-display"
 
 export type RevenueScheduleWithRelations = Prisma.RevenueScheduleGetPayload<{
   include: {
@@ -390,8 +391,16 @@ export function mapRevenueScheduleToListItem(schedule: RevenueScheduleWithRelati
 
   return {
     id: schedule.id,
-    revenueScheduleName: schedule.scheduleNumber ?? schedule.id,
-    revenueSchedule: schedule.scheduleNumber ?? schedule.id,
+    revenueScheduleName: formatRevenueScheduleDisplayName({
+      scheduleNumber: schedule.scheduleNumber ?? null,
+      fallbackId: schedule.id,
+      flexClassification,
+    }),
+    revenueSchedule: formatRevenueScheduleDisplayName({
+      scheduleNumber: schedule.scheduleNumber ?? null,
+      fallbackId: schedule.id,
+      flexClassification,
+    }),
     revenueScheduleDate: formatDate(schedule.scheduleDate),
     productNameVendor: schedule.product?.productNameVendor ?? null,
     revenueMonth,

@@ -244,16 +244,22 @@ export async function POST(request: NextRequest) {
 
       const lineItemsData = parsedFile.rows
         .map((row, index) => {
-          const usageValue = normalizeNumber(row[columnIndex.usage])
+          const usageValueRaw = normalizeNumber(row[columnIndex.usage])
           const commissionValue = normalizeNumber(row[columnIndex.commission])
-          if (usageValue === null && commissionValue === null) {
+          if (usageValueRaw === null && commissionValue === null) {
             return null
           }
 
           const resolveString = (fieldId: string) => normalizeString(row[columnIndex[fieldId]])
           const paymentDateValue = parseDateValue(row[columnIndex.paymentDate], depositDate)
 
-          const commissionRateValue = normalizeNumber(row[columnIndex.commissionRate])
+          const isCommissionOnly = usageValueRaw === null && commissionValue !== null
+          const usageValue = isCommissionOnly ? commissionValue : usageValueRaw
+
+          // Spec: if a deposit line has commission but no usage, treat it as commission-only:
+          // usage = commission and rate = 100% (fraction 1.0).
+          const commissionRateValueRaw = normalizeNumber(row[columnIndex.commissionRate])
+          const commissionRateValue = isCommissionOnly ? 1 : commissionRateValueRaw
 
           return {
             tenantId,

@@ -861,6 +861,8 @@ export type SuggestedMatchScheduleRow = {
   reasons?: string[]
   confidenceLevel?: 'high' | 'medium' | 'low'
   accountId?: string
+  flexClassification?: string | null
+  flexReasonCode?: string | null
   vendorName: string
   legalName: string
   productNameVendor: string

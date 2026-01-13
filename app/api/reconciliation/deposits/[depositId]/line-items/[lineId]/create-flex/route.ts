@@ -4,10 +4,11 @@ import { prisma } from "@/lib/db"
 import { getTenantVarianceTolerance } from "@/lib/matching/settings"
 import {
   createFlexChargebackForNegativeLine,
+  createFlexChargebackReversalForPositiveLine,
   createFlexProductForUnknownLine,
 } from "@/lib/flex/revenue-schedule-flex-actions"
 
-type FlexCreateKind = "FlexProduct" | "Chargeback"
+type FlexCreateKind = "FlexProduct" | "Chargeback" | "ChargebackReversal"
 
 interface CreateFlexRequestBody {
   kind?: FlexCreateKind
@@ -18,7 +19,7 @@ export async function POST(
   request: NextRequest,
   { params }: { params: { depositId: string; lineId: string } },
 ) {
-  return withPermissions(request, ["reconciliation.view"], async req => {
+  return withPermissions(request, ["reconciliation.manage"], async req => {
     const depositId = params?.depositId?.trim()
     const lineId = params?.lineId?.trim()
     const tenantId = req.user.tenantId
@@ -57,16 +58,33 @@ export async function POST(
 
     try {
       const result = await prisma.$transaction(async tx => {
-        return kind === "Chargeback"
-          ? await createFlexChargebackForNegativeLine(tx, {
-              tenantId,
-              userId: req.user.id,
-              depositId,
-              lineItemId: lineId,
-              varianceTolerance,
-              request,
-            })
-          : await (async () => {
+        if (kind === "Chargeback") {
+          return await createFlexChargebackForNegativeLine(tx, {
+            tenantId,
+            userId: req.user.id,
+            depositId,
+            lineItemId: lineId,
+            varianceTolerance,
+            request,
+          })
+        }
+
+        if (kind === "ChargebackReversal") {
+          if (!attachRevenueScheduleId) {
+            throw new Error("attachRevenueScheduleId is required for ChargebackReversal")
+          }
+          return await createFlexChargebackReversalForPositiveLine(tx, {
+            tenantId,
+            userId: req.user.id,
+            depositId,
+            lineItemId: lineId,
+            varianceTolerance,
+            parentChargebackScheduleId: attachRevenueScheduleId,
+            request,
+          })
+        }
+
+        return await (async () => {
               let attach = {
                 opportunityId: null as string | null,
                 opportunityProductId: null as string | null,
@@ -100,19 +118,19 @@ export async function POST(
                 }
               }
 
-              return await createFlexProductForUnknownLine(tx, {
-                tenantId,
-                userId: req.user.id,
-                depositId,
-                lineItemId: lineId,
-                varianceTolerance,
-                attachOpportunityId: attach.opportunityId,
-                attachOpportunityProductId: attach.opportunityProductId,
-                attachDistributorAccountId: attach.distributorAccountId,
-                attachVendorAccountId: attach.vendorAccountId,
-                request,
-              })
-            })()
+               return await createFlexProductForUnknownLine(tx, {
+                 tenantId,
+                 userId: req.user.id,
+                 depositId,
+                 lineItemId: lineId,
+                 varianceTolerance,
+                 attachOpportunityId: attach.opportunityId,
+                 attachOpportunityProductId: attach.opportunityProductId,
+                 attachDistributorAccountId: attach.distributorAccountId,
+                 attachVendorAccountId: attach.vendorAccountId,
+                 request,
+               })
+             })()
       })
 
       return NextResponse.json({ data: result })

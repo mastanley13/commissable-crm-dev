@@ -1,5 +1,6 @@
 import {
   AuditAction,
+  DepositLineItemStatus,
   DepositLineMatchSource,
   DepositLineMatchStatus,
   Prisma,
@@ -43,7 +44,13 @@ export type FlexResolveAction = "Adjust" | "FlexProduct" | "Manual"
 
 export interface FlexExecutionSummary {
   applied: boolean
-  action: FlexResolveAction | "AutoAdjust" | "AutoChargeback" | "CreateFlexProduct"
+  action:
+    | FlexResolveAction
+    | "AutoAdjust"
+    | "AutoChargeback"
+    | "ChargebackPending"
+    | "ChargebackReversalPending"
+    | "CreateFlexProduct"
   createdRevenueScheduleIds: string[]
   createdProductIds: string[]
 }
@@ -227,9 +234,24 @@ async function applySplitMatchToNewSchedule(
     throw new Error("FLEX split exceeds allocated amount")
   }
 
+  const sourcedMonth = scheduleData.flexSourceDepositId && scheduleData.flexSourceDepositLineItemId
+    ? await tx.depositLineItem.findFirst({
+        where: {
+          tenantId,
+          id: scheduleData.flexSourceDepositLineItemId,
+          depositId: scheduleData.flexSourceDepositId,
+        },
+        select: { deposit: { select: { month: true } } },
+      })
+    : null
+
+  const scheduleDate =
+    sourcedMonth?.deposit?.month ?? scheduleData.scheduleDate ?? null
+
   const created = await createFlexSchedule(tx, {
     tenantId,
     ...scheduleData,
+    scheduleDate,
     expectedUsage: splitUsage,
     expectedCommission: splitCommission,
   })
@@ -724,13 +746,22 @@ export async function createFlexChargebackForNegativeLine(
       revenueScheduleId: schedule.id,
       usageAmount: usage,
       commissionAmount: commission,
-      status: DepositLineMatchStatus.Applied,
+      status: DepositLineMatchStatus.Suggested,
       source: DepositLineMatchSource.Auto,
     },
   })
 
-  await recomputeRevenueScheduleFromMatches(tx, schedule.id, tenantId, { varianceTolerance })
-  await recomputeDepositLineItemAllocations(tx, lineItemId, tenantId)
+  // Pending approval: do not apply allocations until an authorized user approves the chargeback match.
+  await tx.depositLineItem.update({
+    where: { id: lineItemId },
+    data: {
+      status: DepositLineItemStatus.Suggested,
+      usageAllocated: 0,
+      usageUnallocated: line.usage ?? 0,
+      commissionAllocated: 0,
+      commissionUnallocated: line.commission ?? 0,
+    },
+  })
   await recomputeDepositAggregates(tx, depositId, tenantId)
 
   await logRevenueScheduleAudit(
@@ -753,8 +784,158 @@ export async function createFlexChargebackForNegativeLine(
   )
 
   return {
-    applied: true,
-    action: "AutoChargeback",
+    applied: false,
+    action: "ChargebackPending",
+    createdRevenueScheduleIds: [schedule.id],
+    createdProductIds: [product.id],
+  }
+}
+
+export async function createFlexChargebackReversalForPositiveLine(
+  tx: PrismaClientOrTx,
+  {
+    tenantId,
+    userId,
+    depositId,
+    lineItemId,
+    varianceTolerance,
+    parentChargebackScheduleId,
+    request,
+  }: {
+    tenantId: string
+    userId: string
+    depositId: string
+    lineItemId: string
+    varianceTolerance: number
+    parentChargebackScheduleId: string
+    request?: Request
+  },
+): Promise<FlexExecutionSummary> {
+  const line = await tx.depositLineItem.findFirst({
+    where: { tenantId, id: lineItemId, depositId },
+    include: { deposit: { select: { accountId: true, distributorAccountId: true, vendorAccountId: true, month: true } } },
+  })
+  if (!line) {
+    throw new Error("Deposit line item not found")
+  }
+
+  const usage = toNumber(line.usage)
+  const commission = toNumber(line.commission)
+  if (usage <= 0 && commission <= 0) {
+    throw new Error("Chargeback reversal creation requires a positive usage or commission amount")
+  }
+
+  const existingMatches = await tx.depositLineMatch.count({
+    where: { tenantId, depositLineItemId: lineItemId, status: DepositLineMatchStatus.Applied },
+  })
+  if (existingMatches > 0) {
+    throw new Error("Line item already has allocations. Unmatch it before creating a chargeback reversal.")
+  }
+
+  const parent = await tx.revenueSchedule.findFirst({
+    where: { tenantId, id: parentChargebackScheduleId, deletedAt: null },
+    select: {
+      id: true,
+      accountId: true,
+      flexClassification: true,
+      vendorAccountId: true,
+      distributorAccountId: true,
+    } as any,
+  })
+  if (!parent) {
+    throw new Error("Parent chargeback schedule not found")
+  }
+  if ((parent as any).flexClassification !== RevenueScheduleFlexClassification.FlexChargeback) {
+    throw new Error("Parent schedule must be a Flex Chargeback")
+  }
+  if (parent.accountId !== line.deposit.accountId) {
+    throw new Error("Parent chargeback schedule must belong to the same customer account")
+  }
+
+  const product = await createFlexProduct(tx, {
+    tenantId,
+    userId,
+    accountId: line.deposit.accountId,
+    flexType: "FlexChargebackReversal",
+    vendorAccountId: line.vendorAccountId ?? line.deposit.vendorAccountId ?? null,
+    distributorAccountId: line.deposit.distributorAccountId ?? null,
+    productNameVendor: "Chargeback Reversal",
+    productNameHouse: "Flex Chargeback Reversal",
+    revenueType: "NRC_FlatFee",
+  })
+
+  const scheduleNumber = await generateRevenueScheduleName(tx as any)
+  const schedule = await tx.revenueSchedule.create({
+    data: {
+      tenantId,
+      accountId: line.deposit.accountId,
+      opportunityId: null,
+      opportunityProductId: null,
+      parentRevenueScheduleId: parent.id,
+      distributorAccountId: line.deposit.distributorAccountId ?? null,
+      vendorAccountId: line.vendorAccountId ?? line.deposit.vendorAccountId ?? null,
+      productId: product.id,
+      scheduleDate: line.deposit.month ?? null,
+      scheduleType: RevenueScheduleType.OneTime,
+      expectedUsage: usage,
+      expectedCommission: commission,
+      flexClassification: RevenueScheduleFlexClassification.FlexChargebackReversal,
+      flexReasonCode: RevenueScheduleFlexReasonCode.ChargebackReversal,
+      flexSourceDepositId: depositId,
+      flexSourceDepositLineItemId: lineItemId,
+      scheduleNumber,
+    } as any,
+    select: { id: true },
+  })
+
+  await tx.depositLineMatch.create({
+    data: {
+      tenantId,
+      depositLineItemId: lineItemId,
+      revenueScheduleId: schedule.id,
+      usageAmount: usage,
+      commissionAmount: commission,
+      status: DepositLineMatchStatus.Suggested,
+      source: DepositLineMatchSource.Auto,
+    },
+  })
+
+  await tx.depositLineItem.update({
+    where: { id: lineItemId },
+    data: {
+      status: DepositLineItemStatus.Suggested,
+      usageAllocated: 0,
+      usageUnallocated: line.usage ?? 0,
+      commissionAllocated: 0,
+      commissionUnallocated: line.commission ?? 0,
+    },
+  })
+
+  await recomputeDepositAggregates(tx, depositId, tenantId)
+
+  await logRevenueScheduleAudit(
+    AuditAction.Create,
+    schedule.id,
+    userId,
+    tenantId,
+    request,
+    undefined,
+    {
+      action: "FlexCreateChargebackReversal",
+      depositId,
+      depositLineItemId: lineItemId,
+      productId: product.id,
+      parentChargebackScheduleId: parent.id,
+      expectedUsage: usage,
+      expectedCommission: commission,
+      flexClassification: RevenueScheduleFlexClassification.FlexChargebackReversal,
+      flexReasonCode: RevenueScheduleFlexReasonCode.ChargebackReversal,
+    },
+  )
+
+  return {
+    applied: false,
+    action: "ChargebackReversalPending",
     createdRevenueScheduleIds: [schedule.id],
     createdProductIds: [product.id],
   }

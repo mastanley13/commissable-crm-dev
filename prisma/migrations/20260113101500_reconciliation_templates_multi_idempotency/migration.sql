@@ -17,11 +17,19 @@ CREATE UNIQUE INDEX IF NOT EXISTS "ImportJob_tenant_entity_idempotencyKey_unique
 ALTER TABLE "public"."Deposit"
   ADD COLUMN IF NOT EXISTS "reconciliationTemplateId" UUID;
 
-ALTER TABLE "public"."Deposit"
-  ADD CONSTRAINT IF NOT EXISTS "Deposit_reconciliationTemplateId_fkey"
-  FOREIGN KEY ("reconciliationTemplateId") REFERENCES "public"."ReconciliationTemplate"("id")
-  ON DELETE SET NULL ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'Deposit_reconciliationTemplateId_fkey'
+  ) THEN
+    ALTER TABLE "public"."Deposit"
+      ADD CONSTRAINT "Deposit_reconciliationTemplateId_fkey"
+      FOREIGN KEY ("reconciliationTemplateId") REFERENCES "public"."ReconciliationTemplate"("id")
+      ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END$$;
 
 CREATE INDEX IF NOT EXISTS "Deposit_tenant_reconciliationTemplateId_idx"
   ON "public"."Deposit"("tenantId", "reconciliationTemplateId");
-

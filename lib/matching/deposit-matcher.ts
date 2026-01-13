@@ -1,6 +1,7 @@
 import { Prisma, DepositLineMatchStatus, RevenueScheduleStatus } from "@prisma/client"
 import type { SuggestedMatchScheduleRow } from "@/lib/mock-data"
 import { prisma } from "@/lib/db"
+import { formatRevenueScheduleDisplayName } from "@/lib/flex/revenue-schedule-display"
 
 type DepositLineWithRelations = Awaited<ReturnType<typeof fetchDepositLine>>
 const candidateScheduleInclude = {
@@ -57,6 +58,8 @@ export interface ScoredCandidate {
   accountLegalName: string | null
   vendorName: string | null
   productNameVendor: string | null
+  flexClassification?: string | null
+  flexReasonCode?: string | null
   matchConfidence: number
   matchType: "exact" | "fuzzy" | "legacy"
   confidenceLevel: "high" | "medium" | "low"
@@ -499,13 +502,19 @@ function buildCandidateBase(
   const computedMetrics = metrics ?? computeScheduleMetrics(schedule)
   return {
     revenueScheduleId: schedule.id,
-    revenueScheduleName: schedule.scheduleNumber ?? schedule.id,
+    revenueScheduleName: formatRevenueScheduleDisplayName({
+      scheduleNumber: schedule.scheduleNumber ?? null,
+      fallbackId: schedule.id,
+      flexClassification: (schedule as any).flexClassification ?? null,
+    }),
     revenueScheduleDate: schedule.scheduleDate?.toISOString() ?? null,
     createdAt: schedule.createdAt?.toISOString(),
     accountName: schedule.account?.accountName ?? null,
     accountLegalName: schedule.account?.accountLegalName ?? null,
     vendorName: schedule.vendor?.accountName ?? schedule.opportunity?.vendorName ?? null,
     productNameVendor: schedule.product?.productNameVendor ?? schedule.product?.productNameHouse ?? null,
+    flexClassification: (schedule as any).flexClassification ?? null,
+    flexReasonCode: (schedule as any).flexReasonCode ?? null,
     expectedUsage: computedMetrics.expectedUsage,
     expectedUsageAdjustment: computedMetrics.expectedUsageAdjustment,
     actualUsage: computedMetrics.actualUsage,
@@ -562,6 +571,8 @@ export function candidatesToSuggestedRows(
       allocatedCommission: existingMatch ? toNumber(existingMatch.commissionAmount) : undefined,
       reasons: candidate.reasons,
       confidenceLevel: candidate.confidenceLevel,
+      flexClassification: candidate.flexClassification ?? null,
+      flexReasonCode: candidate.flexReasonCode ?? null,
       vendorName: candidate.vendorName ?? "",
       legalName: candidate.accountLegalName ?? candidate.accountName ?? "",
       productNameVendor: candidate.productNameVendor ?? "",

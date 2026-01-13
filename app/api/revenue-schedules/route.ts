@@ -206,6 +206,7 @@ export async function GET(request: NextRequest) {
                 adjustment: RevenueScheduleFlexClassification.Adjustment,
                 flexproduct: RevenueScheduleFlexClassification.FlexProduct,
                 flexchargeback: RevenueScheduleFlexClassification.FlexChargeback,
+                flexchargebackreversal: RevenueScheduleFlexClassification.FlexChargebackReversal,
                 bonus: RevenueScheduleFlexClassification.Bonus,
               }
               const parsed = map[key]
@@ -221,6 +222,7 @@ export async function GET(request: NextRequest) {
                 overageoutsidetolerance: RevenueScheduleFlexReasonCode.OverageOutsideTolerance,
                 unknownproduct: RevenueScheduleFlexReasonCode.UnknownProduct,
                 chargebacknegative: RevenueScheduleFlexReasonCode.ChargebackNegative,
+                chargebackreversal: RevenueScheduleFlexReasonCode.ChargebackReversal,
                 bonusvariance: RevenueScheduleFlexReasonCode.BonusVariance,
                 manual: RevenueScheduleFlexReasonCode.Manual,
               }

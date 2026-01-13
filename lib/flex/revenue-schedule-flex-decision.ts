@@ -44,7 +44,15 @@ export function evaluateFlexDecision(input: FlexDecisionInput): FlexDecisionResu
   const usageOverage = usageBalance < 0 ? Math.abs(usageBalance) : 0
   const usageUnderpayment = usageBalance > 0 ? usageBalance : 0
 
-  const overageAboveTolerance = usageOverage > usageToleranceAmount + EPSILON
+  const expectedCommissionNet = toFiniteNumber(input.expectedCommissionNet)
+  const commissionDifference = toFiniteNumber(input.commissionDifference)
+  const commissionToleranceAmount = Math.max(Math.abs(expectedCommissionNet) * tolerance, EPSILON)
+  const commissionOverage = commissionDifference < 0 ? Math.abs(commissionDifference) : 0
+
+  const hasOverage = usageOverage > EPSILON || commissionOverage > EPSILON
+  const overageAboveTolerance =
+    usageOverage > usageToleranceAmount + EPSILON ||
+    commissionOverage > commissionToleranceAmount + EPSILON
 
   if (input.hasNegativeLine) {
     return {
@@ -57,7 +65,7 @@ export function evaluateFlexDecision(input: FlexDecisionInput): FlexDecisionResu
     }
   }
 
-  if (usageOverage <= EPSILON) {
+  if (!hasOverage) {
     return {
       action: "none",
       usageOverage,

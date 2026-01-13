@@ -725,16 +725,28 @@ export function DepositReconciliationDetailView({
   const createFlexButtonLabel = useMemo(() => {
     if (!selectedLineForMatch) return "Create Flex Product"
     const isChargeback = selectedLineForMatch.usage < 0 || selectedLineForMatch.commission < 0
-    return isChargeback ? "Create Chargeback" : "Create Flex Product"
-  }, [selectedLineForMatch])
+    if (isChargeback) return "Create Chargeback"
+
+    const selectedScheduleId = selectedSchedules.length === 1 ? selectedSchedules[0] : null
+    const selectedSchedule = selectedScheduleId
+      ? scheduleRows.find(row => row.id === selectedScheduleId)
+      : null
+
+    if (selectedSchedule?.flexClassification === "FlexChargeback") {
+      return "Create CB-REV"
+    }
+
+    return "Create Flex Product"
+  }, [scheduleRows, selectedLineForMatch, selectedSchedules])
 
   const createFlexButtonDisabledReason = useMemo(() => {
     if (matchingLineId || undoingLineId) return "Update in progress"
     if (!selectedLineForMatch) return "Select a deposit line item above"
     if (selectedLineForMatch.reconciled) return "Reconciled line items cannot be changed"
     if (selectedLineForMatch.status === "Ignored") return "Ignored line items cannot be allocated"
+    if (!canManageReconciliation) return "Insufficient permissions"
     return null
-  }, [matchingLineId, undoingLineId, selectedLineForMatch])
+  }, [canManageReconciliation, matchingLineId, undoingLineId, selectedLineForMatch])
 
   const matchedLineItems = useMemo(
     () =>
@@ -897,8 +909,8 @@ export function DepositReconciliationDetailView({
         setSelectedSchedules([])
         onMatchApplied?.()
 
-        if (flexExecution?.action === "AutoChargeback") {
-          showSuccess("Chargeback created", "A Flex Chargeback entry was created and matched automatically.")
+        if (flexExecution?.action === "ChargebackPending") {
+          showSuccess("Chargeback pending", "A Flex Chargeback entry was created and is awaiting approval.")
           return
         }
 
@@ -951,10 +963,23 @@ export function DepositReconciliationDetailView({
       return
     }
 
-    const kind = targetLine && (targetLine.usage < 0 || targetLine.commission < 0) ? "Chargeback" : "FlexProduct"
+    const selectedScheduleId =
+      selectedSchedulesRef.current.length === 1 ? selectedSchedulesRef.current[0] : null
+    const selectedSchedule = selectedScheduleId
+      ? scheduleRows.find(row => row.id === selectedScheduleId)
+      : null
+
+    const isChargebackLine = targetLine && (targetLine.usage < 0 || targetLine.commission < 0)
+    const kind =
+      isChargebackLine
+        ? "Chargeback"
+        : selectedSchedule?.flexClassification === "FlexChargeback"
+          ? "ChargebackReversal"
+          : "FlexProduct"
+
     const attachRevenueScheduleId =
-      kind === "FlexProduct" && selectedSchedulesRef.current.length === 1
-        ? selectedSchedulesRef.current[0]
+      kind === "FlexProduct" || kind === "ChargebackReversal"
+        ? selectedScheduleId
         : null
 
     try {
@@ -979,7 +1004,9 @@ export function DepositReconciliationDetailView({
       onMatchApplied?.()
 
       if (kind === "Chargeback") {
-        showSuccess("Chargeback created", "A Flex Chargeback entry was created and allocated to this line item.")
+        showSuccess("Chargeback pending", "A Flex Chargeback entry was created and is awaiting approval.")
+      } else if (kind === "ChargebackReversal") {
+        showSuccess("CB-REV pending", "A chargeback reversal entry was created and is awaiting approval.")
       } else {
         showSuccess(
           "Flex product created",
@@ -995,7 +1022,7 @@ export function DepositReconciliationDetailView({
       matchingLineIdRef.current = null
       setMatchingLineId(null)
     }
-  }, [lineItemRows, metadata.id, onLineSelectionChange, onMatchApplied, showError, showSuccess])
+  }, [lineItemRows, metadata.id, onLineSelectionChange, onMatchApplied, scheduleRows, showError, showSuccess])
 
   const unmatchLineById = useCallback(
     async (lineId?: string | null) => {

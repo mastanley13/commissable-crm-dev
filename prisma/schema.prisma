@@ -661,6 +661,7 @@ model RevenueSchedule {
   opportunityProductId       String?               @db.Uuid
   accountId                  String                @db.Uuid
   productId                  String?               @db.Uuid
+  parentRevenueScheduleId    String?               @db.Uuid
   distributorAccountId       String?               @db.Uuid
   vendorAccountId            String?               @db.Uuid
   scheduleNumber             String?
@@ -706,10 +707,13 @@ model RevenueSchedule {
   commissionPayouts          CommissionPayout[]
   depositLineMatches         DepositLineMatch[]
   primaryDepositLineItems    DepositLineItem[]     @relation("PrimaryScheduleForDepositLine")
+  parentRevenueSchedule      RevenueSchedule?      @relation("RevenueScheduleParent", fields: [parentRevenueScheduleId], references: [id])
+  childRevenueSchedules      RevenueSchedule[]     @relation("RevenueScheduleParent")
 
   @@index([tenantId, accountId])
   @@index([tenantId, opportunityId])
   @@index([tenantId, deletedAt])
+  @@index([tenantId, parentRevenueScheduleId])
 }
 
 model Reconciliation {
@@ -1110,6 +1114,51 @@ model AuditLog {
   @@index([tenantId, entityName, entityId, createdAt])
 }
 
+model FlexReviewItem {
+  id                      String                         @id @default(uuid()) @db.Uuid
+  tenantId                String                         @db.Uuid
+  revenueScheduleId       String                         @db.Uuid
+  flexClassification      RevenueScheduleFlexClassification
+  flexReasonCode          RevenueScheduleFlexReasonCode?
+  sourceDepositId         String?                        @db.Uuid
+  sourceDepositLineItemId String?                        @db.Uuid
+  status                  FlexReviewStatus               @default(Open)
+  assignedToUserId        String?                        @db.Uuid
+  createdById             String?                        @db.Uuid
+  notes                   String?
+  createdAt               DateTime                       @default(now())
+  updatedAt               DateTime                       @updatedAt
+  resolvedAt              DateTime?
+
+  tenant          Tenant         @relation(fields: [tenantId], references: [id])
+  revenueSchedule RevenueSchedule @relation(fields: [revenueScheduleId], references: [id])
+  assignedToUser  User?          @relation("FlexReviewAssignedTo", fields: [assignedToUserId], references: [id])
+  createdByUser   User?          @relation("FlexReviewCreatedBy", fields: [createdById], references: [id])
+
+  @@index([tenantId, status])
+  @@index([tenantId, revenueScheduleId])
+  @@index([tenantId, sourceDepositId])
+  @@index([tenantId, sourceDepositLineItemId])
+  @@unique([tenantId, revenueScheduleId])
+}
+
+model Notification {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @db.Uuid
+  userId    String   @db.Uuid
+  title     String
+  body      String?
+  metadata  Json?
+  readAt    DateTime?
+  createdAt DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@index([tenantId, userId, readAt])
+  @@index([tenantId, createdAt])
+}
+
 model FieldDefinition {
   id                 String         @id @default(uuid()) @db.Uuid
   tenantId           String         @db.Uuid
@@ -1355,6 +1404,7 @@ enum RevenueScheduleFlexClassification {
   Adjustment
   FlexProduct
   FlexChargeback
+  FlexChargebackReversal
   Bonus
 }
 
@@ -1363,6 +1413,7 @@ enum RevenueScheduleFlexReasonCode {
   OverageOutsideTolerance
   UnknownProduct
   ChargebackNegative
+  ChargebackReversal
   BonusVariance
   Manual
 }
@@ -1496,6 +1547,13 @@ enum AuditAction {
   Import
   Export
   Login
+}
+
+enum FlexReviewStatus {
+  Open
+  Approved
+  Rejected
+  Resolved
 }
 
 enum TableViewMode {
