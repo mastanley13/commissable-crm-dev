@@ -3194,7 +3194,7 @@ export function DepositReconciliationDetailView({
 
       <section className="flex min-h-0 flex-1 flex-col">
         <div className="border-b border-slate-100">
-          <div className="px-4">
+          <div className="px-3">
             <TabDescription className="mt-3 mb-2">
               Review deposit line items and match deposit amounts to revenue schedules. Matches are editable until the
               deposit is finalized.
@@ -3275,7 +3275,7 @@ export function DepositReconciliationDetailView({
 
       <section className="flex min-h-0 flex-1 flex-col">
         <div className="border-b border-slate-100">
-          <div className="px-4">
+          <div className="px-3">
             <TabDescription className="mt-3 mb-2">
               Select a revenue schedule, then match the selected deposit line item. Finalizing is a separate step that
               locks these allocations.
