@@ -332,9 +332,6 @@ export default function DepositUploadListPage() {
           <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
             <div>
               <h1 className="text-lg font-semibold text-gray-900">Deposit Reconciliation</h1>
-              <p className="text-xs text-gray-600 mt-0.5">
-                Upload deposit files, map fields, review, and confirm reconciliation.
-              </p>
             </div>
             {backButtonConfig ? (
               <button
