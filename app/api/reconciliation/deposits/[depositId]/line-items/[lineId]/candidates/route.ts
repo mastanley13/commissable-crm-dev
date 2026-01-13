@@ -69,10 +69,6 @@ export async function GET(request: NextRequest, { params }: { params: { depositI
     const mapped = candidatesToSuggestedRows(
       matchResult.lineItem,
       matchResult.candidates,
-      {
-        scheduleId: matchResult.appliedMatchScheduleId,
-        reconciled: matchResult.appliedMatchReconciled,
-      },
     )
 
     const userPrefs = await getUserReconciliationConfidencePreferences(tenantId, userId)

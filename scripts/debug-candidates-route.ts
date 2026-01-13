@@ -57,6 +57,7 @@ async function main() {
     console.info("[debug-candidates-route] matchDepositLine result", {
       lineItemId: matchResult.lineItem.id,
       candidatesCount: matchResult.candidates.length,
+      appliedMatchesCount: matchResult.appliedMatches.length,
       appliedMatchScheduleId: matchResult.appliedMatchScheduleId,
       appliedMatchReconciled: matchResult.appliedMatchReconciled,
     })
@@ -75,10 +76,6 @@ async function main() {
     const mapped = candidatesToSuggestedRows(
       matchResult.lineItem,
       matchResult.candidates,
-      {
-        scheduleId: matchResult.appliedMatchScheduleId,
-        reconciled: matchResult.appliedMatchReconciled,
-      },
     )
 
     console.info("[debug-candidates-route] Mapped candidates:", mapped.length)

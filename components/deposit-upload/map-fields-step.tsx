@@ -14,6 +14,8 @@ import {
 import type { TelarusTemplateFieldsV1 } from "@/lib/deposit-import/telarus-template-fields"
 
 const PREVIEW_PAGE_SIZE = 1
+const COLUMN_TABLE_PAGE_SIZE = 12
+const COLUMN_TABLE_MAX_HEIGHT_CLASS = "max-h-[420px] overflow-y-auto"
 
 interface MapFieldsStepProps {
   file: File | null
@@ -46,6 +48,8 @@ export function MapFieldsStep({
 }: MapFieldsStepProps) {
   const [previewRowIndex, setPreviewRowIndex] = useState(0)
   const [openDropdownKey, setOpenDropdownKey] = useState<string | null>(null)
+  const [templateTablePage, setTemplateTablePage] = useState(0)
+  const [additionalTablePage, setAdditionalTablePage] = useState(0)
   const [customDrafts, setCustomDrafts] = useState<
     Record<string, { label: string; section: DepositCustomFieldSection }>
   >({})
@@ -53,6 +57,11 @@ export function MapFieldsStep({
   useEffect(() => {
     setPreviewRowIndex(0)
   }, [sampleRows.length])
+
+  useEffect(() => {
+    setTemplateTablePage(0)
+    setAdditionalTablePage(0)
+  }, [csvHeaders.length, file?.name])
 
   const totalPreviewRows = sampleRows.length
   const effectiveIndex =
@@ -178,15 +187,23 @@ export function MapFieldsStep({
     description,
     rows,
     emptyLabel,
+    pagination,
   }: {
     title: string
     description?: string
     rows: Array<{ header: string; index: number }>
     emptyLabel: string
+    pagination: { page: number; setPage: (nextPage: number) => void }
   }) => {
+    const pageCount = Math.max(1, Math.ceil(rows.length / COLUMN_TABLE_PAGE_SIZE))
+    const currentPage = Math.max(0, Math.min(pagination.page, pageCount - 1))
+    const startIndex = currentPage * COLUMN_TABLE_PAGE_SIZE
+    const endIndexExclusive = Math.min(rows.length, startIndex + COLUMN_TABLE_PAGE_SIZE)
+    const pagedRows = rows.slice(startIndex, endIndexExclusive)
+
     return (
       <div className="rounded-lg border border-gray-200 text-sm text-gray-700">
-        <div className="flex flex-wrap items-start justify-between gap-2 border-b border-gray-200 bg-gray-50 px-3 py-2">
+        <div className="flex flex-wrap items-start justify-between gap-2 border-b border-gray-200 bg-gray-50 px-3 py-1.5">
           <div>
             <p className="text-sm font-semibold text-gray-900">
               {title} <span className="font-normal text-gray-500">({rows.length})</span>
@@ -195,7 +212,7 @@ export function MapFieldsStep({
           </div>
         </div>
 
-        <div className="hidden border-b border-gray-200 bg-gray-50 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500 md:grid md:grid-cols-[minmax(0,1.3fr)_minmax(0,1.5fr)_120px_minmax(0,1.7fr)]">
+        <div className="hidden border-b border-gray-200 bg-gray-50 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-gray-500 md:grid md:grid-cols-[minmax(0,1.3fr)_minmax(0,1.5fr)_120px_minmax(0,1.7fr)]">
           <div>Field label in file</div>
           <div>Preview information</div>
           <div>Status</div>
@@ -205,8 +222,9 @@ export function MapFieldsStep({
         {rows.length === 0 ? (
           <div className="px-3 py-3 text-sm text-gray-500">{emptyLabel}</div>
         ) : (
-          <div className="divide-y divide-gray-200">
-            {rows.map(({ header, index }) => {
+          <>
+            <div className={`${COLUMN_TABLE_MAX_HEIGHT_CLASS} divide-y divide-gray-200`}>
+              {pagedRows.map(({ header, index }) => {
               const previewValues = previewWindow
                 .map(row => row[index] ?? "")
                 .filter(value => typeof value === "string" && value.trim().length > 0)
@@ -274,7 +292,7 @@ export function MapFieldsStep({
               return (
                 <div
                   key={`${header}-${index}`}
-                  className="grid gap-3 px-3 py-3 md:grid-cols-[minmax(0,1.3fr)_minmax(0,1.5fr)_120px_minmax(0,1.7fr)] md:items-start"
+                  className="grid gap-2 px-3 py-2 md:grid-cols-[minmax(0,1.3fr)_minmax(0,1.5fr)_120px_minmax(0,1.7fr)] md:items-start"
                 >
                   <div className="space-y-0.5">
                     <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 md:hidden">
@@ -334,7 +352,7 @@ export function MapFieldsStep({
                         <button
                           type="button"
                           disabled={csvHeaders.length === 0}
-                          className="inline-flex w-full items-center justify-between gap-2 rounded border border-gray-300 bg-white px-2 py-1.5 text-left text-sm text-gray-900 focus:border-primary-500 focus:outline-none disabled:bg-gray-100"
+                          className="inline-flex w-full items-center justify-between gap-2 rounded border border-gray-300 bg-white px-2 py-1 text-left text-sm text-gray-900 focus:border-primary-500 focus:outline-none disabled:bg-gray-100"
                           aria-label="Map to Commissable field"
                         >
                           <span className="truncate">{selectedLabel}</span>
@@ -466,8 +484,38 @@ export function MapFieldsStep({
                   </div>
                 </div>
               )
-            })}
-          </div>
+              })}
+            </div>
+
+            <div className="flex items-center justify-between gap-2 border-t border-gray-200 bg-gray-50 px-3 py-1.5 text-xs text-gray-600">
+              <span>
+                Showing {rows.length === 0 ? 0 : startIndex + 1}-{endIndexExclusive} of {rows.length}
+              </span>
+              <div className="inline-flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => pagination.setPage(Math.max(0, currentPage - 1))}
+                  disabled={currentPage === 0}
+                  className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-gray-300 bg-white text-gray-700 disabled:border-gray-200 disabled:text-gray-300"
+                  aria-label="Previous page"
+                >
+                  <ChevronLeft className="h-3 w-3" />
+                </button>
+                <span className="min-w-[92px] text-center">
+                  Page {currentPage + 1} of {pageCount}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => pagination.setPage(Math.min(pageCount - 1, currentPage + 1))}
+                  disabled={currentPage >= pageCount - 1}
+                  className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-gray-300 bg-white text-gray-700 disabled:border-gray-200 disabled:text-gray-300"
+                  aria-label="Next page"
+                >
+                  <ChevronRight className="h-3 w-3" />
+                </button>
+              </div>
+            </div>
+          </>
         )}
       </div>
     )
@@ -568,6 +616,7 @@ export function MapFieldsStep({
                   : "No saved template mapping was found for the selected Distributor/Vendor.",
               rows: templateRows,
               emptyLabel: "Select a Distributor and Vendor with a saved mapping to pre-fill this section.",
+              pagination: { page: templateTablePage, setPage: setTemplateTablePage },
             })}
 
             {renderColumnTable({
@@ -575,6 +624,7 @@ export function MapFieldsStep({
               description: "All other columns (not included in the template mapping).",
               rows: additionalRows,
               emptyLabel: "No additional columns found.",
+              pagination: { page: additionalTablePage, setPage: setAdditionalTablePage },
             })}
           </div>
 

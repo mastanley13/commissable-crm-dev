@@ -27,6 +27,13 @@ interface ApplyMatchRequestBody {
   confidenceScore?: number
 }
 
+const EPSILON = 0.005
+
+function toNumber(value: unknown): number {
+  const numeric = Number(value ?? 0)
+  return Number.isFinite(numeric) ? numeric : 0
+}
+
 export async function POST(
   request: NextRequest,
   { params }: { params: { depositId: string; lineId: string } },
@@ -106,6 +113,39 @@ export async function POST(
           revenueSchedule: null,
           flexExecution,
         }
+      }
+
+      const existingAppliedMatches = await tx.depositLineMatch.findMany({
+        where: {
+          tenantId,
+          depositLineItemId: lineItem.id,
+          status: DepositLineMatchStatus.Applied,
+        },
+        select: {
+          revenueScheduleId: true,
+          usageAmount: true,
+          commissionAmount: true,
+        },
+      })
+
+      const otherUsageAllocated = existingAppliedMatches
+        .filter(match => match.revenueScheduleId !== revenueScheduleId)
+        .reduce((acc, match) => acc + toNumber(match.usageAmount), 0)
+      const otherCommissionAllocated = existingAppliedMatches
+        .filter(match => match.revenueScheduleId !== revenueScheduleId)
+        .reduce((acc, match) => acc + toNumber(match.commissionAmount), 0)
+
+      const lineUsage = toNumber(lineItem.usage)
+      const lineCommission = toNumber(lineItem.commission)
+
+      const remainingUsage = lineUsage - otherUsageAllocated
+      const remainingCommission = lineCommission - otherCommissionAllocated
+
+      if (allocationUsage > remainingUsage + EPSILON) {
+        throw new Error("Usage allocation exceeds the remaining unallocated usage amount")
+      }
+      if (allocationCommission > remainingCommission + EPSILON) {
+        throw new Error("Commission allocation exceeds the remaining unallocated commission amount")
       }
 
       const match = await tx.depositLineMatch.upsert({

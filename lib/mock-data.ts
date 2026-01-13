@@ -849,6 +849,8 @@ export type SuggestedMatchScheduleRow = {
   matchConfidence: number
   matchType?: 'exact' | 'fuzzy' | 'legacy'
   matchSource?: 'Auto' | 'Manual' | 'Unknown' | null
+  allocatedUsage?: number
+  allocatedCommission?: number
   reasons?: string[]
   confidenceLevel?: 'high' | 'medium' | 'low'
   accountId?: string

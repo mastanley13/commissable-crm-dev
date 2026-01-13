@@ -76,6 +76,14 @@ export interface ScoredCandidate {
 
 export interface MatchDepositLineResult {
   lineItem: NonNullable<DepositLineWithRelations>
+  appliedMatches: Array<{
+    revenueScheduleId: string
+    reconciled: boolean
+    source: string | null
+    confidenceScore: number | null
+    usageAmount: number | null
+    commissionAmount: number | null
+  }>
   appliedMatchScheduleId?: string
   appliedMatchReconciled?: boolean
   candidates: ScoredCandidate[]
@@ -146,11 +154,17 @@ export async function matchDepositLine(
     allowCrossVendorFallback,
   })
 
-  const appliedMatch = lineItem.matches.find(
-    match => match.status === DepositLineMatchStatus.Applied,
-  )
-  const appliedMatchScheduleId = appliedMatch?.revenueScheduleId
-  const appliedMatchReconciled = Boolean(appliedMatch?.reconciled)
+  const appliedMatchesRaw = (lineItem.matches ?? []).filter(match => match.status === DepositLineMatchStatus.Applied)
+  const appliedMatches = appliedMatchesRaw.map(match => ({
+    revenueScheduleId: match.revenueScheduleId,
+    reconciled: Boolean(match.reconciled),
+    source: typeof match.source === "string" ? match.source : null,
+    confidenceScore: typeof match.confidenceScore === "number" ? match.confidenceScore : null,
+    usageAmount: Number.isFinite(Number((match as any).usageAmount)) ? Number((match as any).usageAmount) : null,
+    commissionAmount: Number.isFinite(Number((match as any).commissionAmount)) ? Number((match as any).commissionAmount) : null,
+  }))
+  const appliedMatchScheduleId = appliedMatches[0]?.revenueScheduleId
+  const appliedMatchReconciled = Boolean(appliedMatches[0]?.reconciled)
 
   let scored = useHierarchical
     ? runHierarchicalScoring(lineItem, candidates, {
@@ -159,39 +173,67 @@ export async function matchDepositLine(
     })
     : runLegacyScoring(lineItem, candidates, { limit: resultLimit })
 
-  if (appliedMatchScheduleId && scored.every(candidate => candidate.revenueScheduleId !== appliedMatchScheduleId)) {
+  const appliedScheduleIds = appliedMatches.map(match => match.revenueScheduleId)
+  const appliedSet = new Set(appliedScheduleIds)
+  const scoredIds = new Set(scored.map(candidate => candidate.revenueScheduleId))
+
+  const injectedApplied: ScoredCandidate[] = []
+  for (const scheduleId of appliedScheduleIds) {
+    if (scoredIds.has(scheduleId)) continue
     const appliedSchedule = await prisma.revenueSchedule.findFirst({
-      where: { id: appliedMatchScheduleId, tenantId: lineItem.deposit?.tenantId ?? lineItem.tenantId },
+      where: { id: scheduleId, tenantId: lineItem.deposit?.tenantId ?? lineItem.tenantId },
       include: candidateScheduleInclude,
     })
+    if (!appliedSchedule) continue
 
-    if (appliedSchedule) {
-      const base = buildCandidateBase(lineItem, appliedSchedule)
-      const injected: ScoredCandidate = {
-        ...base,
-        matchConfidence: 1,
-        matchType: "legacy",
-        confidenceLevel: "high",
-        expectedUsageAdjustment: base.expectedUsageAdjustment,
-        actualUsageAdjustment: base.actualUsageAdjustment,
-        expectedCommissionAdjustment: base.expectedCommissionAdjustment,
-        actualCommissionAdjustment: base.actualCommissionAdjustment,
-        reasons: ["Previously matched schedule"],
-        signals: [
-          {
-            id: "existing_match",
-            score: 1,
-            weight: 1,
-            contribution: 1,
-            description: "Existing applied match",
-          },
-        ],
-      }
-      scored = [injected, ...scored]
-      if (scored.length > resultLimit) {
-        scored = scored.slice(0, resultLimit)
+    const base = buildCandidateBase(lineItem, appliedSchedule)
+    injectedApplied.push({
+      ...base,
+      matchConfidence: 1,
+      matchType: "legacy",
+      confidenceLevel: "high",
+      expectedUsageAdjustment: base.expectedUsageAdjustment,
+      actualUsageAdjustment: base.actualUsageAdjustment,
+      expectedCommissionAdjustment: base.expectedCommissionAdjustment,
+      actualCommissionAdjustment: base.actualCommissionAdjustment,
+      reasons: ["Previously allocated schedule"],
+      signals: [
+        {
+          id: "existing_match",
+          score: 1,
+          weight: 1,
+          contribution: 1,
+          description: "Existing applied match",
+        },
+      ],
+    })
+  }
+
+  if (injectedApplied.length) {
+    scored = [...injectedApplied, ...scored]
+  }
+
+  if (appliedScheduleIds.length > 0) {
+    const appliedCandidates: ScoredCandidate[] = []
+    const otherCandidates: ScoredCandidate[] = []
+    const seen = new Set<string>()
+
+    for (const scheduleId of appliedScheduleIds) {
+      const candidate = scored.find(row => row.revenueScheduleId === scheduleId)
+      if (candidate && !seen.has(candidate.revenueScheduleId)) {
+        appliedCandidates.push(candidate)
+        seen.add(candidate.revenueScheduleId)
       }
     }
+
+    for (const candidate of scored) {
+      if (seen.has(candidate.revenueScheduleId)) continue
+      otherCandidates.push(candidate)
+      seen.add(candidate.revenueScheduleId)
+    }
+
+    const remainingSlots = Math.max(0, resultLimit - appliedCandidates.length)
+    scored = remainingSlots > 0 ? [...appliedCandidates, ...otherCandidates.slice(0, remainingSlots)] : appliedCandidates
   }
 
   if (options.debugLog ?? isMatchingDebugEnabled()) {
@@ -200,6 +242,7 @@ export async function matchDepositLine(
 
   return {
     lineItem,
+    appliedMatches,
     appliedMatchScheduleId,
     appliedMatchReconciled,
     candidates: scored,
@@ -485,10 +528,7 @@ type SuggestedRowWithSignals = SuggestedMatchScheduleRow & {
 export function candidatesToSuggestedRows(
   lineItem: NonNullable<DepositLineWithRelations>,
   candidates: ScoredCandidate[],
-  appliedMatch?: { scheduleId?: string | null; reconciled?: boolean },
 ): SuggestedRowWithSignals[] {
-  const appliedScheduleId = appliedMatch?.scheduleId ?? null
-  const appliedScheduleReconciled = Boolean(appliedMatch?.reconciled)
   return candidates.map(candidate => {
     const expectedUsageNet = candidate.expectedUsage + candidate.expectedUsageAdjustment
     const actualUsageNet = candidate.actualUsage + candidate.actualUsageAdjustment
@@ -501,12 +541,12 @@ export function candidatesToSuggestedRows(
     const actualCommissionRate = actualUsageNet !== 0 ? actualCommissionNet / actualUsageNet : 0
 
     const existingMatch = lineItem.matches?.find(
-      match => match.revenueScheduleId === candidate.revenueScheduleId,
+      match =>
+        match.revenueScheduleId === candidate.revenueScheduleId &&
+        match.status === DepositLineMatchStatus.Applied,
     )
-    const isAppliedCandidate =
-      Boolean(appliedScheduleId) && candidate.revenueScheduleId === appliedScheduleId
-    const status: SuggestedMatchScheduleRow["status"] = isAppliedCandidate
-      ? appliedScheduleReconciled
+    const status: SuggestedMatchScheduleRow["status"] = existingMatch
+      ? existingMatch.reconciled
         ? "Reconciled"
         : "Matched"
       : "Suggested"
@@ -518,6 +558,8 @@ export function candidatesToSuggestedRows(
       matchConfidence: candidate.matchConfidence,
       matchType: candidate.matchType,
       matchSource: existingMatch?.source ?? null,
+      allocatedUsage: existingMatch ? toNumber((existingMatch as any).usageAmount) : undefined,
+      allocatedCommission: existingMatch ? toNumber((existingMatch as any).commissionAmount) : undefined,
       reasons: candidate.reasons,
       confidenceLevel: candidate.confidenceLevel,
       vendorName: candidate.vendorName ?? "",
@@ -574,7 +616,19 @@ async function fetchDepositLine(depositLineItemId: string) {
           description: true,
         },
       },
-      matches: { select: { revenueScheduleId: true, status: true, source: true, confidenceScore: true, reconciled: true } },
+      matches: {
+        select: {
+          revenueScheduleId: true,
+          status: true,
+          source: true,
+          confidenceScore: true,
+          reconciled: true,
+          usageAmount: true,
+          commissionAmount: true,
+          updatedAt: true,
+        },
+        orderBy: { updatedAt: "desc" },
+      },
     },
   })
 }
