@@ -51,6 +51,7 @@ type ScheduleTabKey = ReconciliationScheduleFilterValue
 
 const depositFieldLabels = {
   accountId: "Other - Account ID",
+  otherSource: "Other - Source",
   lineItem: "Line Item",
   status: "Deposit Status",
   paymentDate: "Payment Date",
@@ -73,6 +74,7 @@ type LineFilterColumnId = keyof typeof depositFieldLabels
 
 const depositFieldOrder: LineFilterColumnId[] = [
   "accountId",
+  "otherSource",
   "lineItem",
   "status",
   "paymentDate",
@@ -692,6 +694,8 @@ export function DepositReconciliationDetailView({
       switch (columnId) {
         case "accountId":
           return row.accountId
+        case "otherSource":
+          return row.otherSource ?? ""
         case "lineItem":
           return String(row.lineItem)
         case "status":
@@ -1021,6 +1025,14 @@ export function DepositReconciliationDetailView({
         width: 220,
         minWidth: minTextWidth(depositFieldLabels.accountId),
         sortable: true
+      },
+      {
+        id: "otherSource",
+        label: depositFieldLabels.otherSource,
+        width: 160,
+        minWidth: minTextWidth(depositFieldLabels.otherSource),
+        sortable: true,
+        hidden: true
       },
       {
         id: "lineItem",
@@ -1666,6 +1678,8 @@ export function DepositReconciliationDetailView({
       switch (columnId) {
         case "accountId":
           return row.accountId
+        case "otherSource":
+          return row.otherSource ?? ""
         case "lineItem":
           return row.lineItem
         case "status":

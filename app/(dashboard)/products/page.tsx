@@ -25,6 +25,7 @@ const PRODUCT_FILTER_OPTIONS = [
   { id: 'distributorName', label: 'Distributor Name' },
   { id: 'vendorName', label: 'Vendor Name' },
   { id: 'partNumberVendor', label: 'Other - Part Number' },
+  { id: 'otherSource', label: 'Other - Source' },
   { id: 'revenueType', label: 'Revenue Type' },
   { id: 'active', label: 'Active (Y/N)' },
   { id: 'hasRevenueSchedules', label: 'Has Revenue Schedules (Y/N)' },
@@ -100,6 +101,15 @@ const BASE_COLUMNS: Column[] = [
     minWidth: calculateMinWidth({ label: 'Other - Product Description', type: 'text', sortable: false }),
     maxWidth: 400,
     accessor: 'productDescriptionVendor',
+    hidden: true,
+  },
+  {
+    id: 'otherSource',
+    label: 'Other - Source',
+    width: 160,
+    minWidth: calculateMinWidth({ label: 'Other - Source', type: 'text', sortable: false }),
+    maxWidth: 220,
+    accessor: 'otherSource',
     hidden: true,
   },
   {
@@ -184,6 +194,7 @@ interface ProductRow {
   productNameHouse: string
   productDescriptionHouse: string
   productDescriptionVendor: string
+  otherSource?: string | null
   quantity: number | null
   priceEach: number | null
   commissionPercent: number | null

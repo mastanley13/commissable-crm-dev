@@ -26,6 +26,7 @@ interface TicketRow {
   productNameVendor?: string
   accountIdVendor?: string
   customerIdVendor?: string
+  otherSource?: string | null
   description?: string
   opportunityId?: string
   orderIdVendor?: string
@@ -191,6 +192,16 @@ const TICKET_COLUMNS: Column[] = [
     hidden: true
   },
   {
+    id: 'otherSource',
+    label: 'Other - Source',
+    width: 160,
+    minWidth: 140,
+    maxWidth: 220,
+    sortable: true,
+    type: 'text',
+    hidden: true
+  },
+  {
     id: 'status',
     label: 'Status',
     width: 130,
@@ -285,6 +296,7 @@ export default function TicketsPage() {
         productNameVendor: item?.productNameVendor ?? "",
         accountIdVendor: item?.accountIdVendor ?? "",
         customerIdVendor: item?.customerIdVendor ?? "",
+        otherSource: item?.otherSource ?? null,
         description: item?.description ?? "",
         opportunityId: item?.opportunityId ?? "",
         orderIdVendor: item?.orderIdVendor ?? "",

@@ -691,6 +691,13 @@ function SummaryTab({ opportunity }: { opportunity: OpportunityDetailRecord }) {
 
 function DetailsIdentifiersTab({ opportunity }: { opportunity: OpportunityDetailRecord }) {
   const identifiers = opportunity.identifiers ?? {}
+  const otherSource =
+    identifiers.otherSource ??
+    (identifiers.accountIdVendor || identifiers.customerIdVendor || identifiers.orderIdVendor
+      ? "Vendor"
+      : identifiers.accountIdDistributor || identifiers.customerIdDistributor || identifiers.orderIdDistributor
+        ? "Distributor"
+        : undefined)
   const fields = [
     { label: "House - Account ID", value: identifiers.accountIdHouse },
     {
@@ -708,7 +715,8 @@ function DetailsIdentifiersTab({ opportunity }: { opportunity: OpportunityDetail
       label: "Other - Order ID",
       value: identifiers.orderIdVendor ?? identifiers.orderIdDistributor,
     },
-    { label: "Customer PO #", value: identifiers.customerPurchaseOrder }
+    { label: "Customer PO #", value: identifiers.customerPurchaseOrder },
+    { label: "Other - Source", value: otherSource },
   ]
 
   return (

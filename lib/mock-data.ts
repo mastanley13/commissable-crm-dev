@@ -689,6 +689,7 @@ export type DepositLineItemRow = {
   paymentDate: string
   accountName: string
   vendorName: string
+  otherSource?: "Vendor" | "Distributor" | null
   lineItem: number
   productId?: string
   productName: string
@@ -717,6 +718,7 @@ export const depositLineItemsMock: DepositLineItemRow[] = [
     paymentDate: '2025-02-01',
     accountName: 'Mike Inc',
     vendorName: 'Lingo',
+    otherSource: "Vendor",
     lineItem: 1,
     productName: 'Ucaas 1 Seat - 12 Month',
     usage: 600,
@@ -738,6 +740,7 @@ export const depositLineItemsMock: DepositLineItemRow[] = [
     paymentDate: '2025-02-01',
     accountName: 'Alvin Inc',
     vendorName: 'Lingo',
+    otherSource: "Distributor",
     lineItem: 2,
     productName: 'Ucaas 1 Seat - 12 Month',
     usage: 1010,
@@ -759,6 +762,7 @@ export const depositLineItemsMock: DepositLineItemRow[] = [
     paymentDate: '2025-02-02',
     accountName: 'Mike Inc',
     vendorName: 'Lingo',
+    otherSource: null,
     lineItem: 3,
     productName: 'SD-WAN Advanced',
     usage: 2200,
@@ -779,6 +783,7 @@ export const depositLineItemsMock: DepositLineItemRow[] = [
     paymentDate: '2025-02-02',
     accountName: 'Alvin Inc',
     vendorName: 'Lingo',
+    otherSource: "Vendor",
     lineItem: 4,
     productName: 'Fiber DIA 1GB',
     usage: 4800,
@@ -799,6 +804,7 @@ export const depositLineItemsMock: DepositLineItemRow[] = [
     paymentDate: '2025-02-03',
     accountName: 'Mike Inc',
     vendorName: 'Lingo',
+    otherSource: "Distributor",
     lineItem: 5,
     productName: 'CCaaS Enterprise',
     usage: 1200,
@@ -819,6 +825,7 @@ export const depositLineItemsMock: DepositLineItemRow[] = [
     paymentDate: '2025-02-04',
     accountName: 'Loxo Partners',
     vendorName: 'Lingo',
+    otherSource: "Vendor",
     lineItem: 6,
     productName: 'Ucaas 1 Seat - 12 Month',
     usage: 1900,

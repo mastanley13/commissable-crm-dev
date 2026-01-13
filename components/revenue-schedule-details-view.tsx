@@ -63,6 +63,7 @@ export interface RevenueScheduleDetailRecord {
   distributorId?: string | null
   vendorName?: string | null
   vendorId?: string | null
+  otherSource?: "Vendor" | "Distributor" | null
   accountName?: string | null
   accountId?: string | null
   productId?: string | null

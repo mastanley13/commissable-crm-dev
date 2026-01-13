@@ -32,12 +32,14 @@ This plan is intentionally structured so we can ship "Other" without any destruc
 - **Vendor-first precedence implemented** anywhere we render unified values: `Other = Vendor ?? Distributor`.
 - **Phase 1 complete:** API responses now include computed fields (non-breaking) such as `accountIdOther`, `customerIdOther`, `orderIdOther`, `productNameOther`, `partNumberOther`, `productDescriptionOther`, and `otherSource` where applicable.
 - **Phase 2 complete (remaining duplicates):** Product and Opportunity Product detail views no longer show Distributor product fields; only unified `Other - ...` fields are displayed (Vendor-first fallback).
+- **Create Product modal updated:** removed Distributor product fields and standardized to `Other - Product Name`, `Other - Part Number`, and `Other - Product Description`.
 - **UI-only removals shipped:** `Product Family - Vendor` and `Product Subtype - Vendor` are removed from UI surfaces (kept in DB/schema).
 - **Backend filter behavior updated** so filtering for vendor identifiers also searches distributor values (to match the unified "Other" intent):
   - Opportunities: `accountIdVendor`, `customerIdVendor`
   - Revenue Schedules: `customerIdVendor`, `orderIdVendor`
 - **Imports/mappings updated for compatibility:** Telarus reconciliation template mappings accept the new `Other - ...` labels (while keeping legacy mappings working).
 - **Build validation:** `npm run build` passes with the above changes.
+- **Optional “Other - Source” shipped:** added as a hidden-by-default column across list tables (Opportunities / Revenue Schedules / Tickets / Products / Reconciliation line items) and as a detail row in key detail panels (Opportunities Identifiers, Revenue Schedules Opportunity Details, Product detail, Opportunity Product detail).
 
 ### What we intentionally did (to reduce risk)
 
@@ -46,10 +48,59 @@ This plan is intentionally structured so we can ship "Other" without any destruc
 
 ### What is still pending / follow-ups
 
-- **Optional UI enhancement:** add `Other - Source` as a hidden-by-default column in list views/detail panels where users may need to see whether the unified value came from Vendor vs Distributor.
+- **Phase 5 QA + rollout:** run the manual QA checklist across Opportunities / Revenue Schedules / Tickets / Products / Reconciliation, then plan rollout (feature flag if desired) + rollback notes.
 - **CSV note:** `03.04.113` is not needed for this effort and can be ignored.
 
 ---
+
+## Phase 4 Audit Results (non-Telarus mappings/templates/exports)
+
+- **Codebase audit:** No non-Telarus, label-based mappings/templates/exports were found that depend on legacy `Vendor - ...` / `Distributor - ...` labels.
+- **Telarus:** the Telarus reconciliation template supports both legacy labels and the new unified `Other - ...` labels.
+
+## Removed UI Fields With No “Other” Replacement (UI-only removals)
+
+These fields are intentionally removed from the UI (kept in DB/schema) and **do not** have an “Other” replacement:
+
+- `Product Family - Vendor` (`productFamilyVendor`)
+- `Product Subtype - Vendor` (`productSubtypeVendor`)
+- `Distributor - Product Family` (`distributorProductFamily`)
+- `Distributor - Product Subtype` (`distributorProductSubtype`)
+
+## Phase 5 Manual QA Checklist (step-by-step)
+
+### Opportunities
+
+1. **List view:** open `Opportunities` and confirm only unified `Other - Account ID` / `Other - Customer ID` / `Other - Order ID` columns are available (no distributor-specific duplicates).
+2. **Other - Source column:** open table column settings and enable `Other - Source` (should be hidden by default); confirm values show `Vendor` or `Distributor` when applicable.
+3. **Search + filters:** verify searching/filtering by `Other - Account ID` / `Other - Customer ID` returns matches when the value exists in either Vendor or Distributor fields (Vendor-first display).
+4. **Detail view:** open an Opportunity → `Identifiers` and confirm `Other - Source` appears and reflects Vendor-first precedence.
+5. **Opportunity Product detail:** open an Opportunity Product line item detail and confirm only `Other - Product Name` / `Other - Part Number` / `Other - Product Description` are shown (no distributor duplicates) and `Other - Source` is present.
+
+### Revenue Schedules
+
+1. **List view:** open `Revenue Schedules` and enable `Other - Source` column (hidden by default); confirm it populates.
+2. **Detail view:** open a Revenue Schedule → `Opportunity Details` and confirm `Other - Source` is present alongside the unified `Other - ...` identifiers.
+
+### Tickets
+
+1. **List view:** open `Tickets` and enable `Other - Source` column (hidden by default); confirm it populates and saved column sets still load (preference aliasing).
+
+### Products
+
+1. **List view:** open `Products` and enable `Other - Source` column (hidden by default); confirm it populates.
+2. **Create Product modal:** confirm the modal no longer shows distributor product fields and only shows unified `Other - Product Name`, `Other - Part Number`, `Other - Product Description`.
+3. **Product detail:** open a Product and confirm `Other - Source` is present in the “Other” section.
+
+### Reconciliation
+
+1. **Deposit detail:** open a Deposit → line items table and enable `Other - Source` column (hidden by default); confirm it populates and is filterable.
+2. **CSV export:** export selected line items and confirm `Other - Source` appears as a column header with values.
+
+### Preferences migration/aliasing (Phase 3 validation)
+
+1. For each of the tables above, load any saved column preferences that previously included distributor column IDs (e.g. `customerIdDistributor`, `orderIdDistributor`, `productNameDistributor`).
+2. Confirm the table still renders columns (they should map to the unified “Other” columns instead of disappearing).
 
 ## Goals
 

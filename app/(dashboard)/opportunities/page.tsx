@@ -85,6 +85,7 @@ const OPPORTUNITY_FILTER_OPTIONS = [
   { id: 'orderIdHouse', label: 'House - Order ID' },
   { id: 'accountIdVendor', label: 'Other - Account ID' },
   { id: 'customerIdVendor', label: 'Other - Customer ID' },
+  { id: 'otherSource', label: 'Other - Source' },
   { id: 'locationId', label: 'Location ID' },
   { id: 'opportunityId', label: 'Opportunity ID' },
   { id: 'referredBy', label: 'Lead Source' },
@@ -302,6 +303,15 @@ const BASE_COLUMNS: Column[] = [
     hidden: true,
   },
   {
+    id: 'otherSource',
+    label: 'Other - Source',
+    width: 160,
+    minWidth: calculateMinWidth({ label: 'Other - Source', type: 'text', sortable: false }),
+    maxWidth: 220,
+    accessor: 'otherSource',
+    hidden: true,
+  },
+  {
     id: 'locationId',
     label: 'Location ID',
     width: 160,
@@ -341,6 +351,7 @@ interface OpportunityRow {
   customerIdHouse?: string | null
   customerIdVendor?: string | null
   customerIdDistributor?: string | null
+  otherSource?: string | null
   locationId?: string | null
   orderIdVendor?: string | null
   orderIdDistributor?: string | null

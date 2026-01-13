@@ -560,17 +560,27 @@ function ProductHeader({ product, onEdit, activeTab, onTabSelect }: ProductHeade
                 {product.productNameOther || product.productNameVendor || product.productNameDistributor || <span className="text-gray-500">--</span>}
               </div>
             </FieldRow>
-            <FieldRow label="Other - Part Number">
-              <div className={fieldBoxClass}>
-                {product.partNumberOther || product.partNumberVendor || product.partNumberDistributor || <span className="text-gray-500">--</span>}
-              </div>
-            </FieldRow>
-            <div className="grid items-start gap-6 sm:grid-cols-[200px,1fr]">
-              <span className={cn(fieldLabelClass, "pt-1.5")}>Other - Product Description</span>
-              <div className={cn(fieldBoxClass, "min-h-[80px] items-start whitespace-pre-wrap py-2")}>
-                {product.productDescriptionOther || product.productDescriptionVendor || product.productDescriptionDistributor || <span className="text-gray-500">--</span>}
-              </div>
-            </div>
+             <FieldRow label="Other - Part Number">
+               <div className={fieldBoxClass}>
+                 {product.partNumberOther || product.partNumberVendor || product.partNumberDistributor || <span className="text-gray-500">--</span>}
+               </div>
+             </FieldRow>
+             <FieldRow label="Other - Source">
+               <div className={fieldBoxClass}>
+                 {product.otherSource ||
+                   (product.productNameVendor || product.partNumberVendor || product.productDescriptionVendor
+                     ? "Vendor"
+                     : product.productNameDistributor || product.partNumberDistributor || product.productDescriptionDistributor
+                       ? "Distributor"
+                       : null) || <span className="text-gray-500">--</span>}
+               </div>
+             </FieldRow>
+             <div className="grid items-start gap-6 sm:grid-cols-[200px,1fr]">
+               <span className={cn(fieldLabelClass, "pt-1.5")}>Other - Product Description</span>
+               <div className={cn(fieldBoxClass, "min-h-[80px] items-start whitespace-pre-wrap py-2")}>
+                 {product.productDescriptionOther || product.productDescriptionVendor || product.productDescriptionDistributor || <span className="text-gray-500">--</span>}
+               </div>
+             </div>
           </div>
           </div>
         </div>

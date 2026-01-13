@@ -257,6 +257,16 @@ const revenueScheduleColumns: Column[] = [
     hidden: true,
   },
   {
+    id: 'otherSource',
+    label: 'Other - Source',
+    width: 160,
+    minWidth: calculateMinWidth({ label: 'Other - Source', type: 'text', sortable: true }),
+    maxWidth: 220,
+    sortable: true,
+    type: 'text',
+    hidden: true,
+  },
+  {
     id: 'expectedCommissionRatePercent',
     label: 'Expected Commission Rate %',
     width: 220,
@@ -295,6 +305,7 @@ type FilterableColumnKey =
   | 'scheduleStatus'
   | 'customerIdVendor'
   | 'orderIdVendor'
+  | 'otherSource'
   | 'customerIdDistributor'
   | 'orderIdDistributor'
 

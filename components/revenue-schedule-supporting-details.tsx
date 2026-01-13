@@ -1640,7 +1640,8 @@ export const RevenueScheduleSupportingDetails = forwardRef<
       {
         label: "Other - Customer ID",
         value: schedule?.customerIdVendor ?? schedule?.customerIdDistributor ?? undefined,
-      }
+      },
+      { label: "Other - Source", value: schedule?.otherSource ?? undefined }
     ]
 
     const columnB: DetailLineProps[] = [

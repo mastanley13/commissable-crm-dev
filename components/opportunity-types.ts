@@ -87,14 +87,18 @@ export interface OpportunityIdentifiers {
   accountIdHouse?: string | null
   accountIdVendor?: string | null
   accountIdDistributor?: string | null
+  accountIdOther?: string | null
   customerIdHouse?: string | null
   customerIdVendor?: string | null
   customerIdDistributor?: string | null
+  customerIdOther?: string | null
   locationId?: string | null
   orderIdHouse?: string | null
   orderIdVendor?: string | null
   orderIdDistributor?: string | null
+  orderIdOther?: string | null
   customerPurchaseOrder?: string | null
+  otherSource?: "Vendor" | "Distributor" | null
 }
 
 export interface OpportunityRevenueScheduleRecord {
