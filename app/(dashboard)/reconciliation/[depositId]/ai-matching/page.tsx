@@ -35,7 +35,7 @@ export default function AutoMatchPage() {
       { name: "Home", href: "/dashboard" },
       { name: "Reconciliation", href: "/reconciliation" },
       { name: "Deposit Detail", href: depositParam ? `/reconciliation/${depositParam}` : "/reconciliation" },
-      { name: "Run AI Matching", current: true },
+      { name: "Use AI Matching", current: true },
     ])
 
     return () => {
@@ -163,15 +163,15 @@ export default function AutoMatchPage() {
               Back to deposit
             </button>
             <div>
-              <div className="text-xs uppercase tracking-wide text-slate-500">Run AI Matching</div>
+              <div className="text-xs uppercase tracking-wide text-slate-500">Use AI Matching</div>
               <div className="text-lg font-semibold text-slate-900">{depositName || depositParam || "Deposit"}</div>
               <div className="text-xs text-slate-500">
-                Preview matches at your confidence threshold, apply them, then return to finalize reconciliation.
+                Preview suggestions at your confidence threshold, apply allocations, then return to finalize the deposit.
               </div>
             </div>
           </div>
           {metadataLoading ? (
-            <div className="text-xs text-slate-500">Loading deposit…</div>
+            <div className="text-xs text-slate-500">Loading deposit...</div>
           ) : null}
         </div>
 
@@ -181,9 +181,9 @@ export default function AutoMatchPage() {
               Review the lines eligible for automatic matching. Matches at or above your confidence threshold are applied automatically.
             </p>
             <ol className="mt-3 list-decimal space-y-1 pl-5 text-sm text-slate-700">
-              <li>Preview matches that meet your confidence threshold.</li>
-              <li>Apply matches, then review remaining suggestions manually.</li>
-              <li>Confirm allocations, then finalize the deposit.</li>
+              <li>Preview suggestions that meet your confidence threshold.</li>
+              <li>Apply allocations, then review remaining suggestions manually.</li>
+              <li>Review allocations, then finalize the deposit.</li>
             </ol>
           </div>
 
@@ -200,24 +200,24 @@ export default function AutoMatchPage() {
             ) : null}
             {applySummary ? (
               <div className="mb-3 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
-                Auto-matched <span className="font-semibold">{applySummary.autoMatched}</span> of{" "}
-                <span className="font-semibold">{applySummary.processed}</span> lines · Already matched:{" "}
-                {applySummary.alreadyMatched} · Below threshold: {applySummary.belowThreshold} · No candidates:{" "}
-                {applySummary.noCandidates} · Errors: {applySummary.errors}
+                Auto-allocated <span className="font-semibold">{applySummary.autoMatched}</span> of{" "}
+                <span className="font-semibold">{applySummary.processed}</span> lines{" - "}Already allocated:{" "}
+                {applySummary.alreadyMatched}{" - "}Below threshold: {applySummary.belowThreshold}{" - "}No candidates:{" "}
+                {applySummary.noCandidates}{" - "}Errors: {applySummary.errors}
               </div>
             ) : null}
 
             {previewLoading ? (
               <div className="flex h-48 flex-col items-center justify-center gap-2 rounded-md border border-dashed border-slate-200 text-sm text-slate-500">
                 <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-primary-400" />
-                Loading preview…
+                Loading preview...
               </div>
             ) : preview ? (
               <>
                 <div className="text-xs text-slate-600">
-                  Processed {preview.processed} lines · Already matched: {preview.alreadyMatched} · Eligible for
-                  auto-match: {preview.autoMatchCandidates.length} · Below threshold: {preview.belowThreshold} · No candidates:{" "}
-                  {preview.noCandidates} · Errors: {preview.errors}
+                  Processed {preview.processed} lines{" - "}Already allocated: {preview.alreadyMatched}{" - "}Eligible for
+                  auto-allocation: {preview.autoMatchCandidates.length}{" - "}Below threshold: {preview.belowThreshold}{" - "}No candidates:{" "}
+                  {preview.noCandidates}{" - "}Errors: {preview.errors}
                 </div>
                 {hasCandidates ? (
                   <div className="mt-3 overflow-hidden rounded-lg border border-slate-200">
@@ -242,7 +242,7 @@ export default function AutoMatchPage() {
                             <td className="px-3 py-2 text-slate-700">
                               <div className="font-medium text-slate-900">{candidate.scheduleName}</div>
                               {candidate.reasons.length ? (
-                                <div className="text-xs text-slate-500">{candidate.reasons.slice(0, 2).join(" · ")}</div>
+                                <div className="text-xs text-slate-500">{candidate.reasons.slice(0, 2).join(" - ")}</div>
                               ) : null}
                             </td>
                             <td className="px-3 py-2 font-semibold text-primary-600">
@@ -290,7 +290,7 @@ export default function AutoMatchPage() {
                 disabled={applyLoading || previewLoading || !hasCandidates}
                 className="rounded-full bg-primary-600 px-6 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-primary-200 disabled:text-white"
               >
-                {applyLoading ? "Applying…" : "Apply matches"}
+                {applyLoading ? "Applying..." : "Apply allocations"}
               </button>
             </div>
           </div>

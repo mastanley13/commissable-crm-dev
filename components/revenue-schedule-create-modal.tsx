@@ -65,7 +65,7 @@ const TAB_DEFINITIONS: Array<{ id: ModalTab; label: string }> = [
   { id: "rates", label: "Change Commission Rate" },
   { id: "split", label: "Change Commission Split" },
   { id: "status", label: "Deactivate / Delete" },
-  { id: "undo", label: "Undo Deposit Match" }
+  { id: "undo", label: "Remove Allocation" }
 ]
 
 function parseNumber(value: string) {
@@ -607,7 +607,7 @@ export function RevenueScheduleCreateModal({
         ? "Update Split"
         : activeTab === "status"
           ? statusForm.action === "delete" ? "Delete" : "Deactivate"
-          : "Undo Match"
+          : "Remove Allocation"
 
   const primaryDisabled = submitting || (
     activeTab === "create"
@@ -1186,7 +1186,7 @@ export function RevenueScheduleCreateModal({
                     ? "Change Commission Split"
                     : activeTab === "status"
                       ? "Deactivate or Delete"
-                      : "Undo Deposit Match"}
+                      : "Remove Allocation"}
             </p>
             <h2 className="text-lg font-semibold text-gray-900">Manage Revenue Schedules for {opportunityName}</h2>
           </div>

@@ -12,6 +12,7 @@ import { RoleEditModal, Role } from '@/components/role-edit-modal'
 import { Edit, Trash2, Shield, Users } from 'lucide-react'
 import { isRowInactive } from '@/lib/row-state'
 import { useAuth } from '@/lib/auth-context'
+import { calculateMinWidth } from '@/lib/column-width-utils'
 
 // Define columns outside component for useTablePreferences
 const roleColumns: Column[] = [
@@ -19,7 +20,7 @@ const roleColumns: Column[] = [
     id: 'active',
     label: 'Active',
     width: 80,
-    minWidth: 60,
+    minWidth: calculateMinWidth({ label: 'Active', type: 'toggle', sortable: false }, { absoluteMin: 60 }),
     maxWidth: 100,
     type: 'toggle',
     accessor: 'active'
@@ -28,7 +29,7 @@ const roleColumns: Column[] = [
     id: 'actions',
     label: 'Select All',
     width: 100,
-    minWidth: 100,
+    minWidth: calculateMinWidth({ label: 'Select All', type: 'action', sortable: false }, { absoluteMin: 100 }),
     maxWidth: 120,
     type: 'action'
   },
@@ -36,7 +37,7 @@ const roleColumns: Column[] = [
     id: 'roleName',
     label: 'Role Name',
     width: 200,
-    minWidth: 150,
+    minWidth: calculateMinWidth({ label: 'Role Name', type: 'text', sortable: true }, { absoluteMin: 150 }),
     maxWidth: 300,
     sortable: true,
     type: 'text'
@@ -45,7 +46,7 @@ const roleColumns: Column[] = [
     id: 'permissions',
     label: 'Permissions',
     width: 200,
-    minWidth: 150,
+    minWidth: calculateMinWidth({ label: 'Permissions', type: 'text', sortable: true }, { absoluteMin: 150 }),
     maxWidth: 300,
     sortable: true,
     type: 'text'
@@ -54,7 +55,7 @@ const roleColumns: Column[] = [
     id: 'userCount',
     label: 'User Count',
     width: 120,
-    minWidth: 100,
+    minWidth: calculateMinWidth({ label: 'User Count', type: 'text', sortable: true }, { absoluteMin: 100 }),
     maxWidth: 150,
     sortable: true,
     type: 'text'
@@ -63,7 +64,7 @@ const roleColumns: Column[] = [
     id: 'description',
     label: 'Description',
     width: 300,
-    minWidth: 200,
+    minWidth: calculateMinWidth({ label: 'Description', type: 'text', sortable: true }, { absoluteMin: 200 }),
     maxWidth: 500,
     sortable: true,
     type: 'text'

@@ -15,6 +15,7 @@ import { BulkOwnerModal, type BulkOwnerOption } from '@/components/bulk-owner-mo
 import { BulkStatusModal } from '@/components/bulk-status-modal'
 import { TwoStageDeleteDialog } from '@/components/two-stage-delete-dialog'
 import type { DeletionConstraint } from '@/lib/deletion'
+import { calculateMinWidth } from '@/lib/column-width-utils'
 
 interface ReportRow {
   id: string
@@ -51,7 +52,7 @@ const REPORT_COLUMNS: Column[] = [
     id: 'multi-action',
     label: 'Select All',
     width: 200,
-    minWidth: 140,
+    minWidth: calculateMinWidth({ label: 'Select All', type: 'multi-action', sortable: false }, { absoluteMin: 140 }),
     maxWidth: 240,
     type: 'multi-action'
   },
@@ -59,7 +60,7 @@ const REPORT_COLUMNS: Column[] = [
     id: 'reportName',
     label: 'Report Name',
     width: 250,
-    minWidth: 200,
+    minWidth: calculateMinWidth({ label: 'Report Name', type: 'text', sortable: true }, { absoluteMin: 200 }),
     maxWidth: 360,
     sortable: true,
     type: 'text'
@@ -68,7 +69,7 @@ const REPORT_COLUMNS: Column[] = [
     id: 'reportType',
     label: 'Report Type',
     width: 160,
-    minWidth: 140,
+    minWidth: calculateMinWidth({ label: 'Report Type', type: 'text', sortable: true }, { absoluteMin: 140 }),
     maxWidth: 220,
     sortable: true,
     type: 'text'
@@ -77,7 +78,7 @@ const REPORT_COLUMNS: Column[] = [
     id: 'createdDate',
     label: 'Created Date',
     width: 150,
-    minWidth: 120,
+    minWidth: calculateMinWidth({ label: 'Created Date', type: 'text', sortable: true }, { absoluteMin: 120 }),
     maxWidth: 220,
     sortable: true,
     type: 'text'
@@ -86,7 +87,7 @@ const REPORT_COLUMNS: Column[] = [
     id: 'lastRun',
     label: 'Last Run',
     width: 150,
-    minWidth: 120,
+    minWidth: calculateMinWidth({ label: 'Last Run', type: 'text', sortable: true }, { absoluteMin: 120 }),
     maxWidth: 220,
     sortable: true,
     type: 'text'
@@ -95,7 +96,7 @@ const REPORT_COLUMNS: Column[] = [
     id: 'status',
     label: 'Status',
     width: 130,
-    minWidth: 110,
+    minWidth: calculateMinWidth({ label: 'Status', type: 'text', sortable: true }, { absoluteMin: 110 }),
     maxWidth: 180,
     sortable: true,
     type: 'text'

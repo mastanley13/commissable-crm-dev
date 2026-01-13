@@ -12,6 +12,7 @@ import type { DepositLineItemRow, SuggestedMatchScheduleRow } from "@/lib/mock-d
 import { useAuth } from "@/lib/auth-context"
 import { useToasts } from "./toast"
 import { ColumnChooserModal } from "./column-chooser-modal"
+import { TwoStageDeleteDialog } from "./two-stage-delete-dialog"
 import { useTablePreferences } from "@/hooks/useTablePreferences"
 import {
   DepositLineStatusFilterDropdown,
@@ -102,7 +103,7 @@ const LINE_FILTER_COLUMN_IDS = new Set<LineFilterColumnId>(lineFilterColumnOptio
 
 const scheduleFieldLabels = {
   lineItem: "Line Item",
-  matchConfidence: "Match Confidence",
+  matchConfidence: "AI Confidence",
   vendorName: "Vendor Name",
   legalName: "Legal Name",
   productNameVendor: "Other - Product Name",
@@ -341,7 +342,7 @@ export function DepositReconciliationDetailView({
   const [showUnreconcilePreview, setShowUnreconcilePreview] = useState(false)
   const [lineSortConfig, setLineSortConfig] = useState<{ key: string; direction: "asc" | "desc" } | null>(null)
   const [scheduleSortConfig, setScheduleSortConfig] = useState<{ key: string; direction: "asc" | "desc" } | null>(null)
-  const [deleteLoading, setDeleteLoading] = useState(false)
+  const [showDeleteDepositDialog, setShowDeleteDepositDialog] = useState(false)
   const {
     refCallback: lineTableAreaRefCallback,
     maxBodyHeight: lineTableBodyHeight,
@@ -417,9 +418,9 @@ export function DepositReconciliationDetailView({
     if (matchingLineId || undoingLineId) return "Update in progress"
     if (!selectedLineForMatch) return "Select a deposit line item above"
     if (selectedLineForMatch.reconciled) return "Reconciled line items cannot be changed"
-    if (selectedLineForMatch.status === "Ignored") return "Ignored line items cannot be matched"
-    if (selectedSchedules.length === 0) return "Select a suggested schedule below"
-    if (selectedSchedules.length > 1) return "Select only one schedule to match"
+    if (selectedLineForMatch.status === "Ignored") return "Ignored line items cannot be allocated"
+    if (selectedSchedules.length === 0) return "Select a schedule below"
+    if (selectedSchedules.length > 1) return "Select only one schedule to allocate to"
     return null
   }, [matchingLineId, undoingLineId, selectedLineForMatch, selectedSchedules.length])
 
@@ -531,7 +532,7 @@ export function DepositReconciliationDetailView({
   const handleRowMatchClick = useCallback(
     async (lineId: string) => {
       if (!lineId) {
-        showError("No line selected", "Select a deposit line item to match.")
+        showError("No line selected", "Select a deposit line item to allocate.")
         return
       }
       const targetLine = lineItemRows.find(item => item.id === lineId)
@@ -540,17 +541,17 @@ export function DepositReconciliationDetailView({
         return
       }
       if (targetLine?.status === "Ignored") {
-        showError("Line ignored", "Ignored line items cannot be matched.")
+        showError("Line ignored", "Ignored line items cannot be allocated.")
         return
       }
 
       const selectedSchedulesNow = selectedSchedulesRef.current
       if (selectedSchedulesNow.length === 0) {
-        showError("No schedule selected", "Select a suggested schedule to match.")
+        showError("No schedule selected", "Select a schedule to allocate to.")
         return
       }
       if (selectedSchedulesNow.length > 1) {
-        showError("Too many schedules selected", "Select only one suggested schedule to match.")
+        showError("Too many schedules selected", "Select only one schedule to allocate to.")
         return
       }
       const scheduleId = selectedSchedulesNow[0]!
@@ -576,10 +577,10 @@ export function DepositReconciliationDetailView({
         onLineSelectionChange?.(lineId)
         setSelectedSchedules([])
         onMatchApplied?.()
-        showSuccess("Match applied", "The selected line item has been matched to the schedule.")
+        showSuccess("Allocation saved", "The selected line item was allocated to the schedule.")
       } catch (err) {
         console.error("Failed to apply match", err)
-        showError("Unable to match", err instanceof Error ? err.message : "Unknown error")
+        showError("Unable to allocate", err instanceof Error ? err.message : "Unknown error")
       } finally {
         matchingLineIdRef.current = null
         setMatchingLineId(null)
@@ -591,7 +592,7 @@ export function DepositReconciliationDetailView({
   const handleMatchSelected = useCallback(() => {
     const lineId = selectedLineItemsRef.current[0]
     if (!lineId) {
-      showError("No line selected", "Select a deposit line item to match.")
+      showError("No line selected", "Select a deposit line item to allocate.")
       return
     }
     void handleRowMatchClick(lineId)
@@ -623,11 +624,11 @@ export function DepositReconciliationDetailView({
         }
         setSelectedSchedules([])
         onUnmatchApplied?.()
-        showSuccess("Line reset", "The selected line item was marked as Unmatched.")
+        showSuccess("Allocation removed", "The selected line item is now unallocated.")
         return true
       } catch (err) {
         console.error("Failed to unmatch line", err)
-        showError("Unable to mark unmatched", err instanceof Error ? err.message : "Unknown error")
+        showError("Unable to remove allocation", err instanceof Error ? err.message : "Unknown error")
         return false
       } finally {
         undoingLineIdRef.current = null
@@ -1009,7 +1010,7 @@ export function DepositReconciliationDetailView({
   }, [filteredSchedules, scheduleSortConfig, getScheduleSortValue])
 
   const baseLineColumns = useMemo<Column[]>(() => {
-    const minTextWidth = (label: string) => calculateMinWidth({ label, type: "text", sortable: false })
+    const minTextWidth = (label: string, sortable = true) => calculateMinWidth({ label, type: "text", sortable })
     return [
       {
         id: "select",
@@ -1234,7 +1235,7 @@ export function DepositReconciliationDetailView({
   }, [currencyFormatter, percentFormatter, dateFormatter])
 
   const baseScheduleColumns = useMemo<Column[]>(() => {
-    const minTextWidth = (label: string) => calculateMinWidth({ label, type: "text", sortable: false })
+    const minTextWidth = (label: string, sortable = true) => calculateMinWidth({ label, type: "text", sortable })
     return [
       {
         id: "select",
@@ -1627,12 +1628,12 @@ export function DepositReconciliationDetailView({
   const handleBulkLineMatch = useCallback(async () => {
     const lineId = selectedLineIdRef.current ?? selectedLineItemsRef.current[0]
     if (!lineId) {
-      showError("No line selected", "Select a deposit line item to match.")
+      showError("No line selected", "Select a deposit line item to allocate.")
       return
     }
     const scheduleId = selectedSchedulesRef.current[0]
     if (!scheduleId) {
-      showError("No schedule selected", "Select a suggested schedule to match.")
+      showError("No schedule selected", "Select a schedule to allocate to.")
       return
     }
     try {
@@ -1652,10 +1653,10 @@ export function DepositReconciliationDetailView({
       }
       setSelectedSchedules([])
       onMatchApplied?.()
-      showSuccess("Match applied", "The selected line item has been matched to the schedule.")
+      showSuccess("Allocation saved", "The selected line item was allocated to the schedule.")
     } catch (err) {
       console.error("Failed to apply match", err)
-      showError("Unable to match", err instanceof Error ? err.message : "Unknown error")
+      showError("Unable to allocate", err instanceof Error ? err.message : "Unknown error")
     }
   }, [metadata.id, onMatchApplied, showError, showSuccess])
 
@@ -1861,23 +1862,22 @@ export function DepositReconciliationDetailView({
     )
   }, [scheduleRows, selectedSchedules, showError, showSuccess])
 
-  const handleDeleteDeposit = useCallback(async () => {
+  const handleDeleteDeposit = useCallback(() => {
     if (!canManageReconciliation) {
       showError("Delete failed", "Insufficient permissions.")
       return
     }
-    if (!metadata?.id) {
-      showError("Delete failed", "Deposit id is missing.")
-      return
+    setShowDeleteDepositDialog(true)
+  }, [canManageReconciliation, showError])
+
+  const deleteDeposit = useCallback(async () => {
+    if (!canManageReconciliation) {
+      return { success: false, error: "Insufficient permissions." }
     }
-    if (deleteLoading) return
+    if (!metadata?.id) {
+      return { success: false, error: "Deposit id is missing." }
+    }
 
-    const confirmed = window.confirm(
-      "Delete this deposit? This will unmatch and remove its line items. This action cannot be undone."
-    )
-    if (!confirmed) return
-
-    setDeleteLoading(true)
     try {
       const response = await fetch(`/api/reconciliation/deposits/${encodeURIComponent(metadata.id)}`, {
         method: "DELETE",
@@ -1887,27 +1887,20 @@ export function DepositReconciliationDetailView({
       if (!response.ok) {
         throw new Error(payload?.error || "Unable to delete deposit")
       }
-      showSuccess("Deposit deleted", "The deposit and its matches were removed.")
+
+      showSuccess("Deposit deleted", "The deposit and its allocations were removed.")
       if (onDepositDeleted) {
         onDepositDeleted()
       } else if (onBackToReconciliation) {
         onBackToReconciliation()
       }
+
+      return { success: true }
     } catch (err) {
       console.error("Delete deposit failed", err)
-      showError("Delete failed", err instanceof Error ? err.message : "Unable to delete deposit")
-    } finally {
-      setDeleteLoading(false)
+      return { success: false, error: err instanceof Error ? err.message : "Unable to delete deposit" }
     }
-  }, [
-    canManageReconciliation,
-    deleteLoading,
-    metadata?.id,
-    onBackToReconciliation,
-    onDepositDeleted,
-    showError,
-    showSuccess,
-  ])
+  }, [canManageReconciliation, metadata?.id, onBackToReconciliation, onDepositDeleted, showSuccess])
 
   const lineBulkActions = useMemo<BulkActionsGridProps>(
     () => ({
@@ -1916,14 +1909,14 @@ export function DepositReconciliationDetailView({
       actions: [
         {
           key: "match",
-          label: "Match",
+          label: "Allocate",
           icon: ClipboardCheck,
           tone: "primary",
           onClick: handleBulkLineMatch
         },
         {
           key: "unmatch",
-          label: "Mark Unmatched",
+          label: "Remove Allocation",
           icon: Trash2,
           tone: "danger",
           onClick: handleBulkLineUnmatch
@@ -1945,6 +1938,18 @@ export function DepositReconciliationDetailView({
     return Number.isNaN(parsed.getTime()) ? metadata.depositDate : dateFormatter.format(parsed)
   }, [metadata.depositDate, dateFormatter])
 
+  const commissionTotals = useMemo(() => {
+    return lineItemRows.reduce(
+      (acc, item) => {
+        acc.total += Number(item.commission ?? 0)
+        acc.allocated += Number(item.commissionAllocated ?? 0)
+        acc.unallocated += Number(item.commissionUnallocated ?? 0)
+        return acc
+      },
+      { total: 0, allocated: 0, unallocated: 0 },
+    )
+  }, [lineItemRows])
+
   return (
     <div className="flex min-h-[calc(100vh-110px)] flex-col gap-3 px-4 pb-4 pt-3 sm:px-6">
       {showDevControls ? renderDevMatchingControls() : null}
@@ -1960,8 +1965,13 @@ export function DepositReconciliationDetailView({
               <MetaStat label="Created By" value={metadata.createdBy} />
               <MetaStat label="Payment Type" value={metadata.paymentType} />
               <MetaStat label="Usage Total" value={currencyFormatter.format(metadata.usageTotal)} emphasis />
-              <MetaStat label="Unallocated" value={currencyFormatter.format(metadata.unallocated)} emphasis />
-              <MetaStat label="Allocated" value={currencyFormatter.format(metadata.allocated)} emphasis />
+              <MetaStat label="Usage Unallocated" value={currencyFormatter.format(metadata.unallocated)} emphasis />
+              <MetaStat label="Usage Allocated" value={currencyFormatter.format(metadata.allocated)} emphasis />
+            </div>
+            <div className="grid grid-cols-3 gap-4 text-sm font-medium text-slate-700">
+              <MetaStat label="Commission Total" value={currencyFormatter.format(commissionTotals.total)} emphasis />
+              <MetaStat label="Commission Unallocated" value={currencyFormatter.format(commissionTotals.unallocated)} emphasis />
+              <MetaStat label="Commission Allocated" value={currencyFormatter.format(commissionTotals.allocated)} emphasis />
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -2001,7 +2011,7 @@ export function DepositReconciliationDetailView({
                   unfinalizeLoading ? "cursor-not-allowed opacity-60" : "",
                 )}
               >
-                {unfinalizeLoading ? "Reopening…" : "Unreconcile Deposit"}
+                {unfinalizeLoading ? "Reopening..." : "Reopen Deposit"}
               </button>
             ) : null}
             {onFinalizeDeposit ? (
@@ -2014,25 +2024,25 @@ export function DepositReconciliationDetailView({
                   finalizeLoading || metadata.reconciled ? "cursor-not-allowed opacity-60" : "",
                 )}
               >
-                {finalizeLoading ? "Reconciling…" : "Reconcile Matches"}
+                {finalizeLoading ? "Finalizing..." : "Finalize Deposit"}
               </button>
             ) : null}
           </div>
         </div>
       {autoMatchSummary ? (
         <div className="rounded-md border border-emerald-100 bg-emerald-50 px-3 py-2 text-[11px] font-medium text-emerald-800">
-          Auto-matched <span className="font-semibold">{autoMatchSummary.autoMatched}</span> of{" "}
+          Auto-allocated <span className="font-semibold">{autoMatchSummary.autoMatched}</span> of{" "}
           <span className="font-semibold">{autoMatchSummary.processed}</span> lines
           {autoMatchSummary.alreadyMatched > 0 ? (
-              <> · Already matched: {autoMatchSummary.alreadyMatched}</>
+              <> {" - "}Already allocated: {autoMatchSummary.alreadyMatched}</>
             ) : null}
             {autoMatchSummary.belowThreshold > 0 ? (
-              <> · Below threshold: {autoMatchSummary.belowThreshold}</>
+              <> {" - "}Below threshold: {autoMatchSummary.belowThreshold}</>
             ) : null}
             {autoMatchSummary.noCandidates > 0 ? (
-              <> · No candidates: {autoMatchSummary.noCandidates}</>
+              <> {" - "}No candidates: {autoMatchSummary.noCandidates}</>
             ) : null}
-            {autoMatchSummary.errors > 0 ? <> · Errors: {autoMatchSummary.errors}</> : null}
+            {autoMatchSummary.errors > 0 ? <> {" - "}Errors: {autoMatchSummary.errors}</> : null}
           </div>
       ) : null}
     </div>
@@ -2049,7 +2059,7 @@ export function DepositReconciliationDetailView({
         >
           <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
             <div>
-              <h2 className="text-lg font-semibold text-slate-900">Review matches before reconciliation</h2>
+              <h2 className="text-lg font-semibold text-slate-900">Review allocations before finalizing</h2>
             </div>
             <button
               type="button"
@@ -2062,7 +2072,7 @@ export function DepositReconciliationDetailView({
           <div className="grid gap-4 px-6 py-5 md:grid-cols-2">
             <div className="rounded-lg border border-slate-200">
               <div className="border-b border-slate-200 px-4 py-2 text-sm font-semibold text-slate-800">
-                Matched Line Items ({matchedLineItems.length})
+                Allocated Line Items ({matchedLineItems.length})
               </div>
               <div className="max-h-64 overflow-y-auto">
                 {matchedLineItems.length ? (
@@ -2098,7 +2108,7 @@ export function DepositReconciliationDetailView({
                     </tbody>
                   </table>
                 ) : (
-                  <div className="p-4 text-xs text-slate-500">No matched line items yet.</div>
+                  <div className="p-4 text-xs text-slate-500">No allocated line items yet.</div>
                 )}
       </div>
     </div>
@@ -2115,7 +2125,7 @@ export function DepositReconciliationDetailView({
         >
           <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
             <div>
-              <h2 className="text-lg font-semibold text-slate-900">Review reconciled items</h2>
+              <h2 className="text-lg font-semibold text-slate-900">Review finalized items</h2>
             </div>
             <button
               type="button"
@@ -2128,7 +2138,7 @@ export function DepositReconciliationDetailView({
           <div className="grid gap-4 px-6 py-5 md:grid-cols-2">
             <div className="rounded-lg border border-slate-200">
               <div className="border-b border-slate-200 px-4 py-2 text-sm font-semibold text-slate-800">
-                Reconciled Line Items ({matchedLineItems.length})
+                Finalized Line Items ({matchedLineItems.length})
               </div>
               <div className="max-h-64 overflow-y-auto">
                 {matchedLineItems.length ? (
@@ -2159,7 +2169,7 @@ export function DepositReconciliationDetailView({
             </div>
             <div className="rounded-lg border border-slate-200">
               <div className="border-b border-slate-200 px-4 py-2 text-sm font-semibold text-slate-800">
-                Reconciled Revenue Schedules ({matchedSchedules.length})
+                Finalized Revenue Schedules ({matchedSchedules.length})
               </div>
               <div className="max-h-64 overflow-y-auto">
                 {matchedSchedules.length ? (
@@ -2209,7 +2219,7 @@ export function DepositReconciliationDetailView({
                 "rounded bg-primary-600 px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-60",
               )}
             >
-              {unfinalizeLoading ? "Unreconciling…" : "Unreconcile Deposit"}
+              {unfinalizeLoading ? "Reopening..." : "Reopen Deposit"}
             </button>
           </div>
         </div>
@@ -2217,7 +2227,7 @@ export function DepositReconciliationDetailView({
     ) : null}
             <div className="rounded-lg border border-slate-200">
               <div className="border-b border-slate-200 px-4 py-2 text-sm font-semibold text-slate-800">
-                Matched Revenue Schedules ({matchedSchedules.length})
+                Allocated Revenue Schedules ({matchedSchedules.length})
               </div>
               <div className="max-h-64 overflow-y-auto">
                 {matchedSchedules.length ? (
@@ -2242,7 +2252,7 @@ export function DepositReconciliationDetailView({
                     </tbody>
                   </table>
                 ) : (
-                  <div className="p-4 text-xs text-slate-500">No matched schedules yet.</div>
+                  <div className="p-4 text-xs text-slate-500">No allocated schedules yet.</div>
                 )}
               </div>
             </div>
@@ -2267,7 +2277,7 @@ export function DepositReconciliationDetailView({
                 "rounded bg-primary-600 px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-60",
               )}
             >
-              {finalizeLoading ? "Reconciling…" : "Confirm & Reconcile"}
+              {finalizeLoading ? "Finalizing..." : "Confirm & Finalize"}
             </button>
           </div>
         </div>
@@ -2277,7 +2287,7 @@ export function DepositReconciliationDetailView({
       <section className="flex min-h-0 flex-1 flex-col">
         <div className="border-b border-slate-100">
           <div className="px-4 pt-3">
-            <TabDescription>This section displays all line items from the imported deposit file. Filter by status to view matched, partially matched, unmatched, or ignored items. Select a line to view matching candidates.</TabDescription>
+            <TabDescription>Review deposit line items and allocate deposit amounts to revenue schedules. Allocations are editable until the deposit is finalized.</TabDescription>
           </div>
           <ListHeader
             pageTitle="DEPOSIT LINE ITEMS"
@@ -2299,13 +2309,14 @@ export function DepositReconciliationDetailView({
                   onClick={onRunAutoMatch}
                   disabled={autoMatchLoading}
                   className={cn(
-                    "inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-primary-600 shadow-sm transition hover:bg-primary-50",
+                    "inline-flex h-9 items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-3 text-sm font-semibold text-primary-700 shadow-sm transition hover:bg-primary-50",
                     autoMatchLoading ? "cursor-not-allowed opacity-60" : "",
                   )}
-                  aria-label="Run AI Matching"
-                  title="Run AI Matching"
+                  aria-label="Use AI Matching"
+                  title="Use AI Matching"
                 >
                   <Sparkles className="h-4 w-4" />
+                  <span>Use AI</span>
                 </button>
               ) : null
             }
@@ -2315,10 +2326,10 @@ export function DepositReconciliationDetailView({
                 <button
                   type="button"
                   onClick={handleDeleteDeposit}
-                  disabled={deleteLoading || !canManageReconciliation}
+                  disabled={!canManageReconciliation}
                   className={cn(
                     "inline-flex h-9 w-9 items-center justify-center rounded-full border border-red-200 bg-white text-red-600 shadow-sm transition hover:bg-red-50",
-                    deleteLoading || !canManageReconciliation ? "cursor-not-allowed opacity-60" : "",
+                    !canManageReconciliation ? "cursor-not-allowed opacity-60" : "",
                   )}
                   aria-label="Delete Deposit"
                   title={canManageReconciliation ? "Delete Deposit" : "Insufficient permissions"}
@@ -2354,10 +2365,10 @@ export function DepositReconciliationDetailView({
       <section className="flex min-h-0 flex-1 flex-col">
         <div className="border-b border-slate-100">
           <div className="px-4 pt-3">
-            <TabDescription>This section shows revenue schedules that match the selected deposit line item. Review match confidence scores and apply matches to reconcile commission payments.</TabDescription>
+            <TabDescription>Select a revenue schedule, then allocate the selected deposit line item. Finalizing is a separate step that locks these allocations.</TabDescription>
           </div>
           <ListHeader
-            pageTitle="SUGGESTED MATCHES - REVENUE SCHEDULES"
+            pageTitle="ALLOCATION CANDIDATES - REVENUE SCHEDULES"
             searchPlaceholder="Search revenue schedules"
             onSearch={setScheduleSearch}
             showStatusFilter={false}
@@ -2373,14 +2384,14 @@ export function DepositReconciliationDetailView({
                 type="button"
                 onClick={handleMatchSelected}
                 disabled={Boolean(matchButtonDisabledReason)}
-                title={matchButtonDisabledReason ?? "Match selected line item to the selected schedule"}
+                title={matchButtonDisabledReason ?? "Allocate the selected line item to the selected schedule"}
                 className={cn(
                   "inline-flex h-9 items-center justify-center gap-2 rounded bg-primary-600 px-3 text-sm font-semibold text-white shadow-sm transition hover:bg-primary-700",
                   matchButtonDisabledReason ? "cursor-not-allowed opacity-60 hover:bg-primary-600" : ""
                 )}
               >
                 <ClipboardCheck className="h-4 w-4" />
-                Match
+                Allocate
               </button>
             }
             leftAccessory={
@@ -2439,6 +2450,18 @@ export function DepositReconciliationDetailView({
         columns={scheduleTableColumns}
         onApply={handleScheduleColumnModalApply}
         onClose={handleScheduleColumnModalClose}
+      />
+      <TwoStageDeleteDialog
+        isOpen={showDeleteDepositDialog}
+        onClose={() => setShowDeleteDepositDialog(false)}
+        entity="Deposit"
+        entityName={metadata.depositName}
+        entityId={metadata.id}
+        deleteKind="permanent"
+        onSoftDelete={async () => deleteDeposit()}
+        onPermanentDelete={async () => deleteDeposit()}
+        primaryActionLabel="Delete Deposit"
+        note="Deleting a deposit permanently removes its line items and allocations. This action cannot be undone."
       />
       <ToastContainer />
     </div>

@@ -15,6 +15,7 @@ import { buildStandardBulkActions } from '@/components/standard-bulk-actions'
 import { TwoStageDeleteDialog } from '@/components/two-stage-delete-dialog'
 import { Users, Check } from 'lucide-react'
 import type { DeletionConstraint } from '@/lib/deletion'
+import { calculateMinWidth } from '@/lib/column-width-utils'
 
 interface GroupRow {
   id: string
@@ -63,7 +64,7 @@ const groupColumns: Column[] = [
     id: 'multi-action',
     label: 'Select All',
     width: 200,
-    minWidth: 100,
+    minWidth: calculateMinWidth({ label: 'Select All', type: 'multi-action', sortable: false }, { absoluteMin: 100 }),
     maxWidth: 240,
     type: 'multi-action',
   },
@@ -71,7 +72,7 @@ const groupColumns: Column[] = [
     id: 'groupName',
     label: 'Group Name',
     width: 200,
-    minWidth: 150,
+    minWidth: calculateMinWidth({ label: 'Group Name', type: 'text', sortable: true }, { absoluteMin: 150 }),
     maxWidth: 320,
     sortable: true,
     type: 'text',
@@ -88,7 +89,7 @@ const groupColumns: Column[] = [
     id: 'groupType',
     label: 'Group Type',
     width: 150,
-    minWidth: 120,
+    minWidth: calculateMinWidth({ label: 'Group Type', type: 'text', sortable: true }, { absoluteMin: 120 }),
     maxWidth: 220,
     sortable: true,
     type: 'text'
@@ -97,7 +98,7 @@ const groupColumns: Column[] = [
     id: 'memberCount',
     label: 'Member Count',
     width: 140,
-    minWidth: 120,
+    minWidth: calculateMinWidth({ label: 'Member Count', type: 'text', sortable: true }, { absoluteMin: 120 }),
     maxWidth: 180,
     sortable: true,
     type: 'text',
@@ -112,7 +113,7 @@ const groupColumns: Column[] = [
     id: 'description',
     label: 'Description',
     width: 260,
-    minWidth: 200,
+    minWidth: calculateMinWidth({ label: 'Description', type: 'text', sortable: true }, { absoluteMin: 200 }),
     maxWidth: 420,
     sortable: true,
     type: 'text'
@@ -121,7 +122,7 @@ const groupColumns: Column[] = [
     id: 'createdDate',
     label: 'Created Date',
     width: 150,
-    minWidth: 120,
+    minWidth: calculateMinWidth({ label: 'Created Date', type: 'text', sortable: true }, { absoluteMin: 120 }),
     maxWidth: 220,
     sortable: true,
     type: 'text'

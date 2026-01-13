@@ -23,6 +23,8 @@ export interface TwoStageDeleteDialogProps {
   entityName: string
   entityId: string
   isDeleted?: boolean
+  // When set to "permanent", the initial flow uses permanent deletion copy and confirmation.
+  deleteKind?: 'soft' | 'permanent'
   onSoftDelete: (entityId: string, bypassConstraints?: boolean, reason?: string) => Promise<{ success: boolean, constraints?: DeletionConstraint[], error?: string }>
   // Optional "Deactivate" action (mark inactive without deleting)
   onDeactivate?: (entityId: string, reason?: string) => Promise<{ success: boolean; error?: string }>
@@ -58,6 +60,7 @@ export function TwoStageDeleteDialog({
   entityName,
   entityId,
   isDeleted = false,
+  deleteKind = 'soft',
   onSoftDelete,
   onDeactivate,
   onBulkDeactivate,
@@ -79,6 +82,7 @@ export function TwoStageDeleteDialog({
   note
 }: TwoStageDeleteDialogProps) {
   const isRevenueSchedulesSize = modalSize === 'revenue-schedules'
+  const initialDeleteStage: DialogStage = deleteKind === 'permanent' ? 'confirm-permanent' : 'confirm-soft'
   const [stage, setStage] = useState<DialogStage>('initial')
   const [primaryAction, setPrimaryAction] = useState<DialogPrimaryAction>('delete')
   const [constraints, setConstraints] = useState<DeletionConstraint[]>([])
@@ -99,9 +103,11 @@ export function TwoStageDeleteDialog({
     reasonMissing ||
     (primaryAction === 'delete' && disallowActiveDelete) ||
     (primaryAction === 'deactivate' && !onDeactivate)
-  const initialFooterPrimaryLabel = primaryActionLabel ?? 'Delete'
+  const initialFooterPrimaryLabel = primaryActionLabel ?? (deleteKind === 'permanent' ? 'Delete Permanently' : 'Delete')
   const initialFooterNoteLabel = noteLabel ?? (entity === 'Account' ? 'Legend' : 'Note')
-  const initialFooterEffectiveLabel = canShowActionSelection ? (primaryAction === 'delete' ? 'Delete' : 'Deactivate') : initialFooterPrimaryLabel
+  const initialFooterEffectiveLabel = canShowActionSelection
+    ? (primaryAction === 'delete' ? (deleteKind === 'permanent' ? 'Delete Permanently' : 'Delete') : 'Deactivate')
+    : initialFooterPrimaryLabel
   const initialFooterEffectiveTitle =
     reasonMissing
       ? 'Provide a reason before proceeding'
@@ -617,9 +623,13 @@ export function TwoStageDeleteDialog({
         ? `This will permanently remove the selected ${lowerPluralLabel}. This action cannot be undone.`
         : canShowActionSelection
           ? primaryAction === 'delete'
-            ? `This action will delete the selected ${lowerPluralLabel}. You can restore them later if needed.`
+            ? deleteKind === 'permanent'
+              ? `This action will permanently remove the selected ${lowerPluralLabel}. This action cannot be undone.`
+              : `This action will delete the selected ${lowerPluralLabel}. You can restore them later if needed.`
             : `This action will deactivate the selected ${lowerPluralLabel}. You can reactivate them later if needed.`
-          : `This action will deactivate the selected ${lowerPluralLabel}. You can restore them later if needed.`
+          : deleteKind === 'permanent'
+            ? `This action will permanently remove the selected ${lowerPluralLabel}. This action cannot be undone.`
+            : `This action will deactivate the selected ${lowerPluralLabel}. You can restore them later if needed.`
       const bulkTitle = isDeleted ? `Delete ${pluralLabel}` : `Delete ${pluralLabel}`
       return (
         <div className={isRevenueSchedulesSize ? "px-6 py-5" : "p-6"}>
@@ -674,7 +684,7 @@ export function TwoStageDeleteDialog({
                 Cancel
               </button>
               <button
-                onClick={() => setStage(isDeleted ? 'confirm-permanent' : 'confirm-soft')}
+                onClick={() => setStage(isDeleted ? 'confirm-permanent' : initialDeleteStage)}
                 disabled={initialFooterDisabled}
                 className={`px-4 py-2 rounded-lg transition-colors ${initialFooterDisabled
                   ? 'bg-red-400 text-white opacity-60 cursor-not-allowed'
@@ -784,9 +794,13 @@ export function TwoStageDeleteDialog({
             <p className="text-sm text-gray-600">
               {canShowActionSelection
                 ? primaryAction === 'delete'
-                  ? `This action will delete the ${entity.toLowerCase()}. You can restore it later if needed.`
+                  ? deleteKind === 'permanent'
+                    ? `This action will permanently remove the ${entity.toLowerCase()}. This action cannot be undone.`
+                    : `This action will delete the ${entity.toLowerCase()}. You can restore it later if needed.`
                   : `This action will deactivate the ${entity.toLowerCase()}. You can reactivate it later if needed.`
-                : `This action will deactivate the ${entity.toLowerCase()}. You can restore it later if needed.`}
+                : deleteKind === 'permanent'
+                  ? `This action will permanently remove the ${entity.toLowerCase()}. This action cannot be undone.`
+                  : `This action will deactivate the ${entity.toLowerCase()}. You can restore it later if needed.`}
             </p>
           </div>
         </div>
@@ -852,7 +866,7 @@ export function TwoStageDeleteDialog({
               Cancel
             </button>
             <button
-              onClick={() => setStage('confirm-soft')}
+              onClick={() => setStage(initialDeleteStage)}
               disabled={initialFooterDisabled}
               className={`px-4 py-2 rounded-lg transition-colors ${initialFooterDisabled
                 ? 'bg-red-400 text-white opacity-60 cursor-not-allowed'

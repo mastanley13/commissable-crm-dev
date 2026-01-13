@@ -11,6 +11,7 @@ import { PermissionGate } from '@/components/auth/permission-gate'
 import { Check, Edit, Trash2, User, Shield } from 'lucide-react'
 import { isRowInactive } from '@/lib/row-state'
 import { cn } from '@/lib/utils'
+import { calculateMinWidth } from '@/lib/column-width-utils'
 
 function UserNameCell({ value, userId }: { value: string | null | undefined; userId: string }) {
   const router = useRouter()
@@ -39,7 +40,7 @@ const userColumns: Column[] = [
     id: 'actions',
     label: 'Select All',
     width: 220,
-    minWidth: 200,
+    minWidth: calculateMinWidth({ label: 'Select All', type: 'multi-action', sortable: false }, { absoluteMin: 200 }),
     maxWidth: 260,
     type: 'multi-action',
     accessor: 'select',
@@ -49,7 +50,7 @@ const userColumns: Column[] = [
     id: 'email',
     label: 'Email',
     width: 200,
-    minWidth: 160,
+    minWidth: calculateMinWidth({ label: 'Email', type: 'text', sortable: true }, { absoluteMin: 160 }),
     maxWidth: 300,
     sortable: true,
     type: 'text',
@@ -64,7 +65,7 @@ const userColumns: Column[] = [
     id: 'fullName',
     label: 'Full Name',
     width: 180,
-    minWidth: 150,
+    minWidth: calculateMinWidth({ label: 'Full Name', type: 'text', sortable: true }, { absoluteMin: 150 }),
     maxWidth: 300,
     sortable: true,
     type: 'text',
@@ -74,7 +75,7 @@ const userColumns: Column[] = [
     id: 'status',
     label: 'Status',
     width: 120,
-    minWidth: 100,
+    minWidth: calculateMinWidth({ label: 'Status', type: 'text', sortable: true }, { absoluteMin: 100 }),
     maxWidth: 150,
     sortable: true,
     type: 'text',
@@ -92,7 +93,7 @@ const userColumns: Column[] = [
     id: 'role',
     label: 'Role',
     width: 150,
-    minWidth: 120,
+    minWidth: calculateMinWidth({ label: 'Role', type: 'text', sortable: true }, { absoluteMin: 120 }),
     maxWidth: 200,
     sortable: true,
     type: 'text',
@@ -107,7 +108,7 @@ const userColumns: Column[] = [
     id: 'lastLoginAt',
     label: 'Last Login',
     width: 160,
-    minWidth: 140,
+    minWidth: calculateMinWidth({ label: 'Last Login', type: 'text', sortable: true }, { absoluteMin: 140 }),
     maxWidth: 200,
     sortable: true,
     type: 'text',
@@ -125,7 +126,7 @@ const userColumns: Column[] = [
     id: 'createdAt',
     label: 'Created Date',
     width: 150,
-    minWidth: 120,
+    minWidth: calculateMinWidth({ label: 'Created Date', type: 'text', sortable: true }, { absoluteMin: 120 }),
     maxWidth: 200,
     sortable: true,
     type: 'text',

@@ -52,13 +52,13 @@ export function AutoMatchPreviewModal({
         className="w-full max-w-2xl rounded-2xl bg-white shadow-xl"
         onClick={event => event.stopPropagation()}
       >
-        <ModalHeader kicker="AI Matching" title="Run AI Matching" />
+        <ModalHeader kicker="AI Matching" title="Use AI Matching" />
 
         <div className="px-6 py-5">
           <ol className="list-decimal space-y-1 pl-5 text-sm text-slate-700">
-            <li>Preview matches that meet your confidence threshold.</li>
-            <li>Apply matches, then review remaining suggestions manually.</li>
-            <li>Confirm allocations, then finalize the deposit.</li>
+            <li>Preview suggestions that meet your confidence threshold.</li>
+            <li>Apply allocations, then review remaining suggestions manually.</li>
+            <li>Review allocations, then finalize the deposit.</li>
           </ol>
           {error ? (
             <div className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
@@ -69,13 +69,13 @@ export function AutoMatchPreviewModal({
             <div className="mt-4 h-32 rounded-md border border-dashed border-slate-200 text-center text-sm text-slate-500">
               <div className="flex h-full flex-col items-center justify-center gap-2">
                 <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-primary-400" />
-                Loading preview…
+                Loading preview...
               </div>
             </div>
           ) : preview ? (
             <>
               <div className="mt-4 text-xs text-slate-600">
-                Processed {preview.processed} lines · Already matched: {preview.alreadyMatched} · Eligible for auto-match: {preview.autoMatchCandidates.length} · Below threshold: {preview.belowThreshold} · No candidates: {preview.noCandidates} · Errors: {preview.errors}
+                Processed {preview.processed} lines{" - "}Already allocated: {preview.alreadyMatched}{" - "}Eligible for auto-allocation: {preview.autoMatchCandidates.length}{" - "}Below threshold: {preview.belowThreshold}{" - "}No candidates: {preview.noCandidates}{" - "}Errors: {preview.errors}
               </div>
               {preview.autoMatchCandidates.length ? (
                 <div className="mt-3 max-h-64 overflow-y-auto rounded-lg border border-slate-200">
@@ -100,7 +100,7 @@ export function AutoMatchPreviewModal({
                           <td className="px-3 py-2 text-slate-700">
                             <div className="font-medium text-slate-900">{candidate.scheduleName}</div>
                             {candidate.reasons.length ? (
-                              <div className="text-xs text-slate-500">{candidate.reasons.slice(0, 2).join(" · ")}</div>
+                              <div className="text-xs text-slate-500">{candidate.reasons.slice(0, 2).join(" - ")}</div>
                             ) : null}
                           </td>
                           <td className="px-3 py-2 font-semibold text-primary-600">
@@ -139,7 +139,7 @@ export function AutoMatchPreviewModal({
                 : "bg-primary-600 hover:bg-primary-700",
             )}
           >
-            {confirmLoading ? "Applying…" : "Apply matches"}
+            {confirmLoading ? "Applying..." : "Apply allocations"}
           </button>
         </div>
       </div>

@@ -15,6 +15,7 @@ import { BulkOwnerModal, type BulkOwnerOption } from '@/components/bulk-owner-mo
 import { BulkStatusModal } from '@/components/bulk-status-modal'
 import { TwoStageDeleteDialog } from '@/components/two-stage-delete-dialog'
 import type { DeletionConstraint } from '@/lib/deletion'
+import { calculateMinWidth } from '@/lib/column-width-utils'
 
 interface ActivityRow {
   id: string
@@ -53,7 +54,7 @@ const ACTIVITY_COLUMNS: Column[] = [
     id: 'multi-action',
     label: 'Select All',
     width: 200,
-    minWidth: 120,
+    minWidth: calculateMinWidth({ label: 'Select All', type: 'multi-action', sortable: false }, { absoluteMin: 120 }),
     maxWidth: 240,
     type: 'multi-action'
   },
@@ -61,7 +62,7 @@ const ACTIVITY_COLUMNS: Column[] = [
     id: 'active',
     label: 'Active',
     width: 100,
-    minWidth: 80,
+    minWidth: calculateMinWidth({ label: 'Active', type: 'text', sortable: false }, { absoluteMin: 80 }),
     maxWidth: 140,
     type: 'text'
   },
@@ -69,7 +70,7 @@ const ACTIVITY_COLUMNS: Column[] = [
     id: 'activityDate',
     label: 'Activity Date',
     width: 150,
-    minWidth: 120,
+    minWidth: calculateMinWidth({ label: 'Activity Date', type: 'text', sortable: true }, { absoluteMin: 120 }),
     maxWidth: 200,
     sortable: true,
     type: 'text'
@@ -78,7 +79,7 @@ const ACTIVITY_COLUMNS: Column[] = [
     id: 'activityType',
     label: 'Activity Type',
     width: 150,
-    minWidth: 120,
+    minWidth: calculateMinWidth({ label: 'Activity Type', type: 'text', sortable: false }, { absoluteMin: 120 }),
     maxWidth: 220,
     type: 'text'
   },
@@ -86,7 +87,7 @@ const ACTIVITY_COLUMNS: Column[] = [
     id: 'description',
     label: 'Activity Description',
     width: 260,
-    minWidth: 200,
+    minWidth: calculateMinWidth({ label: 'Activity Description', type: 'text', sortable: false }, { absoluteMin: 200 }),
     maxWidth: 360,
     type: 'text'
   },
@@ -94,7 +95,7 @@ const ACTIVITY_COLUMNS: Column[] = [
     id: 'accountName',
     label: 'Account Name',
     width: 200,
-    minWidth: 150,
+    minWidth: calculateMinWidth({ label: 'Account Name', type: 'text', sortable: false }, { absoluteMin: 150 }),
     maxWidth: 280,
     type: 'text'
   },
@@ -102,7 +103,7 @@ const ACTIVITY_COLUMNS: Column[] = [
     id: 'attachment',
     label: 'Attachment',
     width: 130,
-    minWidth: 100,
+    minWidth: calculateMinWidth({ label: 'Attachment', type: 'text', sortable: false }, { absoluteMin: 100 }),
     maxWidth: 160,
     type: 'text'
   },
@@ -110,7 +111,7 @@ const ACTIVITY_COLUMNS: Column[] = [
     id: 'fileName',
     label: 'File Name',
     width: 240,
-    minWidth: 180,
+    minWidth: calculateMinWidth({ label: 'File Name', type: 'text', sortable: false }, { absoluteMin: 180 }),
     maxWidth: 360,
     type: 'text'
   },
@@ -118,7 +119,7 @@ const ACTIVITY_COLUMNS: Column[] = [
     id: 'status',
     label: 'Status',
     width: 140,
-    minWidth: 110,
+    minWidth: calculateMinWidth({ label: 'Status', type: 'text', sortable: false }, { absoluteMin: 110 }),
     maxWidth: 200,
     type: 'text'
   }

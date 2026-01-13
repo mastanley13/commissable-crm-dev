@@ -14,6 +14,7 @@ import { BulkStatusModal } from '@/components/bulk-status-modal'
 import { TicketCreateModal } from '@/components/ticket-create-modal'
 import { TwoStageDeleteDialog } from '@/components/two-stage-delete-dialog'
 import type { DeletionConstraint } from '@/lib/deletion'
+import { calculateMinWidth } from '@/lib/column-width-utils'
 
 interface TicketRow {
   id: string
@@ -72,7 +73,7 @@ const TICKET_COLUMNS: Column[] = [
     id: 'multi-action',
     label: 'Select All',
     width: 200,
-    minWidth: 120,
+    minWidth: calculateMinWidth({ label: 'Select All', type: 'multi-action', sortable: false }, { absoluteMin: 120 }),
     maxWidth: 240,
     type: 'multi-action'
   },
@@ -80,7 +81,7 @@ const TICKET_COLUMNS: Column[] = [
     id: 'distributorName',
     label: 'Distributor Name',
     width: 200,
-    minWidth: 160,
+    minWidth: calculateMinWidth({ label: 'Distributor Name', type: 'text', sortable: true }, { absoluteMin: 160 }),
     maxWidth: 300,
     sortable: true,
     type: 'text'
@@ -89,7 +90,7 @@ const TICKET_COLUMNS: Column[] = [
     id: 'vendorName',
     label: 'Vendor Name',
     width: 180,
-    minWidth: 150,
+    minWidth: calculateMinWidth({ label: 'Vendor Name', type: 'text', sortable: true }, { absoluteMin: 150 }),
     maxWidth: 280,
     sortable: true,
     type: 'text'
@@ -98,7 +99,7 @@ const TICKET_COLUMNS: Column[] = [
     id: 'issue',
     label: 'Issue',
     width: 240,
-    minWidth: 180,
+    minWidth: calculateMinWidth({ label: 'Issue', type: 'text', sortable: true }, { absoluteMin: 180 }),
     maxWidth: 360,
     sortable: true,
     type: 'text'
@@ -107,7 +108,7 @@ const TICKET_COLUMNS: Column[] = [
     id: 'revenueSchedule',
     label: 'Revenue Schedule Name',
     width: 160,
-    minWidth: 140,
+    minWidth: calculateMinWidth({ label: 'Revenue Schedule Name', type: 'text', sortable: true }, { absoluteMin: 140 }),
     maxWidth: 240,
     sortable: true,
     type: 'text'
@@ -116,7 +117,7 @@ const TICKET_COLUMNS: Column[] = [
     id: 'opportunityName',
     label: 'Opportunity Name',
     width: 220,
-    minWidth: 180,
+    minWidth: calculateMinWidth({ label: 'Opportunity Name', type: 'text', sortable: true }, { absoluteMin: 180 }),
     maxWidth: 320,
     sortable: true,
     type: 'text'
@@ -125,7 +126,7 @@ const TICKET_COLUMNS: Column[] = [
     id: 'productNameVendor',
     label: 'Other - Product Name',
     width: 220,
-    minWidth: 180,
+    minWidth: calculateMinWidth({ label: 'Other - Product Name', type: 'text', sortable: true }, { absoluteMin: 180 }),
     maxWidth: 320,
     sortable: true,
     type: 'text',
@@ -135,7 +136,7 @@ const TICKET_COLUMNS: Column[] = [
     id: 'accountIdVendor',
     label: 'Other - Account ID',
     width: 200,
-    minWidth: 160,
+    minWidth: calculateMinWidth({ label: 'Other - Account ID', type: 'text', sortable: true }, { absoluteMin: 160 }),
     maxWidth: 280,
     sortable: true,
     type: 'text',
@@ -145,7 +146,7 @@ const TICKET_COLUMNS: Column[] = [
     id: 'customerIdVendor',
     label: 'Other - Customer ID',
     width: 200,
-    minWidth: 160,
+    minWidth: calculateMinWidth({ label: 'Other - Customer ID', type: 'text', sortable: true }, { absoluteMin: 160 }),
     maxWidth: 280,
     sortable: true,
     type: 'text',
@@ -155,7 +156,7 @@ const TICKET_COLUMNS: Column[] = [
     id: 'description',
     label: 'Description',
     width: 260,
-    minWidth: 200,
+    minWidth: calculateMinWidth({ label: 'Description', type: 'text', sortable: true }, { absoluteMin: 200 }),
     maxWidth: 360,
     sortable: true,
     type: 'text',
@@ -165,7 +166,7 @@ const TICKET_COLUMNS: Column[] = [
     id: 'opportunityId',
     label: 'Opportunity ID',
     width: 200,
-    minWidth: 160,
+    minWidth: calculateMinWidth({ label: 'Opportunity ID', type: 'text', sortable: true }, { absoluteMin: 160 }),
     maxWidth: 280,
     sortable: true,
     type: 'text',
@@ -175,7 +176,7 @@ const TICKET_COLUMNS: Column[] = [
     id: 'orderIdVendor',
     label: 'Other - Order ID',
     width: 200,
-    minWidth: 160,
+    minWidth: calculateMinWidth({ label: 'Other - Order ID', type: 'text', sortable: true }, { absoluteMin: 160 }),
     maxWidth: 280,
     sortable: true,
     type: 'text',
@@ -185,7 +186,7 @@ const TICKET_COLUMNS: Column[] = [
     id: 'ticketNumber',
     label: 'Ticket Number',
     width: 180,
-    minWidth: 140,
+    minWidth: calculateMinWidth({ label: 'Ticket Number', type: 'text', sortable: true }, { absoluteMin: 140 }),
     maxWidth: 260,
     sortable: true,
     type: 'text',
@@ -195,7 +196,7 @@ const TICKET_COLUMNS: Column[] = [
     id: 'otherSource',
     label: 'Other - Source',
     width: 160,
-    minWidth: 140,
+    minWidth: calculateMinWidth({ label: 'Other - Source', type: 'text', sortable: true }, { absoluteMin: 140 }),
     maxWidth: 220,
     sortable: true,
     type: 'text',
@@ -205,7 +206,7 @@ const TICKET_COLUMNS: Column[] = [
     id: 'status',
     label: 'Status',
     width: 130,
-    minWidth: 110,
+    minWidth: calculateMinWidth({ label: 'Status', type: 'text', sortable: true }, { absoluteMin: 110 }),
     maxWidth: 180,
     sortable: true,
     type: 'text'

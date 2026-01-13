@@ -49,9 +49,15 @@ function applyPreferences(columns: Column[], preference: TablePreferencePayload 
   if (normalized.columnWidths && typeof normalized.columnWidths === "object") {
     orderedColumns = orderedColumns.map(column => {
       const width = normalized.columnWidths?.[column.id]
-      if (typeof width === "number" && width > 0) {
-        // Normalize width to integer to avoid sub-pixel gaps
-        return { ...column, width: Math.round(width) }
+      if (typeof width === "number" && Number.isFinite(width) && width > 0) {
+        const minWidth = typeof column.minWidth === "number" && Number.isFinite(column.minWidth) ? column.minWidth : 0
+        const maxWidth =
+          typeof column.maxWidth === "number" && Number.isFinite(column.maxWidth)
+            ? Math.max(column.maxWidth, minWidth)
+            : Number.POSITIVE_INFINITY
+        const normalizedWidth = Math.round(width)
+        const clampedWidth = Math.min(maxWidth, Math.max(minWidth, normalizedWidth))
+        return { ...column, width: clampedWidth }
       }
       return column
     })
@@ -207,8 +213,13 @@ export function useTablePreferences(
         body: JSON.stringify({
           columnOrder: updatedColumns.map(column => column.id),
           columnWidths: updatedColumns.reduce<Record<string, number>>((acc, column) => {
-            // Normalize width to integer to avoid sub-pixel gaps
-            acc[column.id] = Math.round(column.width)
+            const minWidth = typeof column.minWidth === "number" && Number.isFinite(column.minWidth) ? column.minWidth : 0
+            const maxWidth =
+              typeof column.maxWidth === "number" && Number.isFinite(column.maxWidth)
+                ? Math.max(column.maxWidth, minWidth)
+                : Number.POSITIVE_INFINITY
+            const normalizedWidth = Math.round(column.width)
+            acc[column.id] = Math.min(maxWidth, Math.max(minWidth, normalizedWidth))
             return acc
           }, {}),
           hiddenColumns: updatedColumns.filter(column => column.hidden).map(column => column.id),
