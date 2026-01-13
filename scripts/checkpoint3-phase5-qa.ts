@@ -304,6 +304,12 @@ async function main() {
       continue
     }
 
+    type ImportLineRow = {
+      depositId: string
+      usage: number | null
+      commission: number | null
+    } & Record<string, unknown>
+
     const lineItemsData = parsed.rows
       .slice(0, Math.max(0, maxLines))
       .map((row, index) => {
@@ -340,7 +346,7 @@ async function main() {
           vendorAccountId: vendorAccount.id,
         }
       })
-      .filter(Boolean) as Array<Record<string, unknown>>
+      .filter(Boolean) as ImportLineRow[]
 
     if (!lineItemsData.length) {
       console.log("Skipping DB import (no usable rows after parsing).")
@@ -432,7 +438,7 @@ async function main() {
     let aboveSuggested70 = 0
     let aboveAuto95 = 0
 
-    const examples: QaFileResult["matching"]["examples"] = []
+    const examples: NonNullable<QaFileResult["matching"]>["examples"] = []
 
     for (const line of lineItems) {
       const usage = Number(line.usage ?? 0)

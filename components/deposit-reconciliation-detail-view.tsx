@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
-import { ClipboardCheck, Eye, FileDown, Info, Plus, Sparkles, Trash2 } from "lucide-react"
+import { ClipboardCheck, Eye, FileDown, Plus, Sparkles, Trash2 } from "lucide-react"
 import { DynamicTable, type Column } from "./dynamic-table"
 import { ListHeader, type ColumnFilter } from "./list-header"
 import type { BulkActionsGridProps } from "./bulk-actions-grid"
@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils"
 import type { DepositLineItemRow, SuggestedMatchScheduleRow } from "@/lib/mock-data"
 import { useAuth } from "@/lib/auth-context"
 import { useToasts } from "./toast"
+import { TabDescription } from "@/components/section/TabDescription"
 import { ColumnChooserModal } from "./column-chooser-modal"
 import { TwoStageDeleteDialog } from "./two-stage-delete-dialog"
 import { ModalHeader } from "./ui/modal-header"
@@ -343,13 +344,13 @@ interface MetaStatProps {
 
 function MetaStat({ label, value, emphasis = false, wrapValue = false }: MetaStatProps) {
   return (
-    <div className="px-1">
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{label}</p>
+    <div>
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{label}</p>
       <p
         title={wrapValue ? undefined : value}
         className={cn(
-          "mt-0.5 font-semibold text-slate-900",
-          emphasis ? "text-base" : "text-sm",
+          "font-semibold text-slate-900",
+          emphasis ? "text-sm" : "text-xs",
           wrapValue ? "break-all" : "truncate"
         )}
       >
@@ -369,16 +370,16 @@ interface SummaryCardProps {
 
 function SummaryCard({ label, value, secondaryLabel, secondaryValue, hint }: SummaryCardProps) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-white px-3 py-2.5">
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{label}</p>
-      <p className="mt-1 text-lg font-semibold tabular-nums text-slate-900">{value}</p>
+    <div>
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{label}</p>
+      <p className="text-sm font-semibold tabular-nums text-slate-900">{value}</p>
       {secondaryValue ? (
-        <p className="mt-1 text-xs tabular-nums text-slate-600">
+        <p className="text-[10px] tabular-nums text-slate-600">
           <span className="font-semibold text-slate-700">{secondaryValue}</span>
           {secondaryLabel ? <span className="ml-1">{secondaryLabel}</span> : null}
         </p>
       ) : null}
-      {hint ? <p className="mt-1 text-[11px] text-slate-500">{hint}</p> : null}
+      {hint ? <p className="text-[10px] text-slate-500">{hint}</p> : null}
     </div>
   )
 }
@@ -667,9 +668,9 @@ export function DepositReconciliationDetailView({
     if (matchingLineId || undoingLineId) return "Update in progress"
     if (!selectedLineForMatch) return "Select a deposit line item above"
     if (selectedLineForMatch.reconciled) return "Reconciled line items cannot be changed"
-    if (selectedLineForMatch.status === "Ignored") return "Ignored line items cannot be allocated"
+    if (selectedLineForMatch.status === "Ignored") return "Ignored line items cannot be matched"
     if (selectedSchedules.length === 0) return "Select a schedule below"
-    if (selectedSchedules.length > 1) return "Select only one schedule to allocate to"
+    if (selectedSchedules.length > 1) return "Select only one schedule to match to"
 
     const usageAmount = parseAllocationInput(allocationDraft.usage)
     const commissionAmount = parseAllocationInput(allocationDraft.commission)
@@ -687,10 +688,10 @@ export function DepositReconciliationDetailView({
     const allowedUsage = Number(selectedLineForMatch.usageUnallocated ?? 0) + existingUsage
     const allowedCommission = Number(selectedLineForMatch.commissionUnallocated ?? 0) + existingCommission
     if (usageAmount > allowedUsage + 0.005) {
-      return "Usage allocation exceeds remaining unallocated amount"
+      return "Usage match exceeds remaining unallocated amount"
     }
     if (commissionAmount > allowedCommission + 0.005) {
-      return "Commission allocation exceeds remaining unallocated amount"
+      return "Commission match exceeds remaining unallocated amount"
     }
 
     return null
@@ -716,7 +717,7 @@ export function DepositReconciliationDetailView({
     if (matchingLineId || undoingLineId) return "Update in progress"
     if (!selectedLineForMatch) return "Select a deposit line item above"
     if (selectedLineForMatch.reconciled) return "Reconciled line items cannot be changed"
-    if (selectedLineForMatch.status === "Ignored") return "Ignored line items cannot be allocated"
+    if (selectedLineForMatch.status === "Ignored") return "Ignored line items cannot be matched"
     return null
   }, [matchingLineId, undoingLineId, selectedLineForMatch])
 
@@ -818,17 +819,17 @@ export function DepositReconciliationDetailView({
               Hierarchical
             </button>
           </div>
-        </div>
       </div>
-    )
-  }
+    </div>
+  )
+}
 
   const showDevControls = Boolean(devMatchingControls)
 
   const handleRowMatchClick = useCallback(
     async (lineId: string) => {
       if (!lineId) {
-        showError("No line selected", "Select a deposit line item to allocate.")
+        showError("No line selected", "Select a deposit line item to match.")
         return
       }
       const targetLine = lineItemRows.find(item => item.id === lineId)
@@ -837,17 +838,17 @@ export function DepositReconciliationDetailView({
         return
       }
       if (targetLine?.status === "Ignored") {
-        showError("Line ignored", "Ignored line items cannot be allocated.")
+        showError("Line ignored", "Ignored line items cannot be matched.")
         return
       }
 
       const selectedSchedulesNow = selectedSchedulesRef.current
       if (selectedSchedulesNow.length === 0) {
-        showError("No schedule selected", "Select a schedule to allocate to.")
+        showError("No schedule selected", "Select a schedule to match to.")
         return
       }
       if (selectedSchedulesNow.length > 1) {
-        showError("Too many schedules selected", "Select only one schedule to allocate to.")
+        showError("Too many schedules selected", "Select only one schedule to match to.")
         return
       }
       const scheduleId = selectedSchedulesNow[0]!
@@ -882,25 +883,25 @@ export function DepositReconciliationDetailView({
         onMatchApplied?.()
 
         if (flexExecution?.action === "AutoChargeback") {
-          showSuccess("Chargeback created", "A Flex Chargeback entry was created and allocated automatically.")
+          showSuccess("Chargeback created", "A Flex Chargeback entry was created and matched automatically.")
           return
         }
 
         if (flexDecision?.action === "auto_adjust") {
-          showSuccess("Auto-adjustment created", "A one-time adjustment was created and allocated automatically.")
+          showSuccess("Auto-adjustment created", "A one-time adjustment was created and matched automatically.")
           return
         }
 
         if (flexDecision?.action === "prompt") {
           setFlexPrompt({ lineId, scheduleId, decision: flexDecision })
-          showSuccess("Allocation saved", "Overage exceeds tolerance. Choose how to resolve the variance.")
+          showSuccess("Match saved", "Overage exceeds tolerance. Choose how to resolve the variance.")
           return
         }
 
-        showSuccess("Allocation saved", "The selected line item was allocated to the schedule.")
+        showSuccess("Match saved", "The selected line item was matched to the schedule.")
       } catch (err) {
         console.error("Failed to apply match", err)
-        showError("Unable to allocate", err instanceof Error ? err.message : "Unknown error")
+        showError("Unable to match", err instanceof Error ? err.message : "Unknown error")
       } finally {
         matchingLineIdRef.current = null
         setMatchingLineId(null)
@@ -912,7 +913,7 @@ export function DepositReconciliationDetailView({
   const handleMatchSelected = useCallback(() => {
     const lineId = selectedLineItemsRef.current[0]
     if (!lineId) {
-      showError("No line selected", "Select a deposit line item to allocate.")
+      showError("No line selected", "Select a deposit line item to match.")
       return
     }
     void handleRowMatchClick(lineId)
@@ -931,7 +932,7 @@ export function DepositReconciliationDetailView({
       return
     }
     if (targetLine?.status === "Ignored") {
-      showError("Line ignored", "Ignored line items cannot be allocated.")
+      showError("Line ignored", "Ignored line items cannot be matched.")
       return
     }
 
@@ -2026,12 +2027,12 @@ export function DepositReconciliationDetailView({
   const handleBulkLineMatch = useCallback(async () => {
     const lineId = selectedLineIdRef.current ?? selectedLineItemsRef.current[0]
     if (!lineId) {
-      showError("No line selected", "Select a deposit line item to allocate.")
+      showError("No line selected", "Select a deposit line item to match.")
       return
     }
     const scheduleId = selectedSchedulesRef.current[0]
     if (!scheduleId) {
-      showError("No schedule selected", "Select a schedule to allocate to.")
+      showError("No schedule selected", "Select a schedule to match to.")
       return
     }
     try {
@@ -2060,25 +2061,25 @@ export function DepositReconciliationDetailView({
       onMatchApplied?.()
 
       if (flexExecution?.action === "AutoChargeback") {
-        showSuccess("Chargeback created", "A Flex Chargeback entry was created and allocated automatically.")
+        showSuccess("Chargeback created", "A Flex Chargeback entry was created and matched automatically.")
         return
       }
 
       if (flexDecision?.action === "auto_adjust") {
-        showSuccess("Auto-adjustment created", "A one-time adjustment was created and allocated automatically.")
+        showSuccess("Auto-adjustment created", "A one-time adjustment was created and matched automatically.")
         return
       }
 
       if (flexDecision?.action === "prompt") {
         setFlexPrompt({ lineId, scheduleId, decision: flexDecision })
-        showSuccess("Allocation saved", "Overage exceeds tolerance. Choose how to resolve the variance.")
+        showSuccess("Match saved", "Overage exceeds tolerance. Choose how to resolve the variance.")
         return
       }
 
-      showSuccess("Allocation saved", "The selected line item was allocated to the schedule.")
+      showSuccess("Match saved", "The selected line item was matched to the schedule.")
     } catch (err) {
       console.error("Failed to apply match", err)
-      showError("Unable to allocate", err instanceof Error ? err.message : "Unknown error")
+      showError("Unable to match", err instanceof Error ? err.message : "Unknown error")
     }
   }, [metadata.id, onMatchApplied, parseAllocationInput, showError, showSuccess])
 
@@ -2521,14 +2522,14 @@ export function DepositReconciliationDetailView({
       actions: [
         {
           key: "match",
-          label: "Allocate",
+          label: "Match",
           icon: ClipboardCheck,
           tone: "primary",
           onClick: handleBulkLineMatch
         },
         {
           key: "unmatch",
-          label: "Remove Allocation",
+          label: "Remove Match",
           icon: Trash2,
           tone: "danger",
           onClick: handleBulkLineUnmatch
@@ -2581,7 +2582,7 @@ export function DepositReconciliationDetailView({
   }, [commissionTotals.allocated, commissionTotals.total, commissionTotals.unallocated, metadata.allocated, metadata.unallocated, metadata.usageTotal])
 
   return (
-    <div className="flex min-h-[calc(100vh-110px)] flex-col gap-3 px-4 pb-4 pt-3 sm:px-6">
+    <div className="flex min-h-[calc(100vh-110px)] flex-col gap-2 px-3 pb-3 pt-2 sm:px-4">
       {aiAdjustmentModal ? (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/40 px-4"
@@ -2821,90 +2822,44 @@ export function DepositReconciliationDetailView({
         </div>
       ) : null}
       {showDevControls ? renderDevMatchingControls() : null}
-      <div className="flex flex-col gap-3">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0 flex-1 space-y-2">
+      <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+        {/* Row 1: Title + Status + Buttons */}
+        <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-2">
+          <div className="flex items-center gap-2">
             <p className="text-[11px] font-semibold uppercase tracking-wide text-primary-600">Deposit Reconciliation</p>
-            <div className="rounded-lg border border-slate-200 bg-white p-4">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Deposit Info</p>
-                <div className="mt-2 grid grid-cols-1 gap-4 lg:grid-cols-2">
-                  <div className="flex min-w-0 items-start justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Deposit Name</p>
-                      <p
-                        className="mt-0.5 truncate text-base font-semibold text-slate-900"
-                        title={metadata.depositName}
-                      >
-                        {metadata.depositName}
-                      </p>
-                    </div>
-                    <span
-                      className={cn(
-                        "inline-flex flex-shrink-0 items-center rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 ring-inset",
-                        metadata.reconciled
-                          ? "bg-emerald-50 text-emerald-700 ring-emerald-200"
-                          : "bg-slate-50 text-slate-700 ring-slate-200",
-                      )}
-                      title={
-                        reconciledAtTitle ?? (metadata.reconciled ? "Finalized" : "Open")
-                      }
-                    >
-                      {metadata.reconciled ? "Finalized" : "Open"}
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                    <MetaStat label="Date" value={formattedDate} />
-                    <MetaStat label="Created By" value={metadata.createdBy} />
-                    <MetaStat label="Payment Type" value={metadata.paymentType} />
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-4">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Totals</p>
-                <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                  <SummaryCard label="Usage Total" value={currencyFormatter.format(metadata.usageTotal)} />
-                  <SummaryCard label="Commission Total" value={currencyFormatter.format(commissionTotals.total)} />
-                  <SummaryCard
-                    label="Allocated"
-                    value={currencyFormatter.format(metadata.allocated)}
-                    secondaryLabel="commission"
-                    secondaryValue={currencyFormatter.format(commissionTotals.allocated)}
-                    hint={`Usage ${formatPercent(allocationPercentages.usageAllocatedPct)} • Commission ${formatPercent(allocationPercentages.commissionAllocatedPct)}`}
-                  />
-                  <SummaryCard
-                    label="Unallocated"
-                    value={currencyFormatter.format(metadata.unallocated)}
-                    secondaryLabel="commission"
-                    secondaryValue={currencyFormatter.format(commissionTotals.unallocated)}
-                    hint={`Usage ${formatPercent(allocationPercentages.usageUnallocatedPct)} • Commission ${formatPercent(allocationPercentages.commissionUnallocatedPct)}`}
-                  />
-                </div>
-              </div>
-            </div>
+            <span
+              className={cn(
+                "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ring-inset",
+                metadata.reconciled
+                  ? "bg-emerald-50 text-emerald-700 ring-emerald-200"
+                  : "bg-slate-50 text-slate-700 ring-slate-200",
+              )}
+              title={reconciledAtTitle ?? (metadata.reconciled ? "Finalized" : "Open")}
+            >
+              {metadata.reconciled ? "Finalized" : "Open"}
+            </span>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             {onBackToReconciliation ? (
               <button
                 type="button"
                 onClick={onBackToReconciliation}
-                className="inline-flex items-center rounded border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                className="inline-flex items-center rounded border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
               >
                 ← Back
               </button>
             ) : null}
             {devMatchingControls && devMatchingControls.includeFutureSchedules !== undefined ? (
               <div className="group relative inline-flex items-center" role="tooltip">
-                <label className="flex cursor-pointer items-center gap-2 rounded-full border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50">
+                <label className="flex cursor-pointer items-center gap-1.5 rounded border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 transition hover:bg-slate-50">
                   <input
                     type="checkbox"
-                    className="h-4 w-4 rounded border-slate-400 text-primary-600 accent-primary-600"
+                    className="h-3.5 w-3.5 rounded border-slate-400 text-primary-600 accent-primary-600"
                     checked={devMatchingControls.includeFutureSchedules}
                     onChange={event => devMatchingControls.onIncludeFutureSchedulesChange(event.target.checked)}
                     aria-label="Include Future-Dated Schedules"
                   />
-                  <span>Include Future-Dated Schedules</span>
+                  <span>Include Future</span>
                 </label>
                 <div className="pointer-events-none absolute bottom-full left-0 mb-2 rounded-lg bg-slate-900 px-3 py-2 text-xs font-medium text-white opacity-0 transition-opacity duration-200 group-hover:opacity-100 whitespace-normal w-56 z-50 shadow-lg">
                   By default, the system only matches against revenue schedules dated on or before the current month. Future-dated schedules are excluded unless toggled here.
@@ -2917,7 +2872,7 @@ export function DepositReconciliationDetailView({
                 onClick={() => setShowUnreconcilePreview(true)}
                 disabled={unfinalizeLoading}
                 className={cn(
-                  "inline-flex items-center justify-center rounded border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50",
+                  "inline-flex items-center justify-center rounded border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50",
                   unfinalizeLoading ? "cursor-not-allowed opacity-60" : "",
                 )}
               >
@@ -2930,7 +2885,7 @@ export function DepositReconciliationDetailView({
                 onClick={() => setShowFinalizePreview(true)}
                 disabled={finalizeLoading || metadata.reconciled}
                 className={cn(
-                  "inline-flex items-center justify-center rounded border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50",
+                  "inline-flex items-center justify-center rounded bg-primary-600 px-2.5 py-1 text-xs font-semibold text-white shadow-sm transition hover:bg-primary-700",
                   finalizeLoading || metadata.reconciled ? "cursor-not-allowed opacity-60" : "",
                 )}
               >
@@ -2939,11 +2894,54 @@ export function DepositReconciliationDetailView({
             ) : null}
           </div>
         </div>
-      {autoMatchSummary ? (
-        <div className="rounded-md border border-emerald-100 bg-emerald-50 px-3 py-2 text-[11px] font-medium text-emerald-800">
-          Auto-allocated <span className="font-semibold">{autoMatchSummary.autoMatched}</span> of{" "}
-          <span className="font-semibold">{autoMatchSummary.processed}</span> lines
-          {autoMatchSummary.alreadyMatched > 0 ? (
+
+        {/* Row 2: Two-column grid - Left: Deposit details, Right: Totals */}
+        <div className="grid gap-x-6 gap-y-2 lg:grid-cols-2">
+          {/* Left column: Deposit Name, Date, Created By, Payment Type */}
+          <div className="space-y-1.5">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Deposit Name</p>
+              <p className="truncate text-sm font-semibold text-slate-900" title={metadata.depositName}>
+                {metadata.depositName}
+              </p>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <MetaStat label="Date" value={formattedDate} />
+              <MetaStat label="Created By" value={metadata.createdBy} />
+              <MetaStat label="Payment Type" value={metadata.paymentType} />
+            </div>
+          </div>
+
+          {/* Right column: Totals in 2x2 grid */}
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 mb-1">Totals</p>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-4">
+              <SummaryCard label="Usage Total" value={currencyFormatter.format(metadata.usageTotal)} />
+              <SummaryCard label="Commission Total" value={currencyFormatter.format(commissionTotals.total)} />
+              <SummaryCard
+                label="Allocated"
+                value={currencyFormatter.format(metadata.allocated)}
+                secondaryLabel="commission"
+                secondaryValue={currencyFormatter.format(commissionTotals.allocated)}
+                hint={`Usage ${formatPercent(allocationPercentages.usageAllocatedPct)} • Commission ${formatPercent(allocationPercentages.commissionAllocatedPct)}`}
+              />
+              <SummaryCard
+                label="Unallocated"
+                value={currencyFormatter.format(metadata.unallocated)}
+                secondaryLabel="commission"
+                secondaryValue={currencyFormatter.format(commissionTotals.unallocated)}
+                hint={`Usage ${formatPercent(allocationPercentages.usageUnallocatedPct)} • Commission ${formatPercent(allocationPercentages.commissionUnallocatedPct)}`}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Auto-match summary */}
+        {autoMatchSummary ? (
+          <div className="mt-2 rounded-md border border-emerald-100 bg-emerald-50 px-2 py-1.5 text-[10px] font-medium text-emerald-800">
+            Auto-allocated <span className="font-semibold">{autoMatchSummary.autoMatched}</span> of{" "}
+            <span className="font-semibold">{autoMatchSummary.processed}</span> lines
+            {autoMatchSummary.alreadyMatched > 0 ? (
               <> {" - "}Already allocated: {autoMatchSummary.alreadyMatched}</>
             ) : null}
             {autoMatchSummary.belowThreshold > 0 ? (
@@ -2954,8 +2952,8 @@ export function DepositReconciliationDetailView({
             ) : null}
             {autoMatchSummary.errors > 0 ? <> {" - "}Errors: {autoMatchSummary.errors}</> : null}
           </div>
-      ) : null}
-    </div>
+        ) : null}
+      </div>
 
     {showFinalizePreview ? (
       <div
@@ -3196,16 +3194,11 @@ export function DepositReconciliationDetailView({
 
       <section className="flex min-h-0 flex-1 flex-col">
         <div className="border-b border-slate-100">
-          <div className="px-4 pt-3">
-            <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
-              <div className="flex items-start gap-2">
-                <Info className="mt-0.5 h-4 w-4 flex-shrink-0 text-slate-500" />
-                <p className="leading-relaxed">
-                  Review deposit line items and allocate deposit amounts to revenue schedules. Allocations are editable
-                  until the deposit is finalized.
-                </p>
-              </div>
-            </div>
+          <div className="px-4">
+            <TabDescription className="mt-3 mb-2">
+              Review deposit line items and match deposit amounts to revenue schedules. Matches are editable until the
+              deposit is finalized.
+            </TabDescription>
           </div>
           <ListHeader
             pageTitle="DEPOSIT LINE ITEMS"
@@ -3227,17 +3220,14 @@ export function DepositReconciliationDetailView({
                   onClick={onRunAutoMatch}
                   disabled={autoMatchLoading}
                   className={cn(
-                    "inline-flex h-9 items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-3 text-sm font-semibold text-primary-700 shadow-sm transition hover:bg-primary-50",
+                    "inline-flex h-9 items-center justify-center gap-2 rounded border border-slate-200 bg-white px-3 text-sm font-semibold text-primary-700 shadow-sm transition hover:bg-primary-50",
                     autoMatchLoading ? "cursor-not-allowed opacity-60" : "",
                   )}
-                  aria-label="Reconcile (Use AI)"
-                  title="Reconcile (Use AI)"
+                  aria-label="Use AI Matching"
+                  title="Use AI Matching"
                 >
                   <Sparkles className="h-4 w-4" />
-                  <span>Reconcile</span>
-                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600 ring-1 ring-slate-200">
-                    Use AI
-                  </span>
+                  <span>Use AI Matching</span>
                 </button>
               ) : null
             }
@@ -3285,19 +3275,14 @@ export function DepositReconciliationDetailView({
 
       <section className="flex min-h-0 flex-1 flex-col">
         <div className="border-b border-slate-100">
-          <div className="px-4 pt-3">
-            <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
-              <div className="flex items-start gap-2">
-                <Info className="mt-0.5 h-4 w-4 flex-shrink-0 text-slate-500" />
-                <p className="leading-relaxed">
-                  Select a revenue schedule, then allocate the selected deposit line item. Finalizing is a separate step
-                  that locks these allocations.
-                </p>
-              </div>
-            </div>
+          <div className="px-4">
+            <TabDescription className="mt-3 mb-2">
+              Select a revenue schedule, then match the selected deposit line item. Finalizing is a separate step that
+              locks these allocations.
+            </TabDescription>
           </div>
           <ListHeader
-            pageTitle="ALLOCATION CANDIDATES - REVENUE SCHEDULES"
+            pageTitle="Suggested Matches - Revenue Schedules"
             searchPlaceholder="Search revenue schedules"
             onSearch={setScheduleSearch}
             showStatusFilter={false}
@@ -3323,49 +3308,18 @@ export function DepositReconciliationDetailView({
                   <Plus className="h-4 w-4" />
                   {createFlexButtonLabel}
                 </button>
-                <div className="flex h-9 items-center gap-2 rounded border border-slate-200 bg-white px-2 shadow-sm">
-                  <div className="flex items-center gap-1">
-                    <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Usage</span>
-                    <input
-                      type="number"
-                      inputMode="decimal"
-                      step="0.01"
-                      min={0}
-                      value={allocationDraft.usage}
-                      onChange={event => setAllocationDraft(prev => ({ ...prev, usage: event.target.value }))}
-                      disabled={!selectedLineForMatch || selectedLineForMatch.reconciled || selectedLineForMatch.status === "Ignored"}
-                      className="h-7 w-24 rounded border border-slate-200 bg-white px-2 text-sm text-slate-800 focus:border-primary-300 focus:outline-none focus:ring-1 focus:ring-primary-200 disabled:cursor-not-allowed disabled:bg-slate-50"
-                      aria-label="Allocate usage amount"
-                    />
-                  </div>
-                  <div className="h-5 w-px bg-slate-200" aria-hidden="true" />
-                  <div className="flex items-center gap-1">
-                    <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Commission</span>
-                    <input
-                      type="number"
-                      inputMode="decimal"
-                      step="0.01"
-                      min={0}
-                      value={allocationDraft.commission}
-                      onChange={event => setAllocationDraft(prev => ({ ...prev, commission: event.target.value }))}
-                      disabled={!selectedLineForMatch || selectedLineForMatch.reconciled || selectedLineForMatch.status === "Ignored"}
-                      className="h-7 w-24 rounded border border-slate-200 bg-white px-2 text-sm text-slate-800 focus:border-primary-300 focus:outline-none focus:ring-1 focus:ring-primary-200 disabled:cursor-not-allowed disabled:bg-slate-50"
-                      aria-label="Allocate commission amount"
-                    />
-                  </div>
-                </div>
                 <button
                   type="button"
                   onClick={handleMatchSelected}
                   disabled={Boolean(matchButtonDisabledReason)}
-                  title={matchButtonDisabledReason ?? "Allocate the selected line item to the selected schedule"}
+                  title={matchButtonDisabledReason ?? "Match the selected line item to the selected schedule"}
                   className={cn(
                     "inline-flex h-9 items-center justify-center gap-2 rounded bg-primary-600 px-3 text-sm font-semibold text-white shadow-sm transition hover:bg-primary-700",
                     matchButtonDisabledReason ? "cursor-not-allowed opacity-60 hover:bg-primary-600" : ""
                   )}
                 >
                   <ClipboardCheck className="h-4 w-4" />
-                  Allocate
+                  Match
                 </button>
               </div>
             }
@@ -3388,7 +3342,7 @@ export function DepositReconciliationDetailView({
                     <span>Include Future-Dated Schedules</span>
                   </label>
                 ) : null}
-                <div className="flex flex-wrap items-center gap-3 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm">
+                <div className="hidden flex-wrap items-center gap-3 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm">
                   <div className="flex items-center gap-2">
                     <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                       Suggested ≥ {Math.round(confidencePrefs.suggestedMatchesMinConfidence * 100)}%
@@ -3443,7 +3397,7 @@ export function DepositReconciliationDetailView({
               data={sortedSchedules}
               onSort={(column, direction) => setScheduleSortConfig({ key: column, direction })}
               loading={scheduleLoading || loading || schedulePreferenceLoading}
-              emptyMessage="No allocation candidates found"
+              emptyMessage="No suggested matches found"
               fillContainerWidth
               preferOverflowHorizontalScroll
               hasLoadedPreferences={!schedulePreferenceLoading && scheduleTableColumns.length > 0}
