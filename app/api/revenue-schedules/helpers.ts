@@ -104,6 +104,10 @@ export interface RevenueScheduleListItem {
   revenueSchedule?: string | null
   revenueScheduleDate: string | null
   revenueMonth?: string | null
+  flexClassification?: string | null
+  flexReasonCode?: string | null
+  flexSourceDepositId?: string | null
+  flexSourceDepositLineItemId?: string | null
   productNameVendor: string | null
   productNameHouse?: string | null
   distributorName: string | null
@@ -326,6 +330,11 @@ function getEffectiveSplitFractions(schedule: RevenueScheduleWithRelations): {
 }
 
 export function mapRevenueScheduleToListItem(schedule: RevenueScheduleWithRelations): RevenueScheduleListItem {
+  const flexClassification = (schedule as any).flexClassification ?? null
+  const flexReasonCode = (schedule as any).flexReasonCode ?? null
+  const flexSourceDepositId = (schedule as any).flexSourceDepositId ?? null
+  const flexSourceDepositLineItemId = (schedule as any).flexSourceDepositLineItemId ?? null
+
   const expectedUsage = toNumber(schedule.expectedUsage ?? schedule.opportunityProduct?.expectedUsage)
   const usageAdjustment = toNumber(schedule.usageAdjustment)
   const actualUsage = toNumber(schedule.actualUsage)
@@ -386,6 +395,10 @@ export function mapRevenueScheduleToListItem(schedule: RevenueScheduleWithRelati
     revenueScheduleDate: formatDate(schedule.scheduleDate),
     productNameVendor: schedule.product?.productNameVendor ?? null,
     revenueMonth,
+    flexClassification,
+    flexReasonCode,
+    flexSourceDepositId,
+    flexSourceDepositLineItemId,
     productNameHouse,
     distributorName: schedule.distributor?.accountName ?? schedule.opportunity?.distributorName ?? null,
     vendorName: schedule.vendor?.accountName ?? schedule.opportunity?.vendorName ?? null,

@@ -12,6 +12,7 @@ import { recomputeRevenueScheduleFromMatches } from "@/lib/matching/revenue-sche
 import { getTenantVarianceTolerance } from "@/lib/matching/settings"
 import { logMatchingMetric } from "@/lib/matching/metrics"
 import { logRevenueScheduleAudit } from "@/lib/audit"
+import { evaluateFlexDecision } from "@/lib/flex/revenue-schedule-flex-decision"
 
 interface ApplyMatchRequestBody {
   revenueScheduleId: string
@@ -156,6 +157,15 @@ export async function POST(
       },
     )
 
-    return NextResponse.json({ data: result })
+    const flexDecision = evaluateFlexDecision({
+      expectedUsageNet: result.revenueSchedule.expectedUsageNet,
+      usageBalance: result.revenueSchedule.usageBalance,
+      varianceTolerance,
+      hasNegativeLine: allocationUsage < 0 || allocationCommission < 0,
+      expectedCommissionNet: result.revenueSchedule.expectedCommissionNet,
+      commissionDifference: result.revenueSchedule.commissionDifference,
+    })
+
+    return NextResponse.json({ data: { ...result, flexDecision } })
   })
 }

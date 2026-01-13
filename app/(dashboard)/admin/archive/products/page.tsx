@@ -13,6 +13,7 @@ import { TwoStageDeleteDialog } from '@/components/two-stage-delete-dialog'
 import { useToasts } from '@/components/toast'
 import { useAuth } from '@/lib/auth-context'
 import { useTablePreferences } from '@/hooks/useTablePreferences'
+import { calculateMinWidth } from '@/lib/column-width-utils'
 
 type ProductArchiveRow = {
   id: string
@@ -35,14 +36,14 @@ const TABLE_BOTTOM_RESERVE = 110
 const TABLE_MIN_BODY_HEIGHT = 320
 
 const ARCHIVE_PRODUCT_BASE_COLUMNS: Column[] = [
-  { id: 'select', label: 'Select', width: 110, minWidth: 80, maxWidth: 220, type: 'checkbox', hideable: false },
-  { id: 'productNameHouse', label: 'House Product', width: 260, minWidth: 200, sortable: true, hideable: false },
-  { id: 'productNameVendor', label: 'Vendor Product', width: 260, minWidth: 200, sortable: true },
-  { id: 'partNumberVendor', label: 'Part #', width: 160, sortable: true },
-  { id: 'distributorName', label: 'Distributor', width: 220, sortable: true },
-  { id: 'vendorName', label: 'Vendor', width: 220, sortable: true },
-  { id: 'revenueType', label: 'Revenue Type', width: 180, sortable: true },
-  { id: 'hasRevenueSchedules', label: 'Has Schedules', width: 140, sortable: false },
+  { id: 'select', label: 'Select', width: 110, minWidth: calculateMinWidth({ label: 'Select', type: 'checkbox', sortable: false }), maxWidth: 220, type: 'checkbox', hideable: false },
+  { id: 'productNameHouse', label: 'House Product', width: 260, minWidth: calculateMinWidth({ label: 'House Product', type: 'text', sortable: true }), sortable: true, hideable: false },
+  { id: 'productNameVendor', label: 'Vendor Product', width: 260, minWidth: calculateMinWidth({ label: 'Vendor Product', type: 'text', sortable: true }), sortable: true },
+  { id: 'partNumberVendor', label: 'Part #', width: 160, minWidth: calculateMinWidth({ label: 'Part #', type: 'text', sortable: true }), sortable: true },
+  { id: 'distributorName', label: 'Distributor', width: 220, minWidth: calculateMinWidth({ label: 'Distributor', type: 'text', sortable: true }), sortable: true },
+  { id: 'vendorName', label: 'Vendor', width: 220, minWidth: calculateMinWidth({ label: 'Vendor', type: 'text', sortable: true }), sortable: true },
+  { id: 'revenueType', label: 'Revenue Type', width: 180, minWidth: calculateMinWidth({ label: 'Revenue Type', type: 'text', sortable: true }), sortable: true },
+  { id: 'hasRevenueSchedules', label: 'Has Schedules', width: 140, minWidth: calculateMinWidth({ label: 'Has Schedules', type: 'text', sortable: false }), sortable: false },
 ]
 
 const ARCHIVE_PRODUCT_FILTER_OPTIONS: Array<{ id: string; label: string }> = [

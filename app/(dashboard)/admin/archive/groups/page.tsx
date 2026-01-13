@@ -13,6 +13,7 @@ import { TwoStageDeleteDialog } from '@/components/two-stage-delete-dialog'
 import { useAuth } from '@/lib/auth-context'
 import { useToasts } from '@/components/toast'
 import { useTablePreferences } from '@/hooks/useTablePreferences'
+import { calculateMinWidth } from '@/lib/column-width-utils'
 
 type GroupArchiveRow = {
   id: string
@@ -46,13 +47,13 @@ const TABLE_BOTTOM_RESERVE = 110
 const TABLE_MIN_BODY_HEIGHT = 320
 
 const ARCHIVE_GROUP_BASE_COLUMNS: Column[] = [
-  { id: 'select', label: 'Select', width: 110, minWidth: 80, maxWidth: 220, type: 'checkbox', hideable: false },
-  { id: 'groupName', label: 'Group Name', width: 260, minWidth: 200, sortable: true, hideable: false, accessor: 'name' },
-  { id: 'groupType', label: 'Group Type', width: 160, minWidth: 120, maxWidth: 240, sortable: true },
-  { id: 'memberCount', label: 'Members', width: 130, minWidth: 100, maxWidth: 180, sortable: true },
-  { id: 'ownerName', label: 'Owner', width: 200, minWidth: 140, maxWidth: 300, sortable: true },
-  { id: 'description', label: 'Description', width: 300, minWidth: 200, maxWidth: 500, sortable: true, hidden: true },
-  { id: 'createdDate', label: 'Created Date', width: 150, minWidth: 120, maxWidth: 220, sortable: true, accessor: 'createdAt' },
+  { id: 'select', label: 'Select', width: 110, minWidth: calculateMinWidth({ label: 'Select', type: 'checkbox', sortable: false }), maxWidth: 220, type: 'checkbox', hideable: false },
+  { id: 'groupName', label: 'Group Name', width: 260, minWidth: calculateMinWidth({ label: 'Group Name', type: 'text', sortable: true }), sortable: true, hideable: false, accessor: 'name' },
+  { id: 'groupType', label: 'Group Type', width: 160, minWidth: calculateMinWidth({ label: 'Group Type', type: 'text', sortable: true }), maxWidth: 240, sortable: true },
+  { id: 'memberCount', label: 'Members', width: 130, minWidth: calculateMinWidth({ label: 'Members', type: 'text', sortable: true }), maxWidth: 180, sortable: true },
+  { id: 'ownerName', label: 'Owner', width: 200, minWidth: calculateMinWidth({ label: 'Owner', type: 'text', sortable: true }), maxWidth: 300, sortable: true },
+  { id: 'description', label: 'Description', width: 300, minWidth: calculateMinWidth({ label: 'Description', type: 'text', sortable: true }), maxWidth: 500, sortable: true, hidden: true },
+  { id: 'createdDate', label: 'Created Date', width: 150, minWidth: calculateMinWidth({ label: 'Created Date', type: 'text', sortable: true }), maxWidth: 220, sortable: true, accessor: 'createdAt' },
 ]
 
 const ARCHIVE_GROUP_FILTER_OPTIONS: Array<{ id: string; label: string }> = [

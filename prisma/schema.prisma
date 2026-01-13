@@ -663,6 +663,10 @@ model RevenueSchedule {
   scheduleNumber             String?
   scheduleDate               DateTime?
   scheduleType               RevenueScheduleType   @default(Recurring)
+  flexClassification         RevenueScheduleFlexClassification @default(Normal)
+  flexReasonCode             RevenueScheduleFlexReasonCode?
+  flexSourceDepositId        String?               @db.Uuid
+  flexSourceDepositLineItemId String?              @db.Uuid
   expectedUsage              Decimal?              @db.Decimal(16, 2)
   usageAdjustment            Decimal?              @db.Decimal(16, 2)
   actualUsage                Decimal?              @db.Decimal(16, 2)
@@ -1334,6 +1338,23 @@ enum RevenueScheduleType {
   OneTime
   Recurring
   TrueUp
+}
+
+enum RevenueScheduleFlexClassification {
+  Normal
+  Adjustment
+  FlexProduct
+  FlexChargeback
+  Bonus
+}
+
+enum RevenueScheduleFlexReasonCode {
+  OverageWithinTolerance
+  OverageOutsideTolerance
+  UnknownProduct
+  ChargebackNegative
+  BonusVariance
+  Manual
 }
 
 enum RevenueScheduleStatus {

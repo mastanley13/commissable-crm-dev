@@ -13,6 +13,7 @@ import { TwoStageDeleteDialog } from '@/components/two-stage-delete-dialog'
 import { useToasts } from '@/components/toast'
 import { useAuth } from '@/lib/auth-context'
 import { useTablePreferences } from '@/hooks/useTablePreferences'
+import { calculateMinWidth } from '@/lib/column-width-utils'
 
 type ReportArchiveRow = {
   id: string
@@ -31,13 +32,13 @@ const TABLE_BOTTOM_RESERVE = 110
 const TABLE_MIN_BODY_HEIGHT = 320
 
 const ARCHIVE_REPORT_BASE_COLUMNS: Column[] = [
-  { id: 'select', label: 'Select', width: 110, minWidth: 80, maxWidth: 220, type: 'checkbox', hideable: false },
-  { id: 'reportName', label: 'Report Name', width: 280, minWidth: 220, maxWidth: 460, sortable: true, hideable: false },
-  { id: 'reportType', label: 'Report Type', width: 180, minWidth: 140, maxWidth: 260, sortable: true },
-  { id: 'createdDate', label: 'Created Date', width: 150, minWidth: 120, maxWidth: 220, sortable: true },
-  { id: 'lastRun', label: 'Last Run', width: 150, minWidth: 120, maxWidth: 220, sortable: true },
-  { id: 'status', label: 'Status', width: 160, minWidth: 120, maxWidth: 240, sortable: true },
-  { id: 'description', label: 'Description', width: 320, minWidth: 220, maxWidth: 520, sortable: false, hidden: true },
+  { id: 'select', label: 'Select', width: 110, minWidth: calculateMinWidth({ label: 'Select', type: 'checkbox', sortable: false }), maxWidth: 220, type: 'checkbox', hideable: false },
+  { id: 'reportName', label: 'Report Name', width: 280, minWidth: calculateMinWidth({ label: 'Report Name', type: 'text', sortable: true }), maxWidth: 460, sortable: true, hideable: false },
+  { id: 'reportType', label: 'Report Type', width: 180, minWidth: calculateMinWidth({ label: 'Report Type', type: 'text', sortable: true }), maxWidth: 260, sortable: true },
+  { id: 'createdDate', label: 'Created Date', width: 150, minWidth: calculateMinWidth({ label: 'Created Date', type: 'text', sortable: true }), maxWidth: 220, sortable: true },
+  { id: 'lastRun', label: 'Last Run', width: 150, minWidth: calculateMinWidth({ label: 'Last Run', type: 'text', sortable: true }), maxWidth: 220, sortable: true },
+  { id: 'status', label: 'Status', width: 160, minWidth: calculateMinWidth({ label: 'Status', type: 'text', sortable: true }), maxWidth: 240, sortable: true },
+  { id: 'description', label: 'Description', width: 320, minWidth: calculateMinWidth({ label: 'Description', type: 'text', sortable: false }), maxWidth: 520, sortable: false, hidden: true },
 ]
 
 const ARCHIVE_REPORT_FILTER_OPTIONS: Array<{ id: string; label: string }> = [
@@ -674,4 +675,3 @@ export default function AdminArchivedReportsPage() {
     </CopyProtectionWrapper>
   )
 }
-

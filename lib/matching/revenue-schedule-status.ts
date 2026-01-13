@@ -13,6 +13,10 @@ export type RevenueScheduleRecomputeResult = {
     actualUsage: number | null
     actualCommission: number | null
   }
+  expectedUsageNet: number
+  actualUsageNet: number
+  expectedCommissionNet: number
+  actualCommissionNet: number
   usageBalance: number
   commissionDifference: number
   matchCount: number
@@ -147,6 +151,10 @@ export async function recomputeRevenueScheduleFromMatches(
       actualUsage,
       actualCommission,
     },
+    expectedUsageNet,
+    actualUsageNet,
+    expectedCommissionNet,
+    actualCommissionNet,
     usageBalance,
     commissionDifference,
     matchCount,

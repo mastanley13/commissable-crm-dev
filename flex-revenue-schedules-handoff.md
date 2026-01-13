@@ -262,10 +262,10 @@ These items were explicitly listed as changes to implement around revenue schedu
 - Chargebacks: negative lines **auto-create and auto-apply** a Flex Chargeback entry (reversible prior to final reconcile).
 - Auto-config: create **1** next schedule at a time, starting **first of next month**, while Billing remains active.
 
-- [ ] **Prompt behavior**: always prompt on mismatch vs only above tolerance? (See note in §2.2)
+- [x] **Prompt behavior**: only prompt when the overage exceeds tolerance; within tolerance auto-adjust with toast/banner (no modal). (See note in §2.2)
 - [ ] **Chargeback automation**: auto-create vs user-confirmed?【111:14†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L39-L42】
 - [ ] **UI approach**: flex schedules as a user-triggered section vs background automation?【111:0†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L35-L64】
-- [ ] **Auto-config quantity**: create 1 next schedule vs generate N future schedules when exhausted? (ASSUMED)
+- [x] **Auto-config quantity**: create 1 next schedule at a time when exhausted (no N-month batch generation).
 - [ ] **Classification rules**:
   - how to detect “unknown product”
   - how to detect “bonus/SPF”

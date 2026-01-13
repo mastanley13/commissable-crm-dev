@@ -13,6 +13,7 @@ import { TwoStageDeleteDialog } from '@/components/two-stage-delete-dialog'
 import { useAuth } from '@/lib/auth-context'
 import { useToasts } from '@/components/toast'
 import { useTablePreferences } from '@/hooks/useTablePreferences'
+import { calculateMinWidth } from '@/lib/column-width-utils'
 
 type OpportunityArchiveRow = {
   id: string
@@ -35,15 +36,15 @@ const TABLE_BOTTOM_RESERVE = 110
 const TABLE_MIN_BODY_HEIGHT = 320
 
 const ARCHIVE_OPPORTUNITY_BASE_COLUMNS: Column[] = [
-  { id: 'select', label: 'Select', width: 110, minWidth: 80, maxWidth: 220, type: 'checkbox', hideable: false },
-  { id: 'opportunityName', label: 'Opportunity Name', width: 260, minWidth: 200, sortable: true, hideable: false },
-  { id: 'accountLegalName', label: 'Account Legal Name', width: 260, minWidth: 200, sortable: true },
-  { id: 'owner', label: 'Owner', width: 200, sortable: true },
-  { id: 'stage', label: 'Stage', width: 200, sortable: true },
-  { id: 'status', label: 'Status', width: 140, sortable: true },
-  { id: 'closeDate', label: 'Close Date', width: 140, sortable: true },
-  { id: 'opportunityId', label: 'Opportunity ID', width: 160, sortable: false, hidden: true },
-  { id: 'accountName', label: 'Account Name', width: 220, sortable: false, hidden: true },
+  { id: 'select', label: 'Select', width: 110, minWidth: calculateMinWidth({ label: 'Select', type: 'checkbox', sortable: false }), maxWidth: 220, type: 'checkbox', hideable: false },
+  { id: 'opportunityName', label: 'Opportunity Name', width: 260, minWidth: calculateMinWidth({ label: 'Opportunity Name', type: 'text', sortable: true }), sortable: true, hideable: false },
+  { id: 'accountLegalName', label: 'Account Legal Name', width: 260, minWidth: calculateMinWidth({ label: 'Account Legal Name', type: 'text', sortable: true }), sortable: true },
+  { id: 'owner', label: 'Owner', width: 200, minWidth: calculateMinWidth({ label: 'Owner', type: 'text', sortable: true }), sortable: true },
+  { id: 'stage', label: 'Stage', width: 200, minWidth: calculateMinWidth({ label: 'Stage', type: 'text', sortable: true }), sortable: true },
+  { id: 'status', label: 'Status', width: 140, minWidth: calculateMinWidth({ label: 'Status', type: 'text', sortable: true }), sortable: true },
+  { id: 'closeDate', label: 'Close Date', width: 140, minWidth: calculateMinWidth({ label: 'Close Date', type: 'text', sortable: true }), sortable: true },
+  { id: 'opportunityId', label: 'Opportunity ID', width: 160, minWidth: calculateMinWidth({ label: 'Opportunity ID', type: 'text', sortable: false }), sortable: false, hidden: true },
+  { id: 'accountName', label: 'Account Name', width: 220, minWidth: calculateMinWidth({ label: 'Account Name', type: 'text', sortable: false }), sortable: false, hidden: true },
 ]
 
 const ARCHIVE_OPPORTUNITY_FILTER_OPTIONS: Array<{ id: string; label: string }> = [

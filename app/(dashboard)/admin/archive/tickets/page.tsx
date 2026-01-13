@@ -13,6 +13,7 @@ import { TwoStageDeleteDialog } from '@/components/two-stage-delete-dialog'
 import { useAuth } from '@/lib/auth-context'
 import { useToasts } from '@/components/toast'
 import { useTablePreferences } from '@/hooks/useTablePreferences'
+import { calculateMinWidth } from '@/lib/column-width-utils'
 
 type TicketArchiveRow = {
   id: string
@@ -50,16 +51,16 @@ const TABLE_BOTTOM_RESERVE = 110
 const TABLE_MIN_BODY_HEIGHT = 320
 
 const ARCHIVE_TICKET_BASE_COLUMNS: Column[] = [
-  { id: 'select', label: 'Select', width: 110, minWidth: 80, maxWidth: 220, type: 'checkbox', hideable: false },
-  { id: 'ticketNumber', label: 'Ticket #', width: 160, minWidth: 120, maxWidth: 240, sortable: true, hideable: false },
-  { id: 'issue', label: 'Issue', width: 280, minWidth: 200, maxWidth: 420, sortable: true },
-  { id: 'distributorName', label: 'Distributor', width: 220, minWidth: 160, maxWidth: 320, sortable: true },
-  { id: 'vendorName', label: 'Vendor', width: 220, minWidth: 160, maxWidth: 320, sortable: true },
-  { id: 'owner', label: 'Owner', width: 200, minWidth: 150, maxWidth: 300, sortable: true, accessor: 'assignedToName' },
-  { id: 'dueDate', label: 'Closed On', width: 150, minWidth: 120, maxWidth: 220, sortable: true },
-  { id: 'status', label: 'Status', width: 150, minWidth: 120, maxWidth: 220, sortable: true, hidden: true },
-  { id: 'revenueSchedule', label: 'Revenue Schedule', width: 180, minWidth: 140, maxWidth: 260, sortable: true, hidden: true },
-  { id: 'opportunityName', label: 'Opportunity', width: 240, minWidth: 180, maxWidth: 360, sortable: true, hidden: true },
+  { id: 'select', label: 'Select', width: 110, minWidth: calculateMinWidth({ label: 'Select', type: 'checkbox', sortable: false }), maxWidth: 220, type: 'checkbox', hideable: false },
+  { id: 'ticketNumber', label: 'Ticket #', width: 160, minWidth: calculateMinWidth({ label: 'Ticket #', type: 'text', sortable: true }), maxWidth: 240, sortable: true, hideable: false },
+  { id: 'issue', label: 'Issue', width: 280, minWidth: calculateMinWidth({ label: 'Issue', type: 'text', sortable: true }), maxWidth: 420, sortable: true },
+  { id: 'distributorName', label: 'Distributor', width: 220, minWidth: calculateMinWidth({ label: 'Distributor', type: 'text', sortable: true }), maxWidth: 320, sortable: true },
+  { id: 'vendorName', label: 'Vendor', width: 220, minWidth: calculateMinWidth({ label: 'Vendor', type: 'text', sortable: true }), maxWidth: 320, sortable: true },
+  { id: 'owner', label: 'Owner', width: 200, minWidth: calculateMinWidth({ label: 'Owner', type: 'text', sortable: true }), maxWidth: 300, sortable: true, accessor: 'assignedToName' },
+  { id: 'dueDate', label: 'Closed On', width: 150, minWidth: calculateMinWidth({ label: 'Closed On', type: 'text', sortable: true }), maxWidth: 220, sortable: true },
+  { id: 'status', label: 'Status', width: 150, minWidth: calculateMinWidth({ label: 'Status', type: 'text', sortable: true }), maxWidth: 220, sortable: true, hidden: true },
+  { id: 'revenueSchedule', label: 'Revenue Schedule', width: 180, minWidth: calculateMinWidth({ label: 'Revenue Schedule', type: 'text', sortable: true }), maxWidth: 260, sortable: true, hidden: true },
+  { id: 'opportunityName', label: 'Opportunity', width: 240, minWidth: calculateMinWidth({ label: 'Opportunity', type: 'text', sortable: true }), maxWidth: 360, sortable: true, hidden: true },
 ]
 
 const ARCHIVE_TICKET_FILTER_OPTIONS: Array<{ id: string; label: string }> = [
