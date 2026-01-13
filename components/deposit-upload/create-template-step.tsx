@@ -83,7 +83,6 @@ export function CreateTemplateStep({
       formState.commissionPeriod &&
       formState.distributorAccountId &&
       formState.vendorAccountId &&
-      formState.templateId &&
       selectedFile,
   )
 
@@ -478,58 +477,6 @@ export function CreateTemplateStep({
           </div>
         </FormField>
 
-        <FormField label="Template" required>
-          <div className="relative">
-            <input
-              type="text"
-              value={templateQuery}
-              onChange={event => {
-                setTemplateQuery(event.target.value)
-                onFormStateChange({ templateId: '', templateLabel: '' })
-              }}
-              onFocus={() => setShowTemplateDropdown(true)}
-              placeholder={
-                formState.distributorAccountId && formState.vendorAccountId
-                  ? 'Select a template'
-                  : 'Select distributor + vendor first'
-              }
-              disabled={!formState.distributorAccountId || !formState.vendorAccountId}
-              className={underlineInputClass}
-            />
-            {showTemplateDropdown ? (
-              <DropdownList
-                loading={templateLoading}
-                options={templateOptions}
-                emptyLabel="No templates found"
-                onSelect={option => handleTemplateSelect(option)}
-                onDismiss={() => setShowTemplateDropdown(false)}
-              />
-            ) : null}
-          </div>
-          {templateError ? <p className="mt-1 text-xs text-red-600">{templateError}</p> : null}
-          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-600">
-            <input
-              type="text"
-              value={newTemplateName}
-              onChange={event => setNewTemplateName(event.target.value)}
-              placeholder="New template name"
-              disabled={!formState.distributorAccountId || !formState.vendorAccountId || creatingTemplate}
-              className="min-w-[220px] flex-1 border-b border-slate-200 bg-transparent px-0 py-2 text-xs text-slate-900 placeholder:text-slate-400 focus:border-primary-500 focus:outline-none"
-            />
-            <button
-              type="button"
-              onClick={handleCreateTemplate}
-              disabled={!formState.distributorAccountId || !formState.vendorAccountId || creatingTemplate}
-              className="inline-flex items-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {creatingTemplate ? 'Creating…' : 'Create template'}
-            </button>
-          </div>
-          <p className="mt-1 text-xs text-slate-500">
-            Templates persist mappings for future uploads. Select an existing template or create a new one for this distributor/vendor.
-          </p>
-        </FormField>
-
         <FormField label="Commission Period (YYYY-MM)" required>
           <div className="relative">
             <input
@@ -627,18 +574,12 @@ export function CreateTemplateStep({
             readOnly
             className={`${underlineInputClass} font-semibold`}
           />
-          <p className="text-xs text-slate-500">
-            {formState.depositName
-              ? "Auto-generated from vendor + distributor + date."
-              : "Provide vendor, distributor, and date to generate a name."}
-          </p>
         </FormField>
 
         <FormField label="Created By" required>
           <div className="rounded border-b border-slate-200 py-2 text-sm font-semibold text-slate-800">
             {formState.createdByLabel || user?.fullName || "Detecting..."}
           </div>
-          <p className="text-xs text-slate-500">Automatically assigned to the user uploading this deposit.</p>
         </FormField>
       </div>
 

@@ -1207,15 +1207,6 @@ useEffect(() => {
         <div className="px-4 text-sm text-red-600">{preferenceError}</div>
       )}
 
-      <div className="px-4 pt-2">
-        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
-          <p className="font-semibold text-slate-800">Legend</p>
-          <p className="mt-1">
-            Allocations can be edited until a deposit is finalized. Finalized deposits cannot be deleted.
-          </p>
-        </div>
-      </div>
-
       {/* Table */}
       <div ref={tableAreaRef} className="flex-1 p-4 min-h-0">
         <DynamicTable
