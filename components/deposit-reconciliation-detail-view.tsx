@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
-import { ClipboardCheck, Eye, FileDown, Sparkles, Trash2 } from "lucide-react"
+import { ClipboardCheck, Eye, FileDown, Plus, Sparkles, Trash2 } from "lucide-react"
 import { DynamicTable, type Column } from "./dynamic-table"
 import { ListHeader, type ColumnFilter } from "./list-header"
 import type { BulkActionsGridProps } from "./bulk-actions-grid"
@@ -13,6 +13,7 @@ import { useAuth } from "@/lib/auth-context"
 import { useToasts } from "./toast"
 import { ColumnChooserModal } from "./column-chooser-modal"
 import { TwoStageDeleteDialog } from "./two-stage-delete-dialog"
+import { ModalHeader } from "./ui/modal-header"
 import { useTablePreferences } from "@/hooks/useTablePreferences"
 import {
   DepositLineStatusFilterDropdown,
@@ -45,6 +46,23 @@ export interface AutoMatchSummary {
   belowThreshold: number
   noCandidates: number
   errors: number
+}
+
+type FlexDecisionAction = "none" | "auto_adjust" | "prompt" | "auto_chargeback"
+
+type FlexDecisionPayload = {
+  action: FlexDecisionAction
+  usageOverage: number
+  usageUnderpayment: number
+  usageToleranceAmount: number
+  overageAboveTolerance: boolean
+  allowedPromptOptions: Array<"Adjust" | "Manual" | "FlexProduct">
+}
+
+type FlexPromptState = {
+  lineId: string
+  scheduleId: string
+  decision: FlexDecisionPayload
 }
 
 type LineTabKey = DepositLineStatusFilterValue
@@ -255,6 +273,7 @@ interface DepositReconciliationDetailViewProps {
   onLineSelectionChange?: (lineId: string | null) => void
   onMatchApplied?: () => void
   onUnmatchApplied?: () => void
+  onConfidencePreferencesUpdated?: () => void
   devMatchingControls?: {
     engineMode: "env" | "legacy" | "hierarchical"
     includeFutureSchedules: boolean
@@ -308,6 +327,7 @@ export function DepositReconciliationDetailView({
   onLineSelectionChange,
   onMatchApplied,
   onUnmatchApplied,
+  onConfidencePreferencesUpdated,
   devMatchingControls,
   onRunAutoMatch,
   autoMatchLoading = false,
@@ -324,6 +344,11 @@ export function DepositReconciliationDetailView({
   const { hasPermission } = useAuth()
   const { showSuccess, showError, ToastContainer } = useToasts()
   const canManageReconciliation = hasPermission("reconciliation.manage")
+  const [confidencePrefs, setConfidencePrefs] = useState({
+    suggestedMatchesMinConfidence: 0.75,
+    autoMatchMinConfidence: 0.95,
+  })
+  const [confidencePrefsLoading, setConfidencePrefsLoading] = useState(false)
   const [lineTab, setLineTab] = useState<LineTabKey>("all")
   const [scheduleTab, setScheduleTab] = useState<ScheduleTabKey>("suggested")
   const [lineSearch, setLineSearch] = useState("")
@@ -343,6 +368,8 @@ export function DepositReconciliationDetailView({
   const [lineSortConfig, setLineSortConfig] = useState<{ key: string; direction: "asc" | "desc" } | null>(null)
   const [scheduleSortConfig, setScheduleSortConfig] = useState<{ key: string; direction: "asc" | "desc" } | null>(null)
   const [showDeleteDepositDialog, setShowDeleteDepositDialog] = useState(false)
+  const [flexPrompt, setFlexPrompt] = useState<FlexPromptState | null>(null)
+  const [flexResolving, setFlexResolving] = useState(false)
   const {
     refCallback: lineTableAreaRefCallback,
     maxBodyHeight: lineTableBodyHeight,
@@ -359,6 +386,85 @@ export function DepositReconciliationDetailView({
   const selectedSchedulesRef = useRef<string[]>([])
   const matchingLineIdRef = useRef<string | null>(null)
   const undoingLineIdRef = useRef<string | null>(null)
+  const confidenceSaveTimerRef = useRef<number | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    const controller = new AbortController()
+
+    const loadPrefs = async () => {
+      setConfidencePrefsLoading(true)
+      try {
+        const response = await fetch("/api/reconciliation/user-settings", {
+          cache: "no-store",
+          signal: controller.signal,
+        })
+        const payload = await response.json().catch(() => null)
+        if (!response.ok) {
+          throw new Error(payload?.error || "Unable to load confidence settings")
+        }
+        const nextSuggested = Number(payload?.data?.suggestedMatchesMinConfidence)
+        const nextAuto = Number(payload?.data?.autoMatchMinConfidence)
+        if (cancelled) return
+        setConfidencePrefs(previous => ({
+          suggestedMatchesMinConfidence: Number.isFinite(nextSuggested) ? nextSuggested : previous.suggestedMatchesMinConfidence,
+          autoMatchMinConfidence: Number.isFinite(nextAuto) ? nextAuto : previous.autoMatchMinConfidence,
+        }))
+      } catch (err) {
+        if (cancelled) return
+        console.error("Failed to load reconciliation confidence settings", err)
+      } finally {
+        if (!cancelled) {
+          setConfidencePrefsLoading(false)
+        }
+      }
+    }
+
+    void loadPrefs()
+
+    return () => {
+      cancelled = true
+      controller.abort()
+      if (confidenceSaveTimerRef.current) {
+        window.clearTimeout(confidenceSaveTimerRef.current)
+        confidenceSaveTimerRef.current = null
+      }
+    }
+  }, [])
+
+  const scheduleConfidenceSave = useCallback(
+    (updates: Partial<typeof confidencePrefs>) => {
+      if (confidenceSaveTimerRef.current) {
+        window.clearTimeout(confidenceSaveTimerRef.current)
+        confidenceSaveTimerRef.current = null
+      }
+
+      confidenceSaveTimerRef.current = window.setTimeout(async () => {
+        try {
+          const response = await fetch("/api/reconciliation/user-settings", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(updates),
+          })
+          const payload = await response.json().catch(() => null)
+          if (!response.ok) {
+            throw new Error(payload?.error || "Unable to save confidence settings")
+          }
+          const savedSuggested = Number(payload?.data?.suggestedMatchesMinConfidence)
+          const savedAuto = Number(payload?.data?.autoMatchMinConfidence)
+          setConfidencePrefs(previous => ({
+            suggestedMatchesMinConfidence: Number.isFinite(savedSuggested) ? savedSuggested : previous.suggestedMatchesMinConfidence,
+            autoMatchMinConfidence: Number.isFinite(savedAuto) ? savedAuto : previous.autoMatchMinConfidence,
+          }))
+          onConfidencePreferencesUpdated?.()
+        } catch (err) {
+          console.error("Failed to save reconciliation confidence settings", err)
+          showError("Unable to save thresholds", err instanceof Error ? err.message : "Unknown error")
+        }
+      }, 450)
+    },
+    [onConfidencePreferencesUpdated, showError],
+  )
 
   selectedLineIdRef.current = selectedLineId
   selectedLineItemsRef.current = selectedLineItems
@@ -423,6 +529,20 @@ export function DepositReconciliationDetailView({
     if (selectedSchedules.length > 1) return "Select only one schedule to allocate to"
     return null
   }, [matchingLineId, undoingLineId, selectedLineForMatch, selectedSchedules.length])
+
+  const createFlexButtonLabel = useMemo(() => {
+    if (!selectedLineForMatch) return "Create Flex Product"
+    const isChargeback = selectedLineForMatch.usage < 0 || selectedLineForMatch.commission < 0
+    return isChargeback ? "Create Chargeback" : "Create Flex Product"
+  }, [selectedLineForMatch])
+
+  const createFlexButtonDisabledReason = useMemo(() => {
+    if (matchingLineId || undoingLineId) return "Update in progress"
+    if (!selectedLineForMatch) return "Select a deposit line item above"
+    if (selectedLineForMatch.reconciled) return "Reconciled line items cannot be changed"
+    if (selectedLineForMatch.status === "Ignored") return "Ignored line items cannot be allocated"
+    return null
+  }, [matchingLineId, undoingLineId, selectedLineForMatch])
 
   const matchedLineItems = useMemo(
     () =>
@@ -573,10 +693,30 @@ export function DepositReconciliationDetailView({
           throw new Error(payload?.error || "Failed to apply match")
         }
 
+        const flexDecision = payload?.data?.flexDecision as FlexDecisionPayload | undefined
+        const flexExecution = payload?.data?.flexExecution as any
+
         setSelectedLineItems([lineId])
         onLineSelectionChange?.(lineId)
         setSelectedSchedules([])
         onMatchApplied?.()
+
+        if (flexExecution?.action === "AutoChargeback") {
+          showSuccess("Chargeback created", "A Flex Chargeback entry was created and allocated automatically.")
+          return
+        }
+
+        if (flexDecision?.action === "auto_adjust") {
+          showSuccess("Auto-adjustment created", "A one-time adjustment was created and allocated automatically.")
+          return
+        }
+
+        if (flexDecision?.action === "prompt") {
+          setFlexPrompt({ lineId, scheduleId, decision: flexDecision })
+          showSuccess("Allocation saved", "Overage exceeds tolerance. Choose how to resolve the variance.")
+          return
+        }
+
         showSuccess("Allocation saved", "The selected line item was allocated to the schedule.")
       } catch (err) {
         console.error("Failed to apply match", err)
@@ -597,6 +737,60 @@ export function DepositReconciliationDetailView({
     }
     void handleRowMatchClick(lineId)
   }, [handleRowMatchClick, showError])
+
+  const handleCreateFlexSelected = useCallback(async () => {
+    const lineId = selectedLineItemsRef.current[0]
+    if (!lineId) {
+      showError("No line selected", "Select a deposit line item to create a flex entry.")
+      return
+    }
+
+    const targetLine = lineItemRows.find(item => item.id === lineId)
+    if (targetLine?.reconciled) {
+      showError("Line locked", "Reconciled line items cannot be changed.")
+      return
+    }
+    if (targetLine?.status === "Ignored") {
+      showError("Line ignored", "Ignored line items cannot be allocated.")
+      return
+    }
+
+    const kind = targetLine && (targetLine.usage < 0 || targetLine.commission < 0) ? "Chargeback" : "FlexProduct"
+
+    try {
+      matchingLineIdRef.current = lineId
+      setMatchingLineId(lineId)
+
+      const response = await fetch(
+        `/api/reconciliation/deposits/${encodeURIComponent(metadata.id)}/line-items/${encodeURIComponent(lineId)}/create-flex`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ kind }),
+        },
+      )
+      const payload = await response.json().catch(() => null)
+      if (!response.ok) {
+        throw new Error(payload?.error || "Failed to create flex entry")
+      }
+
+      setSelectedLineItems([lineId])
+      onLineSelectionChange?.(lineId)
+      onMatchApplied?.()
+
+      if (kind === "Chargeback") {
+        showSuccess("Chargeback created", "A Flex Chargeback entry was created and allocated to this line item.")
+      } else {
+        showSuccess("Flex product created", "A Flex Product entry was created and allocated to this line item.")
+      }
+    } catch (err) {
+      console.error("Failed to create flex entry", err)
+      showError("Unable to create flex entry", err instanceof Error ? err.message : "Unknown error")
+    } finally {
+      matchingLineIdRef.current = null
+      setMatchingLineId(null)
+    }
+  }, [lineItemRows, metadata.id, onLineSelectionChange, onMatchApplied, showError, showSuccess])
 
   const unmatchLineById = useCallback(
     async (lineId?: string | null) => {
@@ -1267,6 +1461,11 @@ export function DepositReconciliationDetailView({
         minWidth: 150,
         render: (_value: unknown, row: SuggestedMatchScheduleRow) => (
           <div className="flex flex-wrap items-center gap-1">
+            {row.status === "Suggested" && row.matchConfidence >= confidencePrefs.autoMatchMinConfidence ? (
+              <span className="inline-flex items-center rounded-full bg-primary-50 px-2 py-0.5 text-[11px] font-semibold text-primary-700 ring-1 ring-primary-200">
+                Auto-eligible
+              </span>
+            ) : null}
             {row.matchType ? (
               <span
                 className={cn(
@@ -1296,7 +1495,7 @@ export function DepositReconciliationDetailView({
       },
       {
         id: "why",
-        label: "Why this match",
+        label: "Why suggested",
         width: 160,
         minWidth: 140,
         render: (_value: unknown, row: SuggestedMatchScheduleRow) => {
@@ -1534,7 +1733,7 @@ export function DepositReconciliationDetailView({
         )
       }
     ]
-  }, [currencyFormatter, percentFormatter, dateFormatter])
+  }, [currencyFormatter, percentFormatter, dateFormatter, confidencePrefs.autoMatchMinConfidence])
 
   // Line items table with persistence
   const {
@@ -1651,8 +1850,28 @@ export function DepositReconciliationDetailView({
       if (!response.ok) {
         throw new Error(payload?.error || "Failed to apply match")
       }
+
+      const flexDecision = payload?.data?.flexDecision as FlexDecisionPayload | undefined
+      const flexExecution = payload?.data?.flexExecution as any
       setSelectedSchedules([])
       onMatchApplied?.()
+
+      if (flexExecution?.action === "AutoChargeback") {
+        showSuccess("Chargeback created", "A Flex Chargeback entry was created and allocated automatically.")
+        return
+      }
+
+      if (flexDecision?.action === "auto_adjust") {
+        showSuccess("Auto-adjustment created", "A one-time adjustment was created and allocated automatically.")
+        return
+      }
+
+      if (flexDecision?.action === "prompt") {
+        setFlexPrompt({ lineId, scheduleId, decision: flexDecision })
+        showSuccess("Allocation saved", "Overage exceeds tolerance. Choose how to resolve the variance.")
+        return
+      }
+
       showSuccess("Allocation saved", "The selected line item was allocated to the schedule.")
     } catch (err) {
       console.error("Failed to apply match", err)
@@ -1663,6 +1882,49 @@ export function DepositReconciliationDetailView({
   const handleBulkLineUnmatch = useCallback(async () => {
     await unmatchLineById()
   }, [unmatchLineById])
+
+  const handleResolveFlex = useCallback(
+    async (action: "Adjust" | "FlexProduct" | "Manual") => {
+      if (!flexPrompt) return
+
+      if (action === "Manual") {
+        setFlexPrompt(null)
+        showSuccess("Manual resolution", "Variance left as-is. You can resolve it later via schedules or flex products.")
+        return
+      }
+
+      try {
+        setFlexResolving(true)
+        const response = await fetch(
+          `/api/reconciliation/deposits/${encodeURIComponent(metadata.id)}/line-items/${encodeURIComponent(flexPrompt.lineId)}/resolve-flex`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ revenueScheduleId: flexPrompt.scheduleId, action }),
+          },
+        )
+        const payload = await response.json().catch(() => null)
+        if (!response.ok) {
+          throw new Error(payload?.error || "Failed to resolve flex variance")
+        }
+
+        setFlexPrompt(null)
+        onMatchApplied?.()
+
+        if (action === "Adjust") {
+          showSuccess("Adjustment created", "A one-time adjustment entry was created and allocated.")
+        } else {
+          showSuccess("Flex product created", "A Flex Product entry was created and allocated.")
+        }
+      } catch (err) {
+        console.error("Failed to resolve flex variance", err)
+        showError("Unable to resolve variance", err instanceof Error ? err.message : "Unknown error")
+      } finally {
+        setFlexResolving(false)
+      }
+    },
+    [flexPrompt, metadata.id, onMatchApplied, showError, showSuccess],
+  )
 
   const handleBulkLineExport = useCallback(() => {
     if (selectedLineItems.length === 0) {
@@ -1952,6 +2214,62 @@ export function DepositReconciliationDetailView({
 
   return (
     <div className="flex min-h-[calc(100vh-110px)] flex-col gap-3 px-4 pb-4 pt-3 sm:px-6">
+      {flexPrompt ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/40 px-4"
+          onClick={() => (flexResolving ? null : setFlexPrompt(null))}
+        >
+          <div
+            className="w-full max-w-xl rounded-xl bg-white shadow-xl"
+            onClick={e => e.stopPropagation()}
+          >
+            <ModalHeader kicker="Flex Resolution" title="Overage exceeds tolerance" />
+            <div className="space-y-3 p-6 text-sm text-slate-700">
+              <p>
+                This allocation overpays the schedule by{" "}
+                <span className="font-semibold">${flexPrompt.decision.usageOverage.toFixed(2)}</span>, which is above the
+                tolerance amount of{" "}
+                <span className="font-semibold">${flexPrompt.decision.usageToleranceAmount.toFixed(2)}</span>.
+              </p>
+              <p>Select how to handle the variance:</p>
+              <div className="flex flex-wrap items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  className="rounded border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                  onClick={() => setFlexPrompt(null)}
+                  disabled={flexResolving}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="rounded border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                  onClick={() => void handleResolveFlex("Manual")}
+                  disabled={flexResolving}
+                >
+                  Manual
+                </button>
+                <button
+                  type="button"
+                  className="rounded border border-primary-200 bg-primary-50 px-3 py-2 text-sm font-semibold text-primary-800 hover:bg-primary-100"
+                  onClick={() => void handleResolveFlex("Adjust")}
+                  disabled={flexResolving}
+                >
+                  {flexResolving ? "Working..." : "Adjust"}
+                </button>
+                <button
+                  type="button"
+                  className="rounded bg-primary-600 px-3 py-2 text-sm font-semibold text-white hover:bg-primary-700"
+                  onClick={() => void handleResolveFlex("FlexProduct")}
+                  disabled={flexResolving}
+                >
+                  {flexResolving ? "Working..." : "Flex Product"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
       {showDevControls ? renderDevMatchingControls() : null}
       <div className="flex flex-col gap-3">
         <div className="flex items-start justify-between gap-3">
@@ -2312,11 +2630,14 @@ export function DepositReconciliationDetailView({
                     "inline-flex h-9 items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-3 text-sm font-semibold text-primary-700 shadow-sm transition hover:bg-primary-50",
                     autoMatchLoading ? "cursor-not-allowed opacity-60" : "",
                   )}
-                  aria-label="Use AI Matching"
-                  title="Use AI Matching"
+                  aria-label="Reconcile (Use AI)"
+                  title="Reconcile (Use AI)"
                 >
                   <Sparkles className="h-4 w-4" />
-                  <span>Use AI</span>
+                  <span>Reconcile</span>
+                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600 ring-1 ring-slate-200">
+                    Use AI
+                  </span>
                 </button>
               ) : null
             }
@@ -2380,19 +2701,34 @@ export function DepositReconciliationDetailView({
             onColumnFiltersChange={handleScheduleColumnFiltersChange}
             onSettingsClick={() => setShowScheduleColumnSettings(true)}
             preSearchAccessory={
-              <button
-                type="button"
-                onClick={handleMatchSelected}
-                disabled={Boolean(matchButtonDisabledReason)}
-                title={matchButtonDisabledReason ?? "Allocate the selected line item to the selected schedule"}
-                className={cn(
-                  "inline-flex h-9 items-center justify-center gap-2 rounded bg-primary-600 px-3 text-sm font-semibold text-white shadow-sm transition hover:bg-primary-700",
-                  matchButtonDisabledReason ? "cursor-not-allowed opacity-60 hover:bg-primary-600" : ""
-                )}
-              >
-                <ClipboardCheck className="h-4 w-4" />
-                Allocate
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => void handleCreateFlexSelected()}
+                  disabled={Boolean(createFlexButtonDisabledReason)}
+                  title={createFlexButtonDisabledReason ?? "Create a flex entry for the selected line item"}
+                  className={cn(
+                    "inline-flex h-9 items-center justify-center gap-2 rounded border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50",
+                    createFlexButtonDisabledReason ? "cursor-not-allowed opacity-60 hover:bg-white" : ""
+                  )}
+                >
+                  <Plus className="h-4 w-4" />
+                  {createFlexButtonLabel}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleMatchSelected}
+                  disabled={Boolean(matchButtonDisabledReason)}
+                  title={matchButtonDisabledReason ?? "Allocate the selected line item to the selected schedule"}
+                  className={cn(
+                    "inline-flex h-9 items-center justify-center gap-2 rounded bg-primary-600 px-3 text-sm font-semibold text-white shadow-sm transition hover:bg-primary-700",
+                    matchButtonDisabledReason ? "cursor-not-allowed opacity-60 hover:bg-primary-600" : ""
+                  )}
+                >
+                  <ClipboardCheck className="h-4 w-4" />
+                  Allocate
+                </button>
+              </div>
             }
             leftAccessory={
               <div className="flex items-center gap-3">
@@ -2413,6 +2749,49 @@ export function DepositReconciliationDetailView({
                     <span>Include Future-Dated Schedules</span>
                   </label>
                 ) : null}
+                <div className="flex flex-wrap items-center gap-3 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                      Suggested ≥ {Math.round(confidencePrefs.suggestedMatchesMinConfidence * 100)}%
+                    </span>
+                    <input
+                      type="range"
+                      min={0}
+                      max={100}
+                      step={1}
+                      value={Math.round(confidencePrefs.suggestedMatchesMinConfidence * 100)}
+                      onChange={event => {
+                        const next = Number(event.target.value) / 100
+                        setConfidencePrefs(previous => ({ ...previous, suggestedMatchesMinConfidence: next }))
+                        scheduleConfidenceSave({ suggestedMatchesMinConfidence: next })
+                      }}
+                      disabled={confidencePrefsLoading}
+                      className="w-28 accent-primary-600"
+                      aria-label="Suggested matches minimum confidence"
+                    />
+                  </div>
+                  <div className="h-5 w-px bg-slate-200" aria-hidden="true" />
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                      Auto ≥ {Math.round(confidencePrefs.autoMatchMinConfidence * 100)}%
+                    </span>
+                    <input
+                      type="range"
+                      min={0}
+                      max={100}
+                      step={1}
+                      value={Math.round(confidencePrefs.autoMatchMinConfidence * 100)}
+                      onChange={event => {
+                        const next = Number(event.target.value) / 100
+                        setConfidencePrefs(previous => ({ ...previous, autoMatchMinConfidence: next }))
+                        scheduleConfidenceSave({ autoMatchMinConfidence: next })
+                      }}
+                      disabled={confidencePrefsLoading}
+                      className="w-28 accent-primary-600"
+                      aria-label="Auto-allocation minimum confidence"
+                    />
+                  </div>
+                </div>
               </div>
             }
           />
@@ -2425,7 +2804,7 @@ export function DepositReconciliationDetailView({
               data={sortedSchedules}
               onSort={(column, direction) => setScheduleSortConfig({ key: column, direction })}
               loading={scheduleLoading || loading || schedulePreferenceLoading}
-              emptyMessage="No suggested schedules found"
+              emptyMessage="No allocation candidates found"
               fillContainerWidth
               preferOverflowHorizontalScroll
               hasLoadedPreferences={!schedulePreferenceLoading && scheduleTableColumns.length > 0}

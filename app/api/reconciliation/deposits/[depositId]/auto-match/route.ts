@@ -8,6 +8,7 @@ import { withPermissions, createErrorResponse } from "@/lib/api-auth"
 import { prisma } from "@/lib/db"
 import { matchDepositLine } from "@/lib/matching/deposit-matcher"
 import { recomputeDepositAggregates } from "@/lib/matching/deposit-aggregates"
+import { recomputeDepositLineItemAllocations } from "@/lib/matching/deposit-line-allocations"
 import { getTenantMatchingPreferences } from "@/lib/matching/settings"
 import { getUserReconciliationConfidencePreferences } from "@/lib/matching/user-confidence-settings"
 import { logMatchingMetric } from "@/lib/matching/metrics"
@@ -163,21 +164,7 @@ async function applyAutoMatch(
       },
     })
 
-    await tx.depositLineItem.update({
-      where: { id: line.id },
-      data: {
-        status:
-          allocationUsage >= Number(line.usage ?? 0) &&
-          allocationCommission >= Number(line.commission ?? 0)
-            ? DepositLineItemStatus.Matched
-            : DepositLineItemStatus.PartiallyMatched,
-        primaryRevenueScheduleId: scheduleId,
-        usageAllocated: allocationUsage,
-        usageUnallocated: Math.max(Number(line.usage ?? 0) - allocationUsage, 0),
-        commissionAllocated: allocationCommission,
-        commissionUnallocated: Math.max(Number(line.commission ?? 0) - allocationCommission, 0),
-      },
-    })
+    await recomputeDepositLineItemAllocations(tx, line.id, tenantId)
 
     await recomputeDepositAggregates(tx, line.depositId, tenantId)
   })

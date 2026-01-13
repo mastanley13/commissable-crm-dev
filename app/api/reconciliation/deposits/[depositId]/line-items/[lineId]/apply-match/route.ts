@@ -4,6 +4,7 @@ import {
   DepositLineMatchSource,
   DepositLineMatchStatus,
   AuditAction,
+  RevenueScheduleFlexReasonCode,
 } from "@prisma/client"
 import { withPermissions, createErrorResponse } from "@/lib/api-auth"
 import { prisma } from "@/lib/db"
@@ -13,6 +14,11 @@ import { getTenantVarianceTolerance } from "@/lib/matching/settings"
 import { logMatchingMetric } from "@/lib/matching/metrics"
 import { logRevenueScheduleAudit } from "@/lib/audit"
 import { evaluateFlexDecision } from "@/lib/flex/revenue-schedule-flex-decision"
+import { recomputeDepositLineItemAllocations } from "@/lib/matching/deposit-line-allocations"
+import {
+  createFlexChargebackForNegativeLine,
+  executeFlexAdjustmentSplit,
+} from "@/lib/flex/revenue-schedule-flex-actions"
 
 interface ApplyMatchRequestBody {
   revenueScheduleId: string
@@ -54,6 +60,12 @@ export async function POST(
     if (!lineItem) {
       return createErrorResponse("Deposit line item not found", 404)
     }
+    if (lineItem.reconciled) {
+      return createErrorResponse("Reconciled line items cannot be changed", 400)
+    }
+    if (lineItem.status === DepositLineItemStatus.Ignored) {
+      return createErrorResponse("Ignored line items cannot be allocated", 400)
+    }
 
     const schedule = await prisma.revenueSchedule.findFirst({
       where: { id: revenueScheduleId, tenantId },
@@ -68,6 +80,34 @@ export async function POST(
     const varianceTolerance = await getTenantVarianceTolerance(tenantId)
 
     const result = await prisma.$transaction(async tx => {
+      const hasNegativeLine =
+        allocationUsage < 0 ||
+        allocationCommission < 0 ||
+        Number(lineItem.usage ?? 0) < 0 ||
+        Number(lineItem.commission ?? 0) < 0
+
+      if (hasNegativeLine) {
+        const flexExecution = await createFlexChargebackForNegativeLine(tx, {
+          tenantId,
+          userId: req.user.id,
+          depositId,
+          lineItemId: lineItem.id,
+          varianceTolerance,
+          request,
+        })
+
+        const updatedLine = await tx.depositLineItem.findFirst({ where: { id: lineItem.id } })
+        const deposit = await recomputeDepositAggregates(tx, depositId, tenantId)
+
+        return {
+          match: null,
+          updatedLine,
+          deposit,
+          revenueSchedule: null,
+          flexExecution,
+        }
+      }
+
       const match = await tx.depositLineMatch.upsert({
         where: {
           depositLineItemId_revenueScheduleId: {
@@ -94,28 +134,48 @@ export async function POST(
         },
       })
 
-      const updatedLine = await tx.depositLineItem.update({
-        where: { id: lineItem.id },
-        data: {
-          status:
-            allocationUsage >= Number(lineItem.usage ?? 0) &&
-            allocationCommission >= Number(lineItem.commission ?? 0)
-              ? DepositLineItemStatus.Matched
-              : DepositLineItemStatus.PartiallyMatched,
-          primaryRevenueScheduleId: revenueScheduleId,
-          usageAllocated: allocationUsage,
-          usageUnallocated: Math.max(Number(lineItem.usage ?? 0) - allocationUsage, 0),
-          commissionAllocated: allocationCommission,
-          commissionUnallocated: Math.max(Number(lineItem.commission ?? 0) - allocationCommission, 0),
-        },
-      })
+      const updatedLine = await recomputeDepositLineItemAllocations(tx, lineItem.id, tenantId)
 
-      const deposit = await recomputeDepositAggregates(tx, depositId, tenantId)
-      const revenueSchedule = await recomputeRevenueScheduleFromMatches(tx, revenueScheduleId, tenantId, {
+      let revenueSchedule = await recomputeRevenueScheduleFromMatches(tx, revenueScheduleId, tenantId, {
         varianceTolerance,
       })
 
-      return { match, updatedLine, deposit, revenueSchedule }
+      const flexDecision = evaluateFlexDecision({
+        expectedUsageNet: revenueSchedule.expectedUsageNet,
+        usageBalance: revenueSchedule.usageBalance,
+        varianceTolerance,
+        hasNegativeLine: false,
+        expectedCommissionNet: revenueSchedule.expectedCommissionNet,
+        commissionDifference: revenueSchedule.commissionDifference,
+      })
+
+      let flexExecution = null as any
+
+      if (flexDecision.action === "auto_adjust") {
+        const usageOverage = flexDecision.usageOverage
+        const commissionOverage = revenueSchedule.commissionDifference < 0 ? Math.abs(revenueSchedule.commissionDifference) : 0
+
+        flexExecution = await executeFlexAdjustmentSplit(tx, {
+          tenantId,
+          userId: req.user.id,
+          depositId,
+          lineItemId: lineItem.id,
+          baseScheduleId: revenueScheduleId,
+          splitUsage: usageOverage,
+          splitCommission: commissionOverage,
+          varianceTolerance,
+          request,
+          reasonCode: RevenueScheduleFlexReasonCode.OverageWithinTolerance,
+        })
+
+        revenueSchedule = await recomputeRevenueScheduleFromMatches(tx, revenueScheduleId, tenantId, {
+          varianceTolerance,
+        })
+      }
+
+      const deposit = await recomputeDepositAggregates(tx, depositId, tenantId)
+
+      return { match, updatedLine: updatedLine.line, deposit, revenueSchedule, flexDecision, flexExecution }
     })
 
     await logMatchingMetric({
@@ -130,42 +190,35 @@ export async function POST(
       request,
     })
 
-    await logRevenueScheduleAudit(
-      AuditAction.Update,
-      revenueScheduleId,
-      req.user.id,
-      tenantId,
-      request,
-      {
-        status: schedule.status ?? null,
-        actualUsage: schedule.actualUsage ?? null,
-        actualCommission: schedule.actualCommission ?? null,
-      },
-      {
-        action: "ApplyDepositMatch",
-        depositId,
-        depositLineItemId: lineItem.id,
-        depositLineMatchId: result.match.id,
-        allocatedUsage: allocationUsage,
-        allocatedCommission: allocationCommission,
-        status: result.revenueSchedule.schedule.status,
-        actualUsage: result.revenueSchedule.schedule.actualUsage,
-        actualCommission: result.revenueSchedule.schedule.actualCommission,
-        usageBalance: result.revenueSchedule.usageBalance,
-        commissionDifference: result.revenueSchedule.commissionDifference,
-        matchCount: result.revenueSchedule.matchCount,
-      },
-    )
+    if (result?.match?.id && result?.revenueSchedule?.schedule) {
+      await logRevenueScheduleAudit(
+        AuditAction.Update,
+        revenueScheduleId,
+        req.user.id,
+        tenantId,
+        request,
+        {
+          status: schedule.status ?? null,
+          actualUsage: schedule.actualUsage ?? null,
+          actualCommission: schedule.actualCommission ?? null,
+        },
+        {
+          action: "ApplyDepositMatch",
+          depositId,
+          depositLineItemId: lineItem.id,
+          depositLineMatchId: result.match.id,
+          allocatedUsage: allocationUsage,
+          allocatedCommission: allocationCommission,
+          status: result.revenueSchedule.schedule.status,
+          actualUsage: result.revenueSchedule.schedule.actualUsage,
+          actualCommission: result.revenueSchedule.schedule.actualCommission,
+          usageBalance: result.revenueSchedule.usageBalance,
+          commissionDifference: result.revenueSchedule.commissionDifference,
+          matchCount: result.revenueSchedule.matchCount,
+        },
+      )
+    }
 
-    const flexDecision = evaluateFlexDecision({
-      expectedUsageNet: result.revenueSchedule.expectedUsageNet,
-      usageBalance: result.revenueSchedule.usageBalance,
-      varianceTolerance,
-      hasNegativeLine: allocationUsage < 0 || allocationCommission < 0,
-      expectedCommissionNet: result.revenueSchedule.expectedCommissionNet,
-      commissionDifference: result.revenueSchedule.commissionDifference,
-    })
-
-    return NextResponse.json({ data: { ...result, flexDecision } })
+    return NextResponse.json({ data: result })
   })
 }

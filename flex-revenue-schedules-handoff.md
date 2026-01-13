@@ -7,12 +7,18 @@
 - Reconciliation UI already displays Expected vs Actual and balances/differences (usage + commission).
 - Revenue Schedule audit history tab exists, and reconciliation actions write audit logs.
 - Revenue Schedule clone, delete/archive, and bulk edit tools exist (useful building blocks for manual “flex-style” housekeeping).
+- Revenue Schedule supports FLEX metadata (`flexClassification`, `flexReasonCode`, and source deposit IDs).
+- Matching returns `flexDecision` and executes Phase 0 policy on Match:
+  - within tolerance: auto-create + allocate an Adjustment entry (no modal),
+  - above tolerance: prompt (Adjust / Manual / Flex Product),
+  - negative line: auto-create + allocate a Flex Chargeback entry (reversible before finalize).
+- Reconciliation UI supports resolving above-tolerance overages via modal and supports creating Flex Product / Chargeback entries from the allocation screen.
+- Month-to-month schedule extension job exists and is callable via a secured job endpoint.
 
-**Not yet implemented (FLEX-specific)**
-- “Adjustment vs Flex Product vs Manual” mismatch prompt/decision tree and the downstream record creation.
-- Flex Product creation for unknown product, overage outside tolerance, and negative “flex chargeback” automation.
-- Auto-create new future Revenue Schedules when Billing + schedules exhausted.
-- Bonus/SPF classification + “apply same rules” automation and reporting categorizations for flex chargebacks.
+**Remaining (FLEX-specific)**
+- Expand bonus/SPF classification rules (beyond the current “bonus-like” heuristic) and confirm if/where bonus should auto-classify in reconciliation UX.
+- Decide whether to auto-create Flex Products during batch Auto-Match when overage is above tolerance (currently prompts only during interactive matching).
+- Optional cleanup: decide whether auto-created Flex Products should be retired automatically when their source line is unallocated (schedules are soft-deleted; products are retained).
 
 **Source of truth used to compile this handoff:**
 - *Commissable_Transcript_MeetingSummary_Jan-06-26.pdf* (meeting summary + transcript excerpts)【107:1†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L44-L65】【107:10†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L20-L31】

@@ -36,10 +36,23 @@ export async function POST(
       })
 
       const scheduleIds = Array.from(new Set(existingMatches.map(match => match.revenueScheduleId).filter(Boolean)))
+
+      const flexSchedules = await tx.revenueSchedule.findMany({
+        // Cast to any to allow recently added nullable metadata fields.
+        where: {
+          tenantId,
+          flexSourceDepositLineItemId: lineItem.id,
+          deletedAt: null,
+        } as any,
+        select: { id: true },
+      })
+
+      const flexScheduleIds = flexSchedules.map(schedule => schedule.id)
+      const allScheduleIds = Array.from(new Set([...scheduleIds, ...flexScheduleIds].filter(Boolean)))
       const schedulesBefore =
-        scheduleIds.length > 0
+        allScheduleIds.length > 0
           ? await tx.revenueSchedule.findMany({
-              where: { tenantId, id: { in: scheduleIds } },
+              where: { tenantId, id: { in: allScheduleIds } },
               select: { id: true, status: true, actualUsage: true, actualCommission: true },
             })
           : []
@@ -62,14 +75,28 @@ export async function POST(
 
       const deposit = await recomputeDepositAggregates(tx, depositId, tenantId)
       const revenueSchedules =
-        scheduleIds.length > 0
+        allScheduleIds.length > 0
           ? await recomputeRevenueSchedules(
               tx,
-              scheduleIds,
+              allScheduleIds,
               tenantId,
               { varianceTolerance },
             )
           : []
+
+      // Soft-delete auto-created flex schedules that were sourced from this line and now have no matches.
+      for (const flexId of flexScheduleIds) {
+        const stillUsed = await tx.depositLineMatch.findFirst({
+          where: { tenantId, revenueScheduleId: flexId },
+          select: { id: true },
+        })
+        if (stillUsed) continue
+        await tx.revenueSchedule.update({
+          where: { id: flexId },
+          data: { deletedAt: new Date() },
+          select: { id: true },
+        })
+      }
 
       return { lineItem: updatedLine, deposit, revenueSchedules, schedulesBefore }
     })
