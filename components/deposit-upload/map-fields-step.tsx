@@ -113,6 +113,14 @@ export function MapFieldsStep({
     }
   }
 
+  const CORE_TEMPLATE_FIELDS = ["accountNameRaw", "usage", "commission", "vendorNameRaw"] as const
+  for (const fieldId of CORE_TEMPLATE_FIELDS) {
+    const columnName = canonicalFieldMapping[fieldId]
+    if (typeof columnName === "string" && columnName.trim()) {
+      templateColumnCandidates.add(columnName)
+    }
+  }
+
   if (templateFields?.fields?.length) {
     for (const field of templateFields.fields) {
       if (field.telarusFieldName?.trim()) templateColumnCandidates.add(field.telarusFieldName)
@@ -247,24 +255,18 @@ export function MapFieldsStep({
               let statusClass = "border-gray-200 bg-gray-50 text-gray-600"
               const templateHint = templateHintByNormalizedHeader.get(normalizeKey(header))
 
-              if (selection.type === "canonical") {
-                statusLabel = mappedField?.required ? "Required mapped" : "Mapped"
+              if (selection.type === "canonical" || selection.type === "custom" || selection.type === "product") {
+                statusLabel = "Mapped"
                 statusClass = "border-emerald-300 bg-emerald-50 text-emerald-700"
-              } else if (selection.type === "custom") {
-                statusLabel = "Custom field"
-                statusClass = "border-sky-300 bg-sky-50 text-sky-700"
-              } else if (selection.type === "product") {
-                statusLabel = "Product info"
-                statusClass = "border-indigo-300 bg-indigo-50 text-indigo-700"
               } else if (selection.type === "ignore") {
-                statusLabel = "Ignored"
+                statusLabel = "Unmapped"
                 statusClass = "border-gray-200 bg-gray-50 text-gray-500"
-              } else if (selection.type === "additional" && templateHint) {
-                statusLabel = "Template field"
-                statusClass = "border-amber-300 bg-amber-50 text-amber-800"
-              } else if (selection.type === "additional") {
-                statusLabel = "Additional info"
-                statusClass = "border-gray-200 bg-gray-50 text-gray-600"
+              } else {
+                // selection.type === "additional"
+                statusLabel = "Unmapped"
+                statusClass = templateHint
+                  ? "border-amber-300 bg-amber-50 text-amber-800"
+                  : "border-gray-200 bg-gray-50 text-gray-600"
               }
 
               const columnName = header || "(unnamed column)"
@@ -473,19 +475,17 @@ export function MapFieldsStep({
 
   return (
     <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4 md:p-6 space-y-5">
-      <div className="flex items-center gap-3">
-        <div className="rounded-full bg-primary-50 p-3 text-primary-600">
-          <FileSpreadsheet className="h-6 w-6" />
+      <div className="grid gap-4 md:grid-cols-2 md:items-start">
+        <div className="flex items-center gap-3">
+          <div className="rounded-full bg-primary-50 p-3 text-primary-600">
+            <FileSpreadsheet className="h-6 w-6" />
+          </div>
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">Map Fields</h2>
+            <p className="text-sm text-gray-600">Match columns from your upload to Commissable fields.</p>
+          </div>
         </div>
-        <div>
-          <h2 className="text-lg font-semibold text-gray-900">Map Fields</h2>
-          <p className="text-sm text-gray-600">
-            Match columns from your upload to Commissable fields.
-          </p>
-        </div>
-      </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
         <div className="rounded-xl border border-gray-100 bg-gray-50 p-4 text-sm text-gray-700">
           <p className="font-semibold text-gray-900">Uploaded file</p>
           {file ? (
@@ -495,26 +495,22 @@ export function MapFieldsStep({
               {parsingError ? (
                 <p className="text-xs text-red-600">{parsingError}</p>
               ) : csvHeaders.length === 0 ? (
-                <p className="text-xs text-gray-500">
-                  Select a CSV/XLS file with a header row to begin mapping.
-                </p>
+                <p className="text-xs text-gray-500">Select a CSV/XLS file with a header row to begin mapping.</p>
               ) : null}
             </div>
           ) : (
-            <p className="mt-2 text-gray-500">
-              No file selected. Return to Create Deposit to attach a file.
-            </p>
+            <p className="mt-2 text-gray-500">No file selected. Return to Create Deposit to attach a file.</p>
           )}
         </div>
+      </div>
 
-        <div className="rounded-xl border border-gray-100 bg-gray-50 p-4 text-sm text-gray-700">
-          <p className="font-semibold text-gray-900">Mapping guidance</p>
-          <p className="mt-2 text-xs text-gray-600">
-            Map required fields like Usage and Commission to columns from your uploaded file.
-            Optional fields can be left unmapped. If a saved mapping exists for the selected
-            Distributor + Vendor, those columns appear in the Template-mapped section below.
-          </p>
-        </div>
+      <div className="rounded-xl border border-gray-100 bg-gray-50 p-4 text-sm text-gray-700">
+        <p className="font-semibold text-gray-900">Mapping guidance</p>
+        <p className="mt-2 text-xs text-gray-600">
+          Map required fields like Usage and Commission to columns from your uploaded file. Optional fields can be left
+          unmapped. If a saved mapping exists for the selected Distributor + Vendor, those columns (plus core fields) will
+          appear in the Template-mapped section below.
+        </p>
       </div>
 
       {parsingError ? (
@@ -874,7 +870,7 @@ export function MapFieldsStep({
         <div className="rounded-xl border border-yellow-200 bg-yellow-50 p-3 text-sm text-yellow-800 flex items-start gap-2">
           <AlertTriangle className="h-4 w-4 mt-0.5" />
           <div>
-            <p className="font-semibold">Required fields pending</p>
+            <p className="font-semibold">Unmapped required fields</p>
             <p className="text-xs">
               Map the following fields before continuing:{" "}
               {missingRequired

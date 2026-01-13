@@ -44,7 +44,7 @@ These already exist in the repo and should be used as the baseline:
 - Provide and store **real sample files** for ACC / Advantix / Talaris in a shared private location (not committed to repo), plus a small sanitized test fixture set (committable) if allowed.
 - Ensure mapping supports the fields explicitly called out:
   - vendor name
-  - product code (currently not a canonical deposit field)
+  - product code = **Other - Part Number** (old label: **Vendor - Part Number**)
   - billing month / commission period
   - usage amount
   - commission amount
@@ -64,7 +64,7 @@ These already exist in the repo and should be used as the baseline:
 **Acceptance intent:** when actual differs from expected, prompt for adjustment; allow current-only vs propagate; optionally auto-adjust within a configured variance.
 
 **Planned completion items**
-- Define what “adjustment” means in our data model (see “Open Decisions”).
+- Default adjustment behavior is **expected-side** (see “Locked Decisions (v1)”).
 - Add a guided prompt when a matched schedule remains materially under/over expected.
 - Implement “apply to current schedule” and “propagate to future schedules”.
 - Add optional “auto-adjust if within threshold” behavior behind a setting (or treat “within tolerance = reconciled” as the default “no prompt” path).
@@ -83,29 +83,51 @@ Treat as **out of scope** for checkpoint completion unless explicitly required:
 - Multi-period AI change detection
 - Pre-reconciliation review report generation
 
-## Open Decisions (we should answer before coding)
+## Locked Decisions (v1)
 
-1) **“Product code” definition for deposits**
-   - Is this the vendor’s SKU/part number, our internal product code, or both?
-   - Proposed: add a canonical deposit field `productCodeRaw` (optional) and store it on `DepositLineItem`.
+### 1) Product code mapping for deposits
+- **Decision:** “Product code” = **Other - Part Number** (legacy label: **Vendor - Part Number**).
+- **Implementation intent:** add a canonical deposit field for this value and persist it on `DepositLineItem` (proposed field name: `partNumberRaw`), surfaced in reconciliation UI as **Other - Part Number**.
 
-2) **What adjustment should modify**
-   - Option A (expected-side): update `RevenueSchedule.expectedUsage`/`expectedCommission` or `usageAdjustment` so expectations reflect reality.
-   - Option B (actual-side): use `actualUsageAdjustment` / `actualCommissionAdjustment` to reconcile without changing expectations.
-   - Proposed: **expected-side** for “propagate to future schedules” (this matches the wording), and a separate “one-time actual adjustment” option if finance needs it.
+### 2) Adjustments default to expected-side (propagatable)
+- **Decision:** default adjustment modifies the schedule’s **expected-side effective values** (base + adjustments) so reconciliation stays explainable and future periods are consistent.
+- **Why:** matches “propagate to future schedules” semantics and keeps expectations aligned going forward.
+- **Implementation intent (expected-side):**
+  - Apply to current schedule only, or propagate forward (same Opportunity Product).
+  - Use existing expected-side adjustment primitives where possible:
+    - `RevenueSchedule.usageAdjustment` for usage expected-side.
+    - Commission expected-side adjustment should be stored explicitly as an expected adjustment (note: current code treats `RevenueSchedule.actualCommissionAdjustment` as an “expected commission adjustment” in list/detail helpers; keep semantics consistent in v1 and consider renaming later).
 
-3) **What “flex product” means technically**
-   - Option A: create a real `Product` flagged as FLEX and create `RevenueSchedule` rows against it.
-   - Option B: create special “flex revenue schedules” without a product, but clearly labeled and reportable.
-   - Proposed: Option A if downstream reporting expects `productId`; Option B if we want minimal schema changes.
+### 2b) One-time actual adjustment (finance-only, separate action)
+- **Decision:** keep “one-time actual adjustment” as an explicit, separate action (not default).
+- **Behavior:**
+  - Does **not** propagate.
+  - Requires explicit user selection + required reason.
+  - Writes to actual-adjustment storage (`actual_*_adjustment` fields and/or a dedicated adjustment table) without changing the expected-side baseline.
+  - Should be permission-gated (finance/admin).
 
-4) Default confidence threshold called out as “70%”
-   - Proposed: set default “suggested matches” to **70%**, keep auto-match higher (e.g., 95%) unless the business wants auto-match at 70%.
+### 3) Flex is a real Product referenced by `RevenueSchedule.productId`
+- **Decision:** flex is implemented as a real `Product`, flagged as FLEX, and flex revenue schedules reference `productId`.
+- **Why:** reporting/rollups/filters assume `productId` exists; FLEX should behave like any other product line item but categorized.
+
+### 3b) Flex reuse policy (locked)
+- **Decision:** reuse flex products when **same `accountId` + `flexType`** already exists; otherwise create a new flex product.
+- **Implementation intent:**
+  - Add product-level fields to support this (e.g., `isFlex`, `flexType`, and `flexAccountId` or equivalent).
+  - Flex schedules should also stamp `RevenueSchedule.flexClassification`, `RevenueSchedule.flexReasonCode`, and source deposit IDs (`flexSourceDepositId`, `flexSourceDepositLineItemId`).
+
+### 4) Confidence thresholds (locked defaults)
+- **Decision:** suggested matches default display threshold = **70%**; auto-match apply threshold = **95%** (v1 safety).
+- **Behavior spec:**
+  - Suggested list shows items where `matchConfidence >= 0.70`.
+  - User can slide threshold down/up (persist per-user optional).
+  - Auto-match only applies when `matchConfidence >= 0.95` **and** there are no conflicts (e.g., clear top candidate; no ambiguity/competition).
+  - Auto-match should continue to respect existing “one schedule per deposit line” constraints unless/until partial allocations are explicitly enabled.
 
 ## Proposed Implementation Plan (phased)
 
 ### Phase 0 — Align terminology + confirm decisions (1–2 days)
-- Confirm the four “Open Decisions” above with stakeholders.
+- Confirm the locked decisions above with stakeholders and adjust only if business requires changes.
 - Confirm acceptance defaults:
   - suggested match display threshold
   - auto-match apply threshold
@@ -115,7 +137,7 @@ Treat as **out of scope** for checkpoint completion unless explicitly required:
 ### Phase 1 — Data upload completeness for ACC / Advantix / Talaris (2–4 days)
 - Collect sample files and identify common/unique columns for each vendor format.
 - Extend canonical deposit fields as needed:
-  - Add `productCodeRaw` (and any other truly required identifiers) end-to-end:
+  - Add **Other - Part Number** (proposed canonical field id: `partNumberRaw`) end-to-end:
     - `lib/deposit-import/fields.ts`
     - mapping UI (`app/(dashboard)/reconciliation/deposit-upload-list/page.tsx` and deposit-upload components)
     - import persistence (`app/api/reconciliation/deposits/import/route.ts`)
@@ -146,13 +168,13 @@ Treat as **out of scope** for checkpoint completion unless explicitly required:
 - The “Reconcile” action matches the checkpoint wording (auto-match unmatched items with review/approval).
 
 ### Phase 3 — Adjustment prompting + propagation (3–6 days)
-- Define adjustment policy (expected-side vs actual-side) and implement:
+- Implement default expected-side adjustments + propagation:
   - When a match is applied, detect whether the schedule is still under/over expected beyond tolerance.
   - Show an “Adjustment” modal:
     - recommended adjustment amount(s)
     - apply to current schedule only
     - propagate forward (all future schedules for the same Opportunity Product)
-    - optional: create a one-time offset entry instead of editing future expected values
+- Implement a separate finance-only “One-time actual adjustment” action (explicit selection + reason; no propagation).
 - Implement propagation selector:
   - “All future schedules” vs “N months forward” vs “from schedule date forward”
 - Ensure audit/history captures adjustment actions.
@@ -167,6 +189,8 @@ Treat as **out of scope** for checkpoint completion unless explicitly required:
   - **Overage** cases when match is applied but a meaningful remainder exists.
 - Add a review surface:
   - list flex entries with source deposit + line, account/vendor, amount, type (Unknown vs Overage), status.
+- Implement FLEX product reuse policy:
+  - Reuse when same `accountId` + `flexType` exists, else create a new flex product.
 - Decide how flex interacts with “Finalize Deposit”:
   - Option: allow finalize when flex entries are created and the original lines are marked handled.
 - Add metrics (`flex_create`, `partial_allocate`) using the existing metrics logger.
@@ -190,6 +214,6 @@ Treat as **out of scope** for checkpoint completion unless explicitly required:
 - Deposit upload mapping overview: `docs/deposit-upload-mapping.md`
 - Current auto-match behavior: `docs/reconciliation-ai-matching-current.md`
 - FLEX scaffold: `docs/reconciliation-flex-partial-design.md`
+- FLEX schedules handoff notes: `flex-revenue-schedules-handoff.md`
 - Prior matching plan: `docs/plans/12-4-25-Reconciliation-Matching-plan.md`
 - Prior deposit upload plan: `docs/plans/12-4-25-Deposit-Upload-Implementation-Plan.md`
-

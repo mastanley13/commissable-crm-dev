@@ -150,8 +150,12 @@ const AUTO_FIELD_SYNONYMS: Partial<Record<DepositFieldId, string[]>> = {
     "actual usage  gross",
     "gross usage",
     "mrc",
+    "total bill",
+    "total billed",
+    "total billed mrc",
     "bill amount",
     "billing amount",
+    "billed revenue",
   ],
   commission: [
     "commission",
@@ -174,7 +178,8 @@ const AUTO_FIELD_SYNONYMS: Partial<Record<DepositFieldId, string[]>> = {
     "former account number",
     "national account number",
   ],
-  vendorNameRaw: ["vendor name", "vendor account", "vendor"],
+  vendorNameRaw: ["vendor name", "vendor account", "vendor", "supplier", "supplier name"],
+  distributorNameRaw: ["distributor", "master agency", "acquired master agency name"],
   commissionRate: [
     "commission rate",
     "commission percent",
