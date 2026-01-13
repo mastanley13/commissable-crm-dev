@@ -203,21 +203,14 @@ export function MapFieldsStep({
     const pagedRows = rows.slice(startIndex, endIndexExclusive)
 
     return (
-      <div className="rounded-lg border border-gray-200 text-sm text-gray-700">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 bg-gray-50 px-3 py-1.5">
-          <p className="text-sm font-semibold text-gray-900">
+      <div className="rounded-lg border border-gray-200 border-t-2 border-t-primary-700 text-sm text-gray-700">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-primary-200 bg-white px-3 py-2">
+          <p
+            className="text-[11px] font-semibold uppercase tracking-wide text-primary-700"
+            title={description}
+          >
             {title}
           </p>
-          {description ? (
-            <button
-              type="button"
-              title={description}
-              aria-label="Table info"
-              className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-gray-300 bg-white text-[11px] font-semibold text-gray-600 hover:bg-gray-50"
-            >
-              ?
-            </button>
-          ) : null}
         </div>
 
         <div className="hidden border-b border-gray-200 bg-gray-50 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-gray-500 md:grid md:grid-cols-[minmax(0,1.3fr)_minmax(0,1.5fr)_120px_minmax(0,1.7fr)]">
@@ -541,7 +534,7 @@ export function MapFieldsStep({
   }
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-3 md:p-4 space-y-3">
+    <div className="bg-white rounded-2xl shadow-sm p-3 md:p-4 space-y-3">
       <div className="grid gap-3 md:grid-cols-2 md:items-start">
         <div className="flex items-center gap-3">
           <div className="rounded-full bg-primary-50 p-1.5 text-primary-600">
@@ -573,13 +566,20 @@ export function MapFieldsStep({
         </div>
       </div>
 
-      <p
-        className="text-xs text-gray-600 truncate"
-        title="Map required fields like Usage and Commission to columns from your uploaded file. Optional fields can be left unmapped. If a saved mapping exists for the selected Distributor + Vendor, those columns (plus core fields) will appear in the Template-mapped section below."
-      >
-        Map required fields like Usage and Commission. Optional fields can stay unmapped; saved templates pre-fill when
-        available.
-      </p>
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-xs text-gray-600">
+          Map required fields like Usage and Commission. Optional fields can stay unmapped; saved templates pre-fill when
+          available.
+        </p>
+        <button
+          type="button"
+          title="Map required fields like Usage and Commission to columns from your uploaded file. Optional fields can be left unmapped. If a saved mapping exists for the selected Distributor + Vendor, those columns (plus core fields) will appear in the Template-mapped section below."
+          aria-label="Map Fields help"
+          className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-gray-300 bg-white text-[11px] font-semibold text-gray-600 hover:bg-gray-50"
+        >
+          ?
+        </button>
+      </div>
 
       {parsingError ? (
         <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700 flex items-start gap-2">
@@ -593,11 +593,8 @@ export function MapFieldsStep({
 
       {csvHeaders.length > 0 ? (
         <div className="rounded-xl border border-gray-100 bg-white p-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <p className="text-sm font-semibold text-gray-900">Uploaded columns</p>
-            </div>
-            {totalPreviewRows > 0 ? (
+          {totalPreviewRows > 0 ? (
+            <div className="flex flex-wrap items-center justify-end gap-3">
               <div className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-2 py-1 text-xs text-gray-600">
                 <button
                   type="button"
@@ -621,8 +618,8 @@ export function MapFieldsStep({
                   <ChevronRight className="h-3 w-3" />
                 </button>
               </div>
-            ) : null}
-          </div>
+            </div>
+          ) : null}
 
           <div className="mt-4 space-y-4">
             {renderColumnTable({

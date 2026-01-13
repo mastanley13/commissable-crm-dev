@@ -273,7 +273,9 @@ async function main() {
     }
 
     const mappingForImport: Record<string, string> = Object.fromEntries(
-      Object.entries(mappedColumns).filter(([, column]) => typeof column === "string" && column.length > 0),
+      Object.entries(mappedColumns).filter(
+        (entry): entry is [string, string] => typeof entry[1] === "string" && entry[1].length > 0,
+      ),
     )
 
     const headers = parsed.headers

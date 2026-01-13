@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
-import { ClipboardCheck, Eye, FileDown, Plus, Sparkles, Trash2 } from "lucide-react"
+import { ClipboardCheck, Eye, FileDown, Info, Plus, Sparkles, Trash2 } from "lucide-react"
 import { DynamicTable, type Column } from "./dynamic-table"
 import { ListHeader, type ColumnFilter } from "./list-header"
 import type { BulkActionsGridProps } from "./bulk-actions-grid"
@@ -23,7 +23,6 @@ import {
   ReconciliationScheduleStatusFilterDropdown,
   type ReconciliationScheduleFilterValue
 } from "./reconciliation-schedule-status-filter-dropdown"
-import { TabDescription } from "@/components/section/TabDescription"
 
 export interface DepositReconciliationMetadata {
   id: string
@@ -347,16 +346,46 @@ function MetaStat({ label, value, emphasis = false, wrapValue = false }: MetaSta
     <div className="px-1">
       <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{label}</p>
       <p
+        title={wrapValue ? undefined : value}
         className={cn(
           "mt-0.5 font-semibold text-slate-900",
           emphasis ? "text-base" : "text-sm",
-          wrapValue ? "break-all" : undefined
+          wrapValue ? "break-all" : "truncate"
         )}
       >
         {value}
       </p>
     </div>
   )
+}
+
+interface SummaryCardProps {
+  label: string
+  value: string
+  secondaryLabel?: string
+  secondaryValue?: string
+  hint?: string
+}
+
+function SummaryCard({ label, value, secondaryLabel, secondaryValue, hint }: SummaryCardProps) {
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white px-3 py-2.5">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{label}</p>
+      <p className="mt-1 text-lg font-semibold tabular-nums text-slate-900">{value}</p>
+      {secondaryValue ? (
+        <p className="mt-1 text-xs tabular-nums text-slate-600">
+          <span className="font-semibold text-slate-700">{secondaryValue}</span>
+          {secondaryLabel ? <span className="ml-1">{secondaryLabel}</span> : null}
+        </p>
+      ) : null}
+      {hint ? <p className="mt-1 text-[11px] text-slate-500">{hint}</p> : null}
+    </div>
+  )
+}
+
+function formatPercent(fraction: number) {
+  if (!Number.isFinite(fraction) || fraction <= 0) return "0%"
+  return `${Math.round(fraction * 100)}%`
 }
 
 export function DepositReconciliationDetailView({
@@ -2533,6 +2562,24 @@ export function DepositReconciliationDetailView({
     )
   }, [lineItemRows])
 
+  const reconciledAtTitle = useMemo(() => {
+    if (!metadata.reconciledAt) return null
+    const parsed = new Date(metadata.reconciledAt)
+    if (Number.isNaN(parsed.getTime())) return `Finalized: ${metadata.reconciledAt}`
+    return `Finalized: ${dateFormatter.format(parsed)}`
+  }, [dateFormatter, metadata.reconciledAt])
+
+  const allocationPercentages = useMemo(() => {
+    const safeUsageTotal = Number(metadata.usageTotal || 0)
+    const safeCommissionTotal = Number(commissionTotals.total || 0)
+    return {
+      usageAllocatedPct: safeUsageTotal > 0 ? metadata.allocated / safeUsageTotal : 0,
+      usageUnallocatedPct: safeUsageTotal > 0 ? metadata.unallocated / safeUsageTotal : 0,
+      commissionAllocatedPct: safeCommissionTotal > 0 ? commissionTotals.allocated / safeCommissionTotal : 0,
+      commissionUnallocatedPct: safeCommissionTotal > 0 ? commissionTotals.unallocated / safeCommissionTotal : 0,
+    }
+  }, [commissionTotals.allocated, commissionTotals.total, commissionTotals.unallocated, metadata.allocated, metadata.unallocated, metadata.usageTotal])
+
   return (
     <div className="flex min-h-[calc(100vh-110px)] flex-col gap-3 px-4 pb-4 pt-3 sm:px-6">
       {aiAdjustmentModal ? (
@@ -2776,23 +2823,65 @@ export function DepositReconciliationDetailView({
       {showDevControls ? renderDevMatchingControls() : null}
       <div className="flex flex-col gap-3">
         <div className="flex items-start justify-between gap-3">
-          <div className="flex-shrink-0 space-y-1.5">
+          <div className="min-w-0 flex-1 space-y-2">
             <p className="text-[11px] font-semibold uppercase tracking-wide text-primary-600">Deposit Reconciliation</p>
-            <div className="grid grid-cols-8 gap-4 text-sm font-medium text-slate-700">
-              <div className="col-span-2 min-w-0">
-                <MetaStat label="Deposit Name" value={metadata.depositName} emphasis wrapValue />
+            <div className="rounded-lg border border-slate-200 bg-white p-4">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Deposit Info</p>
+                <div className="mt-2 grid grid-cols-1 gap-4 lg:grid-cols-2">
+                  <div className="flex min-w-0 items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Deposit Name</p>
+                      <p
+                        className="mt-0.5 truncate text-base font-semibold text-slate-900"
+                        title={metadata.depositName}
+                      >
+                        {metadata.depositName}
+                      </p>
+                    </div>
+                    <span
+                      className={cn(
+                        "inline-flex flex-shrink-0 items-center rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 ring-inset",
+                        metadata.reconciled
+                          ? "bg-emerald-50 text-emerald-700 ring-emerald-200"
+                          : "bg-slate-50 text-slate-700 ring-slate-200",
+                      )}
+                      title={
+                        reconciledAtTitle ?? (metadata.reconciled ? "Finalized" : "Open")
+                      }
+                    >
+                      {metadata.reconciled ? "Finalized" : "Open"}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                    <MetaStat label="Date" value={formattedDate} />
+                    <MetaStat label="Created By" value={metadata.createdBy} />
+                    <MetaStat label="Payment Type" value={metadata.paymentType} />
+                  </div>
+                </div>
               </div>
-              <MetaStat label="Date" value={formattedDate} />
-              <MetaStat label="Created By" value={metadata.createdBy} />
-              <MetaStat label="Payment Type" value={metadata.paymentType} />
-              <MetaStat label="Usage Total" value={currencyFormatter.format(metadata.usageTotal)} emphasis />
-              <MetaStat label="Usage Unallocated" value={currencyFormatter.format(metadata.unallocated)} emphasis />
-              <MetaStat label="Usage Allocated" value={currencyFormatter.format(metadata.allocated)} emphasis />
-            </div>
-            <div className="grid grid-cols-3 gap-4 text-sm font-medium text-slate-700">
-              <MetaStat label="Commission Total" value={currencyFormatter.format(commissionTotals.total)} emphasis />
-              <MetaStat label="Commission Unallocated" value={currencyFormatter.format(commissionTotals.unallocated)} emphasis />
-              <MetaStat label="Commission Allocated" value={currencyFormatter.format(commissionTotals.allocated)} emphasis />
+
+              <div className="mt-4">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Totals</p>
+                <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  <SummaryCard label="Usage Total" value={currencyFormatter.format(metadata.usageTotal)} />
+                  <SummaryCard label="Commission Total" value={currencyFormatter.format(commissionTotals.total)} />
+                  <SummaryCard
+                    label="Allocated"
+                    value={currencyFormatter.format(metadata.allocated)}
+                    secondaryLabel="commission"
+                    secondaryValue={currencyFormatter.format(commissionTotals.allocated)}
+                    hint={`Usage ${formatPercent(allocationPercentages.usageAllocatedPct)} • Commission ${formatPercent(allocationPercentages.commissionAllocatedPct)}`}
+                  />
+                  <SummaryCard
+                    label="Unallocated"
+                    value={currencyFormatter.format(metadata.unallocated)}
+                    secondaryLabel="commission"
+                    secondaryValue={currencyFormatter.format(commissionTotals.unallocated)}
+                    hint={`Usage ${formatPercent(allocationPercentages.usageUnallocatedPct)} • Commission ${formatPercent(allocationPercentages.commissionUnallocatedPct)}`}
+                  />
+                </div>
+              </div>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -3108,7 +3197,15 @@ export function DepositReconciliationDetailView({
       <section className="flex min-h-0 flex-1 flex-col">
         <div className="border-b border-slate-100">
           <div className="px-4 pt-3">
-            <TabDescription>Review deposit line items and allocate deposit amounts to revenue schedules. Allocations are editable until the deposit is finalized.</TabDescription>
+            <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
+              <div className="flex items-start gap-2">
+                <Info className="mt-0.5 h-4 w-4 flex-shrink-0 text-slate-500" />
+                <p className="leading-relaxed">
+                  Review deposit line items and allocate deposit amounts to revenue schedules. Allocations are editable
+                  until the deposit is finalized.
+                </p>
+              </div>
+            </div>
           </div>
           <ListHeader
             pageTitle="DEPOSIT LINE ITEMS"
@@ -3189,7 +3286,15 @@ export function DepositReconciliationDetailView({
       <section className="flex min-h-0 flex-1 flex-col">
         <div className="border-b border-slate-100">
           <div className="px-4 pt-3">
-            <TabDescription>Select a revenue schedule, then allocate the selected deposit line item. Finalizing is a separate step that locks these allocations.</TabDescription>
+            <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
+              <div className="flex items-start gap-2">
+                <Info className="mt-0.5 h-4 w-4 flex-shrink-0 text-slate-500" />
+                <p className="leading-relaxed">
+                  Select a revenue schedule, then allocate the selected deposit line item. Finalizing is a separate step
+                  that locks these allocations.
+                </p>
+              </div>
+            </div>
           </div>
           <ListHeader
             pageTitle="ALLOCATION CANDIDATES - REVENUE SCHEDULES"
