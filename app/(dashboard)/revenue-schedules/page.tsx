@@ -54,6 +54,24 @@ const revenueScheduleColumns: Column[] = [
     type: 'text',
   },
   {
+    id: 'flexClassification',
+    label: 'Flex Type',
+    width: 140,
+    minWidth: calculateMinWidth({ label: 'Flex Type', type: 'text', sortable: true }),
+    maxWidth: 200,
+    sortable: true,
+    type: 'text',
+  },
+  {
+    id: 'flexReasonCode',
+    label: 'Flex Reason',
+    width: 200,
+    minWidth: calculateMinWidth({ label: 'Flex Reason', type: 'text', sortable: true }),
+    maxWidth: 280,
+    sortable: true,
+    type: 'text',
+  },
+  {
     id: 'distributorName', // 04.00.000
     label: 'Distributor Name',
     width: 180,
@@ -303,6 +321,8 @@ type FilterableColumnKey =
   | 'revenueScheduleName'
   | 'revenueScheduleDate'
   | 'scheduleStatus'
+  | 'flexClassification'
+  | 'flexReasonCode'
   | 'customerIdVendor'
   | 'orderIdVendor'
   | 'otherSource'
@@ -335,6 +355,8 @@ const RS_DEFAULT_VISIBLE_COLUMN_IDS = new Set<string>([
   'expectedUsageGross',
   'expectedUsageAdjustment',
   'expectedUsageNet',
+  'flexClassification',
+  'flexReasonCode',
   'scheduleStatus',
 ])
 
@@ -347,6 +369,8 @@ const filterOptions: { id: FilterableColumnKey; label: string }[] = [
   { id: 'revenueScheduleName', label: 'Revenue Schedule' },
   { id: 'revenueScheduleDate', label: 'Schedule Date' },
   { id: 'scheduleStatus', label: 'Status' },
+  { id: 'flexClassification', label: 'Flex Type' },
+  { id: 'flexReasonCode', label: 'Flex Reason' },
    { id: 'customerIdVendor', label: 'Other - Customer ID' },
    { id: 'orderIdVendor', label: 'Other - Order ID' },
 ]
@@ -724,6 +748,10 @@ export default function RevenueSchedulesPage() {
       'Other - Product Name',
       'Schedule Date',
       'Revenue Schedule',
+      'Flex Type',
+      'Flex Reason',
+      'Flex Source Deposit Id',
+      'Flex Source Deposit Line Item Id',
       'Quantity',
       'Price Each',
       'Expected Usage Gross',
@@ -790,6 +818,10 @@ export default function RevenueSchedulesPage() {
           row.productNameVendor,
           row.revenueScheduleDate,
           row.revenueScheduleName ?? row.revenueSchedule,
+          (row as any).flexClassification ?? '',
+          (row as any).flexReasonCode ?? '',
+          (row as any).flexSourceDepositId ?? '',
+          (row as any).flexSourceDepositLineItemId ?? '',
           row.quantity,
           row.priceEach,
           rawGross,

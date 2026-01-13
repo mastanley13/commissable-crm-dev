@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
-import { Prisma, RevenueScheduleStatus } from "@prisma/client"
+import {
+  Prisma,
+  RevenueScheduleFlexClassification,
+  RevenueScheduleFlexReasonCode,
+  RevenueScheduleStatus,
+} from "@prisma/client"
 import { withAuth } from "@/lib/api-auth"
 import { dedupeColumnFilters } from "@/lib/filter-utils"
 import { mapRevenueScheduleToListItem, type RevenueScheduleWithRelations } from "./helpers"
@@ -117,6 +122,8 @@ export async function GET(request: NextRequest) {
             return
           }
 
+          const normalizeEnumKey = (value: string) => value.trim().toLowerCase().replace(/[\s_-]/g, "")
+
           switch (filter.columnId) {
             case "accountName":
               andFilters.push({ account: { accountName: { contains: rawValue, mode: "insensitive" } } })
@@ -192,6 +199,37 @@ export async function GET(request: NextRequest) {
                 ]
               })
               break
+            case "flexClassification": {
+              const key = normalizeEnumKey(rawValue)
+              const map: Record<string, RevenueScheduleFlexClassification> = {
+                normal: RevenueScheduleFlexClassification.Normal,
+                adjustment: RevenueScheduleFlexClassification.Adjustment,
+                flexproduct: RevenueScheduleFlexClassification.FlexProduct,
+                flexchargeback: RevenueScheduleFlexClassification.FlexChargeback,
+                bonus: RevenueScheduleFlexClassification.Bonus,
+              }
+              const parsed = map[key]
+              if (parsed) {
+                andFilters.push({ flexClassification: parsed })
+              }
+              break
+            }
+            case "flexReasonCode": {
+              const key = normalizeEnumKey(rawValue)
+              const map: Record<string, RevenueScheduleFlexReasonCode> = {
+                overagewithintolerance: RevenueScheduleFlexReasonCode.OverageWithinTolerance,
+                overageoutsidetolerance: RevenueScheduleFlexReasonCode.OverageOutsideTolerance,
+                unknownproduct: RevenueScheduleFlexReasonCode.UnknownProduct,
+                chargebacknegative: RevenueScheduleFlexReasonCode.ChargebackNegative,
+                bonusvariance: RevenueScheduleFlexReasonCode.BonusVariance,
+                manual: RevenueScheduleFlexReasonCode.Manual,
+              }
+              const parsed = map[key]
+              if (parsed) {
+                andFilters.push({ flexReasonCode: parsed })
+              }
+              break
+            }
             default:
               break
           }

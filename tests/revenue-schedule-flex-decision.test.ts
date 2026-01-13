@@ -49,6 +49,19 @@ test("evaluateFlexDecision returns prompt for overage above tolerance", () => {
   assert.deepEqual(result.allowedPromptOptions, ["Adjust", "Manual", "FlexProduct"])
 })
 
+test("evaluateFlexDecision removes FlexProduct option for bonus-like schedules", () => {
+  const result = evaluateFlexDecision({
+    expectedUsageNet: 100,
+    usageBalance: -20,
+    varianceTolerance: 0.1,
+    hasNegativeLine: false,
+    isBonusLike: true,
+  })
+
+  assert.equal(result.action, "prompt")
+  assert.deepEqual(result.allowedPromptOptions, ["Adjust", "Manual"])
+})
+
 test("evaluateFlexDecision returns auto_chargeback when a negative line is detected", () => {
   const result = evaluateFlexDecision({
     expectedUsageNet: 100,
@@ -59,4 +72,3 @@ test("evaluateFlexDecision returns auto_chargeback when a negative line is detec
 
   assert.equal(result.action, "auto_chargeback")
 })
-

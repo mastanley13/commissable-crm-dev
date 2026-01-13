@@ -7,6 +7,7 @@ export interface FlexDecisionInput {
   usageBalance: number
   varianceTolerance: number
   hasNegativeLine: boolean
+  isBonusLike?: boolean
   expectedCommissionNet?: number
   commissionDifference?: number
 }
@@ -37,6 +38,7 @@ export function evaluateFlexDecision(input: FlexDecisionInput): FlexDecisionResu
   const expectedUsageNet = toFiniteNumber(input.expectedUsageNet)
   const usageBalance = toFiniteNumber(input.usageBalance)
   const tolerance = normalizeTolerance(input.varianceTolerance)
+  const isBonusLike = Boolean(input.isBonusLike)
 
   const usageToleranceAmount = Math.max(Math.abs(expectedUsageNet) * tolerance, EPSILON)
   const usageOverage = usageBalance < 0 ? Math.abs(usageBalance) : 0
@@ -83,7 +85,6 @@ export function evaluateFlexDecision(input: FlexDecisionInput): FlexDecisionResu
     usageUnderpayment,
     usageToleranceAmount,
     overageAboveTolerance: true,
-    allowedPromptOptions: ["Adjust", "Manual", "FlexProduct"],
+    allowedPromptOptions: isBonusLike ? ["Adjust", "Manual"] : ["Adjust", "Manual", "FlexProduct"],
   }
 }
-

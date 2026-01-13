@@ -8,6 +8,7 @@ import {
   executeFlexProductSplit,
   type FlexResolveAction,
 } from "@/lib/flex/revenue-schedule-flex-actions"
+import { isBonusLikeProduct } from "@/lib/flex/bonus-detection"
 import { recomputeRevenueScheduleFromMatches } from "@/lib/matching/revenue-schedule-status"
 import {
   applyExpectedDeltasToFutureSchedules,
@@ -19,6 +20,8 @@ interface ResolveFlexRequestBody {
   revenueScheduleId: string
   action: FlexResolveAction
   applyToFuture?: boolean
+  manualUsageAmount?: number
+  manualCommissionAmount?: number
 }
 
 export async function POST(
@@ -72,6 +75,9 @@ export async function POST(
         product: {
           select: {
             productCode: true,
+            revenueType: true,
+            productFamilyHouse: true,
+            productNameHouse: true,
             partNumberVendor: true,
             partNumberDistributor: true,
             partNumberHouse: true,
@@ -81,6 +87,16 @@ export async function POST(
     })
     if (!schedule) {
       return createErrorResponse("Revenue schedule not found", 404)
+    }
+
+    const scheduleIsBonusLike = isBonusLikeProduct({
+      revenueType: schedule.product?.revenueType ?? null,
+      productFamilyHouse: schedule.product?.productFamilyHouse ?? null,
+      productNameHouse: schedule.product?.productNameHouse ?? null,
+    })
+
+    if (scheduleIsBonusLike && action === "FlexProduct") {
+      return createErrorResponse("Bonus/SPF variances must be handled as adjustments (not flex products)", 400)
     }
 
     const varianceTolerance = await getTenantVarianceTolerance(tenantId)
@@ -94,9 +110,59 @@ export async function POST(
       const commissionOverage = base.commissionDifference < 0 ? Math.abs(base.commissionDifference) : 0
 
       if (action === "Manual") {
+        if (usageOverage <= 0.005 && commissionOverage <= 0.005) {
+          throw new Error("No overage found to resolve")
+        }
+
+        const requestedUsage = Number(body?.manualUsageAmount ?? 0)
+        const requestedCommissionRaw = body?.manualCommissionAmount
+        const requestedCommission = requestedCommissionRaw === undefined ? NaN : Number(requestedCommissionRaw)
+
+        if (!Number.isFinite(requestedUsage) || requestedUsage <= 0.005) {
+          throw new Error("manualUsageAmount must be a positive number")
+        }
+        if (requestedUsage > usageOverage + 0.01) {
+          throw new Error("manualUsageAmount cannot exceed the current overage")
+        }
+
+        let splitCommission = 0
+        if (commissionOverage > 0.005) {
+          if (Number.isFinite(requestedCommission)) {
+            if (requestedCommission < -0.005) {
+              throw new Error("manualCommissionAmount cannot be negative")
+            }
+            if (requestedCommission > commissionOverage + 0.01) {
+              throw new Error("manualCommissionAmount cannot exceed the current commission overage")
+            }
+            splitCommission = requestedCommission
+          } else if (usageOverage > 0.005) {
+            // Default: apply commission overage proportionally to the usage amount split.
+            splitCommission = Number(((commissionOverage * requestedUsage) / usageOverage).toFixed(2))
+          } else {
+            throw new Error("manualCommissionAmount is required when commission overage exists without usage overage")
+          }
+        }
+
+        const flexExecution = await executeFlexAdjustmentSplit(tx, {
+          tenantId,
+          userId: req.user.id,
+          depositId,
+          lineItemId: lineId,
+          baseScheduleId: revenueScheduleId,
+          splitUsage: requestedUsage,
+          splitCommission,
+          varianceTolerance,
+          request,
+          reasonCode: RevenueScheduleFlexReasonCode.Manual,
+        })
+
+        const updatedBase = await recomputeRevenueScheduleFromMatches(tx, revenueScheduleId, tenantId, {
+          varianceTolerance,
+        })
+
         return {
-          flexExecution: { applied: false, action, createdRevenueScheduleIds: [], createdProductIds: [] },
-          baseSchedule: base,
+          flexExecution,
+          baseSchedule: updatedBase,
         }
       }
 

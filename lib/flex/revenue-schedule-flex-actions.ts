@@ -14,6 +14,7 @@ import { recomputeRevenueScheduleFromMatches } from "@/lib/matching/revenue-sche
 import { recomputeDepositAggregates } from "@/lib/matching/deposit-aggregates"
 import { recomputeDepositLineItemAllocations } from "@/lib/matching/deposit-line-allocations"
 import { logRevenueScheduleAudit } from "@/lib/audit"
+import { isBonusLikeProduct } from "@/lib/flex/bonus-detection"
 
 type PrismaClientOrTx = PrismaClient | Prisma.TransactionClient
 
@@ -377,12 +378,11 @@ export async function executeFlexAdjustmentSplit(
     throw new Error("Revenue schedule not found")
   }
 
-  const family = normalizeLabel(baseSchedule.product?.productFamilyHouse)
-  const name = normalizeLabel(baseSchedule.product?.productNameHouse)
-  const isBonusLike =
-    (typeof baseSchedule.product?.revenueType === "string" && baseSchedule.product.revenueType.startsWith("NRC_")) ||
-    Boolean(family && /bonus|spiff|spf/i.test(family)) ||
-    Boolean(name && /bonus|spiff|spf/i.test(name))
+  const isBonusLike = isBonusLikeProduct({
+    revenueType: baseSchedule.product?.revenueType ?? null,
+    productFamilyHouse: baseSchedule.product?.productFamilyHouse ?? null,
+    productNameHouse: baseSchedule.product?.productNameHouse ?? null,
+  })
 
   const flexClassification = classificationOverride ?? (isBonusLike ? RevenueScheduleFlexClassification.Bonus : RevenueScheduleFlexClassification.Adjustment)
   const flexReasonCode = isBonusLike ? RevenueScheduleFlexReasonCode.BonusVariance : reasonCode
@@ -524,6 +524,10 @@ export async function createFlexProductForUnknownLine(
     depositId,
     lineItemId,
     varianceTolerance,
+    attachOpportunityId,
+    attachOpportunityProductId,
+    attachDistributorAccountId,
+    attachVendorAccountId,
     request,
   }: {
     tenantId: string
@@ -531,6 +535,10 @@ export async function createFlexProductForUnknownLine(
     depositId: string
     lineItemId: string
     varianceTolerance: number
+    attachOpportunityId?: string | null
+    attachOpportunityProductId?: string | null
+    attachDistributorAccountId?: string | null
+    attachVendorAccountId?: string | null
     request?: Request
   },
 ): Promise<FlexExecutionSummary> {
@@ -572,10 +580,12 @@ export async function createFlexProductForUnknownLine(
   const schedule = await createFlexSchedule(tx, {
     tenantId,
     accountId: line.deposit.accountId,
-    opportunityId: null,
-    opportunityProductId: null,
-    distributorAccountId: line.deposit.distributorAccountId ?? null,
-    vendorAccountId: line.vendorAccountId ?? line.deposit.vendorAccountId ?? null,
+    opportunityId: attachOpportunityId ?? null,
+    opportunityProductId: attachOpportunityProductId ?? null,
+    distributorAccountId:
+      attachDistributorAccountId ?? line.deposit.distributorAccountId ?? null,
+    vendorAccountId:
+      attachVendorAccountId ?? line.vendorAccountId ?? line.deposit.vendorAccountId ?? null,
     productId: product.id,
     scheduleDate: line.deposit.month ?? null,
     expectedUsage: usage,

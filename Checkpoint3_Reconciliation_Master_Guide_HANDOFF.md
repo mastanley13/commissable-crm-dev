@@ -21,9 +21,9 @@
 
 ## Progress summary (as of 2026-01-13)
 
-- **DONE (implemented):** Deposit list + deposit detail reconciliation screen; CSV/Excel deposit import; template auto-seeding + mapping persistence; suggested matches + confidence filtering; manual match/unmatch; AI auto-match preview/apply; finalize/unfinalize; revenue schedule actuals updated; baseline RBAC.
-- **IN PROGRESS:** Template selection UX (currently inferred by distributor+vendor); mapping UI redesign (still wizard-based); AI button text label; matching algorithm parity/tuning; audit coverage completeness; reconciliation UX polish.
-- **NOT STARTED:** Split/merge allocations (true many-to-many); variance prompt + 3-option decision tree; “adjust future schedules” behavior; flex products; performance targets + idempotency hardening.
+- **DONE (implemented):** Deposit list + deposit detail reconciliation screen; CSV/Excel deposit import; template auto-seeding + mapping persistence; suggested matches + confidence filtering; manual allocate/unallocate; AI auto-match preview/apply; partial allocations (split/merge) via match junction table; variance detection + 3-option flow (AI adjustment preview, manual adjustment, flex product); optional “apply to future schedules” behavior (scoped); flex products + chargebacks; finalize/unfinalize; revenue schedule actuals updated; baseline RBAC.
+- **IN PROGRESS:** Template selection UX (explicit distributor+vendor+template); mapping UI redesign (two-panel + cancel/undo); matching algorithm parity/tuning vs Milestone 3 spec; audit coverage completeness (upload + template edits); reconciliation UX polish (blockers legend/delete modals consistency).
+- **NOT STARTED:** Performance targets validation; upload idempotency/retry hardening.
 
 ---
 
@@ -155,12 +155,12 @@ Checkpoint 3 centers on delivering an end-to-end **deposit ingestion + reconcili
     - Columns aligned so expected vs actual are easy to compare (especially usage & commission).
     - Matched/unmatched toggles exist; default view = Unmatched.
 
-### REC-012 — Match button placement + labeling (Jan 6, 2026 meeting)
-- [ ] **REC-012** Place “Match” button to the left of bottom search; label AI button with text (“Use AI”)  
-  - Status: IN PROGRESS  
+### REC-012 - Match button placement + labeling (Jan 6, 2026 meeting)
+- [x] **REC-012** Place "Allocate" button to the left of bottom search; label AI button with text ("Use AI")  
+  - Status: DONE  
   - Notes:
-    - Match action is implemented in the bottom grid header (`components/deposit-reconciliation-detail-view.tsx`).
-    - AI action is currently icon-only (Sparkles) with aria-label/title; needs visible text label to match requirement.
+    - Allocate action is implemented in the bottom grid header (`components/deposit-reconciliation-detail-view.tsx`).
+    - AI action includes visible text label ("Use AI") rather than icon-only.
   - Definition of Done:
     - “Match” button is left of search on bottom grid.
     - AI action uses text label (not only icon).
@@ -174,9 +174,9 @@ Checkpoint 3 centers on delivering an end-to-end **deposit ingestion + reconcili
     - When Match occurs, actual usage/commission fill based on matched deposit line amount(s).
     - Existing allocations are respected (partial allocations supported).
 
-### REC-014 — Split/merge allocations (many-to-many match table)
-- [ ] **REC-014** Implement `reconciliation_matches` to support partial allocations (split/merge)  
-  - Status: NOT STARTED  
+### REC-014 - Split/merge allocations (many-to-many match table)
+- [x] **REC-014** Implement `reconciliation_matches` to support partial allocations (split/merge)  
+  - Status: DONE  
   - Notes:
     - Core rule: allocations happen during Match/Allocate; reconciliation/finalize happens later (locks allocations + downstream status transitions).
     - Required behaviors:
@@ -186,6 +186,9 @@ Checkpoint 3 centers on delivering an end-to-end **deposit ingestion + reconcili
       - Allocation step: create/update rows in the junction table (`DepositLineMatch` today; conceptually `reconciliation_matches`) with `usageAmount` and `commissionAmount` per link.
       - Running totals: recompute deposit allocated/unallocated + schedule actual usage/commission from allocations.
       - Reconcile step: finalize allocations (mark reconciled/locked) separately from allocation.
+    - Implemented:
+      - Server supports per-link partial amounts (`usageAmount` / `commissionAmount`) and prevents over-allocation.
+      - UI supports explicit allocation entry per schedule (enables split allocations and editing existing allocations).
   - Definition of Done:
     - A deposit line item can allocate across multiple revenue schedules and vice versa.
     - Each link stores `amount_matched` (and other needed detail).
@@ -229,45 +232,47 @@ Checkpoint 3 centers on delivering an end-to-end **deposit ingestion + reconcili
 
 ## D. Variances, Adjustments, Flex Products (pre-reconcile)
 
-### REC-030 — Detect overages vs expected usage net and prompt for decision
-- [ ] **REC-030** Variance detector on match (pre-reconcile)  
-  - Status: NOT STARTED  
+### REC-030 - Detect overages vs expected usage net and prompt for decision
+- [x] **REC-030** Variance detector on match (pre-reconcile)  
+  - Status: DONE  
   - Notes:
+    - Implemented in schedule recompute + allocation flow; overage beyond tolerance triggers a prompt during allocation (before finalize).
     - Variance tolerance is configured via Settings > Reconciliation Settings (tenant default) and is used for thresholding.
     - System computes overage/underage during matching using expected + adjustments vs actual allocated.
   - Definition of Done:
     - When proposed match creates an overage beyond configured variance, system prompts user.
     - Prompt occurs during matching (before final reconcile).
 
-### REC-031 — Variance decision tree (3 options) (Jan 6, 2026 meeting)
-- [ ] **REC-031** Implement 3-option variance decision flow  
-  - Status: NOT STARTED  
-  - Notes: Trigger occurs during matching/allocation (before final reconcile).
+### REC-031 - Variance decision tree (3 options) (Jan 6, 2026 meeting)
+- [x] **REC-031** Implement 3-option variance decision flow  
+  - Status: DONE  
+  - Notes: Trigger occurs during matching/allocation (before final reconcile); options implemented: AI adjustment (rules-based preview), manual adjustment, flex product.
   - Definition of Done:
     - Options: 1) AI adjustment, 2) Manual adjustment, 3) Create flex product.
     - After choice, match proceeds and items move to "matched" state.
 
-### REC-032 — “Apply adjustment to this schedule” vs “all future schedules”
-- [ ] **REC-032** Support "adjust this schedule vs adjust all future schedules usage" behavior  
-  - Status: NOT STARTED  
+### REC-032 - "Apply adjustment to this schedule" vs "all future schedules"
+- [x] **REC-032** Support "adjust this schedule vs adjust all future schedules usage" behavior  
+  - Status: DONE  
   - Notes:
     - Adjustments default to one-time (month-specific).
     - Optional "Apply to future schedules for this product" behavior exists and updates future schedules in-scope.
+    - Locked scope key order implemented for "this product": `opportunityProductId` → `accountId + productId` → `accountId + normalized_vendor_product_key`.
   - Definition of Done:
     - UI offers the choice and applies correct updates.
     - Confirm how "this product" is identified for future schedules (productId vs productName vs vendor SKU) and how far forward to apply.
 
-### REC-033 — Flex products (unknown product, overage, bonus, chargeback)
-- [ ] **REC-033** Implement Flex Product creation option for unknown/out-of-tolerance items  
-  - Status: NOT STARTED  
+### REC-033 - Flex products (unknown product, overage, bonus, chargeback)
+- [x] **REC-033** Implement Flex Product creation option for unknown/out-of-tolerance items  
+  - Status: DONE  
   - Notes: Flex product can be created when overage occurs (option 3 in REC-031) or when product is unknown.
   - Definition of Done:
     - User can create flex schedule/product from deposit line.
     - Flex schedules integrate into matching so deposit line can be allocated.
 
 ### REC-034 - Underpayment / late payment behavior (clarified)
-- [ ] **REC-034** Implement underpayment + late/double payment rules  
-  - Status: NOT STARTED  
+- [x] **REC-034** Implement underpayment + late/double payment rules  
+  - Status: DONE  
   - Notes:
     - Underpayment does not trigger variance; schedules remain open with remaining balance.
     - Late payment / double payment does not auto-adjust future schedules.
@@ -370,8 +375,7 @@ Checkpoint 3 centers on delivering an end-to-end **deposit ingestion + reconcili
 
 ## Remaining open questions
 
-1. **REC-032 scope:** confirm how "future schedules for this product" is identified (productId vs productName vs vendor SKU) and whether it is limited to the same opportunity/account.
-2. **REC-031 AI adjustment:** confirm whether "AI adjustment" is rules-based suggestion (v1) or calls an external AI model, and what fields it is allowed to update.
+- None currently (REC-031 and REC-032 decisions were locked and implemented).
 
 ---
 
@@ -380,10 +384,10 @@ Checkpoint 3 centers on delivering an end-to-end **deposit ingestion + reconcili
 - [x] Upload a real vendor deposit file using a configured template (CSV/Excel supported)
 - [x] Confirm mapped fields + line items look correct
 - [x] Suggested matches appear with confidence (default currently 75%); confidence slider is in Settings
-- [x] Manual match works (AI button text label still pending)
+- [x] Manual allocate works (AI button text label present)
 - [x] Matching updates Actual Usage + Actual Commission on revenue schedules
-- [ ] Variance prompt appears; run through 3 options
-- [x] All allocations reconcile; “Reconcile Matches” finalizes deposit and updates statuses
+- [x] Variance prompt appears; run through 3 options
+- [x] All allocations reconcile; "Reconcile Matches" finalizes deposit and updates statuses
 - [x] Permissions enforced for upload/reconcile actions
 - [ ] Basic performance sanity check on a realistic sample file
 

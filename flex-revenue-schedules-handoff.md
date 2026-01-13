@@ -91,7 +91,7 @@ This also appears as an explicit requested feature:
 - [x] When an overage above tolerance is detected, the system supports these options:
   - [x] **Adjust**: create a one-time adjustment,
   - [x] **Flex Product**: create a temporary product for the difference,
-  - [ ] **Manual**: user manually enters the adjustment amount【107:10†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L20-L23】. (Not implemented; current "Manual" is a defer/leave-as-is option.)
+  - [x] **Manual**: user manually enters the adjustment amount【107:10†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L20-L23】. (Implemented: user can enter a partial adjustment amount.)
 - [x] The UI flow should align with the “decision tree” discussed (adjust / manual / flex product)【111:3†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L38-L41】.
 
 **Trigger timing**
@@ -105,7 +105,7 @@ This also appears as an explicit requested feature:
 
 ### 2.4 Unknown product → create Flex Product to mimic deposit line item
 - [x] If a deposit line item refers to an **unknown product** (no mapping / cannot be confidently matched), the system must be able to create a **Flex Product** to record that line item anyway【111:0†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L22-L25】.
-- [ ] The resulting flex product must be attachable to the correct deal / revenue schedule(s) for allocation.
+- [x] The resulting flex product must be attachable to the correct deal / revenue schedule(s) for allocation. (Implemented: selecting a schedule when creating a Flex Product will attach it to that deal context.)
 
 > **ASSUMED:** rules for “unknown product detection” (e.g., AI confidence cutoff, “unmapped fields” from vendor template) are outside the explicit FLEX excerpts; treat this as a dependency on the deposit mapping + matching system.
 
@@ -125,8 +125,8 @@ This also appears as an explicit requested feature:
   - [x] leave a remaining balance that shows next time payment comes in【111:14†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L47-L51】.
 
 ### 2.7 Bonus/SPF behavior
-- [ ] Support modeling “bonus” as an SPF product that is part of the deal, often known at time of sale【111:14†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L53-L53】.
-- [ ] If bonus is estimated but actual differs, apply the “same rules” (auto-adjust) rather than creating a new recurring change【103:1†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L34-L43】.
+- [x] Support modeling “bonus” as an SPF product that is part of the deal, often known at time of sale【111:14†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L53-L53】. (Implemented via product heuristics: revenue type / product family/name containing bonus/spiff/spf.)
+- [x] If bonus is estimated but actual differs, apply the “same rules” (auto-adjust) rather than creating a new recurring change【103:1†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L34-L43】.
 
 > **NOTE:** Another excerpt highlights that the two areas to worry about are (1) overage outside variance and (2) bonus automation【111:10†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L9-L14】.
 
@@ -167,7 +167,7 @@ This also appears as an explicit requested feature:
 - [x] If mismatch detected, present/execute:
   - [x] Adjust (one-time adjustment record)【107:10†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L20-L23】
   - [x] Flex Product (temporary product record)【107:10†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L20-L23】
-  - [ ] Manual (user-entered adjustment)【107:10†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L20-L23】
+  - [x] Manual (user-entered adjustment)【107:10†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L20-L23】
 - [x] Implement special cases:
   - [x] Negative amount → Flex Chargeback product suggestion/creation【111:14†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L32-L42】
   - [x] Underpayment → carry balance forward (no flex)【111:14†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L47-L51】
@@ -177,7 +177,7 @@ There is an explicit question in the meeting about what flex “is going to look
 - Is it **its own section** someone can trigger (similar to commission splits),
 - Or something that happens in the background on system triggers?【111:0†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L35-L64】
 
-- [ ] Decide UX approach and document it.
+- [x] Decide UX approach and document it (implemented in deposit allocation/matching flow; flex entries are labeled + audited).
 - [ ] If a dedicated UI section is chosen:
   - [ ] Add “Flex schedules” section on the Revenue Schedule screen
   - [ ] Provide “Create Flex Product” / “Create Adjustment” CTA for a selected schedule/deposit pair
@@ -185,8 +185,8 @@ There is an explicit question in the meeting about what flex “is going to look
   - [ ] Ensure there is still transparency (e.g., created records labeled clearly, with audit trail)
 
 ### 3.5 Reporting requirements
-- [ ] Ensure Flex Chargebacks are grouped in a way that can be filtered/reported (“group or a family”)【103:1†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L50-L53】.
-- [ ] Ensure Flex Products vs Adjustments can be distinguished in reporting (ASSUMED but implied by workflow).
+- [x] Ensure Flex Chargebacks are grouped in a way that can be filtered/reported (“group or a family”)【103:1†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L50-L53】.
+- [x] Ensure Flex Products vs Adjustments can be distinguished in reporting (ASSUMED but implied by workflow).
 
 ---
 
@@ -194,14 +194,14 @@ There is an explicit question in the meeting about what flex “is going to look
 
 These items were explicitly listed as changes to implement around revenue schedules【107:6†working notes 11.11.25.docx†L1-L21】【107:7†working notes 11.11.25.docx†L41-L46】:
 
-- [ ] Implement ability to **clone/replicate** an existing revenue schedule【107:7†working notes 11.11.25.docx†L41-L42】.
-- [ ] Implement ability to **make revenue schedules inactive or delete them**【107:6†working notes 11.11.25.docx†L1-L1】.
-- [ ] Add a **History tab / audit log** for revenue schedule changes (who + when)【107:6†working notes 11.11.25.docx†L5-L6】.
-- [ ] Implement ability to **edit fields** for single or multiple selected revenue schedules:
-  - [ ] Quantity
-  - [ ] Price each
-  - [ ] Expected usage adjustment
-  - [ ] Expected commission rate【107:6†working notes 11.11.25.docx†L9-L20】
+- [x] Implement ability to **clone/replicate** an existing revenue schedule【107:7†working notes 11.11.25.docx†L41-L42】.
+- [x] Implement ability to **make revenue schedules inactive or delete them**【107:6†working notes 11.11.25.docx†L1-L1】.
+- [x] Add a **History tab / audit log** for revenue schedule changes (who + when)【107:6†working notes 11.11.25.docx†L5-L6】.
+- [x] Implement ability to **edit fields** for single or multiple selected revenue schedules:
+  - [x] Quantity
+  - [x] Price each
+  - [x] Expected usage adjustment
+  - [x] Expected commission rate【107:6†working notes 11.11.25.docx†L9-L20】
 - [ ] Display the current commission split percentage with last edited date + user【107:6†working notes 11.11.25.docx†L21-L21】.
 - [ ] Ensure revenue schedule status options align with opportunity stage/status (Pipeline, Pending, Reconciled, Unreconciled)【107:6†working notes 11.11.25.docx†L25-L25】.
 - [x] Auto-create new revenue schedules when Billing and schedules are exhausted【107:7†working notes 11.11.25.docx†L45-L46】.
@@ -282,15 +282,15 @@ These items were explicitly listed as changes to implement around revenue schedu
 - [x] Ensure actual usage/commission update on Match【111:15†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L36-L37】
 - [x] Add variance/tolerance calculation + threshold config【111:0†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L22-L23】
 - [x] Implement Adjust / Flex Product paths (and a "Manual" defer option)【107:10†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L20-L23】
-- [ ] Implement Manual amount-entry resolution (user-entered adjustment amount)
+- [x] Implement Manual amount-entry resolution (user-entered adjustment amount)
 - [x] Implement chargeback (negative) flex product handling【111:14†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L32-L42】
 - [x] Implement underpayment carry-forward behavior【111:14†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L47-L51】
 - [x] Implement auto-config schedule extension when Billing + schedules exhausted【107:7†working notes 11.11.25.docx†L45-L46】
 
 ### Next (hardening + transparency)
-- [ ] Add schedule history/audit tab for edits【107:6†working notes 11.11.25.docx†L5-L6】
-- [ ] Add cloning/editing tools for schedules【107:7†working notes 11.11.25.docx†L41-L42】【107:6†working notes 11.11.25.docx†L9-L20】
-- [ ] Add reporting categorizations (flex chargeback family/group)【103:1†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L50-L53】
+- [x] Add schedule history/audit tab for edits【107:6†working notes 11.11.25.docx†L5-L6】
+- [x] Add cloning/editing tools for schedules【107:7†working notes 11.11.25.docx†L41-L42】【107:6†working notes 11.11.25.docx†L9-L20】
+- [x] Add reporting categorizations (flex chargeback family/group)【103:1†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L50-L53】
 
 ### Later
 - [ ] V2 “Intelligent Housekeeping” AI suggestions for updating future schedules【107:10†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L25-L31】

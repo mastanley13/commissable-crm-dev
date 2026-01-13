@@ -186,9 +186,9 @@ Use these documents when deciding requirements and acceptance criteria:
     - When Match occurs, actual usage/commission fill based on matched deposit line amount(s)【228:0†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L54-L59】.
     - Existing allocations are respected (partial allocations supported).
 
-### REC-014 — Split/merge allocations (many-to-many match table)
-- [ ] **REC-014** Implement `reconciliation_matches` to support partial allocations (split/merge)  
-  - Status: NOT STARTED  
+### REC-014 - Split/merge allocations (many-to-many match table)
+- [x] **REC-014** Implement `reconciliation_matches` to support partial allocations (split/merge)  
+  - Status: DONE  
   - Notes:
     - Core rule: allocations happen during Match/Allocate; reconciliation/finalize happens later (locks allocations + downstream status transitions).
     - Required behaviors:
@@ -198,6 +198,9 @@ Use these documents when deciding requirements and acceptance criteria:
       - Allocation step: create/update rows in the junction table (`DepositLineMatch` today; conceptually `reconciliation_matches`) with `usageAmount` and `commissionAmount` per link.
       - Running totals: recompute deposit allocated/unallocated + schedule actual usage/commission from allocations.
       - Reconcile step: finalize allocations (mark reconciled/locked) separately from allocation.
+    - Implemented:
+      - Server supports per-link partial amounts (`usageAmount` / `commissionAmount`) and prevents over-allocation.
+      - UI supports explicit allocation entry per schedule (enables split allocations and editing existing allocations).
   - DoD:
     - A deposit line item can allocate across multiple revenue schedules and vice versa【228:11†Data Notebook LM 1.1.docx†L9-L11】.
     - Each link stores `amount_matched` and (ASSUMED) matched_usage vs matched_commission if needed.
@@ -248,9 +251,10 @@ Use these documents when deciding requirements and acceptance criteria:
 ### REC-030 — Detect overages vs expected usage net and prompt for decision
 > If actual usage > expected usage net, system should flag difference and prompt action; options include AI adjustment, manual adjustment, or creating a flex product【228:7†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L30-L36】
 
-- [ ] **REC-030** Variance detector on match (pre-reconcile)  
-  - Status: NOT STARTED  
+- [x] **REC-030** Variance detector on match (pre-reconcile)  
+  - Status: DONE  
   - Notes:
+    - Implemented in schedule recompute + allocation flow; overage beyond tolerance triggers a prompt during allocation (before finalize).
     - Variance tolerance is configured via Settings → Reconciliation Settings (tenant default) and is used for thresholding.
     - System computes overage/underage during matching using expected + adjustments vs actual allocated.
   - DoD:
@@ -260,9 +264,10 @@ Use these documents when deciding requirements and acceptance criteria:
 ### REC-031 — Variance decision tree (3 options)
 > Option 1 “Make adjustment” (AI), option 2 “Manual adjustment”, option 3 “Create a flex product”【228:5†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L36-L41】
 
-- [ ] **REC-031** Implement 3-option decision flow on variance  
-  - Status: NOT STARTED  
+- [x] **REC-031** Implement 3-option decision flow on variance  
+  - Status: DONE  
   - Notes:
+    - Implemented during allocation (pre-finalize) with three options: AI adjustment (rules-based preview), manual adjustment, or flex product.
     - Trigger occurs during matching/allocation (before final reconcile).
   - DoD:
     - User can choose:
@@ -272,19 +277,20 @@ Use these documents when deciding requirements and acceptance criteria:
     - After action, the match proceeds and items move to “matched” state【228:7†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L34-L46】.
 
 ### REC-032 — “Apply adjustment to this schedule” vs “all future schedules”
-- [ ] **REC-032** Support “adjust this schedule vs adjust all future schedules usage” behavior  
-  - Status: NOT STARTED  
+- [x] **REC-032** Support "adjust this schedule vs adjust all future schedules usage" behavior  
+  - Status: DONE  
   - Notes:
+    - Locked scope key order implemented for "this product": `opportunityProductId` → `accountId + productId` → `accountId + normalized_vendor_product_key`.
     - Adjustments default to one-time (month-specific).
-    - Optional “Apply to future schedules for this product” behavior exists and updates future schedules in-scope.
+    - Optional "Apply to future schedules for this product" behavior exists and updates future schedules in-scope.
     - Transcript mentions the choice: “adjust this one, adjust all future schedules usage, or create a flex product…”【228:7†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L34-L36】  
   - DoD:
     - Implement UI choice and apply correct updates to revenue schedules.
     - Confirm how “this product” is identified for future schedules (productId vs productName vs vendor SKU) and how far forward to apply.
 
 ### REC-033 — Flex products (unknown product, overage, bonus, chargeback)
-- [ ] **REC-033** Implement Flex Product creation option for unknown products / out-of-tolerance items  
-  - Status: NOT STARTED  
+- [x] **REC-033** Implement Flex Product creation option for unknown products / out-of-tolerance items  
+  - Status: DONE  
   - Notes:
     - Flex product can be created when overage occurs (option 3 in REC-031) or when product is unknown.
     - Meeting: unknown product line items can be recorded by creating a flex product; tolerance example 10%【224:1†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L46-L50】  
@@ -294,8 +300,8 @@ Use these documents when deciding requirements and acceptance criteria:
     - Flex schedules integrate into matching so the deposit line can be allocated.
 
 ### REC-034 — Underpayment / late payment behavior (clarified)
-- [ ] **REC-034** Implement underpayment + late/double payment rules  
-  - Status: NOT STARTED  
+- [x] **REC-034** Implement underpayment + late/double payment rules  
+  - Status: DONE  
   - Notes:
     - Underpayment does not trigger variance; schedules remain open with remaining balance.
     - Late payment / double payment does not auto-adjust future schedules.
@@ -406,8 +412,7 @@ Use these documents when deciding requirements and acceptance criteria:
 
 ## Remaining open questions
 
-- **REC-032 scope:** confirm how "future schedules for this product" is identified (productId vs productName vs vendor SKU) and whether it is limited to the same opportunity/account.
-- **REC-031 AI adjustment:** confirm whether "AI adjustment" is rules-based suggestion (v1) or calls an external AI model, and what fields it is allowed to update.
+- None currently (REC-031 and REC-032 decisions were locked and implemented).
 
 ## Historical questions (now resolved)
 
@@ -424,9 +429,9 @@ Use these documents when deciding requirements and acceptance criteria:
 - [x] Upload a real vendor deposit file using a configured template (CSV/Excel supported)
 - [x] Confirm mapped fields + line items look correct
 - [x] Suggested matches appear with confidence (default currently 75%); confidence slider is in Settings
-- [x] Manual match works (AI button text label still pending)
+- [x] Manual allocate works (AI button text label present)
 - [x] Matching updates Actual Usage + Actual Commission on revenue schedules
-- [ ] Variance prompt appears when expected vs actual differs; run through 3 options
+- [x] Variance prompt appears when expected vs actual differs; run through 3 options
 - [x] All allocations reconcile; “Reconcile Matches” finalizes deposit and updates statuses
 - [x] Permissions enforced for upload/reconcile actions
 - [ ] Basic performance sanity check on a “large enough” sample file (size to confirm)

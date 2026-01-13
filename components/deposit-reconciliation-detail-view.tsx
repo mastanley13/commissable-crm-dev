@@ -412,6 +412,9 @@ export function DepositReconciliationDetailView({
   const [showDeleteDepositDialog, setShowDeleteDepositDialog] = useState(false)
   const [flexPrompt, setFlexPrompt] = useState<FlexPromptState | null>(null)
   const [flexResolving, setFlexResolving] = useState(false)
+  const [manualFlexEntryOpen, setManualFlexEntryOpen] = useState(false)
+  const [manualFlexUsageAmount, setManualFlexUsageAmount] = useState("")
+  const [manualFlexError, setManualFlexError] = useState<string | null>(null)
   const [aiAdjustmentModal, setAiAdjustmentModal] = useState<AiAdjustmentModalState | null>(null)
   const [allocationDraft, setAllocationDraft] = useState<AllocationDraft>({ usage: "", commission: "" })
   const {
@@ -450,6 +453,19 @@ export function DepositReconciliationDetailView({
     if (!Number.isFinite(parsed)) return null
     return parsed
   }, [])
+
+  useEffect(() => {
+    if (!flexPrompt) {
+      setManualFlexEntryOpen(false)
+      setManualFlexUsageAmount("")
+      setManualFlexError(null)
+      return
+    }
+
+    setManualFlexEntryOpen(false)
+    setManualFlexUsageAmount(flexPrompt.decision.usageOverage.toFixed(2))
+    setManualFlexError(null)
+  }, [flexPrompt])
 
   useEffect(() => {
     let cancelled = false
@@ -891,6 +907,10 @@ export function DepositReconciliationDetailView({
     }
 
     const kind = targetLine && (targetLine.usage < 0 || targetLine.commission < 0) ? "Chargeback" : "FlexProduct"
+    const attachRevenueScheduleId =
+      kind === "FlexProduct" && selectedSchedulesRef.current.length === 1
+        ? selectedSchedulesRef.current[0]
+        : null
 
     try {
       matchingLineIdRef.current = lineId
@@ -901,7 +921,7 @@ export function DepositReconciliationDetailView({
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ kind }),
+          body: JSON.stringify({ kind, attachRevenueScheduleId: attachRevenueScheduleId ?? undefined }),
         },
       )
       const payload = await response.json().catch(() => null)
@@ -916,7 +936,12 @@ export function DepositReconciliationDetailView({
       if (kind === "Chargeback") {
         showSuccess("Chargeback created", "A Flex Chargeback entry was created and allocated to this line item.")
       } else {
-        showSuccess("Flex product created", "A Flex Product entry was created and allocated to this line item.")
+        showSuccess(
+          "Flex product created",
+          attachRevenueScheduleId
+            ? "A Flex Product entry was created, attached to the selected deal/schedule, and allocated to this line item."
+            : "A Flex Product entry was created and allocated to this line item.",
+        )
       }
     } catch (err) {
       console.error("Failed to create flex entry", err)
@@ -2037,8 +2062,8 @@ export function DepositReconciliationDetailView({
       if (!flexPrompt) return
 
       if (action === "Manual") {
-        setFlexPrompt(null)
-        showSuccess("Manual resolution", "Variance left as-is. You can resolve it later via schedules or flex products.")
+        setManualFlexError(null)
+        setManualFlexEntryOpen(true)
         return
       }
 
@@ -2074,6 +2099,53 @@ export function DepositReconciliationDetailView({
     },
     [flexPrompt, metadata.id, onMatchApplied, showError, showSuccess],
   )
+
+  const handleApplyManualFlex = useCallback(async () => {
+    if (!flexPrompt) return
+
+    const parsed = parseAllocationInput(manualFlexUsageAmount)
+    if (parsed === null || parsed <= 0.005) {
+      setManualFlexError("Enter a positive adjustment amount.")
+      return
+    }
+    if (parsed > flexPrompt.decision.usageOverage + 0.005) {
+      setManualFlexError("Manual amount cannot exceed the current overage.")
+      return
+    }
+
+    try {
+      setManualFlexError(null)
+      setFlexResolving(true)
+      const response = await fetch(
+        `/api/reconciliation/deposits/${encodeURIComponent(metadata.id)}/line-items/${encodeURIComponent(flexPrompt.lineId)}/resolve-flex`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            revenueScheduleId: flexPrompt.scheduleId,
+            action: "Manual",
+            manualUsageAmount: parsed,
+          }),
+        },
+      )
+      const payload = await response.json().catch(() => null)
+      if (!response.ok) {
+        throw new Error(payload?.error || "Failed to apply manual adjustment")
+      }
+
+      setFlexPrompt(null)
+      setManualFlexEntryOpen(false)
+      onMatchApplied?.()
+      showSuccess("Manual adjustment created", "A one-time manual adjustment entry was created and allocated.")
+    } catch (err) {
+      console.error("Failed to apply manual adjustment", err)
+      const message = err instanceof Error ? err.message : "Unknown error"
+      setManualFlexError(message)
+      showError("Unable to apply manual adjustment", message)
+    } finally {
+      setFlexResolving(false)
+    }
+  }, [flexPrompt, manualFlexUsageAmount, metadata.id, onMatchApplied, parseAllocationInput, showError, showSuccess])
 
   const handleOpenAiAdjustment = useCallback(async () => {
     if (!flexPrompt) return
@@ -2603,41 +2675,100 @@ export function DepositReconciliationDetailView({
                 tolerance amount of{" "}
                 <span className="font-semibold">${flexPrompt.decision.usageToleranceAmount.toFixed(2)}</span>.
               </p>
-              <p>Select how to handle the variance:</p>
-              <div className="flex flex-wrap items-center justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  className="rounded border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-                  onClick={() => setFlexPrompt(null)}
-                  disabled={flexResolving}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  className="rounded border border-primary-200 bg-primary-50 px-3 py-2 text-sm font-semibold text-primary-800 hover:bg-primary-100"
-                  onClick={() => void handleOpenAiAdjustment()}
-                  disabled={flexResolving}
-                >
-                  AI Adjustment
-                </button>
-                <button
-                  type="button"
-                  className="rounded border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-                  onClick={() => void handleResolveFlex("Adjust")}
-                  disabled={flexResolving}
-                >
-                  {flexResolving ? "Working..." : "Manual Adjustment"}
-                </button>
-                <button
-                  type="button"
-                  className="rounded bg-primary-600 px-3 py-2 text-sm font-semibold text-white hover:bg-primary-700"
-                  onClick={() => void handleResolveFlex("FlexProduct")}
-                  disabled={flexResolving}
-                >
-                  {flexResolving ? "Working..." : "Flex Product"}
-                </button>
-              </div>
+
+              {manualFlexEntryOpen ? (
+                <div className="space-y-3">
+                  <p>
+                    Enter the adjustment amount to split into a one-time adjustment schedule.
+                  </p>
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-slate-700">Manual adjustment amount (usage)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      className="w-full rounded border border-slate-200 px-3 py-2 text-sm text-slate-800"
+                      value={manualFlexUsageAmount}
+                      onChange={e => setManualFlexUsageAmount(e.target.value)}
+                      disabled={flexResolving}
+                    />
+                    <p className="text-xs text-slate-500">
+                      Max: ${flexPrompt.decision.usageOverage.toFixed(2)}
+                    </p>
+                    {manualFlexError ? (
+                      <p className="text-xs font-semibold text-red-600">{manualFlexError}</p>
+                    ) : null}
+                  </div>
+                  <div className="flex flex-wrap items-center justify-end gap-2 pt-2">
+                    <button
+                      type="button"
+                      className="rounded border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                      onClick={() => setManualFlexEntryOpen(false)}
+                      disabled={flexResolving}
+                    >
+                      Back
+                    </button>
+                    <button
+                      type="button"
+                      className="rounded bg-primary-600 px-3 py-2 text-sm font-semibold text-white hover:bg-primary-700"
+                      onClick={() => void handleApplyManualFlex()}
+                      disabled={flexResolving}
+                    >
+                      {flexResolving ? "Working..." : "Apply Manual Adjustment"}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <p>Select how to handle the variance:</p>
+                  <div className="flex flex-wrap items-center justify-end gap-2 pt-2">
+                    <button
+                      type="button"
+                      className="rounded border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                      onClick={() => setFlexPrompt(null)}
+                      disabled={flexResolving}
+                    >
+                      Defer
+                    </button>
+                    <button
+                      type="button"
+                      className="rounded border border-primary-200 bg-primary-50 px-3 py-2 text-sm font-semibold text-primary-800 hover:bg-primary-100"
+                      onClick={() => void handleOpenAiAdjustment()}
+                      disabled={flexResolving}
+                    >
+                      AI Adjustment
+                    </button>
+                    <button
+                      type="button"
+                      className="rounded border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                      onClick={() => void handleResolveFlex("Adjust")}
+                      disabled={flexResolving}
+                    >
+                      {flexResolving ? "Working..." : "Adjust Full Overage"}
+                    </button>
+                    {flexPrompt.decision.allowedPromptOptions.includes("Manual") ? (
+                      <button
+                        type="button"
+                        className="rounded border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                        onClick={() => void handleResolveFlex("Manual")}
+                        disabled={flexResolving}
+                      >
+                        Manual Amount
+                      </button>
+                    ) : null}
+                    {flexPrompt.decision.allowedPromptOptions.includes("FlexProduct") ? (
+                      <button
+                        type="button"
+                        className="rounded bg-primary-600 px-3 py-2 text-sm font-semibold text-white hover:bg-primary-700"
+                        onClick={() => void handleResolveFlex("FlexProduct")}
+                        disabled={flexResolving}
+                      >
+                        {flexResolving ? "Working..." : "Flex Product"}
+                      </button>
+                    ) : null}
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>

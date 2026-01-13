@@ -19,6 +19,7 @@ import {
   createFlexChargebackForNegativeLine,
   executeFlexAdjustmentSplit,
 } from "@/lib/flex/revenue-schedule-flex-actions"
+import { isBonusLikeProduct } from "@/lib/flex/bonus-detection"
 
 interface ApplyMatchRequestBody {
   revenueScheduleId: string
@@ -180,11 +181,30 @@ export async function POST(
         varianceTolerance,
       })
 
+      const scheduleMeta = await tx.revenueSchedule.findFirst({
+        where: { tenantId, id: revenueScheduleId },
+        select: {
+          product: {
+            select: {
+              revenueType: true,
+              productFamilyHouse: true,
+              productNameHouse: true,
+            },
+          },
+        },
+      })
+      const isBonusLike = isBonusLikeProduct({
+        revenueType: scheduleMeta?.product?.revenueType ?? null,
+        productFamilyHouse: scheduleMeta?.product?.productFamilyHouse ?? null,
+        productNameHouse: scheduleMeta?.product?.productNameHouse ?? null,
+      })
+
       const flexDecision = evaluateFlexDecision({
         expectedUsageNet: revenueSchedule.expectedUsageNet,
         usageBalance: revenueSchedule.usageBalance,
         varianceTolerance,
         hasNegativeLine: false,
+        isBonusLike,
         expectedCommissionNet: revenueSchedule.expectedCommissionNet,
         commissionDifference: revenueSchedule.commissionDifference,
       })

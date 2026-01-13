@@ -11,6 +11,7 @@ type FlexCreateKind = "FlexProduct" | "Chargeback"
 
 interface CreateFlexRequestBody {
   kind?: FlexCreateKind
+  attachRevenueScheduleId?: string
 }
 
 export async function POST(
@@ -37,6 +38,7 @@ export async function POST(
         status: true,
         usage: true,
         commission: true,
+        deposit: { select: { accountId: true } },
       },
     })
     if (!line) {
@@ -49,6 +51,7 @@ export async function POST(
     const inferredKind: FlexCreateKind =
       Number(line.usage ?? 0) < 0 || Number(line.commission ?? 0) < 0 ? "Chargeback" : "FlexProduct"
     const kind = requestedKind ?? inferredKind
+    const attachRevenueScheduleId = body?.attachRevenueScheduleId?.trim() || null
 
     const varianceTolerance = await getTenantVarianceTolerance(tenantId)
 
@@ -63,14 +66,53 @@ export async function POST(
               varianceTolerance,
               request,
             })
-          : await createFlexProductForUnknownLine(tx, {
-              tenantId,
-              userId: req.user.id,
-              depositId,
-              lineItemId: lineId,
-              varianceTolerance,
-              request,
-            })
+          : await (async () => {
+              let attach = {
+                opportunityId: null as string | null,
+                opportunityProductId: null as string | null,
+                distributorAccountId: null as string | null,
+                vendorAccountId: null as string | null,
+              }
+
+              if (attachRevenueScheduleId) {
+                const baseSchedule = await tx.revenueSchedule.findFirst({
+                  where: { tenantId, id: attachRevenueScheduleId, deletedAt: null },
+                  select: {
+                    id: true,
+                    accountId: true,
+                    opportunityId: true,
+                    opportunityProductId: true,
+                    distributorAccountId: true,
+                    vendorAccountId: true,
+                  },
+                })
+                if (!baseSchedule) {
+                  throw new Error("Attach schedule not found")
+                }
+                if (baseSchedule.accountId !== line.deposit.accountId) {
+                  throw new Error("Attach schedule must belong to the same customer account")
+                }
+                attach = {
+                  opportunityId: baseSchedule.opportunityId ?? null,
+                  opportunityProductId: baseSchedule.opportunityProductId ?? null,
+                  distributorAccountId: baseSchedule.distributorAccountId ?? null,
+                  vendorAccountId: baseSchedule.vendorAccountId ?? null,
+                }
+              }
+
+              return await createFlexProductForUnknownLine(tx, {
+                tenantId,
+                userId: req.user.id,
+                depositId,
+                lineItemId: lineId,
+                varianceTolerance,
+                attachOpportunityId: attach.opportunityId,
+                attachOpportunityProductId: attach.opportunityProductId,
+                attachDistributorAccountId: attach.distributorAccountId,
+                attachVendorAccountId: attach.vendorAccountId,
+                request,
+              })
+            })()
       })
 
       return NextResponse.json({ data: result })
@@ -80,4 +122,3 @@ export async function POST(
     }
   })
 }
-

@@ -65,6 +65,139 @@ These already exist in the repo and should be used as the baseline:
 - Apply migration to your database:
   - `prisma/migrations/20260113093000_add_deposit_part_number_and_flex_product_fields/migration.sql`
 
+### Outlying incomplete items (from the Checkpoint 3 guides)
+These are the remaining items still marked incomplete in:
+- `Checkpoint3_Reconciliation_Master_Guide.md`
+- `Checkpoint3_Reconciliation_Master_Guide_HANDOFF.md`
+
+- **REC-001 (IN PROGRESS):** Explicit Distributor + Vendor + Template selection (not inferred).
+- **REC-002 (IN PROGRESS):** Mapping UI redesign (two-panel editor + cancel/undo; remove wizard).
+- **REC-003 (IN PROGRESS):** Template persistence/editing rules (non-breaking, versioning, safer updates).
+- **REC-022 (IN PROGRESS):** Matching parity/tuning vs Milestone 3 spec.
+- **REC-051 (IN PROGRESS):** Audit coverage completeness (upload + template edits + allocations/adjustments/flex).
+- **REC-060 (NOT STARTED):** Performance targets validation.
+- **REC-061 (NOT STARTED):** Idempotency/retry safety for uploads.
+- **REC-070 (NOT STARTED):** Standardize delete modals + blockers legend across reconciliation flows.
+- **REC-071 (IN PROGRESS):** Remaining reconciliation UX consistency polish.
+- **Readiness:** Performance sanity check run + documented.
+
+---
+
+## Plan to close the outlying incomplete items (ordered)
+
+### Phase A — Template selection + persistence foundation (REC-001, REC-003)
+**Goal:** Support multiple templates per (Distributor, Vendor) and make selection explicit and traceable.
+
+1) **Data model decision (required)**
+   - Add `Deposit.reconciliationTemplateId` (FK) OR store selected template id in `ImportJob.filters` and treat it as the source of truth for the import.
+   - Recommendation: add the FK for long-term traceability + audit and to allow multiple templates per vendor/distributor without ambiguity.
+
+2) **UI: explicit template selection (REC-001)**
+   - Add a template dropdown after Distributor/Vendor selection.
+   - Disable file upload and mapping until template is selected.
+   - Show template metadata (name/description/updatedAt).
+
+3) **Import behavior**
+   - Include selected template id in the import request and persist it (either on `Deposit` or `ImportJob.filters`).
+   - Ensure the mapping seed uses the selected template’s `config`.
+
+4) **Template editing rules (REC-003)**
+   - Introduce a template “Save as new version” behavior:
+     - Editing an existing template creates a new template row (or new `configVersion`), leaving prior templates intact.
+     - New uploads default to the newest template for that pair, but users can pick older ones.
+   - Add “Duplicate template” for quick variants per vendor/distributor.
+
+**Exit criteria**
+- Multiple templates for the same vendor/distributor are supported.
+- Deposit imports have a deterministic template lineage.
+
+### Phase B — Mapping UX redesign (REC-002) + safety affordances
+**Goal:** Replace the wizard with a two-panel mapping editor that supports cancel + undo and reduces user errors.
+
+1) **UX structure**
+   - Panel A: canonical fields (required + common optional), with current mapping + inline validation.
+   - Panel B: “Extra columns” that are non-blank and not mapped.
+   - Keep a persistent preview pane (1–5 rows) that updates live.
+
+2) **Undo/Cancel**
+   - Local undo stack (per mapping change).
+   - Cancel returns to template selection without persisting changes.
+
+3) **Validation hardening**
+   - Block continue/import until required fields are mapped and preview parses cleanly (usage/commission).
+   - Show clearly which required fields are missing.
+
+**Exit criteria**
+- Wizard steps removed; mapping can be completed in one screen.
+- Cancel/Undo behavior matches acceptance intent.
+
+### Phase C — Matching parity and confidence tuning (REC-022)
+**Goal:** Align candidate generation/scoring with Milestone 3 spec and lock predictable behavior.
+
+1) **Define a parity checklist**
+   - List the exact matching signals/priority order required by the Milestone 3 spec.
+   - Decide thresholds for suggest/auto-match, cross-vendor fallback caps, date windows, ID matching precedence.
+
+2) **Test harness**
+   - Create a small deterministic fixture set (deposit line + schedules) with expected top-N ordering.
+   - Add unit tests around scoring and candidate filtering so future changes don’t regress.
+
+3) **Tune**
+   - Iterate on weights/thresholds and document final values.
+
+**Exit criteria**
+- Top-N candidates and confidence outputs are stable and spec-aligned.
+
+### Phase D — Audit completeness (REC-051)
+**Goal:** Ensure all critical reconciliation actions have audit events.
+
+1) Add audit events for:
+   - Deposit upload (deposit created + import job link + counts + file name).
+   - Template create/update/versioning actions.
+   - Allocation changes (`DepositLineMatch` create/update/delete) including amounts.
+   - Adjustment/flex actions and future-schedule propagation (including impacted schedule ids/count).
+   - Finalize/unfinalize deposit.
+
+2) Add an audit review checklist to confirm required fields are present in `AuditLog.metadata`.
+
+**Exit criteria**
+- All actions listed in REC-051 are logged and queryable by deposit/template id.
+
+### Phase E — Performance + idempotency (REC-060, REC-061, readiness)
+**Goal:** Make uploads safe to retry and validate “large file” performance.
+
+1) **Idempotency design (REC-061)**
+   - Add an `idempotencyKey` to deposit import requests; store it on `ImportJob` (new field) with a uniqueness constraint (tenant + entity + key).
+   - On retry with same key, return the previously created deposit id instead of creating duplicates.
+   - Optional: compute server-side file hash and store it as a secondary guardrail.
+
+2) **Performance baseline (REC-060)**
+   - Pick a target “large file” size (rows + columns) based on the Milestone 3 spec.
+   - Measure: upload parse time, insert time, candidates fetch time, auto-match preview/apply time.
+   - Add indexes if query plans show scan hotspots (deposit line matches, schedule filters).
+
+3) **Readiness check**
+   - Run the performance sanity check and capture timings + notes in the checklist doc.
+
+**Exit criteria**
+- Retry-safe upload without duplicates.
+- Documented timings meet agreed targets (or have a mitigation plan).
+
+### Phase F — UI polish (REC-070, REC-071)
+**Goal:** Standardize destructive actions and improve reconciliation clarity.
+
+1) **REC-070**
+   - Use the global modal pattern (`TwoStageDeleteDialog`) for all reconciliation delete actions.
+   - Add a consistent “blockers legend” where statuses prevent actions (reconciled/locked/ignored).
+
+2) **REC-071**
+   - Ensure “Allocate vs Finalize” distinction is obvious in all headers/tooltips.
+   - Standardize table labels/columns and ensure allocated/unallocated rollups are visible and consistent.
+
+**Exit criteria**
+- Delete flows are consistent.
+- Reconciliation screens communicate the process clearly with minimal user confusion.
+
 ## Acceptance Criteria Mapping (from `checkpoint_3_main_steps.md`)
 
 ### 1) Data Upload and Mapping

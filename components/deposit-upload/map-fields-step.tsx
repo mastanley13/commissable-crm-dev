@@ -204,13 +204,20 @@ export function MapFieldsStep({
 
     return (
       <div className="rounded-lg border border-gray-200 text-sm text-gray-700">
-        <div className="flex flex-wrap items-start justify-between gap-2 border-b border-gray-200 bg-gray-50 px-3 py-1.5">
-          <div>
-            <p className="text-sm font-semibold text-gray-900">
-              {title} <span className="font-normal text-gray-500">({rows.length})</span>
-            </p>
-            {description ? <p className="mt-0.5 text-xs text-gray-600">{description}</p> : null}
-          </div>
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 bg-gray-50 px-3 py-1.5">
+          <p className="text-sm font-semibold text-gray-900">
+            {title} <span className="font-normal text-gray-500">({rows.length})</span>
+          </p>
+          {description ? (
+            <button
+              type="button"
+              title={description}
+              aria-label="Table info"
+              className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-gray-300 bg-white text-[11px] font-semibold text-gray-600 hover:bg-gray-50"
+            >
+              ?
+            </button>
+          ) : null}
         </div>
 
         <div className="hidden border-b border-gray-200 bg-gray-50 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-gray-500 md:grid md:grid-cols-[minmax(0,1.3fr)_minmax(0,1.5fr)_120px_minmax(0,1.7fr)]">
@@ -325,11 +332,22 @@ export function MapFieldsStep({
                     <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 md:hidden">
                       Status
                     </p>
-                    <span
-                      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold ${statusClass}`}
-                    >
-                      {statusLabel}
-                    </span>
+                    {(() => {
+                      const dotClass =
+                        statusLabel === "Mapped"
+                          ? "bg-emerald-600"
+                          : templateHint
+                            ? "bg-amber-600"
+                            : "bg-gray-500"
+                      return (
+                        <span
+                          className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0 text-[10px] font-semibold leading-4 ${statusClass}`}
+                        >
+                          <span className={`h-1.5 w-1.5 rounded-full ${dotClass}`} />
+                          {statusLabel}
+                        </span>
+                      )
+                    })()}
                   </div>
 
                   <div className="flex flex-col justify-center gap-2">
@@ -553,13 +571,9 @@ export function MapFieldsStep({
         </div>
       </div>
 
-      <div className="rounded-xl border border-gray-100 bg-gray-50 p-3 text-sm text-gray-700">
-        <p className="font-semibold text-gray-900">Mapping guidance</p>
-        <p className="mt-1.5 text-xs text-gray-600">
-          Map required fields like Usage and Commission to columns from your uploaded file. Optional fields can be left
-          unmapped. If a saved mapping exists for the selected Distributor + Vendor, those columns (plus core fields) will
-          appear in the Template-mapped section below.
-        </p>
+      <div className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-xs text-gray-700 truncate" title="Map required fields like Usage and Commission to columns from your uploaded file. Optional fields can be left unmapped. If a saved mapping exists for the selected Distributor + Vendor, those columns (plus core fields) will appear in the Template-mapped section below.">
+        Map required fields like Usage and Commission. Optional fields can stay unmapped; saved templates pre-fill when
+        available.
       </div>
 
       {parsingError ? (
@@ -577,9 +591,6 @@ export function MapFieldsStep({
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-sm font-semibold text-gray-900">Uploaded columns</p>
-              <p className="mt-1 text-xs text-gray-600">
-                Review sample data and map each column from your file to a Commissable field.
-              </p>
             </div>
             {totalPreviewRows > 0 ? (
               <div className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-2 py-1 text-xs text-gray-600">
