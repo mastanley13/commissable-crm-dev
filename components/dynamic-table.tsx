@@ -1025,7 +1025,7 @@ export function DynamicTable({
                     onDragOver={handleDragOver}
                     onDrop={event => handleDrop(event, column.id)}
                   >
-                    <div className="table-header-content gap-2 min-w-0">
+                    <div className="table-header-content gap-1 min-w-0">
                       {column.id === "select" && onSelectAll ? (
                         <>
                           <input
@@ -1072,7 +1072,7 @@ export function DynamicTable({
                             <button
                               type="button"
                               className={cn(
-                                "inline-flex items-center gap-2 min-w-0 max-w-full text-left rounded-sm px-1 -mx-1",
+                                "inline-flex items-center gap-1 min-w-0 max-w-full text-left rounded-sm px-1 -mx-1",
                                 "cursor-pointer hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-white/70"
                               )}
                               draggable

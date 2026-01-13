@@ -19,6 +19,14 @@
 
 ---
 
+## Progress summary (as of 2026-01-13)
+
+- **DONE (implemented):** Deposit list + deposit detail reconciliation screen; CSV/Excel deposit import; template auto-seeding + mapping persistence; suggested matches + confidence filtering; manual match/unmatch; AI auto-match preview/apply; finalize/unfinalize; revenue schedule actuals updated; baseline RBAC.
+- **IN PROGRESS:** Template selection UX (currently inferred by distributor+vendor); mapping UI redesign (still wizard-based); AI button text label; matching algorithm parity/tuning; audit coverage completeness; reconciliation UX polish.
+- **NOT STARTED:** Split/merge allocations (true many-to-many); variance prompt + 3-option decision tree; “adjust future schedules” behavior; flex products; performance targets + idempotency hardening.
+
+---
+
 ## Scope definition for Checkpoint 3
 
 Checkpoint 3 centers on delivering an end-to-end **deposit ingestion + reconciliation workflow**:
@@ -76,8 +84,10 @@ Use these documents when deciding requirements and acceptance criteria:
 
 ### REC-001 — Deposit Template selection: Distributor → Vendor → Template
 - [ ] **REC-001** Deposit upload flow requires selecting **Distributor + Vendor + Template** before upload  
-  - Status: NOT STARTED  
-  - Notes: (link PR / screenshots)  
+  - Status: IN PROGRESS  
+  - Notes:
+    - Distributor + Vendor are required before proceeding in the upload flow (`components/deposit-upload/create-template-step.tsx`).
+    - Template is currently inferred/seeded for a (Distributor, Vendor) pair (`app/api/reconciliation/templates/route.ts`) rather than explicitly selected in the UI.
   - DoD:
     - UI forces selection of all three before file chooser is enabled.
     - Selected template drives mapping rules.
@@ -86,8 +96,10 @@ Use these documents when deciding requirements and acceptance criteria:
 > Requirement: Mapping UI should show **“known fields”** (standard fields we map into) and a second panel of **“extra fields that are non-blank and not yet mapped”**; remove current step-based wizard; add Cancel + Undo【91:4†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L10-L41】
 
 - [ ] **REC-002** Replace “Step 1–4” mapping wizard with two-panel mapping editor  
-  - Status: NOT STARTED  
-  - Notes:  
+  - Status: IN PROGRESS  
+  - Notes:
+    - Current implementation is still a step-based wizard (`app/(dashboard)/reconciliation/deposit-upload-list/page.tsx`) with column mapping (`components/deposit-upload/map-fields-step.tsx`).
+    - Cancel/Undo as described in the meeting transcript is not yet implemented (Back navigation exists).
   - DoD:
     - Panel A: standard/known destination fields (usage, commission, customer, product, etc.).
     - Panel B: shows only **non-blank** source columns not yet mapped【91:4†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L14-L28】.
@@ -97,24 +109,30 @@ Use these documents when deciding requirements and acceptance criteria:
 
 ### REC-003 — Template persistence & editing rules (incl. custom templates)
 - [ ] **REC-003** Persist template mappings and allow editing without breaking existing deposits  
-  - Status: NOT STARTED  
-  - Notes: **ASSUMED** details unless confirmed in codebase  
+  - Status: IN PROGRESS  
+  - Notes:
+    - Template config is persisted/updated during deposit import (`app/api/reconciliation/deposits/import/route.ts`) via `ReconciliationTemplate.config`.
+    - Dedicated template editing/versioning UX is not yet implemented; current behavior updates the template used for future uploads.
   - DoD:
     - Template mapping saved per (Distributor, Vendor, TemplateName).
     - Versioning or “effective date” strategy decided so old deposits remain reproducible (**ASSUMED**—confirm with team).
 
 ### REC-004 — Upload file types + parse into normalized deposit + line items
 - [ ] **REC-004** Upload deposit file (CSV/Excel/PDF) and parse into `reconciliation_deposits` + `deposit_line_items`  
-  - Status: NOT STARTED  
-  - Notes: PDF parsing may require OCR; confirm expected input formats with Rob  
+  - Status: IN PROGRESS  
+  - Notes:
+    - CSV/Excel parsing is implemented (`lib/deposit-import/parse-file.ts`) and import creates `Deposit` + `DepositLineItem` rows (`app/api/reconciliation/deposits/import/route.ts`).
+    - PDF import is not implemented.
   - DoD:
     - Create deposit record with metadata (distributor/vendor/template/upload date).
     - Parse file rows into normalized line items with mapped fields.
     - Row-level validation errors surfaced (bad amounts, missing required mapped fields).
 
-### REC-005 — Upload summary + totals computed
-- [ ] **REC-005** Deposit summary panel showing totals (usage + commission) and allocation rollups  
-  - Status: NOT STARTED  
+### REC-005 - Upload summary + totals computed
+- [x] **REC-005** Deposit summary panel showing totals (usage + commission) and allocation rollups  
+  - Status: DONE  
+  - Notes:
+    - Totals/allocated/unallocated are computed on import (`app/api/reconciliation/deposits/import/route.ts`) and surfaced in deposit detail (`app/api/reconciliation/deposits/[depositId]/detail/route.ts` + `components/deposit-reconciliation-detail-view.tsx`).
   - DoD:
     - After upload, UI shows total usage & total commission for the deposit.
     - Shows allocated vs unallocated totals (both usage + commission).
@@ -124,19 +142,21 @@ Use these documents when deciding requirements and acceptance criteria:
 ## B. Reconciliation workspace (Deposit line items ↔ Revenue schedules)
 
 ### REC-010 — Reconciliation dashboard (deposit list + statuses)
-- [ ] **REC-010** Reconciliation Dashboard: deposit list + filter/sort/search  
-  - Status: NOT STARTED  
+- [x] **REC-010** Reconciliation Dashboard: deposit list + filter/sort/search  
+  - Status: DONE  
+  - Notes: Implemented in `app/(dashboard)/reconciliation/page.tsx` + `app/api/reconciliation/deposits/route.ts`.
   - DoD:
-    - View deposits with status (Uploaded / In Progress / Reconciled / etc. — confirm exact enums).
+    - View deposits with status (Uploaded / In Progress / Reconciled / etc. - confirm exact enums).
     - Filter by distributor/vendor/template/status/date range.
 
 ### REC-011 — Deposit detail “two-grid” reconciliation screen
 > Requirement: reconcile screen includes top/bottom grids that align key money columns, with “Match” action driven by selecting items and matching【228:4†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L25-L33】
 
-- [ ] **REC-011** Deposit detail reconciliation view with:
+- [x] **REC-011** Deposit detail reconciliation view with:
   - Top grid: deposit line items  
   - Bottom grid: revenue schedule rows  
-  - Status: NOT STARTED  
+  - Status: DONE  
+  - Notes: Implemented in `app/(dashboard)/reconciliation/[depositId]/page.tsx` + `components/deposit-reconciliation-detail-view.tsx`.
   - DoD:
     - Selecting a deposit line item drives bottom grid context (available/suggested schedules).
     - Columns aligned so expected vs actual are easy to compare (esp. usage & commission)【228:4†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L52-L60】.
@@ -144,7 +164,10 @@ Use these documents when deciding requirements and acceptance criteria:
 
 ### REC-012 — Match button placement + labeling
 - [ ] **REC-012** Place “Match” button to the left of bottom search; label AI button with text (not only icon)  
-  - Status: NOT STARTED  
+  - Status: IN PROGRESS  
+  - Notes:
+    - Match action is implemented in the bottom grid header (`components/deposit-reconciliation-detail-view.tsx`).
+    - AI action is currently icon-only (Sparkles) with aria-label/title; needs visible text label to match requirement.
   - Evidence/DoD:
     - “Match” button is left of search on bottom grid【228:4†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L4-L5】.
     - AI action uses text label (“Use AI”) rather than only an icon【228:4†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L10-L12】.
@@ -152,8 +175,11 @@ Use these documents when deciding requirements and acceptance criteria:
 ### REC-013 — Matching updates Actual Usage + Actual Commission on revenue schedule rows
 > Action item: Add Actual Usage + Actual Commission to bottom grid; populate/update on Match【228:0†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L36-L59】
 
-- [ ] **REC-013** Add `Actual Usage` and `Actual Commission` columns to revenue schedule grid; update on Match  
-  - Status: NOT STARTED  
+- [x] **REC-013** Add `Actual Usage` and `Actual Commission` columns to revenue schedule grid; update on Match  
+  - Status: DONE  
+  - Notes:
+    - Revenue schedule grid includes Actual Usage/Commission (`app/(dashboard)/revenue-schedules/page.tsx`).
+    - Applying matches recomputes actuals and status (`app/api/reconciliation/deposits/[depositId]/line-items/[lineId]/apply-match/route.ts` + `lib/matching/revenue-schedule-status.ts`).
   - DoD:
     - Bottom grid includes expected usage net + actual usage + actual commission.
     - When Match occurs, actual usage/commission fill based on matched deposit line amount(s)【228:0†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L54-L59】.
@@ -162,6 +188,8 @@ Use these documents when deciding requirements and acceptance criteria:
 ### REC-014 — Split/merge allocations (many-to-many match table)
 - [ ] **REC-014** Implement `reconciliation_matches` to support partial allocations (split/merge)  
   - Status: NOT STARTED  
+  - Notes:
+    - DB has `DepositLineMatch` with `usageAmount`/`commissionAmount` (many-to-many capable), but the current UI/API workflow behaves like a single primary match per line and does not support true split/merge allocations.
   - DoD:
     - A deposit line item can allocate across multiple revenue schedules and vice versa【228:11†Data Notebook LM 1.1.docx†L9-L11】.
     - Each link stores `amount_matched` and (ASSUMED) matched_usage vs matched_commission if needed.
@@ -174,16 +202,19 @@ Use these documents when deciding requirements and acceptance criteria:
 ### REC-020 — Suggested matches auto-load (>=70% default) + confidence threshold control
 > “Suggested… show 70% or higher… adjust the confidence…”【228:5†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L7-L13】
 
-- [ ] **REC-020** Show suggested matches automatically when opening a line item, filtered to ≥70% by default  
-  - Status: NOT STARTED  
+- [x] **REC-020** Show suggested matches automatically when opening a line item, filtered to ≥70% by default  
+  - Status: DONE  
+  - Notes:
+    - Suggested matches auto-load on line selection via candidates API (`app/api/reconciliation/deposits/[depositId]/line-items/[lineId]/candidates/route.ts`).
+    - Threshold is configurable per-user via settings (default currently 75%) (`components/reconciliation-settings-form.tsx` + `lib/matching/user-confidence-settings.ts`).
   - DoD:
     - On line select, suggested matches appear without extra clicks.
     - Default filter shows only matches at/above threshold (initially 70%)【228:5†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L7-L10】.
     - User can adjust threshold to reveal lower-confidence candidates if a schedule is missing【228:5†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L8-L11】.
 
 ### REC-021 — “Perfect match” flow (bulk apply / rapid matching)
-- [ ] **REC-021** Support rapid matching of perfect/high-confidence matches (bulk apply)  
-  - Status: NOT STARTED  
+- [x] **REC-021** Support rapid matching of perfect/high-confidence matches (bulk apply)  
+  - Status: DONE  
   - Notes: Meeting implies an ideal “click AI, see perfect matches, then click them” workflow【228:2†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L45-L48】  
   - DoD:
     - AI action identifies exact/high-confidence matches for selected deposit or for all unmatched (define scope).
@@ -191,8 +222,9 @@ Use these documents when deciding requirements and acceptance criteria:
 
 ### REC-022 — Matching algorithm & confidence scoring
 - [ ] **REC-022** Implement matching logic consistent with Milestone 3 spec (levels + tolerance + name/date matching)  
-  - Status: NOT STARTED  
+  - Status: IN PROGRESS  
   - Notes:
+    - Matching engine + confidence scoring implemented (`lib/matching/deposit-matcher.ts`) with tenant variance tolerance and per-user confidence thresholds; still needs spec parity validation/tuning.
     - Use Milestone 3 specs PDF as baseline for matching rules (pages ~7). fileciteturn5file0  
     - Meeting mentions tolerance/variance and priority matching. Confirm exact thresholds with Rob【228:5†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L12-L14】  
   - DoD:
@@ -210,6 +242,8 @@ Use these documents when deciding requirements and acceptance criteria:
 
 - [ ] **REC-030** Variance detector on match (pre-reconcile)  
   - Status: NOT STARTED  
+  - Notes:
+    - Variance tolerance currently drives schedule status computation (Reconciled/Overpaid/Underpaid) in `lib/matching/revenue-schedule-status.ts`, but no UI prompt/decision tree exists yet.
   - DoD:
     - When a proposed match produces an overage beyond the configured variance limit, UI prompts the user.
     - Prompt occurs **before** final “Reconcile Matches” (i.e., during matching)【228:7†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L41-L46】.
@@ -262,16 +296,18 @@ Use these documents when deciding requirements and acceptance criteria:
 ### REC-040 — Reconcile Matches button: finalize + lock allocations
 > “When you click Reconcile Matches, it does all the work.”【228:7†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L44-L46】
 
-- [ ] **REC-040** Implement “Reconcile Matches” action that finalizes deposit reconciliation  
-  - Status: NOT STARTED  
+- [x] **REC-040** Implement “Reconcile Matches” action that finalizes deposit reconciliation  
+  - Status: DONE  
+  - Notes: Finalize/unfinalize implemented (`app/api/reconciliation/deposits/[depositId]/finalize/route.ts` + `app/api/reconciliation/deposits/[depositId]/unfinalize/route.ts`) and wired in `components/deposit-reconciliation-detail-view.tsx`.
   - DoD:
     - Requires deposit totals allocated (no unallocated) OR supports partial reconcile (confirm desired rule).
     - Updates deposit status and schedule statuses/rollups accordingly.
     - Produces audit trail (who reconciled, when).
 
 ### REC-041 — Matched/unmatched filters and post-reconcile validation view
-- [ ] **REC-041** Post-reconcile validation view and filters  
-  - Status: NOT STARTED  
+- [x] **REC-041** Post-reconcile validation view and filters  
+  - Status: DONE  
+  - Notes: Status filters + “Review reconciled items” modal exist in `components/deposit-reconciliation-detail-view.tsx`.
   - DoD:
     - Matched items move out of default unmatched view and can be reviewed in matched view【228:7†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L38-L41】.
     - Deposit header shows total / allocated / unallocated clearly.
@@ -281,8 +317,8 @@ Use these documents when deciding requirements and acceptance criteria:
 ## F. Permissions & auditability
 
 ### REC-050 — Role-based restrictions for reconciliation actions
-- [ ] **REC-050** Enforce permissions for deposit upload, matching, reconcile  
-  - Status: NOT STARTED  
+- [x] **REC-050** Enforce permissions for deposit upload, matching, reconcile  
+  - Status: DONE  
   - Notes: Milestone 3 spec defines role restrictions; validate against global RBAC approach. fileciteturn5file0  
   - DoD:
     - Accounting/Admin can upload and reconcile.
@@ -290,8 +326,10 @@ Use these documents when deciding requirements and acceptance criteria:
 
 ### REC-051 — Audit logging for reconciliation actions
 - [ ] **REC-051** Audit critical actions: upload deposit, edit template mapping, create match/unmatch, adjustments, reconcile finalization  
-  - Status: NOT STARTED  
-  - Notes: **ASSUMED** audit table exists; implement minimal audit if required by contract/security posture.
+  - Status: IN PROGRESS  
+  - Notes:
+    - Revenue schedule audit entries are written for apply-match/unmatch/finalize (`app/api/reconciliation/deposits/[depositId]/**` + `lib/audit`).
+    - Deposit upload/template edits do not yet have a complete audit trail equivalent to schedules.
 
 ---
 
@@ -320,7 +358,7 @@ Use these documents when deciding requirements and acceptance criteria:
 
 ### REC-071 — Reconciliation screen UX polish
 - [ ] **REC-071** Reconciliation screen UX consistency pass  
-  - Status: NOT STARTED  
+  - Status: IN PROGRESS  
   - DoD:
     - Match button placement and AI label done (REC-012).
     - Table headers aligned; no truncation of key monetary columns (ASSUMED).
@@ -331,7 +369,7 @@ Use these documents when deciding requirements and acceptance criteria:
 
 ### OPT-001 — Deposit Detail View drawer (CO-002-B)
 - [ ] **OPT-001** Implement Deposit Detail View on deposit row click (drawer/modal)  
-  - Status: NOT STARTED  
+  - Status: IN PROGRESS  
   - Notes: This appears in change order CO-002-B; confirm whether it is required for Checkpoint 3 acceptance【103:0†CO-002-Commissable-CRM-Change-Order-12-4-25.docx†L13-L31】.
 
 ---
@@ -350,15 +388,14 @@ Use these documents when deciding requirements and acceptance criteria:
 
 # Readiness checklist (what to demo for “Checkpoint 3 complete”)
 
-- [ ] Upload a real vendor deposit file using a configured template
-- [ ] Confirm mapped fields + line items look correct
-- [ ] Suggested matches appear with confidence (default ≥70%); slider adjusts results
-- [ ] Manual match works; Match button placement is correct
-- [ ] Matching updates Actual Usage + Actual Commission on revenue schedules
+- [x] Upload a real vendor deposit file using a configured template (CSV/Excel supported)
+- [x] Confirm mapped fields + line items look correct
+- [x] Suggested matches appear with confidence (default currently 75%); confidence slider is in Settings
+- [x] Manual match works (AI button text label still pending)
+- [x] Matching updates Actual Usage + Actual Commission on revenue schedules
 - [ ] Variance prompt appears when expected vs actual differs; run through 3 options
-- [ ] All allocations reconcile; “Reconcile Matches” finalizes deposit and updates statuses
-- [ ] Permissions enforced for upload/reconcile actions
+- [x] All allocations reconcile; “Reconcile Matches” finalizes deposit and updates statuses
+- [x] Permissions enforced for upload/reconcile actions
 - [ ] Basic performance sanity check on a “large enough” sample file (size to confirm)
 
 ---
-

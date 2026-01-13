@@ -1,5 +1,19 @@
 # FLEX Schedules for Revenue Schedules — Implementation Handoff Checklist
 
+## Progress Snapshot (repo review: 2026-01-13)
+
+**Implemented (in code/UI)**
+- Deposit reconciliation matching updates revenue schedule `actualUsage` / `actualCommission` and recomputes schedule status using a tenant-configurable variance tolerance.
+- Reconciliation UI already displays Expected vs Actual and balances/differences (usage + commission).
+- Revenue Schedule audit history tab exists, and reconciliation actions write audit logs.
+- Revenue Schedule clone, delete/archive, and bulk edit tools exist (useful building blocks for manual “flex-style” housekeeping).
+
+**Not yet implemented (FLEX-specific)**
+- “Adjustment vs Flex Product vs Manual” mismatch prompt/decision tree and the downstream record creation.
+- Flex Product creation for unknown product, overage outside tolerance, and negative “flex chargeback” automation.
+- Auto-create new future Revenue Schedules when Billing + schedules exhausted.
+- Bonus/SPF classification + “apply same rules” automation and reporting categorizations for flex chargebacks.
+
 **Source of truth used to compile this handoff:**
 - *Commissable_Transcript_MeetingSummary_Jan-06-26.pdf* (meeting summary + transcript excerpts)【107:1†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L44-L65】【107:10†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L20-L31】
 - *working notes 11.11.25.docx* (change-order style checklist items for Revenue Schedules)【107:7†working notes 11.11.25.docx†L41-L46】【107:6†working notes 11.11.25.docx†L1-L21】
@@ -45,14 +59,14 @@ This also appears as an explicit requested feature:
 > **Goal:** ensure “V1 AI reconciliation workflow (matching, adjustments, flex products)” is implementable and testable【111:7†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L24-L32】.
 
 ### 2.1 Matching updates Actuals (prerequisite for FLEX)
-- [ ] **When user matches deposit line(s) to revenue schedule(s)**, the revenue schedule row(s) must populate:
+- [x] **When user matches deposit line(s) to revenue schedule(s)**, the revenue schedule row(s) must populate:
   - actual usage, and
   - actual commission (derived from deposit line amounts / allocations).
 
   Context: an action item calls for “Add Actual Usage + Actual Commission to bottom grid; update on Match”【111:15†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L36-L37】, and discussion describes actual usage/commission filling in when Match is clicked【111:6†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L16-L21】.
 
 ### 2.2 Variance/tolerance detection (overage)
-- [ ] The system must compute **variance** between *Expected Usage Net* (schedule) and *Actual Usage* (from deposit allocations) after matching.
+- [x] The system must compute **variance** between *Expected Usage Net* (schedule) and *Actual Usage* (from deposit allocations) after matching.
 - [ ] The system must support a configurable **tolerance/variance threshold** (example discussed: “tolerance to 10%”)【111:0†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L22-L23】.
 - [ ] **Only overage matters**; underage “doesn’t matter” in this flow【111:3†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L49-L50】.
 
@@ -93,9 +107,9 @@ This also appears as an explicit requested feature:
 > **ASSUMED:** whether chargeback flex is fully automatic vs user-confirmed is not decided; the transcript notes “The system itself could easily do that… suggest that that money gets applied…”【111:14†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L39-L42】.
 
 ### 2.6 Underpayment behavior
-- [ ] If a schedule is underpaid:
-  - [ ] do **not** create a flex product,
-  - [ ] apply what was paid,
+- [x] If a schedule is underpaid:
+  - [x] do **not** create a flex product,
+  - [x] apply what was paid,
   - [ ] leave a remaining balance that shows next time payment comes in【111:14†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L47-L51】.
 
 ### 2.7 Bonus/SPF behavior

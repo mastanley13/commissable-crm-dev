@@ -19,6 +19,14 @@
 
 ---
 
+## Progress summary (as of 2026-01-13)
+
+- **DONE (implemented):** Deposit list + deposit detail reconciliation screen; CSV/Excel deposit import; template auto-seeding + mapping persistence; suggested matches + confidence filtering; manual match/unmatch; AI auto-match preview/apply; finalize/unfinalize; revenue schedule actuals updated; baseline RBAC.
+- **IN PROGRESS:** Template selection UX (currently inferred by distributor+vendor); mapping UI redesign (still wizard-based); AI button text label; matching algorithm parity/tuning; audit coverage completeness; reconciliation UX polish.
+- **NOT STARTED:** Split/merge allocations (true many-to-many); variance prompt + 3-option decision tree; “adjust future schedules” behavior; flex products; performance targets + idempotency hardening.
+
+---
+
 ## Scope definition for Checkpoint 3
 
 Checkpoint 3 centers on delivering an end-to-end **deposit ingestion + reconciliation workflow**:
@@ -67,8 +75,10 @@ Checkpoint 3 centers on delivering an end-to-end **deposit ingestion + reconcili
 
 ### REC-001 — Deposit Template selection: Distributor → Vendor → Template
 - [ ] **REC-001** Deposit upload flow requires selecting **Distributor + Vendor + Template** before upload  
-  - Status: NOT STARTED  
-  - Notes:  
+  - Status: IN PROGRESS  
+  - Notes:
+    - Distributor + Vendor are required before proceeding in the upload flow (`components/deposit-upload/create-template-step.tsx`).
+    - Template is currently inferred/seeded for a (Distributor, Vendor) pair (`app/api/reconciliation/templates/route.ts`) rather than explicitly selected in the UI.
   - Definition of Done:
     - UI forces selection of all three before file chooser is enabled.
     - Selected template drives mapping rules.
@@ -82,8 +92,10 @@ Checkpoint 3 centers on delivering an end-to-end **deposit ingestion + reconcili
 - Add Cancel + Undo
 
 - [ ] **REC-002** Replace “Step 1–4” mapping wizard with two-panel mapping editor  
-  - Status: NOT STARTED  
-  - Notes:  
+  - Status: IN PROGRESS  
+  - Notes:
+    - Current implementation is still a step-based wizard (`app/(dashboard)/reconciliation/deposit-upload-list/page.tsx`) with column mapping (`components/deposit-upload/map-fields-step.tsx`).
+    - Cancel/Undo as described in the meeting transcript is not yet implemented (Back navigation exists).
   - Definition of Done:
     - Panel B shows only **non-blank** source columns not yet mapped.
     - Users can add a mapping from Panel B into Panel A.
@@ -92,24 +104,29 @@ Checkpoint 3 centers on delivering an end-to-end **deposit ingestion + reconcili
 
 ### REC-003 — Template persistence & editing rules (incl. custom templates)
 - [ ] **REC-003** Persist template mappings and allow editing without breaking existing deposits  
-  - Status: NOT STARTED  
-  - Notes: **ASSUMED** details unless confirmed in codebase  
+  - Status: IN PROGRESS  
+  - Notes:
+    - Template config is persisted/updated during deposit import (`app/api/reconciliation/deposits/import/route.ts`) via `ReconciliationTemplate.config`.
+    - Dedicated template editing/versioning UX is not yet implemented; current behavior updates the template used for future uploads.
   - Definition of Done:
     - Template mapping saved per (Distributor, Vendor, TemplateName).
     - Versioning or “effective date” strategy decided so old deposits remain reproducible (**ASSUMED**—confirm).
 
 ### REC-004 — Upload file types + parse into normalized deposit + line items
 - [ ] **REC-004** Upload deposit file (CSV/Excel/PDF) and parse into `reconciliation_deposits` + `deposit_line_items`  
-  - Status: NOT STARTED  
-  - Notes: PDF parsing may require OCR; confirm required formats for checkpoint acceptance  
+  - Status: IN PROGRESS  
+  - Notes:
+    - CSV/Excel parsing is implemented (`lib/deposit-import/parse-file.ts`) and import creates `Deposit` + `DepositLineItem` rows (`app/api/reconciliation/deposits/import/route.ts`).
+    - PDF import is not implemented.
   - Definition of Done:
     - Create deposit record with metadata (distributor/vendor/template/upload date).
     - Parse file rows into normalized line items with mapped fields.
     - Row-level validation errors surfaced (bad amounts, missing required mapped fields).
 
 ### REC-005 — Upload summary + totals computed
-- [ ] **REC-005** Deposit summary panel showing totals (usage + commission) and allocation rollups  
-  - Status: NOT STARTED  
+- [x] **REC-005** Deposit summary panel showing totals (usage + commission) and allocation rollups  
+  - Status: DONE  
+  - Notes: Totals/allocated/unallocated are computed on import and surfaced in deposit detail (`app/api/reconciliation/deposits/[depositId]/detail/route.ts` + `components/deposit-reconciliation-detail-view.tsx`).
   - Definition of Done:
     - After upload, UI shows total usage & total commission for the deposit.
     - Shows allocated vs unallocated totals (usage + commission).
@@ -119,17 +136,19 @@ Checkpoint 3 centers on delivering an end-to-end **deposit ingestion + reconcili
 ## B. Reconciliation workspace (Deposit line items ↔ Revenue schedules)
 
 ### REC-010 — Reconciliation dashboard (deposit list + statuses)
-- [ ] **REC-010** Reconciliation Dashboard: deposit list + filter/sort/search  
-  - Status: NOT STARTED  
+- [x] **REC-010** Reconciliation Dashboard: deposit list + filter/sort/search  
+  - Status: DONE  
+  - Notes: Implemented in `app/(dashboard)/reconciliation/page.tsx` + `app/api/reconciliation/deposits/route.ts`.
   - Definition of Done:
     - View deposits with status (Uploaded / In Progress / Reconciled / etc. — confirm enums).
     - Filter by distributor/vendor/template/status/date range.
 
 ### REC-011 — Deposit detail “two-grid” reconciliation screen
-- [ ] **REC-011** Deposit detail reconciliation view with:
+- [x] **REC-011** Deposit detail reconciliation view with:
   - Top grid: deposit line items  
   - Bottom grid: revenue schedule rows  
-  - Status: NOT STARTED  
+  - Status: DONE  
+  - Notes: Implemented in `app/(dashboard)/reconciliation/[depositId]/page.tsx` + `components/deposit-reconciliation-detail-view.tsx`.
   - Definition of Done:
     - Selecting a deposit line item drives bottom grid context (available/suggested schedules).
     - Columns aligned so expected vs actual are easy to compare (especially usage & commission).
@@ -137,14 +156,18 @@ Checkpoint 3 centers on delivering an end-to-end **deposit ingestion + reconcili
 
 ### REC-012 — Match button placement + labeling (Jan 6, 2026 meeting)
 - [ ] **REC-012** Place “Match” button to the left of bottom search; label AI button with text (“Use AI”)  
-  - Status: NOT STARTED  
+  - Status: IN PROGRESS  
+  - Notes:
+    - Match action is implemented in the bottom grid header (`components/deposit-reconciliation-detail-view.tsx`).
+    - AI action is currently icon-only (Sparkles) with aria-label/title; needs visible text label to match requirement.
   - Definition of Done:
     - “Match” button is left of search on bottom grid.
     - AI action uses text label (not only icon).
 
 ### REC-013 — Matching updates Actual Usage + Actual Commission on revenue schedule rows
-- [ ] **REC-013** Add `Actual Usage` and `Actual Commission` columns to revenue schedule grid; update on Match  
-  - Status: NOT STARTED  
+- [x] **REC-013** Add `Actual Usage` and `Actual Commission` columns to revenue schedule grid; update on Match  
+  - Status: DONE  
+  - Notes: Revenue schedule grid includes Actual Usage/Commission and is recomputed on match (`lib/matching/revenue-schedule-status.ts`).
   - Definition of Done:
     - Bottom grid includes expected usage net + actual usage + actual commission.
     - When Match occurs, actual usage/commission fill based on matched deposit line amount(s).
@@ -153,6 +176,8 @@ Checkpoint 3 centers on delivering an end-to-end **deposit ingestion + reconcili
 ### REC-014 — Split/merge allocations (many-to-many match table)
 - [ ] **REC-014** Implement `reconciliation_matches` to support partial allocations (split/merge)  
   - Status: NOT STARTED  
+  - Notes:
+    - DB has `DepositLineMatch` with `usageAmount`/`commissionAmount` (many-to-many capable), but the current UI/API workflow behaves like a single primary match per line and does not support true split/merge allocations.
   - Definition of Done:
     - A deposit line item can allocate across multiple revenue schedules and vice versa.
     - Each link stores `amount_matched` (and other needed detail).
@@ -168,24 +193,26 @@ Checkpoint 3 centers on delivering an end-to-end **deposit ingestion + reconcili
 - Default display threshold: **70% or higher**
 - User can adjust confidence threshold to see lower-confidence candidates if needed
 
-- [ ] **REC-020** Implement suggested matches + confidence threshold control  
-  - Status: NOT STARTED  
+- [x] **REC-020** Implement suggested matches + confidence threshold control  
+  - Status: DONE  
+  - Notes: Suggested matches auto-load; confidence threshold is configurable per-user via Settings (default currently 75%).
   - Definition of Done:
     - Suggested matches appear automatically on line select.
     - Default threshold = 70%.
     - Slider/control adjusts results live.
 
 ### REC-021 — “Perfect match” flow (bulk apply / rapid matching)
-- [ ] **REC-021** Support rapid matching of perfect/high-confidence matches (bulk apply)  
-  - Status: NOT STARTED  
+- [x] **REC-021** Support rapid matching of perfect/high-confidence matches (bulk apply)  
+  - Status: DONE  
+  - Notes: Implemented as AI auto-match preview + apply flow (`app/(dashboard)/reconciliation/[depositId]/ai-matching/page.tsx`).
   - Definition of Done:
     - AI action identifies exact/high-confidence matches for selected deposit or all unmatched (define scope).
     - User can apply matches efficiently (bulk or one-click per line).
 
 ### REC-022 — Matching algorithm & confidence scoring (baseline from Milestone 3 spec)
 - [ ] **REC-022** Implement matching logic consistent with Milestone 3 spec (levels + tolerance + name/date matching)  
-  - Status: NOT STARTED  
-  - Notes: Start rules-based first unless directed otherwise (**ASSUMED**)  
+  - Status: IN PROGRESS  
+  - Notes: Matching engine + confidence scoring implemented (`lib/matching/deposit-matcher.ts`); still needs spec parity validation/tuning.
   - Definition of Done:
     - Confidence score produced per candidate match.
     - Matching prioritizes likely candidates (“priority matching” mentioned in meeting).
@@ -197,6 +224,7 @@ Checkpoint 3 centers on delivering an end-to-end **deposit ingestion + reconcili
 ### REC-030 — Detect overages vs expected usage net and prompt for decision
 - [ ] **REC-030** Variance detector on match (pre-reconcile)  
   - Status: NOT STARTED  
+  - Notes: Variance tolerance currently drives schedule status computation (Reconciled/Overpaid/Underpaid), but no UI prompt/decision tree exists yet.
   - Definition of Done:
     - When proposed match creates an overage beyond configured variance, system prompts user.
     - Prompt occurs during matching (before final reconcile).
@@ -238,16 +266,18 @@ Checkpoint 3 centers on delivering an end-to-end **deposit ingestion + reconcili
 ## E. Final reconcile step (batch finalize)
 
 ### REC-040 — Reconcile Matches button: finalize + lock allocations
-- [ ] **REC-040** Implement “Reconcile Matches” action  
-  - Status: NOT STARTED  
+- [x] **REC-040** Implement “Reconcile Matches” action  
+  - Status: DONE  
+  - Notes: Finalize/unfinalize implemented (`app/api/reconciliation/deposits/[depositId]/finalize/route.ts` + `app/api/reconciliation/deposits/[depositId]/unfinalize/route.ts`).
   - Definition of Done:
     - Requires deposit totals allocated (no unallocated) OR supports partial reconcile (confirm rule).
     - Updates deposit status and schedule rollups/statuses.
     - Records who reconciled and when.
 
 ### REC-041 — Matched/unmatched filters and post-reconcile validation view
-- [ ] **REC-041** Post-reconcile validation view and filters  
-  - Status: NOT STARTED  
+- [x] **REC-041** Post-reconcile validation view and filters  
+  - Status: DONE  
+  - Notes: Status filters + “Review reconciled items” modal exist in `components/deposit-reconciliation-detail-view.tsx`.
   - Definition of Done:
     - Matched items move out of default unmatched view and remain reviewable.
     - Deposit header shows total / allocated / unallocated clearly.
@@ -257,16 +287,18 @@ Checkpoint 3 centers on delivering an end-to-end **deposit ingestion + reconcili
 ## F. Permissions & auditability
 
 ### REC-050 — Role-based restrictions for reconciliation actions
-- [ ] **REC-050** Enforce permissions for deposit upload, matching, reconcile  
-  - Status: NOT STARTED  
+- [x] **REC-050** Enforce permissions for deposit upload, matching, reconcile  
+  - Status: DONE  
   - Definition of Done:
     - Accounting/Admin can upload and reconcile.
     - Sales roles have restricted access per spec.
 
 ### REC-051 — Audit logging for reconciliation actions
 - [ ] **REC-051** Audit critical actions: upload deposit, edit template mapping, match/unmatch, adjustments, reconcile finalization  
-  - Status: NOT STARTED  
-  - Notes: **ASSUMED** audit table exists; implement minimal audit if required.
+  - Status: IN PROGRESS  
+  - Notes:
+    - Revenue schedule audit entries are written for apply-match/unmatch/finalize (`app/api/reconciliation/deposits/[depositId]/**` + `lib/audit`).
+    - Deposit upload/template edits do not yet have a complete audit trail equivalent to schedules.
 
 ---
 
@@ -295,7 +327,7 @@ Checkpoint 3 centers on delivering an end-to-end **deposit ingestion + reconcili
 
 ### REC-071 — Reconciliation screen UX consistency pass
 - [ ] **REC-071** Reconciliation screen UX consistency pass  
-  - Status: NOT STARTED  
+  - Status: IN PROGRESS  
   - Definition of Done:
     - Key monetary columns are visible and aligned.
     - Match/AI actions are obvious and consistent.
@@ -306,7 +338,7 @@ Checkpoint 3 centers on delivering an end-to-end **deposit ingestion + reconcili
 
 ### OPT-001 — Deposit Detail View drawer (CO-002-B)
 - [ ] **OPT-001** Implement Deposit Detail View on deposit row click (drawer/modal)  
-  - Status: NOT STARTED  
+  - Status: IN PROGRESS  
   - Notes: Confirm if required for Checkpoint 3 acceptance.
 
 ---
@@ -323,14 +355,14 @@ Checkpoint 3 centers on delivering an end-to-end **deposit ingestion + reconcili
 
 # Readiness checklist (what to demo for “Checkpoint 3 complete”)
 
-- [ ] Upload a real vendor deposit file using a configured template
-- [ ] Confirm mapped fields + line items look correct
-- [ ] Suggested matches appear with confidence (default ≥70%); slider adjusts results
-- [ ] Manual match works; Match button placement is correct
-- [ ] Matching updates Actual Usage + Actual Commission on revenue schedules
+- [x] Upload a real vendor deposit file using a configured template (CSV/Excel supported)
+- [x] Confirm mapped fields + line items look correct
+- [x] Suggested matches appear with confidence (default currently 75%); confidence slider is in Settings
+- [x] Manual match works (AI button text label still pending)
+- [x] Matching updates Actual Usage + Actual Commission on revenue schedules
 - [ ] Variance prompt appears; run through 3 options
-- [ ] All allocations reconcile; “Reconcile Matches” finalizes deposit and updates statuses
-- [ ] Permissions enforced for upload/reconcile actions
+- [x] All allocations reconcile; “Reconcile Matches” finalizes deposit and updates statuses
+- [x] Permissions enforced for upload/reconcile actions
 - [ ] Basic performance sanity check on a realistic sample file
 
 ---
