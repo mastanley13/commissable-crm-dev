@@ -160,8 +160,8 @@ export async function matchDepositLine(
     reconciled: Boolean(match.reconciled),
     source: typeof match.source === "string" ? match.source : null,
     confidenceScore: typeof match.confidenceScore === "number" ? match.confidenceScore : null,
-    usageAmount: Number.isFinite(Number((match as any).usageAmount)) ? Number((match as any).usageAmount) : null,
-    commissionAmount: Number.isFinite(Number((match as any).commissionAmount)) ? Number((match as any).commissionAmount) : null,
+    usageAmount: Number.isFinite(Number(match.usageAmount)) ? Number(match.usageAmount) : null,
+    commissionAmount: Number.isFinite(Number(match.commissionAmount)) ? Number(match.commissionAmount) : null,
   }))
   const appliedMatchScheduleId = appliedMatches[0]?.revenueScheduleId
   const appliedMatchReconciled = Boolean(appliedMatches[0]?.reconciled)
@@ -558,8 +558,8 @@ export function candidatesToSuggestedRows(
       matchConfidence: candidate.matchConfidence,
       matchType: candidate.matchType,
       matchSource: existingMatch?.source ?? null,
-      allocatedUsage: existingMatch ? toNumber((existingMatch as any).usageAmount) : undefined,
-      allocatedCommission: existingMatch ? toNumber((existingMatch as any).commissionAmount) : undefined,
+      allocatedUsage: existingMatch ? toNumber(existingMatch.usageAmount) : undefined,
+      allocatedCommission: existingMatch ? toNumber(existingMatch.commissionAmount) : undefined,
       reasons: candidate.reasons,
       confidenceLevel: candidate.confidenceLevel,
       vendorName: candidate.vendorName ?? "",

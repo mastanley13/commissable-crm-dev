@@ -9,10 +9,16 @@ import {
   type FlexResolveAction,
 } from "@/lib/flex/revenue-schedule-flex-actions"
 import { recomputeRevenueScheduleFromMatches } from "@/lib/matching/revenue-schedule-status"
+import {
+  applyExpectedDeltasToFutureSchedules,
+  findFutureSchedulesInScope,
+  resolveScheduleScopeKey,
+} from "@/lib/reconciliation/future-schedules"
 
 interface ResolveFlexRequestBody {
   revenueScheduleId: string
   action: FlexResolveAction
+  applyToFuture?: boolean
 }
 
 export async function POST(
@@ -38,6 +44,7 @@ export async function POST(
     }
 
     const revenueScheduleId = body.revenueScheduleId.trim()
+    const applyToFuture = Boolean(body.applyToFuture)
 
     const lineItem = await prisma.depositLineItem.findFirst({
       where: { id: lineId, depositId, tenantId },
@@ -52,7 +59,25 @@ export async function POST(
 
     const schedule = await prisma.revenueSchedule.findFirst({
       where: { id: revenueScheduleId, tenantId },
-      select: { id: true },
+      select: {
+        id: true,
+        accountId: true,
+        scheduleDate: true,
+        opportunityProductId: true,
+        productId: true,
+        vendorAccountId: true,
+        distributorAccountId: true,
+        vendor: { select: { accountName: true } },
+        distributor: { select: { accountName: true } },
+        product: {
+          select: {
+            productCode: true,
+            partNumberVendor: true,
+            partNumberDistributor: true,
+            partNumberHouse: true,
+          },
+        },
+      },
     })
     if (!schedule) {
       return createErrorResponse("Revenue schedule not found", 404)
@@ -112,10 +137,36 @@ export async function POST(
         varianceTolerance,
       })
 
-      return { flexExecution, baseSchedule: updatedBase }
+      let futureUpdate = { updatedScheduleIds: [] as string[] }
+      if (applyToFuture && action === "Adjust") {
+        if (!schedule.scheduleDate) {
+          throw new Error("Revenue schedule date is required to apply future adjustments")
+        }
+        const scope = resolveScheduleScopeKey(schedule)
+        const futureSchedules = await findFutureSchedulesInScope(tx, {
+          tenantId,
+          baseScheduleId: schedule.id,
+          baseScheduleDate: schedule.scheduleDate,
+          scope,
+          excludeAllocated: true,
+        })
+
+        futureUpdate = await applyExpectedDeltasToFutureSchedules(tx, {
+          tenantId,
+          userId: req.user.id,
+          request,
+          schedules: futureSchedules,
+          usageDelta: usageOverage,
+          commissionDelta: commissionOverage,
+          sourceScheduleId: schedule.id,
+          depositId,
+          depositLineItemId: lineId,
+        })
+      }
+
+      return { flexExecution, baseSchedule: updatedBase, futureUpdate }
     })
 
     return NextResponse.json({ data: result })
   })
 }
-

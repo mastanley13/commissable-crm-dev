@@ -638,6 +638,9 @@ model Product {
   productNameDistributor        String?
   productSubtypeVendor          String?
   partNumberHouse               String?
+  isFlex                        Boolean              @default(false)
+  flexAccountId                 String?              @db.Uuid
+  flexType                      String?
   opportunityProducts           OpportunityProduct[]
   createdBy                     User?                @relation("ProductCreatedBy", fields: [createdById], references: [id])
   distributor                   Account?             @relation("ProductDistributor", fields: [distributorAccountId], references: [id])

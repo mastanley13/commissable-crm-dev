@@ -65,6 +65,41 @@ type FlexPromptState = {
   decision: FlexDecisionPayload
 }
 
+type AiAdjustmentPreviewPayload = {
+  suggestion: {
+    type: "allocate" | "adjust"
+    reason: string
+    priorOpenScheduleIds: string[]
+  }
+  base: {
+    scheduleId: string
+    scheduleDate: string
+    expectedUsageNet: number
+    actualUsageNet: number
+    usageOverage: number
+    expectedCommissionNet: number
+    actualCommissionNet: number
+    commissionOverage: number
+  }
+  scope: {
+    kind: string
+  }
+  future: {
+    count: number
+    schedules: Array<{ id: string; scheduleNumber: string | null; scheduleDate: string | null }>
+  }
+}
+
+type AiAdjustmentModalState = {
+  lineId: string
+  scheduleId: string
+  applyToFuture: boolean
+  loading: boolean
+  applying: boolean
+  error: string | null
+  preview: AiAdjustmentPreviewPayload | null
+}
+
 type AllocationDraft = {
   usage: string
   commission: string
@@ -82,6 +117,7 @@ const depositFieldLabels = {
   accountName: "Account Name",
   vendorName: "Vendor Name",
   productName: "Other - Product Name",
+  partNumber: "Other - Part Number",
   usage: "Actual Usage",
   usageAllocated: "Usage Allocated",
   usageUnallocated: "Usage Unallocated",
@@ -105,6 +141,7 @@ const depositFieldOrder: LineFilterColumnId[] = [
   "accountName",
   "vendorName",
   "productName",
+  "partNumber",
   "usage",
   "usageAllocated",
   "usageUnallocated",
@@ -375,6 +412,7 @@ export function DepositReconciliationDetailView({
   const [showDeleteDepositDialog, setShowDeleteDepositDialog] = useState(false)
   const [flexPrompt, setFlexPrompt] = useState<FlexPromptState | null>(null)
   const [flexResolving, setFlexResolving] = useState(false)
+  const [aiAdjustmentModal, setAiAdjustmentModal] = useState<AiAdjustmentModalState | null>(null)
   const [allocationDraft, setAllocationDraft] = useState<AllocationDraft>({ usage: "", commission: "" })
   const {
     refCallback: lineTableAreaRefCallback,
@@ -569,7 +607,16 @@ export function DepositReconciliationDetailView({
       usage: String(Number.isFinite(usageDefault) ? usageDefault : 0),
       commission: String(Number.isFinite(commissionDefault) ? commissionDefault : 0),
     })
-  }, [selectedLineForMatch?.id, selectedScheduleForMatch?.id])
+  }, [
+    selectedLineForMatch,
+    selectedLineForMatch?.usage,
+    selectedLineForMatch?.commission,
+    selectedLineForMatch?.usageUnallocated,
+    selectedLineForMatch?.commissionUnallocated,
+    selectedScheduleForMatch?.id,
+    selectedScheduleForMatch?.allocatedUsage,
+    selectedScheduleForMatch?.allocatedCommission,
+  ])
 
   const matchButtonDisabledReason = useMemo(() => {
     if (matchingLineId || undoingLineId) return "Update in progress"
@@ -993,6 +1040,8 @@ export function DepositReconciliationDetailView({
           return row.vendorName
         case "productName":
           return row.productName
+        case "partNumber":
+          return row.partNumber
         case "usage":
           return currencyFormatter.format(row.usage)
         case "usageAllocated":
@@ -1177,6 +1226,7 @@ export function DepositReconciliationDetailView({
             item.accountId,
             item.vendorName,
             item.productName,
+            item.partNumber,
             item.customerIdVendor,
             item.orderIdVendor,
             item.distributorName
@@ -1433,6 +1483,13 @@ export function DepositReconciliationDetailView({
             </Link>
           )
         }
+      },
+      {
+        id: "partNumber",
+        label: depositFieldLabels.partNumber,
+        width: 200,
+        minWidth: minTextWidth(depositFieldLabels.partNumber),
+        sortable: true,
       },
       {
         id: "usage",
@@ -2018,6 +2075,104 @@ export function DepositReconciliationDetailView({
     [flexPrompt, metadata.id, onMatchApplied, showError, showSuccess],
   )
 
+  const handleOpenAiAdjustment = useCallback(async () => {
+    if (!flexPrompt) return
+    const lineId = flexPrompt.lineId
+    const scheduleId = flexPrompt.scheduleId
+
+    setAiAdjustmentModal({
+      lineId,
+      scheduleId,
+      applyToFuture: false,
+      loading: true,
+      applying: false,
+      error: null,
+      preview: null,
+    })
+
+    try {
+      const response = await fetch(
+        `/api/reconciliation/deposits/${encodeURIComponent(metadata.id)}/line-items/${encodeURIComponent(lineId)}/ai-adjustment/preview`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ revenueScheduleId: scheduleId }),
+        },
+      )
+      const payload = await response.json().catch(() => null)
+      if (!response.ok) {
+        throw new Error(payload?.error || "Failed to load AI adjustment preview")
+      }
+      const preview = payload?.data as AiAdjustmentPreviewPayload | undefined
+      setAiAdjustmentModal(previous =>
+        previous
+          ? {
+              ...previous,
+              loading: false,
+              preview: preview ?? null,
+              error: null,
+            }
+          : null,
+      )
+    } catch (err) {
+      console.error("Failed to load AI adjustment preview", err)
+      setAiAdjustmentModal(previous =>
+        previous
+          ? {
+              ...previous,
+              loading: false,
+              error: err instanceof Error ? err.message : "Failed to load AI adjustment preview",
+            }
+          : null,
+      )
+    }
+  }, [flexPrompt, metadata.id])
+
+  const handleApplyAiAdjustment = useCallback(async () => {
+    if (!aiAdjustmentModal) return
+    const { lineId, scheduleId, applyToFuture } = aiAdjustmentModal
+    try {
+      setAiAdjustmentModal(previous => (previous ? { ...previous, applying: true } : null))
+      const response = await fetch(
+        `/api/reconciliation/deposits/${encodeURIComponent(metadata.id)}/line-items/${encodeURIComponent(lineId)}/ai-adjustment/apply`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ revenueScheduleId: scheduleId, applyToFuture }),
+        },
+      )
+      const payload = await response.json().catch(() => null)
+      if (!response.ok) {
+        throw new Error(payload?.error || "Failed to apply AI adjustment")
+      }
+
+      const updatedCount = Number(payload?.data?.futureUpdate?.updatedScheduleIds?.length ?? 0)
+      setAiAdjustmentModal(null)
+      setFlexPrompt(null)
+      onMatchApplied?.()
+      showSuccess(
+        "AI adjustment applied",
+        applyToFuture && updatedCount > 0
+          ? `Applied adjustment and updated ${updatedCount} future schedules.`
+          : "Applied adjustment for this period.",
+      )
+    } catch (err) {
+      console.error("Failed to apply AI adjustment", err)
+      setAiAdjustmentModal(previous =>
+        previous
+          ? {
+              ...previous,
+              applying: false,
+              error: err instanceof Error ? err.message : "Failed to apply AI adjustment",
+            }
+          : null,
+      )
+      showError("Unable to apply AI adjustment", err instanceof Error ? err.message : "Unknown error")
+    } finally {
+      setAiAdjustmentModal(previous => (previous ? { ...previous, applying: false } : null))
+    }
+  }, [aiAdjustmentModal, metadata.id, onMatchApplied, showError, showSuccess])
+
   const handleBulkLineExport = useCallback(() => {
     if (selectedLineItems.length === 0) {
       showError("No line items selected", "Select at least one line item to export.")
@@ -2047,6 +2202,8 @@ export function DepositReconciliationDetailView({
           return row.vendorName
         case "productName":
           return row.productName
+        case "partNumber":
+          return row.partNumber
         case "usage":
           return row.usage
         case "usageAllocated":
@@ -2306,7 +2463,130 @@ export function DepositReconciliationDetailView({
 
   return (
     <div className="flex min-h-[calc(100vh-110px)] flex-col gap-3 px-4 pb-4 pt-3 sm:px-6">
-      {flexPrompt ? (
+      {aiAdjustmentModal ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/40 px-4"
+          onClick={() => (aiAdjustmentModal.applying ? null : setAiAdjustmentModal(null))}
+        >
+          <div
+            className="w-full max-w-xl rounded-xl bg-white shadow-xl"
+            onClick={e => e.stopPropagation()}
+          >
+            <ModalHeader kicker="AI Adjustment" title="Preview adjustment" />
+            <div className="space-y-3 p-6 text-sm text-slate-700">
+              {aiAdjustmentModal.loading ? (
+                <p className="text-sm text-slate-600">Loading preview...</p>
+              ) : aiAdjustmentModal.error ? (
+                <p className="text-sm text-red-600">{aiAdjustmentModal.error}</p>
+              ) : aiAdjustmentModal.preview ? (
+                <>
+                  <p>{aiAdjustmentModal.preview.suggestion.reason}</p>
+                  {aiAdjustmentModal.preview.suggestion.type === "allocate" ? (
+                    <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                      <p className="font-semibold">Suggested next step</p>
+                      <p className="mt-1">
+                        Allocate this payment across the open schedules below instead of adjusting expected.
+                      </p>
+                      {aiAdjustmentModal.preview.suggestion.priorOpenScheduleIds.length ? (
+                        <details className="mt-2">
+                          <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wide text-amber-800">
+                            View open schedules ({aiAdjustmentModal.preview.suggestion.priorOpenScheduleIds.length})
+                          </summary>
+                          <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-amber-900">
+                            {aiAdjustmentModal.preview.suggestion.priorOpenScheduleIds.map(id => (
+                              <li key={id} className="break-all">
+                                {id}
+                              </li>
+                            ))}
+                          </ul>
+                        </details>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <p>
+                        This will adjust expected net from{" "}
+                        <span className="font-semibold">
+                          ${aiAdjustmentModal.preview.base.expectedUsageNet.toFixed(2)}
+                        </span>{" "}
+                        to{" "}
+                        <span className="font-semibold">
+                          ${(aiAdjustmentModal.preview.base.expectedUsageNet + aiAdjustmentModal.preview.base.usageOverage).toFixed(2)}
+                        </span>{" "}
+                        for this period.
+                      </p>
+                      <p>
+                        Commission expected net from{" "}
+                        <span className="font-semibold">
+                          ${aiAdjustmentModal.preview.base.expectedCommissionNet.toFixed(2)}
+                        </span>{" "}
+                        to{" "}
+                        <span className="font-semibold">
+                          ${(aiAdjustmentModal.preview.base.expectedCommissionNet + aiAdjustmentModal.preview.base.commissionOverage).toFixed(2)}
+                        </span>
+                        .
+                      </p>
+                      <label className="flex cursor-pointer items-center gap-2 pt-1 text-sm font-medium text-slate-700">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 rounded border-slate-400 text-primary-600 accent-primary-600"
+                          checked={aiAdjustmentModal.applyToFuture}
+                          onChange={event =>
+                            setAiAdjustmentModal(previous =>
+                              previous ? { ...previous, applyToFuture: event.target.checked } : null,
+                            )
+                          }
+                          disabled={aiAdjustmentModal.applying}
+                        />
+                        <span>
+                          Apply to future schedules ({aiAdjustmentModal.preview.future.count})
+                        </span>
+                      </label>
+                      {aiAdjustmentModal.applyToFuture && aiAdjustmentModal.preview.future.count > 0 ? (
+                        <details className="rounded-md border border-slate-200 bg-slate-50 p-3">
+                          <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wide text-slate-700">
+                            View impacted schedules
+                          </summary>
+                          <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-slate-700">
+                            {aiAdjustmentModal.preview.future.schedules.map(schedule => (
+                              <li key={schedule.id} className="break-all">
+                                {schedule.scheduleNumber ?? schedule.id}{" "}
+                                {schedule.scheduleDate ? `(${schedule.scheduleDate.slice(0, 10)})` : ""}
+                              </li>
+                            ))}
+                          </ul>
+                        </details>
+                      ) : null}
+                    </div>
+                  )}
+                </>
+              ) : null}
+
+              <div className="flex flex-wrap items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  className="rounded border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                  onClick={() => setAiAdjustmentModal(null)}
+                  disabled={aiAdjustmentModal.applying}
+                >
+                  Back
+                </button>
+                {aiAdjustmentModal.preview?.suggestion.type === "adjust" ? (
+                  <button
+                    type="button"
+                    className="rounded bg-primary-600 px-3 py-2 text-sm font-semibold text-white hover:bg-primary-700"
+                    onClick={() => void handleApplyAiAdjustment()}
+                    disabled={aiAdjustmentModal.applying || aiAdjustmentModal.loading}
+                  >
+                    {aiAdjustmentModal.applying ? "Working..." : "Apply Adjustment"}
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {flexPrompt && !aiAdjustmentModal ? (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/40 px-4"
           onClick={() => (flexResolving ? null : setFlexPrompt(null))}
@@ -2335,19 +2615,19 @@ export function DepositReconciliationDetailView({
                 </button>
                 <button
                   type="button"
-                  className="rounded border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-                  onClick={() => void handleResolveFlex("Manual")}
+                  className="rounded border border-primary-200 bg-primary-50 px-3 py-2 text-sm font-semibold text-primary-800 hover:bg-primary-100"
+                  onClick={() => void handleOpenAiAdjustment()}
                   disabled={flexResolving}
                 >
-                  Manual
+                  AI Adjustment
                 </button>
                 <button
                   type="button"
-                  className="rounded border border-primary-200 bg-primary-50 px-3 py-2 text-sm font-semibold text-primary-800 hover:bg-primary-100"
+                  className="rounded border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
                   onClick={() => void handleResolveFlex("Adjust")}
                   disabled={flexResolving}
                 >
-                  {flexResolving ? "Working..." : "Adjust"}
+                  {flexResolving ? "Working..." : "Manual Adjustment"}
                 </button>
                 <button
                   type="button"

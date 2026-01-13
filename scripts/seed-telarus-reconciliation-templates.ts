@@ -55,6 +55,8 @@ const COMMISSABLE_LABEL_TO_DEPOSIT_FIELD_ID: Partial<Record<string, DepositField
   "Other - Order ID": "orderIdVendor",
   "Vendor - Product Name": "productNameRaw",
   "Other - Product Name": "productNameRaw",
+  "Vendor - Part Number": "partNumberRaw",
+  "Other - Part Number": "partNumberRaw",
   "Vendor - Location  ID": "locationId",
 
   // Dates that should behave like payment dates at the line level.

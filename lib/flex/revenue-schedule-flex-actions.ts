@@ -52,6 +52,8 @@ async function createFlexProduct(
   {
     tenantId,
     userId,
+    accountId,
+    flexType,
     vendorAccountId,
     distributorAccountId,
     productNameVendor,
@@ -60,6 +62,8 @@ async function createFlexProduct(
   }: {
     tenantId: string
     userId: string
+    accountId: string
+    flexType: string
     vendorAccountId: string | null
     distributorAccountId: string | null
     productNameVendor: string | null
@@ -67,6 +71,21 @@ async function createFlexProduct(
     revenueType: string
   },
 ) {
+  const reusable = await tx.product.findFirst({
+    where: {
+      tenantId,
+      isFlex: true,
+      flexAccountId: accountId,
+      flexType,
+      isActive: true,
+    },
+    select: { id: true },
+  })
+
+  if (reusable) {
+    return reusable
+  }
+
   const code = `FLEX-${randomUUID().slice(0, 8).toUpperCase()}`
 
   return tx.product.create({
@@ -75,14 +94,17 @@ async function createFlexProduct(
       productCode: code,
       productNameHouse,
       productNameVendor,
-      revenueType: resolveRevenueType(revenueType) as any,
+      revenueType: resolveRevenueType(revenueType),
       isActive: true,
+      isFlex: true,
+      flexAccountId: accountId,
+      flexType,
       vendorAccountId,
       distributorAccountId,
       productFamilyHouse: "Flex",
       createdById: userId,
       updatedById: userId,
-    } as any,
+    },
     select: { id: true },
   })
 }
@@ -450,6 +472,8 @@ export async function executeFlexProductSplit(
   const product = await createFlexProduct(tx, {
     tenantId,
     userId,
+    accountId: baseSchedule.accountId,
+    flexType: "FlexProduct",
     vendorAccountId: baseSchedule.vendorAccountId ?? null,
     distributorAccountId: baseSchedule.distributorAccountId ?? null,
     productNameVendor,
@@ -536,6 +560,8 @@ export async function createFlexProductForUnknownLine(
   const product = await createFlexProduct(tx, {
     tenantId,
     userId,
+    accountId: line.deposit.accountId,
+    flexType: "FlexProduct",
     vendorAccountId: line.vendorAccountId ?? line.deposit.vendorAccountId ?? null,
     distributorAccountId: line.deposit.distributorAccountId ?? null,
     productNameVendor,
@@ -655,6 +681,8 @@ export async function createFlexChargebackForNegativeLine(
   const product = await createFlexProduct(tx, {
     tenantId,
     userId,
+    accountId: line.deposit.accountId,
+    flexType: "FlexChargeback",
     vendorAccountId: line.vendorAccountId ?? line.deposit.vendorAccountId ?? null,
     distributorAccountId: line.deposit.distributorAccountId ?? null,
     productNameVendor: "Chargeback",

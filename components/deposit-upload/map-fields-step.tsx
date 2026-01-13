@@ -15,7 +15,8 @@ import type { TelarusTemplateFieldsV1 } from "@/lib/deposit-import/telarus-templ
 
 const PREVIEW_PAGE_SIZE = 1
 const COLUMN_TABLE_PAGE_SIZE = 12
-const COLUMN_TABLE_MAX_HEIGHT_CLASS = "max-h-[420px] overflow-y-auto"
+// Fixed scroll area height for both column tables (reduced from the previous 420px).
+const COLUMN_TABLE_MAX_HEIGHT_CLASS = "h-[336px] overflow-y-auto"
 
 interface MapFieldsStepProps {
   file: File | null
@@ -292,16 +293,16 @@ export function MapFieldsStep({
               return (
                 <div
                   key={`${header}-${index}`}
-                  className="grid gap-2 px-3 py-2 md:grid-cols-[minmax(0,1.3fr)_minmax(0,1.5fr)_120px_minmax(0,1.7fr)] md:items-start"
+                  className="grid gap-2 px-3 py-2 md:grid-cols-[minmax(0,1.3fr)_minmax(0,1.5fr)_120px_minmax(0,1.7fr)] md:items-center"
                 >
-                  <div className="space-y-0.5">
+                  <div className="flex flex-col justify-center gap-0.5">
                     <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 md:hidden">
                       Field label in file
                     </p>
                     <p className="text-sm font-semibold text-gray-900 break-words">{columnName}</p>
                   </div>
 
-                  <div className="space-y-0.5 text-xs text-gray-600">
+                  <div className="flex flex-col justify-center gap-0.5 text-xs text-gray-600">
                     <p className="font-semibold uppercase tracking-wide text-gray-500 md:hidden">
                       Preview information
                     </p>
@@ -320,7 +321,7 @@ export function MapFieldsStep({
                     )}
                   </div>
 
-                  <div className="space-y-0.5">
+                  <div className="flex flex-col justify-center gap-0.5">
                     <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 md:hidden">
                       Status
                     </p>
@@ -331,7 +332,7 @@ export function MapFieldsStep({
                     </span>
                   </div>
 
-                  <div className="space-y-2">
+                  <div className="flex flex-col justify-center gap-2">
                     <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 md:hidden">
                       Map to Commissable field
                     </p>

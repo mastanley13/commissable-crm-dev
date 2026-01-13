@@ -78,36 +78,33 @@ This also appears as an explicit requested feature:
 > - Above tolerance → show modal (Adjust / Manual / Flex Product).
 > - Underpayment → no prompt; carry remaining balance forward.
 - [x] The system must compute **variance** between *Expected Usage Net* (schedule) and *Actual Usage* (from deposit allocations) after matching.
-- [ ] The system must support a configurable **tolerance/variance threshold** (example discussed: “tolerance to 10%”)【111:0†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L22-L23】.
-- [ ] **Only overage matters**; underage “doesn’t matter” in this flow【111:3†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L49-L50】.
+- [x] The system must support a configurable **tolerance/variance threshold** (example discussed: “tolerance to 10%”)【111:0†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L22-L23】.
+- [x] **Only overage matters**; underage “doesn’t matter” in this flow【111:3†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L49-L50】.
 
 **Decision rule discussed:**
-- [ ] If overage is **within tolerance** → create an **Adjustment** (one-time) and match/reconcile. (See “otherwise, it’s just going to make an adjustment and match it.”)【111:14†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L44-L47】
-- [ ] If overage is **above tolerance** → offer/create **Flex Product** path (see below).【111:14†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L44-L47】
+- [x] If overage is **within tolerance** → create an **Adjustment** (one-time) and match/reconcile. (See “otherwise, it’s just going to make an adjustment and match it.”)【111:14†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L44-L47】
+- [x] If overage is **above tolerance** → offer/create **Flex Product** path (see below).【111:14†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L44-L47】
 
-> **ASSUMED:** whether the UI always prompts vs only prompts when above tolerance is not perfectly explicit. The docs say “system prompts for action” when matched amounts differ【107:10†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L20-L23】, *and* also say flex-overage is only above threshold【111:14†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L44-L47】.  
-> Implement recommendation: prompt only when above tolerance (or provide “recommended” default), but flag this for product confirmation.
+> **IMPLEMENTED:** prompt only when the overage exceeds tolerance; within tolerance auto-adjust with toast/banner (no modal).
 
 ### 2.3 Adjustment vs Flex Product vs Manual (prompt + action)
-- [ ] When a mismatch is detected, the system must support these options:
-  - **Adjust**: create a one-time adjustment,
-  - **Flex Product**: create a temporary product for the difference,
-  - **Manual**: user manually enters the adjustment amount【107:10†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L20-L23】.
-- [ ] The UI flow should align with the “decision tree” discussed (adjust / manual / flex product)【111:3†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L38-L41】.
+- [x] When an overage above tolerance is detected, the system supports these options:
+  - [x] **Adjust**: create a one-time adjustment,
+  - [x] **Flex Product**: create a temporary product for the difference,
+  - [ ] **Manual**: user manually enters the adjustment amount【107:10†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L20-L23】. (Not implemented; current "Manual" is a defer/leave-as-is option.)
+- [x] The UI flow should align with the “decision tree” discussed (adjust / manual / flex product)【111:3†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L38-L41】.
 
 **Trigger timing**
 
 > **PHASE 0 DECISION (confirmed):** resolve variances on **Match (allocation)**, not on Finalize/Reconcile.
-- [ ] Confirm whether the mismatch prompt occurs:
-  - immediately after matching (before reconcile), or
-  - on “Reconcile” click.
+- [x] Mismatch prompt occurs immediately after matching (before reconcile).
 
   Context: the team debated whether the prompt should happen “when the user clicked reconcile” vs “before it reconciled as you’re in the screen”【111:3†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L42-L44】.
 
 > **ASSUMED implementation suggestion:** evaluate mismatch right after Match, and block Reconcile until resolved (or auto-resolve within tolerance), to reduce confusion.
 
 ### 2.4 Unknown product → create Flex Product to mimic deposit line item
-- [ ] If a deposit line item refers to an **unknown product** (no mapping / cannot be confidently matched), the system must be able to create a **Flex Product** to record that line item anyway【111:0†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L22-L25】.
+- [x] If a deposit line item refers to an **unknown product** (no mapping / cannot be confidently matched), the system must be able to create a **Flex Product** to record that line item anyway【111:0†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L22-L25】.
 - [ ] The resulting flex product must be attachable to the correct deal / revenue schedule(s) for allocation.
 
 > **ASSUMED:** rules for “unknown product detection” (e.g., AI confidence cutoff, “unmapped fields” from vendor template) are outside the explicit FLEX excerpts; treat this as a dependency on the deposit mapping + matching system.
@@ -115,17 +112,17 @@ This also appears as an explicit requested feature:
 ### 2.5 Chargeback (negative deposit line)
 
 > **PHASE 0 DECISION (confirmed):** auto-create a Flex Chargeback entry when a negative line is detected and auto-apply it, but keep it reversible prior to final reconcile.
-- [ ] If a deposit line item amount (usage and/or commission) is negative:
-  - [ ] system should **suggest or automatically create** a Flex Chargeback product entry and apply the deposit allocation to it【111:14†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L32-L42】.
-- [ ] Flex chargebacks should be categorized (group/family) for reporting【103:1†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L50-L53】.
+- [x] If a deposit line item amount (usage and/or commission) is negative:
+  - [x] system should **suggest or automatically create** a Flex Chargeback product entry and apply the deposit allocation to it【111:14†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L32-L42】.
+- [x] Flex chargebacks should be categorized (group/family) for reporting【103:1†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L50-L53】.
 
-> **ASSUMED:** whether chargeback flex is fully automatic vs user-confirmed is not decided; the transcript notes “The system itself could easily do that… suggest that that money gets applied…”【111:14†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L39-L42】.
+> **IMPLEMENTED:** negative lines auto-create and auto-apply a Flex Chargeback entry (reversible prior to reconcile via unmatch).
 
 ### 2.6 Underpayment behavior
 - [x] If a schedule is underpaid:
   - [x] do **not** create a flex product,
   - [x] apply what was paid,
-  - [ ] leave a remaining balance that shows next time payment comes in【111:14†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L47-L51】.
+  - [x] leave a remaining balance that shows next time payment comes in【111:14†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L47-L51】.
 
 ### 2.7 Bonus/SPF behavior
 - [ ] Support modeling “bonus” as an SPF product that is part of the deal, often known at time of sale【111:14†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L53-L53】.
@@ -136,10 +133,10 @@ This also appears as an explicit requested feature:
 ### 2.8 Flex Auto-Config (schedule extension)
 
 > **PHASE 0 DECISION (confirmed):** create **exactly 1** next schedule at a time, starting on the **first of next month**, when Billing remains active and schedules are exhausted.
-- [ ] If an Opportunity Product is still in **Billing** status and future schedules are exhausted:
-  - [ ] auto-create the next Revenue Schedule(s),
-  - [ ] starting on the **first of the next month** (as discussed)【111:0†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L54-L55】,
-  - [ ] without requiring the user to manually generate schedules【107:7†working notes 11.11.25.docx†L45-L46】.
+- [x] If an Opportunity Product is still in **Billing** status and future schedules are exhausted:
+  - [x] auto-create the next Revenue Schedule(s),
+  - [x] starting on the **first of the next month** (as discussed)【111:0†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L54-L55】,
+  - [x] without requiring the user to manually generate schedules【107:7†working notes 11.11.25.docx†L45-L46】.
 
 > **ASSUMED:** how many schedules to create (one at a time vs N months) is not specified in the FLEX excerpts. A safe default is “create one next schedule when needed,” repeating each cycle while Billing remains true.
 
@@ -150,30 +147,30 @@ This also appears as an explicit requested feature:
 ### 3.1 Data model additions/flags (recommended)
 > **ASSUMED:** actual schema requirements are not explicitly specified in the excerpts; below are recommended fields to make FLEX auditable and reportable.
 
-- [ ] Add a way to mark revenue schedules (or schedule line items) as:
-  - [ ] Normal (contracted schedule)
-  - [ ] Adjustment (one-time)
-  - [ ] Flex Product (temporary product)
-  - [ ] Flex Chargeback
-  - [ ] Bonus/SPF
-- [ ] Add fields for auditability:
-  - [ ] `created_by`, `created_at`
-  - [ ] `reason_code` (e.g., OVERAGE_OUTSIDE_TOLERANCE, UNKNOWN_PRODUCT, CHARGEBACK_NEGATIVE, BONUS)
-  - [ ] link to source deposit line(s) / allocation(s)
+- [x] Add a way to mark revenue schedules (or schedule line items) as:
+  - [x] Normal (contracted schedule)
+  - [x] Adjustment (one-time)
+  - [x] Flex Product (temporary product)
+  - [x] Flex Chargeback
+  - [x] Bonus/SPF
+- [x] Add fields for auditability:
+  - [x] `created_by`, `created_at`
+  - [x] `reason_code` (e.g., OVERAGE_OUTSIDE_TOLERANCE, UNKNOWN_PRODUCT, CHARGEBACK_NEGATIVE, BONUS)
+  - [x] link to source deposit line(s) / allocation(s)
 
 ### 3.2 Matching pipeline enhancements (prereq)
-- [ ] Ensure bottom grid can display expected vs actual (usage/commission) and that actuals update on Match【111:15†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L36-L37】.
-- [ ] Implement variance calculation after Match, before Reconcile (if that’s the chosen trigger)【111:3†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L42-L44】.
-- [ ] Expose/define a variance limit setting (“tolerance”) (example: 10%)【111:0†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L22-L23】.
+- [x] Ensure bottom grid can display expected vs actual (usage/commission) and that actuals update on Match【111:15†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L36-L37】.
+- [x] Implement variance calculation after Match, before Reconcile (if that’s the chosen trigger)【111:3†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L42-L44】.
+- [x] Expose/define a variance limit setting (“tolerance”) (example: 10%)【111:0†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L22-L23】.
 
 ### 3.3 FLEX decisioning + actions
-- [ ] If mismatch detected, present/execute:
-  - [ ] Adjust (one-time adjustment record)【107:10†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L20-L23】
-  - [ ] Flex Product (temporary product record)【107:10†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L20-L23】
+- [x] If mismatch detected, present/execute:
+  - [x] Adjust (one-time adjustment record)【107:10†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L20-L23】
+  - [x] Flex Product (temporary product record)【107:10†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L20-L23】
   - [ ] Manual (user-entered adjustment)【107:10†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L20-L23】
-- [ ] Implement special cases:
-  - [ ] Negative amount → Flex Chargeback product suggestion/creation【111:14†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L32-L42】
-  - [ ] Underpayment → carry balance forward (no flex)【111:14†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L47-L51】
+- [x] Implement special cases:
+  - [x] Negative amount → Flex Chargeback product suggestion/creation【111:14†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L32-L42】
+  - [x] Underpayment → carry balance forward (no flex)【111:14†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L47-L51】
 
 ### 3.4 UX placement (needs a decision)
 There is an explicit question in the meeting about what flex “is going to look like for the user”:
@@ -207,7 +204,7 @@ These items were explicitly listed as changes to implement around revenue schedu
   - [ ] Expected commission rate【107:6†working notes 11.11.25.docx†L9-L20】
 - [ ] Display the current commission split percentage with last edited date + user【107:6†working notes 11.11.25.docx†L21-L21】.
 - [ ] Ensure revenue schedule status options align with opportunity stage/status (Pipeline, Pending, Reconciled, Unreconciled)【107:6†working notes 11.11.25.docx†L25-L25】.
-- [ ] Auto-create new revenue schedules when Billing and schedules are exhausted【107:7†working notes 11.11.25.docx†L45-L46】.
+- [x] Auto-create new revenue schedules when Billing and schedules are exhausted【107:7†working notes 11.11.25.docx†L45-L46】.
 
 > **Why this matters to FLEX:** these capabilities enable (a) extending schedules when billing continues, and (b) correcting schedules going forward when patterns stabilize (see V2 “Intelligent Housekeeping” below).
 
@@ -269,25 +266,26 @@ These items were explicitly listed as changes to implement around revenue schedu
 - Auto-config: create **1** next schedule at a time, starting **first of next month**, while Billing remains active.
 
 - [x] **Prompt behavior**: only prompt when the overage exceeds tolerance; within tolerance auto-adjust with toast/banner (no modal). (See note in §2.2)
-- [ ] **Chargeback automation**: auto-create vs user-confirmed?【111:14†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L39-L42】
-- [ ] **UI approach**: flex schedules as a user-triggered section vs background automation?【111:0†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L35-L64】
+- [x] **Chargeback automation**: auto-create and auto-apply (reversible via unmatch)【111:14†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L39-L42】
+- [x] **UI approach**: resolve in the deposit matching flow (modal only when overage exceeds tolerance)【111:0†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L35-L64】
 - [x] **Auto-config quantity**: create 1 next schedule at a time when exhausted (no N-month batch generation).
 - [ ] **Classification rules**:
   - how to detect “unknown product”
   - how to detect “bonus/SPF”
-  - how to compute variance on commission vs usage (ASSUMED; meeting references usage primarily)
+  - whether FLEX decisioning should use commission variance in addition to usage variance (schedule status computes both; meeting references usage primarily)
 
 ---
 
 ## 8) Implementation sequencing (recommended)
 
 ### Now (to satisfy V1 acceptance criteria)
-- [ ] Ensure actual usage/commission update on Match【111:15†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L36-L37】
-- [ ] Add variance/tolerance calculation + threshold config【111:0†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L22-L23】
-- [ ] Implement Adjust / Flex Product / Manual paths【107:10†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L20-L23】
-- [ ] Implement chargeback (negative) flex product handling【111:14†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L32-L42】
-- [ ] Implement underpayment carry-forward behavior【111:14†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L47-L51】
-- [ ] Implement auto-config schedule extension when Billing + schedules exhausted【107:7†working notes 11.11.25.docx†L45-L46】
+- [x] Ensure actual usage/commission update on Match【111:15†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L36-L37】
+- [x] Add variance/tolerance calculation + threshold config【111:0†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L22-L23】
+- [x] Implement Adjust / Flex Product paths (and a "Manual" defer option)【107:10†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L20-L23】
+- [ ] Implement Manual amount-entry resolution (user-entered adjustment amount)
+- [x] Implement chargeback (negative) flex product handling【111:14†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L32-L42】
+- [x] Implement underpayment carry-forward behavior【111:14†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L47-L51】
+- [x] Implement auto-config schedule extension when Billing + schedules exhausted【107:7†working notes 11.11.25.docx†L45-L46】
 
 ### Next (hardening + transparency)
 - [ ] Add schedule history/audit tab for edits【107:6†working notes 11.11.25.docx†L5-L6】
