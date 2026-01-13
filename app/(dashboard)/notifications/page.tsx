@@ -27,25 +27,28 @@ export default function NotificationsPage() {
     return () => setBreadcrumbs(null)
   }, [setBreadcrumbs])
 
-  const load = useCallback(async (includeRead: boolean) => {
-    setLoading(true)
-    try {
-      const response = await fetch(`/api/notifications?includeRead=${includeRead ? "true" : "false"}`, {
-        cache: "no-store",
-      })
-      const payload = await response.json().catch(() => null)
-      if (!response.ok) {
-        throw new Error(payload?.error || "Failed to load notifications")
+  const load = useCallback(
+    async (includeRead: boolean) => {
+      setLoading(true)
+      try {
+        const response = await fetch(`/api/notifications?includeRead=${includeRead ? "true" : "false"}`, {
+          cache: "no-store",
+        })
+        const payload = await response.json().catch(() => null)
+        if (!response.ok) {
+          throw new Error(payload?.error || "Failed to load notifications")
+        }
+        setItems(Array.isArray(payload?.data) ? payload.data : [])
+      } catch (err) {
+        console.error("Failed to load notifications", err)
+        showError("Load failed", err instanceof Error ? err.message : "Failed to load notifications")
+        setItems([])
+      } finally {
+        setLoading(false)
       }
-      setItems(Array.isArray(payload?.data) ? payload.data : [])
-    } catch (err) {
-      console.error("Failed to load notifications", err)
-      showError("Load failed", err instanceof Error ? err.message : "Failed to load notifications")
-      setItems([])
-    } finally {
-      setLoading(false)
-    }
-  }, [showError])
+    },
+    [showError],
+  )
 
   useEffect(() => {
     void load(true)
@@ -78,9 +81,7 @@ export default function NotificationsPage() {
       <div className="mb-4 flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-gray-900">Notifications</h1>
-          <p className="text-sm text-gray-600">
-            {loading ? "Loading…" : `${unreadCount} unread`}
-          </p>
+          <p className="text-sm text-gray-600">{loading ? "Loading..." : `${unreadCount} unread`}</p>
         </div>
         <button
           onClick={() => void markAllRead()}
@@ -94,7 +95,7 @@ export default function NotificationsPage() {
       <div className="space-y-2">
         {items.length === 0 ? (
           <div className="rounded border border-gray-200 bg-white p-6 text-sm text-gray-600">
-            {loading ? "Loading…" : "No notifications."}
+            {loading ? "Loading..." : "No notifications."}
           </div>
         ) : (
           items.map(item => (

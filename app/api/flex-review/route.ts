@@ -5,6 +5,25 @@ import { formatRevenueScheduleDisplayName } from "@/lib/flex/revenue-schedule-di
 
 export const dynamic = "force-dynamic"
 
+function toNumber(value: unknown): number {
+  if (value == null) return 0
+  if (typeof value === "number") return Number.isFinite(value) ? value : 0
+  if (typeof value === "string") {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : 0
+  }
+  const decimal = value as { toNumber?: () => number; toString?: () => string }
+  if (typeof decimal.toNumber === "function") {
+    const parsed = decimal.toNumber()
+    return Number.isFinite(parsed) ? parsed : 0
+  }
+  if (typeof decimal.toString === "function") {
+    const parsed = Number(decimal.toString())
+    return Number.isFinite(parsed) ? parsed : 0
+  }
+  return 0
+}
+
 export async function GET(request: NextRequest) {
   return withPermissions(request, ["reconciliation.manage"], async req => {
     try {
@@ -14,14 +33,23 @@ export async function GET(request: NextRequest) {
         where: { tenantId },
         orderBy: [{ status: "asc" }, { createdAt: "desc" }],
         include: {
-          revenueSchedule: { select: { id: true, scheduleNumber: true, flexClassification: true } },
+          assignedToUser: { select: { id: true, fullName: true } },
+          revenueSchedule: {
+            select: {
+              id: true,
+              scheduleNumber: true,
+              flexClassification: true,
+              expectedUsage: true,
+              expectedCommission: true,
+            },
+          },
         },
         take: 500,
       })
 
       return NextResponse.json({
         data: items.map(item => {
-          const schedule = (item as any).revenueSchedule
+          const schedule = item.revenueSchedule
           const scheduleName = formatRevenueScheduleDisplayName({
             scheduleNumber: schedule?.scheduleNumber ?? null,
             fallbackId: schedule?.id ?? item.revenueScheduleId,
@@ -37,6 +65,10 @@ export async function GET(request: NextRequest) {
             revenueScheduleName: scheduleName,
             sourceDepositId: item.sourceDepositId ?? null,
             sourceDepositLineItemId: item.sourceDepositLineItemId ?? null,
+            expectedUsage: schedule?.expectedUsage == null ? null : toNumber(schedule.expectedUsage),
+            expectedCommission: schedule?.expectedCommission == null ? null : toNumber(schedule.expectedCommission),
+            assignedToUserId: item.assignedToUserId ?? null,
+            assignedToName: item.assignedToUser?.fullName ?? null,
             createdAt: item.createdAt.toISOString(),
             resolvedAt: item.resolvedAt?.toISOString() ?? null,
           }
