@@ -306,19 +306,21 @@ export async function PATCH(
       where: { id: lineItemId, tenantId },
       include: {
         opportunity: { select: { id: true, accountId: true, ownerId: true } },
-        product: {
-            select: {
-              id: true,
-              productNameHouse: true,
-              productNameVendor: true,
-              productCode: true,
-              revenueType: true,
-              priceEach: true,
-              distributor: { select: { id: true, accountName: true } },
-              vendor: { select: { id: true, accountName: true } }
-            }
-          }
-        }
+         product: {
+             select: {
+               id: true,
+               productNameHouse: true,
+               productNameVendor: true,
+               productCode: true,
+               revenueType: true,
+               distributorAccountId: true,
+               vendorAccountId: true,
+               priceEach: true,
+               distributor: { select: { id: true, accountName: true } },
+               vendor: { select: { id: true, accountName: true } }
+             }
+           }
+         }
       })
 
       if (!existingLineItem) {

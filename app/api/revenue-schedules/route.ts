@@ -128,7 +128,12 @@ export async function GET(request: NextRequest) {
               andFilters.push({ distributor: { accountName: { contains: rawValue, mode: "insensitive" } } })
               break
             case "productNameVendor":
-              andFilters.push({ product: { productNameVendor: { contains: rawValue, mode: "insensitive" } } })
+              andFilters.push({
+                OR: [
+                  { product: { productNameVendor: { contains: rawValue, mode: "insensitive" } } },
+                  { product: { productNameDistributor: { contains: rawValue, mode: "insensitive" } } },
+                ],
+              })
               break
             case "revenueScheduleName":
               andFilters.push({ scheduleNumber: { contains: rawValue, mode: "insensitive" } })
@@ -156,14 +161,18 @@ export async function GET(request: NextRequest) {
               andFilters.push({
                 OR: [
                   { opportunity: { is: { customerIdVendor: { contains: rawValue, mode: "insensitive" } } } },
-                  { vendor: { accountNumber: { contains: rawValue, mode: "insensitive" } } }
+                  { opportunity: { is: { customerIdDistributor: { contains: rawValue, mode: "insensitive" } } } },
+                  { vendor: { accountNumber: { contains: rawValue, mode: "insensitive" } } },
+                  { distributor: { accountNumber: { contains: rawValue, mode: "insensitive" } } }
                 ]
               })
               break
             case "orderIdVendor":
               andFilters.push({
                 OR: [
-                  { opportunity: { is: { orderIdVendor: { contains: rawValue, mode: "insensitive" } } } }
+                  { opportunity: { is: { orderIdVendor: { contains: rawValue, mode: "insensitive" } } } },
+                  { opportunity: { is: { orderIdDistributor: { contains: rawValue, mode: "insensitive" } } } },
+                  { distributorOrderId: { contains: rawValue, mode: "insensitive" } }
                 ]
               })
               break

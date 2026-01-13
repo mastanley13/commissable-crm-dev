@@ -55,12 +55,10 @@ const ARCHIVE_REVENUE_SCHEDULE_FILTER_OPTIONS: Array<{ id: string; label: string
   { id: 'accountName', label: 'Account Name' },
   { id: 'distributorName', label: 'Distributor Name' },
   { id: 'vendorName', label: 'Vendor Name' },
-  { id: 'productNameVendor', label: 'Vendor - Product Name' },
+  { id: 'productNameVendor', label: 'Other - Product Name' },
   { id: 'opportunityId', label: 'Opportunity ID' },
-  { id: 'customerIdVendor', label: 'Vendor - Customer ID' },
-  { id: 'customerIdDistributor', label: 'Distributor - Customer ID' },
-  { id: 'orderIdVendor', label: 'Vendor - Order ID' },
-  { id: 'orderIdDistributor', label: 'Distributor - Order ID' },
+  { id: 'customerIdVendor', label: 'Other - Customer ID' },
+  { id: 'orderIdVendor', label: 'Other - Order ID' },
   { id: 'locationId', label: 'Location ID' },
 ]
 
@@ -789,4 +787,3 @@ export default function AdminArchivedRevenueSchedulesPage() {
     </CopyProtectionWrapper>
   )
 }
-

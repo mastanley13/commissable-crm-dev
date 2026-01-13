@@ -46,11 +46,11 @@ const ARCHIVE_PRODUCT_BASE_COLUMNS: Column[] = [
 ]
 
 const ARCHIVE_PRODUCT_FILTER_OPTIONS: Array<{ id: string; label: string }> = [
-  { id: 'productNameVendor', label: 'Vendor - Product Name' },
+  { id: 'productNameVendor', label: 'Other - Product Name' },
   { id: 'productNameHouse', label: 'House - Product Name' },
   { id: 'distributorName', label: 'Distributor Name' },
   { id: 'vendorName', label: 'Vendor Name' },
-  { id: 'partNumberVendor', label: 'Vendor - Part Number' },
+  { id: 'partNumberVendor', label: 'Other - Part Number' },
   { id: 'revenueType', label: 'Revenue Type' },
   { id: 'active', label: 'Active (Y/N)' },
   { id: 'hasRevenueSchedules', label: 'Has Revenue Schedules (Y/N)' },

@@ -310,7 +310,7 @@ export function RevenueScheduleStatusModal({
                     <div className="grid grid-cols-[auto_minmax(0,2.1fr)_minmax(0,2.1fr)_minmax(0,1.6fr)_minmax(0,1.6fr)_minmax(0,2.2fr)_minmax(0,1.4fr)] border-b bg-gray-50 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
                       <div className="text-center">Selected</div>
                       <div>Revenue Schedule</div>
-                      <div>Vendor - Product Name</div>
+                      <div>Other - Product Name</div>
                       <div>Distributor</div>
                       <div>Vendor</div>
                       <div>Opportunity</div>

@@ -369,6 +369,7 @@ export default function DepositUploadListPage() {
               parsingError={parsingError}
               onColumnSelectionChange={handleColumnSelectionChange}
               onCreateCustomField={handleCreateCustomFieldForColumn}
+              onBack={goToCreateTemplate}
               canProceed={requiredFieldsComplete && Boolean(csvHeaders.length) && !parsingError}
               onProceed={goToReview}
             />
@@ -380,6 +381,7 @@ export default function DepositUploadListPage() {
               sampleRows={sampleRows}
               fieldMapping={canonicalFieldMapping}
               validationIssues={validationIssues}
+              onBack={goToMapFields}
               onProceed={handleProceedFromReview}
             />
           ) : null}
@@ -390,6 +392,7 @@ export default function DepositUploadListPage() {
               submitting={importSubmitting}
               error={importError}
               result={importResult}
+              onBack={goToReview}
               onSubmit={handleConfirmSubmit}
             />
           ) : null}

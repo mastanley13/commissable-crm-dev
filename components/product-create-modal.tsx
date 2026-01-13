@@ -1084,14 +1084,14 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
               {/* Vendor column */}
               <div className={columnCls}>
                 <div className="space-y-1">
-                  <label className={labelCls}>Vendor - Part Number</label>
-                  <input className={inputCls} value={form.productCode} onChange={handleChange("productCode")} placeholder="Enter vendor part #" />
+                  <label className={labelCls}>Other - Part Number</label>
+                  <input className={inputCls} value={form.productCode} onChange={handleChange("productCode")} placeholder="Enter other part #" />
                   {errors.productCode ? <p className="text-[11px] text-rose-600">{errors.productCode}</p> : null}
                 </div>
 
                 <div className="space-y-1">
-                  <label className={labelCls}>Vendor - Description</label>
-                  <textarea rows={1} className={textAreaCls} value={form.productDescriptionVendor} onChange={handleChange("productDescriptionVendor")} placeholder="Add vendor description" />
+                  <label className={labelCls}>Other - Product Description</label>
+                  <textarea rows={1} className={textAreaCls} value={form.productDescriptionVendor} onChange={handleChange("productDescriptionVendor")} placeholder="Add other description" />
                 </div>
               </div>
             </div>

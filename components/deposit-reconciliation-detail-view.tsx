@@ -50,13 +50,13 @@ type LineTabKey = DepositLineStatusFilterValue
 type ScheduleTabKey = ReconciliationScheduleFilterValue
 
 const depositFieldLabels = {
-  accountId: "Vendor - Account ID",
+  accountId: "Other - Account ID",
   lineItem: "Line Item",
   status: "Deposit Status",
   paymentDate: "Payment Date",
   accountName: "Account Name",
   vendorName: "Vendor Name",
-  productName: "Vendor - Product Name",
+  productName: "Other - Product Name",
   usage: "Actual Usage",
   usageAllocated: "Usage Allocated",
   usageUnallocated: "Usage Unallocated",
@@ -64,8 +64,8 @@ const depositFieldLabels = {
   commission: "Actual Commission",
   commissionAllocated: "Commission Allocated",
   commissionUnallocated: "Commission Unallocated",
-  customerIdVendor: "Vendor - Customer ID",
-  orderIdVendor: "Vendor - Order ID",
+  customerIdVendor: "Other - Customer ID",
+  orderIdVendor: "Other - Order ID",
   distributorName: "Distributor Name"
 } as const
 
@@ -103,7 +103,7 @@ const scheduleFieldLabels = {
   matchConfidence: "Match Confidence",
   vendorName: "Vendor Name",
   legalName: "Legal Name",
-  productNameVendor: "Vendor - Product Name",
+  productNameVendor: "Other - Product Name",
   revenueScheduleDate: "Revenue Schedule Date",
   revenueScheduleName: "Revenue Schedule Name",
   quantity: "Quantity",

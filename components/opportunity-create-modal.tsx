@@ -740,24 +740,13 @@ export function OpportunityCreateModal({
               </div>
 
               <div>
-                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Vendor - Order ID</label>
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Other - Order ID</label>
                 <input
                   type="text"
                   value={form.orderIdVendor}
                   onChange={event => setForm(previous => ({ ...previous, orderIdVendor: event.target.value }))}
                   className={inputClass}
-                  placeholder="Enter Order ID (Vendor)"
-                />
-              </div>
-
-              <div>
-                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Distributor - Order ID</label>
-                <input
-                  type="text"
-                  value={form.orderIdDistributor}
-                  onChange={event => setForm(previous => ({ ...previous, orderIdDistributor: event.target.value }))}
-                  className={inputClass}
-                  placeholder="Enter Order ID (Distributor)"
+                  placeholder="Enter Order ID (Other)"
                 />
               </div>
 
@@ -1005,24 +994,13 @@ export function OpportunityCreateModal({
               </div>
 
               <div>
-                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Vendor - Account ID</label>
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Other - Account ID</label>
                 <input
                   type="text"
                   value={form.accountIdVendor}
                   onChange={event => setForm(previous => ({ ...previous, accountIdVendor: event.target.value }))}
                   className={inputClass}
-                  placeholder="Enter Account ID (Vendor)"
-                />
-              </div>
-
-              <div>
-                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Distributor - Account ID</label>
-                <input
-                  type="text"
-                  value={form.accountIdDistributor}
-                  onChange={event => setForm(previous => ({ ...previous, accountIdDistributor: event.target.value }))}
-                  className={inputClass}
-                  placeholder="Enter Account ID (Distributor)"
+                  placeholder="Enter Account ID (Other)"
                 />
               </div>
 
@@ -1038,24 +1016,13 @@ export function OpportunityCreateModal({
               </div>
 
               <div>
-                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Vendor - Customer ID</label>
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Other - Customer ID</label>
                 <input
                   type="text"
                   value={form.customerIdVendor}
                   onChange={event => setForm(previous => ({ ...previous, customerIdVendor: event.target.value }))}
                   className={inputClass}
-                  placeholder="Enter Customer ID (Vendor)"
-                />
-              </div>
-
-              <div>
-                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Distributor - Customer ID</label>
-                <input
-                  type="text"
-                  value={form.customerIdDistributor}
-                  onChange={event => setForm(previous => ({ ...previous, customerIdDistributor: event.target.value }))}
-                  className={inputClass}
-                  placeholder="Enter Customer ID (Distributor)"
+                  placeholder="Enter Customer ID (Other)"
                 />
               </div>
 

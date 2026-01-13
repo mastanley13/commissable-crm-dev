@@ -301,9 +301,9 @@ const reconciliationColumns: Column[] = [
   // Line-item level fields surfaced for column chooser
   {
     id: 'accountIdVendor',
-    label: 'Account ID Vendor',
+    label: 'Other - Account ID',
     width: 180,
-    minWidth: calculateMinWidth({ label: 'Account ID Vendor', type: 'text', sortable: true }),
+    minWidth: calculateMinWidth({ label: 'Other - Account ID', type: 'text', sortable: true }),
     maxWidth: 260,
     sortable: true,
     type: 'text',
@@ -321,9 +321,9 @@ const reconciliationColumns: Column[] = [
   },
   {
     id: 'productNameVendor',
-    label: 'Vendor - Product Name',
+    label: 'Other - Product Name',
     width: 220,
-    minWidth: calculateMinWidth({ label: 'Vendor - Product Name', type: 'text', sortable: true }),
+    minWidth: calculateMinWidth({ label: 'Other - Product Name', type: 'text', sortable: true }),
     maxWidth: 320,
     sortable: true,
     type: 'text',
@@ -361,9 +361,9 @@ const reconciliationColumns: Column[] = [
   },
   {
     id: 'customerIdVendor',
-    label: 'Vendor - Customer ID',
+    label: 'Other - Customer ID',
     width: 210,
-    minWidth: calculateMinWidth({ label: 'Vendor - Customer ID', type: 'text', sortable: true }),
+    minWidth: calculateMinWidth({ label: 'Other - Customer ID', type: 'text', sortable: true }),
     maxWidth: 280,
     sortable: true,
     type: 'text',
@@ -371,9 +371,9 @@ const reconciliationColumns: Column[] = [
   },
   {
     id: 'orderIdVendor',
-    label: 'Vendor - Order ID',
+    label: 'Other - Order ID',
     width: 190,
-    minWidth: calculateMinWidth({ label: 'Vendor - Order ID', type: 'text', sortable: true }),
+    minWidth: calculateMinWidth({ label: 'Other - Order ID', type: 'text', sortable: true }),
     maxWidth: 260,
     sortable: true,
     type: 'text',
@@ -399,14 +399,14 @@ const filterOptions: FilterColumnOption[] = [
   { id: 'commissionUnallocated', label: 'Commission Unallocated' },
   { id: 'status', label: 'Deposit Status' },
   { id: 'paymentType', label: 'Payment Type' },
-  { id: 'accountIdVendor', label: 'Account ID Vendor' },
+  { id: 'accountIdVendor', label: 'Other - Account ID' },
   { id: 'lineItem', label: 'Line Item' },
-  { id: 'productNameVendor', label: 'Vendor - Product Name' },
+  { id: 'productNameVendor', label: 'Other - Product Name' },
   { id: 'usage', label: 'Usage' },
   { id: 'actualCommissionRatePercent', label: 'Actual Commission Rate %' },
   { id: 'actualCommission', label: 'Actual Commission' },
-  { id: 'customerIdVendor', label: 'Vendor - Customer ID' },
-  { id: 'orderIdVendor', label: 'Vendor - Order ID' }
+  { id: 'customerIdVendor', label: 'Other - Customer ID' },
+  { id: 'orderIdVendor', label: 'Other - Order ID' }
 ]
 
 type DepositRow = {

@@ -589,28 +589,18 @@ function ProductHeader({ product, onEdit, activeTab, onTabSelect }: ProductHeade
           <div className="border-t-2 border-t-primary-600 -mr-3 pt-3">
             <TabDescription>{TAB_DESCRIPTIONS.vendor}</TabDescription>
             <div className="space-y-1.5">
-            <FieldRow label="Vendor - Product Name">
+            <FieldRow label="Other - Product Name">
               <div className={fieldBoxClass}>
                 {product.productNameVendor || <span className="text-gray-500">--</span>}
               </div>
             </FieldRow>
-            <FieldRow label="Vendor - Part Number">
+            <FieldRow label="Other - Part Number">
               <div className={fieldBoxClass}>
                 {product.partNumberVendor || <span className="text-gray-500">--</span>}
               </div>
             </FieldRow>
-            <FieldRow label="Vendor - Product Family">
-              <div className={fieldBoxClass}>
-                {product.productFamilyVendor || <span className="text-gray-500">--</span>}
-              </div>
-            </FieldRow>
-            <FieldRow label="Vendor - Product Subtype">
-              <div className={fieldBoxClass}>
-                {product.productSubtypeVendor || <span className="text-gray-500">--</span>}
-              </div>
-            </FieldRow>
             <div className="grid items-start gap-6 sm:grid-cols-[200px,1fr]">
-              <span className={cn(fieldLabelClass, "pt-1.5")}>Vendor - Description</span>
+              <span className={cn(fieldLabelClass, "pt-1.5")}>Other - Product Description</span>
               <div className={cn(fieldBoxClass, "min-h-[80px] items-start whitespace-pre-wrap py-2")}>
                 {product.productDescriptionVendor || <span className="text-gray-500">--</span>}
               </div>
@@ -1124,78 +1114,33 @@ interface EditableProductHeaderProps {
             <TabDescription>{TAB_DESCRIPTIONS.vendor}</TabDescription>
             <div className="space-y-1.5">
             {renderRow(
-              "Vendor - Product Name",
+              "Other - Product Name",
               <EditableField.Input
                 value={(vendorNameField.value as string) ?? ""}
                 onChange={vendorNameField.onChange}
                 onBlur={vendorNameField.onBlur}
-                placeholder="Enter vendor product name"
+                placeholder="Enter other product name"
               />
             )}
 
             {renderRow(
-              "Vendor - Part Number",
+              "Other - Part Number",
               <EditableField.Input
                 value={(partNumberVendorField?.value as string) ?? ""}
                 onChange={partNumberVendorField.onChange}
                 onBlur={partNumberVendorField.onBlur}
-                placeholder="Enter vendor part #"
+                placeholder="Enter other part #"
               />
             )}
 
             {renderRow(
-              "Vendor - Product Family",
-              <PicklistCombobox
-                value={vendorFamilyValue}
-                options={familyPicklistNames}
-                placeholder="Search or pick a family"
-                disabled={familyPicklistNames.length === 0 && !vendorFamilyValue}
-                inputClassName={picklistInputCls}
-                dropdownClassName={dropdownCls}
-                optionClassName={optionBtnCls}
-                onBlur={familyVendorField.onBlur}
-                onChange={(nextFamily) => {
-                  editor.setField("productFamilyVendor", nextFamily)
-                  const allowedSubtypes = getAllowedSubtypesForFamilyName(
-                    productSubtypes,
-                    familyIdByName,
-                    nextFamily
-                  )
-                  if (vendorSubtypeValue && !allowedSubtypes.includes(vendorSubtypeValue)) {
-                    editor.setField("productSubtypeVendor", "")
-                  }
-                  if (!nextFamily) {
-                    editor.setField("productSubtypeVendor", "")
-                  }
-                }}
-              />,
-              editor.errors.productFamilyVendor
-            )}
-
-            {renderRow(
-              "Vendor - Product Subtype",
-              <PicklistCombobox
-                value={vendorSubtypeValue}
-                options={vendorSubtypePicklistNames}
-                placeholder="Search or pick a subtype"
-                disabled={!vendorFamilyValue || (vendorSubtypePicklistNames.length === 0 && !vendorSubtypeValue)}
-                inputClassName={picklistInputCls}
-                dropdownClassName={dropdownCls}
-                optionClassName={optionBtnCls}
-                onBlur={subtypeVendorField.onBlur}
-                onChange={(nextSubtype) => editor.setField("productSubtypeVendor", nextSubtype)}
-              />,
-              editor.errors.productSubtypeVendor
-            )}
-
-            {renderRow(
-              "Vendor - Description",
+              "Other - Product Description",
               <EditableField.Textarea
                 rows={3}
                 value={(descVendorField?.value as string) ?? ""}
                 onChange={descVendorField.onChange}
                 onBlur={descVendorField.onBlur}
-                placeholder="Add vendor description"
+                placeholder="Add other description"
               />
             )}
           </div>

@@ -203,10 +203,20 @@ export async function GET(request: NextRequest) {
               filterConditions.push({ orderIdHouse: { contains: rawValue, mode: "insensitive" } })
               break
             case "accountIdVendor":
-              filterConditions.push({ accountIdVendor: { contains: rawValue, mode: "insensitive" } })
+              filterConditions.push({
+                OR: [
+                  { accountIdVendor: { contains: rawValue, mode: "insensitive" } },
+                  { accountIdDistributor: { contains: rawValue, mode: "insensitive" } },
+                ],
+              })
               break
             case "customerIdVendor":
-              filterConditions.push({ customerIdVendor: { contains: rawValue, mode: "insensitive" } })
+              filterConditions.push({
+                OR: [
+                  { customerIdVendor: { contains: rawValue, mode: "insensitive" } },
+                  { customerIdDistributor: { contains: rawValue, mode: "insensitive" } },
+                ],
+              })
               break
             case "locationId":
               filterConditions.push({ locationId: { contains: rawValue, mode: "insensitive" } })

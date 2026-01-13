@@ -1635,11 +1635,12 @@ export const RevenueScheduleSupportingDetails = forwardRef<
   const opportunityColumns = useMemo<DetailLineProps[][]>(() => {
     const columnA: DetailLineProps[] = [
       { label: "House - Account ID", value: schedule?.accountId ?? undefined },
-      { label: "Vendor - Account ID", value: schedule?.vendorId ?? undefined },
-      { label: "Distributor - Account ID", value: schedule?.distributorId ?? undefined },
+      { label: "Other - Account ID", value: schedule?.vendorId ?? schedule?.distributorId ?? undefined },
       { label: "House - Customer ID", value: schedule?.customerIdHouse ?? undefined },
-      { label: "Vendor - Customer ID", value: schedule?.customerIdVendor ?? undefined },
-      { label: "Distributor - Customer ID", value: schedule?.customerIdDistributor ?? undefined }
+      {
+        label: "Other - Customer ID",
+        value: schedule?.customerIdVendor ?? schedule?.customerIdDistributor ?? undefined,
+      }
     ]
 
     const columnB: DetailLineProps[] = [
@@ -1647,8 +1648,10 @@ export const RevenueScheduleSupportingDetails = forwardRef<
       { label: "Opportunity ID", value: schedule?.opportunityId ? String(schedule.opportunityId) : undefined },
       { label: "Opportunity Owner", value: schedule?.opportunityOwnerName ?? undefined },
       { label: "House - Order ID", value: schedule?.orderIdHouse ?? undefined },
-      { label: "Vendor - Order ID", value: schedule?.orderIdVendor ?? undefined },
-      { label: "Distributor - Order ID", value: schedule?.orderIdDistributor ?? undefined }
+      {
+        label: "Other - Order ID",
+        value: schedule?.orderIdVendor ?? schedule?.orderIdDistributor ?? undefined,
+      }
     ]
 
     return [columnA, columnB]
@@ -1863,7 +1866,7 @@ export const RevenueScheduleSupportingDetails = forwardRef<
                 "Item",
                 "Deposit Date",
                 "Payee",
-                "Vendor - Product Name",
+                "Other - Product Name",
                 "Usage Actual",
                 "Commission Actual",
                 "Payment Method",
@@ -1872,7 +1875,7 @@ export const RevenueScheduleSupportingDetails = forwardRef<
                 const isNumeric = header === "Usage Actual" || header === "Commission Actual"
                 const widthMap: Record<string, string> = {
                   "Item": "w-[64px] min-w-[64px]",
-                  "Vendor - Product Name": "w-[300px] min-w-[300px]",
+                  "Other - Product Name": "w-[300px] min-w-[300px]",
                   "Usage Actual": "w-[120px] min-w-[120px]",
                   "Commission Actual": "w-[140px] min-w-[140px]",
                   "Payment Method": "w-[160px] min-w-[160px]"
@@ -2154,7 +2157,7 @@ export const RevenueScheduleSupportingDetails = forwardRef<
                           <span className="truncate font-medium text-gray-900">--</span>
                         </div>
                         <div className="flex items-center justify-between gap-3">
-                          <span className="text-gray-600">Product Name - Vendor</span>
+                          <span className="text-gray-600">Other - Product Name</span>
                           <span className="truncate font-medium text-gray-900">--</span>
                         </div>
                         <div className="flex items-center justify-between gap-3">
@@ -2302,7 +2305,7 @@ export const RevenueScheduleSupportingDetails = forwardRef<
                           </span>
                         </div>
                         <div className="flex items-center justify-between gap-3">
-                          <span className="text-gray-600">Product Name - Vendor</span>
+                          <span className="text-gray-600">Other - Product Name</span>
                           <span
                             className="truncate font-medium text-gray-900"
                             title={vendorProductNameEntry?.[1] ?? schedule?.productNameVendor ?? ""}

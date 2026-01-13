@@ -515,18 +515,18 @@ export const CONTACT_OPPORTUNITY_TABLE_BASE_COLUMNS: Column[] = [
   },
   {
     id: "accountIdVendor",
-    label: "Vendor - Account ID",
+    label: "Other - Account ID",
     width: 200,
-    minWidth: calculateMinWidth({ label: "Vendor - Account ID", type: "text", sortable: true }),
+    minWidth: calculateMinWidth({ label: "Other - Account ID", type: "text", sortable: true }),
     maxWidth: 260,
     sortable: true,
     accessor: "accountIdVendor"
   },
   {
     id: "customerIdVendor",
-    label: "Vendor - Customer ID",
+    label: "Other - Customer ID",
     width: 200,
-    minWidth: calculateMinWidth({ label: "Vendor - Customer ID", type: "text", sortable: true }),
+    minWidth: calculateMinWidth({ label: "Other - Customer ID", type: "text", sortable: true }),
     maxWidth: 260,
     sortable: true,
     accessor: "customerIdVendor"
@@ -542,9 +542,9 @@ export const CONTACT_OPPORTUNITY_TABLE_BASE_COLUMNS: Column[] = [
   },
   {
     id: "orderIdVendor",
-    label: "Vendor - Order ID",
+    label: "Other - Order ID",
     width: 180,
-    minWidth: calculateMinWidth({ label: "Vendor - Order ID", type: "text", sortable: true }),
+    minWidth: calculateMinWidth({ label: "Other - Order ID", type: "text", sortable: true }),
     maxWidth: 240,
     sortable: true,
     accessor: "orderIdVendor"
@@ -1938,10 +1938,10 @@ const [groupsPageSize, setGroupsPageSize] = useState(100)
       "House - Order ID",
       "Owner",
       "Subagent",
-      "Vendor - Account ID",
-      "Vendor - Customer ID",
+      "Other - Account ID",
+      "Other - Customer ID",
       "Location ID",
-      "Vendor - Order ID"
+      "Other - Order ID"
     ]
 
     const escapeCsv = (value: string | null | undefined) => {
@@ -2778,10 +2778,10 @@ const [groupsPageSize, setGroupsPageSize] = useState(100)
     { id: "orderIdHouse", label: "House - Order ID" },
     { id: "owner", label: "Owner" },
     { id: "subAgent", label: "Subagent" },
-    { id: "accountIdVendor", label: "Vendor - Account ID" },
-    { id: "customerIdVendor", label: "Vendor - Customer ID" },
+    { id: "accountIdVendor", label: "Other - Account ID" },
+    { id: "customerIdVendor", label: "Other - Customer ID" },
     { id: "locationId", label: "Location ID" },
-    { id: "orderIdVendor", label: "Vendor - Order ID" },
+    { id: "orderIdVendor", label: "Other - Order ID" },
   ], [])
 
   const groupsFilterColumns = useMemo(() => [

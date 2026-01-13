@@ -248,12 +248,12 @@ export const PRODUCT_TABLE_BASE_COLUMNS: Column[] = [
     hideable: false
   },
   { id: "productNameHouse", label: "House - Product Name", width: 240, minWidth: calculateMinWidth({ label: "House - Product Name", type: "text", sortable: true }), accessor: "productNameHouse", sortable: true },
-  { id: "productNameVendor", label: "Vendor - Product Name", width: 240, minWidth: calculateMinWidth({ label: "Vendor - Product Name", type: "text", sortable: true }), accessor: "productNameVendor", sortable: true },
+  { id: "productNameVendor", label: "Other - Product Name", width: 240, minWidth: calculateMinWidth({ label: "Other - Product Name", type: "text", sortable: true }), accessor: "productNameVendor", sortable: true },
   {
     id: "partNumberVendor",
-    label: "Vendor - Part Number",
+    label: "Other - Part Number",
     width: 200,
-    minWidth: calculateMinWidth({ label: "Vendor - Part Number", type: "text", sortable: true }),
+    minWidth: calculateMinWidth({ label: "Other - Part Number", type: "text", sortable: true }),
     accessor: "productCode",
     sortable: true,
     hidden: true
@@ -307,7 +307,7 @@ export const REVENUE_TABLE_BASE_COLUMNS: Column[] = [
   { id: "distributorName", label: "Distributor Name", width: 200, minWidth: calculateMinWidth({ label: "Distributor Name", type: "text", sortable: true }), accessor: "distributorName", sortable: true },
   { id: "vendorName", label: "Vendor Name", width: 200, minWidth: calculateMinWidth({ label: "Vendor Name", type: "text", sortable: true }), accessor: "vendorName", sortable: true },
   { id: "opportunityName", label: "Opportunity Name", width: 220, minWidth: calculateMinWidth({ label: "Opportunity Name", type: "text", sortable: true }), accessor: "opportunityName", sortable: true },
-  { id: "productNameVendor", label: "Vendor - Product Name", width: 220, minWidth: calculateMinWidth({ label: "Vendor - Product Name", type: "text", sortable: true }), accessor: "productNameVendor", sortable: true },
+  { id: "productNameVendor", label: "Other - Product Name", width: 220, minWidth: calculateMinWidth({ label: "Other - Product Name", type: "text", sortable: true }), accessor: "productNameVendor", sortable: true },
   { id: "scheduleDate", label: "Schedule Date", width: 160, minWidth: calculateMinWidth({ label: "Schedule Date", type: "text", sortable: true }), accessor: "scheduleDate", sortable: true },
   { id: "accountName", label: "Account Name", width: 220, minWidth: calculateMinWidth({ label: "Account Name", type: "text", sortable: true }), accessor: "accountName", sortable: true },
   { id: "scheduleNumber", label: "Revenue Schedule", width: 180, minWidth: calculateMinWidth({ label: "Revenue Schedule", type: "text", sortable: true }), accessor: "scheduleNumber", sortable: true },
@@ -693,15 +693,21 @@ function DetailsIdentifiersTab({ opportunity }: { opportunity: OpportunityDetail
   const identifiers = opportunity.identifiers ?? {}
   const fields = [
     { label: "House - Account ID", value: identifiers.accountIdHouse },
-    { label: "Vendor - Account ID", value: identifiers.accountIdVendor },
-    { label: "Distributor - Account ID", value: identifiers.accountIdDistributor },
+    {
+      label: "Other - Account ID",
+      value: identifiers.accountIdVendor ?? identifiers.accountIdDistributor,
+    },
     { label: "House - Customer ID", value: identifiers.customerIdHouse },
-    { label: "Vendor - Customer ID", value: identifiers.customerIdVendor },
-    { label: "Distributor - Customer ID", value: identifiers.customerIdDistributor },
+    {
+      label: "Other - Customer ID",
+      value: identifiers.customerIdVendor ?? identifiers.customerIdDistributor,
+    },
     { label: "Location ID", value: identifiers.locationId },
     { label: "House - Order ID", value: identifiers.orderIdHouse },
-    { label: "Vendor - Order ID", value: identifiers.orderIdVendor },
-    { label: "Distributor - Order ID", value: identifiers.orderIdDistributor },
+    {
+      label: "Other - Order ID",
+      value: identifiers.orderIdVendor ?? identifiers.orderIdDistributor,
+    },
     { label: "Customer PO #", value: identifiers.customerPurchaseOrder }
   ]
 
@@ -3565,7 +3571,7 @@ useEffect(() => {
     }
 
     const headers = [
-      "Vendor - Product Name",
+      "Other - Product Name",
       "Vendor Name",
       "Distributor Name",
       "Account Name",

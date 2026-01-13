@@ -645,9 +645,9 @@ export const OPPORTUNITY_TABLE_BASE_COLUMNS: Column[] = [
   },
   {
     id: "accountIdVendor",
-    label: "Vendor - Account ID",
+    label: "Other - Account ID",
     width: 150,
-    minWidth: calculateMinWidth({ label: "Vendor - Account ID", type: "text", sortable: true }),
+    minWidth: calculateMinWidth({ label: "Other - Account ID", type: "text", sortable: true }),
     maxWidth: 200,
     sortable: true,
     accessor: "accountIdVendor",
@@ -672,9 +672,9 @@ export const OPPORTUNITY_TABLE_BASE_COLUMNS: Column[] = [
   },
   {
     id: "customerIdVendor",
-    label: "Vendor - Customer ID",
+    label: "Other - Customer ID",
     width: 150,
-    minWidth: calculateMinWidth({ label: "Vendor - Customer ID", type: "text", sortable: true }),
+    minWidth: calculateMinWidth({ label: "Other - Customer ID", type: "text", sortable: true }),
     maxWidth: 200,
     sortable: true,
     accessor: "customerIdVendor",

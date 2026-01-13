@@ -122,7 +122,7 @@ const TICKET_COLUMNS: Column[] = [
   },
   {
     id: 'productNameVendor',
-    label: 'Vendor - Product Name',
+    label: 'Other - Product Name',
     width: 220,
     minWidth: 180,
     maxWidth: 320,
@@ -132,7 +132,7 @@ const TICKET_COLUMNS: Column[] = [
   },
   {
     id: 'accountIdVendor',
-    label: 'Vendor - Account ID',
+    label: 'Other - Account ID',
     width: 200,
     minWidth: 160,
     maxWidth: 280,
@@ -142,7 +142,7 @@ const TICKET_COLUMNS: Column[] = [
   },
   {
     id: 'customerIdVendor',
-    label: 'Vendor - Customer ID',
+    label: 'Other - Customer ID',
     width: 200,
     minWidth: 160,
     maxWidth: 280,
@@ -172,7 +172,7 @@ const TICKET_COLUMNS: Column[] = [
   },
   {
     id: 'orderIdVendor',
-    label: 'Vendor - Order ID',
+    label: 'Other - Order ID',
     width: 200,
     minWidth: 160,
     maxWidth: 280,

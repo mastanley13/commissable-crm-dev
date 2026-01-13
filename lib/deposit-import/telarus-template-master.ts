@@ -65,11 +65,15 @@ const COMMISSABLE_LABEL_TO_DEPOSIT_FIELD_ID: Partial<Record<string, DepositField
 
   // Vendor / customer identifiers
   "Vendor - Account ID": "accountIdVendor",
+  "Other - Account ID": "accountIdVendor",
   "Vendor Name": "vendorNameRaw",
   "Customer Account": "accountIdVendor",
   "Vendor - Customer ID": "customerIdVendor",
+  "Other - Customer ID": "customerIdVendor",
   "Vendor - Order ID": "orderIdVendor",
+  "Other - Order ID": "orderIdVendor",
   "Vendor - Product Name": "productNameRaw",
+  "Other - Product Name": "productNameRaw",
   "Vendor - Location  ID": "locationId",
 
   // Dates

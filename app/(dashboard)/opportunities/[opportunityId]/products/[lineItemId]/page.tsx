@@ -49,11 +49,12 @@ export default function OpportunityProductDetailPage() {
       if (record) {
         const opportunityName = record.opportunity?.name || "Opportunity"
         const title = record.productNameHouse || record.productNameVendor || "Opportunity Product"
+        const opportunityHrefId = record.opportunity?.id ?? opportunityId
         setBreadcrumbs([
           { name: "Home", href: "/dashboard" },
           { name: "Opportunities", href: "/opportunities" },
-          { name: "Details", href: `/opportunities/${record.opportunity.id}?tab=products` },
-          { name: opportunityName, href: `/opportunities/${record.opportunity.id}?tab=products` },
+          { name: "Details", href: `/opportunities/${opportunityHrefId}?tab=products` },
+          { name: opportunityName, href: `/opportunities/${opportunityHrefId}?tab=products` },
           { name: title, current: true }
         ])
       } else {
@@ -68,7 +69,7 @@ export default function OpportunityProductDetailPage() {
     } finally {
       setLoading(false)
     }
-  }, [lineItemId, setBreadcrumbs, showError])
+  }, [lineItemId, opportunityId, setBreadcrumbs, showError])
 
   useEffect(() => {
     void loadLineItem()
@@ -94,4 +95,3 @@ export default function OpportunityProductDetailPage() {
     />
   )
 }
-

@@ -87,9 +87,9 @@ const revenueScheduleColumns: Column[] = [
   },
   {
     id: 'productNameVendor', // 04.00.003
-    label: 'Vendor - Product Name',
+    label: 'Other - Product Name',
     width: 200,
-    minWidth: calculateMinWidth({ label: 'Vendor - Product Name', type: 'text', sortable: true }),
+    minWidth: calculateMinWidth({ label: 'Other - Product Name', type: 'text', sortable: true }),
     maxWidth: 320,
     sortable: true,
     type: 'text',
@@ -236,42 +236,24 @@ const revenueScheduleColumns: Column[] = [
   },
   {
     id: 'customerIdVendor', // 04.00.016
-    label: 'Vendor - Customer ID',
+    label: 'Other - Customer ID',
     width: 210,
-    minWidth: calculateMinWidth({ label: 'Vendor - Customer ID', type: 'text', sortable: true }),
+    minWidth: calculateMinWidth({ label: 'Other - Customer ID', type: 'text', sortable: true }),
     maxWidth: 280,
     sortable: true,
     type: 'text',
+    render: (_value, row) => row.customerIdVendor ?? row.customerIdDistributor ?? '',
     hidden: true,
   },
   {
     id: 'orderIdVendor', // 04.00.017
-    label: 'Vendor - Order ID',
+    label: 'Other - Order ID',
     width: 190,
-    minWidth: calculateMinWidth({ label: 'Vendor - Order ID', type: 'text', sortable: true }),
+    minWidth: calculateMinWidth({ label: 'Other - Order ID', type: 'text', sortable: true }),
     maxWidth: 260,
     sortable: true,
     type: 'text',
-    hidden: true,
-  },
-  {
-    id: 'customerIdDistributor', // 04.00.020
-    label: 'Distributor - Customer ID',
-    width: 210,
-    minWidth: calculateMinWidth({ label: 'Distributor - Customer ID', type: 'text', sortable: true }),
-    maxWidth: 280,
-    sortable: true,
-    type: 'text',
-    hidden: true,
-  },
-  {
-    id: 'orderIdDistributor', // 04.00.021
-    label: 'Distributor - Order ID',
-    width: 190,
-    minWidth: calculateMinWidth({ label: 'Distributor - Order ID', type: 'text', sortable: true }),
-    maxWidth: 260,
-    sortable: true,
-    type: 'text',
+    render: (_value, row) => row.orderIdVendor ?? row.orderIdDistributor ?? '',
     hidden: true,
   },
   {
@@ -350,14 +332,12 @@ const filterOptions: { id: FilterableColumnKey; label: string }[] = [
   { id: 'distributorName', label: 'Distributor Name' },
   { id: 'accountName', label: 'Account Name' },
   { id: 'opportunityName', label: 'Opportunity Name' },
-  { id: 'productNameVendor', label: 'Vendor - Product Name' },
+  { id: 'productNameVendor', label: 'Other - Product Name' },
   { id: 'revenueScheduleName', label: 'Revenue Schedule' },
   { id: 'revenueScheduleDate', label: 'Schedule Date' },
   { id: 'scheduleStatus', label: 'Status' },
-   { id: 'customerIdVendor', label: 'Vendor - Customer ID' },
-   { id: 'orderIdVendor', label: 'Vendor - Order ID' },
-   { id: 'customerIdDistributor', label: 'Distributor - Customer ID' },
-   { id: 'orderIdDistributor', label: 'Distributor - Order ID' },
+   { id: 'customerIdVendor', label: 'Other - Customer ID' },
+   { id: 'orderIdVendor', label: 'Other - Order ID' },
 ]
 
 const TABLE_BOTTOM_RESERVE = 110
@@ -730,7 +710,7 @@ export default function RevenueSchedulesPage() {
       'Vendor Name',
       'Account Name',
       'Opportunity Name',
-      'Vendor - Product Name',
+      'Other - Product Name',
       'Schedule Date',
       'Revenue Schedule',
       'Quantity',
