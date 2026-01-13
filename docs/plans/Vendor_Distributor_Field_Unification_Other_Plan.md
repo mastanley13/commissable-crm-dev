@@ -39,7 +39,7 @@ This plan is intentionally structured so we can ship "Other" without any destruc
   - Revenue Schedules: `customerIdVendor`, `orderIdVendor`
 - **Imports/mappings updated for compatibility:** Telarus reconciliation template mappings accept the new `Other - ...` labels (while keeping legacy mappings working).
 - **Build validation:** `npm run build` passes with the above changes.
-- **Optional “Other - Source” shipped:** added as a hidden-by-default column across list tables (Opportunities / Revenue Schedules / Tickets / Products / Reconciliation line items) and as a detail row in key detail panels (Opportunities Identifiers, Revenue Schedules Opportunity Details, Product detail, Opportunity Product detail).
+- **Optional `Other - Source` shipped:** added as a hidden-by-default column across list tables (Opportunities / Revenue Schedules / Tickets / Products / Reconciliation line items) and as a detail row in key detail panels (Opportunities Identifiers, Revenue Schedules Opportunity Details, Product detail, Opportunity Product detail).
 
 ### What we intentionally did (to reduce risk)
 
@@ -58,9 +58,9 @@ This plan is intentionally structured so we can ship "Other" without any destruc
 - **Codebase audit:** No non-Telarus, label-based mappings/templates/exports were found that depend on legacy `Vendor - ...` / `Distributor - ...` labels.
 - **Telarus:** the Telarus reconciliation template supports both legacy labels and the new unified `Other - ...` labels.
 
-## Removed UI Fields With No “Other” Replacement (UI-only removals)
+## Removed UI Fields With No `Other` Replacement (UI-only removals)
 
-These fields are intentionally removed from the UI (kept in DB/schema) and **do not** have an “Other” replacement:
+These fields are intentionally removed from the UI (kept in DB/schema) and **do not** have an `Other` replacement:
 
 - `Product Family - Vendor` (`productFamilyVendor`)
 - `Product Subtype - Vendor` (`productSubtypeVendor`)
@@ -74,13 +74,13 @@ These fields are intentionally removed from the UI (kept in DB/schema) and **do 
 1. **List view:** open `Opportunities` and confirm only unified `Other - Account ID` / `Other - Customer ID` / `Other - Order ID` columns are available (no distributor-specific duplicates).
 2. **Other - Source column:** open table column settings and enable `Other - Source` (should be hidden by default); confirm values show `Vendor` or `Distributor` when applicable.
 3. **Search + filters:** verify searching/filtering by `Other - Account ID` / `Other - Customer ID` returns matches when the value exists in either Vendor or Distributor fields (Vendor-first display).
-4. **Detail view:** open an Opportunity → `Identifiers` and confirm `Other - Source` appears and reflects Vendor-first precedence.
+4. **Detail view:** open an Opportunity -> `Identifiers` and confirm `Other - Source` appears and reflects Vendor-first precedence.
 5. **Opportunity Product detail:** open an Opportunity Product line item detail and confirm only `Other - Product Name` / `Other - Part Number` / `Other - Product Description` are shown (no distributor duplicates) and `Other - Source` is present.
 
 ### Revenue Schedules
 
 1. **List view:** open `Revenue Schedules` and enable `Other - Source` column (hidden by default); confirm it populates.
-2. **Detail view:** open a Revenue Schedule → `Opportunity Details` and confirm `Other - Source` is present alongside the unified `Other - ...` identifiers.
+2. **Detail view:** open a Revenue Schedule -> `Opportunity Details` and confirm `Other - Source` is present alongside the unified `Other - ...` identifiers.
 
 ### Tickets
 
@@ -90,17 +90,64 @@ These fields are intentionally removed from the UI (kept in DB/schema) and **do 
 
 1. **List view:** open `Products` and enable `Other - Source` column (hidden by default); confirm it populates.
 2. **Create Product modal:** confirm the modal no longer shows distributor product fields and only shows unified `Other - Product Name`, `Other - Part Number`, `Other - Product Description`.
-3. **Product detail:** open a Product and confirm `Other - Source` is present in the “Other” section.
+3. **Product detail:** open a Product and confirm `Other - Source` is present in the `Other` section.
 
 ### Reconciliation
 
-1. **Deposit detail:** open a Deposit → line items table and enable `Other - Source` column (hidden by default); confirm it populates and is filterable.
+1. **Deposit detail:** open a Deposit -> line items table and enable `Other - Source` column (hidden by default); confirm it populates and is filterable.
 2. **CSV export:** export selected line items and confirm `Other - Source` appears as a column header with values.
 
 ### Preferences migration/aliasing (Phase 3 validation)
 
 1. For each of the tables above, load any saved column preferences that previously included distributor column IDs (e.g. `customerIdDistributor`, `orderIdDistributor`, `productNameDistributor`).
-2. Confirm the table still renders columns (they should map to the unified “Other” columns instead of disappearing).
+2. Confirm the table still renders columns (they should map to the unified `Other` columns instead of disappearing).
+
+## Phase 5 Rollout + Rollback (step-by-step)
+
+### Acceptance criteria
+
+- No distributor-specific duplicate UI fields remain for the in-scope `Other` identifiers/product fields.
+- `Other - <Field>` always displays Vendor-first, falling back to Distributor.
+- `Other - Source` correctly reports `Vendor` when the shown `Other` value is vendor-sourced, `Distributor` when distributor-sourced, and `--` when neither exists.
+- Table preferences:
+  - Existing saved column sets that referenced legacy distributor column IDs continue to load via preference aliasing.
+  - No pages crash if preferences include now-hidden columns.
+- Imports/mappings:
+  - Telarus reconciliation mapping accepts both legacy labels and new `Other - ...` labels.
+
+### Rollout steps
+
+1. **Preflight**
+   - Confirm `npm run build` passes.
+   - Confirm there are no Prisma/schema migrations in this release (UI-only changes + additive API fields only).
+   - Confirm Phase 4 audit results are still true for any recently-added imports/exports/templates.
+
+2. **Staging deploy**
+   - Deploy to staging.
+   - Run the full manual QA checklist above using a small test matrix:
+     - Records with Vendor-only values.
+     - Records with Distributor-only values.
+     - Records with both values populated (Vendor should win).
+     - Records with neither populated (should show `--`).
+   - Validate at least one reconciliation deposit detail page and the line-item CSV export includes `Other - Source`.
+
+3. **Production deploy**
+   - Deploy during a low-traffic window.
+   - Spot-check: Opportunities list + detail, Revenue Schedules list + detail, Tickets list, Products list + detail, Reconciliation deposit detail.
+   - Monitor error logs for 30–60 minutes (UI rendering, API 500s, table preferences route errors).
+
+4. **Post-deploy communication**
+   - Notify users that the `Other` fields are now the unified view and that `Other - Source` is available (hidden-by-default) for debugging/clarity.
+
+### Rollback steps (non-destructive)
+
+1. Redeploy the prior release version.
+2. Expected rollback behavior:
+   - No DB changes need to be reverted (this effort is UI-only + additive API fields).
+   - Any user-saved table preferences that included the new `otherSource` column may lose that column on the older UI (it will be ignored/filtered as an unknown column).
+3. If table preferences cause confusion after rollback:
+   - Reset table preferences via the UI (preferred), or
+   - Use the existing preference-clear tooling/scripts as a last resort (admin-only; impacts saved column sets).
 
 ## Goals
 
