@@ -62,22 +62,15 @@ These already exist in the repo and should be used as the baseline:
   - Production build passes (`npm run build`)
 
 ### Pending (required to deploy these changes)
-None (migration applied to the Cloud SQL database on 2026-01-13).
+- Apply Prisma migration `prisma/migrations/20260113101500_reconciliation_templates_multi_idempotency/migration.sql` to the target database.
 
 ### Outlying incomplete items (from the Checkpoint 3 guides)
 These are the remaining items still marked incomplete in:
 - `Checkpoint3_Reconciliation_Master_Guide.md`
 - `Checkpoint3_Reconciliation_Master_Guide_HANDOFF.md`
 
-- **REC-001 (IN PROGRESS):** Explicit Distributor + Vendor + Template selection (not inferred).
-- **REC-002 (IN PROGRESS):** Mapping UI redesign (two-panel editor + cancel/undo; remove wizard).
-- **REC-003 (IN PROGRESS):** Template persistence/editing rules (non-breaking, versioning, safer updates).
-- **REC-022 (IN PROGRESS):** Matching parity/tuning vs Milestone 3 spec.
-- **REC-051 (IN PROGRESS):** Audit coverage completeness (upload + template edits + allocations/adjustments/flex).
-- **REC-060 (NOT STARTED):** Performance targets validation.
-- **REC-061 (NOT STARTED):** Idempotency/retry safety for uploads.
-- **REC-070 (NOT STARTED):** Standardize delete modals + blockers legend across reconciliation flows.
-- **REC-071 (IN PROGRESS):** Remaining reconciliation UX consistency polish.
+- **REC-002 (IN PROGRESS):** Mapping UI redesign final polish (wizard simplification if required).
+- **REC-060 (IN PROGRESS):** Performance targets validation + capture baseline timings.
 - **Readiness:** Performance sanity check run + documented.
 
 ---

@@ -387,8 +387,8 @@ Use these documents when deciding requirements and acceptance criteria:
   - Notes: Mentioned as already in-progress and should be consistent across objects【228:12†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L7-L10】  
 
 ### REC-071 — Reconciliation screen UX polish
-- [ ] **REC-071** Reconciliation screen UX consistency pass  
-  - Status: IN PROGRESS  
+- [x] **REC-071** Reconciliation screen UX consistency pass  
+  - Status: DONE  
   - DoD:
     - Match button placement and AI label done (REC-012).
     - Table headers aligned; no truncation of key monetary columns (ASSUMED).
