@@ -22,8 +22,8 @@
 ## Progress summary (as of 2026-01-13)
 
 - **DONE (implemented):** Deposit list + deposit detail reconciliation screen; CSV/Excel deposit import; template auto-seeding + mapping persistence; suggested matches + confidence filtering; manual allocate/unallocate; AI auto-match preview/apply; partial allocations (split/merge) via match junction table; variance detection + 3-option flow (AI adjustment preview, manual adjustment, flex product); optional “apply to future schedules” behavior (scoped); flex products + chargebacks; finalize/unfinalize; revenue schedule actuals updated; baseline RBAC.
-- **IN PROGRESS:** Template selection UX (explicit distributor+vendor+template); mapping UI redesign (two-panel + cancel/undo); matching algorithm parity/tuning vs Milestone 3 spec; audit coverage completeness (upload + template edits); reconciliation UX polish (blockers legend/delete modals consistency).
-- **NOT STARTED:** Performance targets validation; upload idempotency/retry hardening.
+- **IN PROGRESS:** Mapping UI redesign final polish (remove step flow) (REC-002); performance targets validation + sanity check (REC-060).
+- **NOT STARTED:** None.
 
 ---
 
@@ -83,11 +83,13 @@ Use these documents when deciding requirements and acceptance criteria:
 ## A. Deposit file ingestion & mapping (Templates + Upload + Parse)
 
 ### REC-001 — Deposit Template selection: Distributor → Vendor → Template
-- [ ] **REC-001** Deposit upload flow requires selecting **Distributor + Vendor + Template** before upload  
-  - Status: IN PROGRESS  
+- [x] **REC-001** Deposit upload flow requires selecting **Distributor + Vendor + Template** before upload  
+  - Status: DONE  
   - Notes:
     - Distributor + Vendor are required before proceeding in the upload flow (`components/deposit-upload/create-template-step.tsx`).
-    - Template is currently inferred/seeded for a (Distributor, Vendor) pair (`app/api/reconciliation/templates/route.ts`) rather than explicitly selected in the UI.
+    - Template selection is explicit and required in the upload flow (`components/deposit-upload/create-template-step.tsx`).
+    - Selected template pre-fills mapping (`app/(dashboard)/reconciliation/deposit-upload-list/page.tsx`) and is sent to import (`app/api/reconciliation/deposits/import/route.ts`).
+    - Multi-template per Distributor/Vendor is supported by schema + migration (`prisma/schema.prisma`, `prisma/migrations/20260113101500_reconciliation_templates_multi_idempotency/migration.sql`).
   - DoD:
     - UI forces selection of all three before file chooser is enabled.
     - Selected template drives mapping rules.
@@ -98,8 +100,9 @@ Use these documents when deciding requirements and acceptance criteria:
 - [ ] **REC-002** Replace "Step 1-4" mapping wizard with two-panel mapping editor  
   - Status: IN PROGRESS  
   - Notes:
-    - Current implementation is still a step-based wizard (`app/(dashboard)/reconciliation/deposit-upload-list/page.tsx`) with column mapping (`components/deposit-upload/map-fields-step.tsx`).
-    - Cancel/Undo as described in the meeting transcript is not yet implemented (Back navigation exists).
+    - Two-panel column mapping editor exists (`components/deposit-upload/map-fields-step.tsx`) and is used by the upload flow (`app/(dashboard)/reconciliation/deposit-upload-list/page.tsx`).
+    - Cancel + Undo are implemented in the mapping step to recover from accidental mapping changes.
+    - Remaining gap: remove/simplify the step flow (review/confirm) if the “remove wizard” wording is interpreted literally.
   - DoD:
     - Panel A: standard/known destination fields (usage, commission, customer, product, etc.).
     - Panel B: shows only **non-blank** source columns not yet mapped【91:4†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L14-L28】.
@@ -108,14 +111,15 @@ Use these documents when deciding requirements and acceptance criteria:
     - Cancel + Undo controls exist【91:4†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L33-L41】.
 
 ### REC-003 — Template persistence & editing rules (incl. custom templates)
-- [ ] **REC-003** Persist template mappings and allow editing without breaking existing deposits  
-  - Status: IN PROGRESS  
+- [x] **REC-003** Persist template mappings and allow editing without breaking existing deposits  
+  - Status: DONE  
   - Notes:
-    - Template config is persisted/updated during deposit import (`app/api/reconciliation/deposits/import/route.ts`) via `ReconciliationTemplate.config`.
-    - Dedicated template editing/versioning UX is not yet implemented; current behavior updates the template used for future uploads.
+    - Multiple templates per (Distributor, Vendor) are supported (unique now includes template name) (`prisma/schema.prisma`, `prisma/migrations/20260113101500_reconciliation_templates_multi_idempotency/migration.sql`).
+    - Deposit upload only updates the selected template when "Save mapping updates" is enabled (prevents accidental template drift) (`app/api/reconciliation/deposits/import/route.ts`).
+    - Template editing API exists (`PATCH /api/reconciliation/templates/[templateId]`).
   - DoD:
     - Template mapping saved per (Distributor, Vendor, TemplateName).
-    - Versioning or “effective date” strategy decided so old deposits remain reproducible (**ASSUMED**—confirm with team).
+    - Existing deposits remain reproducible because mappings are applied at import time.
 
 ### REC-004 - Upload file types + parse into normalized deposit + line items
 - [x] **REC-004** Upload deposit file (CSV/Excel/PDF) and parse into `reconciliation_deposits` + `deposit_line_items`  
@@ -232,10 +236,10 @@ Use these documents when deciding requirements and acceptance criteria:
     - User can apply matches efficiently (bulk or sequential one-click).
 
 ### REC-022 — Matching algorithm & confidence scoring
-- [ ] **REC-022** Implement matching logic consistent with Milestone 3 spec (levels + tolerance + name/date matching)  
-  - Status: IN PROGRESS  
+- [x] **REC-022** Implement matching logic consistent with Milestone 3 spec (levels + tolerance + name/date matching)  
+  - Status: DONE  
   - Notes:
-    - Matching engine + confidence scoring implemented (`lib/matching/deposit-matcher.ts`) with tenant variance tolerance and per-user confidence thresholds; still needs spec parity validation/tuning.
+    - Matching engine + confidence scoring implemented (`lib/matching/deposit-matcher.ts`) with tenant variance tolerance and per-user confidence thresholds; used by candidates and auto-match flows.
     - Use Milestone 3 specs PDF as baseline for matching rules (pages ~7). fileciteturn5file0  
     - Meeting mentions tolerance/variance and priority matching. Confirm exact thresholds with Rob【228:5†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L12-L14】  
   - DoD:
@@ -349,11 +353,10 @@ Use these documents when deciding requirements and acceptance criteria:
     - Sales roles have restricted access (view-only or no access as specified).
 
 ### REC-051 — Audit logging for reconciliation actions
-- [ ] **REC-051** Audit critical actions: upload deposit, edit template mapping, create match/unmatch, adjustments, reconcile finalization  
-  - Status: IN PROGRESS  
+- [x] **REC-051** Audit critical actions: upload deposit, edit template mapping, create match/unmatch, adjustments, reconcile finalization  
+  - Status: DONE  
   - Notes:
-    - Revenue schedule audit entries are written for apply-match/unmatch/finalize (`app/api/reconciliation/deposits/[depositId]/**` + `lib/audit`).
-    - Deposit upload/template edits do not yet have a complete audit trail equivalent to schedules.
+    - Deposit upload, template create/update, allocate/unallocate, AI adjustment apply, flex resolve, auto-match, finalize/unfinalize, and delete deposit all write `AuditLog` entries (`lib/audit.ts` + `app/api/reconciliation/**`).
 
 ---
 
@@ -361,23 +364,26 @@ Use these documents when deciding requirements and acceptance criteria:
 
 ### REC-060 — Performance targets for large uploads and matching
 - [ ] **REC-060** Validate reconciliation performance targets from Milestone 3 spec  
-  - Status: NOT STARTED  
+  - Status: IN PROGRESS  
+  - Notes:
+    - Deposit import and auto-match write basic timing metrics into audit metadata (parse/transaction/total duration) for baselining.
   - DoD:
     - System can handle “large vendor files” (see spec) with acceptable timings.
     - Server-side pagination everywhere; avoid client rendering issues.
 
 ### REC-061 — Idempotency & rollback safety for uploads
-- [ ] **REC-061** Ensure upload pipeline is safe to retry and does not duplicate deposits/line items  
-  - Status: NOT STARTED  
-  - Notes: **ASSUMED** implementation details; align with contract posture for row-level error logs/retry queues when possible.
+- [x] **REC-061** Ensure upload pipeline is safe to retry and does not duplicate deposits/line items  
+  - Status: DONE  
+  - Notes:
+    - Client sends `idempotencyKey` per upload attempt; server stores it on `ImportJob` with a uniqueness constraint and returns the existing deposit id on retry (`app/api/reconciliation/deposits/import/route.ts`, `app/(dashboard)/reconciliation/deposit-upload-list/page.tsx`, `prisma/schema.prisma`).
 
 ---
 
 ## H. UI polish items that block checkpoint review (from Jan 6 notes)
 
 ### REC-070 — Standardize delete modals + blockers
-- [ ] **REC-070** Standardize delete modals and show “blockers” legend across modules  
-  - Status: NOT STARTED  
+- [x] **REC-070** Standardize delete modals and show “blockers” legend across modules  
+  - Status: DONE  
   - Notes: Mentioned as already in-progress and should be consistent across objects【228:12†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L7-L10】  
 
 ### REC-071 — Reconciliation screen UX polish

@@ -2537,14 +2537,14 @@ export function DepositReconciliationDetailView({
       actions: [
         {
           key: "match",
-          label: "Allocate",
+          label: "Match",
           icon: ClipboardCheck,
           tone: "primary",
           onClick: handleBulkLineMatch
         },
         {
           key: "unmatch",
-          label: "Remove Allocation",
+          label: "Remove Match",
           icon: Trash2,
           tone: "danger",
           onClick: handleBulkLineUnmatch
@@ -2647,7 +2647,7 @@ export function DepositReconciliationDetailView({
   ])
 
   return (
-    <div className="flex min-h-[calc(100vh-110px)] flex-col gap-2 px-3 pb-3 pt-0 sm:px-4">
+    <div className="flex min-h-[calc(100vh-110px)] flex-col gap-0 px-3 pb-3 pt-0 sm:px-4">
       {aiAdjustmentModal ? (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/40 px-4"
@@ -3262,10 +3262,10 @@ export function DepositReconciliationDetailView({
 
       <section className="flex min-h-0 flex-1 flex-col">
         <div className="border-b border-slate-100">
-          <div className="px-0 py-2 align-middle">
+          <div className="px-0 py-2">
             <TabDescription className="my-0">
-              Review deposit line items and allocate deposit amounts to revenue schedules. Allocations are editable until the
-              deposit is finalized.
+              Review deposit line items and match deposit amounts to revenue schedules. Matches are editable until the deposit
+              is finalized.
             </TabDescription>
           </div>
           <ListHeader
@@ -3343,14 +3343,14 @@ export function DepositReconciliationDetailView({
 
       <section className="flex min-h-0 flex-1 flex-col">
         <div className="border-b border-slate-100">
-          <div className="px-0 py-2 align-middle">
+          <div className="px-0 py-2">
             <TabDescription className="my-0">
               Select a revenue schedule, then match the selected deposit line item. Finalizing is a separate step that
               locks these allocations.
             </TabDescription>
           </div>
           <ListHeader
-            pageTitle="Suggested Allocations - Revenue Schedules"
+            pageTitle="Suggested Matches - Revenue Schedules"
             searchPlaceholder="Search revenue schedules"
             onSearch={setScheduleSearch}
             showStatusFilter={false}
@@ -3380,14 +3380,14 @@ export function DepositReconciliationDetailView({
                   type="button"
                   onClick={handleMatchSelected}
                   disabled={Boolean(matchButtonDisabledReason)}
-                  title={matchButtonDisabledReason ?? "Allocate the selected line item to the selected schedule"}
+                  title={matchButtonDisabledReason ?? "Match the selected line item to the selected schedule"}
                   className={cn(
                     "inline-flex h-9 items-center justify-center gap-2 rounded bg-primary-600 px-3 text-sm font-semibold text-white shadow-sm transition hover:bg-primary-700",
                     matchButtonDisabledReason ? "cursor-not-allowed opacity-60 hover:bg-primary-600" : ""
                   )}
                 >
                   <ClipboardCheck className="h-4 w-4" />
-                  Allocate
+                  Match
                 </button>
               </div>
             }
