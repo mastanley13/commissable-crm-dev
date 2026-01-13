@@ -328,11 +328,11 @@ export default function DepositUploadListPage() {
   return (
     <div className="dashboard-page-container bg-gray-50">
       <div className="flex-1 min-h-0 overflow-y-auto">
-        <div className="p-4 space-y-4 pb-28 md:p-6 md:space-y-5">
+        <div className="p-3 space-y-3 pb-24 md:p-4 md:space-y-4">
           <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
             <div>
-              <h1 className="text-2xl font-semibold text-gray-900">Deposit Reconciliation</h1>
-              <p className="text-sm text-gray-600 mt-1">
+              <h1 className="text-lg font-semibold text-gray-900">Deposit Reconciliation</h1>
+              <p className="text-xs text-gray-600 mt-0.5">
                 Upload deposit files, map fields, review, and confirm reconciliation.
               </p>
             </div>
@@ -341,7 +341,7 @@ export default function DepositUploadListPage() {
                 type="button"
                 onClick={backButtonConfig.onClick}
                 disabled={backButtonConfig.disabled}
-                className="inline-flex items-center self-start rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 md:self-auto"
+                className="inline-flex items-center self-start rounded-lg border border-gray-300 bg-white px-2 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 md:self-auto"
               >
                 {backButtonConfig.label}
               </button>

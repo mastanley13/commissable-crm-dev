@@ -15,8 +15,8 @@ import type { TelarusTemplateFieldsV1 } from "@/lib/deposit-import/telarus-templ
 
 const PREVIEW_PAGE_SIZE = 1
 const COLUMN_TABLE_PAGE_SIZE = 12
-// Fixed scroll area height for both column tables (reduced from the previous 420px).
-const COLUMN_TABLE_MAX_HEIGHT_CLASS = "h-[336px] overflow-y-auto"
+// Fixed scroll area height for both column tables.
+const COLUMN_TABLE_MAX_HEIGHT_CLASS = "h-[280px] overflow-y-auto"
 
 interface MapFieldsStepProps {
   file: File | null
@@ -523,19 +523,19 @@ export function MapFieldsStep({
   }
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4 md:p-6 space-y-5">
-      <div className="grid gap-4 md:grid-cols-2 md:items-start">
+    <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-3 md:p-4 space-y-3">
+      <div className="grid gap-3 md:grid-cols-2 md:items-start">
         <div className="flex items-center gap-3">
-          <div className="rounded-full bg-primary-50 p-3 text-primary-600">
-            <FileSpreadsheet className="h-6 w-6" />
+          <div className="rounded-full bg-primary-50 p-2 text-primary-600">
+            <FileSpreadsheet className="h-5 w-5" />
           </div>
           <div>
             <h2 className="text-lg font-semibold text-gray-900">Map Fields</h2>
-            <p className="text-sm text-gray-600">Match columns from your upload to Commissable fields.</p>
+            <p className="text-sm text-gray-600">Match upload columns to Commissable fields.</p>
           </div>
         </div>
 
-        <div className="rounded-xl border border-gray-100 bg-gray-50 p-4 text-sm text-gray-700">
+        <div className="rounded-xl border border-gray-100 bg-gray-50 p-3 text-sm text-gray-700">
           <p className="font-semibold text-gray-900">Uploaded file</p>
           {file ? (
             <div className="mt-2 space-y-1 text-gray-600">
@@ -553,9 +553,9 @@ export function MapFieldsStep({
         </div>
       </div>
 
-      <div className="rounded-xl border border-gray-100 bg-gray-50 p-4 text-sm text-gray-700">
+      <div className="rounded-xl border border-gray-100 bg-gray-50 p-3 text-sm text-gray-700">
         <p className="font-semibold text-gray-900">Mapping guidance</p>
-        <p className="mt-2 text-xs text-gray-600">
+        <p className="mt-1.5 text-xs text-gray-600">
           Map required fields like Usage and Commission to columns from your uploaded file. Optional fields can be left
           unmapped. If a saved mapping exists for the selected Distributor + Vendor, those columns (plus core fields) will
           appear in the Template-mapped section below.
@@ -573,7 +573,7 @@ export function MapFieldsStep({
       ) : null}
 
       {csvHeaders.length > 0 ? (
-        <div className="rounded-xl border border-gray-100 bg-white p-4">
+        <div className="rounded-xl border border-gray-100 bg-white p-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-sm font-semibold text-gray-900">Uploaded columns</p>

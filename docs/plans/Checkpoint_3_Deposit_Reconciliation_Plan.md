@@ -35,6 +35,36 @@ These already exist in the repo and should be used as the baseline:
   - Tenant: variance tolerance, include future schedules, engine mode (`app/api/reconciliation/settings/route.ts`)
   - User: suggested threshold, auto-match threshold (`app/api/reconciliation/user-settings/route.ts`)
 
+## Progress / Status (as of 2026-01-13)
+
+### Completed
+- **Confidence defaults aligned to v1**:
+  - Suggested matches default = **70%**
+  - Auto-match default = **95%**
+  - Implemented in both backend defaults and UI initial state:
+    - `lib/matching/user-confidence-settings.ts`
+    - `components/deposit-reconciliation-detail-view.tsx`
+    - `components/reconciliation-settings-form.tsx`
+- **“Product code” implemented as Other - Part Number end-to-end**:
+  - New canonical deposit field: `partNumberRaw` (`lib/deposit-import/fields.ts`)
+  - Auto-mapping synonyms + mapping priority updated (`lib/deposit-import/template-mapping.ts`)
+  - Telarus template label mapping supports both legacy and new labels:
+    - `"Vendor - Part Number"` and `"Other - Part Number"` (`lib/deposit-import/telarus-template-master.ts`, `scripts/seed-telarus-reconciliation-templates.ts`)
+  - Persisted on import (`app/api/reconciliation/deposits/import/route.ts`)
+  - Returned on deposit detail (`app/api/reconciliation/deposits/[depositId]/detail/route.ts`)
+  - Displayed as a line-item column and filter (`components/deposit-reconciliation-detail-view.tsx`)
+- **FLEX product reuse policy implemented (accountId + flexType)**:
+  - Product-level flags/metadata added: `isFlex`, `flexAccountId`, `flexType` (`prisma/schema.prisma`)
+  - Flex creation now reuses an existing flex product when available (`lib/flex/revenue-schedule-flex-actions.ts`)
+- **Validation**
+  - Prisma client regenerated (`npm run db:generate`)
+  - Tests pass (`npm test`)
+  - Production build passes (`npm run build`)
+
+### Pending (required to deploy these changes)
+- Apply migration to your database:
+  - `prisma/migrations/20260113093000_add_deposit_part_number_and_flex_product_fields/migration.sql`
+
 ## Acceptance Criteria Mapping (from `checkpoint_3_main_steps.md`)
 
 ### 1) Data Upload and Mapping
@@ -134,14 +164,17 @@ Treat as **out of scope** for checkpoint completion unless explicitly required:
   - variance tolerance meaning and default value
 - Produce a short demo script for checkpoint validation (upload → map → match → adjust/flex → finalize).
 
-### Phase 1 — Data upload completeness for ACC / Advantix / Talaris (2–4 days)
+### Phase 1 – Data upload completeness for ACC / Advantix / Talaris (2–4 days)
 - Collect sample files and identify common/unique columns for each vendor format.
 - Extend canonical deposit fields as needed:
-  - Add **Other - Part Number** (proposed canonical field id: `partNumberRaw`) end-to-end:
-    - `lib/deposit-import/fields.ts`
-    - mapping UI (`app/(dashboard)/reconciliation/deposit-upload-list/page.tsx` and deposit-upload components)
-    - import persistence (`app/api/reconciliation/deposits/import/route.ts`)
-    - Prisma model (`DepositLineItem`) if we want it queryable/reportable
+  - ✅ Add **Other - Part Number** (`partNumberRaw`) end-to-end:
+    - Canonical field: `lib/deposit-import/fields.ts`
+    - Auto-mapping: `lib/deposit-import/template-mapping.ts`
+    - Telarus mapping: `lib/deposit-import/telarus-template-master.ts`, `scripts/seed-telarus-reconciliation-templates.ts`
+    - Import persistence: `app/api/reconciliation/deposits/import/route.ts`
+    - Deposit detail API: `app/api/reconciliation/deposits/[depositId]/detail/route.ts`
+    - Reconciliation UI column: `components/deposit-reconciliation-detail-view.tsx`
+    - DB migration: `prisma/migrations/20260113093000_add_deposit_part_number_and_flex_product_fields/migration.sql`
 - Create/seed templates for each vendor/distributor pair to minimize manual mapping:
   - Add or update template seeds where appropriate (Telarus-style seeding already exists).
 - Add a “mapping QA checklist” per vendor:
@@ -153,11 +186,11 @@ Treat as **out of scope** for checkpoint completion unless explicitly required:
 - ACC/Advantix/Talaris files can be uploaded and imported without manual “hacky” edits.
 - Required fields land correctly on `DepositLineItem` records.
 
-### Phase 2 — Matching UX + threshold behavior (2–4 days)
-- Add threshold controls directly in reconciliation UI:
-  - quick slider for “Suggested matches show >= X%”
-  - quick slider or numeric input for “Auto-match applies >= Y%”
-- Ensure auto-match preview/apply uses those settings (it already loads user prefs; ensure UX exposes them).
+### Phase 2 – Matching UX + threshold behavior (2–4 days)
+- ✅ Threshold controls exist in reconciliation UI and persist per-user:
+  - Suggested slider + Auto slider: `components/deposit-reconciliation-detail-view.tsx`
+  - Defaults updated to Suggested **70%** and Auto **95%**
+- ✅ Auto-match preview/apply uses user thresholds (API reads per-user preferences).
 - Refactor button semantics:
   - Rename current finalize button to **Finalize Deposit** (or **Complete Deposit**).
   - Add **Reconcile (Auto-Match)** to run preview + apply and present “high-confidence matches” for approval.
@@ -183,14 +216,16 @@ Treat as **out of scope** for checkpoint completion unless explicitly required:
 **Exit criteria**
 - Users get prompted for mismatches and can resolve via current-only or propagation adjustments.
 
-### Phase 4 — Flex products / flex schedules (3–6 days)
+### Phase 4 – Flex products / flex schedules (3–6 days)
 - Implement FLEX emission for:
   - **Unmatched** lines (no candidates / user leaves unmatched) when finalizing or by explicit action.
   - **Overage** cases when match is applied but a meaningful remainder exists.
 - Add a review surface:
   - list flex entries with source deposit + line, account/vendor, amount, type (Unknown vs Overage), status.
-- Implement FLEX product reuse policy:
+- ✅ Implement FLEX product reuse policy:
   - Reuse when same `accountId` + `flexType` exists, else create a new flex product.
+  - Implementation: `lib/flex/revenue-schedule-flex-actions.ts`
+  - Requires DB migration: `prisma/migrations/20260113093000_add_deposit_part_number_and_flex_product_fields/migration.sql`
 - Decide how flex interacts with “Finalize Deposit”:
   - Option: allow finalize when flex entries are created and the original lines are marked handled.
 - Add metrics (`flex_create`, `partial_allocate`) using the existing metrics logger.

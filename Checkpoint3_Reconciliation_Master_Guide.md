@@ -21,9 +21,9 @@
 
 ## Progress summary (as of 2026-01-13)
 
-- **DONE (implemented):** Deposit list + deposit detail reconciliation screen; CSV/Excel deposit import; template auto-seeding + mapping persistence; suggested matches + confidence filtering; manual match/unmatch; AI auto-match preview/apply; finalize/unfinalize; revenue schedule actuals updated; baseline RBAC.
-- **IN PROGRESS:** Template selection UX (currently inferred by distributor+vendor); mapping UI redesign (still wizard-based); AI button text label; matching algorithm parity/tuning; audit coverage completeness; reconciliation UX polish.
-- **NOT STARTED:** Split/merge allocations (true many-to-many); variance prompt + 3-option decision tree; “adjust future schedules” behavior; flex products; performance targets + idempotency hardening.
+- **DONE (implemented):** Deposit list + deposit detail reconciliation screen; CSV/Excel deposit import; template auto-seeding + mapping persistence; suggested matches + confidence filtering; manual allocate/unallocate; AI auto-match preview/apply; partial allocations (split/merge) via match junction table; variance detection + 3-option flow (AI adjustment preview, manual adjustment, flex product); optional “apply to future schedules” behavior (scoped); flex products + chargebacks; finalize/unfinalize; revenue schedule actuals updated; baseline RBAC.
+- **IN PROGRESS:** Template selection UX (explicit distributor+vendor+template); mapping UI redesign (two-panel + cancel/undo); matching algorithm parity/tuning vs Milestone 3 spec; audit coverage completeness (upload + template edits); reconciliation UX polish (blockers legend/delete modals consistency).
+- **NOT STARTED:** Performance targets validation; upload idempotency/retry hardening.
 
 ---
 
@@ -74,7 +74,7 @@ Use these documents when deciding requirements and acceptance criteria:
 
 > ⚠️ Potential conflict: the older ERD mermaid file includes `DEPOSIT_LINE_ITEM.ScheduleID` (1 line → 1 schedule).  
 > The newer data notebook expects M:N via `reconciliation_matches`【228:11†Data Notebook LM 1.1.docx†L9-L11】.  
-> **Action:** confirm current DB schema and align to the split/merge requirement.
+> **Update:** Implemented M:N allocations via `DepositLineMatch` (junction table) with per-link `usageAmount` and `commissionAmount`.
 
 ---
 
@@ -163,12 +163,12 @@ Use these documents when deciding requirements and acceptance criteria:
     - Columns aligned so expected vs actual are easy to compare (esp. usage & commission)【228:4†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L52-L60】.
     - Matched/unmatched toggles exist; default view = Unmatched【228:2†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L57-L58】.
 
-### REC-012 — Match button placement + labeling
-- [ ] **REC-012** Place “Match” button to the left of bottom search; label AI button with text (not only icon)  
-  - Status: IN PROGRESS  
+### REC-012 - Match button placement + labeling
+- [x] **REC-012** Place "Allocate" button to the left of bottom search; label AI button with text (not only icon)  
+  - Status: DONE  
   - Notes:
-    - Match action is implemented in the bottom grid header (`components/deposit-reconciliation-detail-view.tsx`).
-    - AI action is currently icon-only (Sparkles) with aria-label/title; needs visible text label to match requirement.
+    - Allocate action is implemented in the bottom grid header (`components/deposit-reconciliation-detail-view.tsx`).
+    - AI action now includes visible text label ("Use AI") rather than icon-only.
   - Evidence/DoD:
     - “Match” button is left of search on bottom grid【228:4†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L4-L5】.
     - AI action uses text label (“Use AI”) rather than only an icon【228:4†Commissable_Transcript_MeetingSummary_Jan-06-26.pdf†L10-L12】.
