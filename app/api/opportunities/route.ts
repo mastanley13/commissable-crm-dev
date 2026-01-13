@@ -31,6 +31,13 @@ const OPPORTUNITY_VIEW_PERMISSIONS = Array.from(new Set([
   ...OPPORTUNITY_VIEW_ASSIGNED_PERMISSIONS
 ]))
 
+const UUID_REGEX = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/
+
+function isUuid(value: string | null | undefined): value is string {
+  if (!value) return false
+  return UUID_REGEX.test(value.trim())
+}
+
 function resolveSortOrder(sortColumn: string, direction: "asc" | "desc"): Prisma.OpportunityOrderByWithRelationInput[] {
   if (sortColumn === "closeDate") {
     return [
@@ -337,8 +344,77 @@ export async function GET(request: NextRequest) {
 
       const totalPages = Math.max(1, Math.ceil(total / pageSize))
 
+      const referredByIds = Array.from(
+        new Set(
+          opportunities
+            .map(opportunity => (typeof (opportunity as any)?.referredBy === "string" ? String((opportunity as any).referredBy).trim() : ""))
+            .filter(isUuid)
+        )
+      )
+
+      const [referredByContacts, referredByAccounts] = await Promise.all([
+        referredByIds.length > 0
+          ? prisma.contact.findMany({
+              where: {
+                tenantId,
+                deletedAt: null,
+                id: { in: referredByIds }
+              },
+              select: {
+                id: true,
+                fullName: true
+              }
+            })
+          : Promise.resolve([]),
+        referredByIds.length > 0
+          ? prisma.account.findMany({
+              where: {
+                tenantId,
+                id: { in: referredByIds }
+              },
+              select: {
+                id: true,
+                accountName: true,
+                accountLegalName: true
+              }
+            })
+          : Promise.resolve([])
+      ])
+
+      const referredByNameById = new Map<string, string>()
+
+      for (const contact of referredByContacts) {
+        const name = typeof contact.fullName === "string" ? contact.fullName.trim() : ""
+        if (name) {
+          referredByNameById.set(contact.id, name)
+        }
+      }
+
+      for (const account of referredByAccounts) {
+        if (referredByNameById.has(account.id)) {
+          continue
+        }
+
+        const name = (account.accountLegalName ?? account.accountName ?? "").trim()
+        if (name) {
+          referredByNameById.set(account.id, name)
+        }
+      }
+
+      const rows = opportunities.map(opportunity => {
+        const row = mapOpportunityToRow(opportunity as any) as any
+        const referredByValue = typeof row?.referredBy === "string" ? row.referredBy.trim() : ""
+        if (isUuid(referredByValue)) {
+          const name = referredByNameById.get(referredByValue)
+          if (name) {
+            row.referredBy = name
+          }
+        }
+        return row
+      })
+
       return NextResponse.json({
-        data: opportunities.map(mapOpportunityToRow),
+        data: rows,
         pagination: {
           page,
           pageSize,

@@ -853,7 +853,7 @@ export function DepositReconciliationDetailView({
         return
       }
       if (targetLine?.status === "Ignored") {
-        showError("Line ignored", "Ignored line items cannot be matched.")
+        showError("Line ignored", "Ignored line items cannot be allocated.")
         return
       }
 
@@ -947,7 +947,7 @@ export function DepositReconciliationDetailView({
       return
     }
     if (targetLine?.status === "Ignored") {
-      showError("Line ignored", "Ignored line items cannot be matched.")
+      showError("Line ignored", "Ignored line items cannot be allocated.")
       return
     }
 
@@ -2889,7 +2889,7 @@ export function DepositReconciliationDetailView({
       {showDevControls ? renderDevMatchingControls() : null}
       <div className="-mx-3 border-b border-blue-100 bg-blue-50 px-3 py-2 sm:-mx-4 sm:px-4">
         {/* Row 1: Title + Status + Buttons */}
-        <div className="flex items-center justify-between border-b border-blue-100 pb-2 mb-2">
+        <div className="flex items-center justify-between pb-2 mb-2">
           <div className="flex items-center gap-2">
             <p className="text-[11px] font-semibold uppercase tracking-wide text-primary-600">Deposit Reconciliation</p>
             <span
@@ -3262,7 +3262,7 @@ export function DepositReconciliationDetailView({
 
       <section className="flex min-h-0 flex-1 flex-col">
         <div className="border-b border-slate-100">
-          <div className="px-0 py-2">
+          <div className="px-0 py-2 align-middle">
             <TabDescription className="my-0">
               Review deposit line items and allocate deposit amounts to revenue schedules. Allocations are editable until the
               deposit is finalized.
@@ -3343,7 +3343,7 @@ export function DepositReconciliationDetailView({
 
       <section className="flex min-h-0 flex-1 flex-col">
         <div className="border-b border-slate-100">
-          <div className="px-0 py-2">
+          <div className="px-0 py-2 align-middle">
             <TabDescription className="my-0">
               Select a revenue schedule, then match the selected deposit line item. Finalizing is a separate step that
               locks these allocations.

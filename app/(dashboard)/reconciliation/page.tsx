@@ -10,6 +10,7 @@ import { Check, X, Download, Trash2 } from 'lucide-react'
 import { calculateMinWidth } from '@/lib/column-width-utils'
 import { cn } from '@/lib/utils'
 import { useToasts } from '@/components/toast'
+import { TwoStageDeleteDialog } from '@/components/two-stage-delete-dialog'
 import type { BulkActionsGridProps } from '@/components/bulk-actions-grid'
 
 const TABLE_BOTTOM_RESERVE = 110
@@ -461,6 +462,7 @@ export default function ReconciliationPage() {
   const [searchQuery, setSearchQuery] = useState<string>('')
   const [sortConfig, setSortConfig] = useState<{ columnId: string; direction: 'asc' | 'desc' } | null>(null)
   const [selectedReconciliations, setSelectedReconciliations] = useState<string[]>([])
+  const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false)
   const [reconciliationColumnsNormalized, setReconciliationColumnsNormalized] = useState(false)
   const [tableBodyHeight, setTableBodyHeight] = useState<number | undefined>(undefined)
   const [updatingReconciliationIds, setUpdatingReconciliationIds] = useState<Set<string>>(new Set())
@@ -714,19 +716,72 @@ export default function ReconciliationPage() {
     setSelectedReconciliations([])
   }, [reconciliation])
 
-  const handleBulkDeleteReconciliations = useCallback(() => {
+  const bulkDeleteEntities = useMemo(
+    () =>
+      selectedReconciliationRows.map(row => ({
+        id: String(row.id),
+        name: row.depositName ?? String(row.id),
+        subtitle: `${row.accountName ?? '-'} • ${formatDateYYYYMMDD(row.month ?? '')}`,
+      })),
+    [selectedReconciliationRows],
+  )
+
+  const handleOpenBulkDeleteDialog = useCallback(() => {
     if (selectedReconciliations.length === 0) {
-      showError('No records selected', 'Select at least one reconciliation to delete.')
+      showError('No records selected', 'Select at least one deposit to delete.')
       return
     }
-    const ids = new Set(selectedReconciliations)
-    setReconciliation(prev => prev.filter(record => !ids.has(String(record.id))))
-    setSelectedReconciliations([])
-    showSuccess(
-      `Removed ${ids.size} record${ids.size === 1 ? '' : 's'}`,
-      'Selected reconciliation records have been removed from the list.'
-    )
-  }, [selectedReconciliations, showError, showSuccess])
+
+    const blocked = selectedReconciliationRows.filter(row => row.reconciled || row.status === 'Completed')
+    if (blocked.length > 0) {
+      showError(
+        'Delete blocked',
+        'Finalized deposits cannot be deleted. Unselect finalized deposits and try again.',
+      )
+      return
+    }
+
+    setShowBulkDeleteDialog(true)
+  }, [selectedReconciliations.length, selectedReconciliationRows, showError])
+
+  const deleteDeposit = useCallback(async (depositId: string) => {
+    const response = await fetch(`/api/reconciliation/deposits/${encodeURIComponent(depositId)}`, {
+      method: 'DELETE',
+      cache: 'no-store',
+    })
+    const payload = await response.json().catch(() => null)
+    if (!response.ok) {
+      throw new Error(payload?.error || 'Unable to delete deposit')
+    }
+  }, [])
+
+  const handleBulkPermanentDelete = useCallback(
+    async (entities: { id: string; name: string }[]) => {
+      if (!entities.length) {
+        return { success: false, error: 'No deposits selected.' }
+      }
+
+      try {
+        const ids = entities.map(entity => entity.id)
+        for (const id of ids) {
+          await deleteDeposit(id)
+        }
+
+        const idSet = new Set(ids)
+        setReconciliation(prev => prev.filter(record => !idSet.has(String(record.id))))
+        setSelectedReconciliations([])
+        showSuccess(
+          `Deleted ${ids.length} deposit${ids.length === 1 ? '' : 's'}`,
+          'The deposits and their allocations were removed.',
+        )
+
+        return { success: true }
+      } catch (error) {
+        return { success: false, error: error instanceof Error ? error.message : 'Unable to delete selected deposits' }
+      }
+    },
+    [deleteDeposit, showSuccess],
+  )
 
   const handleBulkExportReconciliations = useCallback(() => {
     if (selectedReconciliationRows.length === 0) {
@@ -1078,7 +1133,7 @@ useEffect(() => {
         icon: Trash2,
         tone: 'danger',
         tooltip: (count) => `Delete ${count} record${count === 1 ? '' : 's'}`,
-        onClick: handleBulkDeleteReconciliations,
+        onClick: handleOpenBulkDeleteDialog,
       },
       {
         key: 'export',
@@ -1089,7 +1144,7 @@ useEffect(() => {
         onClick: handleBulkExportReconciliations,
       },
     ],
-  }), [handleBulkDeleteReconciliations, handleBulkExportReconciliations, selectedReconciliations.length])
+  }), [handleBulkExportReconciliations, handleOpenBulkDeleteDialog, selectedReconciliations.length])
 
   const selectedYear = selectedMonth.getFullYear()
   const selectedMonthIndex = selectedMonth.getMonth()
@@ -1152,6 +1207,15 @@ useEffect(() => {
         <div className="px-4 text-sm text-red-600">{preferenceError}</div>
       )}
 
+      <div className="px-4 pt-2">
+        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+          <p className="font-semibold text-slate-800">Legend</p>
+          <p className="mt-1">
+            Allocations can be edited until a deposit is finalized. Finalized deposits cannot be deleted.
+          </p>
+        </div>
+      </div>
+
       {/* Table */}
       <div ref={tableAreaRef} className="flex-1 p-4 min-h-0">
         <DynamicTable
@@ -1187,6 +1251,42 @@ useEffect(() => {
           setShowColumnSettings(false)
           await saveChangesOnModalClose()
         }}
+      />
+
+      <TwoStageDeleteDialog
+        isOpen={showBulkDeleteDialog}
+        onClose={() => setShowBulkDeleteDialog(false)}
+        entity="Deposit"
+        entityName="Selected deposits"
+        entityId={bulkDeleteEntities[0]?.id ?? ''}
+        deleteKind="permanent"
+        multipleEntities={bulkDeleteEntities}
+        entityLabelPlural="Deposits"
+        onSoftDelete={async (entityId: string) => {
+          try {
+            await deleteDeposit(entityId)
+            setReconciliation(prev => prev.filter(record => String(record.id) !== String(entityId)))
+            setSelectedReconciliations([])
+            showSuccess('Deposit deleted', 'The deposit and its allocations were removed.')
+            return { success: true }
+          } catch (error) {
+            return { success: false, error: error instanceof Error ? error.message : 'Unable to delete deposit' }
+          }
+        }}
+        onPermanentDelete={async (entityId: string) => {
+          try {
+            await deleteDeposit(entityId)
+            setReconciliation(prev => prev.filter(record => String(record.id) !== String(entityId)))
+            setSelectedReconciliations([])
+            showSuccess('Deposit deleted', 'The deposit and its allocations were removed.')
+            return { success: true }
+          } catch (error) {
+            return { success: false, error: error instanceof Error ? error.message : 'Unable to delete deposit' }
+          }
+        }}
+        onBulkPermanentDelete={async (entities) => handleBulkPermanentDelete(entities)}
+        note="Deleting deposits permanently removes their line items and allocations. Finalized deposits cannot be deleted."
+        primaryActionLabel="Delete Deposits"
       />
       <ToastContainer />
     </div>

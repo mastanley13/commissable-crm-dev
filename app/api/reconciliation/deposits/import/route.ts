@@ -74,6 +74,7 @@ export async function POST(request: NextRequest) {
   return withPermissions(request, ["reconciliation.manage", "reconciliation.view"], async req => {
     const formData = await request.formData()
     const tenantId = req.user.tenantId
+    const totalStartMs = Date.now()
 
     const file = formData.get("file")
     if (!(file instanceof File)) {
@@ -186,7 +187,9 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    const parseStartMs = Date.now()
     const parsedFile = await parseSpreadsheetFile(file, file.name, file.type)
+    const parseDurationMs = Date.now() - parseStartMs
     if (!parsedFile.headers.length || parsedFile.rows.length === 0) {
       return createErrorResponse("Uploaded file did not contain any data rows", 400)
     }
@@ -222,6 +225,7 @@ export async function POST(request: NextRequest) {
     }
 
     try {
+      const txStartMs = Date.now()
       const result = await prisma.$transaction(async tx => {
         const deposit = await tx.deposit.create({
           data: {
@@ -383,6 +387,8 @@ export async function POST(request: NextRequest) {
           templateSaved: Boolean(templateConfigToPersist && saveTemplateMapping),
         }
       })
+      const txDurationMs = Date.now() - txStartMs
+      const totalDurationMs = Date.now() - totalStartMs
 
       await logAudit({
         userId: req.user.id,
@@ -400,6 +406,11 @@ export async function POST(request: NextRequest) {
           saveTemplateMapping,
           idempotencyKey,
           lineCount: result.lineCount,
+          performance: {
+            parseDurationMs,
+            transactionDurationMs: txDurationMs,
+            totalDurationMs,
+          },
         },
       })
 

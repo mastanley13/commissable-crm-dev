@@ -57,6 +57,7 @@ export async function POST(request: NextRequest, { params }: { params: { deposit
 
     const prefs = await getTenantMatchingPreferences(tenantId)
     const userPrefs = await getUserReconciliationConfidencePreferences(tenantId, req.user.id)
+    const autoMatchStartMs = Date.now()
 
     const summary: AutoMatchSummary = {
       processed: lineItems.length,
@@ -134,6 +135,13 @@ export async function POST(request: NextRequest, { params }: { params: { deposit
       metadata: {
         action: "AutoMatch",
         summary,
+        performance: {
+          durationMs: Date.now() - autoMatchStartMs,
+          engineMode: prefs.engineMode,
+          includeFutureSchedulesDefault: prefs.includeFutureSchedulesDefault,
+          varianceTolerance: prefs.varianceTolerance,
+          autoMatchMinConfidence: userPrefs.autoMatchMinConfidence,
+        },
       },
     })
 
