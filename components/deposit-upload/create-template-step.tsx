@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, ChangeEvent, ReactNode, useRef } from 'react'
 import { Upload, Calendar, X } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
-import type { DepositUploadFormState } from '@/components/deposit-upload/types'
+import type { DepositUploadFormState, TemplateResponse } from '@/components/deposit-upload/types'
 
 interface ContactOption {
   value: string
@@ -12,6 +12,12 @@ interface ContactOption {
 }
 
 interface AccountOption {
+  value: string
+  label: string
+  detail?: string
+}
+
+interface TemplateOption {
   value: string
   label: string
   detail?: string
@@ -51,6 +57,13 @@ export function CreateTemplateStep({
   const [vendorOptions, setVendorOptions] = useState<AccountOption[]>([])
   const [vendorLoading, setVendorLoading] = useState(false)
   const [showVendorDropdown, setShowVendorDropdown] = useState(false)
+  const [templateQuery, setTemplateQuery] = useState(formState.templateLabel)
+  const [templateOptions, setTemplateOptions] = useState<TemplateOption[]>([])
+  const [templateLoading, setTemplateLoading] = useState(false)
+  const [showTemplateDropdown, setShowTemplateDropdown] = useState(false)
+  const [newTemplateName, setNewTemplateName] = useState('')
+  const [creatingTemplate, setCreatingTemplate] = useState(false)
+  const [templateError, setTemplateError] = useState<string | null>(null)
   const depositDateNativeRef = useRef<HTMLInputElement | null>(null)
   const commissionPeriodNativeRef = useRef<HTMLInputElement | null>(null)
 
@@ -70,6 +83,7 @@ export function CreateTemplateStep({
       formState.commissionPeriod &&
       formState.distributorAccountId &&
       formState.vendorAccountId &&
+      formState.templateId &&
       selectedFile,
   )
 
@@ -80,22 +94,36 @@ export function CreateTemplateStep({
     setShouldAutoFillCreatedBy(false)
   }
 
-  const handleDistributorSelect = (option: AccountOption) => {
+  const handleDistributorSelect = (option: { value: string; label: string }) => {
     setDistributorQuery(option.label)
+    setTemplateQuery('')
+    setNewTemplateName('')
     onFormStateChange({
       distributorAccountId: option.value,
       distributorLabel: option.label,
+      templateId: '',
+      templateLabel: '',
     })
     setShowDistributorDropdown(false)
   }
 
-  const handleVendorSelect = (option: AccountOption) => {
+  const handleVendorSelect = (option: { value: string; label: string }) => {
     setVendorQuery(option.label)
+    setTemplateQuery('')
+    setNewTemplateName('')
     onFormStateChange({
       vendorAccountId: option.value,
       vendorLabel: option.label,
+      templateId: '',
+      templateLabel: '',
     })
     setShowVendorDropdown(false)
+  }
+
+  const handleTemplateSelect = (option: { value: string; label: string }) => {
+    setTemplateQuery(option.label)
+    onFormStateChange({ templateId: option.value, templateLabel: option.label })
+    setShowTemplateDropdown(false)
   }
 
   useEffect(() => {
@@ -275,6 +303,134 @@ export function CreateTemplateStep({
     }
   }, [vendorQuery, fetchAccounts])
 
+  useEffect(() => {
+    const distributorAccountId = formState.distributorAccountId?.trim()
+    const vendorAccountId = formState.vendorAccountId?.trim()
+    const query = templateQuery.trim()
+
+    if (!distributorAccountId || !vendorAccountId) {
+      setTemplateOptions([])
+      setTemplateLoading(false)
+      setTemplateError(null)
+      return
+    }
+
+    let cancelled = false
+    const controller = new AbortController()
+
+    const fetchTemplates = async () => {
+      setTemplateLoading(true)
+      setTemplateError(null)
+      try {
+        const params = new URLSearchParams({
+          distributorAccountId,
+          vendorAccountId,
+          pageSize: '50',
+        })
+        if (query.length > 0) {
+          params.set('q', query)
+        }
+
+        const response = await fetch(`/api/reconciliation/templates?${params.toString()}`, {
+          cache: 'no-store',
+          signal: controller.signal,
+        })
+        const payload = await response.json().catch(() => null)
+        if (!response.ok) {
+          throw new Error(payload?.error || 'Failed to load templates')
+        }
+        if (cancelled) return
+
+        const templates: TemplateResponse[] = Array.isArray(payload?.data) ? payload.data : []
+        const options: TemplateOption[] = templates.map(template => ({
+          value: template.id,
+          label: template.name,
+          detail: template.description || undefined,
+        }))
+
+        setTemplateOptions(options)
+        if (!formState.templateId && options.length === 1 && query.length === 0) {
+          onFormStateChange({ templateId: options[0].value, templateLabel: options[0].label })
+          setTemplateQuery(options[0].label)
+        }
+      } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') {
+          return
+        }
+        console.error('Unable to load reconciliation templates', error)
+        if (!cancelled) {
+          setTemplateOptions([])
+          setTemplateError(error instanceof Error ? error.message : 'Unable to load templates')
+        }
+      } finally {
+        if (!cancelled) {
+          setTemplateLoading(false)
+        }
+      }
+    }
+
+    const debounce = setTimeout(() => {
+      void fetchTemplates()
+    }, 250)
+
+    return () => {
+      cancelled = true
+      controller.abort()
+      clearTimeout(debounce)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formState.distributorAccountId, formState.vendorAccountId, templateQuery])
+
+  const handleCreateTemplate = useCallback(async () => {
+    const distributorAccountId = formState.distributorAccountId?.trim()
+    const vendorAccountId = formState.vendorAccountId?.trim()
+    const name = newTemplateName.trim()
+
+    if (!distributorAccountId || !vendorAccountId) {
+      setTemplateError('Select a distributor and vendor first.')
+      return
+    }
+
+    if (!name) {
+      setTemplateError('Template name is required.')
+      return
+    }
+
+    setCreatingTemplate(true)
+    setTemplateError(null)
+
+    try {
+      const response = await fetch('/api/reconciliation/templates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          distributorAccountId,
+          vendorAccountId,
+          name,
+          description: 'Created from deposit upload.',
+          createdByContactId: formState.createdByContactId || null,
+        }),
+      })
+      const payload = await response.json().catch(() => null)
+      if (!response.ok) {
+        throw new Error(payload?.error || 'Failed to create template')
+      }
+
+      const created = payload?.data as TemplateResponse | undefined
+      if (created?.id) {
+        onFormStateChange({ templateId: created.id, templateLabel: created.name })
+        setTemplateQuery(created.name)
+        setNewTemplateName('')
+        setShowTemplateDropdown(false)
+      }
+    } catch (error) {
+      console.error('Template create failed', error)
+      setTemplateError(error instanceof Error ? error.message : 'Failed to create template')
+    } finally {
+      setCreatingTemplate(false)
+    }
+  }, [formState.createdByContactId, formState.distributorAccountId, formState.vendorAccountId, newTemplateName, onFormStateChange])
+
   return (
     <div className="space-y-4">
       <div className="grid gap-4 md:grid-cols-2">
@@ -320,6 +476,58 @@ export function CreateTemplateStep({
               />
             ) : null}
           </div>
+        </FormField>
+
+        <FormField label="Template" required>
+          <div className="relative">
+            <input
+              type="text"
+              value={templateQuery}
+              onChange={event => {
+                setTemplateQuery(event.target.value)
+                onFormStateChange({ templateId: '', templateLabel: '' })
+              }}
+              onFocus={() => setShowTemplateDropdown(true)}
+              placeholder={
+                formState.distributorAccountId && formState.vendorAccountId
+                  ? 'Select a template'
+                  : 'Select distributor + vendor first'
+              }
+              disabled={!formState.distributorAccountId || !formState.vendorAccountId}
+              className={underlineInputClass}
+            />
+            {showTemplateDropdown ? (
+              <DropdownList
+                loading={templateLoading}
+                options={templateOptions}
+                emptyLabel="No templates found"
+                onSelect={option => handleTemplateSelect(option)}
+                onDismiss={() => setShowTemplateDropdown(false)}
+              />
+            ) : null}
+          </div>
+          {templateError ? <p className="mt-1 text-xs text-red-600">{templateError}</p> : null}
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-600">
+            <input
+              type="text"
+              value={newTemplateName}
+              onChange={event => setNewTemplateName(event.target.value)}
+              placeholder="New template name"
+              disabled={!formState.distributorAccountId || !formState.vendorAccountId || creatingTemplate}
+              className="min-w-[220px] flex-1 border-b border-slate-200 bg-transparent px-0 py-2 text-xs text-slate-900 placeholder:text-slate-400 focus:border-primary-500 focus:outline-none"
+            />
+            <button
+              type="button"
+              onClick={handleCreateTemplate}
+              disabled={!formState.distributorAccountId || !formState.vendorAccountId || creatingTemplate}
+              className="inline-flex items-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {creatingTemplate ? 'Creating…' : 'Create template'}
+            </button>
+          </div>
+          <p className="mt-1 text-xs text-slate-500">
+            Templates persist mappings for future uploads. Select an existing template or create a new one for this distributor/vendor.
+          </p>
         </FormField>
 
         <FormField label="Commission Period (YYYY-MM)" required>

@@ -25,9 +25,15 @@ interface MapFieldsStepProps {
   mapping: DepositMappingConfigV1
   templateMapping: DepositMappingConfigV1 | null
   templateFields: TelarusTemplateFieldsV1 | null
+  templateLabel?: string
+  saveTemplateMapping?: boolean
+  onSaveTemplateMappingChange?: (value: boolean) => void
   parsingError: string | null
   onColumnSelectionChange: (columnName: string, selection: DepositColumnSelection) => void
   onCreateCustomField: (columnName: string, input: { label: string; section: DepositCustomFieldSection }) => void
+  canUndo?: boolean
+  onUndo?: () => void
+  onCancel?: () => void
   canProceed: boolean
   onBack: () => void
   onProceed: () => void
@@ -40,9 +46,15 @@ export function MapFieldsStep({
   mapping,
   templateMapping,
   templateFields,
+  templateLabel,
+  saveTemplateMapping = false,
+  onSaveTemplateMappingChange,
   parsingError,
   onColumnSelectionChange,
   onCreateCustomField,
+  canUndo = false,
+  onUndo,
+  onCancel,
   canProceed,
   onBack,
   onProceed,
@@ -606,6 +618,31 @@ export function MapFieldsStep({
         </div>
       </div>
 
+      {templateLabel ? (
+        <div className="rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-700">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Template</p>
+              <p className="font-semibold text-slate-900">{templateLabel}</p>
+            </div>
+            {onSaveTemplateMappingChange ? (
+              <label className="inline-flex items-start gap-2 text-xs text-slate-700">
+                <input
+                  type="checkbox"
+                  className="mt-0.5 h-4 w-4 accent-primary-600"
+                  checked={saveTemplateMapping}
+                  onChange={event => onSaveTemplateMappingChange(event.target.checked)}
+                />
+                <span className="leading-5">Save mapping updates to this template for future uploads</span>
+              </label>
+            ) : null}
+          </div>
+          <p className="mt-2 text-xs text-slate-500">
+            Saving updates only affects future uploads that use this template. Existing deposits are not changed.
+          </p>
+        </div>
+      ) : null}
+
       {parsingError ? (
         <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700 flex items-start gap-2">
           <AlertTriangle className="h-4 w-4 mt-0.5" />
@@ -940,15 +977,46 @@ export function MapFieldsStep({
         </div>
       ) : null}
 
-      <div className="flex items-center justify-end border-t border-gray-100 pt-4">
-        <button
-          type="button"
-          onClick={onProceed}
-          disabled={!canProceed}
-          className="inline-flex items-center rounded-lg bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-gray-300"
-        >
-          Continue to Review
-        </button>
+      <div className="flex flex-col gap-2 border-t border-gray-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={onBack}
+            className="inline-flex items-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+          >
+            Back
+          </button>
+          {onCancel ? (
+            <button
+              type="button"
+              onClick={onCancel}
+              className="inline-flex items-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+          ) : null}
+        </div>
+
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {onUndo ? (
+            <button
+              type="button"
+              onClick={onUndo}
+              disabled={!canUndo}
+              className="inline-flex items-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Undo
+            </button>
+          ) : null}
+          <button
+            type="button"
+            onClick={onProceed}
+            disabled={!canProceed}
+            className="inline-flex items-center rounded-lg bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-gray-300"
+          >
+            Continue to Review
+          </button>
+        </div>
       </div>
     </div>
   )

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback, ChangeEvent } from 'react'
+import { useEffect, useState, useCallback, ChangeEvent, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useBreadcrumbs } from '@/lib/breadcrumb-context'
 import { CreateTemplateStep } from '@/components/deposit-upload/create-template-step'
@@ -38,6 +38,9 @@ const initialFormState: DepositUploadFormState = {
   distributorLabel: '',
   vendorAccountId: '',
   vendorLabel: '',
+  templateId: '',
+  templateLabel: '',
+  saveTemplateMapping: false,
 }
 
 export default function DepositUploadListPage() {
@@ -60,6 +63,8 @@ export default function DepositUploadListPage() {
   const [importSubmitting, setImportSubmitting] = useState(false)
   const [importError, setImportError] = useState<string | null>(null)
   const [importResult, setImportResult] = useState<{ depositId: string } | null>(null)
+  const mappingHistoryRef = useRef<DepositMappingConfigV1[]>([])
+  const [canUndo, setCanUndo] = useState(false)
 
   useEffect(() => {
     setBreadcrumbs([
@@ -86,6 +91,10 @@ export default function DepositUploadListPage() {
     setSampleRows([])
     setParsedRowCount(0)
     setParsingError(null)
+    setImportError(null)
+    setImportResult(null)
+    mappingHistoryRef.current = []
+    setCanUndo(false)
   }, [])
 
   useEffect(() => {
@@ -101,27 +110,25 @@ export default function DepositUploadListPage() {
 
         const headers = parsed.headers
         setCsvHeaders(headers)
-        setSampleRows(parsed.rows)
+        setSampleRows(parsed.rows.slice(0, 25))
         setParsedRowCount(parsed.rows.length)
+        mappingHistoryRef.current = []
+        setCanUndo(false)
 
         let templateMapping: DepositMappingConfigV1 | null = null
         let templateFields: TelarusTemplateFieldsV1 | null = null
         const distributorAccountId = formState.distributorAccountId?.trim() ?? ''
         const vendorAccountId = formState.vendorAccountId?.trim() ?? ''
+        const templateId = formState.templateId?.trim() ?? ''
 
-        if (distributorAccountId && vendorAccountId) {
+        if (templateId && distributorAccountId && vendorAccountId) {
           try {
-            const params = new URLSearchParams({
-              distributorAccountId,
-              vendorAccountId,
-              pageSize: '1',
-            })
-            const response = await fetch(`/api/reconciliation/templates?${params.toString()}`, {
+            const response = await fetch(`/api/reconciliation/templates/${encodeURIComponent(templateId)}`, {
               cache: 'no-store',
             })
             if (response.ok) {
               const payload = await response.json().catch(() => null)
-              const rawConfig = payload?.data?.[0]?.config
+              const rawConfig = payload?.data?.config
               if (rawConfig) {
                 templateMapping = stripTelarusGeneratedCustomFields(extractDepositMappingFromTemplateConfig(rawConfig))
                 templateFields = extractTelarusTemplateFieldsFromTemplateConfig(rawConfig)
@@ -138,6 +145,11 @@ export default function DepositUploadListPage() {
         setTemplateMapping(templateMapping)
         setTemplateFields(templateFields)
         setMapping(seedDepositMapping({ headers, templateMapping }))
+        setFormState(previous => {
+          if (previous.saveTemplateMapping) return previous
+          const defaultSave = Boolean(previous.templateId) && !templateMapping
+          return previous.saveTemplateMapping === defaultSave ? previous : { ...previous, saveTemplateMapping: defaultSave }
+        })
       } catch (error) {
         if (cancelled) return
         console.error('Unable to parse file', error)
@@ -148,13 +160,15 @@ export default function DepositUploadListPage() {
         setMapping(createEmptyDepositMapping())
         setTemplateMapping(null)
         setTemplateFields(null)
+        mappingHistoryRef.current = []
+        setCanUndo(false)
       }
     }
     void parse()
     return () => {
       cancelled = true
     }
-  }, [selectedFile, formState.distributorAccountId, formState.vendorAccountId])
+  }, [selectedFile, formState.distributorAccountId, formState.vendorAccountId, formState.templateId])
 
   useEffect(() => {
     const canonicalFieldMapping: Record<string, string> = Object.entries(mapping.line ?? {}).reduce(
@@ -187,15 +201,57 @@ export default function DepositUploadListPage() {
   }, [mapping, selectedFile, parsingError, parsedRowCount])
 
   const handleColumnSelectionChange = useCallback((columnName: string, selection: DepositColumnSelection) => {
-    setMapping(previous => setColumnSelection(previous, columnName, selection))
+    setMapping(previous => {
+      const next = setColumnSelection(previous, columnName, selection)
+      if (next !== previous) {
+        mappingHistoryRef.current = [...mappingHistoryRef.current.slice(-49), previous]
+        setCanUndo(true)
+      }
+      return next
+    })
   }, [])
 
   const handleCreateCustomFieldForColumn = useCallback(
     (columnName: string, input: { label: string; section: DepositCustomFieldSection }) => {
-      setMapping(previous => createCustomFieldForColumn(previous, columnName, input).nextMapping)
+      setMapping(previous => {
+        const result = createCustomFieldForColumn(previous, columnName, input)
+        const next = result.nextMapping
+        if (next !== previous) {
+          mappingHistoryRef.current = [...mappingHistoryRef.current.slice(-49), previous]
+          setCanUndo(true)
+        }
+        return next
+      })
     },
     [],
   )
+
+  const handleUndoMapping = useCallback(() => {
+    const history = mappingHistoryRef.current
+    const previous = history.pop()
+    mappingHistoryRef.current = history
+    if (previous) {
+      setMapping(previous)
+    }
+    setCanUndo(mappingHistoryRef.current.length > 0)
+  }, [])
+
+  const handleCancelMapping = useCallback(() => {
+    setSelectedFile(null)
+    setCsvHeaders([])
+    setSampleRows([])
+    setParsedRowCount(0)
+    setParsingError(null)
+    setTemplateMapping(null)
+    setTemplateFields(null)
+    setMapping(createEmptyDepositMapping())
+    setImportError(null)
+    setImportResult(null)
+    setImportSummary(null)
+    mappingHistoryRef.current = []
+    setCanUndo(false)
+    setActiveStep('create-template')
+  }, [])
 
   const goToMapFields = () => setActiveStep('map-fields')
   const goToReview = () => setActiveStep('review')
@@ -262,6 +318,8 @@ export default function DepositUploadListPage() {
       formData.append('commissionPeriod', formState.commissionPeriod)
       formData.append('distributorAccountId', formState.distributorAccountId)
       formData.append('vendorAccountId', formState.vendorAccountId)
+      formData.append('reconciliationTemplateId', formState.templateId)
+      formData.append('saveTemplateMapping', formState.saveTemplateMapping ? 'true' : 'false')
       formData.append('createdByContactId', formState.createdByContactId)
       formData.append('mapping', JSON.stringify(mapping))
 
@@ -363,9 +421,15 @@ export default function DepositUploadListPage() {
               mapping={mapping}
               templateMapping={templateMapping}
               templateFields={templateFields}
+              templateLabel={formState.templateLabel}
+              saveTemplateMapping={formState.saveTemplateMapping}
+              onSaveTemplateMappingChange={value => updateFormState({ saveTemplateMapping: value })}
               parsingError={parsingError}
               onColumnSelectionChange={handleColumnSelectionChange}
               onCreateCustomField={handleCreateCustomFieldForColumn}
+              canUndo={canUndo}
+              onUndo={handleUndoMapping}
+              onCancel={handleCancelMapping}
               onBack={goToCreateTemplate}
               canProceed={requiredFieldsComplete && Boolean(csvHeaders.length) && !parsingError}
               onProceed={goToReview}

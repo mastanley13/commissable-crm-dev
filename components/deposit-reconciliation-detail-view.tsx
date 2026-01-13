@@ -2581,6 +2581,56 @@ export function DepositReconciliationDetailView({
     }
   }, [commissionTotals.allocated, commissionTotals.total, commissionTotals.unallocated, metadata.allocated, metadata.unallocated, metadata.usageTotal])
 
+  const headerStatus = useMemo(() => {
+    if (metadata.reconciled) {
+      return {
+        label: "Finalized",
+        className: "bg-emerald-100 text-emerald-800 ring-emerald-200",
+        title: reconciledAtTitle ?? "Finalized",
+      }
+    }
+
+    const usageTotal = Number(metadata.usageTotal || 0)
+    if (!Number.isFinite(usageTotal) || usageTotal <= 0) {
+      return {
+        label: "Open",
+        className: "bg-slate-100 text-slate-800 ring-slate-200",
+        title: "Open",
+      }
+    }
+
+    const allocatedPercentLabel = formatPercent(allocationPercentages.usageAllocatedPct)
+
+    if (metadata.allocated <= 0) {
+      return {
+        label: `Open · Unallocated (${allocatedPercentLabel})`,
+        className: "bg-rose-100 text-rose-800 ring-rose-200",
+        title: `Open. ${allocatedPercentLabel} of usage allocated.`,
+      }
+    }
+
+    if (metadata.unallocated <= 0) {
+      return {
+        label: `Open · Fully Allocated (${allocatedPercentLabel})`,
+        className: "bg-sky-100 text-sky-800 ring-sky-200",
+        title: `Open. ${allocatedPercentLabel} of usage allocated (ready to finalize).`,
+      }
+    }
+
+    return {
+      label: `Open · Partially Allocated (${allocatedPercentLabel})`,
+      className: "bg-amber-100 text-amber-900 ring-amber-200",
+      title: `Open. ${allocatedPercentLabel} of usage allocated.`,
+    }
+  }, [
+    allocationPercentages.usageAllocatedPct,
+    metadata.allocated,
+    metadata.reconciled,
+    metadata.unallocated,
+    metadata.usageTotal,
+    reconciledAtTitle,
+  ])
+
   return (
     <div className="flex min-h-[calc(100vh-110px)] flex-col gap-2 px-3 pb-3 pt-2 sm:px-4">
       {aiAdjustmentModal ? (
@@ -2822,21 +2872,19 @@ export function DepositReconciliationDetailView({
         </div>
       ) : null}
       {showDevControls ? renderDevMatchingControls() : null}
-      <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+      <div className="-mx-3 border-b border-blue-100 bg-blue-50 px-3 py-2 sm:-mx-4 sm:px-4">
         {/* Row 1: Title + Status + Buttons */}
-        <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-2">
+        <div className="flex items-center justify-between border-b border-blue-100 pb-2 mb-2">
           <div className="flex items-center gap-2">
             <p className="text-[11px] font-semibold uppercase tracking-wide text-primary-600">Deposit Reconciliation</p>
             <span
               className={cn(
-                "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ring-inset",
-                metadata.reconciled
-                  ? "bg-emerald-50 text-emerald-700 ring-emerald-200"
-                  : "bg-slate-50 text-slate-700 ring-slate-200",
+                "inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset",
+                headerStatus.className,
               )}
-              title={reconciledAtTitle ?? (metadata.reconciled ? "Finalized" : "Open")}
+              title={headerStatus.title}
             >
-              {metadata.reconciled ? "Finalized" : "Open"}
+              {headerStatus.label}
             </span>
           </div>
           <div className="flex items-center gap-2">
@@ -2896,7 +2944,7 @@ export function DepositReconciliationDetailView({
         </div>
 
         {/* Row 2: Two-column grid - Left: Deposit details, Right: Totals */}
-        <div className="grid gap-x-6 gap-y-2 lg:grid-cols-2">
+        <div className="grid items-start gap-x-10 gap-y-3 lg:grid-cols-[minmax(0,1fr)_auto]">
           {/* Left column: Deposit Name, Date, Created By, Payment Type */}
           <div className="space-y-1.5">
             <div>
@@ -2905,17 +2953,22 @@ export function DepositReconciliationDetailView({
                 {metadata.depositName}
               </p>
             </div>
-            <div className="grid grid-cols-3 gap-3">
-              <MetaStat label="Date" value={formattedDate} />
-              <MetaStat label="Created By" value={metadata.createdBy} />
-              <MetaStat label="Payment Type" value={metadata.paymentType} />
+            <div className="flex flex-wrap items-start gap-x-10 gap-y-2">
+              <div className="w-40">
+                <MetaStat label="Date" value={formattedDate} />
+              </div>
+              <div className="w-52">
+                <MetaStat label="Created By" value={metadata.createdBy} />
+              </div>
+              <div className="w-40">
+                <MetaStat label="Payment Type" value={metadata.paymentType} />
+              </div>
             </div>
           </div>
 
           {/* Right column: Totals in 2x2 grid */}
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 mb-1">Totals</p>
-            <div className="grid grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-4">
+          <div className="justify-self-start lg:justify-self-end">
+            <div className="grid w-fit grid-cols-2 gap-x-10 gap-y-2 sm:grid-cols-4">
               <SummaryCard label="Usage Total" value={currencyFormatter.format(metadata.usageTotal)} />
               <SummaryCard label="Commission Total" value={currencyFormatter.format(commissionTotals.total)} />
               <SummaryCard
@@ -3194,7 +3247,7 @@ export function DepositReconciliationDetailView({
 
       <section className="flex min-h-0 flex-1 flex-col">
         <div className="border-b border-slate-100">
-          <div className="px-3">
+          <div className="px-0">
             <TabDescription className="mt-3 mb-2">
               Review deposit line items and match deposit amounts to revenue schedules. Matches are editable until the
               deposit is finalized.
@@ -3275,7 +3328,7 @@ export function DepositReconciliationDetailView({
 
       <section className="flex min-h-0 flex-1 flex-col">
         <div className="border-b border-slate-100">
-          <div className="px-3">
+          <div className="px-0">
             <TabDescription className="mt-3 mb-2">
               Select a revenue schedule, then match the selected deposit line item. Finalizing is a separate step that
               locks these allocations.

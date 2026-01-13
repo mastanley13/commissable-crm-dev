@@ -758,6 +758,7 @@ model Deposit {
   itemsUnreconciled         Int?                 @default(0)
   distributorAccountId      String?              @db.Uuid
   vendorAccountId           String?              @db.Uuid
+  reconciliationTemplateId  String?              @db.Uuid
   createdByUserId           String?              @db.Uuid
   createdByContactId        String?              @db.Uuid
   notes                     String?
@@ -767,6 +768,7 @@ model Deposit {
   account                   Account              @relation(fields: [accountId], references: [id])
   distributor               Account?             @relation("DepositDistributor", fields: [distributorAccountId], references: [id])
   vendor                    Account?             @relation("DepositVendor", fields: [vendorAccountId], references: [id])
+  reconciliationTemplate    ReconciliationTemplate? @relation(fields: [reconciliationTemplateId], references: [id], onDelete: SetNull)
   createdByUser             User?                @relation("DepositCreatedByUser", fields: [createdByUserId], references: [id])
   createdByContact          Contact?             @relation("DepositCreatedByContact", fields: [createdByContactId], references: [id])
   tenant                    Tenant               @relation(fields: [tenantId], references: [id])
@@ -775,6 +777,7 @@ model Deposit {
   @@index([tenantId, accountId, month])
   @@index([tenantId, paymentDate])
   @@index([tenantId, distributorAccountId, vendorAccountId])
+  @@index([tenantId, reconciliationTemplateId])
 }
 
 model DepositLineItem {
@@ -885,8 +888,9 @@ model ReconciliationTemplate {
   vendor               Account  @relation("ReconciliationTemplateVendor", fields: [vendorAccountId], references: [id])
   createdByUser        User     @relation(fields: [createdByUserId], references: [id])
   createdByContact     Contact? @relation(fields: [createdByContactId], references: [id])
+  deposits             Deposit[]
 
-  @@unique([tenantId, distributorAccountId, vendorAccountId])
+  @@unique([tenantId, distributorAccountId, vendorAccountId, name])
   @@index([tenantId, distributorAccountId, vendorAccountId])
 }
 
@@ -1132,6 +1136,7 @@ model ImportJob {
   tenantId      String             @db.Uuid
   createdById   String?            @db.Uuid
   entity        DataEntity
+  idempotencyKey String?
   source        ImportExportSource @default(UI)
   status        JobStatus          @default(Pending)
   fileName      String
@@ -1151,6 +1156,7 @@ model ImportJob {
 
   @@index([tenantId, entity])
   @@index([tenantId, status])
+  @@unique([tenantId, entity, idempotencyKey])
 }
 
 model ImportError {

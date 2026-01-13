@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
-import { DataEntity, ImportExportSource, JobStatus } from "@prisma/client"
+import { AuditAction, DataEntity, ImportExportSource, JobStatus } from "@prisma/client"
 import type { Prisma } from "@prisma/client"
 import { withPermissions, createErrorResponse } from "@/lib/api-auth"
 import { prisma } from "@/lib/db"
 import { parseSpreadsheetFile } from "@/lib/deposit-import/parse-file"
 import { depositFieldDefinitions, requiredDepositFieldIds } from "@/lib/deposit-import/fields"
+import { getClientIP, getUserAgent, logAudit } from "@/lib/audit"
 import {
   createEmptyDepositMapping,
   extractDepositMappingFromTemplateConfig,
@@ -83,6 +84,10 @@ export async function POST(request: NextRequest) {
     const paymentDateInput = (formData.get("paymentDate") as string | null) ?? ""
     const distributorAccountIdRaw = ((formData.get("distributorAccountId") as string | null) ?? "").trim()
     const vendorAccountIdRaw = ((formData.get("vendorAccountId") as string | null) ?? "").trim()
+    const reconciliationTemplateIdRaw = ((formData.get("reconciliationTemplateId") as string | null) ?? "").trim()
+    const saveTemplateMappingRaw = ((formData.get("saveTemplateMapping") as string | null) ?? "").trim().toLowerCase()
+    const saveTemplateMapping = saveTemplateMappingRaw === "true" || saveTemplateMappingRaw === "1" || saveTemplateMappingRaw === "yes"
+    const idempotencyKeyRaw = ((formData.get("idempotencyKey") as string | null) ?? "").trim()
     const createdByContactId = ((formData.get("createdByContactId") as string | null) ?? "").trim() || null
 
     if (!distributorAccountIdRaw || !vendorAccountIdRaw) {
@@ -91,6 +96,8 @@ export async function POST(request: NextRequest) {
 
     const distributorAccountId = distributorAccountIdRaw
     const vendorAccountId = vendorAccountIdRaw
+    const reconciliationTemplateId = reconciliationTemplateIdRaw || null
+    const idempotencyKey = idempotencyKeyRaw || null
 
     const commissionPeriodInput = (formData.get("commissionPeriod") as string | null) ?? ""
     const mappingRaw = formData.get("mapping")
@@ -159,6 +166,26 @@ export async function POST(request: NextRequest) {
     }
     const commissionPeriodDate = parseCommissionPeriod(commissionPeriodInput)
 
+    if (idempotencyKey) {
+      const existingJob = await prisma.importJob.findFirst({
+        where: {
+          tenantId,
+          entity: DataEntity.Reconciliations,
+          idempotencyKey,
+        },
+        select: { status: true, filters: true },
+      })
+
+      if (existingJob) {
+        const existingDepositId = (existingJob.filters as any)?.depositId as string | undefined
+        if (existingJob.status === JobStatus.Completed && existingDepositId) {
+          return NextResponse.json({ data: { depositId: existingDepositId, idempotent: true } })
+        }
+
+        return createErrorResponse("An import with this idempotency key already exists", 409)
+      }
+    }
+
     const parsedFile = await parseSpreadsheetFile(file, file.name, file.type)
     if (!parsedFile.headers.length || parsedFile.rows.length === 0) {
       return createErrorResponse("Uploaded file did not contain any data rows", 400)
@@ -175,20 +202,41 @@ export async function POST(request: NextRequest) {
       ? (serializeDepositMappingForTemplate(mappingConfigForTemplate) as unknown as Prisma.InputJsonValue)
       : null
 
-    const result = await prisma.$transaction(async tx => {
-      const deposit = await tx.deposit.create({
-        data: {
-          tenantId,
-          accountId: distributorAccountId,
-          month: commissionPeriodDate ?? startOfMonth(depositDate),
-          depositName: depositName || null,
-          paymentDate: depositDate,
-          distributorAccountId,
-          vendorAccountId,
-          createdByUserId: req.user.id,
-          createdByContactId: createdByContactId || null,
-        },
-      })
+    const selectedTemplate = reconciliationTemplateId
+      ? await prisma.reconciliationTemplate.findFirst({
+          where: { tenantId, id: reconciliationTemplateId },
+          select: { id: true, distributorAccountId: true, vendorAccountId: true },
+        })
+      : null
+
+    if (reconciliationTemplateId && !selectedTemplate) {
+      return createErrorResponse("Selected template was not found", 404)
+    }
+
+    if (
+      selectedTemplate &&
+      (selectedTemplate.distributorAccountId !== distributorAccountId ||
+        selectedTemplate.vendorAccountId !== vendorAccountId)
+    ) {
+      return createErrorResponse("Selected template does not match the chosen distributor/vendor", 400)
+    }
+
+    try {
+      const result = await prisma.$transaction(async tx => {
+        const deposit = await tx.deposit.create({
+          data: {
+            tenantId,
+            accountId: distributorAccountId,
+            month: commissionPeriodDate ?? startOfMonth(depositDate),
+            depositName: depositName || null,
+            paymentDate: depositDate,
+            distributorAccountId,
+            vendorAccountId,
+            reconciliationTemplateId: selectedTemplate?.id ?? null,
+            createdByUserId: req.user.id,
+            createdByContactId: createdByContactId || null,
+          },
+        })
 
       const lineItemsData = parsedFile.rows
         .map((row, index) => {
@@ -255,71 +303,145 @@ export async function POST(request: NextRequest) {
         },
       })
 
-      const importFilters: Prisma.InputJsonValue = {
-        distributorAccountId,
-        vendorAccountId,
-        mapping: mappingPayload as Prisma.InputJsonValue,
-        commissionPeriod: commissionPeriodInput || null,
-      }
+        const importFilters: Prisma.InputJsonValue = {
+          distributorAccountId,
+          vendorAccountId,
+          mapping: mappingPayload as Prisma.InputJsonValue,
+          commissionPeriod: commissionPeriodInput || null,
+          reconciliationTemplateId: selectedTemplate?.id ?? reconciliationTemplateId,
+          saveTemplateMapping,
+          idempotencyKey,
+          depositId: deposit.id,
+        }
 
-      await tx.importJob.create({
-        data: {
-          tenantId,
-          createdById: req.user.id,
-          entity: DataEntity.Reconciliations,
-          source: ImportExportSource.UI,
-          status: JobStatus.Completed,
-          fileName: file.name || "deposit-upload",
-          totalRows: parsedFile.rows.length,
-          processedRows: lineItemsData.length,
-          successCount: lineItemsData.length,
-          errorCount: 0,
-          startedAt: new Date(),
-          completedAt: new Date(),
-          filters: importFilters,
-        },
-      })
-
-      if (templateConfigToPersist) {
-        const existingTemplate = await tx.reconciliationTemplate.findFirst({
-          where: {
+        await tx.importJob.create({
+          data: {
             tenantId,
-            distributorAccountId,
-            vendorAccountId,
+            createdById: req.user.id,
+            entity: DataEntity.Reconciliations,
+            source: ImportExportSource.UI,
+            status: JobStatus.Completed,
+            fileName: file.name || "deposit-upload",
+            totalRows: parsedFile.rows.length,
+            processedRows: lineItemsData.length,
+            successCount: lineItemsData.length,
+            errorCount: 0,
+            startedAt: new Date(),
+            completedAt: new Date(),
+            idempotencyKey,
+            filters: importFilters,
           },
         })
 
-        if (existingTemplate) {
+      if (templateConfigToPersist && saveTemplateMapping) {
+        if (selectedTemplate) {
           await tx.reconciliationTemplate.update({
-            where: { id: existingTemplate.id },
+            where: { id: selectedTemplate.id },
             data: {
               config: templateConfigToPersist,
             },
           })
         } else {
-          await tx.reconciliationTemplate.create({
-            data: {
+          // Legacy fallback: update/create the distributor+vendor default template.
+          const existingTemplate = await tx.reconciliationTemplate.findFirst({
+            where: {
               tenantId,
-              name: "Default deposit mapping",
-              description: "Auto-created from deposit upload mapping.",
               distributorAccountId,
               vendorAccountId,
-              createdByUserId: req.user.id,
-              createdByContactId,
-              config: templateConfigToPersist,
             },
+            select: { id: true },
           })
+
+          if (existingTemplate) {
+            await tx.reconciliationTemplate.update({
+              where: { id: existingTemplate.id },
+              data: {
+                config: templateConfigToPersist,
+              },
+            })
+          } else {
+            await tx.reconciliationTemplate.create({
+              data: {
+                tenantId,
+                name: "Default deposit mapping",
+                description: "Auto-created from deposit upload mapping.",
+                distributorAccountId,
+                vendorAccountId,
+                createdByUserId: req.user.id,
+                createdByContactId,
+                config: templateConfigToPersist,
+              },
+            })
+          }
         }
       }
 
-      return {
-        depositId: deposit.id,
-        lineCount: lineItemsData.length,
-      }
-    })
+        return {
+          depositId: deposit.id,
+          lineCount: lineItemsData.length,
+          templateId: selectedTemplate?.id ?? reconciliationTemplateId,
+          templateSaved: Boolean(templateConfigToPersist && saveTemplateMapping),
+        }
+      })
 
-    return NextResponse.json({
-      data: result,
-    })
+      await logAudit({
+        userId: req.user.id,
+        tenantId,
+        action: AuditAction.Create,
+        entityName: "Deposit",
+        entityId: result.depositId,
+        ipAddress: getClientIP(request),
+        userAgent: getUserAgent(request),
+        metadata: {
+          fileName: file.name || "deposit-upload",
+          distributorAccountId,
+          vendorAccountId,
+          reconciliationTemplateId: result.templateId,
+          saveTemplateMapping,
+          idempotencyKey,
+          lineCount: result.lineCount,
+        },
+      })
+
+      if (result.templateSaved && result.templateId) {
+        await logAudit({
+          userId: req.user.id,
+          tenantId,
+          action: AuditAction.Update,
+          entityName: "ReconciliationTemplate",
+          entityId: result.templateId,
+          ipAddress: getClientIP(request),
+          userAgent: getUserAgent(request),
+          metadata: {
+            reason: "DepositUploadSaveMapping",
+            distributorAccountId,
+            vendorAccountId,
+            saveTemplateMapping,
+            depositId: result.depositId,
+            idempotencyKey,
+          },
+        })
+      }
+
+      return NextResponse.json({ data: result })
+    } catch (error: any) {
+      if (error?.code === "P2002") {
+        // Unique constraint hit (likely idempotency). Return existing result if possible.
+        if (idempotencyKey) {
+          const existingJob = await prisma.importJob.findFirst({
+            where: { tenantId, entity: DataEntity.Reconciliations, idempotencyKey },
+            select: { status: true, filters: true },
+          })
+          const existingDepositId = (existingJob?.filters as any)?.depositId as string | undefined
+          if (existingJob?.status === JobStatus.Completed && existingDepositId) {
+            return NextResponse.json({ data: { depositId: existingDepositId, idempotent: true } })
+          }
+        }
+        return createErrorResponse("Duplicate import request", 409)
+      }
+
+      console.error("Deposit import failed", error)
+      return createErrorResponse(error instanceof Error ? error.message : "Failed to import deposit", 500)
+    }
   })
 }

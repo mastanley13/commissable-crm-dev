@@ -8,6 +8,9 @@ export interface DepositUploadFormState {
   distributorLabel: string
   vendorAccountId: string
   vendorLabel: string
+  templateId: string
+  templateLabel: string
+  saveTemplateMapping: boolean
 }
 
 export interface TemplateResponse {
