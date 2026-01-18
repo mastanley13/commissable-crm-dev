@@ -33,6 +33,7 @@ interface AuditHistoryTabProps {
   rowActionRenderer?: (row: HistoryRow) => ReactNode
   reloadToken?: number
   description?: string
+  embedded?: boolean
 }
 
 interface AuditLogAPIResponse {
@@ -279,7 +280,8 @@ export function AuditHistoryTab({
   rowActionLabel,
   rowActionRenderer,
   reloadToken,
-  description
+  description,
+  embedded = false
 }: AuditHistoryTabProps) {
   const baseColumns = useMemo(
     () => buildBaseHistoryColumns(rowActionRenderer ? (rowActionLabel ?? "Actions") : undefined),
@@ -392,57 +394,53 @@ export function AuditHistoryTab({
     })
   }, [historyTableColumns, rowActionRenderer])
 
-  return (
+  const content = (
     <>
-      <div className="grid flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0 px-3 pb-0">
-        <div className="border-t-2 border-t-primary-600 -mr-3 min-w-0 overflow-hidden">
-          {description && <TabDescription>{description}</TabDescription>}
-          <ListHeader
-            inTab
-            searchPlaceholder="Search history"
-            onSearch={setSearchQuery}
-            showCreateButton={false}
-            showStatusFilter={false}
-            filterColumns={HISTORY_FILTER_COLUMNS}
-            columnFilters={historyColumnFilters}
-            onColumnFiltersChange={setHistoryColumnFilters}
-            onSettingsClick={() => setShowHistoryColumnSettings(true)}
-          />
-          <div
-            className="flex flex-1 min-h-0 flex-col overflow-hidden"
-            ref={tableAreaRefCallback}
-          >
-            {isLoading ? (
-              <div className="flex items-center justify-center p-8">
-                <p className="text-gray-500">Loading history...</p>
-              </div>
-            ) : error ? (
-              <div className="flex items-center justify-center p-8">
-                <p className="text-red-600">Error: {error}</p>
-              </div>
-            ) : (
-              <DynamicTable
-                className="flex flex-col"
-                preferOverflowHorizontalScroll
-                columns={columnsWithActions}
-                data={paginatedRows}
-                emptyMessage="No history entries yet"
-                pagination={pagination}
-                onPageChange={setPage}
-                onPageSizeChange={size => {
-                  const normalized = normalizePageSize(size)
-                  setPageSize(normalized)
-                  setPage(1)
-                }}
-                onColumnsChange={setHistoryTableColumns}
-                autoSizeColumns
-                fillContainerWidth
-                alwaysShowPagination
-                maxBodyHeight={tableBodyMaxHeight}
-              />
-            )}
+      {description && !embedded ? <TabDescription>{description}</TabDescription> : null}
+      <ListHeader
+        inTab
+        searchPlaceholder="Search history"
+        onSearch={setSearchQuery}
+        showCreateButton={false}
+        showStatusFilter={false}
+        filterColumns={HISTORY_FILTER_COLUMNS}
+        columnFilters={historyColumnFilters}
+        onColumnFiltersChange={setHistoryColumnFilters}
+        onSettingsClick={() => setShowHistoryColumnSettings(true)}
+      />
+      <div
+        className={embedded ? "mt-0.5 flex min-h-0 flex-col overflow-hidden" : "flex flex-1 min-h-0 flex-col overflow-hidden"}
+        ref={tableAreaRefCallback}
+      >
+        {isLoading ? (
+          <div className="flex items-center justify-center p-8">
+            <p className="text-gray-500">Loading history...</p>
           </div>
-        </div>
+        ) : error ? (
+          <div className="flex items-center justify-center p-8">
+            <p className="text-red-600">Error: {error}</p>
+          </div>
+        ) : (
+          <DynamicTable
+            className="flex flex-col"
+            preferOverflowHorizontalScroll
+            columns={columnsWithActions}
+            data={paginatedRows}
+            emptyMessage="No history entries yet"
+            pagination={pagination}
+            onPageChange={setPage}
+            onPageSizeChange={size => {
+              const normalized = normalizePageSize(size)
+              setPageSize(normalized)
+              setPage(1)
+            }}
+            onColumnsChange={setHistoryTableColumns}
+            autoSizeColumns
+            fillContainerWidth
+            alwaysShowPagination
+            maxBodyHeight={tableBodyMaxHeight}
+          />
+        )}
       </div>
 
       <ColumnChooserModal
@@ -455,5 +453,17 @@ export function AuditHistoryTab({
         onClose={() => setShowHistoryColumnSettings(false)}
       />
     </>
+  )
+
+  if (embedded) {
+    return content
+  }
+
+  return (
+    <div className="grid flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0 px-3 pb-0">
+      <div className="border-t-2 border-t-primary-600 -mr-3 min-w-0 overflow-hidden">
+        {content}
+      </div>
+    </div>
   )
 }

@@ -1560,7 +1560,7 @@ export const RevenueScheduleSupportingDetails = forwardRef<
             const payoutStatus =
               receivable > 0 && Math.abs(balance) < 0.005 ? "Paid in Full" : paid > 0 ? "Partial" : "Pending"
             return (
-              <div key={split.id} className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+              <div key={split.id} className="overflow-hidden rounded-bl-lg rounded-br-lg border border-gray-200 bg-white">
                 <div className={cn(BLUE_CARD_HEADER_CLASSNAME, "flex items-center justify-between gap-2")}>
                   <h4 className="text-[11px] font-semibold">
                     {split.label} - {split.percentLabel}
@@ -1815,6 +1815,7 @@ export const RevenueScheduleSupportingDetails = forwardRef<
             autoSizeColumns
             maxBodyHeight={260}
             alwaysShowPagination
+            className="mt-0.5"
           />
 
           <ColumnChooserModal
@@ -1997,6 +1998,7 @@ export const RevenueScheduleSupportingDetails = forwardRef<
         maxBodyHeight={300}
         hideSelectAllLabel={false}
         selectHeaderLabel="Select All"
+        className="mt-0.5"
       />
 
       <ColumnChooserModal
@@ -2060,6 +2062,7 @@ export const RevenueScheduleSupportingDetails = forwardRef<
         maxBodyHeight={300}
         hideSelectAllLabel={false}
         selectHeaderLabel="Select All"
+        className="mt-0.5"
       />
 
       <ColumnChooserModal
@@ -2121,7 +2124,7 @@ export const RevenueScheduleSupportingDetails = forwardRef<
             >
               <div className="space-y-3">
                 <div className="grid grid-cols-1 gap-3 lg:grid-cols-4">
-                  <div className="border border-gray-200 rounded-lg bg-white overflow-hidden">
+                  <div className="border border-gray-200 rounded-bl-lg rounded-br-lg bg-white overflow-hidden">
                     <div className={cn(BLUE_CARD_HEADER_CLASSNAME, "flex items-center justify-between")}>
                       <div className="flex items-center gap-2">
                         <span className="inline-flex items-center rounded bg-white px-2 py-0.5 text-[10px] font-semibold text-blue-700">
@@ -2163,7 +2166,7 @@ export const RevenueScheduleSupportingDetails = forwardRef<
                   {emptyColumns.map((columnEntries, columnIndex) => (
                     <div
                       key={`meta-column-empty-${columnIndex}`}
-                      className="border border-gray-200 rounded-lg bg-white overflow-hidden"
+                      className="border border-gray-200 rounded-bl-lg rounded-br-lg bg-white overflow-hidden"
                     >
                       <div className={cn(BLUE_CARD_HEADER_CLASSNAME, "flex items-center")}>
                         <span className="inline-flex items-center rounded bg-white px-2 py-0.5 text-[10px] font-semibold text-blue-700">
@@ -2258,7 +2261,7 @@ export const RevenueScheduleSupportingDetails = forwardRef<
                 ) : null}
 
                 <div className="grid grid-cols-1 gap-3 lg:grid-cols-4">
-                  <div className="border border-gray-200 rounded-lg bg-white overflow-hidden">
+                  <div className="border border-gray-200 rounded-bl-lg rounded-br-lg bg-white overflow-hidden">
                     <div className={cn(BLUE_CARD_HEADER_CLASSNAME, "flex items-center justify-between")}>
                       <div className="flex items-center gap-2">
                         <span className="inline-flex items-center rounded bg-white px-2 py-0.5 text-[10px] font-semibold text-blue-700">
@@ -2318,7 +2321,7 @@ export const RevenueScheduleSupportingDetails = forwardRef<
                   {columns.map((columnEntries, columnIndex) => (
                     <div
                       key={`meta-column-${columnIndex}`}
-                      className="border border-gray-200 rounded-lg bg-white overflow-hidden"
+                      className="border border-gray-200 rounded-bl-lg rounded-br-lg bg-white overflow-hidden"
                     >
                       <div className={cn(BLUE_CARD_HEADER_CLASSNAME, "flex items-center")}>
                         <span className="inline-flex items-center rounded bg-white px-2 py-0.5 text-[10px] font-semibold text-blue-700">
@@ -2703,6 +2706,7 @@ export const RevenueScheduleSupportingDetails = forwardRef<
               autoSizeColumns={false}
               maxBodyHeight={300}
               footerAbovePagination={totalsBar}
+              className="mt-0.5"
             />
 
             <ColumnChooserModal
@@ -2724,13 +2728,13 @@ export const RevenueScheduleSupportingDetails = forwardRef<
       case "history":
         sectionContent = schedule?.id ? (
           <AuditHistoryTab
+            embedded
             entityName="RevenueSchedule"
             entityId={schedule.id}
             tableBodyMaxHeight={300}
             rowActionLabel={canRestoreSchedule ? "Restore" : undefined}
             rowActionRenderer={canRestoreSchedule ? historyRowActionRenderer : undefined}
             reloadToken={historyReloadToken}
-            description={TAB_DESCRIPTIONS["history"]}
           />
         ) : (
           <EmptyState title="No history available." description="Save this schedule to view audit history." />
@@ -2781,7 +2785,6 @@ export const RevenueScheduleSupportingDetails = forwardRef<
     }
   }
 
-  const renderRedesignContentWithoutShell = activeSectionId === "history" && Boolean(schedule?.id)
   return (
     <>
       <section ref={containerRef}>
@@ -2807,23 +2810,19 @@ export const RevenueScheduleSupportingDetails = forwardRef<
                 )
               })}
             </div>
-            {renderRedesignContentWithoutShell ? (
-              sectionContent
-            ) : (
-              <div className="border-x border-b border-gray-200 bg-white px-3 pb-3 pt-0">
-                <div className="border-t-2 border-t-primary-600 -mr-3 min-w-0 overflow-hidden">
-                  {activeSectionId && TAB_DESCRIPTIONS[activeSectionId] && (
-                    <TabDescription>
-                      {TAB_DESCRIPTIONS[activeSectionId]}
-                    </TabDescription>
-                  )}
+            <div className="border-x border-b border-gray-200 bg-white px-3 pb-3 pt-0">
+              <div className="border-t-2 border-t-primary-600 -mr-3 min-w-0 overflow-hidden">
+                {activeSectionId && TAB_DESCRIPTIONS[activeSectionId] && (
+                  <TabDescription>
+                    {TAB_DESCRIPTIONS[activeSectionId]}
+                  </TabDescription>
+                )}
 
-                  {sectionContent ?? (
-                    <p className="text-[11px] text-slate-500">Select a section to view its details.</p>
-                  )}
-                </div>
+                {sectionContent ?? (
+                  <p className="text-[11px] text-slate-500">Select a section to view its details.</p>
+                )}
               </div>
-            )}
+            </div>
           </div>
         ) : (
           <div className="grid gap-2 xl:grid-cols-[260px,1fr] items-start">

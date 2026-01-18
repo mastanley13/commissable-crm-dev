@@ -1146,7 +1146,7 @@ export function RevenueScheduleDetailsView({
   return (
     <div className="space-y-0">
       <div className="overflow-y-auto bg-blue-50 h-[250px]">
-        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-1.5">
+        <div className="flex flex-wrap items-center justify-between gap-3 px-4 pt-[3px] pb-0">
           <div className="flex flex-wrap items-center gap-2">
             <p className="text-[13px] font-semibold uppercase tracking-wide text-primary-600">Revenue Schedule Detail</p>
             <span className={cn("inline-flex items-center rounded border px-2 py-0.5 text-xs font-medium", statusPillClass)}>
