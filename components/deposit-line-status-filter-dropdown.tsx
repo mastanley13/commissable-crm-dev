@@ -14,9 +14,9 @@ interface DepositLineStatusFilterDropdownProps {
 
 const statusOptions: Array<{ id: DepositLineStatusFilterValue; label: string }> = [
   { id: "suggested", label: "Suggested" },
-  { id: "unmatched", label: "Unallocated" },
-  { id: "matched", label: "Allocated" },
-  { id: "reconciled", label: "Finalized" },
+  { id: "unmatched", label: "Unmatched" },
+  { id: "matched", label: "Matched" },
+  { id: "reconciled", label: "Reconciled" },
   { id: "all", label: "All" }
 ]
 

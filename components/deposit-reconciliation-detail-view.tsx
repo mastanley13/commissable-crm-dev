@@ -245,13 +245,13 @@ const scheduleStatusStyles: Record<SuggestedMatchScheduleRow["status"], string> 
 function getAllocationStatusLabel(status: string): string {
   switch (status) {
     case "Matched":
-      return "Allocated"
+      return "Matched"
     case "Partially Matched":
-      return "Partially Allocated"
+      return "Partially Matched"
     case "Unmatched":
-      return "Unallocated"
+      return "Unmatched"
     case "Reconciled":
-      return "Finalized"
+      return "Reconciled"
     default:
       return status
   }
@@ -2659,7 +2659,7 @@ export function DepositReconciliationDetailView({
 
     if (metadata.allocated <= 0) {
       return {
-        label: `Open · Unallocated (${allocatedPercentLabel})`,
+        label: `Open · Unmatched (${allocatedPercentLabel})`,
         className: "bg-rose-100 text-rose-800 ring-rose-200",
         title: `Open. ${allocatedPercentLabel} of usage allocated.`,
       }
@@ -2667,14 +2667,14 @@ export function DepositReconciliationDetailView({
 
     if (metadata.unallocated <= 0) {
       return {
-        label: `Open · Fully Allocated (${allocatedPercentLabel})`,
+        label: `Open · Fully Matched (${allocatedPercentLabel})`,
         className: "bg-sky-100 text-sky-800 ring-sky-200",
         title: `Open. ${allocatedPercentLabel} of usage allocated (ready to finalize).`,
       }
     }
 
     return {
-      label: `Open · Partially Allocated (${allocatedPercentLabel})`,
+      label: `Open · Partially Matched (${allocatedPercentLabel})`,
       className: "bg-amber-100 text-amber-900 ring-amber-200",
       title: `Open. ${allocatedPercentLabel} of usage allocated.`,
     }
@@ -3089,7 +3089,7 @@ export function DepositReconciliationDetailView({
           <div className="grid gap-4 px-6 py-5 md:grid-cols-2">
             <div className="rounded-lg border border-slate-200">
               <div className="border-b border-slate-200 px-4 py-2 text-sm font-semibold text-slate-800">
-                Allocated Line Items ({matchedLineItems.length})
+                Matched Line Items ({matchedLineItems.length})
               </div>
               <div className="max-h-64 overflow-y-auto">
                 {matchedLineItems.length ? (
@@ -3244,7 +3244,7 @@ export function DepositReconciliationDetailView({
     ) : null}
             <div className="rounded-lg border border-slate-200">
               <div className="border-b border-slate-200 px-4 py-2 text-sm font-semibold text-slate-800">
-                Allocated Revenue Schedules ({matchedSchedules.length})
+                Matched Revenue Schedules ({matchedSchedules.length})
               </div>
               <div className="max-h-64 overflow-y-auto">
                 {matchedSchedules.length ? (
