@@ -63,6 +63,7 @@ export function MapFieldsStep({
   const [openDropdownKey, setOpenDropdownKey] = useState<string | null>(null)
   const [templateTablePage, setTemplateTablePage] = useState(0)
   const [additionalTablePage, setAdditionalTablePage] = useState(0)
+  const [activeColumnsTab, setActiveColumnsTab] = useState<"template" | "additional">("template")
   const [customDrafts, setCustomDrafts] = useState<
     Record<string, { label: string; section: DepositCustomFieldSection }>
   >({})
@@ -75,6 +76,10 @@ export function MapFieldsStep({
     setTemplateTablePage(0)
     setAdditionalTablePage(0)
   }, [csvHeaders.length, file?.name])
+
+  useEffect(() => {
+    setOpenDropdownKey(null)
+  }, [activeColumnsTab])
 
   const totalPreviewRows = sampleRows.length
   const effectiveIndex =
@@ -195,15 +200,11 @@ export function MapFieldsStep({
     })
   }
 
-  const renderColumnTable = ({
-    title,
-    description,
+  const renderColumnTableContent = ({
     rows,
     emptyLabel,
     pagination,
   }: {
-    title: string
-    description?: string
     rows: Array<{ header: string; index: number }>
     emptyLabel: string
     pagination: { page: number; setPage: (nextPage: number) => void }
@@ -215,16 +216,7 @@ export function MapFieldsStep({
     const pagedRows = rows.slice(startIndex, endIndexExclusive)
 
     return (
-      <div className="rounded-lg border border-gray-200 border-t-2 border-t-primary-700 text-sm text-gray-700">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-primary-200 bg-white px-3 py-2">
-          <p
-            className="text-[11px] font-semibold uppercase tracking-wide text-primary-700"
-            title={description}
-          >
-            {title}
-          </p>
-        </div>
-
+      <>
         <div className="hidden border-b border-primary-700 bg-primary-600 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-white md:grid md:grid-cols-[minmax(0,1.3fr)_minmax(0,1.5fr)_120px_minmax(0,1.7fr)]">
           <div>Field label in file</div>
           <div>Preview information</div>
@@ -541,7 +533,7 @@ export function MapFieldsStep({
             </div>
           </>
         )}
-      </div>
+      </>
     )
   }
 
@@ -654,25 +646,67 @@ export function MapFieldsStep({
       ) : null}
 
       {csvHeaders.length > 0 ? (
-        <div className="space-y-4">
-            {renderColumnTable({
-              title: `Template-mapped columns (${templateRows.length})`,
-              description:
-                templateRows.length > 0
-                  ? "Columns included in the saved Distributor/Vendor template mapping."
-                  : "No saved template mapping was found for the selected Distributor/Vendor.",
-              rows: templateRows,
-              emptyLabel: "Select a Distributor and Vendor with a saved mapping to pre-fill this section.",
-              pagination: { page: templateTablePage, setPage: setTemplateTablePage },
+        <div className="flex flex-col overflow-hidden">
+          <div
+            className="flex flex-wrap gap-1 border-x border-t border-gray-200 bg-gray-100 pt-2 px-3 pb-0"
+            role="tablist"
+            aria-label="Deposit upload column mapping sections"
+          >
+            {[
+              { id: "template" as const, label: `Template-Mapped Columns (${templateRows.length})` },
+              { id: "additional" as const, label: `Additional Columns (${additionalRows.length})` },
+            ].map(tab => {
+              const isActive = tab.id === activeColumnsTab
+              return (
+                <button
+                  key={tab.id}
+                  id={`deposit-map-fields-tab-${tab.id}`}
+                  type="button"
+                  role="tab"
+                  aria-selected={isActive}
+                  aria-controls={`deposit-map-fields-panel-${tab.id}`}
+                  onClick={() => setActiveColumnsTab(tab.id)}
+                  className={`rounded-t-md border px-3 py-1.5 text-sm font-semibold shadow-sm transition ${
+                    isActive
+                      ? "relative -mb-[1px] z-10 border-primary-700 bg-primary-700 text-white hover:bg-primary-800"
+                      : "border-blue-300 bg-gradient-to-b from-blue-100 to-blue-200 text-primary-800 hover:border-blue-400 hover:from-blue-200 hover:to-blue-300"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              )
             })}
+          </div>
 
-            {renderColumnTable({
-              title: `Additional columns (${additionalRows.length})`,
-              description: "All other columns (not included in the template mapping).",
-              rows: additionalRows,
-              emptyLabel: "No additional columns found.",
-              pagination: { page: additionalTablePage, setPage: setAdditionalTablePage },
-            })}
+          <div className="border-x border-b border-gray-200 bg-white pt-0">
+            <div className="border-t-2 border-t-primary-600 min-w-0 overflow-hidden">
+              {activeColumnsTab === "template" ? (
+                <div
+                  id="deposit-map-fields-panel-template"
+                  role="tabpanel"
+                  aria-labelledby="deposit-map-fields-tab-template"
+                >
+                  {renderColumnTableContent({
+                    rows: templateRows,
+                    emptyLabel: "Select a Distributor and Vendor with a saved mapping to pre-fill this section.",
+                    pagination: { page: templateTablePage, setPage: setTemplateTablePage },
+                  })}
+                </div>
+              ) : (
+                <div
+                  id="deposit-map-fields-panel-additional"
+                  role="tabpanel"
+                  aria-labelledby="deposit-map-fields-tab-additional"
+                >
+                  {renderColumnTableContent({
+                    rows: additionalRows,
+                    emptyLabel: "No additional columns found.",
+                    pagination: { page: additionalTablePage, setPage: setAdditionalTablePage },
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
           {/*
           <div className="mt-3 rounded-lg border border-gray-200 text-sm text-gray-700">
             <div className="hidden border-b border-gray-200 bg-gray-50 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500 md:grid md:grid-cols-[minmax(0,1.3fr)_minmax(0,1.5fr)_120px_minmax(0,1.7fr)]">

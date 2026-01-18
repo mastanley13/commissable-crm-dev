@@ -14,7 +14,7 @@ const prototypePages = [
   {
     title: 'Comma-Separated Values (Other Fields)',
     description:
-      'Prototype for entering multiple comma-separated values and previewing how they are parsed and normalized for matching.',
+      'Detail-style prototype to add/remove multi-values and preview how they render as comma-separated strings.',
     href: '/admin/prototypes/comma-separated-values',
     tag: 'Matching'
   }
