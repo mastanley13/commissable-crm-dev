@@ -1778,10 +1778,9 @@ export const RevenueScheduleSupportingDetails = forwardRef<
   const renderOpportunityDetails = () => {
     if (enableRedesign) {
       return (
-        <div className="space-y-3">
+        <>
           <ListHeader
             inTab
-            compact
             searchPlaceholder="Search IDs"
             onSearch={query => {
               setOpportunityDetailsSearch(query)
@@ -1816,7 +1815,6 @@ export const RevenueScheduleSupportingDetails = forwardRef<
             autoSizeColumns
             maxBodyHeight={260}
             alwaysShowPagination
-            className="border-0 rounded-none"
           />
 
           <ColumnChooserModal
@@ -1825,7 +1823,7 @@ export const RevenueScheduleSupportingDetails = forwardRef<
             onApply={handleOpportunityDetailsColumnsChange}
             onClose={() => setOpportunityDetailsColumnChooserOpen(false)}
           />
-        </div>
+        </>
       )
     }
 
@@ -1967,10 +1965,9 @@ export const RevenueScheduleSupportingDetails = forwardRef<
   )
 
   const renderActivitiesNotes = () => (
-    <div className="space-y-2">
+    <>
       <ListHeader
         inTab
-        compact
         searchPlaceholder="Search activities"
         onSearch={handleSearch}
         onFilterChange={handleStatusFilter}
@@ -2021,14 +2018,13 @@ export const RevenueScheduleSupportingDetails = forwardRef<
           void fetchActivities()
         }}
       />
-    </div>
+    </>
   )
 
   const renderTickets = () => (
-    <div className="space-y-2">
+    <>
       <ListHeader
         inTab
-        compact
         searchPlaceholder="Search tickets"
         onSearch={query => {
           setTicketsSearch(query)
@@ -2072,7 +2068,7 @@ export const RevenueScheduleSupportingDetails = forwardRef<
         onApply={handleTicketColumnsChange}
         onClose={() => setTicketsColumnChooserOpen(false)}
       />
-    </div>
+    </>
   )
 
   let sectionContent: React.ReactNode
@@ -2080,15 +2076,7 @@ export const RevenueScheduleSupportingDetails = forwardRef<
   if (enableRedesign) {
     switch (activeSectionId) {
       case "opportunity-details":
-        sectionContent = (
-          <SectionContainer
-            title="Opportunity Details"
-            description="Account, order, customer, location and service IDs for this revenue schedule."
-            hideHeader
-          >
-            {renderOpportunityDetails()}
-          </SectionContainer>
-        )
+        sectionContent = renderOpportunityDetails()
         break
       case "additional-information": {
         if (matchesLoading) {
@@ -2622,135 +2610,116 @@ export const RevenueScheduleSupportingDetails = forwardRef<
         )
 
         sectionContent = (
-          <SectionContainer
-            title="Transaction Ledger"
-            description="Billing, commission deposits, and payments affecting this revenue schedule."
-            hideHeader
-          >
-            {payoutsError ? <ErrorBanner message={payoutsError} /> : null}
-            
-            <div className="space-y-2">
-              <ListHeader
-                inTab
-                compact
-                searchPlaceholder="Search transactions"
-                onSearch={query => {
-                  setTransactionsSearch(query)
-                  setTransactionsPage(1)
-                }}
-                onFilterChange={() => {}}
-                showStatusFilter={false}
-                filterColumns={transactionsFilterColumns}
-                columnFilters={transactionsColumnFilters}
-                onColumnFiltersChange={next => {
-                  setTransactionsColumnFilters(next)
-                  setTransactionsPage(1)
-                }}
-                onSettingsClick={() => setTransactionsColumnChooserOpen(true)}
-                showCreateButton={canManageSchedules && Boolean(schedule?.id)}
-                createButtonLabel="Record Payment"
-                onCreateClick={() => setPayoutCreateModalOpen(true)}
-                preSearchAccessory={(
-                  <div className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-800">
-                    <span className="mr-1 italic text-blue-600">Choose one:</span>
-                    {(["all", "billings", "deposits", "payments"] as const).map(option => (
-                      <button
-                        key={option}
-                        type="button"
-                        onClick={() => {
-                          setTransactionFilter(option)
-                          setTransactionsPage(1)
-                          if (option !== "payments") setPaymentSplitFilter("all")
-                        }}
-                        className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                          transactionFilter === option
-                            ? "bg-blue-600 text-white"
-                            : "bg-transparent text-blue-700 hover:bg-blue-100"
-                        }`}
-                      >
-                        {option === "all"
-                          ? "All"
-                          : option === "billings"
-                            ? "Billings"
-                            : option === "deposits"
-                              ? "Commission Deposits"
-                              : "Payments"}
-                      </button>
-                    ))}
-                    {transactionFilter === "payments" ? (
-                      <select
-                        value={paymentSplitFilter}
-                        onChange={event => {
-                          setPaymentSplitFilter(event.target.value as typeof paymentSplitFilter)
-                          setTransactionsPage(1)
-                        }}
-                        className="ml-1 rounded-full bg-blue-600 px-2 py-0.5 text-[10px] font-semibold text-white outline-none focus:ring-2 focus:ring-white/60"
-                      >
-                        <option value="all">All Splits</option>
-                        <option value="house">House</option>
-                        <option value="houseRep">House Rep</option>
-                        <option value="subagent">Subagent</option>
-                      </select>
-                    ) : null}
-                  </div>
-                )}
-                leftAccessory={(
-                  <span className="text-[10px] font-semibold text-blue-700">{totalRecords} transactions</span>
-                )}
-              />
+          <>
+            {payoutsError ? (
+              <div className="mb-1">
+                <ErrorBanner message={payoutsError} />
+              </div>
+            ) : null}
 
-              <DynamicTable
-                columns={transactionsColumnsWithRender}
-                data={pagedRecords}
-                loading={false}
-                emptyMessage="No transactions to display."
-                onColumnsChange={handleTransactionsColumnsChange}
-                onSort={(columnId, direction) => setTransactionsSort({ columnId, direction })}
-                pagination={pagination}
-                onPageChange={nextPage => setTransactionsPage(nextPage)}
-                onPageSizeChange={size => {
-                  setTransactionsPage(1)
-                  void handleTransactionsPageSizeChange(size)
-                }}
-                alwaysShowPagination
-                fillContainerWidth
-                autoSizeColumns={false}
-                maxBodyHeight={300}
-                footerAbovePagination={totalsBar}
-              />
+            <ListHeader
+              inTab
+              searchPlaceholder="Search transactions"
+              onSearch={query => {
+                setTransactionsSearch(query)
+                setTransactionsPage(1)
+              }}
+              onFilterChange={() => {}}
+              showStatusFilter={false}
+              filterColumns={transactionsFilterColumns}
+              columnFilters={transactionsColumnFilters}
+              onColumnFiltersChange={next => {
+                setTransactionsColumnFilters(next)
+                setTransactionsPage(1)
+              }}
+              onSettingsClick={() => setTransactionsColumnChooserOpen(true)}
+              showCreateButton={canManageSchedules && Boolean(schedule?.id)}
+              createButtonLabel="Record Payment"
+              onCreateClick={() => setPayoutCreateModalOpen(true)}
+              preSearchAccessory={(
+                <div className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-800">
+                  <span className="mr-1 italic text-blue-600">Choose one:</span>
+                  {(["all", "billings", "deposits", "payments"] as const).map(option => (
+                    <button
+                      key={option}
+                      type="button"
+                      onClick={() => {
+                        setTransactionFilter(option)
+                        setTransactionsPage(1)
+                        if (option !== "payments") setPaymentSplitFilter("all")
+                      }}
+                      className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                        transactionFilter === option
+                          ? "bg-blue-600 text-white"
+                          : "bg-transparent text-blue-700 hover:bg-blue-100"
+                      }`}
+                    >
+                      {option === "all"
+                        ? "All"
+                        : option === "billings"
+                          ? "Billings"
+                          : option === "deposits"
+                            ? "Commission Deposits"
+                            : "Payments"}
+                    </button>
+                  ))}
+                  {transactionFilter === "payments" ? (
+                    <select
+                      value={paymentSplitFilter}
+                      onChange={event => {
+                        setPaymentSplitFilter(event.target.value as typeof paymentSplitFilter)
+                        setTransactionsPage(1)
+                      }}
+                      className="ml-1 rounded-full bg-blue-600 px-2 py-0.5 text-[10px] font-semibold text-white outline-none focus:ring-2 focus:ring-white/60"
+                    >
+                      <option value="all">All Splits</option>
+                      <option value="house">House</option>
+                      <option value="houseRep">House Rep</option>
+                      <option value="subagent">Subagent</option>
+                    </select>
+                  ) : null}
+                </div>
+              )}
+              leftAccessory={(
+                <span className="text-[10px] font-semibold text-blue-700">{totalRecords} transactions</span>
+              )}
+            />
 
-              <ColumnChooserModal
-                isOpen={transactionsColumnChooserOpen}
-                columns={transactionsColumnsWithRender}
-                onApply={handleTransactionsColumnsChange}
-                onClose={() => setTransactionsColumnChooserOpen(false)}
-              />
-            </div>
-          </SectionContainer>
+            <DynamicTable
+              columns={transactionsColumnsWithRender}
+              data={pagedRecords}
+              loading={false}
+              emptyMessage="No transactions to display."
+              onColumnsChange={handleTransactionsColumnsChange}
+              onSort={(columnId, direction) => setTransactionsSort({ columnId, direction })}
+              pagination={pagination}
+              onPageChange={nextPage => setTransactionsPage(nextPage)}
+              onPageSizeChange={size => {
+                setTransactionsPage(1)
+                void handleTransactionsPageSizeChange(size)
+              }}
+              alwaysShowPagination
+              fillContainerWidth
+              autoSizeColumns={false}
+              maxBodyHeight={300}
+              footerAbovePagination={totalsBar}
+            />
+
+            <ColumnChooserModal
+              isOpen={transactionsColumnChooserOpen}
+              columns={transactionsColumnsWithRender}
+              onApply={handleTransactionsColumnsChange}
+              onClose={() => setTransactionsColumnChooserOpen(false)}
+            />
+          </>
         )
         break
       }
       case "activities-notes":
-        sectionContent = (
-          <SectionContainer
-            title="Activities"
-            description="Timeline of activities, notes, and files associated with this revenue schedule."
-            hideHeader
-          >
-            {renderActivitiesNotes()}
-          </SectionContainer>
-        )
+        sectionContent = renderActivitiesNotes()
         break
       case "tickets":
-        sectionContent = (
-          <SectionContainer
-            title="Tickets"
-            description="Support tickets related to this revenue schedule."
-            hideHeader
-          >
-            {renderTickets()}
-          </SectionContainer>
-        )
+        sectionContent = renderTickets()
         break
       case "history":
         sectionContent = schedule?.id ? (

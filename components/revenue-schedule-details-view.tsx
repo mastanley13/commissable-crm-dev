@@ -401,7 +401,7 @@ function FinancialSummarySection({
       {!collapsed ? (
         <div className="grid grid-cols-1 gap-2 p-1.5 md:grid-cols-3">
           {/* Usage Summary */}
-          <div className="rounded-lg border border-gray-200 bg-gray-50 p-2 text-[11px] text-gray-900 flex flex-col" style={{ height: "220px" }}>
+          <div className="rounded-lg border border-gray-200 bg-gray-50 p-2 text-[11px] text-gray-900 flex flex-col" style={{ height: "180px" }}>
             <div className={cardHeaderClass}>
               <h3 className="text-[12px] font-semibold text-blue-600">Usage Summary</h3>
               <div className="h-5 w-10" aria-hidden="true" />
@@ -495,7 +495,7 @@ function FinancialSummarySection({
           </div>
 
           {/* Commission Summary */}
-          <div className="rounded-lg border border-gray-200 bg-gray-50 p-2 text-[11px] text-gray-900 flex flex-col" style={{ height: "220px" }}>
+          <div className="rounded-lg border border-gray-200 bg-gray-50 p-2 text-[11px] text-gray-900 flex flex-col" style={{ height: "180px" }}>
             <div className={cardHeaderClass}>
               <h3 className="text-[12px] font-semibold text-blue-600">Commission Summary</h3>
               <div className="h-5 w-10" aria-hidden="true" />
@@ -563,7 +563,7 @@ function FinancialSummarySection({
           </div>
 
           {/* Splits */}
-          <div className="rounded-lg border border-gray-200 bg-gray-50 p-2 text-[11px] text-gray-900 flex flex-col" style={{ height: "220px" }}>
+          <div className="rounded-lg border border-gray-200 bg-gray-50 p-2 text-[11px] text-gray-900 flex flex-col" style={{ height: "180px" }}>
             <div className={cardHeaderClass}>
               <h3 className="text-[12px] font-semibold text-blue-600">Splits</h3>
               <div className="flex items-center gap-1">
@@ -1001,6 +1001,11 @@ export function RevenueScheduleDetailsView({
       label: "Product Name - House",
       value: productNameHouse ?? undefined
     },
+    {
+      fieldId: "04.01.021",
+      label: "House Rep",
+      value: houseRepName ?? undefined
+    },
   ]
 
   const columnTwo: FieldDefinition[] = [
@@ -1008,11 +1013,6 @@ export function RevenueScheduleDetailsView({
       fieldId: "04.01.020",
       label: "Subagent",
       value: schedule.subagentName
-    },
-    {
-      fieldId: "04.01.021",
-      label: "House Rep",
-      value: houseRepName ?? undefined
     },
     {
       fieldId: "04.01.008",
@@ -1056,11 +1056,6 @@ export function RevenueScheduleDetailsView({
       fieldId: "04.01.034",
       label: "Payment Type",
       value: schedule.paymentType
-    },
-    {
-      fieldId: "comments",
-      label: "Comments",
-      value: schedule.comments
     }
   ]
 
@@ -1102,6 +1097,11 @@ export function RevenueScheduleDetailsView({
           {schedule.billingAddress}
         </span>
       ) : undefined
+    },
+    {
+      fieldId: "comments",
+      label: "Comments",
+      value: schedule.comments
     }
   ]
 
@@ -1145,7 +1145,7 @@ export function RevenueScheduleDetailsView({
 
   return (
     <div className="space-y-0">
-      <div className="overflow-y-auto bg-blue-50 h-[300px]">
+      <div className="overflow-y-auto bg-blue-50 h-[250px]">
         <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-1.5">
           <div className="flex flex-wrap items-center gap-2">
             <p className="text-[13px] font-semibold uppercase tracking-wide text-primary-600">Revenue Schedule Detail</p>
