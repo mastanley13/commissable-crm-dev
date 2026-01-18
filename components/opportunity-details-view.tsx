@@ -81,6 +81,8 @@ const parseCurrency = (val: any): number => {
 const fieldLabelClass = "text-[11px] font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap"
 const fieldBoxClass =
   "flex min-h-[28px] w-full min-w-0 max-w-[260px] items-center justify-between border-b-2 border-gray-300 bg-transparent pl-[3px] pr-0 py-1 text-[11px] text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis tabular-nums"
+const BLUE_CARD_HEADER_CLASSNAME = "bg-blue-500 border-b-2 border-blue-700 px-3 py-1.5 text-white"
+const BLUE_CARD_TITLE_CLASSNAME = "text-[11px] font-semibold text-white"
 
 type RevenueEditableColumnId = "quantity" | "unitPrice" | "expectedUsageAdjustment" | "expectedCommissionRatePercent"
 
@@ -698,41 +700,75 @@ function DetailsIdentifiersTab({ opportunity }: { opportunity: OpportunityDetail
       : identifiers.accountIdDistributor || identifiers.customerIdDistributor || identifiers.orderIdDistributor
         ? "Distributor"
         : undefined)
-  const fields = [
+  const formatValue = (value: unknown) => {
+    if (value === null || value === undefined) return "--"
+    const text = String(value).trim()
+    return text.length ? text : "--"
+  }
+  const houseFields = [
     { label: "House - Account ID", value: identifiers.accountIdHouse },
-    {
-      label: "Other - Account ID",
-      value: identifiers.accountIdVendor ?? identifiers.accountIdDistributor,
-    },
     { label: "House - Customer ID", value: identifiers.customerIdHouse },
-    {
-      label: "Other - Customer ID",
-      value: identifiers.customerIdVendor ?? identifiers.customerIdDistributor,
-    },
     { label: "Location ID", value: identifiers.locationId },
     { label: "House - Order ID", value: identifiers.orderIdHouse },
-    {
-      label: "Other - Order ID",
-      value: identifiers.orderIdVendor ?? identifiers.orderIdDistributor,
-    },
-    { label: "Customer PO #", value: identifiers.customerPurchaseOrder },
-    { label: "Other - Source", value: otherSource },
+    { label: "Customer PO #", value: identifiers.customerPurchaseOrder }
+  ]
+  const otherFields = [
+    { label: "Other - Account ID", value: identifiers.accountIdVendor ?? identifiers.accountIdDistributor },
+    { label: "Other - Customer ID", value: identifiers.customerIdVendor ?? identifiers.customerIdDistributor },
+    { label: "Other - Order ID", value: identifiers.orderIdVendor ?? identifiers.orderIdDistributor },
+    { label: "Other - Source", value: otherSource }
   ]
 
   return (
-    <div className="flex flex-col gap-2.5">
-
-      <div className="grid gap-2 rounded-xl border border-gray-200 bg-white p-3 shadow-sm md:grid-cols-2">
-        {fields.map(field => (
-          <div key={field.label} className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
-            <div className="flex items-center gap-2">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">{field.label}</p>
-              <p className="text-[11px] font-medium text-gray-900 break-all">
-                {field.value && String(field.value).trim().length > 0 ? String(field.value) : "--"}
-              </p>
-            </div>
+    <div className="space-y-3">
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+        <div className="border border-gray-200 rounded-bl-lg rounded-br-lg bg-white overflow-hidden">
+          <div className={cn(BLUE_CARD_HEADER_CLASSNAME, "flex items-center")}>
+            <span className="inline-flex items-center rounded bg-white px-2 py-0.5 text-[10px] font-semibold text-blue-700">
+              House
+            </span>
+            <span className={cn(BLUE_CARD_TITLE_CLASSNAME, "ml-2")}>
+              Identifiers
+            </span>
           </div>
-        ))}
+          <div className="space-y-1.5 p-3 text-[11px]">
+            {houseFields.map(field => {
+              const value = formatValue(field.value)
+              return (
+                <div key={field.label} className="flex items-center justify-between gap-3">
+                  <span className="text-gray-600">{field.label}</span>
+                  <span className="truncate font-medium text-gray-900" title={value}>
+                    {value}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
+        <div className="border border-gray-200 rounded-bl-lg rounded-br-lg bg-white overflow-hidden">
+          <div className={cn(BLUE_CARD_HEADER_CLASSNAME, "flex items-center")}>
+            <span className="inline-flex items-center rounded bg-white px-2 py-0.5 text-[10px] font-semibold text-blue-700">
+              Other
+            </span>
+            <span className={cn(BLUE_CARD_TITLE_CLASSNAME, "ml-2")}>
+              Identifiers
+            </span>
+          </div>
+          <div className="space-y-1.5 p-3 text-[11px]">
+            {otherFields.map(field => {
+              const value = formatValue(field.value)
+              return (
+                <div key={field.label} className="flex items-center justify-between gap-3">
+                  <span className="text-gray-600">{field.label}</span>
+                  <span className="truncate font-medium text-gray-900" title={value}>
+                    {value}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
       </div>
     </div>
   )

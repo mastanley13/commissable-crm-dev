@@ -947,19 +947,6 @@ export function DepositReconciliationDetailView({
     [lineItemRows, metadata.id, onLineSelectionChange, onMatchApplied, parseAllocationInput, showError, showSuccess]
   )
 
-  const handleMatchSelected = useCallback(() => {
-    const lineId = selectedLineItemsRef.current[0]
-    if (!lineId) {
-      showError("No line selected", "Select a deposit line item to match.")
-      return
-    }
-    if (isUnmatchSelection) {
-      void unmatchLineById(lineId)
-      return
-    }
-    void handleRowMatchClick(lineId)
-  }, [handleRowMatchClick, isUnmatchSelection, showError, unmatchLineById])
-
   const handleCreateFlexSelected = useCallback(async () => {
     const lineId = selectedLineItemsRef.current[0]
     if (!lineId) {
@@ -1077,6 +1064,19 @@ export function DepositReconciliationDetailView({
     },
     [metadata.id, onUnmatchApplied, showError, showSuccess]
   )
+
+  const handleMatchSelected = useCallback(() => {
+    const lineId = selectedLineItemsRef.current[0]
+    if (!lineId) {
+      showError("No line selected", "Select a deposit line item to match.")
+      return
+    }
+    if (isUnmatchSelection) {
+      void unmatchLineById(lineId)
+      return
+    }
+    void handleRowMatchClick(lineId)
+  }, [handleRowMatchClick, isUnmatchSelection, showError, unmatchLineById])
 
   const handleLineColumnFiltersChange = useCallback((filters: ColumnFilter[]) => {
     if (!filters || filters.length === 0) {
