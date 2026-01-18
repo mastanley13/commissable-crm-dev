@@ -441,7 +441,7 @@ export function CreateTemplateStep({
               onChange={event => setVendorQuery(event.target.value)}
               onFocus={() => setShowVendorDropdown(true)}
               placeholder="Search vendors"
-              className={underlineInputClass}
+              className={`${underlineInputClass.replace('w-full', '')} w-[300px]`}
             />
             {showVendorDropdown ? (
               <DropdownList
@@ -455,7 +455,7 @@ export function CreateTemplateStep({
           </div>
         </FormField>
 
-        <FormField label="Distributor" required>
+        <FormField label="Distributor" required className="w-[300px]">
           <div className="relative">
             <input
               type="text"
@@ -463,7 +463,7 @@ export function CreateTemplateStep({
               onChange={event => setDistributorQuery(event.target.value)}
               onFocus={() => setShowDistributorDropdown(true)}
               placeholder="Search distributors"
-              className={underlineInputClass}
+              className={`${underlineInputClass.replace('w-full', '')} w-[300px]`}
             />
             {showDistributorDropdown ? (
               <DropdownList
@@ -478,7 +478,7 @@ export function CreateTemplateStep({
         </FormField>
 
         <FormField label="Commission Period (YYYY-MM)" required>
-          <div className="relative">
+          <div className="relative" style={{ width: '300px' }}>
             <input
               type="text"
               inputMode="numeric"
@@ -522,8 +522,8 @@ export function CreateTemplateStep({
           </div>
         </FormField>
 
-        <FormField label="Deposit Received Date (YYYY-MM-DD)" required>
-          <div className="relative">
+        <FormField label="Deposit Received Date (YYYY-MM-DD)" required labelSpanClassName="w-[300px]">
+          <div className="relative w-[300px]">
             <input
               type="text"
               inputMode="numeric"
@@ -531,7 +531,7 @@ export function CreateTemplateStep({
               pattern="\d{4}-\d{2}-\d{2}"
               value={formState.depositReceivedDate}
               onChange={event => onFormStateChange({ depositReceivedDate: event.target.value })}
-              className={`${underlineInputClass} pr-16`}
+              className={`${underlineInputClass.replace('w-full', 'w-[300px]')} pr-16`}
             />
             <div className="absolute right-0 top-1/2 flex -translate-y-1/2 items-center gap-1">
               <button
@@ -567,7 +567,7 @@ export function CreateTemplateStep({
           </div>
         </FormField>
 
-        <FormField label="Deposit Name">
+        <FormField label="Deposit Name" className="w-[300px]" labelSpanClassName="w-[300px]">
           <input
             type="text"
             value={formState.depositName}
@@ -577,7 +577,7 @@ export function CreateTemplateStep({
         </FormField>
 
         <FormField label="Created By" required>
-          <div className="rounded border-b border-slate-200 py-2 text-sm font-semibold text-slate-800">
+          <div className="rounded border-b border-slate-200 py-2 text-sm font-semibold text-slate-800 w-[300px]">
             {formState.createdByLabel || user?.fullName || "Detecting..."}
           </div>
         </FormField>
@@ -620,7 +620,7 @@ interface DropdownListProps {
 
 function DropdownList({ loading, options, emptyLabel, onSelect, onDismiss }: DropdownListProps) {
   return (
-    <ul className="absolute z-10 mt-1 max-h-52 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow" onMouseLeave={onDismiss}>
+    <ul className="absolute z-10 mt-1 max-h-52 w-[300px] overflow-auto rounded-lg border border-gray-200 bg-white shadow" onMouseLeave={onDismiss}>
       {loading ? (
         <li className="px-3 py-2 text-sm text-gray-500">Loading...</li>
       ) : options.length === 0 ? (
@@ -645,12 +645,14 @@ interface FormFieldProps {
   label: string
   required?: boolean
   children: ReactNode
+  className?: string
+  labelSpanClassName?: string
 }
 
-function FormField({ label, required, children }: FormFieldProps) {
+function FormField({ label, required, children, className, labelSpanClassName }: FormFieldProps) {
   return (
-    <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
-      <span className="text-slate-600">
+    <label className={`flex flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500 ${className || ''}`}>
+      <span className={`text-slate-600 ${labelSpanClassName || ''}`}>
         {label}
         {required ? <span className="text-red-500"> *</span> : null}
       </span>
