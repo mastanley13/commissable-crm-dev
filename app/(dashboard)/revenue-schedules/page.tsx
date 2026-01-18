@@ -7,7 +7,7 @@ import { ListHeader } from '@/components/list-header'
 import { DynamicTable, Column, PaginationInfo } from '@/components/dynamic-table'
 import { ColumnChooserModal } from '@/components/column-chooser-modal'
 import { useTablePreferences } from '@/hooks/useTablePreferences'
-import { Check, Copy, Download, ExternalLink, Trash2 } from 'lucide-react'
+import { Check, Copy, Download, Trash2 } from 'lucide-react'
 import { isRowInactive } from '@/lib/row-state'
 import { CopyProtectionWrapper } from '@/components/copy-protection'
 import { useToasts } from '@/components/toast'
@@ -1547,45 +1547,6 @@ export default function RevenueSchedulesPage() {
             }
 
             return <span>{displayValue}</span>
-          },
-        }
-      }
-
-      if (column.id === 'productNameVendor') {
-        return {
-          ...column,
-          render: (value: unknown, row: any) => {
-            const label = String(value ?? '')
-
-            if (!row.opportunityId || !row.opportunityProductId || !label) {
-              return <span className="text-gray-900">{label || '--'}</span>
-            }
-
-            return (
-              <div className="flex items-center gap-1">
-                <Link
-                  href={`/opportunities/${row.opportunityId}/products/${row.opportunityProductId}`}
-                  className="cursor-pointer text-blue-600 hover:text-blue-800"
-                  onClick={(event) => event.stopPropagation()}
-                  prefetch={false}
-                >
-                  {label}
-                </Link>
-
-                {row.productId ? (
-                  <Link
-                    href={`/products/${row.productId}`}
-                    className="text-blue-600 hover:text-blue-800"
-                    onClick={event => event.stopPropagation()}
-                    prefetch={false}
-                    title="Open product catalog record"
-                    aria-label="Open product catalog record"
-                  >
-                    <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
-                  </Link>
-                ) : null}
-              </div>
-            )
           },
         }
       }
