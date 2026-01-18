@@ -644,6 +644,12 @@ export function DepositReconciliationDetailView({
     return lineItemRows.find(item => item.id === lineId) ?? null
   }, [lineItemRows, selectedLineItems])
 
+  const isUnmatchSelection = useMemo(() => {
+    if (!selectedLineForMatch) return false
+    if (selectedSchedules.length !== 1) return false
+    return selectedScheduleForMatch?.status === "Matched"
+  }, [selectedLineForMatch, selectedSchedules.length, selectedScheduleForMatch?.status])
+
   useEffect(() => {
     if (!selectedLineForMatch) {
       setAllocationDraft({ usage: "", commission: "" })
@@ -686,6 +692,8 @@ export function DepositReconciliationDetailView({
     if (selectedLineForMatch.status === "Ignored") return "Ignored line items cannot be allocated"
     if (selectedSchedules.length === 0) return "Select a schedule below"
     if (selectedSchedules.length > 1) return "Select only one schedule to match to"
+    if (selectedScheduleForMatch?.status === "Reconciled") return "Reconciled schedules cannot be changed"
+    if (isUnmatchSelection) return null
 
     const usageAmount = parseAllocationInput(allocationDraft.usage)
     const commissionAmount = parseAllocationInput(allocationDraft.commission)
@@ -720,6 +728,8 @@ export function DepositReconciliationDetailView({
     parseAllocationInput,
     selectedScheduleForMatch?.allocatedUsage,
     selectedScheduleForMatch?.allocatedCommission,
+    selectedScheduleForMatch?.status,
+    isUnmatchSelection,
   ])
 
   const createFlexButtonLabel = useMemo(() => {
@@ -943,8 +953,12 @@ export function DepositReconciliationDetailView({
       showError("No line selected", "Select a deposit line item to match.")
       return
     }
+    if (isUnmatchSelection) {
+      void unmatchLineById(lineId)
+      return
+    }
     void handleRowMatchClick(lineId)
-  }, [handleRowMatchClick, showError])
+  }, [handleRowMatchClick, isUnmatchSelection, showError, unmatchLineById])
 
   const handleCreateFlexSelected = useCallback(async () => {
     const lineId = selectedLineItemsRef.current[0]
@@ -3407,14 +3421,19 @@ export function DepositReconciliationDetailView({
                   type="button"
                   onClick={handleMatchSelected}
                   disabled={Boolean(matchButtonDisabledReason)}
-                  title={matchButtonDisabledReason ?? "Match the selected line item to the selected schedule"}
+                  title={
+                    matchButtonDisabledReason ??
+                    (isUnmatchSelection
+                      ? "Unmatch the selected line item from the selected schedule"
+                      : "Match the selected line item to the selected schedule")
+                  }
                   className={cn(
                     "inline-flex h-9 items-center justify-center gap-2 rounded bg-primary-600 px-3 text-sm font-semibold text-white shadow-sm transition hover:bg-primary-700",
                     matchButtonDisabledReason ? "cursor-not-allowed opacity-60 hover:bg-primary-600" : ""
                   )}
                 >
                   <ClipboardCheck className="h-4 w-4" />
-                  Match
+                  {isUnmatchSelection ? "Unmatched" : "Match"}
                 </button>
               </div>
             }
