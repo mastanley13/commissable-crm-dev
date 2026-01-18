@@ -10,6 +10,13 @@ const prototypePages = [
       'Prototype for the DynamicTable in-cell bulk \"Apply to N selected\" workflow used in revenue schedules.',
     href: '/revenue-schedules/fill-down-test',
     tag: 'Revenue Schedules'
+  },
+  {
+    title: 'Comma-Separated Values (Other Fields)',
+    description:
+      'Prototype for entering multiple comma-separated values and previewing how they are parsed and normalized for matching.',
+    href: '/admin/prototypes/comma-separated-values',
+    tag: 'Matching'
   }
 ]
 

@@ -83,6 +83,7 @@ const fieldBoxClass =
   "flex min-h-[28px] w-full min-w-0 max-w-[260px] items-center justify-between border-b-2 border-gray-300 bg-transparent pl-[3px] pr-0 py-1 text-[11px] text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis tabular-nums"
 const BLUE_CARD_HEADER_CLASSNAME = "bg-blue-500 border-b-2 border-blue-700 px-3 py-1.5 text-white"
 const BLUE_CARD_TITLE_CLASSNAME = "text-[11px] font-semibold text-white"
+const DETAILS_CARD_BODY_CLASSNAME = "space-y-1.5 p-3 text-[11px] min-h-[150px]"
 
 type RevenueEditableColumnId = "quantity" | "unitPrice" | "expectedUsageAdjustment" | "expectedCommissionRatePercent"
 
@@ -708,20 +709,24 @@ function DetailsIdentifiersTab({ opportunity }: { opportunity: OpportunityDetail
   const houseFields = [
     { label: "House - Account ID", value: identifiers.accountIdHouse },
     { label: "House - Customer ID", value: identifiers.customerIdHouse },
-    { label: "Location ID", value: identifiers.locationId },
-    { label: "House - Order ID", value: identifiers.orderIdHouse },
-    { label: "Customer PO #", value: identifiers.customerPurchaseOrder }
+    { label: "House - Order ID", value: identifiers.orderIdHouse }
   ]
   const otherFields = [
     { label: "Other - Account ID", value: identifiers.accountIdVendor ?? identifiers.accountIdDistributor },
     { label: "Other - Customer ID", value: identifiers.customerIdVendor ?? identifiers.customerIdDistributor },
-    { label: "Other - Order ID", value: identifiers.orderIdVendor ?? identifiers.orderIdDistributor },
+    { label: "Other - Order ID", value: identifiers.orderIdVendor ?? identifiers.orderIdDistributor }
+  ]
+  const generalFields = [
+    { label: "Location ID", value: identifiers.locationId },
+    { label: "Customer PO #", value: identifiers.customerPurchaseOrder }
+  ]
+  const sourceFields = [
     { label: "Other - Source", value: otherSource }
   ]
 
   return (
     <div className="space-y-3">
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-4">
         <div className="border border-gray-200 rounded-bl-lg rounded-br-lg bg-white overflow-hidden">
           <div className={cn(BLUE_CARD_HEADER_CLASSNAME, "flex items-center")}>
             <span className="inline-flex items-center rounded bg-white px-2 py-0.5 text-[10px] font-semibold text-blue-700">
@@ -731,7 +736,7 @@ function DetailsIdentifiersTab({ opportunity }: { opportunity: OpportunityDetail
               Identifiers
             </span>
           </div>
-          <div className="space-y-1.5 p-3 text-[11px]">
+          <div className={DETAILS_CARD_BODY_CLASSNAME}>
             {houseFields.map(field => {
               const value = formatValue(field.value)
               return (
@@ -755,8 +760,56 @@ function DetailsIdentifiersTab({ opportunity }: { opportunity: OpportunityDetail
               Identifiers
             </span>
           </div>
-          <div className="space-y-1.5 p-3 text-[11px]">
+          <div className={DETAILS_CARD_BODY_CLASSNAME}>
             {otherFields.map(field => {
+              const value = formatValue(field.value)
+              return (
+                <div key={field.label} className="flex items-center justify-between gap-3">
+                  <span className="text-gray-600">{field.label}</span>
+                  <span className="truncate font-medium text-gray-900" title={value}>
+                    {value}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
+        <div className="border border-gray-200 rounded-bl-lg rounded-br-lg bg-white overflow-hidden">
+          <div className={cn(BLUE_CARD_HEADER_CLASSNAME, "flex items-center")}>
+            <span className="inline-flex items-center rounded bg-white px-2 py-0.5 text-[10px] font-semibold text-blue-700">
+              General
+            </span>
+            <span className={cn(BLUE_CARD_TITLE_CLASSNAME, "ml-2")}>
+              Identifiers
+            </span>
+          </div>
+          <div className={DETAILS_CARD_BODY_CLASSNAME}>
+            {generalFields.map(field => {
+              const value = formatValue(field.value)
+              return (
+                <div key={field.label} className="flex items-center justify-between gap-3">
+                  <span className="text-gray-600">{field.label}</span>
+                  <span className="truncate font-medium text-gray-900" title={value}>
+                    {value}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
+        <div className="border border-gray-200 rounded-bl-lg rounded-br-lg bg-white overflow-hidden">
+          <div className={cn(BLUE_CARD_HEADER_CLASSNAME, "flex items-center")}>
+            <span className="inline-flex items-center rounded bg-white px-2 py-0.5 text-[10px] font-semibold text-blue-700">
+              Source
+            </span>
+            <span className={cn(BLUE_CARD_TITLE_CLASSNAME, "ml-2")}>
+              Identifiers
+            </span>
+          </div>
+          <div className={DETAILS_CARD_BODY_CLASSNAME}>
+            {sourceFields.map(field => {
               const value = formatValue(field.value)
               return (
                 <div key={field.label} className="flex items-center justify-between gap-3">
@@ -5546,7 +5599,7 @@ useEffect(() => {
                   </div>
                 ) : activeTab === "details" ? (
                   <div className="border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0 px-3 pb-3">
-                    <div className="border-t-2 border-t-primary-600 -mr-3 pt-3">
+                    <div className="border-t-2 border-t-primary-600 -mr-3 min-w-0 overflow-hidden">
                       <TabDescription>{TAB_DESCRIPTIONS.details}</TabDescription>
                       <DetailsIdentifiersTab opportunity={opportunity} />
                     </div>
