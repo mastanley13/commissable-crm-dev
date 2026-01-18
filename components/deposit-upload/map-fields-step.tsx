@@ -538,25 +538,41 @@ export function MapFieldsStep({
   }
 
   return (
-    <div className="space-y-3">
-      <div className="grid gap-3 md:grid-cols-2 md:items-start">
-        <div className="flex items-center gap-3">
-          <div className="rounded-full bg-primary-50 p-1.5 text-primary-600">
-            <FileSpreadsheet className="h-4 w-4" />
+    <div className="space-y-2">
+      <div className="grid gap-2 md:grid-cols-2 md:items-start">
+        {templateLabel ? (
+          <div className="rounded-xl border border-slate-200 bg-white p-2 text-sm text-slate-700">
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Template</p>
+                <p className="font-semibold text-slate-900">{templateLabel}</p>
+              </div>
+              {onSaveTemplateMappingChange ? (
+                <label className="inline-flex items-start gap-2 text-xs text-slate-700">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5 h-4 w-4 accent-primary-600"
+                    checked={saveTemplateMapping}
+                    onChange={event => onSaveTemplateMappingChange(event.target.checked)}
+                  />
+                  <span className="leading-5">Save mapping updates to this template for future uploads</span>
+                </label>
+              ) : null}
+            </div>
+            <p className="mt-1 text-xs text-slate-500">
+              Saving updates only affects future uploads that use this template. Existing deposits are not changed.
+            </p>
           </div>
-          <div>
-            <h2 className="text-base font-semibold text-gray-900">Map Fields</h2>
-            <p className="text-xs text-gray-600">Match upload columns to Commissable fields.</p>
-          </div>
-        </div>
+        ) : (
+          <div />
+        )}
 
-        <div className="rounded-xl border border-gray-100 bg-gray-50 p-3 text-sm text-gray-700">
+        <div className="rounded-xl border border-gray-100 bg-gray-50 p-2 text-sm text-gray-700">
           <div className="flex items-center justify-between gap-2">
             <p className="font-semibold text-gray-900">Uploaded file</p>
-            <p className="text-xs text-gray-500">Columns detected: {csvHeaders.length || "0"}</p>
           </div>
           {file ? (
-            <div className="mt-2 space-y-1 text-gray-600">
+            <div className="mt-1 space-y-0.5 text-gray-600">
               <p>{file.name}</p>
               {parsingError ? (
                 <p className="text-xs text-red-600">{parsingError}</p>
@@ -570,7 +586,7 @@ export function MapFieldsStep({
         </div>
       </div>
 
-      <div className="flex flex-wrap items-start justify-between gap-2">
+      <div className="flex flex-wrap items-start justify-between gap-1.5">
         <p className="text-xs text-gray-600">
           Map required fields like Usage and Commission. Optional fields can stay unmapped; saved templates pre-fill when
           available.
@@ -599,6 +615,7 @@ export function MapFieldsStep({
               </button>
             </div>
           ) : null}
+          <p className="text-xs text-gray-500">Columns detected: {csvHeaders.length || "0"}</p>
           <button
             type="button"
             title="Map required fields like Usage and Commission to columns from your uploaded file. Optional fields can be left unmapped. If a saved mapping exists for the selected Distributor + Vendor, those columns (plus core fields) will appear in the Template-mapped section below."
@@ -609,31 +626,6 @@ export function MapFieldsStep({
           </button>
         </div>
       </div>
-
-      {templateLabel ? (
-        <div className="rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-700">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Template</p>
-              <p className="font-semibold text-slate-900">{templateLabel}</p>
-            </div>
-            {onSaveTemplateMappingChange ? (
-              <label className="inline-flex items-start gap-2 text-xs text-slate-700">
-                <input
-                  type="checkbox"
-                  className="mt-0.5 h-4 w-4 accent-primary-600"
-                  checked={saveTemplateMapping}
-                  onChange={event => onSaveTemplateMappingChange(event.target.checked)}
-                />
-                <span className="leading-5">Save mapping updates to this template for future uploads</span>
-              </label>
-            ) : null}
-          </div>
-          <p className="mt-2 text-xs text-slate-500">
-            Saving updates only affects future uploads that use this template. Existing deposits are not changed.
-          </p>
-        </div>
-      ) : null}
 
       {parsingError ? (
         <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700 flex items-start gap-2">

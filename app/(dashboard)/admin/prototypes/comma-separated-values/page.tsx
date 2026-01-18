@@ -1,8 +1,9 @@
 'use client'
 
-import { useCallback, useMemo, useState, type ClipboardEvent, type KeyboardEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ClipboardEvent, type KeyboardEvent } from 'react'
 import { CopyProtectionWrapper } from '@/components/copy-protection'
-import { Edit, X } from 'lucide-react'
+import { Copy, Edit, Star, X } from 'lucide-react'
+import { useToasts } from '@/components/toast'
 
 type ParseConfig = {
   supportQuotes: boolean
@@ -98,8 +99,36 @@ function mergeUniqueValues(existing: string[], additions: string[], maxItems: nu
   return next
 }
 
+function sanitizeValueList(values: string[], maxItems: number) {
+  return mergeUniqueValues([], values, maxItems)
+}
+
 function formatCommaSeparated(values: string[]) {
   return values.join(', ')
+}
+
+async function copyToClipboard(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text)
+    return true
+  } catch {
+    // Fallback for older browsers / restricted contexts
+    try {
+      const textarea = document.createElement('textarea')
+      textarea.value = text
+      textarea.style.position = 'fixed'
+      textarea.style.left = '-9999px'
+      textarea.style.top = '0'
+      document.body.appendChild(textarea)
+      textarea.focus()
+      textarea.select()
+      const ok = document.execCommand('copy')
+      document.body.removeChild(textarea)
+      return ok
+    } catch {
+      return false
+    }
+  }
 }
 
 function FieldRow({ label, children }: { label: string; children: React.ReactNode }) {
@@ -111,17 +140,402 @@ function FieldRow({ label, children }: { label: string; children: React.ReactNod
   )
 }
 
+type ToastApi = Pick<ReturnType<typeof useToasts>, 'showSuccess' | 'showError' | 'showInfo' | 'showWarning'>
+
+function MultiValueTableCell({
+  label,
+  values,
+  toasts
+}: {
+  label: string
+  values: string[]
+  toasts: ToastApi
+}) {
+  const containerRef = useRef<HTMLDivElement | null>(null)
+  const [open, setOpen] = useState(false)
+  const primary = values[0] ?? ''
+  const extraCount = Math.max(0, values.length - 1)
+  const commaSeparated = formatCommaSeparated(values)
+  const hasCommaInside = values.some(value => value.includes(','))
+
+  useEffect(() => {
+    if (!open) return
+    const handleOutside = (event: MouseEvent) => {
+      if (!containerRef.current) return
+      if (!containerRef.current.contains(event.target as Node)) {
+        setOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleOutside)
+    return () => document.removeEventListener('mousedown', handleOutside)
+  }, [open])
+
+  const handleCopy = async () => {
+    const ok = await copyToClipboard(commaSeparated)
+    if (ok) {
+      toasts.showSuccess('Copied', `${label} copied as comma-separated text.`)
+    } else {
+      toasts.showError('Copy failed', 'Unable to access clipboard in this browser context.')
+    }
+  }
+
+  if (!values.length) {
+    return <span className="text-gray-500">--</span>
+  }
+
+  return (
+    <div ref={containerRef} className="relative">
+      <button
+        type="button"
+        className="flex w-full items-center justify-between gap-2 text-left"
+        onClick={() => setOpen(previous => !previous)}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+      >
+        <div className="min-w-0 flex-1">
+          <div className="truncate" title={commaSeparated}>
+            {primary}
+          </div>
+        </div>
+        {extraCount > 0 ? (
+          <span className="shrink-0 rounded-full border border-gray-200 bg-gray-50 px-2 py-0.5 text-[10px] font-semibold text-gray-700">
+            +{extraCount}
+          </span>
+        ) : null}
+      </button>
+
+      {open ? (
+        <div className="absolute right-0 z-20 mt-2 w-[340px] rounded-lg border border-gray-200 bg-white shadow-lg">
+          <div className="flex items-start justify-between gap-3 border-b border-gray-100 px-3 py-2">
+            <div>
+              <div className="text-xs font-semibold text-gray-900">{label}</div>
+              <div className="text-[10px] text-gray-500">{values.length} value{values.length === 1 ? '' : 's'}</div>
+            </div>
+            <button
+              type="button"
+              className="rounded-md border border-gray-200 bg-white px-2 py-1 text-[11px] font-semibold text-gray-700 hover:bg-gray-50"
+              onClick={handleCopy}
+            >
+              <span className="inline-flex items-center gap-1">
+                <Copy className="h-3 w-3" />
+                Copy
+              </span>
+            </button>
+          </div>
+
+          {hasCommaInside ? (
+            <div className="border-b border-amber-100 bg-amber-50 px-3 py-2 text-[10px] text-amber-800">
+              Some values contain commas, which can make comma-separated exports ambiguous. This is why a chip/list UI can be clearer.
+            </div>
+          ) : null}
+
+          <ol className="max-h-56 overflow-auto px-3 py-2 text-xs text-gray-900">
+            {values.map((value, index) => (
+              <li key={`${value}-${index}`} className="flex gap-2 py-1">
+                <span className="w-5 shrink-0 text-gray-400">{index === 0 ? 'P' : `${index + 1}.`}</span>
+                <span className="break-words">{value}</span>
+              </li>
+            ))}
+          </ol>
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+function MultiValueReadOnly({
+  label,
+  values,
+  toasts
+}: {
+  label: string
+  values: string[]
+  toasts: ToastApi
+}) {
+  const commaSeparated = formatCommaSeparated(values)
+  const extraCount = Math.max(0, values.length - 1)
+
+  const handleCopy = async () => {
+    const ok = await copyToClipboard(commaSeparated)
+    if (ok) {
+      toasts.showSuccess('Copied', `${label} copied as comma-separated text.`)
+    } else {
+      toasts.showError('Copy failed', 'Unable to access clipboard in this browser context.')
+    }
+  }
+
+  if (!values.length) {
+    return <span className="text-gray-500">--</span>
+  }
+
+  return (
+    <div className="w-full max-w-md">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b-2 border-gray-300 py-1">
+        <div className="flex flex-wrap gap-2">
+          {values.slice(0, 6).map((value, index) => (
+            <span
+              key={`${value}-${index}`}
+              className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs"
+              title={value}
+            >
+              {index === 0 ? <Star className="h-3 w-3 text-blue-700" /> : null}
+              <span className="max-w-[240px] truncate font-medium text-blue-900">{value}</span>
+            </span>
+          ))}
+          {values.length > 6 ? (
+            <span className="inline-flex items-center rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-xs font-semibold text-gray-700">
+              +{values.length - 6} more
+            </span>
+          ) : null}
+        </div>
+        <button
+          type="button"
+          className="shrink-0 rounded-md border border-gray-200 bg-white px-2 py-1 text-[11px] font-semibold text-gray-700 hover:bg-gray-50"
+          onClick={handleCopy}
+        >
+          <span className="inline-flex items-center gap-1">
+            <Copy className="h-3 w-3" />
+            Copy
+          </span>
+        </button>
+      </div>
+      <div className="mt-1 text-[10px] text-gray-500">
+        Primary{extraCount ? ` (+${extraCount})` : ''}:{' '}
+        <span className="font-mono">{values[0] ?? '--'}</span>
+      </div>
+    </div>
+  )
+}
+
+function MultiValueReadOnlyList({
+  label,
+  values,
+  toasts
+}: {
+  label: string
+  values: string[]
+  toasts: ToastApi
+}) {
+  const handleCopyCsv = async () => {
+    const ok = await copyToClipboard(formatCommaSeparated(values))
+    if (ok) {
+      toasts.showSuccess('Copied', `${label} copied as comma-separated text.`)
+    } else {
+      toasts.showError('Copy failed', 'Unable to access clipboard in this browser context.')
+    }
+  }
+
+  const handleCopyLines = async () => {
+    const ok = await copyToClipboard(values.join('\n'))
+    if (ok) {
+      toasts.showSuccess('Copied', `${label} copied as newline-separated text.`)
+    } else {
+      toasts.showError('Copy failed', 'Unable to access clipboard in this browser context.')
+    }
+  }
+
+  if (!values.length) {
+    return <span className="text-gray-500">--</span>
+  }
+
+  return (
+    <div className="w-full max-w-md">
+      <div className="flex items-center justify-end gap-2">
+        <button
+          type="button"
+          className="rounded-md border border-gray-200 bg-white px-2 py-1 text-[11px] font-semibold text-gray-700 hover:bg-gray-50"
+          onClick={handleCopyLines}
+        >
+          <span className="inline-flex items-center gap-1">
+            <Copy className="h-3 w-3" />
+            Copy lines
+          </span>
+        </button>
+        <button
+          type="button"
+          className="rounded-md border border-gray-200 bg-white px-2 py-1 text-[11px] font-semibold text-gray-700 hover:bg-gray-50"
+          onClick={handleCopyCsv}
+        >
+          <span className="inline-flex items-center gap-1">
+            <Copy className="h-3 w-3" />
+            Copy CSV
+          </span>
+        </button>
+      </div>
+      <ul className="mt-2 space-y-1 border-b-2 border-gray-300 pb-2 text-xs text-gray-900">
+        {values.map((value, index) => (
+          <li key={`${value}-${index}`} className="flex gap-2">
+            <span className="w-4 shrink-0 text-gray-400">{index === 0 ? 'P' : '-'}</span>
+            <span className="break-words">{value}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+function MultiValueTextareaListEditor({
+  label,
+  values,
+  onChange,
+  toasts,
+  parseConfig = DEFAULT_PARSE_CONFIG
+}: {
+  label: string
+  values: string[]
+  onChange: (next: string[]) => void
+  toasts: ToastApi
+  parseConfig?: ParseConfig
+}) {
+  const [paste, setPaste] = useState('')
+
+  const setPrimary = (index: number) => {
+    if (index <= 0) return
+    const value = values[index]
+    const next = [value, ...values.filter((_value, idx) => idx !== index)]
+    onChange(next)
+    toasts.showInfo('Primary updated', `Set primary ${label} to: ${value}`)
+  }
+
+  const updateAt = (index: number, nextValue: string) => {
+    const next = values.map((value, idx) => (idx === index ? nextValue : value))
+    onChange(next)
+  }
+
+  const removeAt = (index: number) => {
+    onChange(values.filter((_value, idx) => idx !== index))
+  }
+
+  const addEmpty = () => {
+    if (values.length >= parseConfig.maxItems) {
+      toasts.showWarning('Max values reached', `${label} is limited to ${parseConfig.maxItems} values.`)
+      return
+    }
+    onChange([...values, ''])
+  }
+
+  const addFromPaste = () => {
+    const parsed = parseMultiValueInput(paste, parseConfig)
+    if (parsed.warnings.length) {
+      toasts.showWarning('Input warning', parsed.warnings.join('\n'))
+    }
+    if (!parsed.values.length) {
+      toasts.showInfo('Nothing to add', 'No values were detected in the pasted text.')
+      return
+    }
+
+    const before = values
+    const next = mergeUniqueValues(before, parsed.values, parseConfig.maxItems)
+    const added = next.length - before.length
+    onChange(next)
+    setPaste('')
+
+    if (added === 0) {
+      toasts.showInfo('No new values', 'Duplicates/empty values were ignored.')
+    } else if (added < parsed.values.length) {
+      toasts.showInfo('Some values skipped', 'Duplicates were ignored and/or the max value limit was reached.')
+    }
+  }
+
+  return (
+    <div className="w-full max-w-md">
+      <div className="space-y-2 border-b-2 border-gray-300 pb-2">
+        {values.length === 0 ? (
+          <div className="text-xs text-gray-500">--</div>
+        ) : (
+          values.map((value, index) => (
+            <div key={`${value}-${index}`} className="flex items-start gap-2">
+              <div className="mt-2 w-4 shrink-0 text-gray-400">{index === 0 ? 'P' : '-'}</div>
+              <textarea
+                rows={2}
+                className="flex-1 resize-y rounded-md border border-gray-200 bg-white px-3 py-2 text-xs text-gray-900 focus:border-primary-500 focus:outline-none"
+                value={value}
+                onChange={event => updateAt(index, event.target.value)}
+                placeholder={index === 0 ? 'Primary description' : 'Alternate description'}
+              />
+              <div className="mt-2 flex shrink-0 items-center gap-1">
+                {index > 0 ? (
+                  <button
+                    type="button"
+                    className="rounded-md border border-gray-200 bg-white px-2 py-1 text-[11px] font-semibold text-gray-700 hover:bg-gray-50"
+                    onClick={() => setPrimary(index)}
+                    title="Make primary"
+                  >
+                    <span className="inline-flex items-center gap-1">
+                      <Star className="h-3 w-3" />
+                      Primary
+                    </span>
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  className="rounded-md border border-gray-200 bg-white px-2 py-1 text-[11px] font-semibold text-gray-700 hover:bg-gray-50"
+                  onClick={() => removeAt(index)}
+                >
+                  Remove
+                </button>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+        <button
+          type="button"
+          className="rounded-md border border-gray-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-gray-700 hover:bg-gray-50"
+          onClick={addEmpty}
+        >
+          + Add description
+        </button>
+        <div className="text-[10px] text-gray-500">
+          {values.length}/{parseConfig.maxItems} values
+        </div>
+      </div>
+
+      <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50 p-3">
+        <div className="text-[11px] font-semibold text-gray-700">Paste multiple</div>
+        <div className="mt-1 text-[10px] text-gray-500">
+          Paste comma/semicolon/newline-separated values. Use quotes to keep commas inside a single value (example:{' '}
+          <span className="font-mono">&quot;desc, with comma&quot;</span>).
+        </div>
+        <textarea
+          rows={2}
+          className="mt-2 w-full resize-y rounded-md border border-gray-200 bg-white px-3 py-2 text-xs text-gray-900 focus:border-primary-500 focus:outline-none"
+          value={paste}
+          onChange={event => setPaste(event.target.value)}
+          placeholder="Paste here…"
+        />
+        <div className="mt-2 flex justify-end">
+          <button
+            type="button"
+            className="rounded-md bg-primary-600 px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-primary-700"
+            onClick={addFromPaste}
+            disabled={paste.trim().length === 0}
+          >
+            Add
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function MultiValueTagInput({
+  label,
   values,
   onChange,
   placeholder,
   helpText,
+  toasts,
   parseConfig = DEFAULT_PARSE_CONFIG
 }: {
+  label: string
   values: string[]
   onChange: (next: string[]) => void
   placeholder: string
   helpText?: string
+  toasts: ToastApi
   parseConfig?: ParseConfig
 }) {
   const [input, setInput] = useState('')
@@ -135,10 +549,31 @@ function MultiValueTagInput({
       setWarnings(parsed.warnings)
       if (!parsed.values.length) return
 
-      onChange(mergeUniqueValues(values, parsed.values, parseConfig.maxItems))
+      const next = mergeUniqueValues(values, parsed.values, parseConfig.maxItems)
+      const added = next.length - values.length
+      const maxed = next.length >= parseConfig.maxItems
+
+      onChange(next)
       setInput('')
+
+      if (parsed.warnings.length) {
+        toasts.showWarning('Input warning', parsed.warnings.join('\n'))
+      }
+
+      if (added === 0) {
+        if (!canAddMore || maxed) {
+          toasts.showWarning('Max values reached', `${label} is limited to ${parseConfig.maxItems} values.`)
+        } else {
+          toasts.showInfo('No new values', 'Duplicates/empty values were ignored.')
+        }
+        return
+      }
+
+      if (added < parsed.values.length || maxed) {
+        toasts.showInfo('Some values skipped', 'Duplicates were ignored and/or the max value limit was reached.')
+      }
     },
-    [onChange, parseConfig, values]
+    [canAddMore, label, onChange, parseConfig, toasts, values]
   )
 
   const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
@@ -178,7 +613,26 @@ function MultiValueTagInput({
       <div className="flex flex-wrap items-center gap-2 border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs text-gray-900 focus-within:border-primary-500">
         {values.map((value, index) => (
           <span key={`${value}-${index}`} className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs">
-            <span className="max-w-[240px] truncate font-medium text-blue-900" title={value}>{value}</span>
+            <span className="max-w-[220px] truncate font-medium text-blue-900" title={value}>{value}</span>
+            {index === 0 ? (
+              <span className="ml-0.5 rounded-full bg-blue-100 px-1.5 py-0.5 text-[10px] font-semibold text-blue-800">
+                Primary
+              </span>
+            ) : (
+              <button
+                type="button"
+                className="ml-0.5 text-blue-700 hover:text-blue-900"
+                aria-label={`Make ${value} primary`}
+                title="Make primary"
+                onClick={() => {
+                  const next = [value, ...values.filter((_value, idx) => idx !== index)]
+                  onChange(next)
+                  toasts.showInfo('Primary updated', `Set primary ${label} to: ${value}`)
+                }}
+              >
+                <Star className="h-3 w-3" />
+              </button>
+            )}
             <button
               type="button"
               className="ml-1 text-blue-600 hover:text-blue-800"
@@ -228,6 +682,14 @@ function MultiValueTagInput({
 }
 
 export default function CommaSeparatedValuesPrototypePage() {
+  const { showSuccess, showError, showInfo, showWarning, ToastContainer } = useToasts()
+  const toastApi: ToastApi = useMemo(() => ({ showSuccess, showError, showInfo, showWarning }), [
+    showError,
+    showInfo,
+    showSuccess,
+    showWarning
+  ])
+
   const [stored, setStored] = useState(() => ({
     opportunityName: 'Edge Business - 394SMiledge - ACC - Cable',
     accountName: 'Edge Business - 394SMiledge',
@@ -276,14 +738,27 @@ export default function CommaSeparatedValuesPrototypePage() {
   }
 
   const saveEdit = () => {
+    const maxItems = DEFAULT_PARSE_CONFIG.maxItems
+    const nextAccountIds = sanitizeValueList(draft.otherAccountIds, maxItems)
+    const nextProductNames = sanitizeValueList(draft.otherProductNames, maxItems)
+    const nextPartNumbers = sanitizeValueList(draft.otherPartNumbers, maxItems)
+    const nextDescriptions = sanitizeValueList(draft.otherDescriptions, maxItems)
+
     setStored(previous => ({
       ...previous,
-      otherAccountIds: draft.otherAccountIds,
-      otherProductNames: draft.otherProductNames,
-      otherPartNumbers: draft.otherPartNumbers,
-      otherDescriptions: draft.otherDescriptions
+      otherAccountIds: nextAccountIds,
+      otherProductNames: nextProductNames,
+      otherPartNumbers: nextPartNumbers,
+      otherDescriptions: nextDescriptions
     }))
+    setDraft({
+      otherAccountIds: nextAccountIds,
+      otherProductNames: nextProductNames,
+      otherPartNumbers: nextPartNumbers,
+      otherDescriptions: nextDescriptions
+    })
     setIsEditing(false)
+    toastApi.showSuccess('Updated', 'Prototype values saved.')
   }
 
   return (
@@ -341,19 +816,17 @@ export default function CommaSeparatedValuesPrototypePage() {
                 <tr className="border-t border-gray-200">
                   <td className="px-3 py-2 text-gray-900">{stored.houseProductName}</td>
                   <td className="px-3 py-2 text-gray-900">
-                    <div className="truncate" title={formatCommaSeparated(stored.otherProductNames)}>
-                      {formatCommaSeparated(stored.otherProductNames) || '--'}
-                    </div>
+                    <MultiValueTableCell label="Other - Product Name" values={stored.otherProductNames} toasts={toastApi} />
                   </td>
                   <td className="px-3 py-2 text-gray-900">
-                    <div className="truncate" title={formatCommaSeparated(stored.otherPartNumbers)}>
-                      {formatCommaSeparated(stored.otherPartNumbers) || '--'}
-                    </div>
+                    <MultiValueTableCell label="Other - Part Number" values={stored.otherPartNumbers} toasts={toastApi} />
                   </td>
                   <td className="px-3 py-2 text-gray-900">
-                    <div className="truncate" title={formatCommaSeparated(stored.otherDescriptions)}>
-                      {formatCommaSeparated(stored.otherDescriptions) || '--'}
-                    </div>
+                    <MultiValueTableCell
+                      label="Other - Product Description"
+                      values={stored.otherDescriptions}
+                      toasts={toastApi}
+                    />
                   </td>
                 </tr>
               </tbody>
@@ -437,72 +910,62 @@ export default function CommaSeparatedValuesPrototypePage() {
                 <FieldRow label="Other - Account ID">
                   {isEditing ? (
                     <MultiValueTagInput
+                      label="Other - Account ID"
                       values={draft.otherAccountIds}
                       onChange={(next) => setDraft(prev => ({ ...prev, otherAccountIds: next }))}
                       placeholder="Type an account ID and press comma"
                       helpText="Used for matching when account numbers change."
+                      toasts={toastApi}
                     />
                   ) : (
-                    <div
-                      className="flex min-h-[28px] w-full max-w-md items-center justify-between border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis"
-                      title={formatCommaSeparated(stored.otherAccountIds)}
-                    >
-                      {formatCommaSeparated(stored.otherAccountIds) || <span className="text-gray-500">--</span>}
-                    </div>
+                    <MultiValueReadOnly label="Other - Account ID" values={stored.otherAccountIds} toasts={toastApi} />
                   )}
                 </FieldRow>
 
                 <FieldRow label="Other - Product Name">
                   {isEditing ? (
                     <MultiValueTagInput
+                      label="Other - Product Name"
                       values={draft.otherProductNames}
                       onChange={(next) => setDraft(prev => ({ ...prev, otherProductNames: next }))}
                       placeholder="Type a product name and press comma"
                       helpText="Add product aliases used by different vendors/customers."
+                      toasts={toastApi}
                     />
                   ) : (
-                    <div
-                      className="flex min-h-[28px] w-full max-w-md items-center justify-between border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis"
-                      title={formatCommaSeparated(stored.otherProductNames)}
-                    >
-                      {formatCommaSeparated(stored.otherProductNames) || <span className="text-gray-500">--</span>}
-                    </div>
+                    <MultiValueReadOnly label="Other - Product Name" values={stored.otherProductNames} toasts={toastApi} />
                   )}
                 </FieldRow>
 
                 <FieldRow label="Other - Part Number">
                   {isEditing ? (
                     <MultiValueTagInput
+                      label="Other - Part Number"
                       values={draft.otherPartNumbers}
                       onChange={(next) => setDraft(prev => ({ ...prev, otherPartNumbers: next }))}
                       placeholder="Type a part number and press comma"
                       helpText="Add part number variants (spacing, hyphens, legacy SKUs)."
+                      toasts={toastApi}
                     />
                   ) : (
-                    <div
-                      className="flex min-h-[28px] w-full max-w-md items-center justify-between border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis"
-                      title={formatCommaSeparated(stored.otherPartNumbers)}
-                    >
-                      {formatCommaSeparated(stored.otherPartNumbers) || <span className="text-gray-500">--</span>}
-                    </div>
+                    <MultiValueReadOnly label="Other - Part Number" values={stored.otherPartNumbers} toasts={toastApi} />
                   )}
                 </FieldRow>
 
                 <FieldRow label="Other - Product Description">
                   {isEditing ? (
-                    <MultiValueTagInput
+                    <MultiValueTextareaListEditor
+                      label="Other - Product Description"
                       values={draft.otherDescriptions}
                       onChange={(next) => setDraft(prev => ({ ...prev, otherDescriptions: next }))}
-                      placeholder='Type a description and press Enter (quotes allow commas: "desc, with comma")'
-                      helpText="Descriptions often contain commas; wrap in quotes to keep them together."
+                      toasts={toastApi}
                     />
                   ) : (
-                    <div
-                      className="mt-1 w-full max-w-md border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs text-gray-900 whitespace-pre-wrap"
-                      title={formatCommaSeparated(stored.otherDescriptions)}
-                    >
-                      {formatCommaSeparated(stored.otherDescriptions) || <span className="text-gray-500">--</span>}
-                    </div>
+                    <MultiValueReadOnlyList
+                      label="Other - Product Description"
+                      values={stored.otherDescriptions}
+                      toasts={toastApi}
+                    />
                   )}
                 </FieldRow>
               </div>
@@ -510,7 +973,7 @@ export default function CommaSeparatedValuesPrototypePage() {
           </div>
         </section>
       </div>
+      <ToastContainer />
     </CopyProtectionWrapper>
   )
 }
-
