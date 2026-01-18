@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db"
 import { parseSpreadsheetFile } from "@/lib/deposit-import/parse-file"
 import { depositFieldDefinitions, requiredDepositFieldIds } from "@/lib/deposit-import/fields"
 import { getClientIP, getUserAgent, logAudit } from "@/lib/audit"
+import { resolveSpreadsheetHeader } from "@/lib/deposit-import/resolve-header"
 import {
   createEmptyDepositMapping,
   extractDepositMappingFromTemplateConfig,
@@ -61,11 +62,17 @@ function buildColumnIndex(headers: string[], mapping: Record<string, string>) {
   const columnIndex: Record<string, number> = {}
   for (const [fieldId, columnName] of Object.entries(mapping)) {
     if (!columnName) continue
-    const index = headers.findIndex(header => header === columnName)
-    if (index === -1) {
+
+    const resolved = resolveSpreadsheetHeader(headers, columnName)
+    if (!resolved.ok) {
+      if (resolved.reason === "ambiguous") {
+        const suffix = resolved.matches?.length ? ` (matches: ${resolved.matches.join(", ")})` : ""
+        throw new Error(`Column "${columnName}" is ambiguous in uploaded file${suffix}`)
+      }
       throw new Error(`Column "${columnName}" not found in uploaded file`)
     }
-    columnIndex[fieldId] = index
+
+    columnIndex[fieldId] = resolved.index
   }
   return columnIndex
 }
