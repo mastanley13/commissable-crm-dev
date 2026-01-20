@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useReconciliationSettings } from '@/hooks/useReconciliationSettings'
 import { useReconciliationUserSettings } from '@/hooks/useReconciliationUserSettings'
+import { PercentSliderWithInput } from '@/components/percent-slider-with-input'
 
 export function ReconciliationSettingsForm() {
   const {
@@ -25,7 +26,7 @@ export function ReconciliationSettingsForm() {
 
   useEffect(() => {
     if (tenantSettings?.varianceTolerance !== undefined) {
-      setVarianceTolerance(tenantSettings.varianceTolerance * 100)
+      setVarianceTolerance(Number((tenantSettings.varianceTolerance * 100).toFixed(1)))
     }
   }, [tenantSettings])
 
@@ -82,72 +83,36 @@ export function ReconciliationSettingsForm() {
               {error}
             </div>
           ) : null}
-          {/* Variance Tolerance Field */}
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-slate-800">
-              Variance Tolerance (tenant default, percent)
-            </label>
-            <input
-              type="number"
-              min="0"
-              max="30"
-              step="0.1"
-              value={varianceTolerance}
-              onChange={e => setVarianceTolerance(Number(e.target.value))}
-              className="w-full max-w-xs rounded border border-slate-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-            />
-            <p className="text-xs text-slate-500">
-              Used by Pass A matching and auto-match algorithms. Stored at tenant level.
-            </p>
-          </div>
 
-          {/* Suggested Matches Confidence (Per-user) */}
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-slate-800">
-              Suggested Matches Display Confidence (your preference)
-            </label>
-            <div className="flex items-center gap-4">
-              <input
-                type="range"
-                min="0"
-                max="100"
-                step="1"
-                value={suggestedMatchesMinConfidence}
-                onChange={e => setSuggestedMatchesMinConfidence(Number(e.target.value))}
-                className="w-full"
-              />
-              <div className="w-14 text-right text-sm text-slate-700 tabular-nums">
-                {suggestedMatchesMinConfidence}%
-              </div>
-            </div>
-            <p className="text-xs text-slate-500">
-              Filters the Suggested Matches table to show schedules at or above this confidence.
-            </p>
-          </div>
+          <PercentSliderWithInput
+            label="Variance Tolerance (tenant default, percent)"
+            helpText="Used by Pass A matching and auto-match algorithms. Stored at tenant level."
+            value={varianceTolerance}
+            onChange={setVarianceTolerance}
+            min={0}
+            max={30}
+            step={0.1}
+          />
 
-          {/* Auto-match Confidence (Per-user) */}
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-slate-800">
-              AI Auto-Match Confidence (your preference)
-            </label>
-            <div className="flex items-center gap-4">
-              <input
-                type="range"
-                min="0"
-                max="100"
-                step="1"
-                value={autoMatchMinConfidence}
-                onChange={e => setAutoMatchMinConfidence(Number(e.target.value))}
-                className="w-full"
-              />
-              <div className="w-14 text-right text-sm text-slate-700 tabular-nums">
-                {autoMatchMinConfidence}%
-              </div>
-            </div>
-            <p className="text-xs text-slate-500">
-              AI Matching will only auto-apply the top candidate when confidence meets or exceeds this threshold.
-            </p>
-          </div>
+          <PercentSliderWithInput
+            label="Suggested Matches Display Confidence (your preference)"
+            helpText="Filters the Suggested Matches table to show schedules at or above this confidence."
+            value={suggestedMatchesMinConfidence}
+            onChange={setSuggestedMatchesMinConfidence}
+            min={0}
+            max={100}
+            step={1}
+          />
+
+          <PercentSliderWithInput
+            label="AI Auto-Match Confidence (your preference)"
+            helpText="AI Matching will only auto-apply the top candidate when confidence meets or exceeds this threshold."
+            value={autoMatchMinConfidence}
+            onChange={setAutoMatchMinConfidence}
+            min={0}
+            max={100}
+            step={1}
+          />
 
           {/* Save Button */}
           <div className="flex items-center gap-3">

@@ -10,6 +10,8 @@ type ParseConfig = {
   maxItems: number
 }
 
+type DisplayMode = 'chips' | 'comma'
+
 const DEFAULT_PARSE_CONFIG: ParseConfig = {
   supportQuotes: true,
   maxItems: 25
@@ -140,6 +142,44 @@ function FieldRow({ label, children }: { label: string; children: React.ReactNod
   )
 }
 
+function DisplayModeToggle({
+  value,
+  onChange
+}: {
+  value: DisplayMode
+  onChange: (next: DisplayMode) => void
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-3">
+      <span className="text-xs font-semibold text-gray-700">Field display</span>
+      <div className="inline-flex rounded-md border border-gray-200 bg-white p-1 shadow-sm">
+        <button
+          type="button"
+          onClick={() => onChange('comma')}
+          className={[
+            'rounded px-2.5 py-1 text-xs font-semibold transition',
+            value === 'comma' ? 'bg-primary-600 text-white' : 'text-gray-700 hover:bg-gray-50'
+          ].join(' ')}
+          aria-pressed={value === 'comma'}
+        >
+          Comma-separated
+        </button>
+        <button
+          type="button"
+          onClick={() => onChange('chips')}
+          className={[
+            'rounded px-2.5 py-1 text-xs font-semibold transition',
+            value === 'chips' ? 'bg-primary-600 text-white' : 'text-gray-700 hover:bg-gray-50'
+          ].join(' ')}
+          aria-pressed={value === 'chips'}
+        >
+          Chips
+        </button>
+      </div>
+    </div>
+  )
+}
+
 type ToastApi = Pick<ReturnType<typeof useToasts>, 'showSuccess' | 'showError' | 'showInfo' | 'showWarning'>
 
 function MultiValueTableCell({
@@ -153,8 +193,6 @@ function MultiValueTableCell({
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const [open, setOpen] = useState(false)
-  const primary = values[0] ?? ''
-  const extraCount = Math.max(0, values.length - 1)
   const commaSeparated = formatCommaSeparated(values)
   const hasCommaInside = values.some(value => value.includes(','))
 
@@ -194,14 +232,9 @@ function MultiValueTableCell({
       >
         <div className="min-w-0 flex-1">
           <div className="truncate" title={commaSeparated}>
-            {primary}
+            {commaSeparated}
           </div>
         </div>
-        {extraCount > 0 ? (
-          <span className="shrink-0 rounded-full border border-gray-200 bg-gray-50 px-2 py-0.5 text-[10px] font-semibold text-gray-700">
-            +{extraCount}
-          </span>
-        ) : null}
       </button>
 
       {open ? (
@@ -303,6 +336,49 @@ function MultiValueReadOnly({
         Primary{extraCount ? ` (+${extraCount})` : ''}:{' '}
         <span className="font-mono">{values[0] ?? '--'}</span>
       </div>
+    </div>
+  )
+}
+
+function MultiValueReadOnlyComma({
+  label,
+  values,
+  toasts
+}: {
+  label: string
+  values: string[]
+  toasts: ToastApi
+}) {
+  const commaSeparated = formatCommaSeparated(values)
+
+  const handleCopy = async () => {
+    const ok = await copyToClipboard(commaSeparated)
+    if (ok) {
+      toasts.showSuccess('Copied', `${label} copied as comma-separated text.`)
+    } else {
+      toasts.showError('Copy failed', 'Unable to access clipboard in this browser context.')
+    }
+  }
+
+  if (!values.length) {
+    return <span className="text-gray-500">--</span>
+  }
+
+  return (
+    <div className="flex min-h-[28px] w-full max-w-md items-center justify-between gap-3 border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs text-gray-900">
+      <div className="min-w-0 flex-1 truncate" title={commaSeparated}>
+        {commaSeparated}
+      </div>
+      <button
+        type="button"
+        className="shrink-0 rounded-md border border-gray-200 bg-white px-2 py-1 text-[11px] font-semibold text-gray-700 hover:bg-gray-50"
+        onClick={handleCopy}
+      >
+        <span className="inline-flex items-center gap-1">
+          <Copy className="h-3 w-3" />
+          Copy
+        </span>
+      </button>
     </div>
   )
 }
@@ -521,6 +597,128 @@ function MultiValueTextareaListEditor({
   )
 }
 
+function MultiValueCommaInput({
+  label,
+  values,
+  onChange,
+  placeholder,
+  helpText,
+  toasts,
+  multiline = false,
+  parseConfig = DEFAULT_PARSE_CONFIG
+}: {
+  label: string
+  values: string[]
+  onChange: (next: string[]) => void
+  placeholder: string
+  helpText?: string
+  toasts: ToastApi
+  multiline?: boolean
+  parseConfig?: ParseConfig
+}) {
+  const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null)
+  const [raw, setRaw] = useState(() => formatCommaSeparated(values))
+  const [warnings, setWarnings] = useState<string[]>([])
+
+  useEffect(() => {
+    if (document.activeElement === inputRef.current) return
+    setRaw(formatCommaSeparated(values))
+  }, [values])
+
+  const parseAndApply = useCallback(
+    (nextRaw: string, { toast }: { toast: boolean }) => {
+      const parsed = parseMultiValueInput(nextRaw, parseConfig)
+      const sanitized = sanitizeValueList(parsed.values, parseConfig.maxItems)
+      setWarnings(parsed.warnings)
+      onChange(sanitized)
+
+      if (toast && parsed.warnings.length) {
+        toasts.showWarning('Input warning', parsed.warnings.join('\n'))
+      }
+
+      return sanitized
+    },
+    [onChange, parseConfig, toasts]
+  )
+
+  const parsedCount = values.length
+
+  return (
+    <div className="w-full max-w-md">
+      <div className="flex items-start gap-2 border-b-2 border-gray-300 py-1 focus-within:border-primary-500">
+        {multiline ? (
+          <textarea
+            ref={inputRef as React.RefObject<HTMLTextAreaElement>}
+            rows={3}
+            className="min-h-[28px] w-full flex-1 resize-y bg-transparent px-0 text-xs text-gray-900 focus:outline-none"
+            value={raw}
+            onChange={event => {
+              const nextRaw = event.target.value
+              setRaw(nextRaw)
+              parseAndApply(nextRaw, { toast: false })
+            }}
+            onBlur={() => {
+              const sanitized = parseAndApply(raw, { toast: true })
+              setRaw(formatCommaSeparated(sanitized))
+            }}
+            placeholder={placeholder}
+          />
+        ) : (
+          <input
+            ref={inputRef as React.RefObject<HTMLInputElement>}
+            className="min-h-[28px] w-full flex-1 bg-transparent px-0 text-xs text-gray-900 focus:outline-none"
+            value={raw}
+            onChange={event => {
+              const nextRaw = event.target.value
+              setRaw(nextRaw)
+              parseAndApply(nextRaw, { toast: false })
+            }}
+            onBlur={() => {
+              const sanitized = parseAndApply(raw, { toast: true })
+              setRaw(formatCommaSeparated(sanitized))
+            }}
+            placeholder={placeholder}
+          />
+        )}
+
+        <button
+          type="button"
+          className="shrink-0 rounded-md border border-gray-200 bg-white px-2 py-1 text-[11px] font-semibold text-gray-700 hover:bg-gray-50"
+          onClick={async () => {
+            const ok = await copyToClipboard(raw)
+            if (ok) {
+              toasts.showSuccess('Copied', `${label} copied.`)
+            } else {
+              toasts.showError('Copy failed', 'Unable to access clipboard in this browser context.')
+            }
+          }}
+        >
+          <span className="inline-flex items-center gap-1">
+            <Copy className="h-3 w-3" />
+            Copy
+          </span>
+        </button>
+      </div>
+
+      {helpText ? <div className="mt-1 text-[10px] text-gray-500">{helpText}</div> : null}
+
+      {warnings.length > 0 ? (
+        <div className="mt-1 space-y-1 text-[10px] text-amber-700">
+          {warnings.map(warning => (
+            <div key={warning} className="rounded border border-amber-200 bg-amber-50 px-2 py-1">
+              {warning}
+            </div>
+          ))}
+        </div>
+      ) : null}
+
+      <div className="mt-1 text-[10px] text-gray-500">
+        Parsed: <span className="font-semibold text-gray-700">{parsedCount}</span> value{parsedCount === 1 ? '' : 's'}
+      </div>
+    </div>
+  )
+}
+
 function MultiValueTagInput({
   label,
   values,
@@ -702,6 +900,7 @@ export default function CommaSeparatedValuesPrototypePage() {
   }))
 
   const [isEditing, setIsEditing] = useState(false)
+  const [displayMode, setDisplayMode] = useState<DisplayMode>('comma')
   const [draft, setDraft] = useState(() => ({
     otherAccountIds: stored.otherAccountIds,
     otherProductNames: stored.otherProductNames,
