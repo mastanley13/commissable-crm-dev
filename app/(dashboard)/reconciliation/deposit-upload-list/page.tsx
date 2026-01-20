@@ -367,14 +367,18 @@ export default function DepositUploadListPage() {
 
   const requiredFieldsComplete = requiredDepositFieldIds.every(fieldId => Boolean(canonicalFieldMapping[fieldId]))
   const canProceedFromMapFields = requiredFieldsComplete && Boolean(csvHeaders.length) && !parsingError
+  const canProceedFromCreateTemplate = Boolean(
+    formState.depositReceivedDate &&
+      formState.commissionPeriod &&
+      formState.distributorAccountId &&
+      formState.vendorAccountId &&
+      selectedFile,
+  )
 
   const getBackButtonConfig = () => {
     switch (activeStep) {
       case 'create-template':
-        return {
-          label: 'Back to Reconciliation',
-          onClick: () => router.push('/reconciliation'),
-        }
+        return null
       case 'map-fields':
         return null
       case 'review':
@@ -431,6 +435,24 @@ export default function DepositUploadListPage() {
                   Continue
                 </button>
               </div>
+            ) : activeStep === 'create-template' ? (
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => router.push('/reconciliation')}
+                  className="inline-flex items-center rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={goToMapFields}
+                  disabled={!canProceedFromCreateTemplate}
+                  className="inline-flex items-center rounded-lg bg-primary-600 px-4 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-gray-300"
+                >
+                  Continue
+                </button>
+              </div>
             ) : backButtonConfig ? (
               <button
                 type="button"
@@ -448,7 +470,6 @@ export default function DepositUploadListPage() {
               formState={formState}
               selectedFile={selectedFile}
               onFileChange={handleFileChange}
-              onProceed={goToMapFields}
               onFormStateChange={updateFormState}
             />
           ) : null}

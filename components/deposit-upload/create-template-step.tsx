@@ -30,18 +30,14 @@ interface CreateTemplateStepProps {
   formState: DepositUploadFormState
   selectedFile: File | null
   onFileChange: (event: ChangeEvent<HTMLInputElement>) => void
-  onProceed: () => void
   onFormStateChange: (updates: Partial<DepositUploadFormState>) => void
-  onBack?: () => void
 }
 
 export function CreateTemplateStep({
   formState,
   selectedFile,
   onFileChange,
-  onProceed,
   onFormStateChange,
-  onBack,
 }: CreateTemplateStepProps) {
   const { user } = useAuth()
   const [createdByQuery, setCreatedByQuery] = useState(formState.createdByLabel)
@@ -77,14 +73,6 @@ export function CreateTemplateStep({
       setShouldAutoFillCreatedBy(false)
     }
   }, [user?.fullName, createdByQuery, shouldAutoFillCreatedBy])
-
-  const canProceed = Boolean(
-    formState.depositReceivedDate &&
-      formState.commissionPeriod &&
-      formState.distributorAccountId &&
-      formState.vendorAccountId &&
-      selectedFile,
-  )
 
   const handleCreatedBySelect = (option: ContactOption) => {
     setCreatedByQuery(option.label)
@@ -431,181 +419,178 @@ export function CreateTemplateStep({
   }, [formState.createdByContactId, formState.distributorAccountId, formState.vendorAccountId, newTemplateName, onFormStateChange])
 
   return (
-    <div className="space-y-4">
-      <div className="grid gap-4 md:grid-cols-2">
-        <FormField label="Vendor" required>
-          <div className="relative">
-            <input
-              type="text"
-              value={vendorQuery}
-              onChange={event => setVendorQuery(event.target.value)}
-              onFocus={() => setShowVendorDropdown(true)}
-              placeholder="Search vendors"
-              className={`${underlineInputClass.replace('w-full', '')} w-[300px]`}
-            />
-            {showVendorDropdown ? (
-              <DropdownList
-                loading={vendorLoading}
-                options={vendorOptions}
-                emptyLabel="No vendors found"
-                onSelect={option => handleVendorSelect(option)}
-                onDismiss={() => setShowVendorDropdown(false)}
+    <div className="flex items-start gap-10">
+      <div className="w-[360px]">
+        <div className="space-y-4">
+          <FormField label="Vendor" required>
+            <div className="relative w-[300px]">
+              <input
+                type="text"
+                value={vendorQuery}
+                onChange={event => setVendorQuery(event.target.value)}
+                onFocus={() => setShowVendorDropdown(true)}
+                placeholder="Search vendors"
+                className={`${underlineInputClass.replace('w-full', 'w-[300px]')} h-[40px]`}
               />
-            ) : null}
-          </div>
-        </FormField>
+              {showVendorDropdown ? (
+                <DropdownList
+                  loading={vendorLoading}
+                  options={vendorOptions}
+                  emptyLabel="No vendors found"
+                  onSelect={option => handleVendorSelect(option)}
+                  onDismiss={() => setShowVendorDropdown(false)}
+                />
+              ) : null}
+            </div>
+          </FormField>
 
-        <FormField label="Distributor" required className="w-[300px]">
-          <div className="relative">
-            <input
-              type="text"
-              value={distributorQuery}
-              onChange={event => setDistributorQuery(event.target.value)}
-              onFocus={() => setShowDistributorDropdown(true)}
-              placeholder="Search distributors"
-              className={`${underlineInputClass.replace('w-full', '')} w-[300px]`}
-            />
-            {showDistributorDropdown ? (
-              <DropdownList
-                loading={distributorLoading}
-                options={distributorOptions}
-                emptyLabel="No distributors found"
-                onSelect={option => handleDistributorSelect(option)}
-                onDismiss={() => setShowDistributorDropdown(false)}
+          <FormField label="Distributor" required>
+            <div className="relative w-[300px]">
+              <input
+                type="text"
+                value={distributorQuery}
+                onChange={event => setDistributorQuery(event.target.value)}
+                onFocus={() => setShowDistributorDropdown(true)}
+                placeholder="Search distributors"
+                className={`${underlineInputClass.replace('w-full', 'w-[300px]')} h-[40px]`}
               />
-            ) : null}
-          </div>
-        </FormField>
+              {showDistributorDropdown ? (
+                <DropdownList
+                  loading={distributorLoading}
+                  options={distributorOptions}
+                  emptyLabel="No distributors found"
+                  onSelect={option => handleDistributorSelect(option)}
+                  onDismiss={() => setShowDistributorDropdown(false)}
+                />
+              ) : null}
+            </div>
+          </FormField>
 
-        <FormField label="Commission Period (YYYY-MM)" required>
-          <div className="relative" style={{ width: '300px' }}>
+          <FormField label="Commission Period (YYYY-MM)" required>
+            <div className="relative w-[300px]">
+              <input
+                type="text"
+                inputMode="numeric"
+                placeholder="YYYY-MM"
+                pattern="\d{4}-\d{2}"
+                value={formState.commissionPeriod}
+                onChange={event => onFormStateChange({ commissionPeriod: event.target.value })}
+                className={`${underlineInputClass} h-[40px] pr-16`}
+              />
+              <div className="absolute right-0 top-1/2 flex -translate-y-1/2 items-center gap-1">
+                <button
+                  type="button"
+                  className="text-gray-500 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-40"
+                  onClick={handleClearCommissionPeriod}
+                  disabled={!formState.commissionPeriod}
+                  aria-label="Clear commission period"
+                  title="Clear commission period"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  className="text-gray-500 hover:text-gray-700"
+                  onClick={openCommissionPeriodCalendar}
+                  aria-label="Open month picker"
+                  title="Open month picker"
+                >
+                  <Calendar className="h-4 w-4" />
+                </button>
+              </div>
+              <input
+                ref={commissionPeriodNativeRef}
+                type="month"
+                className="sr-only"
+                value={formState.commissionPeriod || ''}
+                onChange={event => {
+                  const value = event.target.value // YYYY-MM
+                  onFormStateChange({ commissionPeriod: value })
+                }}
+              />
+            </div>
+          </FormField>
+
+          <FormField label="Deposit Received Date (YYYY-MM-DD)" required>
+            <div className="relative w-[300px]">
+              <input
+                type="text"
+                inputMode="numeric"
+                placeholder="YYYY-MM-DD"
+                pattern="\d{4}-\d{2}-\d{2}"
+                value={formState.depositReceivedDate}
+                onChange={event => onFormStateChange({ depositReceivedDate: event.target.value })}
+                className={`${underlineInputClass.replace('w-full', 'w-[300px]')} h-[40px] pr-16`}
+              />
+              <div className="absolute right-0 top-1/2 flex -translate-y-1/2 items-center gap-1">
+                <button
+                  type="button"
+                  className="text-gray-500 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-40"
+                  onClick={handleClearDepositReceivedDate}
+                  disabled={!formState.depositReceivedDate}
+                  aria-label="Clear deposit received date"
+                  title="Clear deposit received date"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  className="text-gray-500 hover:text-gray-700"
+                  onClick={openDepositDateCalendar}
+                  aria-label="Open date picker"
+                  title="Open date picker"
+                >
+                  <Calendar className="h-4 w-4" />
+                </button>
+              </div>
+              <input
+                ref={depositDateNativeRef}
+                type="date"
+                className="sr-only"
+                value={formState.depositReceivedDate || ''}
+                onChange={event => {
+                  const value = event.target.value // YYYY-MM-DD
+                  onFormStateChange({ depositReceivedDate: value })
+                }}
+              />
+            </div>
+          </FormField>
+
+          <FormField label="Deposit Name">
             <input
               type="text"
-              inputMode="numeric"
-              placeholder="YYYY-MM"
-              pattern="\d{4}-\d{2}"
-              value={formState.commissionPeriod}
-              onChange={event => onFormStateChange({ commissionPeriod: event.target.value })}
-              className={`${underlineInputClass} pr-16`}
+              value={formState.depositName}
+              readOnly
+              className={`${underlineInputClass.replace('w-full', 'w-[300px]')} h-[40px] font-semibold`}
             />
-            <div className="absolute right-0 top-1/2 flex -translate-y-1/2 items-center gap-1">
-              <button
-                type="button"
-                className="text-gray-500 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-40"
-                onClick={handleClearCommissionPeriod}
-                disabled={!formState.commissionPeriod}
-                aria-label="Clear commission period"
-                title="Clear commission period"
-              >
-                <X className="h-4 w-4" />
-              </button>
-              <button
-                type="button"
-                className="text-gray-500 hover:text-gray-700"
-                onClick={openCommissionPeriodCalendar}
-                aria-label="Open month picker"
-                title="Open month picker"
-              >
-                <Calendar className="h-4 w-4" />
-              </button>
+          </FormField>
+
+          <FormField label="Created By" required>
+            <div className="flex h-[40px] w-[300px] items-center rounded border-b border-slate-200 text-sm font-semibold text-slate-800">
+              {formState.createdByLabel || user?.fullName || 'Detecting...'}
             </div>
-            <input
-              ref={commissionPeriodNativeRef}
-              type="month"
-              className="sr-only"
-              value={formState.commissionPeriod || ''}
-              onChange={event => {
-                const value = event.target.value // YYYY-MM
-                onFormStateChange({ commissionPeriod: value })
-              }}
-            />
-          </div>
-        </FormField>
+          </FormField>
 
-        <FormField label="Deposit Received Date (YYYY-MM-DD)" required labelSpanClassName="w-[300px]">
-          <div className="relative w-[300px]">
-            <input
-              type="text"
-              inputMode="numeric"
-              placeholder="YYYY-MM-DD"
-              pattern="\d{4}-\d{2}-\d{2}"
-              value={formState.depositReceivedDate}
-              onChange={event => onFormStateChange({ depositReceivedDate: event.target.value })}
-              className={`${underlineInputClass.replace('w-full', 'w-[300px]')} pr-16`}
-            />
-            <div className="absolute right-0 top-1/2 flex -translate-y-1/2 items-center gap-1">
-              <button
-                type="button"
-                className="text-gray-500 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-40"
-                onClick={handleClearDepositReceivedDate}
-                disabled={!formState.depositReceivedDate}
-                aria-label="Clear deposit received date"
-                title="Clear deposit received date"
-              >
-                <X className="h-4 w-4" />
-              </button>
-              <button
-                type="button"
-                className="text-gray-500 hover:text-gray-700"
-                onClick={openDepositDateCalendar}
-                aria-label="Open date picker"
-                title="Open date picker"
-              >
-                <Calendar className="h-4 w-4" />
-              </button>
-            </div>
-            <input
-              ref={depositDateNativeRef}
-              type="date"
-              className="sr-only"
-              value={formState.depositReceivedDate || ''}
-              onChange={event => {
-                const value = event.target.value // YYYY-MM-DD
-                onFormStateChange({ depositReceivedDate: value })
-              }}
-            />
-          </div>
-        </FormField>
-
-        <FormField label="Deposit Name" className="w-[300px]" labelSpanClassName="w-[300px]">
-          <input
-            type="text"
-            value={formState.depositName}
-            readOnly
-            className={`${underlineInputClass} font-semibold`}
-          />
-        </FormField>
-
-        <FormField label="Created By" required>
-          <div className="rounded border-b border-slate-200 py-2 text-sm font-semibold text-slate-800 w-[300px]">
-            {formState.createdByLabel || user?.fullName || "Detecting..."}
-          </div>
-        </FormField>
-      </div>
-
-      <div className="pt-2">
-        <label className="flex w-full cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-gray-300 bg-slate-50 p-6 text-center text-sm text-gray-600 hover:bg-gray-50">
-          <Upload className="h-6 w-6 text-primary-500" />
           <div>
-            Drag & drop files
-            <span className="text-gray-400"> or browse .csv/.xlsx/.xls</span>
+            <label className="flex h-[170px] w-[300px] cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-gray-300 bg-slate-50 p-4 text-center text-sm text-gray-600 hover:bg-gray-50">
+              <Upload className="h-6 w-6 text-primary-500" />
+              <div>
+                Drag & drop files
+                <span className="text-gray-400"> or browse .csv/.xlsx/.xls</span>
+              </div>
+              <input type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={onFileChange} />
+              {selectedFile ? (
+                <p className="text-xs text-gray-500">Selected: {selectedFile.name}</p>
+              ) : (
+                <p className="text-xs text-gray-500">No file selected</p>
+              )}
+            </label>
           </div>
-          <input type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={onFileChange} />
-          {selectedFile ? <p className="text-xs text-gray-500">Selected: {selectedFile.name}</p> : <p className="text-xs text-gray-500">No file selected</p>}
-        </label>
+
+        </div>
       </div>
 
-      <div className="flex items-center justify-end border-t border-gray-200 pt-4">
-        <button
-          type="button"
-          onClick={onProceed}
-          disabled={!canProceed}
-          className="inline-flex items-center rounded-lg bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-gray-300"
-        >
-          Proceed
-        </button>
-      </div>
-
+      <div className="flex-1" />
     </div>
   )
 }
