@@ -580,7 +580,7 @@ function MultiValueTextareaListEditor({
           className="mt-2 w-full resize-y rounded-md border border-gray-200 bg-white px-3 py-2 text-xs text-gray-900 focus:border-primary-500 focus:outline-none"
           value={paste}
           onChange={event => setPaste(event.target.value)}
-          placeholder="Paste here…"
+          placeholder="Paste here"
         />
         <div className="mt-2 flex justify-end">
           <button
@@ -648,7 +648,9 @@ function MultiValueCommaInput({
       <div className="flex items-start gap-2 border-b-2 border-gray-300 py-1 focus-within:border-primary-500">
         {multiline ? (
           <textarea
-            ref={inputRef as React.RefObject<HTMLTextAreaElement>}
+            ref={element => {
+              inputRef.current = element
+            }}
             rows={3}
             className="min-h-[28px] w-full flex-1 resize-y bg-transparent px-0 text-xs text-gray-900 focus:outline-none"
             value={raw}
@@ -665,7 +667,9 @@ function MultiValueCommaInput({
           />
         ) : (
           <input
-            ref={inputRef as React.RefObject<HTMLInputElement>}
+            ref={element => {
+              inputRef.current = element
+            }}
             className="min-h-[28px] w-full flex-1 bg-transparent px-0 text-xs text-gray-900 focus:outline-none"
             value={raw}
             onChange={event => {
@@ -980,7 +984,7 @@ export default function CommaSeparatedValuesPrototypePage() {
           <ol className="ml-5 mt-2 list-decimal space-y-1">
             <li>Review the table cell preview for how values render when joined by commas.</li>
             <li>Click Update in the detail header to enter edit mode.</li>
-            <li>Add values by typing and pressing comma/Enter; remove values using the × on a chip.</li>
+            <li>Add values by typing and pressing comma/Enter; remove values using the x on a chip.</li>
           </ol>
           <p className="mt-3 text-sm text-blue-900">
             Tip: use quotes to include commas inside a single value (example:{' '}
@@ -1081,6 +1085,11 @@ export default function CommaSeparatedValuesPrototypePage() {
               </div>
             </div>
 
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
+              <DisplayModeToggle value={displayMode} onChange={setDisplayMode} />
+              <div className="text-xs text-gray-500">Table cells always show comma-separated.</div>
+            </div>
+
             <div className="grid gap-6 lg:grid-cols-2">
               <div className="space-y-1.5">
                 <FieldRow label="Opportunity Name">
@@ -1108,63 +1117,140 @@ export default function CommaSeparatedValuesPrototypePage() {
               <div className="space-y-1.5">
                 <FieldRow label="Other - Account ID">
                   {isEditing ? (
-                    <MultiValueTagInput
-                      label="Other - Account ID"
-                      values={draft.otherAccountIds}
-                      onChange={(next) => setDraft(prev => ({ ...prev, otherAccountIds: next }))}
-                      placeholder="Type an account ID and press comma"
-                      helpText="Used for matching when account numbers change."
-                      toasts={toastApi}
-                    />
+                    displayMode === 'comma' ? (
+                      <MultiValueCommaInput
+                        label="Other - Account ID"
+                        values={draft.otherAccountIds}
+                        onChange={next => setDraft(prev => ({ ...prev, otherAccountIds: next }))}
+                        placeholder="ACCT-001, ACCT-002"
+                        helpText="Used for matching when account numbers change."
+                        toasts={toastApi}
+                      />
+                    ) : (
+                      <MultiValueTagInput
+                        label="Other - Account ID"
+                        values={draft.otherAccountIds}
+                        onChange={next => setDraft(prev => ({ ...prev, otherAccountIds: next }))}
+                        placeholder="Type an account ID and press comma"
+                        helpText="Used for matching when account numbers change."
+                        toasts={toastApi}
+                      />
+                    )
                   ) : (
-                    <MultiValueReadOnly label="Other - Account ID" values={stored.otherAccountIds} toasts={toastApi} />
+                    displayMode === 'comma' ? (
+                      <MultiValueReadOnlyComma
+                        label="Other - Account ID"
+                        values={stored.otherAccountIds}
+                        toasts={toastApi}
+                      />
+                    ) : (
+                      <MultiValueReadOnly label="Other - Account ID" values={stored.otherAccountIds} toasts={toastApi} />
+                    )
                   )}
                 </FieldRow>
 
                 <FieldRow label="Other - Product Name">
                   {isEditing ? (
-                    <MultiValueTagInput
-                      label="Other - Product Name"
-                      values={draft.otherProductNames}
-                      onChange={(next) => setDraft(prev => ({ ...prev, otherProductNames: next }))}
-                      placeholder="Type a product name and press comma"
-                      helpText="Add product aliases used by different vendors/customers."
-                      toasts={toastApi}
-                    />
+                    displayMode === 'comma' ? (
+                      <MultiValueCommaInput
+                        label="Other - Product Name"
+                        values={draft.otherProductNames}
+                        onChange={next => setDraft(prev => ({ ...prev, otherProductNames: next }))}
+                        placeholder="Cable Services, Cable Services (Legacy Name)"
+                        helpText="Add product aliases used by different vendors/customers."
+                        toasts={toastApi}
+                      />
+                    ) : (
+                      <MultiValueTagInput
+                        label="Other - Product Name"
+                        values={draft.otherProductNames}
+                        onChange={next => setDraft(prev => ({ ...prev, otherProductNames: next }))}
+                        placeholder="Type a product name and press comma"
+                        helpText="Add product aliases used by different vendors/customers."
+                        toasts={toastApi}
+                      />
+                    )
                   ) : (
-                    <MultiValueReadOnly label="Other - Product Name" values={stored.otherProductNames} toasts={toastApi} />
+                    displayMode === 'comma' ? (
+                      <MultiValueReadOnlyComma
+                        label="Other - Product Name"
+                        values={stored.otherProductNames}
+                        toasts={toastApi}
+                      />
+                    ) : (
+                      <MultiValueReadOnly label="Other - Product Name" values={stored.otherProductNames} toasts={toastApi} />
+                    )
                   )}
                 </FieldRow>
 
                 <FieldRow label="Other - Part Number">
                   {isEditing ? (
-                    <MultiValueTagInput
-                      label="Other - Part Number"
-                      values={draft.otherPartNumbers}
-                      onChange={(next) => setDraft(prev => ({ ...prev, otherPartNumbers: next }))}
-                      placeholder="Type a part number and press comma"
-                      helpText="Add part number variants (spacing, hyphens, legacy SKUs)."
-                      toasts={toastApi}
-                    />
+                    displayMode === 'comma' ? (
+                      <MultiValueCommaInput
+                        label="Other - Part Number"
+                        values={draft.otherPartNumbers}
+                        onChange={next => setDraft(prev => ({ ...prev, otherPartNumbers: next }))}
+                        placeholder="PN-123, PN 124"
+                        helpText="Add part number variants (spacing, hyphens, legacy SKUs)."
+                        toasts={toastApi}
+                      />
+                    ) : (
+                      <MultiValueTagInput
+                        label="Other - Part Number"
+                        values={draft.otherPartNumbers}
+                        onChange={next => setDraft(prev => ({ ...prev, otherPartNumbers: next }))}
+                        placeholder="Type a part number and press comma"
+                        helpText="Add part number variants (spacing, hyphens, legacy SKUs)."
+                        toasts={toastApi}
+                      />
+                    )
                   ) : (
-                    <MultiValueReadOnly label="Other - Part Number" values={stored.otherPartNumbers} toasts={toastApi} />
+                    displayMode === 'comma' ? (
+                      <MultiValueReadOnlyComma
+                        label="Other - Part Number"
+                        values={stored.otherPartNumbers}
+                        toasts={toastApi}
+                      />
+                    ) : (
+                      <MultiValueReadOnly label="Other - Part Number" values={stored.otherPartNumbers} toasts={toastApi} />
+                    )
                   )}
                 </FieldRow>
 
                 <FieldRow label="Other - Product Description">
                   {isEditing ? (
-                    <MultiValueTextareaListEditor
-                      label="Other - Product Description"
-                      values={draft.otherDescriptions}
-                      onChange={(next) => setDraft(prev => ({ ...prev, otherDescriptions: next }))}
-                      toasts={toastApi}
-                    />
+                    displayMode === 'comma' ? (
+                      <MultiValueCommaInput
+                        label="Other - Product Description"
+                        values={draft.otherDescriptions}
+                        onChange={next => setDraft(prev => ({ ...prev, otherDescriptions: next }))}
+                        placeholder="Sold a cable circuit, Provisioning - premium tier"
+                        helpText="Comma-separated descriptions. Use quotes for commas inside a single value."
+                        toasts={toastApi}
+                        multiline
+                      />
+                    ) : (
+                      <MultiValueTextareaListEditor
+                        label="Other - Product Description"
+                        values={draft.otherDescriptions}
+                        onChange={next => setDraft(prev => ({ ...prev, otherDescriptions: next }))}
+                        toasts={toastApi}
+                      />
+                    )
                   ) : (
-                    <MultiValueReadOnlyList
-                      label="Other - Product Description"
-                      values={stored.otherDescriptions}
-                      toasts={toastApi}
-                    />
+                    displayMode === 'comma' ? (
+                      <MultiValueReadOnlyComma
+                        label="Other - Product Description"
+                        values={stored.otherDescriptions}
+                        toasts={toastApi}
+                      />
+                    ) : (
+                      <MultiValueReadOnlyList
+                        label="Other - Product Description"
+                        values={stored.otherDescriptions}
+                        toasts={toastApi}
+                      />
+                    )
                   )}
                 </FieldRow>
               </div>

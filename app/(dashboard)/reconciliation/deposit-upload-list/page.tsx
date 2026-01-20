@@ -64,6 +64,7 @@ export default function DepositUploadListPage() {
 
   const [csvHeaders, setCsvHeaders] = useState<string[]>([])
   const [sampleRows, setSampleRows] = useState<string[][]>([])
+  const [columnHasValuesByIndex, setColumnHasValuesByIndex] = useState<boolean[]>([])
   const [parsedRowCount, setParsedRowCount] = useState(0)
   const [parsingError, setParsingError] = useState<string | null>(null)
   const [mapping, setMapping] = useState<DepositMappingConfigV1>(() => createEmptyDepositMapping())
@@ -102,6 +103,7 @@ export default function DepositUploadListPage() {
     setTemplateFields(null)
     setCsvHeaders([])
     setSampleRows([])
+    setColumnHasValuesByIndex([])
     setParsedRowCount(0)
     setParsingError(null)
     setImportError(null)
@@ -125,6 +127,21 @@ export default function DepositUploadListPage() {
         setCsvHeaders(headers)
         setSampleRows(parsed.rows.slice(0, 25))
         setParsedRowCount(parsed.rows.length)
+        const hasValues = new Array(headers.length).fill(false)
+        let remaining = headers.length
+        for (const row of parsed.rows) {
+          if (remaining === 0) break
+          for (let index = 0; index < headers.length; index++) {
+            if (hasValues[index]) continue
+            const cell = row[index]
+            if (typeof cell === 'string' ? cell.trim().length > 0 : String(cell ?? '').trim().length > 0) {
+              hasValues[index] = true
+              remaining -= 1
+              if (remaining === 0) break
+            }
+          }
+        }
+        setColumnHasValuesByIndex(hasValues)
         mappingHistoryRef.current = []
         setCanUndo(false)
 
@@ -428,15 +445,16 @@ export default function DepositUploadListPage() {
           ) : null}
 
           {activeStep === 'map-fields' ? (
-            <MapFieldsStep
-              file={selectedFile}
-              csvHeaders={csvHeaders}
-              sampleRows={sampleRows}
-              mapping={mapping}
-              templateMapping={templateMapping}
-              templateFields={templateFields}
-              templateLabel={formState.templateLabel}
-              saveTemplateMapping={formState.saveTemplateMapping}
+              <MapFieldsStep
+                file={selectedFile}
+                csvHeaders={csvHeaders}
+                sampleRows={sampleRows}
+                columnHasValuesByIndex={columnHasValuesByIndex}
+                mapping={mapping}
+                templateMapping={templateMapping}
+                templateFields={templateFields}
+                templateLabel={formState.templateLabel}
+                saveTemplateMapping={formState.saveTemplateMapping}
               onSaveTemplateMappingChange={value => updateFormState({ saveTemplateMapping: value })}
               parsingError={parsingError}
               onColumnSelectionChange={handleColumnSelectionChange}

@@ -22,6 +22,7 @@ interface MapFieldsStepProps {
   file: File | null
   csvHeaders: string[]
   sampleRows: string[][]
+  columnHasValuesByIndex?: boolean[]
   mapping: DepositMappingConfigV1
   templateMapping: DepositMappingConfigV1 | null
   templateFields: TelarusTemplateFieldsV1 | null
@@ -43,6 +44,7 @@ export function MapFieldsStep({
   file,
   csvHeaders,
   sampleRows,
+  columnHasValuesByIndex,
   mapping,
   templateMapping,
   templateFields,
@@ -62,8 +64,9 @@ export function MapFieldsStep({
   const [previewRowIndex, setPreviewRowIndex] = useState(0)
   const [openDropdownKey, setOpenDropdownKey] = useState<string | null>(null)
   const [templateTablePage, setTemplateTablePage] = useState(0)
-  const [additionalTablePage, setAdditionalTablePage] = useState(0)
-  const [activeColumnsTab, setActiveColumnsTab] = useState<"template" | "additional">("template")
+  const [newFieldsTablePage, setNewFieldsTablePage] = useState(0)
+  const [excludeTablePage, setExcludeTablePage] = useState(0)
+  const [activeColumnsTab, setActiveColumnsTab] = useState<"template" | "new" | "exclude">("template")
   const [customDrafts, setCustomDrafts] = useState<
     Record<string, { label: string; section: DepositCustomFieldSection }>
   >({})
@@ -74,7 +77,8 @@ export function MapFieldsStep({
 
   useEffect(() => {
     setTemplateTablePage(0)
-    setAdditionalTablePage(0)
+    setNewFieldsTablePage(0)
+    setExcludeTablePage(0)
   }, [csvHeaders.length, file?.name])
 
   useEffect(() => {
@@ -166,7 +170,20 @@ export function MapFieldsStep({
 
   const templateRows = columnRows.filter(({ header }) => templateColumnNames.has(header))
   const templateIndexes = new Set(templateRows.map(row => row.index))
-  const additionalRows = columnRows.filter(row => !templateIndexes.has(row.index))
+  const nonTemplateRows = columnRows.filter(row => !templateIndexes.has(row.index))
+
+  const columnHasAnyValue = (columnIndex: number) => {
+    const hasValues = columnHasValuesByIndex?.[columnIndex]
+    if (typeof hasValues === "boolean") return hasValues
+    return previewWindow.some(row => typeof row[columnIndex] === "string" && row[columnIndex]!.trim().length > 0)
+  }
+
+  const excludeRows = nonTemplateRows.filter(row => {
+    const selection = getColumnSelection(mapping, row.header)
+    return selection.type === "ignore" || !columnHasAnyValue(row.index)
+  })
+  const excludeIndexes = new Set(excludeRows.map(row => row.index))
+  const newRows = nonTemplateRows.filter(row => !excludeIndexes.has(row.index))
 
   const updateCustomDraft = (
     draftKey: string,
@@ -282,7 +299,7 @@ export function MapFieldsStep({
                 statusLabel = "Mapped"
                 statusClass = "border-emerald-300 bg-emerald-50 text-emerald-700"
               } else if (selection.type === "ignore") {
-                statusLabel = "Unmapped"
+                statusLabel = "Excluded"
                 statusClass = "border-gray-200 bg-gray-50 text-gray-500"
               } else {
                 // selection.type === "additional"
@@ -454,7 +471,7 @@ export function MapFieldsStep({
                               className="flex cursor-pointer items-center justify-between rounded-md px-2 py-1.5 text-sm text-gray-700 outline-none transition-colors hover:bg-gray-100 focus:bg-gray-100"
                               onSelect={() => applySelection({ type: "ignore" })}
                             >
-                              <span>Ignore this column</span>
+                              <span>Do Not Map</span>
                               {selection.type === "ignore" ? <Check className="h-4 w-4 text-primary-600" /> : null}
                             </DropdownMenu.Item>
 
@@ -645,8 +662,9 @@ export function MapFieldsStep({
             aria-label="Deposit upload column mapping sections"
           >
             {[
-              { id: "template" as const, label: `Template-Mapped Columns (${templateRows.length})` },
-              { id: "additional" as const, label: `Additional Columns (${additionalRows.length})` },
+              { id: "template" as const, label: `Template Fields (${templateRows.length})` },
+              { id: "new" as const, label: `New Fields (${newRows.length})` },
+              { id: "exclude" as const, label: `Exclude (${excludeRows.length})` },
             ].map(tab => {
               const isActive = tab.id === activeColumnsTab
               return (
@@ -684,16 +702,28 @@ export function MapFieldsStep({
                     pagination: { page: templateTablePage, setPage: setTemplateTablePage },
                   })}
                 </div>
-              ) : (
+              ) : activeColumnsTab === "new" ? (
                 <div
-                  id="deposit-map-fields-panel-additional"
+                  id="deposit-map-fields-panel-new"
                   role="tabpanel"
-                  aria-labelledby="deposit-map-fields-tab-additional"
+                  aria-labelledby="deposit-map-fields-tab-new"
                 >
                   {renderColumnTableContent({
-                    rows: additionalRows,
-                    emptyLabel: "No additional columns found.",
-                    pagination: { page: additionalTablePage, setPage: setAdditionalTablePage },
+                    rows: newRows,
+                    emptyLabel: "No new fields found.",
+                    pagination: { page: newFieldsTablePage, setPage: setNewFieldsTablePage },
+                  })}
+                </div>
+              ) : (
+                <div
+                  id="deposit-map-fields-panel-exclude"
+                  role="tabpanel"
+                  aria-labelledby="deposit-map-fields-tab-exclude"
+                >
+                  {renderColumnTableContent({
+                    rows: excludeRows,
+                    emptyLabel: "No excluded fields found.",
+                    pagination: { page: excludeTablePage, setPage: setExcludeTablePage },
                   })}
                 </div>
               )}

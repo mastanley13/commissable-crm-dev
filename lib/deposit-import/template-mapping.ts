@@ -141,7 +141,7 @@ export function serializeDepositMappingForTemplate(mapping: DepositMappingConfig
   }
 }
 
-const AUTO_FIELD_SYNONYMS: Partial<Record<DepositFieldId, string[]>> = {
+export const AUTO_FIELD_SYNONYMS: Partial<Record<DepositFieldId, string[]>> = {
   usage: [
     "usage",
     "usage amount",
