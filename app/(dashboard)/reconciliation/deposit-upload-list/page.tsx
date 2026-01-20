@@ -266,23 +266,6 @@ export default function DepositUploadListPage() {
     setCanUndo(mappingHistoryRef.current.length > 0)
   }, [])
 
-  const handleCancelMapping = useCallback(() => {
-    setSelectedFile(null)
-    setCsvHeaders([])
-    setSampleRows([])
-    setParsedRowCount(0)
-    setParsingError(null)
-    setTemplateMapping(null)
-    setTemplateFields(null)
-    setMapping(createEmptyDepositMapping())
-    setImportError(null)
-    setImportResult(null)
-    setImportSummary(null)
-    mappingHistoryRef.current = []
-    setCanUndo(false)
-    setActiveStep('create-template')
-  }, [])
-
   const goToMapFields = () => setActiveStep('map-fields')
   const goToReview = () => setActiveStep('review')
   const goToConfirm = () => setActiveStep('confirm')
@@ -383,6 +366,7 @@ export default function DepositUploadListPage() {
   }
 
   const requiredFieldsComplete = requiredDepositFieldIds.every(fieldId => Boolean(canonicalFieldMapping[fieldId]))
+  const canProceedFromMapFields = requiredFieldsComplete && Boolean(csvHeaders.length) && !parsingError
 
   const getBackButtonConfig = () => {
     switch (activeStep) {
@@ -392,10 +376,7 @@ export default function DepositUploadListPage() {
           onClick: () => router.push('/reconciliation'),
         }
       case 'map-fields':
-        return {
-          label: 'Back to Create Deposit',
-          onClick: goToCreateTemplate,
-        }
+        return null
       case 'review':
         return {
           label: 'Back to Map Fields',
@@ -420,9 +401,37 @@ export default function DepositUploadListPage() {
         <div className="p-3 space-y-3 pb-24 md:p-4 md:space-y-4">
           <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
             <div>
-              <h1 className="text-lg font-semibold text-gray-900">Deposit Reconciliation</h1>
+              <h1 className="text-lg font-semibold text-gray-900">
+                {activeStep === 'map-fields' ? 'Deposit Upload - Field Mapping' : 'Deposit Reconciliation'}
+              </h1>
             </div>
-            {backButtonConfig ? (
+            {activeStep === 'map-fields' ? (
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={goToCreateTemplate}
+                  className="inline-flex items-center rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+                >
+                  Back
+                </button>
+                <button
+                  type="button"
+                  onClick={handleUndoMapping}
+                  disabled={!canUndo}
+                  className="inline-flex items-center rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Undo
+                </button>
+                <button
+                  type="button"
+                  onClick={goToReview}
+                  disabled={!canProceedFromMapFields}
+                  className="inline-flex items-center rounded-lg bg-primary-600 px-4 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-gray-300"
+                >
+                  Continue
+                </button>
+              </div>
+            ) : backButtonConfig ? (
               <button
                 type="button"
                 onClick={backButtonConfig.onClick}
@@ -455,18 +464,12 @@ export default function DepositUploadListPage() {
                 templateFields={templateFields}
                 templateLabel={formState.templateLabel}
                 saveTemplateMapping={formState.saveTemplateMapping}
-              onSaveTemplateMappingChange={value => updateFormState({ saveTemplateMapping: value })}
-              parsingError={parsingError}
-              onColumnSelectionChange={handleColumnSelectionChange}
-              onCreateCustomField={handleCreateCustomFieldForColumn}
-              canUndo={canUndo}
-              onUndo={handleUndoMapping}
-              onCancel={handleCancelMapping}
-              onBack={goToCreateTemplate}
-              canProceed={requiredFieldsComplete && Boolean(csvHeaders.length) && !parsingError}
-              onProceed={goToReview}
-            />
-          ) : null}
+                onSaveTemplateMappingChange={value => updateFormState({ saveTemplateMapping: value })}
+                parsingError={parsingError}
+                onColumnSelectionChange={handleColumnSelectionChange}
+                onCreateCustomField={handleCreateCustomFieldForColumn}
+              />
+            ) : null}
 
           {activeStep === 'review' ? (
             <ReviewStep

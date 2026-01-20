@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { FileSpreadsheet, AlertTriangle, ChevronLeft, ChevronRight, ChevronDown, Check } from "lucide-react"
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu"
 import { depositFieldDefinitions, requiredDepositFieldIds } from "@/lib/deposit-import/fields"
+import { suggestDepositFieldMatches } from "@/lib/deposit-import/field-suggestions"
 import { normalizeKey } from "@/lib/deposit-import/normalize"
 import {
   getColumnSelection,
@@ -32,12 +33,6 @@ interface MapFieldsStepProps {
   parsingError: string | null
   onColumnSelectionChange: (columnName: string, selection: DepositColumnSelection) => void
   onCreateCustomField: (columnName: string, input: { label: string; section: DepositCustomFieldSection }) => void
-  canUndo?: boolean
-  onUndo?: () => void
-  onCancel?: () => void
-  canProceed: boolean
-  onBack: () => void
-  onProceed: () => void
 }
 
 export function MapFieldsStep({
@@ -54,12 +49,6 @@ export function MapFieldsStep({
   parsingError,
   onColumnSelectionChange,
   onCreateCustomField,
-  canUndo = false,
-  onUndo,
-  onCancel,
-  canProceed,
-  onBack,
-  onProceed,
 }: MapFieldsStepProps) {
   const [previewRowIndex, setPreviewRowIndex] = useState(0)
   const [openDropdownKey, setOpenDropdownKey] = useState<string | null>(null)
@@ -114,6 +103,9 @@ export function MapFieldsStep({
   const missingRequired = requiredDepositFieldIds.filter(fieldId => !canonicalFieldMapping[fieldId])
 
   const columnRows = csvHeaders.map((header, index) => ({ header, index }))
+  const bestFieldSuggestionByIndex = csvHeaders.map(
+    header => suggestDepositFieldMatches(header, { limit: 1 })[0] ?? null,
+  )
 
   const normalizedHeaderLookup = new Map<string, string>()
   for (const header of csvHeaders) {
@@ -180,7 +172,13 @@ export function MapFieldsStep({
 
   const excludeRows = nonTemplateRows.filter(row => {
     const selection = getColumnSelection(mapping, row.header)
-    return selection.type === "ignore" || !columnHasAnyValue(row.index)
+    const bestSuggestion = bestFieldSuggestionByIndex[row.index]
+    const hasSuggestion = Boolean(bestSuggestion)
+
+    if (selection.type === "ignore") return true
+    if (!columnHasAnyValue(row.index)) return true
+    if (selection.type === "additional" && !hasSuggestion) return true
+    return false
   })
   const excludeIndexes = new Set(excludeRows.map(row => row.index))
   const newRows = nonTemplateRows.filter(row => !excludeIndexes.has(row.index))
@@ -294,6 +292,7 @@ export function MapFieldsStep({
               let statusLabel = "Unmapped"
               let statusClass = "border-gray-200 bg-gray-50 text-gray-600"
               const templateHint = templateHintByNormalizedHeader.get(normalizeKey(header))
+              const bestSuggestion = bestFieldSuggestionByIndex[index]
 
               if (selection.type === "canonical" || selection.type === "custom" || selection.type === "product") {
                 statusLabel = "Mapped"
@@ -350,6 +349,8 @@ export function MapFieldsStep({
                       const dotClass =
                         statusLabel === "Mapped"
                           ? "bg-emerald-600"
+                          : statusLabel === "Excluded"
+                            ? "bg-gray-500"
                           : templateHint
                             ? "bg-amber-600"
                             : "bg-gray-500"
@@ -505,6 +506,12 @@ export function MapFieldsStep({
                       </p>
                     ) : null}
 
+                    {bestSuggestion && !templateHint && !customDefinition && selection.type === "additional" ? (
+                      <p className="text-xs text-gray-600">
+                        Suggested match: <span className="font-semibold">{bestSuggestion.label}</span>.
+                      </p>
+                    ) : null}
+
                     {customDefinition ? (
                       <p className="text-xs text-gray-600">
                         This column is mapped to a custom{" "}
@@ -635,7 +642,7 @@ export function MapFieldsStep({
           <p className="text-xs text-gray-500">Columns detected: {csvHeaders.length || "0"}</p>
           <button
             type="button"
-            title="Map required fields like Usage and Commission to columns from your uploaded file. Optional fields can be left unmapped. If a saved mapping exists for the selected Distributor + Vendor, those columns (plus core fields) will appear in the Template-mapped section below."
+            title="Map required fields like Usage and Commission to columns from your uploaded file. Optional fields can be left unmapped. Template Fields shows columns from your template mapping. New Fields shows columns not in the template with values and suggested matches. Exclude shows columns with no values, columns set to Do Not Map, and columns without suggested matches."
             aria-label="Map Fields help"
             className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-gray-300 bg-white text-[11px] font-semibold text-gray-600 hover:bg-gray-50"
           >
@@ -755,7 +762,7 @@ export function MapFieldsStep({
                       : selection.type === "product"
                         ? "Product info column"
                         : selection.type === "ignore"
-                          ? "Ignore this column"
+                          ? "Do Not Map"
                           : "Additional info (no specific field)"
 
                 const draftKey = `${index}:${header}`
@@ -1032,48 +1039,6 @@ export function MapFieldsStep({
           </div>
         </div>
       ) : null}
-
-      <div className="flex flex-col gap-2 border-t border-gray-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={onBack}
-            className="inline-flex items-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-          >
-            Back
-          </button>
-          {onCancel ? (
-            <button
-              type="button"
-              onClick={onCancel}
-              className="inline-flex items-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-            >
-              Cancel
-            </button>
-          ) : null}
-        </div>
-
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          {onUndo ? (
-            <button
-              type="button"
-              onClick={onUndo}
-              disabled={!canUndo}
-              className="inline-flex items-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              Undo
-            </button>
-          ) : null}
-          <button
-            type="button"
-            onClick={onProceed}
-            disabled={!canProceed}
-            className="inline-flex items-center rounded-lg bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-gray-300"
-          >
-            Continue to Review
-          </button>
-        </div>
-      </div>
     </div>
   )
 }

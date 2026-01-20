@@ -56,9 +56,10 @@ Common optional mappings:
 Template behavior:
 - When a file is selected, the wizard fetches the saved `ReconciliationTemplate` for the selected **Distributor + Vendor**.
 - If a template exists, the wizard seeds the mapping UI from `ReconciliationTemplate.config.depositMapping` (v1), then applies heuristic “auto-mapping” to fill obvious gaps.
-- The Map Fields table is split into:
-  - **Template-mapped columns**: columns that appear in the saved template mapping
-  - **Additional columns**: everything else
+- The Map Fields table is split into 3 tabs:
+  - **Template Fields**: columns that appear in the saved template mapping (shown even if they have no values, so missing data is visible)
+  - **New Fields**: columns not in the template that have values and a suggested canonical field match (or are already mapped)
+  - **Exclude**: columns with no values, columns set to **Do Not Map**, and columns without suggested matches that remain unmapped
 
 Notes:
 - Template-mapped columns may include “template-only” fields that are not currently imported into structured DB columns (for example: Billing Month, Comments, Commission Type). These are shown for visibility but are not persisted into `DepositLineItem` today.
@@ -141,4 +142,3 @@ You can also seed templates manually:
 - Telarus template parsing: `lib/deposit-import/telarus-template-master.ts`
 - Templates API: `app/api/reconciliation/templates/route.ts`
 - Import API: `app/api/reconciliation/deposits/import/route.ts`
-
