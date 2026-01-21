@@ -870,6 +870,8 @@ export function DepositReconciliationDetailView({
 }
 
   const showDevControls = Boolean(devMatchingControls)
+  const includeFutureSchedulesControls =
+    devMatchingControls?.includeFutureSchedules !== undefined ? devMatchingControls : undefined
 
   const handleRowMatchClick = useCallback(
     async (lineId: string) => {
@@ -2951,14 +2953,16 @@ export function DepositReconciliationDetailView({
                 ← Back
               </button>
             ) : null}
-            {devMatchingControls && devMatchingControls.includeFutureSchedules !== undefined ? (
+            {includeFutureSchedulesControls ? (
               <div className="group relative inline-flex items-center" role="tooltip">
                 <label className="flex cursor-pointer items-center gap-1.5 rounded border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 transition hover:bg-slate-50">
                   <input
                     type="checkbox"
                     className="h-3.5 w-3.5 rounded border-slate-400 text-primary-600 accent-primary-600"
-                    checked={devMatchingControls.includeFutureSchedules}
-                    onChange={event => devMatchingControls.onIncludeFutureSchedulesChange(event.target.checked)}
+                    checked={includeFutureSchedulesControls!.includeFutureSchedules}
+                    onChange={event =>
+                      includeFutureSchedulesControls!.onIncludeFutureSchedulesChange(event.target.checked)
+                    }
                     aria-label="Include Future-Dated Schedules"
                   />
                   <span>Include Future</span>
@@ -3022,14 +3026,16 @@ export function DepositReconciliationDetailView({
                 ← Back
               </button>
             ) : null}
-            {devMatchingControls && devMatchingControls.includeFutureSchedules !== undefined ? (
+            {includeFutureSchedulesControls ? (
               <div className="group relative inline-flex items-center" role="tooltip">
                 <label className="flex cursor-pointer items-center gap-1.5 rounded border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 transition hover:bg-slate-50">
                   <input
                     type="checkbox"
                     className="h-3.5 w-3.5 rounded border-slate-400 text-primary-600 accent-primary-600"
-                    checked={devMatchingControls.includeFutureSchedules}
-                    onChange={event => devMatchingControls.onIncludeFutureSchedulesChange(event.target.checked)}
+                    checked={includeFutureSchedulesControls!.includeFutureSchedules}
+                    onChange={event =>
+                      includeFutureSchedulesControls!.onIncludeFutureSchedulesChange(event.target.checked)
+                    }
                     aria-label="Include Future-Dated Schedules"
                   />
                   <span>Include Future</span>
@@ -3111,18 +3117,18 @@ export function DepositReconciliationDetailView({
         {/* Auto-match summary */}
         {autoMatchSummary ? (
           <div className="mt-2 rounded-md border border-emerald-100 bg-emerald-50 px-2 py-1.5 text-[10px] font-medium text-emerald-800">
-            Auto-allocated <span className="font-semibold">{autoMatchSummary.autoMatched}</span> of{" "}
-            <span className="font-semibold">{autoMatchSummary.processed}</span> lines
-            {autoMatchSummary.alreadyMatched > 0 ? (
-              <> {" - "}Already allocated: {autoMatchSummary.alreadyMatched}</>
+            Auto-allocated <span className="font-semibold">{autoMatchSummary!.autoMatched}</span> of{" "}
+            <span className="font-semibold">{autoMatchSummary!.processed}</span> lines
+            {autoMatchSummary!.alreadyMatched > 0 ? (
+              <> {" - "}Already allocated: {autoMatchSummary!.alreadyMatched}</>
             ) : null}
-            {autoMatchSummary.belowThreshold > 0 ? (
-              <> {" - "}Below threshold: {autoMatchSummary.belowThreshold}</>
+            {autoMatchSummary!.belowThreshold > 0 ? (
+              <> {" - "}Below threshold: {autoMatchSummary!.belowThreshold}</>
             ) : null}
-            {autoMatchSummary.noCandidates > 0 ? (
-              <> {" - "}No candidates: {autoMatchSummary.noCandidates}</>
+            {autoMatchSummary!.noCandidates > 0 ? (
+              <> {" - "}No candidates: {autoMatchSummary!.noCandidates}</>
             ) : null}
-            {autoMatchSummary.errors > 0 ? <> {" - "}Errors: {autoMatchSummary.errors}</> : null}
+            {autoMatchSummary!.errors > 0 ? <> {" - "}Errors: {autoMatchSummary!.errors}</> : null}
           </div>
         ) : null}
       </div>) : null}

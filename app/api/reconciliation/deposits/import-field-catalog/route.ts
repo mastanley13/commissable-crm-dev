@@ -4,6 +4,8 @@ import { prisma } from "@/lib/db"
 import { withPermissions } from "@/lib/api-auth"
 import { buildDepositImportFieldCatalog } from "@/lib/deposit-import/field-catalog"
 
+export const dynamic = "force-dynamic"
+
 export async function GET(request: NextRequest) {
   return withPermissions(request, ["reconciliation.view"], async req => {
     const tenantId = req.user.tenantId

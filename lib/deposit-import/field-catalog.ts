@@ -384,7 +384,9 @@ const FIELD_DATA_TYPE_MAP: Record<FieldDataType, DepositImportFieldType | null> 
   Json: null,
 }
 
-function mapFieldDefinitionToTarget(field: FieldDefinition): DepositImportFieldTarget | null {
+type OpportunityFieldDefinitionInput = Pick<FieldDefinition, "dataType" | "fieldCode" | "label">
+
+function mapFieldDefinitionToTarget(field: OpportunityFieldDefinitionInput): DepositImportFieldTarget | null {
   const dataType = FIELD_DATA_TYPE_MAP[field.dataType]
   if (!dataType) return null
   const fieldCode = field.fieldCode?.trim()
@@ -400,7 +402,7 @@ function mapFieldDefinitionToTarget(field: FieldDefinition): DepositImportFieldT
 }
 
 export function buildDepositImportFieldCatalog(options?: {
-  opportunityFieldDefinitions?: FieldDefinition[]
+  opportunityFieldDefinitions?: OpportunityFieldDefinitionInput[]
 }): DepositImportFieldTarget[] {
   const targets: DepositImportFieldTarget[] = [
     ...depositLineItemTargets,
