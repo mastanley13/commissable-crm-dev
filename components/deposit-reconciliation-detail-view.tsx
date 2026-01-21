@@ -3505,32 +3505,32 @@ export function DepositReconciliationDetailView({
                   onClick={onRunAutoMatch}
                   disabled={autoMatchLoading}
                   className={cn(
-                    "inline-flex h-9 items-center justify-center gap-2 rounded border border-slate-200 bg-white px-3 text-sm font-semibold text-primary-700 shadow-sm transition hover:bg-primary-50",
+                    "inline-flex h-7 items-center justify-center gap-1 rounded border border-slate-200 bg-white px-2.5 text-xs font-semibold text-primary-700 shadow-sm transition hover:bg-primary-50",
                     autoMatchLoading ? "cursor-not-allowed opacity-60" : "",
                   )}
                   aria-label="Use AI Matching"
                   title="Use AI Matching"
                 >
-                  <Sparkles className="h-4 w-4" />
+                  <Sparkles className="h-3.5 w-3.5" />
                   <span>Use AI Matching</span>
                 </button>
               ) : null
             }
             leftAccessory={
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1">
                 <DepositLineStatusFilterDropdown value={lineTab} onChange={setLineTab} size="compact" />
                 <button
                   type="button"
                   onClick={handleDeleteDeposit}
                   disabled={!canManageReconciliation}
                   className={cn(
-                    "inline-flex h-9 w-9 items-center justify-center rounded-full border border-red-200 bg-white text-red-600 shadow-sm transition hover:bg-red-50",
+                    "inline-flex h-7 w-7 items-center justify-center rounded-full border border-red-200 bg-white text-red-600 shadow-sm transition hover:bg-red-50",
                     !canManageReconciliation ? "cursor-not-allowed opacity-60" : "",
                   )}
                   aria-label="Delete Deposit"
                   title={canManageReconciliation ? "Delete Deposit" : "Insufficient permissions"}
                 >
-                  <Trash2 className="h-4 w-4" />
+                  <Trash2 className="h-3.5 w-3.5" />
                 </button>
               </div>
             }
@@ -3579,18 +3579,18 @@ export function DepositReconciliationDetailView({
             onColumnFiltersChange={handleScheduleColumnFiltersChange}
             onSettingsClick={() => setShowScheduleColumnSettings(true)}
             preSearchAccessory={
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1">
                 <button
                   type="button"
                   onClick={() => void handleCreateFlexSelected()}
                   disabled={Boolean(createFlexButtonDisabledReason)}
                   title={createFlexButtonDisabledReason ?? "Create a flex entry for the selected line item"}
                   className={cn(
-                    "inline-flex h-9 items-center justify-center gap-2 rounded border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50",
+                    "inline-flex h-7 items-center justify-center gap-1 rounded border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50",
                     createFlexButtonDisabledReason ? "cursor-not-allowed opacity-60 hover:bg-white" : ""
                   )}
                 >
-                  <Plus className="h-4 w-4" />
+                  <Plus className="h-3.5 w-3.5" />
                   {createFlexButtonLabel}
                 </button>
                 <button
@@ -3604,27 +3604,27 @@ export function DepositReconciliationDetailView({
                       : "Match the selected line item to the selected schedule")
                   }
                   className={cn(
-                    "inline-flex h-9 items-center justify-center gap-2 rounded bg-primary-600 px-3 text-sm font-semibold text-white shadow-sm transition hover:bg-primary-700",
+                    "inline-flex h-7 items-center justify-center gap-1 rounded bg-primary-600 px-2.5 text-xs font-semibold text-white shadow-sm transition hover:bg-primary-700",
                     matchButtonDisabledReason ? "cursor-not-allowed opacity-60 hover:bg-primary-600" : ""
                   )}
                 >
-                  <ClipboardCheck className="h-4 w-4" />
+                  <ClipboardCheck className="h-3.5 w-3.5" />
                   {isUnmatchSelection ? "Unmatched" : "Match"}
                 </button>
               </div>
             }
             leftAccessory={
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1">
                 <ReconciliationScheduleStatusFilterDropdown
                   value={scheduleTab}
                   onChange={setScheduleTab}
                   size="compact"
                 />
                 {onIncludeFutureSchedulesChange ? (
-                  <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-slate-700">
+                  <label className="flex cursor-pointer items-center gap-1 text-xs font-medium text-slate-700">
                     <input
                       type="checkbox"
-                      className="h-4 w-4 rounded border-slate-400 text-primary-600 accent-primary-600"
+                      className="h-3.5 w-3.5 rounded border-slate-400 text-primary-600 accent-primary-600"
                       checked={includeFutureSchedules}
                       onChange={event => onIncludeFutureSchedulesChange(event.target.checked)}
                       aria-label="Include Future-Dated Schedules"

@@ -175,15 +175,15 @@ export function DepositReconciliationTopSection({
   ])
 
   return (
-    <div className="-mx-3 border-b border-blue-100 bg-blue-50 px-3 py-2 sm:-mx-4 sm:px-4">
-      <div className="flex items-center justify-between pb-2 mb-2">
+    <div className="-mx-3 border-b border-blue-100 bg-blue-50 px-3 py-1 sm:-mx-4 sm:px-4">
+      <div className="flex items-center justify-between mb-1">
         <div className="flex items-center gap-2">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-primary-600">
             Deposit Reconciliation
           </p>
           <span
             className={cn(
-              "inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset",
+              "inline-flex items-center rounded-full px-3 py-0.5 text-xs font-semibold ring-1 ring-inset",
               headerStatus.className,
             )}
             title={headerStatus.title}
@@ -191,7 +191,7 @@ export function DepositReconciliationTopSection({
             {headerStatus.label}
           </span>
         </div>
-        {actions ? <div className="flex items-center gap-2">{actions}</div> : null}
+        {actions ? <div className="flex items-center gap-1">{actions}</div> : null}
       </div>
 
       <div className="grid items-start gap-x-10 gap-y-3 md:grid-cols-2 xl:grid-cols-4">

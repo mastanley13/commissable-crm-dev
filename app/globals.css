@@ -108,10 +108,10 @@ html, body {
 }
 
 .table-header .table-cell {
-	  min-height: auto;
-	  align-items: center; /* Center header content vertically while still allowing wrapping */
-	  padding-top: 4px;
-	  padding-bottom: 4px;
+ 	  min-height: auto;
+ 	  align-items: center; /* Center header content vertically while still allowing wrapping */
+	  padding-top: 2px;
+	  padding-bottom: 2px;
 	  padding-left: 12px;
 	  padding-right: 12px;
 	  /* Allow header text to wrap independently of body cells */
@@ -135,10 +135,10 @@ html, body {
 }
 
 .table-cell {
-  padding: 6px 12px;
+  padding: 4px 12px;
   display: flex;
   align-items: center;
-  min-height: 36px;
+  min-height: 30px;
   width: 100%;
   /* Remove default vertical dividers from body cells; header uses explicit borders */
   overflow: hidden; /* Enable text truncation with ellipsis */
@@ -205,15 +205,15 @@ html, body {
   }
   
   .table-cell {
-    padding: 8px 12px;
-    min-height: 40px;
+    padding: 6px 12px;
+    min-height: 34px;
   }
 
   .table-header .table-cell {
     min-height: auto;
     align-items: center; /* Center align all header content */
-    padding-top: 4px;
-    padding-bottom: 4px;
+    padding-top: 2px;
+    padding-bottom: 2px;
   }
 
   .table-header-content {

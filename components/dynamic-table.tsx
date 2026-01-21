@@ -35,6 +35,7 @@ export interface TableProps {
   data: any[]
   className?: string
   onSort?: (column: string, direction: "asc" | "desc") => void
+  sortConfig?: { key: string; direction: "asc" | "desc" } | null
   onRowClick?: (row: any, index: number) => void
   loading?: boolean
   emptyMessage?: string
@@ -62,6 +63,7 @@ export function DynamicTable({
   data,
   className,
   onSort,
+  sortConfig: externalSortConfig,
   onRowClick,
   loading = false,
   emptyMessage = "No data available",
@@ -118,7 +120,9 @@ export function DynamicTable({
   }, [])
   const [columns, setColumnsState] = useState<Column[]>(() => initialColumns.map(column => ({ ...column })))
   const columnsRef = useRef<Column[]>(initialColumns.map(column => ({ ...column })))
-  const [sortConfig, setSortConfig] = useState<{ key: string; direction: "asc" | "desc" } | null>(null)
+  const [internalSortConfig, setInternalSortConfig] = useState<{ key: string; direction: "asc" | "desc" } | null>(null)
+  const isSortControlled = externalSortConfig !== undefined
+  const effectiveSortConfig = isSortControlled ? (externalSortConfig ?? null) : internalSortConfig
   const [draggedColumn, setDraggedColumn] = useState<string | null>(null)
   const [resizing, setResizing] = useState<{ columnId: string; pointerId: number; startX: number; startWidth: number } | null>(null)
   const resizingRef = useRef<{ columnId: string; pointerId: number; startX: number; startWidth: number } | null>(null)
@@ -666,8 +670,11 @@ export function DynamicTable({
   const handleSort = (column: Column) => {
     if (!column.sortable) return
 
-    const direction = sortConfig?.key === column.id && sortConfig.direction === "asc" ? "desc" : "asc"
-    setSortConfig({ key: column.id, direction })
+    const direction =
+      effectiveSortConfig?.key === column.id && effectiveSortConfig.direction === "asc" ? "desc" : "asc"
+    if (!isSortControlled) {
+      setInternalSortConfig({ key: column.id, direction })
+    }
     onSort?.(column.id, direction)
   }
 
@@ -1086,7 +1093,9 @@ export function DynamicTable({
                             >
                               <span className="break-words leading-tight min-w-0">{column.label}</span>
                               <span className="flex-shrink-0" aria-hidden="true">
-                                <SortTriangles direction={sortConfig?.key === column.id ? sortConfig.direction : null} />
+                                <SortTriangles
+                                  direction={effectiveSortConfig?.key === column.id ? effectiveSortConfig.direction : null}
+                                />
                               </span>
                             </button>
                           ) : (

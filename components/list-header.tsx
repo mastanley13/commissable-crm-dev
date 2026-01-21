@@ -291,12 +291,13 @@ export function ListHeader({
   const hasFiltersApplied = groupedColumnFilters.length > 0;
 
   const padY = inTab ? "py-0" : (compact ? "py-1" : "py-2")
-  const gap = compact ? "gap-1.5" : "gap-2"
+  const gap = compact ? "gap-1" : "gap-2"
   const stackGap = compact ? "gap-0.5" : "gap-1"
-  const inputYPadding = compact ? "py-1" : "py-1.5"
-  const btnPad = compact ? "px-2.5 py-1" : "px-3 py-1.5"
-  const iconBtnPad = compact ? "p-1" : "p-1.5"
+  const inputYPadding = compact ? "py-0.5" : "py-1.5"
+  const btnPad = compact ? "px-2.5 py-0.5" : "px-3 py-1.5"
+  const iconBtnPad = compact ? "p-0.5" : "p-1.5"
   const horizontalPadding = inTab ? "px-0" : "px-4"
+  const iconBtnSize = compact ? "h-7 w-7 inline-flex items-center justify-center" : ""
 
   const mergedBulkActions =
     bulkActions && bulkActions.actions.length > 0
@@ -358,7 +359,7 @@ export function ListHeader({
               <button
                 type="button"
                 onClick={onSettingsClick}
-                className={`rounded ${iconBtnPad} text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-600`}
+                className={`${iconBtnSize} rounded ${iconBtnPad} text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-600`}
                 title="Column Settings"
               >
                 <Settings className="h-4 w-4" />
