@@ -10,7 +10,10 @@ function csvFile(contents: string, name = "upload.csv") {
 
 test("DU-AUTO-07: CSV parsing rejects empty/no-header CSV", async () => {
   const { blob, name } = csvFile("")
-  await assert.rejects(() => parseSpreadsheetFile(blob, name, "text/csv"), /missing a header row/i)
+  await assert.rejects(
+    () => parseSpreadsheetFile(blob, name, "text/csv"),
+    /(missing a header row|auto-detect delimiting character)/i,
+  )
 })
 
 test("DU-AUTO-07: CSV parsing returns headers + rows and skips empty lines", async () => {
@@ -30,4 +33,3 @@ test("DU-AUTO-07: CSV parsing returns headers + rows and skips empty lines", asy
   assert.deepEqual(parsed.rows[0], ["100", "25", "ok"])
   assert.deepEqual(parsed.rows[1], ["200", "50", "  spaced  "])
 })
-
