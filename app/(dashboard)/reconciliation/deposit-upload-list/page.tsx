@@ -233,7 +233,7 @@ export default function DepositUploadListPage() {
     const hasUsage = Boolean(mapping.targets?.[DEPOSIT_IMPORT_TARGET_IDS.usage])
     const hasCommission = Boolean(mapping.targets?.[DEPOSIT_IMPORT_TARGET_IDS.commission])
     if (!hasUsage && !hasCommission) {
-      issues.push('Map either "Usage Amount" or "Commission Amount".')
+      issues.push('Map either "Actual Usage" or "Actual Commission".')
     }
     if (!selectedFile) {
       issues.push('Select a CSV or Excel file to continue.')

@@ -206,7 +206,7 @@ export async function POST(request: NextRequest) {
     const hasUsage = Boolean(mappingConfig.targets?.[DEPOSIT_IMPORT_TARGET_IDS.usage])
     const hasCommission = Boolean(mappingConfig.targets?.[DEPOSIT_IMPORT_TARGET_IDS.commission])
     if (!hasUsage && !hasCommission) {
-      return createErrorResponse('Missing mapping for required fields: Usage Amount or Commission Amount', 400)
+      return createErrorResponse('Missing mapping for required fields: Actual Usage or Actual Commission', 400)
     }
 
     const opportunityFields = await prisma.fieldDefinition.findMany({

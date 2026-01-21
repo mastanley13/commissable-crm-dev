@@ -27,7 +27,7 @@ export const DEPOSIT_IMPORT_TARGET_IDS = {
 const depositLineItemTargets: DepositImportFieldTarget[] = [
   {
     id: "depositLineItem.lineNumber",
-    label: "Line Number",
+    label: "Line Item",
     entity: "depositLineItem",
     dataType: "number",
     persistence: "depositLineItemColumn",
@@ -43,7 +43,7 @@ const depositLineItemTargets: DepositImportFieldTarget[] = [
   },
   {
     id: "depositLineItem.accountNameRaw",
-    label: "Account / Customer Name",
+    label: "Account Name",
     entity: "depositLineItem",
     dataType: "string",
     persistence: "depositLineItemColumn",
@@ -51,7 +51,7 @@ const depositLineItemTargets: DepositImportFieldTarget[] = [
   },
   {
     id: "depositLineItem.accountIdVendor",
-    label: "Account ID (Vendor)",
+    label: "Other - Account ID",
     entity: "depositLineItem",
     dataType: "string",
     persistence: "depositLineItemColumn",
@@ -59,7 +59,7 @@ const depositLineItemTargets: DepositImportFieldTarget[] = [
   },
   {
     id: "depositLineItem.customerIdVendor",
-    label: "Customer ID (Vendor)",
+    label: "Other - Customer ID",
     entity: "depositLineItem",
     dataType: "string",
     persistence: "depositLineItemColumn",
@@ -67,7 +67,7 @@ const depositLineItemTargets: DepositImportFieldTarget[] = [
   },
   {
     id: "depositLineItem.orderIdVendor",
-    label: "Order ID (Vendor)",
+    label: "Other - Order ID",
     entity: "depositLineItem",
     dataType: "string",
     persistence: "depositLineItemColumn",
@@ -75,7 +75,7 @@ const depositLineItemTargets: DepositImportFieldTarget[] = [
   },
   {
     id: "depositLineItem.productNameRaw",
-    label: "Product Name / SKU",
+    label: "Other - Product Name",
     entity: "depositLineItem",
     dataType: "string",
     persistence: "depositLineItemColumn",
@@ -91,7 +91,7 @@ const depositLineItemTargets: DepositImportFieldTarget[] = [
   },
   {
     id: DEPOSIT_IMPORT_TARGET_IDS.usage,
-    label: "Usage Amount",
+    label: "Actual Usage",
     entity: "depositLineItem",
     dataType: "number",
     persistence: "depositLineItemColumn",
@@ -99,7 +99,7 @@ const depositLineItemTargets: DepositImportFieldTarget[] = [
   },
   {
     id: DEPOSIT_IMPORT_TARGET_IDS.commission,
-    label: "Commission Amount",
+    label: "Actual Commission",
     entity: "depositLineItem",
     dataType: "number",
     persistence: "depositLineItemColumn",
@@ -107,7 +107,7 @@ const depositLineItemTargets: DepositImportFieldTarget[] = [
   },
   {
     id: DEPOSIT_IMPORT_TARGET_IDS.commissionRate,
-    label: "Commission Rate (%)",
+    label: "Actual Commission Rate %",
     entity: "depositLineItem",
     dataType: "number",
     persistence: "depositLineItemColumn",
@@ -131,7 +131,7 @@ const depositLineItemTargets: DepositImportFieldTarget[] = [
   },
   {
     id: "depositLineItem.vendorNameRaw",
-    label: "Vendor Name (raw)",
+    label: "Vendor Name",
     entity: "depositLineItem",
     dataType: "string",
     persistence: "depositLineItemColumn",
@@ -139,7 +139,7 @@ const depositLineItemTargets: DepositImportFieldTarget[] = [
   },
   {
     id: "depositLineItem.distributorNameRaw",
-    label: "Distributor Name (raw)",
+    label: "Distributor Name",
     entity: "depositLineItem",
     dataType: "string",
     persistence: "depositLineItemColumn",
@@ -158,7 +158,7 @@ const depositTargets: DepositImportFieldTarget[] = [
   },
   {
     id: DEPOSIT_IMPORT_TARGET_IDS.depositPaymentDate,
-    label: "Deposit Payment Date",
+    label: "Payment Date",
     entity: "deposit",
     dataType: "date",
     persistence: "depositColumn",
@@ -196,7 +196,7 @@ const staticOpportunityTargets: DepositImportFieldTarget[] = [
   },
   {
     id: "opportunity.status",
-    label: "Opportunity Status",
+    label: "Status",
     entity: "opportunity",
     dataType: "string",
     persistence: "metadata",
@@ -212,7 +212,7 @@ const staticOpportunityTargets: DepositImportFieldTarget[] = [
   },
   {
     id: "opportunity.amount",
-    label: "Opportunity Amount",
+    label: "Amount",
     entity: "opportunity",
     dataType: "number",
     persistence: "metadata",
@@ -220,7 +220,7 @@ const staticOpportunityTargets: DepositImportFieldTarget[] = [
   },
   {
     id: "opportunity.expectedCommission",
-    label: "Opportunity Expected Commission",
+    label: "Expected Commission",
     entity: "opportunity",
     dataType: "number",
     persistence: "metadata",
@@ -228,7 +228,7 @@ const staticOpportunityTargets: DepositImportFieldTarget[] = [
   },
   {
     id: "opportunity.estimatedCloseDate",
-    label: "Opportunity Estimated Close Date",
+    label: "Estimated Close Date",
     entity: "opportunity",
     dataType: "date",
     persistence: "metadata",
@@ -236,7 +236,7 @@ const staticOpportunityTargets: DepositImportFieldTarget[] = [
   },
   {
     id: "opportunity.actualCloseDate",
-    label: "Opportunity Actual Close Date",
+    label: "Actual Close Date",
     entity: "opportunity",
     dataType: "date",
     persistence: "metadata",
@@ -244,7 +244,7 @@ const staticOpportunityTargets: DepositImportFieldTarget[] = [
   },
   {
     id: "opportunity.orderIdVendor",
-    label: "Opportunity Order ID (Vendor)",
+    label: "Other - Order ID",
     entity: "opportunity",
     dataType: "string",
     persistence: "metadata",
@@ -252,7 +252,7 @@ const staticOpportunityTargets: DepositImportFieldTarget[] = [
   },
   {
     id: "opportunity.accountIdVendor",
-    label: "Opportunity Account ID (Vendor)",
+    label: "Other - Account ID",
     entity: "opportunity",
     dataType: "string",
     persistence: "metadata",
@@ -260,7 +260,7 @@ const staticOpportunityTargets: DepositImportFieldTarget[] = [
   },
   {
     id: "opportunity.customerIdVendor",
-    label: "Opportunity Customer ID (Vendor)",
+    label: "Other - Customer ID",
     entity: "opportunity",
     dataType: "string",
     persistence: "metadata",
@@ -268,7 +268,7 @@ const staticOpportunityTargets: DepositImportFieldTarget[] = [
   },
   {
     id: "opportunity.customerPurchaseOrder",
-    label: "Opportunity Customer PO #",
+    label: "Customer PO #",
     entity: "opportunity",
     dataType: "string",
     persistence: "metadata",
@@ -276,7 +276,7 @@ const staticOpportunityTargets: DepositImportFieldTarget[] = [
   },
   {
     id: "opportunity.locationId",
-    label: "Opportunity Location ID",
+    label: "Location ID",
     entity: "opportunity",
     dataType: "string",
     persistence: "metadata",
@@ -287,7 +287,7 @@ const staticOpportunityTargets: DepositImportFieldTarget[] = [
 const productTargets: DepositImportFieldTarget[] = [
   {
     id: "product.productCode",
-    label: "Product Code",
+    label: "House - Part Number",
     entity: "product",
     dataType: "string",
     persistence: "metadata",
@@ -295,7 +295,7 @@ const productTargets: DepositImportFieldTarget[] = [
   },
   {
     id: "product.productNameHouse",
-    label: "Product Name (House)",
+    label: "House - Product Name",
     entity: "product",
     dataType: "string",
     persistence: "metadata",
@@ -303,7 +303,7 @@ const productTargets: DepositImportFieldTarget[] = [
   },
   {
     id: "product.productNameVendor",
-    label: "Product Name (Vendor)",
+    label: "Other - Product Name",
     entity: "product",
     dataType: "string",
     persistence: "metadata",
@@ -311,7 +311,7 @@ const productTargets: DepositImportFieldTarget[] = [
   },
   {
     id: "product.description",
-    label: "Product Description",
+    label: "Other - Product Description",
     entity: "product",
     dataType: "string",
     persistence: "metadata",
@@ -319,7 +319,7 @@ const productTargets: DepositImportFieldTarget[] = [
   },
   {
     id: "product.revenueType",
-    label: "Product Revenue Type",
+    label: "Revenue Type",
     entity: "product",
     dataType: "string",
     persistence: "metadata",
@@ -327,7 +327,7 @@ const productTargets: DepositImportFieldTarget[] = [
   },
   {
     id: "product.priceEach",
-    label: "Product Price Each",
+    label: "Price Each",
     entity: "product",
     dataType: "number",
     persistence: "metadata",
@@ -335,7 +335,7 @@ const productTargets: DepositImportFieldTarget[] = [
   },
   {
     id: "product.commissionPercent",
-    label: "Product Commission Percent",
+    label: "Expected Commission Rate %",
     entity: "product",
     dataType: "number",
     persistence: "metadata",
@@ -343,7 +343,7 @@ const productTargets: DepositImportFieldTarget[] = [
   },
   {
     id: "product.partNumberVendor",
-    label: "Product Part Number (Vendor)",
+    label: "Other - Part Number",
     entity: "product",
     dataType: "string",
     persistence: "metadata",
@@ -351,7 +351,7 @@ const productTargets: DepositImportFieldTarget[] = [
   },
   {
     id: "product.partNumberDistributor",
-    label: "Product Part Number (Distributor)",
+    label: "Distributor - Part Number",
     entity: "product",
     dataType: "string",
     persistence: "metadata",
@@ -359,7 +359,7 @@ const productTargets: DepositImportFieldTarget[] = [
   },
   {
     id: "product.productFamilyVendor",
-    label: "Product Family (Vendor)",
+    label: "Other - Product Family",
     entity: "product",
     dataType: "string",
     persistence: "metadata",
@@ -367,7 +367,7 @@ const productTargets: DepositImportFieldTarget[] = [
   },
   {
     id: "product.productSubtypeVendor",
-    label: "Product Subtype (Vendor)",
+    label: "Other - Product Subtype",
     entity: "product",
     dataType: "string",
     persistence: "metadata",
@@ -375,7 +375,7 @@ const productTargets: DepositImportFieldTarget[] = [
   },
   {
     id: "product.productNameDistributor",
-    label: "Product Name (Distributor)",
+    label: "Distributor - Product Name",
     entity: "product",
     dataType: "string",
     persistence: "metadata",

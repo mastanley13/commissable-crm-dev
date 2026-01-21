@@ -13,6 +13,7 @@ Goal: validate behavior **without manual browser review** using runnable tests, 
 - Treat items as "automatable test cases" with IDs.
 - Mark each item as one of:
   - **Runnable now**: already supported by existing tests/scripts/tools.
+  - **Implemented (integration-gated)**: tests exist, but require `RUN_INTEGRATION_TESTS=1` and `TEST_DATABASE_URL` (disposable Postgres) to run.
   - **To implement**: requires adding tests or harness code.
 - For items that are "API-only", you can validate via:
   - an automated test runner (recommended), or
@@ -30,6 +31,8 @@ Goal: validate behavior **without manual browser review** using runnable tests, 
   - Expected: lint passes (or failures are understood and tracked).
 - [ ] **AUTO-RUN-03** (Optional) Build: `npm run build`
   - Expected: build succeeds.
+
+Note: as of the latest automated run in this repo, `npm run lint` / `npm run build` fail due to `react/no-unescaped-entities` at `components/deposit-upload/map-fields-step.tsx:1065`.
 
 ---
 
@@ -66,53 +69,61 @@ Goal: validate behavior **without manual browser review** using runnable tests, 
     - `tests/deposit-upload-template-matching.test.ts`
   - Expected: Telarus template matcher returns expected mapping for known vendor/distributor pairs.
 
-- [ ] **DU-AUTO-06 (To implement)** Mapping config roundtrip
-  - Method: add unit tests for `lib/deposit-import/template-mapping.ts`:
-    - `seedDepositMapping()` removes invalid headers
-    - `setColumnSelection()` enforces 1:1 canonical mapping
-    - `serializeDepositMappingForTemplate()` and `extractDepositMappingFromTemplateConfig()` roundtrip safely
-  - Expected: mapping config roundtrips and remains valid.
+- [ ] **DU-AUTO-06 (Runnable now)** Mapping config roundtrip
+  - Method: run existing tests:
+    - `tests/deposit-import-template-mapping.test.ts`
+  - Expected: mapping config roundtrips, normalizes invalid config, and enforces 1:1 canonical mapping.
 
 ## What gets created (server behavior) > File parsing
 
-- [ ] **DU-AUTO-07 (To implement)** CSV parsing contract tests
-  - Method: unit test `lib/deposit-import/parse-file.ts`:
-    - rejects empty/no-header CSV
-    - trims/normalizes rows
-    - skips empty lines
-  - Expected: returned `{ headers, rows }` is correct and stable.
+- [ ] **DU-AUTO-07 (Runnable now)** CSV parsing contract tests
+  - Method: run existing tests:
+    - `tests/deposit-import-parse-csv.test.ts`
+  - Expected: empty/no-header inputs reject; returned `{ headers, rows }` is correct and stable.
 
-- [ ] **DU-AUTO-08 (To implement)** Excel parsing contract tests
-  - Method: unit test Excel parsing path using a small fixture XLSX in test assets.
+- [ ] **DU-AUTO-08 (Runnable now)** Excel parsing contract tests
+  - Method: run existing tests:
+    - `tests/deposit-import-parse-xlsx.test.ts` (generates XLSX in-memory)
   - Expected: header row is used; rows are parsed and normalized.
 
-- [ ] **DU-AUTO-09 (To implement)** Unsupported file type rejection
-  - Method: parse a fake `.pdf` and assert it throws "Unsupported file type".
-  - Expected: consistent error.
+- [ ] **DU-AUTO-09 (Runnable now)** Unsupported file type rejection
+  - Method: run existing tests:
+    - `tests/deposit-import-parse-unsupported.test.ts`
+  - Expected: consistent "unsupported file type" error.
 
 ## What gets created (server behavior) > Import route contract tests (API-level, no browser)
 
-These are best implemented as integration tests against a disposable DB (SQLite/Postgres test schema).
+These are implemented as integration tests against a disposable Postgres DB and are gated to avoid accidental execution against real environments.
 
-- [ ] **DU-AUTO-10 (To implement)** Required mappings enforced
+- Enable by setting:
+  - `RUN_INTEGRATION_TESTS=1`
+  - `TEST_DATABASE_URL=postgresql://...` (disposable DB)
+
+- [ ] **DU-AUTO-10 (Implemented; integration-gated)** Required mappings enforced
   - Target: `POST /api/reconciliation/deposits/import`
+  - Method: `tests/integration-deposit-import-route.test.ts`
   - Expected: 400 when `usage` or `commission` mapping is missing.
 
-- [ ] **DU-AUTO-11 (To implement)** Ambiguous/missing mapped column errors
+- [ ] **DU-AUTO-11 (Implemented; integration-gated)** Ambiguous/missing mapped column errors
+  - Method: `tests/integration-deposit-import-route.test.ts`
   - Expected: 400 with clear message when a mapped header is ambiguous or missing.
 
-- [ ] **DU-AUTO-12 (To implement)** Commission-only row behavior
+- [ ] **DU-AUTO-12 (Implemented; integration-gated)** Commission-only row behavior
+  - Method: `tests/integration-deposit-import-route.test.ts`
   - Expected DB state: when usage is missing but commission exists, line item usage equals commission; commissionRate becomes 1.0.
 
-- [ ] **DU-AUTO-13 (To implement)** Line payment date parsing
+- [ ] **DU-AUTO-13 (Implemented; integration-gated)** Line payment date parsing
+  - Method: `tests/integration-deposit-import-route.test.ts`
   - Expected: Excel serial date and ISO date strings map to `DepositLineItem.paymentDate`; missing column falls back to deposit date.
 
-- [ ] **DU-AUTO-14 (To implement)** Idempotency behavior
+- [ ] **DU-AUTO-14 (Implemented; integration-gated)** Idempotency behavior
+  - Method: `tests/integration-deposit-import-route.test.ts`
   - Expected:
     - same `idempotencyKey` with completed job returns the same `depositId`
     - same key in-flight returns 409.
 
-- [ ] **DU-AUTO-15 (To implement)** Template persistence toggle behavior
+- [ ] **DU-AUTO-15 (Implemented; integration-gated)** Template persistence toggle behavior
+  - Method: `tests/integration-deposit-import-route.test.ts`
   - Expected:
     - when `saveTemplateMapping=true`, template config is updated/created
     - when false, template remains unchanged
@@ -127,15 +138,17 @@ These are best implemented as integration tests against a disposable DB (SQLite/
   - Method: run existing test `tests/revenue-schedule-flex-decision.test.ts`
   - Expected: tolerance/overage logic remains stable and explainable.
 
-- [ ] **REC-AUTO-02 (To implement)** Settings persistence tests (API-level)
+- [ ] **REC-AUTO-02 (Implemented; integration-gated)** Settings persistence tests (API-level)
   - Targets:
     - `GET|POST /api/reconciliation/settings` (tenant)
     - `GET|POST /api/reconciliation/user-settings` (user confidence thresholds)
+  - Method: `tests/integration-reconciliation-settings.test.ts`
   - Expected: values are stored and retrieved consistently; bounds checking enforced.
 
 ## Pages > Deposits list API (`GET /api/reconciliation/deposits`)
 
-- [ ] **REC-AUTO-03 (To implement)** Filtering + pagination contract
+- [ ] **REC-AUTO-03 (Implemented; integration-gated)** Filtering + pagination contract
+  - Method: `tests/integration-reconciliation-deposits.test.ts`
   - Expected:
     - `pageSize` is capped at 100
     - `from/to` filters by `paymentDate`
@@ -144,23 +157,27 @@ These are best implemented as integration tests against a disposable DB (SQLite/
 
 ## Deposit detail API (`GET /api/reconciliation/deposits/[depositId]/detail`)
 
-- [ ] **REC-AUTO-04 (To implement)** Metadata + line item shape contract
+- [ ] **REC-AUTO-04 (Implemented; integration-gated)** Metadata + line item shape contract
+  - Method: `tests/integration-reconciliation-deposits.test.ts`
   - Expected: stable metadata fields (`usageTotal`, `allocated`, `unallocated`, `status`, `reconciled`) and line item fields (usage/commission + other identifiers).
 
 ## Suggested matches API (`GET /api/reconciliation/deposits/[depositId]/line-items/[lineId]/candidates`)
 
-- [ ] **REC-AUTO-05 (To implement)** Candidate generation honors include-future and engine mode
+- [ ] **REC-AUTO-05 (Implemented; integration-gated)** Candidate generation honors include-future and engine mode
+  - Method: `tests/integration-reconciliation-candidates.test.ts`
   - Expected:
     - include-future expands date window (default window is +/- 1 month in matcher)
     - hierarchical vs legacy scoring changes `matchType`/confidence behavior
 
-- [ ] **REC-AUTO-06 (To implement)** User confidence filtering
+- [ ] **REC-AUTO-06 (Implemented; integration-gated)** User confidence filtering
+  - Method: `tests/integration-reconciliation-candidates.test.ts`
   - Expected: candidates below `reconciliation.suggestedMatchesMinConfidence` are excluded from response when status is "Suggested".
 
 ## Apply match / unmatch APIs
 
-- [ ] **REC-AUTO-07 (To implement)** Manual match allocation math
+- [ ] **REC-AUTO-07 (Implemented; integration-gated)** Manual match allocation math
   - Target: `POST .../apply-match`
+  - Method: `tests/integration-reconciliation-match-flow.test.ts`
   - Expected:
     - cannot allocate ignored/reconciled line items
     - cannot allocate more than remaining unallocated amounts
@@ -168,8 +185,9 @@ These are best implemented as integration tests against a disposable DB (SQLite/
     - updates `DepositLineItem` allocation fields + status (Unmatched/PartiallyMatched/Matched)
     - updates deposit aggregates
 
-- [ ] **REC-AUTO-08 (To implement)** Unmatch clears all allocations for a line
+- [ ] **REC-AUTO-08 (Implemented; integration-gated)** Unmatch clears all allocations for a line
   - Target: `POST .../unmatch`
+  - Method: `tests/integration-reconciliation-match-flow.test.ts`
   - Expected:
     - deletes all matches for the line
     - resets primaryRevenueScheduleId and allocations
@@ -177,75 +195,90 @@ These are best implemented as integration tests against a disposable DB (SQLite/
 
 ## Variance handling / flex resolution
 
-- [ ] **REC-AUTO-09 (To implement)** Auto-adjust when overage is within tolerance
+- [ ] **REC-AUTO-09 (Implemented; integration-gated)** Auto-adjust when overage is within tolerance
   - Target: `POST .../apply-match`
+  - Method: `tests/integration-reconciliation-variance-flex.test.ts`
   - Expected: when overage <= tolerance, an adjustment split is created automatically and schedule recomputed.
 
-- [ ] **REC-AUTO-10 (To implement)** Prompt path when overage exceeds tolerance
+- [ ] **REC-AUTO-10 (Implemented; integration-gated)** Prompt path when overage exceeds tolerance
+  - Method: `tests/integration-reconciliation-variance-flex.test.ts`
   - Expected: response includes a `flexDecision` indicating prompt and allowed actions.
 
-- [ ] **REC-AUTO-11 (To implement)** Negative line triggers chargeback pending
+- [ ] **REC-AUTO-11 (Implemented; integration-gated)** Negative line triggers chargeback pending
+  - Method: `tests/integration-reconciliation-variance-flex.test.ts`
   - Expected:
     - creates flex chargeback schedule + a Suggested match
     - line becomes Suggested (pending approval)
     - a flex review item is enqueued
 
-- [ ] **REC-AUTO-12 (To implement)** Resolve-flex API creates adjustment/flex product and (optional) applies to future schedules
+- [ ] **REC-AUTO-12 (Implemented; integration-gated)** Resolve-flex API creates adjustment/flex product and (optional) applies to future schedules
   - Target: `POST .../resolve-flex`
+  - Method: `tests/integration-reconciliation-variance-flex.test.ts`
   - Expected:
     - action Adjust/FlexProduct/Manual behaves as documented
     - applyToFuture updates eligible future schedules in scope when action=Adjust
 
 ## AI adjustment preview/apply APIs
 
-- [ ] **REC-AUTO-13 (To implement)** AI adjustment preview returns recommendation + scope/future schedule list
+- [ ] **REC-AUTO-13 (Implemented; integration-gated)** AI adjustment preview returns recommendation + scope/future schedule list
   - Target: `POST .../ai-adjustment/preview`
+  - Method: `tests/integration-reconciliation-ai-adjustment.test.ts`
   - Expected: preview includes suggestion type (allocate vs adjust), base overage values, and future schedule count/list.
 
-- [ ] **REC-AUTO-14 (To implement)** AI adjustment apply updates current and (optional) future schedules
+- [ ] **REC-AUTO-14 (Implemented; integration-gated)** AI adjustment apply updates current and (optional) future schedules
   - Target: `POST .../ai-adjustment/apply`
+  - Method: `tests/integration-reconciliation-ai-adjustment.test.ts`
   - Expected: creates adjustment split; when applyToFuture=true, updates future schedules and returns IDs.
 
 ## Auto-match APIs
 
-- [ ] **REC-AUTO-15 (To implement)** Auto-match preview respects user auto-match confidence threshold
+- [ ] **REC-AUTO-15 (Implemented; integration-gated)** Auto-match preview respects user auto-match confidence threshold
   - Target: `POST /api/reconciliation/deposits/[depositId]/auto-match/preview`
+  - Method: `tests/integration-reconciliation-auto-match.test.ts`
   - Expected: only top candidates >= `reconciliation.autoMatchMinConfidence` are included.
 
-- [ ] **REC-AUTO-16 (To implement)** Auto-match apply persists matches with source Auto
+- [ ] **REC-AUTO-16 (Implemented; integration-gated)** Auto-match apply persists matches with source Auto
   - Target: `POST /api/reconciliation/deposits/[depositId]/auto-match`
+  - Method: `tests/integration-reconciliation-auto-match.test.ts`
   - Expected: creates Applied matches with `source: Auto`, updates line and deposit aggregates.
 
 ## Finalize / unfinalize APIs
 
-- [ ] **REC-AUTO-17 (To implement)** Finalize blocks when Unmatched or Suggested lines exist
+- [ ] **REC-AUTO-17 (Implemented; integration-gated)** Finalize blocks when Unmatched or Suggested lines exist
   - Target: `POST .../finalize`
+  - Method: `tests/integration-reconciliation-match-flow.test.ts`
   - Expected: 400 with clear message when open lines exist.
 
-- [ ] **REC-AUTO-18 (To implement)** Finalize locks records and marks reconciled flags
+- [ ] **REC-AUTO-18 (Implemented; integration-gated)** Finalize locks records and marks reconciled flags
+  - Method: `tests/integration-reconciliation-match-flow.test.ts`
   - Expected DB state:
     - deposit is `reconciled=true` and `reconciledAt` set
     - matched/partially matched lines become `reconciled=true`
     - applied matches become `reconciled=true`
 
-- [ ] **REC-AUTO-19 (To implement)** Unfinalize clears reconciled flags and recomputes schedules
+- [ ] **REC-AUTO-19 (Implemented; integration-gated)** Unfinalize clears reconciled flags and recomputes schedules
   - Target: `POST .../unfinalize`
+  - Method: `tests/integration-reconciliation-match-flow.test.ts`
   - Expected: deposit reopens; lines/matches un-reconciled; schedule statuses recomputed.
 
-- [ ] **REC-AUTO-20 (To implement)** Known inconsistency regression test
+- [ ] **REC-AUTO-20 (Implemented; integration-gated)** Known inconsistency regression test
   - Purpose: protect against finalize treating `status === "Completed"` as already finalized when `reconciled=false`.
+  - Method: `tests/integration-reconciliation-finalize-regression.test.ts`
   - Expected: either finalize succeeds, or behavior is explicitly changed and tested.
 
 ## Flex review APIs
 
-- [ ] **FLEX-AUTO-01 (To implement)** Queue contract (`GET /api/flex-review`)
+- [ ] **FLEX-AUTO-01 (Implemented; integration-gated)** Queue contract (`GET /api/flex-review`)
+  - Method: `tests/integration-flex-review.test.ts`
   - Expected: stable fields, sorting, and permission enforcement (`reconciliation.manage`).
 
-- [ ] **FLEX-AUTO-02 (To implement)** Assign contract (`POST /api/flex-review/[itemId]/assign`)
+- [ ] **FLEX-AUTO-02 (Implemented; integration-gated)** Assign contract (`POST /api/flex-review/[itemId]/assign`)
+  - Method: `tests/integration-flex-review.test.ts`
   - Expected: assignment persists; assignee must be a reconciliation manager; notifications created.
 
-- [ ] **FLEX-AUTO-03 (To implement)** Approve-and-apply updates source deposit
+- [ ] **FLEX-AUTO-03 (Implemented; integration-gated)** Approve-and-apply updates source deposit
   - Target: `POST /api/flex-review/[itemId]/approve-and-apply`
+  - Method: `tests/integration-flex-review.test.ts`
   - Expected: Suggested match becomes Applied (for chargeback/CB-rev), aggregates recomputed, item marked Approved.
 
 ---
@@ -269,4 +302,3 @@ If you do not yet have integration tests, you can still verify end-to-end logic 
     - calls key APIs
     - prints JSON + a small DB summary
   - Expected: script output can be reviewed automatically in CI and by AI.
-
