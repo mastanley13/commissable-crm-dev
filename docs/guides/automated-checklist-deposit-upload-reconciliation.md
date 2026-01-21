@@ -28,10 +28,10 @@ Goal: validate behavior **without manual browser review** using runnable tests, 
 - [x] **AUTO-RUN-01** Run unit tests: `npm test`
   - Latest run: PASS — see `docs/guides/automated-checklist-results-deposit-upload-reconciliation-2026-01-21T08-36-22.md`
   - Expected: all tests in `tests/*.test.ts` pass.
-- [x] **AUTO-RUN-02** Run lint: `npm run lint`
+- [ ] **AUTO-RUN-02** Run lint: `npm run lint`
   - Latest run: FAIL — see `docs/guides/automated-checklist-results-deposit-upload-reconciliation-2026-01-21T08-36-22.md`
   - Expected: lint passes (or failures are understood and tracked).
-- [x] **AUTO-RUN-03** (Optional) Build: `npm run build`
+- [ ] **AUTO-RUN-03** (Optional) Build: `npm run build`
   - Latest run: FAIL — see `docs/guides/automated-checklist-results-deposit-upload-reconciliation-2026-01-21T08-36-22.md`
   - Expected: build succeeds.
 
