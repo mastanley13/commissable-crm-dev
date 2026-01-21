@@ -12,21 +12,32 @@ Per `docs/guides/deposit-upload.md`, the current Deposit Upload import path only
 
 ## Non-goals (to confirm)
 
-- Automatically creating/updating Opportunities and Products from deposit uploads (unless explicitly desired).
+- Automatically creating/updating Opportunities and Products from deposit uploads (keep deposit upload "reactive"; use FLEX + management review for unknowns).
 - Making every DB column mappable (we need a safe allowlist; many columns are internal or computed).
 
-## Key product decisions (answer these first)
+## Resolved decisions (from `Field Mapping Handling.md`)
 
-1. When a user maps to an **Opportunity** field:
-   - **Option A (recommended initially):** persist the raw value onto the created `DepositLineItem` (if the column exists) or into `DepositLineItem.metadata` under an `opportunity` namespace.
-   - **Option B:** use it as a lookup key to find an Opportunity / RevenueSchedule and set `DepositLineItem.primaryRevenueScheduleId`.
-   - **Option C:** upsert an Opportunity record (highest risk).
-2. When a user maps to a **Product** field:
-   - **Option A (recommended initially):** persist raw value into `DepositLineItem` (when available) or `DepositLineItem.metadata.product`.
-   - **Option B:** use it as a lookup to set `DepositLineItem.productId`.
-   - **Option C:** upsert a Product record (highest risk).
-3. Which fields are required for a valid import?
-   - Today: `usage` and `commission`. Confirm whether that remains the minimum.
+1. **Opportunity mapping behavior = persist raw value (Option A)**
+   - Persist incoming values as raw data for matching/audit, not as CRM upserts:
+     - Prefer `DepositLineItem` columns when they exist and are semantically correct.
+     - Otherwise persist into `DepositLineItem.metadata.opportunity.*`.
+   - Do not default to import-time lookups that set `DepositLineItem.primaryRevenueScheduleId` unless we have a stable identifier explicitly intended for that purpose.
+2. **Product mapping behavior = persist raw value (Option A)**
+   - Persist incoming values as raw product descriptors for matching/audit:
+     - Prefer `DepositLineItem` columns when they exist (e.g., `productNameRaw`, `partNumberRaw`).
+     - Otherwise persist into `DepositLineItem.metadata.product.*`.
+   - Do not upsert Products during import; unknown/new product handling remains FLEX + management workflow.
+3. **Required-field rule should support commission-only deposits**
+   - Update validation to require at least one of `usage` or `commission` mapped (not both).
+   - Consider requiring (or at least warning when missing) a customer reference: `accountNameRaw` and/or `customerIdVendor`.
+   - If `commission` is mapped but `usage` is not, derive:
+     - `usage = commission`
+     - `commissionRate = 1` (100%)
+   - Keep `orderId` / `productSku` / external schedule id as strongly recommended (not required) matching keys.
+4. **Add a dedicated "External Schedule ID" mapping target (matching-first)**
+   - Introduce a catalog target (and matching rule) for an external schedule identifier (name TBD, e.g. `matching.externalScheduleId`).
+   - Default persistence: `DepositLineItem.metadata.matching.externalScheduleId`.
+   - Matching behavior: treat as a top-priority exact match input when present.
 
 ## Proposed technical approach (phased)
 
@@ -35,12 +46,16 @@ Per `docs/guides/deposit-upload.md`, the current Deposit Upload import path only
 1. **Inventory current persisted targets**
    - Enumerate which `DepositLineItem` columns are safe to set during import (scalar fields only; exclude IDs, tenantId, foreign keys unless explicitly supported, computed/allocation fields, status/reconciled fields).
    - Enumerate which `Deposit` columns are safe to set from the file (likely none or a small subset like `depositName` if you want it file-driven).
-2. **Define a “Deposit Upload Field Catalog”**
+   - Confirm `DepositLineItem.metadata` is available end-to-end:
+     - DB: migration exists (`prisma/migrations/20251214221849_add_deposit_lineitem_metadata/migration.sql`).
+     - Prisma schema: add `metadata Json?` to `model DepositLineItem` if it is not present, then regenerate client.
+2. **Define a "Deposit Upload Field Catalog"**
    - A structured allowlist of mapping targets grouped by entity:
      - `DepositLineItem.<column>`
      - `Deposit.<column>`
-     - `Opportunity.<column>` (either “stored for matching” or “lookup only”, depending on decision)
-     - `Product.<column>` (same)
+     - `Opportunity.<field>` (default: persist to `DepositLineItem.metadata.opportunity.*`)
+     - `Product.<field>` (default: persist to `DepositLineItem.metadata.product.*`)
+     - `Matching.<field>` (default: persist to `DepositLineItem.metadata.matching.*`, e.g. "External Schedule ID")
    - Each target needs:
      - `id` (stable identifier stored in templates)
      - `entity` + `columnName`
@@ -70,11 +85,11 @@ Deliverable: new mapping payload that can round-trip (UI -> API -> template conf
 ### Phase 3 — UI updates (dropdown + review)
 
 1. **Dropdown grouping**
-   - Replace “Map to Commissable field” with grouped options:
+   - Replace "Map to Commissable field" with grouped options:
      - DepositLineItem fields
      - Deposit fields
-     - Opportunity fields
-     - Product fields
+     - Opportunity fields (stored on deposit lines for matching)
+     - Product fields (stored on deposit lines for matching)
      - Ignore
    - Add search/filter in the dropdown once the catalog grows.
 2. **Required field indicators**
@@ -90,12 +105,17 @@ Deliverable: users can select from DB-backed targets in a single mapping UI.
 
 1. **Validate mapping targets against the server catalog**
    - Reject unknown targets and type-incompatible mappings.
+   - Enforce "at least one of `usage` / `commission`" server-side (not both).
 2. **Write mapped values**
    - `DepositLineItem` targets: set the appropriate columns at `createMany` time.
    - `Deposit` targets (if supported): set at `deposit.create` time or via `deposit.update` before line items.
-   - `Opportunity/Product` targets:
-     - If “metadata” persistence: write into `DepositLineItem.metadata` under a stable namespace.
-     - If “lookup” persistence: resolve IDs and set `productId`, `accountId`, `primaryRevenueScheduleId`, etc (with clear failure behavior).
+   - `Opportunity/Product` targets (default behavior):
+     - Persist into `DepositLineItem.metadata.opportunity.*` / `DepositLineItem.metadata.product.*`.
+     - Keep raw values even if later matching/linking is added (auditability).
+   - `Matching.*` targets:
+     - Persist into `DepositLineItem.metadata.matching.*` (e.g., `externalScheduleId`).
+     - Matching engine treats some of these as top-priority exact matches.
+   - Optional later enhancement (explicitly not default): "lookup/link" targets that set `productId` / `primaryRevenueScheduleId` when backed by a stable identifier scheme and clear failure behavior.
 3. **Confirm template-saving behavior**
    - Persist the v2 mapping config into `ReconciliationTemplate.config` when `saveTemplateMapping` is enabled.
 
@@ -103,8 +123,9 @@ Deliverable: mapped non-canonical fields no longer disappear after import.
 
 ### Phase 5 — Matching integration (optional but usually the point)
 
-1. If Opportunity/Product mappings are stored into `DepositLineItem.metadata`, update reconciliation matching logic to consider these values.
-2. If lookups are enabled, ensure deterministic linking and clear auditability (explain how a deposit line was linked).
+1. If Opportunity/Product/Matching targets are stored into `DepositLineItem.metadata`, update reconciliation matching logic to consider these values.
+2. Treat `metadata.matching.externalScheduleId` (name TBD) as a top-priority exact match input when present.
+3. If lookups are enabled, ensure deterministic linking and clear auditability (explain how a deposit line was linked).
 
 Deliverable: mapped fields materially improve reconciliation success rate.
 
@@ -126,8 +147,9 @@ Deliverable: `fields.ts` becomes legacy-only and can be removed later without br
 
 - Import succeeds with v1 templates (no UI changes required to re-import).
 - Import succeeds with v2 mapping payloads and persists mapped columns.
-- “Extra/custom” columns persist (either as `DepositLineItem` columns or `metadata`), and are visible in deposit line detail views if applicable.
+- "Extra/custom" columns persist (either as `DepositLineItem` columns or `metadata`), and are visible in deposit line detail views if applicable.
 - Required field validation works both client-side and server-side.
+- Commission-only files import successfully (commission mapped; usage derived).
 - Template save/load round-trips without dropping any mappings.
 
 ## Suggested rollout strategy
@@ -135,4 +157,3 @@ Deliverable: `fields.ts` becomes legacy-only and can be removed later without br
 - Feature flag the v2 dropdown + payload behind a tenant setting.
 - Enable for internal tenants first; keep v1 as fallback.
 - After adoption, migrate Telarus seeding to v2 and deprecate v1 usage.
-
