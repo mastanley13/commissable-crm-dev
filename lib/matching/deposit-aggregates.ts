@@ -29,7 +29,10 @@ function determineDepositStatus(totals: DepositAggregateTotals) {
   if (totals.totalItems === 0) return ReconciliationStatus.Pending
   const itemsReconciled = totals.matchedCount + totals.ignoredCount
   const itemsUnreconciled = totals.totalItems - itemsReconciled
-  if (itemsUnreconciled === 0) return ReconciliationStatus.Completed
+  // NOTE: We should NOT auto-set to Completed when all items are matched.
+  // The user must explicitly finalize the deposit via the finalize endpoint.
+  // When all items are matched/ignored, the deposit is ready to finalize (InReview).
+  if (itemsUnreconciled === 0 && itemsReconciled > 0) return ReconciliationStatus.InReview
   if (itemsReconciled > 0 || totals.partialCount > 0) return ReconciliationStatus.InReview
   return ReconciliationStatus.Pending
 }
