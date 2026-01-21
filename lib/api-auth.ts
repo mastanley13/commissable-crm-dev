@@ -25,8 +25,10 @@ export async function withAuth<T = any>(
   handler: (request: AuthenticatedRequest) => Promise<Response | ApiResponse<T>>
 ): Promise<Response> {
   try {
-    // Get authenticated user
-    const user = await getAuthenticatedUser()
+    // Prefer reading cookies from the incoming request so API handlers can be invoked
+    // in environments where next/headers cookie context is unavailable (e.g. tests).
+    const sessionToken = request.cookies?.get('session-token')?.value
+    const user = await getAuthenticatedUser(sessionToken)
 
     if (!user) {
       return new Response(

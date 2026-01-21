@@ -492,28 +492,32 @@ export function MapFieldsStep({
                             </DropdownMenu.Item>
 
                             <div className="my-2 border-t border-gray-100" />
-                            {fieldTargetsByEntity.map(group => (
-                              <div key={group.id} className="mb-2">
-                                <p className="px-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
-                                  {group.label}
-                                </p>
-                                {group.targets.map(target => (
-                                  <DropdownMenu.Item
-                                    key={target.id}
-                                    className="flex cursor-pointer items-center justify-between rounded-md px-2 py-1.5 text-sm text-gray-700 outline-none transition-colors hover:bg-gray-100 focus:bg-gray-100"
-                                    onSelect={() => applySelection({ type: "target", targetId: target.id })}
-                                  >
-                                    <span className="truncate">
-                                      {target.label}
-                                      {requiredTargetIds.has(target.id) ? " (Required)" : ""}
-                                    </span>
-                                    {selection.type === "target" && selection.targetId === target.id ? (
-                                      <Check className="h-4 w-4 text-primary-600" />
-                                    ) : null}
-                                  </DropdownMenu.Item>
-                                ))}
-                              </div>
-                            ))}
+                            {fieldTargetsByEntity.length === 0 ? (
+                              <p className="px-2 py-1 text-xs text-gray-500">No import fields available.</p>
+                            ) : (
+                              fieldTargetsByEntity.map(group => (
+                                <div key={group.id} className="mb-2">
+                                  <p className="px-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                                    {group.label}
+                                  </p>
+                                  {group.targets.map(target => (
+                                    <DropdownMenu.Item
+                                      key={target.id}
+                                      className="flex cursor-pointer items-center justify-between rounded-md px-2 py-1.5 text-sm text-gray-700 outline-none transition-colors hover:bg-gray-100 focus:bg-gray-100"
+                                      onSelect={() => applySelection({ type: "target", targetId: target.id })}
+                                    >
+                                      <span className="truncate">
+                                        {target.label}
+                                        {requiredTargetIds.has(target.id) ? " (Required)" : ""}
+                                      </span>
+                                      {selection.type === "target" && selection.targetId === target.id ? (
+                                        <Check className="h-4 w-4 text-primary-600" />
+                                      ) : null}
+                                    </DropdownMenu.Item>
+                                  ))}
+                                </div>
+                              ))
+                            )}
                           </div>
                         </DropdownMenu.Content>
                       </DropdownMenu.Portal>

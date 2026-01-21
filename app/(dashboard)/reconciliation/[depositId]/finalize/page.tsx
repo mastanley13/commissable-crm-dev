@@ -3,6 +3,8 @@
 import Link from "next/link"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu"
+import { Check, ChevronDown } from "lucide-react"
 
 import { CopyProtectionWrapper } from "@/components/copy-protection"
 import { DepositReconciliationTopSection } from "@/components/deposit-reconciliation-top-section"
@@ -437,6 +439,11 @@ export default function FinalizeDepositReviewPage() {
     [],
   )
 
+  const sortDropdownValue = useMemo(() => {
+    if (!sortConfig) return ""
+    return `${sortConfig.key}:${sortConfig.direction}`
+  }, [sortConfig])
+
   const sortOptions = useMemo(
     () => [
       { label: "None", value: "" },
@@ -454,10 +461,10 @@ export default function FinalizeDepositReviewPage() {
     [],
   )
 
-  const sortDropdownValue = useMemo(() => {
-    if (!sortConfig) return ""
-    return `${sortConfig.key}:${sortConfig.direction}`
-  }, [sortConfig])
+  const selectedSortOption = useMemo(
+    () => sortOptions.find(opt => opt.value === sortDropdownValue) || sortOptions[0],
+    [sortDropdownValue, sortOptions],
+  )
 
   return (
     <CopyProtectionWrapper className="min-h-screen bg-slate-50">
@@ -520,34 +527,49 @@ export default function FinalizeDepositReviewPage() {
             showCreateButton={false}
             onSettingsClick={() => setShowColumnSettings(true)}
             preSearchAccessory={
-              <div className="relative">
-                <select
-                  value={sortDropdownValue}
-                  onChange={event => {
-                    const value = event.target.value
-                    if (!value) {
-                      setSortConfig(null)
-                      return
-                    }
-                    const [key, direction] = value.split(":")
-                    if (!key) {
-                      setSortConfig(null)
-                      return
-                    }
-                    setSortConfig({ key, direction: direction === "asc" ? "asc" : "desc" })
-                  }}
-                  className="w-52 appearance-none rounded border border-gray-300 bg-white px-3 py-1.5 pr-8 text-sm outline-none transition-all focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
-                  aria-label="Sort matches"
-                  title="Sort"
-                >
-                  {sortOptions.map(option => (
-                    <option key={option.value} value={option.value}>
-                      Sort: {option.label}
-                    </option>
-                  ))}
-                </select>
-                <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-gray-400">▾</span>
-              </div>
+              <DropdownMenu.Root>
+                <DropdownMenu.Trigger asChild>
+                  <button
+                    className="inline-flex w-52 items-center justify-between gap-1.5 rounded border border-gray-300 bg-white px-3 py-0.5 text-sm text-gray-700 transition-all hover:bg-gray-50 focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
+                    aria-label="Sort matches"
+                  >
+                    <span>{selectedSortOption?.label || "None"}</span>
+                    <ChevronDown className="h-3 w-3 text-gray-400" />
+                  </button>
+                </DropdownMenu.Trigger>
+
+                <DropdownMenu.Portal>
+                  <DropdownMenu.Content
+                    className="z-50 min-w-[220px] rounded border border-gray-200 bg-white p-1 shadow-lg animate-in fade-in-0 zoom-in-95"
+                    sideOffset={5}
+                  >
+                    {sortOptions.map(option => (
+                      <DropdownMenu.Item
+                        key={option.value}
+                        className="flex cursor-pointer items-center justify-between rounded px-2 py-1.5 text-sm text-gray-700 outline-none transition-colors hover:bg-gray-100 focus:bg-gray-100"
+                        onSelect={() => {
+                          const value = option.value
+                          if (!value) {
+                            setSortConfig(null)
+                            return
+                          }
+                          const [key, direction] = value.split(":")
+                          if (!key) {
+                            setSortConfig(null)
+                            return
+                          }
+                          setSortConfig({ key, direction: direction === "asc" ? "asc" : "desc" })
+                        }}
+                      >
+                        <span>{option.label}</span>
+                        {sortDropdownValue === option.value && (
+                          <Check className="h-3.5 w-3.5 text-primary-600" />
+                        )}
+                      </DropdownMenu.Item>
+                    ))}
+                  </DropdownMenu.Content>
+                </DropdownMenu.Portal>
+              </DropdownMenu.Root>
             }
             compact
           />

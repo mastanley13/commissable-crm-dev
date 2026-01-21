@@ -13,7 +13,6 @@ import {
 import { getClientIP, getUserAgent, logAudit } from "@/lib/audit"
 import { resolveSpreadsheetHeader } from "@/lib/deposit-import/resolve-header"
 import {
-  convertDepositMappingV1ToV2,
   extractDepositMappingV2FromTemplateConfig,
   serializeDepositMappingForTemplateV2,
   type DepositMappingConfigV2,
@@ -271,6 +270,29 @@ export async function POST(request: NextRequest) {
       return createErrorResponse(error instanceof Error ? error.message : "Mapping failed", 400)
     }
 
+    const depositOverrides: { depositName?: string; paymentDate?: Date } = {}
+    for (const [targetId, columnName] of Object.entries(mappingConfig.targets ?? {})) {
+      const target = fieldCatalogIndex.get(targetId)
+      if (!target || target.persistence !== "depositColumn" || !target.columnName) continue
+      const index = columnIndex[targetId]
+      if (index === undefined) continue
+      const raw = findFirstNonEmptyValue(parsedFile.rows, index)
+      const parsedValue = parseValueByType(target.dataType, raw ?? undefined)
+      if (parsedValue === null || parsedValue === undefined) continue
+      if (target.columnName === "depositName" && typeof parsedValue === "string") {
+        depositOverrides.depositName = parsedValue.trim()
+      }
+      if (target.columnName === "paymentDate" && parsedValue instanceof Date) {
+        depositOverrides.paymentDate = parsedValue
+      }
+    }
+
+    const resolvedDepositDate = depositOverrides.paymentDate ?? depositDate
+    if (Number.isNaN(resolvedDepositDate.getTime())) {
+      return createErrorResponse("Invalid payment date provided", 400)
+    }
+    const resolvedDepositName = depositOverrides.depositName || depositName || null
+
     const templateConfigToPersist: Prisma.InputJsonValue | null = mappingConfigForTemplate
       ? (serializeDepositMappingForTemplateV2(mappingConfigForTemplate) as unknown as Prisma.InputJsonValue)
       : null
@@ -301,9 +323,9 @@ export async function POST(request: NextRequest) {
           data: {
             tenantId,
             accountId: distributorAccountId,
-            month: commissionPeriodDate ?? startOfMonth(depositDate),
-            depositName: depositName || null,
-            paymentDate: depositDate,
+            month: commissionPeriodDate ?? startOfMonth(resolvedDepositDate),
+            depositName: resolvedDepositName,
+            paymentDate: resolvedDepositDate,
             distributorAccountId,
             vendorAccountId,
             reconciliationTemplateId: selectedTemplate?.id ?? null,
@@ -314,38 +336,42 @@ export async function POST(request: NextRequest) {
 
       const lineItemsData = parsedFile.rows
         .map((row, index) => {
-          const usageValueRaw = normalizeNumber(row[columnIndex.usage])
-          const commissionValue = normalizeNumber(row[columnIndex.commission])
+          const metadata: Record<string, unknown> = {}
+          const usageIndex = columnIndex[DEPOSIT_IMPORT_TARGET_IDS.usage]
+          const commissionIndex = columnIndex[DEPOSIT_IMPORT_TARGET_IDS.commission]
+          const usageValueRaw = usageIndex !== undefined ? normalizeNumber(row[usageIndex]) : null
+          const commissionValue = commissionIndex !== undefined ? normalizeNumber(row[commissionIndex]) : null
           if (usageValueRaw === null && commissionValue === null) {
             return null
           }
 
-          const resolveString = (fieldId: string) => normalizeString(row[columnIndex[fieldId]])
-          const paymentDateValue = parseDateValue(row[columnIndex.paymentDate], depositDate)
+          const paymentDateTargetId = LEGACY_FIELD_ID_TO_TARGET_ID.paymentDate
+          const paymentDateIndex = paymentDateTargetId ? columnIndex[paymentDateTargetId] : undefined
+          const paymentDateValue =
+            paymentDateIndex !== undefined
+              ? parseDateValue(row[paymentDateIndex], resolvedDepositDate)
+              : resolvedDepositDate
 
           const isCommissionOnly = usageValueRaw === null && commissionValue !== null
           const usageValue = isCommissionOnly ? commissionValue : usageValueRaw
 
           // Spec: if a deposit line has commission but no usage, treat it as commission-only:
           // usage = commission and rate = 100% (fraction 1.0).
-          const commissionRateValueRaw = normalizeNumber(row[columnIndex.commissionRate])
+          const commissionRateIndex = columnIndex[DEPOSIT_IMPORT_TARGET_IDS.commissionRate]
+          const commissionRateValueRaw =
+            commissionRateIndex !== undefined ? normalizeNumber(row[commissionRateIndex]) : null
           const commissionRateValue = isCommissionOnly ? 1 : commissionRateValueRaw
 
-          return {
+          const lineNumberTargetId = LEGACY_FIELD_ID_TO_TARGET_ID.lineNumber
+          const lineNumberIndex = lineNumberTargetId ? columnIndex[lineNumberTargetId] : undefined
+          const lineNumberValue =
+            lineNumberIndex !== undefined ? normalizeNumber(row[lineNumberIndex]) ?? index + 1 : index + 1
+
+          const lineItem: Record<string, unknown> = {
             tenantId,
             depositId: deposit.id,
-            lineNumber: normalizeNumber(row[columnIndex.lineNumber]) ?? index + 1,
-            paymentDate: paymentDateValue ?? depositDate,
-            accountNameRaw: resolveString('accountNameRaw'),
-            accountIdVendor: resolveString('accountIdVendor'),
-            customerIdVendor: resolveString('customerIdVendor'),
-            orderIdVendor: resolveString('orderIdVendor'),
-            productNameRaw: resolveString('productNameRaw'),
-            partNumberRaw: resolveString('partNumberRaw'),
-            vendorNameRaw: resolveString('vendorNameRaw'),
-            distributorNameRaw: resolveString('distributorNameRaw'),
-            locationId: resolveString('locationId'),
-            customerPurchaseOrder: resolveString('customerPurchaseOrder'),
+            lineNumber: lineNumberValue,
+            paymentDate: paymentDateValue ?? resolvedDepositDate,
             usage: usageValue,
             usageAllocated: 0,
             usageUnallocated: usageValue ?? 0,
@@ -355,6 +381,51 @@ export async function POST(request: NextRequest) {
             commissionRate: commissionRateValue,
             vendorAccountId,
           }
+
+          for (const [targetId] of Object.entries(mappingConfig.targets ?? {})) {
+            const target = fieldCatalogIndex.get(targetId)
+            if (!target || target.persistence !== "depositLineItemColumn" || !target.columnName) continue
+            if (
+              ["usage", "commission", "commissionRate", "lineNumber", "paymentDate"].includes(target.columnName)
+            ) {
+              continue
+            }
+            const indexValue = columnIndex[targetId]
+            if (indexValue === undefined) continue
+            const parsedValue = parseValueByType(target.dataType, row[indexValue])
+            if (parsedValue === null || parsedValue === undefined) continue
+            lineItem[target.columnName] = parsedValue
+          }
+
+          for (const [targetId] of Object.entries(mappingConfig.targets ?? {})) {
+            const target = fieldCatalogIndex.get(targetId)
+            if (!target || target.persistence !== "metadata" || !target.metadataPath) continue
+            const indexValue = columnIndex[targetId]
+            if (indexValue === undefined) continue
+            const parsedValue = parseValueByType(target.dataType, row[indexValue])
+            if (parsedValue === null || parsedValue === undefined) continue
+            setMetadataValue(metadata, target.metadataPath, parsedValue)
+          }
+
+          for (const [customKey, indexValue] of Object.entries(customColumnIndex)) {
+            const rawValue = row[indexValue]
+            const parsedValue = normalizeString(rawValue)
+            if (!parsedValue) continue
+            const definition = mappingConfig.customFields?.[customKey]
+            const customBucket = isPlainObject(metadata["custom"]) ? (metadata["custom"] as Record<string, unknown>) : {}
+            customBucket[customKey] = {
+              label: definition?.label ?? customKey,
+              section: definition?.section ?? "additional",
+              value: parsedValue,
+            }
+            metadata["custom"] = customBucket
+          }
+
+          if (Object.keys(metadata).length > 0) {
+            lineItem.metadata = metadata
+          }
+
+          return lineItem
         })
         .filter(Boolean) as any[]
 
@@ -386,7 +457,7 @@ export async function POST(request: NextRequest) {
         const importFilters: Prisma.InputJsonValue = {
           distributorAccountId,
           vendorAccountId,
-          mapping: mappingPayload as Prisma.InputJsonValue,
+          mapping: mappingConfig as unknown as Prisma.InputJsonValue,
           commissionPeriod: commissionPeriodInput || null,
           reconciliationTemplateId: selectedTemplate?.id ?? reconciliationTemplateId,
           saveTemplateMapping,
