@@ -33,7 +33,6 @@ export default function DepositReconciliationDetailPage() {
   const [candidatesError, setCandidatesError] = useState<string | null>(null)
   const [detailRefresh, setDetailRefresh] = useState(0)
   const [candidatesRefresh, setCandidatesRefresh] = useState(0)
-  const [finalizeLoading, setFinalizeLoading] = useState(false)
   const [unfinalizeLoading, setUnfinalizeLoading] = useState(false)
   const [finalizeError, setFinalizeError] = useState<string | null>(null)
   const [includeFutureSchedules, setIncludeFutureSchedules] = useState(false)
@@ -183,31 +182,6 @@ export default function DepositReconciliationDetailPage() {
     setCandidatesRefresh(previous => previous + 1)
   }, [])
 
-  const handleFinalizeDeposit = useCallback(async () => {
-    if (!depositParam) return
-    setFinalizeLoading(true)
-    setFinalizeError(null)
-    try {
-      const response = await fetch(
-        `/api/reconciliation/deposits/${encodeURIComponent(depositParam)}/finalize`,
-        {
-          method: "POST",
-          cache: "no-store",
-        },
-      )
-      const payload = await response.json().catch(() => null)
-      if (!response.ok) {
-        throw new Error(payload?.error || "Unable to finalize deposit")
-      }
-      setDetailRefresh(previous => previous + 1)
-    } catch (err) {
-      console.error("Finalize deposit failed", err)
-      setFinalizeError(err instanceof Error ? err.message : "Unable to finalize deposit")
-    } finally {
-      setFinalizeLoading(false)
-    }
-  }, [depositParam])
-
   const handleUnfinalizeDeposit = useCallback(async () => {
     if (!depositParam) return
     setFinalizeError(null)
@@ -257,8 +231,9 @@ export default function DepositReconciliationDetailPage() {
         onRunAutoMatch={
           depositParam ? () => router.push(`/reconciliation/${depositParam}/ai-matching`) : undefined
         }
-        onFinalizeDeposit={handleFinalizeDeposit}
-        finalizeLoading={finalizeLoading}
+        onOpenFinalizeDepositReview={
+          depositParam ? () => router.push(`/reconciliation/${depositParam}/finalize`) : undefined
+        }
         onUnfinalizeDeposit={handleUnfinalizeDeposit}
         unfinalizeLoading={unfinalizeLoading}
         includeFutureSchedules={includeFutureSchedules}

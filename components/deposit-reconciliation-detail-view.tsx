@@ -12,6 +12,7 @@ import type { DepositLineItemRow, SuggestedMatchScheduleRow } from "@/lib/mock-d
 import { useAuth } from "@/lib/auth-context"
 import { useToasts } from "./toast"
 import { TabDescription } from "@/components/section/TabDescription"
+import { DepositReconciliationTopSection } from "./deposit-reconciliation-top-section"
 import { ColumnChooserModal } from "./column-chooser-modal"
 import { TwoStageDeleteDialog } from "./two-stage-delete-dialog"
 import { ModalHeader } from "./ui/modal-header"
@@ -107,6 +108,11 @@ type AllocationDraft = {
 
 type LineTabKey = DepositLineStatusFilterValue
 type ScheduleTabKey = ReconciliationScheduleFilterValue
+
+function formatPercent(fraction: number) {
+  if (!Number.isFinite(fraction) || fraction <= 0) return "0%"
+  return `${Math.round(fraction * 100)}%`
+}
 
 const depositFieldLabels = {
   accountId: "Other - Account ID",
@@ -340,6 +346,7 @@ interface DepositReconciliationDetailViewProps {
   onRunAutoMatch?: () => void
   autoMatchLoading?: boolean
   autoMatchSummary?: AutoMatchSummary | null
+  onOpenFinalizeDepositReview?: () => void
   onFinalizeDeposit?: () => void
   finalizeLoading?: boolean
   onUnfinalizeDeposit?: () => void
@@ -350,28 +357,54 @@ interface DepositReconciliationDetailViewProps {
   onBackToReconciliation?: () => void
 }
 
+const inlineFieldLabelClass =
+  "text-[11px] font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap flex items-center"
+const inlineValueBoxBaseClass =
+  "flex min-h-[28px] w-full items-center border-b-2 border-gray-300 bg-transparent pl-[3px] pr-0 py-1 text-[11px] text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis"
+
 interface InlineStatRowProps {
   label: string
   value: ReactNode
   valueTitle?: string
-  valueClassName?: string
+  align?: "left" | "right"
+  valueBoxClassName?: string
   labelClassName?: string
 }
 
-function InlineStatRow({ label, value, valueTitle, valueClassName, labelClassName }: InlineStatRowProps) {
-  return (
-    <div className="grid grid-cols-[auto_minmax(0,1fr)] items-baseline gap-x-3">
-      <p className={cn("text-xs font-medium text-slate-700", labelClassName)}>{label}</p>
-      <p title={valueTitle} className={cn("truncate text-xs font-semibold text-slate-900", valueClassName)}>
+function InlineStatRow({
+  label,
+  value,
+  valueTitle,
+  align = "right",
+  valueBoxClassName,
+  labelClassName,
+}: InlineStatRowProps) {
+  const displayValue =
+    typeof value === "string" ? (
+      <span
+        className={cn("block w-full truncate", align === "right" ? "text-right tabular-nums" : "text-left")}
+        title={valueTitle ?? value}
+      >
         {value}
-      </p>
+      </span>
+    ) : (
+      value
+    )
+
+  return (
+    <div className="grid items-center gap-3 grid-cols-[minmax(0,160px)_minmax(0,1fr)]">
+      <span className={cn(inlineFieldLabelClass, labelClassName)}>{label}</span>
+      <div
+        className={cn(
+          inlineValueBoxBaseClass,
+          align === "right" ? "justify-end" : "justify-start",
+          valueBoxClassName,
+        )}
+      >
+        {displayValue}
+      </div>
     </div>
   )
-}
-
-function formatPercent(fraction: number) {
-  if (!Number.isFinite(fraction) || fraction <= 0) return "0%"
-  return `${Math.round(fraction * 100)}%`
 }
 
 export function DepositReconciliationDetailView({
@@ -389,6 +422,7 @@ export function DepositReconciliationDetailView({
   onRunAutoMatch,
   autoMatchLoading = false,
   autoMatchSummary = null,
+  onOpenFinalizeDepositReview,
   onFinalizeDeposit,
   finalizeLoading = false,
   onUnfinalizeDeposit,
@@ -2902,11 +2936,72 @@ export function DepositReconciliationDetailView({
         </div>
       ) : null}
       {showDevControls ? renderDevMatchingControls() : null}
-      <div className="-mx-3 border-b border-purple-200 bg-purple-100 px-3 py-2 sm:-mx-4 sm:px-4">
+      <DepositReconciliationTopSection
+        metadata={metadata}
+        lineItems={lineItemRows}
+        autoMatchSummary={autoMatchSummary}
+        actions={
+          <>
+            {onBackToReconciliation ? (
+              <button
+                type="button"
+                onClick={onBackToReconciliation}
+                className="inline-flex items-center rounded border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
+              >
+                ← Back
+              </button>
+            ) : null}
+            {devMatchingControls && devMatchingControls.includeFutureSchedules !== undefined ? (
+              <div className="group relative inline-flex items-center" role="tooltip">
+                <label className="flex cursor-pointer items-center gap-1.5 rounded border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 transition hover:bg-slate-50">
+                  <input
+                    type="checkbox"
+                    className="h-3.5 w-3.5 rounded border-slate-400 text-primary-600 accent-primary-600"
+                    checked={devMatchingControls.includeFutureSchedules}
+                    onChange={event => devMatchingControls.onIncludeFutureSchedulesChange(event.target.checked)}
+                    aria-label="Include Future-Dated Schedules"
+                  />
+                  <span>Include Future</span>
+                </label>
+                <div className="pointer-events-none absolute bottom-full left-0 mb-2 rounded-lg bg-slate-900 px-3 py-2 text-xs font-medium text-white opacity-0 transition-opacity duration-200 group-hover:opacity-100 whitespace-normal w-56 z-50 shadow-lg">
+                  By default, the system only matches against revenue schedules dated on or before the current month. Future-dated schedules are excluded unless toggled here.
+                </div>
+              </div>
+            ) : null}
+            {onUnfinalizeDeposit ? (
+              <button
+                type="button"
+                onClick={() => setShowUnreconcilePreview(true)}
+                disabled={unfinalizeLoading}
+                className={cn(
+                  "inline-flex items-center justify-center rounded border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50",
+                  unfinalizeLoading ? "cursor-not-allowed opacity-60" : "",
+                )}
+              >
+                {unfinalizeLoading ? "Reopening..." : "Reopen Deposit"}
+              </button>
+            ) : null}
+            {onOpenFinalizeDepositReview ? (
+              <button
+                type="button"
+                onClick={onOpenFinalizeDepositReview}
+                disabled={metadata.reconciled}
+                className={cn(
+                  "inline-flex items-center justify-center rounded bg-primary-600 px-2.5 py-1 text-xs font-semibold text-white shadow-sm transition hover:bg-primary-700",
+                  metadata.reconciled ? "cursor-not-allowed opacity-60" : "",
+                )}
+              >
+                Finalize Deposit
+              </button>
+            ) : null}
+          </>
+        }
+      />
+      {false ? (<div className="-mx-3 border-b border-blue-100 bg-blue-50 px-3 py-2 sm:-mx-4 sm:px-4">
         {/* Row 1: Title + Status + Buttons */}
         <div className="flex items-center justify-between pb-2 mb-2">
           <div className="flex items-center gap-2">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-purple-900">Deposit Reconciliation</p>
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-primary-600">Deposit Reconciliation</p>
             <span
               className={cn(
                 "inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset",
@@ -2980,61 +3075,35 @@ export function DepositReconciliationDetailView({
               label="Deposit Name"
               value={metadata.depositName}
               valueTitle={metadata.depositName}
-              labelClassName="font-semibold text-slate-800"
-              valueClassName="text-left"
+              align="left"
             />
-            <InlineStatRow label="Date" value={formattedDate} valueTitle={formattedDate} valueClassName="text-left" />
+            <InlineStatRow label="Date" value={formattedDate} valueTitle={formattedDate} align="left" />
             <InlineStatRow
               label="Payment Type"
               value={metadata.paymentType || "-"}
               valueTitle={metadata.paymentType || "-"}
-              valueClassName="text-left"
+              align="left"
             />
           </div>
 
           <div className="space-y-1.5">
-            <InlineStatRow
-              label="Deposit Total"
-              value={currencyFormatter.format(metadata.usageTotal)}
-              valueClassName="text-right tabular-nums"
-            />
-            <InlineStatRow
-              label="Allocated to Schedules"
-              value={currencyFormatter.format(metadata.allocated)}
-              valueClassName="text-right tabular-nums"
-            />
-            <InlineStatRow
-              label="Remaining"
-              value={currencyFormatter.format(metadata.unallocated)}
-              valueClassName="text-right tabular-nums"
-            />
+            <InlineStatRow label="Deposit Total" value={currencyFormatter.format(metadata.usageTotal)} />
+            <InlineStatRow label="Allocated to Schedules" value={currencyFormatter.format(metadata.allocated)} />
+            <InlineStatRow label="Remaining" value={currencyFormatter.format(metadata.unallocated)} />
           </div>
 
           <div className="space-y-1.5">
-            <InlineStatRow
-              label="Commission Total"
-              value={currencyFormatter.format(commissionTotals.total)}
-              valueClassName="text-right tabular-nums"
-            />
-            <InlineStatRow
-              label="Commission Allocated"
-              value={currencyFormatter.format(commissionTotals.allocated)}
-              valueClassName="text-right tabular-nums"
-            />
-            <InlineStatRow
-              label="Remaining"
-              value={currencyFormatter.format(commissionTotals.unallocated)}
-              valueClassName="text-right tabular-nums"
-            />
+            <InlineStatRow label="Commission Total" value={currencyFormatter.format(commissionTotals.total)} />
+            <InlineStatRow label="Commission Allocated" value={currencyFormatter.format(commissionTotals.allocated)} />
+            <InlineStatRow label="Remaining" value={currencyFormatter.format(commissionTotals.unallocated)} />
           </div>
 
           <div className="space-y-1.5">
-            <InlineStatRow label="Deposit Line Items" value={lineItemRows.length} valueClassName="text-right tabular-nums" />
-            <InlineStatRow label="Items Matched" value={matchedLineItemCount} valueClassName="text-right tabular-nums" />
+            <InlineStatRow label="Deposit Line Items" value={String(lineItemRows.length)} />
+            <InlineStatRow label="Items Matched" value={String(matchedLineItemCount)} />
             <InlineStatRow
               label="Remaining"
-              value={Math.max(0, lineItemRows.length - matchedLineItemCount)}
-              valueClassName="text-right tabular-nums"
+              value={String(Math.max(0, lineItemRows.length - matchedLineItemCount))}
             />
           </div>
         </div>
@@ -3056,7 +3125,7 @@ export function DepositReconciliationDetailView({
             {autoMatchSummary.errors > 0 ? <> {" - "}Errors: {autoMatchSummary.errors}</> : null}
           </div>
         ) : null}
-      </div>
+      </div>) : null}
 
     {showFinalizePreview ? (
       <div
@@ -3123,6 +3192,119 @@ export function DepositReconciliationDetailView({
                 )}
       </div>
     </div>
+
+    {showUnreconcilePreview ? (
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50"
+        onClick={() => setShowUnreconcilePreview(false)}
+      >
+        <div
+          className="w-full max-w-5xl rounded-2xl bg-white shadow-xl"
+          style={{ width: "1024px", height: "900px" }}
+          onClick={event => event.stopPropagation()}
+        >
+          <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900">Review finalized items</h2>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowUnreconcilePreview(false)}
+              className="text-sm text-slate-500 hover:text-slate-700"
+            >
+              Close
+            </button>
+          </div>
+          <div className="grid gap-4 px-6 py-5 md:grid-cols-2">
+            <div className="rounded-lg border border-slate-200">
+              <div className="border-b border-slate-200 px-4 py-2 text-sm font-semibold text-slate-800">
+                Finalized Line Items ({matchedLineItems.length})
+              </div>
+              <div className="max-h-64 overflow-y-auto">
+                {matchedLineItems.length ? (
+                  <table className="min-w-full divide-y divide-slate-200 text-sm">
+                    <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      <tr>
+                        <th className="px-3 py-2 text-left">Line</th>
+                        <th className="px-3 py-2 text-left">Account</th>
+                        <th className="px-3 py-2 text-left">Product</th>
+                        <th className="px-3 py-2 text-left">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {matchedLineItems.map(item => (
+                        <tr key={item.id}>
+                          <td className="px-3 py-2 text-slate-900">{item.lineItem}</td>
+                          <td className="px-3 py-2 text-slate-700">{item.accountName}</td>
+                          <td className="px-3 py-2 text-slate-700">{item.productName}</td>
+                          <td className="px-3 py-2 text-slate-700">{item.reconciled ? "Reconciled" : item.status}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  <div className="p-4 text-xs text-slate-500">No reconciled line items.</div>
+                )}
+              </div>
+            </div>
+            <div className="rounded-lg border border-slate-200">
+              <div className="border-b border-slate-200 px-4 py-2 text-sm font-semibold text-slate-800">
+                Finalized Revenue Schedules ({matchedSchedules.length})
+              </div>
+              <div className="max-h-64 overflow-y-auto">
+                {matchedSchedules.length ? (
+                  <table className="min-w-full divide-y divide-slate-200 text-sm">
+                    <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      <tr>
+                        <th className="px-3 py-2 text-left">Schedule</th>
+                        <th className="px-3 py-2 text-left">Account</th>
+                        <th className="px-3 py-2 text-left">Product</th>
+                        <th className="px-3 py-2 text-left">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {matchedSchedules.map(schedule => (
+                        <tr key={schedule.id}>
+                          <td className="px-3 py-2 text-slate-900">{schedule.revenueScheduleName}</td>
+                          <td className="px-3 py-2 text-slate-700">{schedule.legalName}</td>
+                          <td className="px-3 py-2 text-slate-700">{schedule.productNameVendor}</td>
+                          <td className="px-3 py-2 text-slate-700">{schedule.status}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  <div className="p-4 text-xs text-slate-500">No reconciled schedules.</div>
+                )}
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center justify-end gap-3 border-t border-slate-200 px-6 py-4">
+            <button
+              type="button"
+              onClick={() => setShowUnreconcilePreview(false)}
+              className="rounded border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed"
+              disabled={unfinalizeLoading}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setShowUnreconcilePreview(false)
+                onUnfinalizeDeposit?.()
+              }}
+              disabled={unfinalizeLoading}
+              className={cn(
+                "rounded bg-primary-600 px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-60",
+              )}
+            >
+              {unfinalizeLoading ? "Reopening..." : "Reopen Deposit"}
+            </button>
+          </div>
+        </div>
+      </div>
+    ) : null}
 
     {showUnreconcilePreview ? (
       <div
