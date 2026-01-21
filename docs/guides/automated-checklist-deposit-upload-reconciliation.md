@@ -25,11 +25,14 @@ Goal: validate behavior **without manual browser review** using runnable tests, 
 
 ## Baseline runnable checks (repo-wide) (Runnable now)
 
-- [ ] **AUTO-RUN-01** Run unit tests: `npm test`
+- [x] **AUTO-RUN-01** Run unit tests: `npm test`
+  - Latest run: PASS — see `docs/guides/automated-checklist-results-deposit-upload-reconciliation-2026-01-21T08-36-22.md`
   - Expected: all tests in `tests/*.test.ts` pass.
-- [ ] **AUTO-RUN-02** Run lint: `npm run lint`
+- [x] **AUTO-RUN-02** Run lint: `npm run lint`
+  - Latest run: FAIL — see `docs/guides/automated-checklist-results-deposit-upload-reconciliation-2026-01-21T08-36-22.md`
   - Expected: lint passes (or failures are understood and tracked).
-- [ ] **AUTO-RUN-03** (Optional) Build: `npm run build`
+- [x] **AUTO-RUN-03** (Optional) Build: `npm run build`
+  - Latest run: FAIL — see `docs/guides/automated-checklist-results-deposit-upload-reconciliation-2026-01-21T08-36-22.md`
   - Expected: build succeeds.
 
 Note: as of the latest automated run in this repo, `npm run lint` / `npm run build` fail due to `react/no-unescaped-entities` at `components/deposit-upload/map-fields-step.tsx:1065`.
@@ -40,7 +43,7 @@ Note: as of the latest automated run in this repo, `npm run lint` / `npm run bui
 
 ## Where it lives (routes + implementation)
 
-- [ ] **DU-AUTO-01 (Runnable now)** Static route presence check
+- [x] **DU-AUTO-01 (Runnable now)** Static route presence check
   - Method: verify the following files exist:
     - `app/(dashboard)/reconciliation/deposit-upload-list/page.tsx`
     - `app/api/reconciliation/deposits/import/route.ts`
@@ -54,39 +57,39 @@ Note: as of the latest automated run in this repo, `npm run lint` / `npm run bui
 
 ## Workflow > 3) Map fields (column-to-field mapping)
 
-- [ ] **DU-AUTO-03 (Runnable now)** Field suggestion heuristics
+- [x] **DU-AUTO-03 (Runnable now)** Field suggestion heuristics
   - Method: run existing tests:
     - `tests/deposit-upload-field-suggestions.test.ts`
   - Expected: suggestions behave consistently for common header names.
 
-- [ ] **DU-AUTO-04 (Runnable now)** Header resolution / ambiguity
+- [x] **DU-AUTO-04 (Runnable now)** Header resolution / ambiguity
   - Method: run existing tests:
     - `tests/deposit-upload-resolve-header.test.ts`
   - Expected: ambiguous/missing headers are detected and return a stable error shape.
 
-- [ ] **DU-AUTO-05 (Runnable now)** Template auto-seeding match logic
+- [x] **DU-AUTO-05 (Runnable now)** Template auto-seeding match logic
   - Method: run existing tests:
     - `tests/deposit-upload-template-matching.test.ts`
   - Expected: Telarus template matcher returns expected mapping for known vendor/distributor pairs.
 
-- [ ] **DU-AUTO-06 (Runnable now)** Mapping config roundtrip
+- [x] **DU-AUTO-06 (Runnable now)** Mapping config roundtrip
   - Method: run existing tests:
     - `tests/deposit-import-template-mapping.test.ts`
   - Expected: mapping config roundtrips, normalizes invalid config, and enforces 1:1 canonical mapping.
 
 ## What gets created (server behavior) > File parsing
 
-- [ ] **DU-AUTO-07 (Runnable now)** CSV parsing contract tests
+- [x] **DU-AUTO-07 (Runnable now)** CSV parsing contract tests
   - Method: run existing tests:
     - `tests/deposit-import-parse-csv.test.ts`
   - Expected: empty/no-header inputs reject; returned `{ headers, rows }` is correct and stable.
 
-- [ ] **DU-AUTO-08 (Runnable now)** Excel parsing contract tests
+- [x] **DU-AUTO-08 (Runnable now)** Excel parsing contract tests
   - Method: run existing tests:
     - `tests/deposit-import-parse-xlsx.test.ts` (generates XLSX in-memory)
   - Expected: header row is used; rows are parsed and normalized.
 
-- [ ] **DU-AUTO-09 (Runnable now)** Unsupported file type rejection
+- [x] **DU-AUTO-09 (Runnable now)** Unsupported file type rejection
   - Method: run existing tests:
     - `tests/deposit-import-parse-unsupported.test.ts`
   - Expected: consistent "unsupported file type" error.
@@ -134,7 +137,7 @@ These are implemented as integration tests against a disposable Postgres DB and 
 
 ## Settings that affect reconciliation
 
-- [ ] **REC-AUTO-01 (Runnable now)** Flex decision logic unit tests
+- [x] **REC-AUTO-01 (Runnable now)** Flex decision logic unit tests
   - Method: run existing test `tests/revenue-schedule-flex-decision.test.ts`
   - Expected: tolerance/overage logic remains stable and explainable.
 

@@ -1062,7 +1062,9 @@ export function MapFieldsStep({
           <AlertTriangle className="h-4 w-4 mt-0.5" />
           <div>
             <p className="font-semibold">Unmapped required fields</p>
-            <p className="text-xs">Map either "Actual Usage" or "Actual Commission" before continuing.</p>
+            <p className="text-xs">
+              Map either &quot;Actual Usage&quot; or &quot;Actual Commission&quot; before continuing.
+            </p>
           </div>
         </div>
       ) : null}

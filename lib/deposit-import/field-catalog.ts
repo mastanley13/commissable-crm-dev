@@ -350,14 +350,6 @@ const productTargets: DepositImportFieldTarget[] = [
     metadataPath: ["product", "partNumberVendor"],
   },
   {
-    id: "product.partNumberDistributor",
-    label: "Distributor - Part Number",
-    entity: "product",
-    dataType: "string",
-    persistence: "metadata",
-    metadataPath: ["product", "partNumberDistributor"],
-  },
-  {
     id: "product.productFamilyVendor",
     label: "Other - Product Family",
     entity: "product",
