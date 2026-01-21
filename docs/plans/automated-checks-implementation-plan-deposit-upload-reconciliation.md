@@ -88,47 +88,47 @@ Legend:
 | ID | Implement | Runnable | CI | Suggested file(s) | Notes / dependencies |
 |---|---|---|---|---|---|
 | DU-AUTO-06 | [x] | [x] | [ ] | `tests/deposit-import-template-mapping.test.ts` | Unit tests for `lib/deposit-import/template-mapping.ts` roundtrip + constraints (runs in `npm test`). |
-| DU-AUTO-07 | [ ] | [ ] | [ ] | `tests/deposit-import-parse-csv.test.ts` | Contract tests for `lib/deposit-import/parse-file.ts` CSV path. Add CSV fixtures. |
-| DU-AUTO-08 | [ ] | [ ] | [ ] | `tests/deposit-import-parse-xlsx.test.ts` | Add `tests/fixtures/deposit-import/*.xlsx` and validate normalization/date handling. |
-| DU-AUTO-09 | [ ] | [ ] | [ ] | `tests/deposit-import-parse-unsupported.test.ts` | Assert consistent “unsupported file type” error. |
-| DU-AUTO-10 | [ ] | [ ] | [ ] | `tests/integration/deposit-import-required-mappings.test.ts` | Needs integration DB + ability to call `POST /api/reconciliation/deposits/import`. |
-| DU-AUTO-11 | [ ] | [ ] | [ ] | `tests/integration/deposit-import-missing-headers.test.ts` | Validate ambiguous/missing mapped column errors. |
-| DU-AUTO-12 | [ ] | [ ] | [ ] | `tests/integration/deposit-import-commission-only.test.ts` | Validate commission-only row behavior in DB. |
-| DU-AUTO-13 | [ ] | [ ] | [ ] | `tests/integration/deposit-import-payment-date.test.ts` | Excel serial date + ISO date strings + fallback rules. |
-| DU-AUTO-14 | [ ] | [ ] | [ ] | `tests/integration/deposit-import-idempotency.test.ts` | Requires known idempotency storage mechanism + assertions. |
-| DU-AUTO-15 | [ ] | [ ] | [ ] | `tests/integration/deposit-import-template-persistence.test.ts` | Requires knowing where templates are stored and the toggle source (tenant/user setting). |
+| DU-AUTO-07 | [x] | [x] | [ ] | `tests/deposit-import-parse-csv.test.ts` | Runnable via `npm test`. |
+| DU-AUTO-08 | [x] | [x] | [ ] | `tests/deposit-import-parse-xlsx.test.ts` | Runnable via `npm test` (generates XLSX in-memory). |
+| DU-AUTO-09 | [x] | [x] | [ ] | `tests/deposit-import-parse-unsupported.test.ts` | Runnable via `npm test`. |
+| DU-AUTO-10 | [x] | [x] | [ ] | `tests/integration-deposit-import-route.test.ts` | Requires `RUN_INTEGRATION_TESTS=1` and `TEST_DATABASE_URL`. |
+| DU-AUTO-11 | [x] | [x] | [ ] | `tests/integration-deposit-import-route.test.ts` | Requires `RUN_INTEGRATION_TESTS=1` and `TEST_DATABASE_URL`. |
+| DU-AUTO-12 | [x] | [x] | [ ] | `tests/integration-deposit-import-route.test.ts` | Requires `RUN_INTEGRATION_TESTS=1` and `TEST_DATABASE_URL`. |
+| DU-AUTO-13 | [x] | [x] | [ ] | `tests/integration-deposit-import-route.test.ts` | Requires `RUN_INTEGRATION_TESTS=1` and `TEST_DATABASE_URL`. |
+| DU-AUTO-14 | [x] | [x] | [ ] | `tests/integration-deposit-import-route.test.ts` | Requires `RUN_INTEGRATION_TESTS=1` and `TEST_DATABASE_URL`. |
+| DU-AUTO-15 | [x] | [x] | [ ] | `tests/integration-deposit-import-route.test.ts` | Requires `RUN_INTEGRATION_TESTS=1` and `TEST_DATABASE_URL`. |
 
 ### Reconciliation (To implement)
 
 | ID | Implement | Runnable | CI | Suggested file(s) | Notes / dependencies |
 |---|---|---|---|---|---|
-| REC-AUTO-02 | [ ] | [ ] | [ ] | `tests/integration/reconciliation-settings.test.ts` | Requires settings API endpoints + permission enforcement. |
-| REC-AUTO-03 | [ ] | [ ] | [ ] | `tests/integration/reconciliation-list-filtering.test.ts` | Deposit list filtering/pagination/sort contract. |
-| REC-AUTO-04 | [ ] | [ ] | [ ] | `tests/integration/reconciliation-deposit-detail-shape.test.ts` | Detail endpoint returns stable metadata + line item shapes. |
-| REC-AUTO-05 | [ ] | [ ] | [ ] | `tests/integration/reconciliation-candidates-engine-modes.test.ts` | Candidate generation honors include-future + engine mode. |
-| REC-AUTO-06 | [ ] | [ ] | [ ] | `tests/integration/reconciliation-candidates-confidence.test.ts` | Confidence threshold filtering. |
-| REC-AUTO-07 | [ ] | [ ] | [ ] | `tests/integration/reconciliation-apply-match-allocation-math.test.ts` | DB assertions on allocations, totals, rounding. |
-| REC-AUTO-08 | [ ] | [ ] | [ ] | `tests/integration/reconciliation-unmatch-resets.test.ts` | Unmatch clears allocations + recomputes schedule/deposit aggregates. |
-| REC-AUTO-09 | [ ] | [ ] | [ ] | `tests/integration/reconciliation-flex-auto-adjust.test.ts` | Overages within tolerance auto-adjust path. |
-| REC-AUTO-10 | [ ] | [ ] | [ ] | `tests/integration/reconciliation-flex-prompt.test.ts` | Overages above tolerance returns `flexDecision` prompt shape. |
-| REC-AUTO-11 | [ ] | [ ] | [ ] | `tests/integration/reconciliation-negative-line-chargeback.test.ts` | Negative line triggers chargeback pending + Suggested match + flex review enqueue. |
-| REC-AUTO-12 | [ ] | [ ] | [ ] | `tests/integration/reconciliation-resolve-flex.test.ts` | Resolve-flex API for Adjust/FlexProduct/Manual + optional apply-to-future. |
-| REC-AUTO-13 | [ ] | [ ] | [ ] | `tests/integration/reconciliation-ai-adjustment-preview.test.ts` | Preview returns recommendation + scope + future schedule list. |
-| REC-AUTO-14 | [ ] | [ ] | [ ] | `tests/integration/reconciliation-ai-adjustment-apply.test.ts` | Apply updates current (+ optional future) schedules; asserts returned IDs. |
-| REC-AUTO-15 | [ ] | [ ] | [ ] | `tests/integration/reconciliation-auto-match-preview.test.ts` | Preview respects threshold and candidate ordering. |
-| REC-AUTO-16 | [ ] | [ ] | [ ] | `tests/integration/reconciliation-auto-match-apply.test.ts` | Apply persists matches with `source: Auto` + recompute invariants. |
-| REC-AUTO-17 | [ ] | [ ] | [ ] | `tests/integration/reconciliation-finalize-blocks-open-lines.test.ts` | Finalize blocks when Unmatched/Suggested lines exist. |
-| REC-AUTO-18 | [ ] | [ ] | [ ] | `tests/integration/reconciliation-finalize-flags.test.ts` | Finalize sets `reconciled` flags/timestamps across deposit/lines/matches. |
-| REC-AUTO-19 | [ ] | [ ] | [ ] | `tests/integration/reconciliation-unfinalize.test.ts` | Unfinalize clears flags + recomputes schedules. |
-| REC-AUTO-20 | [ ] | [ ] | [ ] | `tests/integration/reconciliation-finalize-regression-completed-vs-reconciled.test.ts` | Regression: `status==="Completed"` but `reconciled=false` should be handled explicitly. |
+| REC-AUTO-02 | [x] | [x] | [ ] | `tests/integration-reconciliation-settings.test.ts` | Requires `RUN_INTEGRATION_TESTS=1` and `TEST_DATABASE_URL`. |
+| REC-AUTO-03 | [x] | [x] | [ ] | `tests/integration-reconciliation-deposits.test.ts` | Requires `RUN_INTEGRATION_TESTS=1` and `TEST_DATABASE_URL`. |
+| REC-AUTO-04 | [x] | [x] | [ ] | `tests/integration-reconciliation-deposits.test.ts` | Requires `RUN_INTEGRATION_TESTS=1` and `TEST_DATABASE_URL`. |
+| REC-AUTO-05 | [x] | [x] | [ ] | `tests/integration-reconciliation-candidates.test.ts` | Requires `RUN_INTEGRATION_TESTS=1` and `TEST_DATABASE_URL`. |
+| REC-AUTO-06 | [x] | [x] | [ ] | `tests/integration-reconciliation-candidates.test.ts` | Requires `RUN_INTEGRATION_TESTS=1` and `TEST_DATABASE_URL`. |
+| REC-AUTO-07 | [x] | [x] | [ ] | `tests/integration-reconciliation-match-flow.test.ts` | Requires `RUN_INTEGRATION_TESTS=1` and `TEST_DATABASE_URL`. |
+| REC-AUTO-08 | [x] | [x] | [ ] | `tests/integration-reconciliation-match-flow.test.ts` | Requires `RUN_INTEGRATION_TESTS=1` and `TEST_DATABASE_URL`. |
+| REC-AUTO-09 | [x] | [x] | [ ] | `tests/integration-reconciliation-variance-flex.test.ts` | Requires `RUN_INTEGRATION_TESTS=1` and `TEST_DATABASE_URL`. |
+| REC-AUTO-10 | [x] | [x] | [ ] | `tests/integration-reconciliation-variance-flex.test.ts` | Requires `RUN_INTEGRATION_TESTS=1` and `TEST_DATABASE_URL`. |
+| REC-AUTO-11 | [x] | [x] | [ ] | `tests/integration-reconciliation-variance-flex.test.ts` | Requires `RUN_INTEGRATION_TESTS=1` and `TEST_DATABASE_URL`. |
+| REC-AUTO-12 | [x] | [x] | [ ] | `tests/integration-reconciliation-variance-flex.test.ts` | Requires `RUN_INTEGRATION_TESTS=1` and `TEST_DATABASE_URL`. |
+| REC-AUTO-13 | [x] | [x] | [ ] | `tests/integration-reconciliation-ai-adjustment.test.ts` | Requires `RUN_INTEGRATION_TESTS=1` and `TEST_DATABASE_URL`. |
+| REC-AUTO-14 | [x] | [x] | [ ] | `tests/integration-reconciliation-ai-adjustment.test.ts` | Requires `RUN_INTEGRATION_TESTS=1` and `TEST_DATABASE_URL`. |
+| REC-AUTO-15 | [x] | [x] | [ ] | `tests/integration-reconciliation-auto-match.test.ts` | Requires `RUN_INTEGRATION_TESTS=1` and `TEST_DATABASE_URL`. |
+| REC-AUTO-16 | [x] | [x] | [ ] | `tests/integration-reconciliation-auto-match.test.ts` | Requires `RUN_INTEGRATION_TESTS=1` and `TEST_DATABASE_URL`. |
+| REC-AUTO-17 | [x] | [x] | [ ] | `tests/integration-reconciliation-match-flow.test.ts` | Requires `RUN_INTEGRATION_TESTS=1` and `TEST_DATABASE_URL`. |
+| REC-AUTO-18 | [x] | [x] | [ ] | `tests/integration-reconciliation-match-flow.test.ts` | Requires `RUN_INTEGRATION_TESTS=1` and `TEST_DATABASE_URL`. |
+| REC-AUTO-19 | [x] | [x] | [ ] | `tests/integration-reconciliation-match-flow.test.ts` | Requires `RUN_INTEGRATION_TESTS=1` and `TEST_DATABASE_URL`. |
+| REC-AUTO-20 | [x] | [x] | [ ] | `tests/integration-reconciliation-finalize-regression.test.ts` | Requires `RUN_INTEGRATION_TESTS=1` and `TEST_DATABASE_URL`. |
 
 ### Flex review (To implement)
 
 | ID | Implement | Runnable | CI | Suggested file(s) | Notes / dependencies |
 |---|---|---|---|---|---|
-| FLEX-AUTO-01 | [ ] | [ ] | [ ] | `tests/integration/flex-review-queue.test.ts` | `GET /api/flex-review` contract + sort + permission gating. |
-| FLEX-AUTO-02 | [ ] | [ ] | [ ] | `tests/integration/flex-review-assign.test.ts` | `POST /api/flex-review/[itemId]/assign` persistence + RBAC. |
-| FLEX-AUTO-03 | [ ] | [ ] | [ ] | `tests/integration/flex-review-approve-and-apply.test.ts` | Approve/apply updates source deposit/matches + recomputes aggregates. |
+| FLEX-AUTO-01 | [x] | [x] | [ ] | `tests/integration-flex-review.test.ts` | Requires `RUN_INTEGRATION_TESTS=1` and `TEST_DATABASE_URL`. |
+| FLEX-AUTO-02 | [x] | [x] | [ ] | `tests/integration-flex-review.test.ts` | Requires `RUN_INTEGRATION_TESTS=1` and `TEST_DATABASE_URL`. |
+| FLEX-AUTO-03 | [x] | [x] | [ ] | `tests/integration-flex-review.test.ts` | Requires `RUN_INTEGRATION_TESTS=1` and `TEST_DATABASE_URL`. |
 
 ### AI verification mode
 
