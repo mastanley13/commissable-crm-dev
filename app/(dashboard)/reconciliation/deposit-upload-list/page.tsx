@@ -9,20 +9,21 @@ import { ReviewStep } from '@/components/deposit-upload/review-step'
 import { ConfirmStep } from '@/components/deposit-upload/confirm-step'
 import type { DepositUploadFormState } from '@/components/deposit-upload/types'
 import { parseSpreadsheetFile } from '@/lib/deposit-import/parse-file'
-import { depositFieldDefinitions, requiredDepositFieldIds } from '@/lib/deposit-import/fields'
+import { DEPOSIT_IMPORT_TARGET_IDS, type DepositImportFieldTarget } from '@/lib/deposit-import/field-catalog'
 import {
-  createEmptyDepositMapping,
-  seedDepositMapping,
-  setColumnSelection,
-  createCustomFieldForColumn,
-  extractDepositMappingFromTemplateConfig,
-  type DepositMappingConfigV1,
-  type DepositColumnSelection,
-  type DepositCustomFieldSection,
-} from '@/lib/deposit-import/template-mapping'
+  createEmptyDepositMappingV2,
+  seedDepositMappingV2,
+  setColumnSelectionV2,
+  createCustomFieldForColumnV2,
+  extractDepositMappingV2FromTemplateConfig,
+  getMappedTargets,
+  type DepositMappingConfigV2,
+  type DepositColumnSelectionV2,
+} from '@/lib/deposit-import/template-mapping-v2'
+import type { DepositCustomFieldSection } from '@/lib/deposit-import/template-mapping'
 import {
   extractTelarusTemplateFieldsFromTemplateConfig,
-  stripTelarusGeneratedCustomFields,
+  stripTelarusGeneratedCustomFieldsV2,
   type TelarusTemplateFieldsV1,
 } from '@/lib/deposit-import/telarus-template-fields'
 
@@ -67,8 +68,10 @@ export default function DepositUploadListPage() {
   const [columnHasValuesByIndex, setColumnHasValuesByIndex] = useState<boolean[]>([])
   const [parsedRowCount, setParsedRowCount] = useState(0)
   const [parsingError, setParsingError] = useState<string | null>(null)
-  const [mapping, setMapping] = useState<DepositMappingConfigV1>(() => createEmptyDepositMapping())
-  const [templateMapping, setTemplateMapping] = useState<DepositMappingConfigV1 | null>(null)
+  const [fieldCatalog, setFieldCatalog] = useState<DepositImportFieldTarget[]>([])
+  const [fieldCatalogError, setFieldCatalogError] = useState<string | null>(null)
+  const [mapping, setMapping] = useState<DepositMappingConfigV2>(() => createEmptyDepositMappingV2())
+  const [templateMapping, setTemplateMapping] = useState<DepositMappingConfigV2 | null>(null)
   const [templateFields, setTemplateFields] = useState<TelarusTemplateFieldsV1 | null>(null)
   const [validationIssues, setValidationIssues] = useState<string[]>([])
   const [importSummary, setImportSummary] = useState<{ totalRows: number; mappedFields: number } | null>(null)
@@ -76,7 +79,7 @@ export default function DepositUploadListPage() {
   const [importError, setImportError] = useState<string | null>(null)
   const [importResult, setImportResult] = useState<{ depositId: string } | null>(null)
   const [idempotencyKey, setIdempotencyKey] = useState<string>(() => generateIdempotencyKey())
-  const mappingHistoryRef = useRef<DepositMappingConfigV1[]>([])
+  const mappingHistoryRef = useRef<DepositMappingConfigV2[]>([])
   const [canUndo, setCanUndo] = useState(false)
 
   useEffect(() => {
@@ -90,6 +93,31 @@ export default function DepositUploadListPage() {
     }
   }, [setBreadcrumbs])
 
+  useEffect(() => {
+    let cancelled = false
+    const loadCatalog = async () => {
+      setFieldCatalogError(null)
+      try {
+        const response = await fetch('/api/reconciliation/deposits/import-field-catalog', { cache: 'no-store' })
+        if (!response.ok) {
+          throw new Error('Unable to load deposit import field list.')
+        }
+        const payload = await response.json().catch(() => null)
+        if (cancelled) return
+        const catalog = Array.isArray(payload?.data) ? payload.data : []
+        setFieldCatalog(catalog)
+      } catch (error) {
+        if (cancelled) return
+        console.error('Failed to load deposit import field catalog', error)
+        setFieldCatalogError(error instanceof Error ? error.message : 'Unable to load deposit import fields.')
+      }
+    }
+    void loadCatalog()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   const updateFormState = useCallback((updates: Partial<DepositUploadFormState>) => {
     setFormState(previous => ({ ...previous, ...updates }))
   }, [])
@@ -98,7 +126,7 @@ export default function DepositUploadListPage() {
     const file = event.target.files?.[0] ?? null
     setSelectedFile(file)
     setIdempotencyKey(generateIdempotencyKey())
-    setMapping(createEmptyDepositMapping())
+    setMapping(createEmptyDepositMappingV2())
     setTemplateMapping(null)
     setTemplateFields(null)
     setCsvHeaders([])
@@ -145,7 +173,7 @@ export default function DepositUploadListPage() {
         mappingHistoryRef.current = []
         setCanUndo(false)
 
-        let templateMapping: DepositMappingConfigV1 | null = null
+        let templateMapping: DepositMappingConfigV2 | null = null
         let templateFields: TelarusTemplateFieldsV1 | null = null
         const distributorAccountId = formState.distributorAccountId?.trim() ?? ''
         const vendorAccountId = formState.vendorAccountId?.trim() ?? ''
@@ -160,7 +188,7 @@ export default function DepositUploadListPage() {
               const payload = await response.json().catch(() => null)
               const rawConfig = payload?.data?.config
               if (rawConfig) {
-                templateMapping = stripTelarusGeneratedCustomFields(extractDepositMappingFromTemplateConfig(rawConfig))
+                templateMapping = stripTelarusGeneratedCustomFieldsV2(extractDepositMappingV2FromTemplateConfig(rawConfig))
                 templateFields = extractTelarusTemplateFieldsFromTemplateConfig(rawConfig)
               }
             } else {
@@ -174,7 +202,7 @@ export default function DepositUploadListPage() {
 
         setTemplateMapping(templateMapping)
         setTemplateFields(templateFields)
-        setMapping(seedDepositMapping({ headers, templateMapping }))
+        setMapping(seedDepositMappingV2({ headers, templateMapping }))
         setFormState(previous => {
           if (previous.saveTemplateMapping) return previous
           const defaultSave = Boolean(previous.templateId) && !templateMapping
@@ -187,7 +215,7 @@ export default function DepositUploadListPage() {
         setSampleRows([])
         setParsedRowCount(0)
         setParsingError(error instanceof Error ? error.message : 'Unable to read file')
-        setMapping(createEmptyDepositMapping())
+        setMapping(createEmptyDepositMappingV2())
         setTemplateMapping(null)
         setTemplateFields(null)
         mappingHistoryRef.current = []
@@ -201,23 +229,12 @@ export default function DepositUploadListPage() {
   }, [selectedFile, formState.distributorAccountId, formState.vendorAccountId, formState.templateId])
 
   useEffect(() => {
-    const canonicalFieldMapping: Record<string, string> = Object.entries(mapping.line ?? {}).reduce(
-      (acc, [fieldId, columnName]) => {
-        if (typeof columnName === 'string' && columnName.trim()) {
-          acc[fieldId] = columnName
-        }
-        return acc
-      },
-      {} as Record<string, string>,
-    )
-
     const issues: string[] = []
-    requiredDepositFieldIds.forEach(fieldId => {
-      if (!canonicalFieldMapping[fieldId]) {
-        const label = depositFieldDefinitions.find(field => field.id === fieldId)?.label ?? fieldId
-        issues.push(`Map the "${label}" field`)
-      }
-    })
+    const hasUsage = Boolean(mapping.targets?.[DEPOSIT_IMPORT_TARGET_IDS.usage])
+    const hasCommission = Boolean(mapping.targets?.[DEPOSIT_IMPORT_TARGET_IDS.commission])
+    if (!hasUsage && !hasCommission) {
+      issues.push('Map either "Usage Amount" or "Commission Amount".')
+    }
     if (!selectedFile) {
       issues.push('Select a CSV or Excel file to continue.')
     }
@@ -230,9 +247,9 @@ export default function DepositUploadListPage() {
     setValidationIssues(issues)
   }, [mapping, selectedFile, parsingError, parsedRowCount])
 
-  const handleColumnSelectionChange = useCallback((columnName: string, selection: DepositColumnSelection) => {
+  const handleColumnSelectionChange = useCallback((columnName: string, selection: DepositColumnSelectionV2) => {
     setMapping(previous => {
-      const next = setColumnSelection(previous, columnName, selection)
+      const next = setColumnSelectionV2(previous, columnName, selection)
       if (next !== previous) {
         mappingHistoryRef.current = [...mappingHistoryRef.current.slice(-49), previous]
         setCanUndo(true)
@@ -244,7 +261,7 @@ export default function DepositUploadListPage() {
   const handleCreateCustomFieldForColumn = useCallback(
     (columnName: string, input: { label: string; section: DepositCustomFieldSection }) => {
       setMapping(previous => {
-        const result = createCustomFieldForColumn(previous, columnName, input)
+        const result = createCustomFieldForColumnV2(previous, columnName, input)
         const next = result.nextMapping
         if (next !== previous) {
           mappingHistoryRef.current = [...mappingHistoryRef.current.slice(-49), previous]
@@ -291,20 +308,13 @@ export default function DepositUploadListPage() {
     setFormState(previous => (previous.depositName === generated ? previous : { ...previous, depositName: generated }))
   }, [depositReceivedDate, distributorLabel, vendorLabel])
 
-  const canonicalFieldMapping: Record<string, string> = Object.entries(mapping.line ?? {}).reduce(
-    (acc, [fieldId, columnName]) => {
-      if (typeof columnName === 'string' && columnName.trim()) {
-        acc[fieldId] = columnName
-      }
-      return acc
-    },
-    {} as Record<string, string>,
-  )
+  const mappedTargetSummary = getMappedTargets(mapping, fieldCatalog)
+  const mappedTargetCount = Object.keys(mapping.targets ?? {}).length
 
   const handleProceedFromReview = () => {
     setImportSummary({
       totalRows: parsedRowCount,
-      mappedFields: Object.keys(canonicalFieldMapping).length,
+      mappedFields: mappedTargetCount,
     })
     goToConfirm()
   }
@@ -365,7 +375,9 @@ export default function DepositUploadListPage() {
     setActiveStep('review')
   }
 
-  const requiredFieldsComplete = requiredDepositFieldIds.every(fieldId => Boolean(canonicalFieldMapping[fieldId]))
+  const requiredFieldsComplete =
+    Boolean(mapping.targets?.[DEPOSIT_IMPORT_TARGET_IDS.usage]) ||
+    Boolean(mapping.targets?.[DEPOSIT_IMPORT_TARGET_IDS.commission])
   const canProceedFromMapFields = requiredFieldsComplete && Boolean(csvHeaders.length) && !parsingError
   const canProceedFromCreateTemplate = Boolean(
     formState.depositReceivedDate &&
@@ -480,6 +492,8 @@ export default function DepositUploadListPage() {
                 csvHeaders={csvHeaders}
                 sampleRows={sampleRows}
                 columnHasValuesByIndex={columnHasValuesByIndex}
+                fieldCatalog={fieldCatalog}
+                fieldCatalogError={fieldCatalogError}
                 mapping={mapping}
                 templateMapping={templateMapping}
                 templateFields={templateFields}
@@ -496,7 +510,7 @@ export default function DepositUploadListPage() {
             <ReviewStep
               csvHeaders={csvHeaders}
               sampleRows={sampleRows}
-              fieldMapping={canonicalFieldMapping}
+              fieldMapping={mappedTargetSummary}
               validationIssues={validationIssues}
               onBack={goToMapFields}
               onProceed={handleProceedFromReview}

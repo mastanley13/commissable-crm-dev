@@ -1,19 +1,23 @@
 import { NextRequest, NextResponse } from "next/server"
-import { AuditAction, DataEntity, ImportExportSource, JobStatus } from "@prisma/client"
+import { AuditAction, DataEntity, FieldModule, ImportExportSource, JobStatus } from "@prisma/client"
 import type { Prisma } from "@prisma/client"
 import { withPermissions, createErrorResponse } from "@/lib/api-auth"
 import { prisma } from "@/lib/db"
 import { parseSpreadsheetFile } from "@/lib/deposit-import/parse-file"
-import { depositFieldDefinitions, requiredDepositFieldIds } from "@/lib/deposit-import/fields"
+import {
+  buildDepositImportFieldCatalog,
+  buildDepositImportFieldCatalogIndex,
+  DEPOSIT_IMPORT_TARGET_IDS,
+  LEGACY_FIELD_ID_TO_TARGET_ID,
+} from "@/lib/deposit-import/field-catalog"
 import { getClientIP, getUserAgent, logAudit } from "@/lib/audit"
 import { resolveSpreadsheetHeader } from "@/lib/deposit-import/resolve-header"
 import {
-  createEmptyDepositMapping,
-  extractDepositMappingFromTemplateConfig,
-  serializeDepositMappingForTemplate,
-  type DepositMappingConfigV1,
-  type DepositFieldId,
-} from "@/lib/deposit-import/template-mapping"
+  convertDepositMappingV1ToV2,
+  extractDepositMappingV2FromTemplateConfig,
+  serializeDepositMappingForTemplateV2,
+  type DepositMappingConfigV2,
+} from "@/lib/deposit-import/template-mapping-v2"
 
 function startOfMonth(date: Date) {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1))
@@ -58,6 +62,43 @@ function parseDateValue(value: string | undefined, fallback?: Date) {
   return Number.isNaN(parsed.getTime()) ? fallback ?? null : parsed
 }
 
+function parseBoolean(value: string | undefined) {
+  if (!value) return null
+  const normalized = value.trim().toLowerCase()
+  if (!normalized) return null
+  if (["true", "yes", "1", "y"].includes(normalized)) return true
+  if (["false", "no", "0", "n"].includes(normalized)) return false
+  return null
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value)
+}
+
+function parseValueByType(dataType: string, value: string | undefined, fallbackDate?: Date) {
+  if (dataType === "number") return normalizeNumber(value)
+  if (dataType === "date") return parseDateValue(value, fallbackDate)
+  if (dataType === "boolean") return parseBoolean(value)
+  return normalizeString(value)
+}
+
+function setMetadataValue(
+  metadata: Record<string, unknown>,
+  path: string[],
+  value: unknown,
+) {
+  if (!path.length) return
+  let cursor: Record<string, unknown> = metadata
+  for (let index = 0; index < path.length - 1; index += 1) {
+    const key = path[index]
+    if (!isPlainObject(cursor[key])) {
+      cursor[key] = {}
+    }
+    cursor = cursor[key] as Record<string, unknown>
+  }
+  cursor[path[path.length - 1]] = value
+}
+
 function buildColumnIndex(headers: string[], mapping: Record<string, string>) {
   const columnIndex: Record<string, number> = {}
   for (const [fieldId, columnName] of Object.entries(mapping)) {
@@ -75,6 +116,16 @@ function buildColumnIndex(headers: string[], mapping: Record<string, string>) {
     columnIndex[fieldId] = resolved.index
   }
   return columnIndex
+}
+
+function findFirstNonEmptyValue(rows: string[][], columnIndex: number) {
+  for (const row of rows) {
+    const raw = row[columnIndex]
+    if (raw === undefined || raw === null) continue
+    const value = String(raw).trim()
+    if (value.length > 0) return value
+  }
+  return null
 }
 
 export async function POST(request: NextRequest) {
@@ -120,52 +171,55 @@ export async function POST(request: NextRequest) {
       return createErrorResponse("Invalid mapping payload", 400)
     }
 
-    // Support both the original flat { fieldId: columnName } mapping and the richer
-    // DepositMappingConfigV1 shape used by the new UI.
-    let canonicalMapping: Record<string, string> = {}
-    let mappingConfigForTemplate: DepositMappingConfigV1 | null = null
+    // Support both the original flat { fieldId: columnName } mapping and the v1/v2 configs.
+    let mappingConfig: DepositMappingConfigV2 | null = null
+    let mappingConfigForTemplate: DepositMappingConfigV2 | null = null
 
-    if (mappingPayload && typeof mappingPayload === "object" && !Array.isArray(mappingPayload)) {
+    if (mappingPayload && isPlainObject(mappingPayload)) {
       const candidate = mappingPayload as Record<string, unknown>
-      if (
-        typeof candidate["version"] === "number" &&
-        candidate["version"] === 1 &&
-        candidate["line"] &&
-        typeof candidate["line"] === "object"
-      ) {
-        const extracted = extractDepositMappingFromTemplateConfig({ depositMapping: mappingPayload })
-        mappingConfigForTemplate = extracted
-        canonicalMapping = Object.entries(extracted.line ?? {}).reduce((acc, [fieldId, columnName]) => {
-          if (typeof columnName === "string" && columnName.trim()) {
-            acc[fieldId] = columnName.trim()
-          }
-          return acc
-        }, {} as Record<string, string>)
+      if (typeof candidate["version"] === "number" && (candidate["version"] === 1 || candidate["version"] === 2)) {
+        mappingConfig = extractDepositMappingV2FromTemplateConfig({ depositMapping: mappingPayload })
+        mappingConfigForTemplate = mappingConfig
       } else {
-        canonicalMapping = Object.entries(candidate).reduce((acc, [fieldId, columnName]) => {
-          if (typeof columnName === "string" && columnName.trim()) {
-            acc[fieldId] = columnName.trim()
-          }
-          return acc
-        }, {} as Record<string, string>)
-
-        const base = createEmptyDepositMapping()
-        const line: Partial<Record<DepositFieldId, string>> = {}
-        for (const [fieldId, columnName] of Object.entries(canonicalMapping)) {
-          const normalizedFieldId = String(fieldId)
-          if (!depositFieldDefinitions.some(field => field.id === normalizedFieldId)) continue
-          line[normalizedFieldId as DepositFieldId] = columnName
+        const targets: Record<string, string> = {}
+        for (const [fieldId, columnName] of Object.entries(candidate)) {
+          if (typeof columnName !== "string" || !columnName.trim()) continue
+          const targetId = LEGACY_FIELD_ID_TO_TARGET_ID[fieldId]
+          if (!targetId) continue
+          targets[targetId] = columnName.trim()
         }
-        mappingConfigForTemplate = { ...base, line }
+        if (Object.keys(targets).length > 0) {
+          mappingConfig = {
+            version: 2,
+            targets,
+            columns: {},
+            customFields: {},
+          }
+          mappingConfigForTemplate = mappingConfig
+        }
       }
     }
 
-    const missingMappings = requiredDepositFieldIds.filter(fieldId => !canonicalMapping[fieldId])
-    if (missingMappings.length > 0) {
-      const missingLabels = missingMappings
-        .map(fieldId => depositFieldDefinitions.find(field => field.id === fieldId)?.label ?? fieldId)
-        .join(", ")
-      return createErrorResponse(`Missing mapping for required fields: ${missingLabels}`, 400)
+    if (!mappingConfig) {
+      return createErrorResponse("Field mapping is required", 400)
+    }
+
+    const hasUsage = Boolean(mappingConfig.targets?.[DEPOSIT_IMPORT_TARGET_IDS.usage])
+    const hasCommission = Boolean(mappingConfig.targets?.[DEPOSIT_IMPORT_TARGET_IDS.commission])
+    if (!hasUsage && !hasCommission) {
+      return createErrorResponse('Missing mapping for required fields: Usage Amount or Commission Amount', 400)
+    }
+
+    const opportunityFields = await prisma.fieldDefinition.findMany({
+      where: { tenantId, module: FieldModule.Opportunities },
+      select: { fieldCode: true, label: true, dataType: true },
+      orderBy: { displayOrder: "asc" },
+    })
+    const fieldCatalog = buildDepositImportFieldCatalog({ opportunityFieldDefinitions: opportunityFields })
+    const fieldCatalogIndex = buildDepositImportFieldCatalogIndex(fieldCatalog)
+    const unknownTargets = Object.keys(mappingConfig.targets ?? {}).filter(targetId => !fieldCatalogIndex.has(targetId))
+    if (unknownTargets.length > 0) {
+      return createErrorResponse(`Unknown mapping targets: ${unknownTargets.join(", ")}`, 400)
     }
 
     const depositDate = paymentDateInput ? new Date(paymentDateInput) : new Date()
@@ -202,14 +256,23 @@ export async function POST(request: NextRequest) {
     }
 
     let columnIndex: Record<string, number>
+    let customColumnIndex: Record<string, number> = {}
     try {
-      columnIndex = buildColumnIndex(parsedFile.headers, canonicalMapping)
+      columnIndex = buildColumnIndex(parsedFile.headers, mappingConfig.targets ?? {})
+      const customMapping: Record<string, string> = {}
+      for (const [columnName, config] of Object.entries(mappingConfig.columns ?? {})) {
+        if (config?.mode !== "custom" || !config.customKey) continue
+        customMapping[config.customKey] = columnName
+      }
+      if (Object.keys(customMapping).length > 0) {
+        customColumnIndex = buildColumnIndex(parsedFile.headers, customMapping)
+      }
     } catch (error) {
       return createErrorResponse(error instanceof Error ? error.message : "Mapping failed", 400)
     }
 
     const templateConfigToPersist: Prisma.InputJsonValue | null = mappingConfigForTemplate
-      ? (serializeDepositMappingForTemplate(mappingConfigForTemplate) as unknown as Prisma.InputJsonValue)
+      ? (serializeDepositMappingForTemplateV2(mappingConfigForTemplate) as unknown as Prisma.InputJsonValue)
       : null
 
     const selectedTemplate = reconciliationTemplateId

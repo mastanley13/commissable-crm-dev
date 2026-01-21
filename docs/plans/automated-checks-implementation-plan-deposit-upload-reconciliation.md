@@ -87,7 +87,7 @@ Legend:
 
 | ID | Implement | Runnable | CI | Suggested file(s) | Notes / dependencies |
 |---|---|---|---|---|---|
-| DU-AUTO-06 | [ ] | [ ] | [ ] | `tests/deposit-import-template-mapping.test.ts` | Unit tests for `lib/deposit-import/template-mapping.ts` roundtrip + constraints. |
+| DU-AUTO-06 | [x] | [x] | [ ] | `tests/deposit-import-template-mapping.test.ts` | Unit tests for `lib/deposit-import/template-mapping.ts` roundtrip + constraints (runs in `npm test`). |
 | DU-AUTO-07 | [ ] | [ ] | [ ] | `tests/deposit-import-parse-csv.test.ts` | Contract tests for `lib/deposit-import/parse-file.ts` CSV path. Add CSV fixtures. |
 | DU-AUTO-08 | [ ] | [ ] | [ ] | `tests/deposit-import-parse-xlsx.test.ts` | Add `tests/fixtures/deposit-import/*.xlsx` and validate normalization/date handling. |
 | DU-AUTO-09 | [ ] | [ ] | [ ] | `tests/deposit-import-parse-unsupported.test.ts` | Assert consistent “unsupported file type” error. |
@@ -156,4 +156,3 @@ Current `npm run build` fails with:
 - `components/deposit-reconciliation-detail-view.tsx:3025:37` — `'devMatchingControls' is possibly 'undefined'.`
 
 If CI requires `next build`, this will need to be resolved to get green pipelines even after adding tests.
-

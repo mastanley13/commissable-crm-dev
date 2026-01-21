@@ -1,4 +1,5 @@
 import type { DepositMappingConfigV1 } from "./template-mapping"
+import type { DepositMappingConfigV2 } from "./template-mapping-v2"
 
 export type TelarusTemplateFieldBlock = "common" | "template"
 
@@ -89,3 +90,26 @@ export function stripTelarusGeneratedCustomFields(mapping: DepositMappingConfigV
   return next
 }
 
+export function stripTelarusGeneratedCustomFieldsV2(mapping: DepositMappingConfigV2): DepositMappingConfigV2 {
+  const telarusKeys = Object.keys(mapping.customFields ?? {}).filter(key => key.startsWith("cf_telarus_"))
+  if (telarusKeys.length === 0) return mapping
+
+  const next: DepositMappingConfigV2 = {
+    ...mapping,
+    targets: { ...(mapping.targets ?? {}) },
+    columns: { ...(mapping.columns ?? {}) },
+    customFields: { ...(mapping.customFields ?? {}) },
+  }
+
+  for (const key of telarusKeys) {
+    delete next.customFields[key]
+  }
+
+  for (const [columnName, config] of Object.entries(next.columns)) {
+    if (config?.mode !== "custom") continue
+    if (!config.customKey || !config.customKey.startsWith("cf_telarus_")) continue
+    delete next.columns[columnName]
+  }
+
+  return next
+}

@@ -3,15 +3,19 @@
 import { useEffect, useState } from "react"
 import { FileSpreadsheet, AlertTriangle, ChevronLeft, ChevronRight, ChevronDown, Check } from "lucide-react"
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu"
-import { depositFieldDefinitions, requiredDepositFieldIds } from "@/lib/deposit-import/fields"
+import {
+  DEPOSIT_IMPORT_TARGET_IDS,
+  LEGACY_FIELD_ID_TO_TARGET_ID,
+  type DepositImportFieldTarget,
+} from "@/lib/deposit-import/field-catalog"
 import { suggestDepositFieldMatches } from "@/lib/deposit-import/field-suggestions"
 import { normalizeKey } from "@/lib/deposit-import/normalize"
 import {
-  getColumnSelection,
-  type DepositMappingConfigV1,
-  type DepositColumnSelection,
-  type DepositCustomFieldSection,
-} from "@/lib/deposit-import/template-mapping"
+  getColumnSelectionV2,
+  type DepositMappingConfigV2,
+  type DepositColumnSelectionV2,
+} from "@/lib/deposit-import/template-mapping-v2"
+import type { DepositCustomFieldSection } from "@/lib/deposit-import/template-mapping"
 import type { TelarusTemplateFieldsV1 } from "@/lib/deposit-import/telarus-template-fields"
 
 const PREVIEW_PAGE_SIZE = 1
@@ -24,14 +28,16 @@ interface MapFieldsStepProps {
   csvHeaders: string[]
   sampleRows: string[][]
   columnHasValuesByIndex?: boolean[]
-  mapping: DepositMappingConfigV1
-  templateMapping: DepositMappingConfigV1 | null
+  fieldCatalog: DepositImportFieldTarget[]
+  fieldCatalogError?: string | null
+  mapping: DepositMappingConfigV2
+  templateMapping: DepositMappingConfigV2 | null
   templateFields: TelarusTemplateFieldsV1 | null
   templateLabel?: string
   saveTemplateMapping?: boolean
   onSaveTemplateMappingChange?: (value: boolean) => void
   parsingError: string | null
-  onColumnSelectionChange: (columnName: string, selection: DepositColumnSelection) => void
+  onColumnSelectionChange: (columnName: string, selection: DepositColumnSelectionV2) => void
   onCreateCustomField: (columnName: string, input: { label: string; section: DepositCustomFieldSection }) => void
 }
 
@@ -40,6 +46,8 @@ export function MapFieldsStep({
   csvHeaders,
   sampleRows,
   columnHasValuesByIndex,
+  fieldCatalog,
+  fieldCatalogError,
   mapping,
   templateMapping,
   templateFields,
@@ -90,22 +98,34 @@ export function MapFieldsStep({
         ? `Row ${windowStart + 1} of ${totalPreviewRows}`
         : `Rows ${windowStart + 1}-${windowEndExclusive} of ${totalPreviewRows}`
 
-  const canonicalFieldMapping: Record<string, string> = Object.entries(mapping.line ?? {}).reduce(
-    (acc, [fieldId, columnName]) => {
-      if (typeof columnName === "string" && columnName.trim()) {
-        acc[fieldId] = columnName
-      }
-      return acc
-    },
-    {} as Record<string, string>,
-  )
-
-  const missingRequired = requiredDepositFieldIds.filter(fieldId => !canonicalFieldMapping[fieldId])
+  const fieldCatalogById = new Map(fieldCatalog.map(target => [target.id, target]))
+  const requiredTargetIds = new Set([DEPOSIT_IMPORT_TARGET_IDS.usage, DEPOSIT_IMPORT_TARGET_IDS.commission])
+  const hasUsage = Boolean(mapping.targets?.[DEPOSIT_IMPORT_TARGET_IDS.usage])
+  const hasCommission = Boolean(mapping.targets?.[DEPOSIT_IMPORT_TARGET_IDS.commission])
+  const missingRequired = !hasUsage && !hasCommission
+  const fieldTargetsByEntity = [
+    { id: "depositLineItem", label: "Deposit Line Item Fields" },
+    { id: "deposit", label: "Deposit Fields" },
+    { id: "opportunity", label: "Opportunity Fields" },
+    { id: "product", label: "Product Fields" },
+    { id: "matching", label: "Matching Fields" },
+  ]
+    .map(group => ({
+      ...group,
+      targets: fieldCatalog
+        .filter(target => target.entity === group.id)
+        .sort((a, b) => a.label.localeCompare(b.label)),
+    }))
+    .filter(group => group.targets.length > 0)
 
   const columnRows = csvHeaders.map((header, index) => ({ header, index }))
-  const bestFieldSuggestionByIndex = csvHeaders.map(
-    header => suggestDepositFieldMatches(header, { limit: 1 })[0] ?? null,
-  )
+  const bestFieldSuggestionByIndex = csvHeaders.map(header => {
+    const suggestion = suggestDepositFieldMatches(header, { limit: 1 })[0] ?? null
+    if (!suggestion) return null
+    const targetId = LEGACY_FIELD_ID_TO_TARGET_ID[suggestion.fieldId]
+    if (!targetId) return null
+    return { ...suggestion, targetId }
+  })
 
   const normalizedHeaderLookup = new Map<string, string>()
   for (const header of csvHeaders) {
@@ -126,7 +146,7 @@ export function MapFieldsStep({
 
   const templateColumnCandidates = new Set<string>()
   if (templateMapping) {
-    for (const columnName of Object.values(templateMapping.line ?? {})) {
+    for (const columnName of Object.values(templateMapping.targets ?? {})) {
       if (typeof columnName === "string" && columnName.trim()) {
         templateColumnCandidates.add(columnName)
       }
@@ -136,9 +156,14 @@ export function MapFieldsStep({
     }
   }
 
-  const CORE_TEMPLATE_FIELDS = ["accountNameRaw", "usage", "commission", "vendorNameRaw"] as const
-  for (const fieldId of CORE_TEMPLATE_FIELDS) {
-    const columnName = canonicalFieldMapping[fieldId]
+  const CORE_TEMPLATE_TARGETS = [
+    LEGACY_FIELD_ID_TO_TARGET_ID.accountNameRaw,
+    DEPOSIT_IMPORT_TARGET_IDS.usage,
+    DEPOSIT_IMPORT_TARGET_IDS.commission,
+    LEGACY_FIELD_ID_TO_TARGET_ID.vendorNameRaw,
+  ].filter(Boolean)
+  for (const targetId of CORE_TEMPLATE_TARGETS) {
+    const columnName = mapping.targets?.[targetId]
     if (typeof columnName === "string" && columnName.trim()) {
       templateColumnCandidates.add(columnName)
     }
@@ -171,7 +196,7 @@ export function MapFieldsStep({
   }
 
   const excludeRows = nonTemplateRows.filter(row => {
-    const selection = getColumnSelection(mapping, row.header)
+    const selection = getColumnSelectionV2(mapping, row.header)
     const bestSuggestion = bestFieldSuggestionByIndex[row.index]
     const hasSuggestion = Boolean(bestSuggestion)
 
@@ -236,7 +261,7 @@ export function MapFieldsStep({
           <div>Field label in file</div>
           <div>Preview information</div>
           <div>Status</div>
-          <div>Map to Commissable field</div>
+          <div>Map to import field</div>
         </div>
 
         {rows.length === 0 ? (
@@ -248,20 +273,20 @@ export function MapFieldsStep({
               const previewValues = previewWindow
                 .map(row => row[index] ?? "")
                 .filter(value => typeof value === "string" && value.trim().length > 0)
-              const selection = getColumnSelection(mapping, header)
+              const selection = getColumnSelectionV2(mapping, header)
               const customDefinition =
                 selection.type === "custom" ? mapping.customFields[selection.customKey] : undefined
+              const selectedTarget =
+                selection.type === "target" ? fieldCatalogById.get(selection.targetId) : undefined
 
               const selectedLabel =
-                selection.type === "canonical"
-                  ? depositFieldDefinitions.find(field => field.id === selection.fieldId)?.label ?? "Mapped field"
+                selection.type === "target"
+                  ? selectedTarget?.label ?? "Mapped field"
                   : selection.type === "custom"
                     ? customDefinition?.label ?? "Custom field"
-                    : selection.type === "product"
-                      ? "Product info column"
-                      : selection.type === "ignore"
-                        ? "Ignore this column"
-                        : "Additional info (no specific field)"
+                    : selection.type === "ignore"
+                      ? "Ignore this column"
+                      : "Additional info (no specific field)"
 
               const draftKey = `${index}:${header}`
               const draft = customDrafts[draftKey] ?? { label: header?.trim() ?? "", section: "additional" as const }
@@ -271,7 +296,7 @@ export function MapFieldsStep({
                 setOpenDropdownKey(previous => (previous === draftKey ? null : previous))
               }
 
-              const applySelection = (next: DepositColumnSelection) => {
+              const applySelection = (next: DepositColumnSelectionV2) => {
                 onColumnSelectionChange(header, next)
                 closeMenu()
               }
@@ -284,17 +309,14 @@ export function MapFieldsStep({
                 closeMenu()
               }
 
-              const mappedField =
-                selection.type === "canonical"
-                  ? depositFieldDefinitions.find(field => field.id === selection.fieldId)
-                  : undefined
+              const mappedField = selection.type === "target" ? selectedTarget : undefined
 
               let statusLabel = "Unmapped"
               let statusClass = "border-gray-200 bg-gray-50 text-gray-600"
               const templateHint = templateHintByNormalizedHeader.get(normalizeKey(header))
               const bestSuggestion = bestFieldSuggestionByIndex[index]
 
-              if (selection.type === "canonical" || selection.type === "custom" || selection.type === "product") {
+              if (selection.type === "target" || selection.type === "custom") {
                 statusLabel = "Mapped"
                 statusClass = "border-emerald-300 bg-emerald-50 text-emerald-700"
               } else if (selection.type === "ignore") {
@@ -367,7 +389,7 @@ export function MapFieldsStep({
 
                   <div className="flex flex-col justify-center gap-2">
                     <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 md:hidden">
-                      Map to Commissable field
+                      Map to import field
                     </p>
                     <DropdownMenu.Root
                       open={isMenuOpen}
@@ -387,7 +409,7 @@ export function MapFieldsStep({
                           type="button"
                           disabled={csvHeaders.length === 0}
                           className="inline-flex w-full items-center justify-between gap-2 rounded border border-gray-300 bg-white px-2 py-1 text-left text-sm text-gray-900 focus:border-primary-500 focus:outline-none disabled:bg-gray-100"
-                          aria-label="Map to Commissable field"
+                          aria-label="Map to import field"
                         >
                           <span className="truncate">{selectedLabel}</span>
                           <ChevronDown className="h-4 w-4 text-gray-500" />
@@ -414,7 +436,7 @@ export function MapFieldsStep({
                                     handleCreateCustomFieldInline()
                                   }
                                 }}
-                                placeholder="Type new custom field label…"
+                                placeholder="Type new custom field label"
                                 className="w-full rounded-md border border-gray-300 px-2 py-1 text-sm text-gray-900 focus:border-primary-500 focus:outline-none"
                               />
                               <div className="flex flex-wrap gap-2">
@@ -463,13 +485,6 @@ export function MapFieldsStep({
                             </DropdownMenu.Item>
                             <DropdownMenu.Item
                               className="flex cursor-pointer items-center justify-between rounded-md px-2 py-1.5 text-sm text-gray-700 outline-none transition-colors hover:bg-gray-100 focus:bg-gray-100"
-                              onSelect={() => applySelection({ type: "product" })}
-                            >
-                              <span>Product info column</span>
-                              {selection.type === "product" ? <Check className="h-4 w-4 text-primary-600" /> : null}
-                            </DropdownMenu.Item>
-                            <DropdownMenu.Item
-                              className="flex cursor-pointer items-center justify-between rounded-md px-2 py-1.5 text-sm text-gray-700 outline-none transition-colors hover:bg-gray-100 focus:bg-gray-100"
                               onSelect={() => applySelection({ type: "ignore" })}
                             >
                               <span>Do Not Map</span>
@@ -477,30 +492,34 @@ export function MapFieldsStep({
                             </DropdownMenu.Item>
 
                             <div className="my-2 border-t border-gray-100" />
-                            <p className="px-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
-                              Map to Commissable field
-                            </p>
-                            {depositFieldDefinitions.map(field => (
-                              <DropdownMenu.Item
-                                key={field.id}
-                                className="flex cursor-pointer items-center justify-between rounded-md px-2 py-1.5 text-sm text-gray-700 outline-none transition-colors hover:bg-gray-100 focus:bg-gray-100"
-                                onSelect={() => applySelection({ type: "canonical", fieldId: field.id })}
-                              >
-                                <span className="truncate">
-                                  {field.label}
-                                  {field.required ? " (Required)" : ""}
-                                </span>
-                                {selection.type === "canonical" && selection.fieldId === field.id ? (
-                                  <Check className="h-4 w-4 text-primary-600" />
-                                ) : null}
-                              </DropdownMenu.Item>
+                            {fieldTargetsByEntity.map(group => (
+                              <div key={group.id} className="mb-2">
+                                <p className="px-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                                  {group.label}
+                                </p>
+                                {group.targets.map(target => (
+                                  <DropdownMenu.Item
+                                    key={target.id}
+                                    className="flex cursor-pointer items-center justify-between rounded-md px-2 py-1.5 text-sm text-gray-700 outline-none transition-colors hover:bg-gray-100 focus:bg-gray-100"
+                                    onSelect={() => applySelection({ type: "target", targetId: target.id })}
+                                  >
+                                    <span className="truncate">
+                                      {target.label}
+                                      {requiredTargetIds.has(target.id) ? " (Required)" : ""}
+                                    </span>
+                                    {selection.type === "target" && selection.targetId === target.id ? (
+                                      <Check className="h-4 w-4 text-primary-600" />
+                                    ) : null}
+                                  </DropdownMenu.Item>
+                                ))}
+                              </div>
                             ))}
                           </div>
                         </DropdownMenu.Content>
                       </DropdownMenu.Portal>
                     </DropdownMenu.Root>
 
-                    {templateHint && !customDefinition && selection.type !== "canonical" ? (
+                    {templateHint && !customDefinition && selection.type !== "target" ? (
                       <p className="text-xs text-gray-600">
                         Template suggests: <span className="font-semibold">{templateHint}</span>.
                       </p>
@@ -600,6 +619,8 @@ export function MapFieldsStep({
               <p>{file.name}</p>
               {parsingError ? (
                 <p className="text-xs text-red-600">{parsingError}</p>
+              ) : fieldCatalogError ? (
+                <p className="text-xs text-red-600">{fieldCatalogError}</p>
               ) : csvHeaders.length === 0 ? (
                 <p className="text-xs text-gray-500">Select a CSV/XLS file with a header row to begin mapping.</p>
               ) : null}
@@ -657,6 +678,14 @@ export function MapFieldsStep({
           <div>
             <p className="font-semibold">Unable to read file</p>
             <p>{parsingError}</p>
+          </div>
+        </div>
+      ) : fieldCatalogError ? (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700 flex items-start gap-2">
+          <AlertTriangle className="h-4 w-4 mt-0.5" />
+          <div>
+            <p className="font-semibold">Unable to load field list</p>
+            <p>{fieldCatalogError}</p>
           </div>
         </div>
       ) : null}
@@ -904,7 +933,7 @@ export function MapFieldsStep({
                                       handleCreateCustomFieldInline()
                                     }
                                   }}
-                                  placeholder="Type new custom field label…"
+                                  placeholder="Type new custom field label"
                                   className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:border-primary-500 focus:outline-none"
                                 />
                                 <div className="flex items-center justify-between gap-2">
@@ -1024,18 +1053,12 @@ export function MapFieldsStep({
         </div>
       ) : null}
 
-      {missingRequired.length > 0 ? (
+      {missingRequired ? (
         <div className="rounded-xl border border-yellow-200 bg-yellow-50 p-3 text-sm text-yellow-800 flex items-start gap-2">
           <AlertTriangle className="h-4 w-4 mt-0.5" />
           <div>
             <p className="font-semibold">Unmapped required fields</p>
-            <p className="text-xs">
-              Map the following fields before continuing:{" "}
-              {missingRequired
-                .map(fieldId => depositFieldDefinitions.find(field => field.id === fieldId)?.label || fieldId)
-                .join(", ")}
-              .
-            </p>
+            <p className="text-xs">Map either "Usage Amount" or "Commission Amount" before continuing.</p>
           </div>
         </div>
       ) : null}

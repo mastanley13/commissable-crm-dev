@@ -1,6 +1,5 @@
 "use client"
 
-import { depositFieldDefinitions } from "@/lib/deposit-import/fields"
 
 interface ReviewStepProps {
   csvHeaders: string[]
@@ -28,15 +27,12 @@ export function ReviewStep({ csvHeaders, sampleRows, fieldMapping, validationIss
           <p className="mt-2 text-sm text-gray-500">Mapping is not ready yet. Return to Map Fields to complete it.</p>
         ) : (
           <ul className="mt-3 grid gap-2 text-sm text-gray-700 md:grid-cols-2">
-            {Object.entries(fieldMapping).map(([field, column]) => {
-              const label = depositFieldDefinitions.find(definition => definition.id === field)?.label ?? field
-              return (
-                <li key={field} className="rounded-lg border border-gray-200 bg-white px-3 py-2">
-                  <span className="font-semibold">{label}</span>
-                  <span className="text-gray-500"> ← {column}</span>
-                </li>
-              )
-            })}
+            {Object.entries(fieldMapping).map(([field, column]) => (
+              <li key={field} className="rounded-lg border border-gray-200 bg-white px-3 py-2">
+                <span className="font-semibold">{field}</span>
+                <span className="text-gray-500"> - {column}</span>
+              </li>
+            ))}
           </ul>
         )}
       </div>
