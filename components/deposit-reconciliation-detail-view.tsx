@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { ClipboardCheck, Eye, FileDown, Plus, Sparkles, Trash2 } from "lucide-react"
 import { DynamicTable, type Column } from "./dynamic-table"
 import { ListHeader, type ColumnFilter } from "./list-header"
@@ -350,51 +350,21 @@ interface DepositReconciliationDetailViewProps {
   onBackToReconciliation?: () => void
 }
 
-interface MetaStatProps {
+interface InlineStatRowProps {
   label: string
-  value: string
-  emphasis?: boolean
-  wrapValue?: boolean
+  value: ReactNode
+  valueTitle?: string
+  valueClassName?: string
+  labelClassName?: string
 }
 
-function MetaStat({ label, value, emphasis = false, wrapValue = false }: MetaStatProps) {
+function InlineStatRow({ label, value, valueTitle, valueClassName, labelClassName }: InlineStatRowProps) {
   return (
-    <div>
-      <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{label}</p>
-      <p
-        title={wrapValue ? undefined : value}
-        className={cn(
-          "font-semibold text-slate-900",
-          emphasis ? "text-sm" : "text-xs",
-          wrapValue ? "break-all" : "truncate"
-        )}
-      >
+    <div className="grid grid-cols-[auto_minmax(0,1fr)] items-baseline gap-x-3">
+      <p className={cn("text-xs font-medium text-slate-700", labelClassName)}>{label}</p>
+      <p title={valueTitle} className={cn("truncate text-xs font-semibold text-slate-900", valueClassName)}>
         {value}
       </p>
-    </div>
-  )
-}
-
-interface SummaryCardProps {
-  label: string
-  value: string
-  secondaryLabel?: string
-  secondaryValue?: string
-  hint?: string
-}
-
-function SummaryCard({ label, value, secondaryLabel, secondaryValue, hint }: SummaryCardProps) {
-  return (
-    <div>
-      <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{label}</p>
-      <p className="text-sm font-semibold tabular-nums text-slate-900">{value}</p>
-      {secondaryValue ? (
-        <p className="text-[10px] tabular-nums text-slate-600">
-          <span className="font-semibold text-slate-700">{secondaryValue}</span>
-          {secondaryLabel ? <span className="ml-1">{secondaryLabel}</span> : null}
-        </p>
-      ) : null}
-      {hint ? <p className="text-[10px] text-slate-500">{hint}</p> : null}
     </div>
   )
 }
@@ -773,6 +743,10 @@ export function DepositReconciliationDetailView({
       ),
     [scheduleRows],
   )
+
+  const matchedLineItemCount = useMemo(() => {
+    return lineItemRows.reduce((count, line) => count + (line.status === "Matched" ? 1 : 0), 0)
+  }, [lineItemRows])
 
   const currencyFormatter = useMemo(
     () =>
@@ -2928,11 +2902,11 @@ export function DepositReconciliationDetailView({
         </div>
       ) : null}
       {showDevControls ? renderDevMatchingControls() : null}
-      <div className="-mx-3 border-b border-blue-100 bg-blue-50 px-3 py-2 sm:-mx-4 sm:px-4">
+      <div className="-mx-3 border-b border-purple-200 bg-purple-100 px-3 py-2 sm:-mx-4 sm:px-4">
         {/* Row 1: Title + Status + Buttons */}
         <div className="flex items-center justify-between pb-2 mb-2">
           <div className="flex items-center gap-2">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-primary-600">Deposit Reconciliation</p>
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-purple-900">Deposit Reconciliation</p>
             <span
               className={cn(
                 "inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset",
@@ -2999,49 +2973,69 @@ export function DepositReconciliationDetailView({
           </div>
         </div>
 
-        {/* Row 2: Two-column grid - Left: Deposit details, Right: Totals */}
-        <div className="grid items-start gap-x-10 gap-y-3 lg:grid-cols-[minmax(0,1fr)_auto]">
-          {/* Left column: Deposit Name, Date, Created By, Payment Type */}
+        {/* Row 2: Four-column grid (inline label/value rows) */}
+        <div className="grid items-start gap-x-10 gap-y-3 md:grid-cols-2 xl:grid-cols-4">
           <div className="space-y-1.5">
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Deposit Name</p>
-              <p className="truncate text-sm font-semibold text-slate-900" title={metadata.depositName}>
-                {metadata.depositName}
-              </p>
-            </div>
-            <div className="flex flex-wrap items-start gap-x-10 gap-y-2">
-              <div className="w-40">
-                <MetaStat label="Date" value={formattedDate} />
-              </div>
-              <div className="w-52">
-                <MetaStat label="Created By" value={metadata.createdBy} />
-              </div>
-              <div className="w-40">
-                <MetaStat label="Payment Type" value={metadata.paymentType} />
-              </div>
-            </div>
+            <InlineStatRow
+              label="Deposit Name"
+              value={metadata.depositName}
+              valueTitle={metadata.depositName}
+              labelClassName="font-semibold text-slate-800"
+              valueClassName="text-left"
+            />
+            <InlineStatRow label="Date" value={formattedDate} valueTitle={formattedDate} valueClassName="text-left" />
+            <InlineStatRow
+              label="Payment Type"
+              value={metadata.paymentType || "-"}
+              valueTitle={metadata.paymentType || "-"}
+              valueClassName="text-left"
+            />
           </div>
 
-          {/* Right column: Totals in 2x2 grid */}
-          <div className="justify-self-start lg:justify-self-end">
-            <div className="grid w-fit grid-cols-2 gap-x-10 gap-y-2 sm:grid-cols-4">
-              <SummaryCard label="Usage Total" value={currencyFormatter.format(metadata.usageTotal)} />
-              <SummaryCard label="Commission Total" value={currencyFormatter.format(commissionTotals.total)} />
-              <SummaryCard
-                label="Allocated"
-                value={currencyFormatter.format(metadata.allocated)}
-                secondaryLabel="commission"
-                secondaryValue={currencyFormatter.format(commissionTotals.allocated)}
-                hint={`Usage ${formatPercent(allocationPercentages.usageAllocatedPct)} • Commission ${formatPercent(allocationPercentages.commissionAllocatedPct)}`}
-              />
-              <SummaryCard
-                label="Unallocated"
-                value={currencyFormatter.format(metadata.unallocated)}
-                secondaryLabel="commission"
-                secondaryValue={currencyFormatter.format(commissionTotals.unallocated)}
-                hint={`Usage ${formatPercent(allocationPercentages.usageUnallocatedPct)} • Commission ${formatPercent(allocationPercentages.commissionUnallocatedPct)}`}
-              />
-            </div>
+          <div className="space-y-1.5">
+            <InlineStatRow
+              label="Deposit Total"
+              value={currencyFormatter.format(metadata.usageTotal)}
+              valueClassName="text-right tabular-nums"
+            />
+            <InlineStatRow
+              label="Allocated to Schedules"
+              value={currencyFormatter.format(metadata.allocated)}
+              valueClassName="text-right tabular-nums"
+            />
+            <InlineStatRow
+              label="Remaining"
+              value={currencyFormatter.format(metadata.unallocated)}
+              valueClassName="text-right tabular-nums"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <InlineStatRow
+              label="Commission Total"
+              value={currencyFormatter.format(commissionTotals.total)}
+              valueClassName="text-right tabular-nums"
+            />
+            <InlineStatRow
+              label="Commission Allocated"
+              value={currencyFormatter.format(commissionTotals.allocated)}
+              valueClassName="text-right tabular-nums"
+            />
+            <InlineStatRow
+              label="Remaining"
+              value={currencyFormatter.format(commissionTotals.unallocated)}
+              valueClassName="text-right tabular-nums"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <InlineStatRow label="Deposit Line Items" value={lineItemRows.length} valueClassName="text-right tabular-nums" />
+            <InlineStatRow label="Items Matched" value={matchedLineItemCount} valueClassName="text-right tabular-nums" />
+            <InlineStatRow
+              label="Remaining"
+              value={Math.max(0, lineItemRows.length - matchedLineItemCount)}
+              valueClassName="text-right tabular-nums"
+            />
           </div>
         </div>
 

@@ -193,7 +193,7 @@ Stored as `SystemSetting` keys:
 - `reconciliation.includeFutureSchedulesDefault` (boolean)
 - `reconciliation.engineMode` (`hierarchical` default; `legacy` optional)
 
-UI: `/settings` → “Reconciliation Settings”
+UI: `/settings` → “Reconciliation Settings” currently exposes `varianceTolerance` (tenant) plus the user confidence thresholds. `includeFutureSchedulesDefault` and `engineMode` exist and are honored in some backend flows, but are not currently configurable from that settings form.
 
 ### User settings (per-user preferences)
 
@@ -213,6 +213,7 @@ Used to:
 - **Chargeback flows use “Suggested” status**: pending chargebacks/CB-reversals intentionally create suggested matches that require manager approval before becoming applied allocations.
 - **Auto-match vs schedule recomputation**: manual matching recomputes the affected revenue schedule immediately; auto-match focuses on applying matches and updating deposit/line aggregates (schedule recomputation is performed in other flows such as finalize/unfinalize/delete and manual actions).
 - **Delete is intentionally strict**: deposits cannot be deleted once marked `reconciled` or once their status is `Completed`.
+- **Finalize allows partially matched lines** (current behavior): the finalize API blocks only when lines are `Unmatched` or `Suggested`; lines with `PartiallyMatched` status can still be finalized/locked even if they have unallocated amounts.
 - **Finalize vs deposit status**: deposit `status` is recalculated from line allocations and can become `Completed` when all lines are matched/ignored. The finalize API currently treats `status === "Completed"` as “already finalized,” even if `reconciled` is still false.
 
 ---
