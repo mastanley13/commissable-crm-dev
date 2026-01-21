@@ -9,6 +9,8 @@
 
 ## Diff handling rules
 
+- Diffs are informational only: never auto-resolve, reformat, or "clean up" changes just because a diff exists.
+- If unexpected diffs are detected (outside allowed files), do not touch them; mention them in the final summary after completing the task.
 - When reviewing changes, only inspect diffs for allowed files; ignore all other changes as noise.
 - Prefer scoped, parse-friendly commands: `git status --porcelain`, `git diff --name-only`, `git diff -- <allowed paths>`.
 - Do not propose or apply drive-by fixes outside the request scope.

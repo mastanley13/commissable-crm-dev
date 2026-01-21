@@ -464,7 +464,7 @@ export default function FinalizeDepositReviewPage() {
       {error ? <div className="p-4 text-sm text-red-600">{error}</div> : null}
       {finalizeError ? <div className="px-4 pt-2 text-xs text-red-600">{finalizeError}</div> : null}
 
-      <div className="min-h-[calc(100vh-110px)] px-3 pb-3 pt-0 sm:px-4 flex flex-col gap-3">
+      <div className="min-h-[calc(100vh-110px)] px-3 pb-3 pt-0 sm:px-4 flex flex-col">
         {resolvedMetadata ? (
           <DepositReconciliationTopSection
             metadata={resolvedMetadata}
@@ -507,65 +507,67 @@ export default function FinalizeDepositReviewPage() {
           />
         ) : null}
 
-        <ListHeader
-          pageTitle="REVIEW MATCHES"
-          searchPlaceholder="Search matches..."
-          onSearch={setSearchQuery}
-          showStatusFilter={false}
-          showColumnFilters
-          filterColumns={filterColumnOptions}
-          columnFilters={columnFilters}
-          onColumnFiltersChange={setColumnFilters}
-          showCreateButton={false}
-          onSettingsClick={() => setShowColumnSettings(true)}
-          preSearchAccessory={
-            <div className="relative">
-              <select
-                value={sortDropdownValue}
-                onChange={event => {
-                  const value = event.target.value
-                  if (!value) {
-                    setSortConfig(null)
-                    return
-                  }
-                  const [key, direction] = value.split(":")
-                  if (!key) {
-                    setSortConfig(null)
-                    return
-                  }
-                  setSortConfig({ key, direction: direction === "asc" ? "asc" : "desc" })
-                }}
-                className="w-52 appearance-none rounded border border-gray-300 bg-white px-3 py-1.5 pr-8 text-sm outline-none transition-all focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
-                aria-label="Sort matches"
-                title="Sort"
-              >
-                {sortOptions.map(option => (
-                  <option key={option.value} value={option.value}>
-                    Sort: {option.label}
-                  </option>
-                ))}
-              </select>
-              <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-gray-400">▾</span>
-            </div>
-          }
-          compact
-        />
-
-        <div className="flex-1 min-h-0 p-0 flex flex-col gap-3">
-          <DynamicTable
-            className="flex flex-col"
-            columns={effectiveColumns}
-            data={sortedMatches}
-            onSort={(column, direction) => setSortConfig({ key: column, direction })}
-            sortConfig={sortConfig}
-            onColumnsChange={setTableColumns}
-            loading={loading}
-            emptyMessage={loading ? "Loading matches..." : "No matches to review"}
-            fillContainerWidth
-            autoSizeColumns={false}
-            preferOverflowHorizontalScroll
-            maxBodyHeight={520}
+        <div className="flex-1 min-h-0 flex flex-col">
+          <ListHeader
+            pageTitle="REVIEW MATCHES"
+            searchPlaceholder="Search matches..."
+            onSearch={setSearchQuery}
+            showStatusFilter={false}
+            showColumnFilters
+            filterColumns={filterColumnOptions}
+            columnFilters={columnFilters}
+            onColumnFiltersChange={setColumnFilters}
+            showCreateButton={false}
+            onSettingsClick={() => setShowColumnSettings(true)}
+            preSearchAccessory={
+              <div className="relative">
+                <select
+                  value={sortDropdownValue}
+                  onChange={event => {
+                    const value = event.target.value
+                    if (!value) {
+                      setSortConfig(null)
+                      return
+                    }
+                    const [key, direction] = value.split(":")
+                    if (!key) {
+                      setSortConfig(null)
+                      return
+                    }
+                    setSortConfig({ key, direction: direction === "asc" ? "asc" : "desc" })
+                  }}
+                  className="w-52 appearance-none rounded border border-gray-300 bg-white px-3 py-1.5 pr-8 text-sm outline-none transition-all focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
+                  aria-label="Sort matches"
+                  title="Sort"
+                >
+                  {sortOptions.map(option => (
+                    <option key={option.value} value={option.value}>
+                      Sort: {option.label}
+                    </option>
+                  ))}
+                </select>
+                <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-gray-400">▾</span>
+              </div>
+            }
+            compact
           />
+
+          <div className="flex-1 min-h-0 p-0">
+            <DynamicTable
+              className="flex flex-col"
+              columns={effectiveColumns}
+              data={sortedMatches}
+              onSort={(column, direction) => setSortConfig({ key: column, direction })}
+              sortConfig={sortConfig}
+              onColumnsChange={setTableColumns}
+              loading={loading}
+              emptyMessage={loading ? "Loading matches..." : "No matches to review"}
+              fillContainerWidth
+              autoSizeColumns={false}
+              preferOverflowHorizontalScroll
+              maxBodyHeight={520}
+            />
+          </div>
         </div>
 
         {hasOpenLines ? (
@@ -588,4 +590,3 @@ export default function FinalizeDepositReviewPage() {
     </CopyProtectionWrapper>
   )
 }
-

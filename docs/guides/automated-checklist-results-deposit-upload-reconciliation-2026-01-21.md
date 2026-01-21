@@ -37,7 +37,8 @@ Runs the runnable items from `docs/guides/automated-checklist-deposit-upload-rec
   - Evidence: `npm test` includes `resolveSpreadsheetHeader` tests (Subtests 5–8).
 - **DU-AUTO-05 (Runnable now)** ✅ PASS — Template auto-seeding match logic
   - Evidence: `npm test` includes Telarus seeding tests (Subtests 9–10).
-- **DU-AUTO-06 (To implement)** ⏭️ NOT RUN — Mapping config roundtrip tests needed for `lib/deposit-import/template-mapping.ts`.
+- **DU-AUTO-06 (Runnable now)** ✅ PASS — Mapping config roundtrip + 1:1 mapping enforcement
+  - Evidence: `npm test` includes `DU-AUTO-06` tests in `tests/deposit-import-template-mapping.test.ts`.
 
 ### What gets created (server behavior) > File parsing
 
@@ -75,4 +76,3 @@ Runs the runnable items from `docs/guides/automated-checklist-deposit-upload-rec
 ## Notes / blockers
 
 - `npm run build` is currently blocked by a TypeScript strictness error in `components/deposit-reconciliation-detail-view.tsx:3025:37` (`devMatchingControls` possibly undefined). Until fixed, CI/CD pipelines that require `next build` will fail even if unit tests and lint pass.
-

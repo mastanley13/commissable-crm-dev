@@ -811,6 +811,7 @@ model DepositLineItem {
   distributorNameRaw        String?
   locationId                String?
   customerPurchaseOrder     String?
+  metadata                  Json?
   usage                     Decimal?               @db.Decimal(16, 2)
   usageAllocated            Decimal?               @db.Decimal(16, 2)
   usageUnallocated          Decimal?               @db.Decimal(16, 2)
