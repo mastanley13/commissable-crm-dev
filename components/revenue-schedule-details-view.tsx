@@ -1021,7 +1021,6 @@ export function RevenueScheduleDetailsView({
   const columnOne: FieldDefinition[] = [
     { fieldId: "04.01.000", label: "Revenue Schedule Name", value: scheduleName },
     { fieldId: "04.01.001", label: "Revenue Schedule Date", value: scheduleDate },
-    { fieldId: "billingStatus", label: "Billing Status", value: formatBillingStatus(billingStatus) },
     { fieldId: "04.01.007", label: "Opportunity", value: opportunityValue },
     {
       fieldId: "productNameHouse",
@@ -1083,7 +1082,8 @@ export function RevenueScheduleDetailsView({
       fieldId: "04.01.034",
       label: "Payment Type",
       value: schedule.paymentType
-    }
+    },
+    { fieldId: "billingStatus", label: "Billing Status", value: formatBillingStatus(billingStatus) }
   ]
 
   const columnThreeBase: FieldDefinition[] = [
