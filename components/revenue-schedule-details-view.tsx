@@ -41,6 +41,7 @@ export interface RevenueScheduleDetailRecord {
   revenueScheduleDate?: string
   revenueMonth?: string | null
   billingMonth?: string | null
+  billingStatus?: string | null
   deletedAt?: string | null
   productNameVendor?: string
   productNameHouse?: string | null
@@ -114,6 +115,17 @@ const fieldLabelClass =
 const baseFieldBoxClass =
   "flex min-h-[28px] w-full items-center justify-between border-b-2 border-gray-300 bg-transparent pl-[3px] pr-0 py-1 text-[11px] text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis"
 
+const BILLING_STATUS_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: "Open", label: "Open" },
+  { value: "Reconciled", label: "Reconciled" },
+  { value: "InDispute", label: "In Dispute" },
+]
+
+function formatBillingStatus(value: string | null | undefined): string {
+  if (!value) return ""
+  return value === "InDispute" ? "In Dispute" : value
+}
+
 function renderValue(value?: ReactNode) {
   if (value === undefined || value === null) {
     return placeholder
@@ -173,6 +185,7 @@ function MetricTile({ fieldId, label, value }: MetricDefinition) {
 interface RevenueScheduleInlineForm {
   revenueScheduleName: string
   revenueScheduleDate: string
+  billingStatus: string
   quantity: string
   priceEach: string
   expectedUsageAdjustment: string
@@ -189,6 +202,7 @@ function mapDetailToInline(detail: RevenueScheduleDetailRecord | null): RevenueS
   return {
     revenueScheduleName: name || "",
     revenueScheduleDate: detail?.revenueScheduleDate ?? "",
+    billingStatus: detail?.billingStatus ?? "Open",
     quantity: detail?.quantity ?? "",
     priceEach: detail?.priceEach ?? "",
     expectedUsageAdjustment: detail?.expectedUsageAdjustment ?? "",
@@ -745,6 +759,12 @@ export function RevenueScheduleDetailsView({
     if (!draft.revenueScheduleName || draft.revenueScheduleName.trim().length === 0) {
       errors.revenueScheduleName = "Revenue schedule name is required."
     }
+
+    const allowedBillingStatuses = new Set(BILLING_STATUS_OPTIONS.map(option => option.value))
+    if (!draft.billingStatus || !allowedBillingStatuses.has(draft.billingStatus)) {
+      errors.billingStatus = "Billing Status is required."
+    }
+
     if (draft.revenueScheduleDate) {
       const trimmed = draft.revenueScheduleDate.trim()
       const isoPattern = /^\d{4}-\d{2}-\d{2}$/
@@ -843,6 +863,7 @@ export function RevenueScheduleDetailsView({
       const payload: any = {
         revenueScheduleName: draft.revenueScheduleName?.trim(),
         revenueScheduleDate: draft.revenueScheduleDate?.trim(),
+        billingStatus: draft.billingStatus?.trim(),
         quantity: draft.quantity?.trim(),
         priceEach: draft.priceEach?.trim(),
         expectedUsageAdjustment: draft.expectedUsageAdjustment?.trim(),
@@ -885,6 +906,7 @@ export function RevenueScheduleDetailsView({
 
   const nameField = enableInlineEditing ? editor.register("revenueScheduleName") : null
   const dateField = enableInlineEditing ? editor.register("revenueScheduleDate") : null
+  const billingStatusField = enableInlineEditing ? editor.register("billingStatus") : null
   const quantityField = enableInlineEditing ? editor.register("quantity") : null
   const priceEachField = enableInlineEditing ? editor.register("priceEach") : null
   const expectedUsageAdjustmentField = enableInlineEditing ? editor.register("expectedUsageAdjustment") : null
@@ -901,6 +923,10 @@ export function RevenueScheduleDetailsView({
       ? (nameField.value as string)
       : baseScheduleName
   const scheduleDate = enableInlineEditing && typeof dateField?.value === "string" ? (dateField.value as string) : schedule?.revenueScheduleDate ?? ""
+  const billingStatus =
+    enableInlineEditing && typeof billingStatusField?.value === "string" && (billingStatusField.value as string).length > 0
+      ? (billingStatusField.value as string)
+      : schedule?.billingStatus ?? "Open"
 
   const handleSave = useCallback(async () => {
     if (!enableInlineEditing) return
@@ -995,6 +1021,7 @@ export function RevenueScheduleDetailsView({
   const columnOne: FieldDefinition[] = [
     { fieldId: "04.01.000", label: "Revenue Schedule Name", value: scheduleName },
     { fieldId: "04.01.001", label: "Revenue Schedule Date", value: scheduleDate },
+    { fieldId: "billingStatus", label: "Billing Status", value: formatBillingStatus(billingStatus) },
     { fieldId: "04.01.007", label: "Opportunity", value: opportunityValue },
     {
       fieldId: "productNameHouse",
@@ -1234,6 +1261,28 @@ export function RevenueScheduleDetailsView({
                         </div>
                       }
                       error={editor.errors.revenueScheduleDate}
+                    />
+                  )
+                }
+                if (enableInlineEditing && field.fieldId === "billingStatus" && billingStatusField) {
+                  return (
+                    <EditRow
+                      key={`${field.fieldId}-${field.label}`}
+                      label="Billing Status"
+                      control={
+                        <EditableField.Select
+                          value={(billingStatusField.value as string) ?? "Open"}
+                          onChange={billingStatusField.onChange}
+                          onBlur={billingStatusField.onBlur}
+                        >
+                          {BILLING_STATUS_OPTIONS.map(option => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </EditableField.Select>
+                      }
+                      error={editor.errors.billingStatus}
                     />
                   )
                 }

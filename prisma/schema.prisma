@@ -686,6 +686,7 @@ model RevenueSchedule {
   orderIdHouse               String?
   distributorOrderId         String?
   status                     RevenueScheduleStatus @default(Unreconciled)
+  billingStatus              RevenueScheduleBillingStatus @default(Open)
   houseSplitPercentOverride  Decimal?             @db.Decimal(5, 4)
   houseRepSplitPercentOverride Decimal?           @db.Decimal(5, 4)
   subagentSplitPercentOverride Decimal?           @db.Decimal(5, 4)
@@ -1430,6 +1431,12 @@ enum RevenueScheduleStatus {
   Underpaid
   Overpaid
   Reconciled
+}
+
+enum RevenueScheduleBillingStatus {
+  Open
+  Reconciled
+  InDispute
 }
 
 enum ReconciliationStatus {

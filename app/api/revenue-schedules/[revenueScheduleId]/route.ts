@@ -7,6 +7,7 @@ import {
   DepositLineMatchStatus,
   DepositPaymentType,
   AuditAction,
+  RevenueScheduleBillingStatus,
 } from "@prisma/client"
 import { logProductAudit, logRevenueScheduleAudit } from "@/lib/audit"
 
@@ -275,6 +276,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { revenu
         usageAdjustment: (existing as any).usageAdjustment ?? null,
         actualCommissionAdjustment: (existing as any).actualCommissionAdjustment ?? null,
         notes: (existing as any).notes ?? null,
+        billingStatus: (existing as any).billingStatus ?? null,
         expectedCommissionRatePercent: previousProductCommission,
         houseSplitPercent: previousEffectiveSplits.houseSplitPercent,
         houseRepSplitPercent: previousEffectiveSplits.houseRepSplitPercent,
@@ -335,6 +337,25 @@ export async function PATCH(request: NextRequest, { params }: { params: { revenu
       if (typeof (payload as any)?.comments === "string") {
         data.notes = (payload as any).comments.trim() || null
         hasChanges = true
+      }
+
+      if (typeof (payload as any)?.billingStatus === "string") {
+        const raw = (payload as any).billingStatus.trim()
+        if (raw.length > 0) {
+          const key = raw.toLowerCase().replace(/[\s_-]/g, "")
+          const map: Record<string, RevenueScheduleBillingStatus> = {
+            open: RevenueScheduleBillingStatus.Open,
+            reconciled: RevenueScheduleBillingStatus.Reconciled,
+            indispute: RevenueScheduleBillingStatus.InDispute,
+          }
+          const parsed = map[key]
+          if (!parsed) {
+            errors.billingStatus = "Billing Status must be Open, Reconciled, or In Dispute."
+          } else {
+            data.billingStatus = parsed
+            hasChanges = true
+          }
+        }
       }
 
       const quantityInput = getTrimmedInput((payload as any)?.quantity)
@@ -635,6 +656,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { revenu
         usageAdjustment: (updated as any).usageAdjustment ?? null,
         actualCommissionAdjustment: (updated as any).actualCommissionAdjustment ?? null,
         notes: (updated as any).notes ?? null,
+        billingStatus: (updated as any).billingStatus ?? null,
         expectedCommissionRatePercent: nextProductCommission,
         houseSplitPercent: nextEffectiveSplits.houseSplitPercent,
         houseRepSplitPercent: nextEffectiveSplits.houseRepSplitPercent,

@@ -1,4 +1,4 @@
-import { Prisma, RevenueScheduleStatus } from "@prisma/client"
+import { Prisma, RevenueScheduleBillingStatus, RevenueScheduleStatus } from "@prisma/client"
 import { getRevenueTypeLabel } from "@/lib/revenue-types"
 import { computeRevenueScheduleMetrics } from "@/lib/revenue-schedule-math"
 import { type OtherSource, resolveOtherSource, resolveOtherValue } from "@/lib/other-field"
@@ -105,6 +105,7 @@ export interface RevenueScheduleListItem {
   revenueSchedule?: string | null
   revenueScheduleDate: string | null
   revenueMonth?: string | null
+  billingStatus: string
   flexClassification?: string | null
   flexReasonCode?: string | null
   flexSourceDepositId?: string | null
@@ -335,6 +336,7 @@ export function mapRevenueScheduleToListItem(schedule: RevenueScheduleWithRelati
   const flexReasonCode = (schedule as any).flexReasonCode ?? null
   const flexSourceDepositId = (schedule as any).flexSourceDepositId ?? null
   const flexSourceDepositLineItemId = (schedule as any).flexSourceDepositLineItemId ?? null
+  const billingStatus = (schedule as any).billingStatus ?? RevenueScheduleBillingStatus.Open
 
   const expectedUsage = toNumber(schedule.expectedUsage ?? schedule.opportunityProduct?.expectedUsage)
   const usageAdjustment = toNumber(schedule.usageAdjustment)
@@ -360,6 +362,7 @@ export function mapRevenueScheduleToListItem(schedule: RevenueScheduleWithRelati
   const commissionDifference = metrics.commissionDifference ?? expectedCommissionNet - actualCommission
 
   const statusInfo = mapStatus(schedule.status, usageBalance, commissionDifference)
+  const isInDispute = billingStatus === RevenueScheduleBillingStatus.InDispute
 
   const quantity = schedule.opportunityProduct?.quantity ?? null
   const quantityNumber = quantity !== null ? toNumber(quantity) : null
@@ -404,6 +407,7 @@ export function mapRevenueScheduleToListItem(schedule: RevenueScheduleWithRelati
     revenueScheduleDate: formatDate(schedule.scheduleDate),
     productNameVendor: schedule.product?.productNameVendor ?? null,
     revenueMonth,
+    billingStatus: String(billingStatus),
     flexClassification,
     flexReasonCode,
     flexSourceDepositId,
@@ -418,7 +422,7 @@ export function mapRevenueScheduleToListItem(schedule: RevenueScheduleWithRelati
     houseRepName,
     billingMonth: null,
     scheduleStatus: statusInfo.status,
-    inDispute: statusInfo.inDispute,
+    inDispute: isInDispute,
     deletedAt: schedule.deletedAt ? schedule.deletedAt.toISOString() : null,
       quantity: quantityValue,
       quantityRaw: quantityNumber,
