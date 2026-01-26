@@ -20,14 +20,15 @@ ADD COLUMN IF NOT EXISTS "billingStatus" "RevenueScheduleBillingStatus" NOT NULL
 -- - Overpaid schedules and Flex schedules become InDispute.
 -- - Everything else defaults to Open.
 UPDATE "RevenueSchedule"
-SET "billingStatus" = CASE
-  WHEN "status" = 'Reconciled' THEN 'Reconciled'
-  WHEN "status" = 'Overpaid' THEN 'InDispute'
-  WHEN "flexClassification" IN ('FlexProduct', 'FlexChargeback', 'FlexChargebackReversal') THEN 'InDispute'
-  ELSE 'Open'
-END
-WHERE "billingStatus" = 'Open';
+SET "billingStatus" = (
+  CASE
+    WHEN "status" = 'Reconciled' THEN 'Reconciled'
+    WHEN "status" = 'Overpaid' THEN 'InDispute'
+    WHEN "flexClassification" IN ('FlexProduct', 'FlexChargeback', 'FlexChargebackReversal') THEN 'InDispute'
+    ELSE 'Open'
+  END
+)::"RevenueScheduleBillingStatus"
+WHERE "billingStatus" = 'Open'::"RevenueScheduleBillingStatus";
 
 CREATE INDEX IF NOT EXISTS "RevenueSchedule_tenantId_billingStatus_idx"
   ON "RevenueSchedule"("tenantId", "billingStatus");
-
