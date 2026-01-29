@@ -55,6 +55,9 @@ This aligns with:
   * Default landing view remains **Unmatched**.
 * ✅ **P0-UI-006 — Disable auto-selection of the first deposit line item** (Completed Jan 29, 2026)  
   * Opening a deposit no longer auto-selects the first deposit line item; users explicitly choose a line before loading suggested schedules.
+* ✅ **P0-DEP-001 — Deposit verification fields + “Report Date” relabel** (Completed Jan 29, 2026)  
+  * “Date” is now labeled **Report Date** to clarify it represents the vendor report’s date.  
+  * Added verification fields to capture actual payment receipt details (Received Date, Received By, Actual Received Amount).
 
 ---
 
@@ -239,6 +242,7 @@ This aligns with:
 
 ### **P0-DEP-001 — Add Deposit Verification workflow fields \+ relabel “Date” → “Report Date”**
 
+* **Status:** ✅ Completed (Jan 29, 2026)  
 * **Client Impact:** High (prevents reconciliation gaps between vendor report and actual cash)  
 * **Effort:** Easy–Medium  
 * **Time:** \~0.5–1.5 days  
@@ -629,6 +633,6 @@ If you have *very limited* sprint time, start here (high impact, low effort):
 * P0-UI-001 Fix commission rate display (DONE Jan 29, 2026)  
 * P0-UI-005 Default view Unmatched (remove Suggested tab) (DONE Jan 29, 2026)  
 * P0-NAV-001 Fix “Go to revenue schedule” link  
-* P0-DEP-001 Deposit verification fields \+ relabel Report Date
+* P0-DEP-001 Deposit verification fields \+ relabel Report Date (DONE Jan 29, 2026)
 
 These directly address the issues called out across Jan 21/22/26 and make the system usable for realistic reconciliation testing.

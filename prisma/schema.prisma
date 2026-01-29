@@ -766,6 +766,9 @@ model Deposit {
   depositName               String?
   paymentDate               DateTime?
   paymentType               DepositPaymentType?
+  actualReceivedAmount      Decimal?             @db.Decimal(16, 2)
+  receivedDate              DateTime?
+  receivedBy                String?
   totalItems                Int?                 @default(0)
   totalReconciledItems      Int?                 @default(0)
   totalUsage                Decimal?             @db.Decimal(16, 2)

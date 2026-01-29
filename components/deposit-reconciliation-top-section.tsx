@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, type ReactNode } from "react"
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react"
 
 import type { DepositLineItemRow } from "@/lib/mock-data"
 import { cn } from "@/lib/utils"
@@ -41,7 +41,7 @@ function InlineStatRow({
     )
 
   return (
-    <div className="grid items-center gap-3 grid-cols-[minmax(0,160px)_minmax(0,1fr)]">
+    <div className="grid items-center gap-3 grid-cols-[minmax(0,130px)_minmax(0,1fr)]">
       <span className={cn(inlineFieldLabelClass, labelClassName)}>{label}</span>
       <div
         className={cn(
@@ -81,6 +81,7 @@ export interface DepositReconciliationTopSectionProps {
   lineItems: DepositLineItemRow[]
   actions?: ReactNode
   autoMatchSummary?: AutoMatchSummary | null
+  verificationEditable?: boolean
 }
 
 export function DepositReconciliationTopSection({
@@ -88,6 +89,7 @@ export function DepositReconciliationTopSection({
   lineItems,
   actions,
   autoMatchSummary = null,
+  verificationEditable = false,
 }: DepositReconciliationTopSectionProps) {
   const currencyFormatter = useMemo(
     () =>
@@ -100,6 +102,77 @@ export function DepositReconciliationTopSection({
   )
 
   const formattedDate = useMemo(() => formatIsoDateYYYYMMDD(metadata.depositDate), [metadata.depositDate])
+  const formattedReceivedDate = useMemo(() => {
+    const raw = metadata.receivedDate
+    if (!raw) return "-"
+    return formatIsoDateYYYYMMDD(raw)
+  }, [metadata.receivedDate])
+
+  const [receivedAmountDraft, setReceivedAmountDraft] = useState("")
+  const [receivedDateDraft, setReceivedDateDraft] = useState("")
+  const [receivedByDraft, setReceivedByDraft] = useState("")
+  const [verificationSaving, setVerificationSaving] = useState(false)
+  const [verificationError, setVerificationError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (metadata.actualReceivedAmount == null) {
+      setReceivedAmountDraft("")
+    } else {
+      const numeric = Number(metadata.actualReceivedAmount)
+      setReceivedAmountDraft(Number.isFinite(numeric) ? numeric.toFixed(2) : "")
+    }
+
+    const receivedDate = metadata.receivedDate
+    setReceivedDateDraft(receivedDate ? formatIsoDateYYYYMMDD(receivedDate) : "")
+    setReceivedByDraft(metadata.receivedBy ?? "")
+    setVerificationError(null)
+  }, [metadata.actualReceivedAmount, metadata.receivedBy, metadata.receivedDate, metadata.id])
+
+  const saveVerificationDraft = useCallback(async () => {
+    if (!verificationEditable) return
+
+    const normalizeAmount = (value: string): number | null => {
+      const trimmed = value.trim()
+      if (!trimmed) return null
+      const parsed = Number(trimmed.replace(/[^0-9.\-]/g, ""))
+      return Number.isFinite(parsed) ? parsed : null
+    }
+
+    const normalizeDate = (value: string): string | null => {
+      const trimmed = value.trim()
+      if (!trimmed) return null
+      const parsed = new Date(trimmed.length === 10 ? `${trimmed}T00:00:00.000Z` : trimmed)
+      if (Number.isNaN(parsed.getTime())) return null
+      return parsed.toISOString()
+    }
+
+    const payload = {
+      actualReceivedAmount: normalizeAmount(receivedAmountDraft),
+      receivedDate: normalizeDate(receivedDateDraft),
+      receivedBy: receivedByDraft.trim() ? receivedByDraft.trim() : null,
+    }
+
+    setVerificationSaving(true)
+    setVerificationError(null)
+    try {
+      const response = await fetch(
+        `/api/reconciliation/deposits/${encodeURIComponent(metadata.id)}/verification`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        },
+      )
+      const result = await response.json().catch(() => null)
+      if (!response.ok) {
+        throw new Error(result?.error || "Unable to save verification fields")
+      }
+    } catch (err) {
+      setVerificationError(err instanceof Error ? err.message : "Unable to save verification fields")
+    } finally {
+      setVerificationSaving(false)
+    }
+  }, [metadata.id, receivedAmountDraft, receivedByDraft, receivedDateDraft, verificationEditable])
 
   const commissionTotals = useMemo(() => {
     return lineItems.reduce(
@@ -194,7 +267,7 @@ export function DepositReconciliationTopSection({
         {actions ? <div className="flex items-center gap-1">{actions}</div> : null}
       </div>
 
-      <div className="grid items-start gap-x-10 gap-y-3 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid items-start gap-x-8 gap-y-3 md:grid-cols-2 xl:grid-cols-5">
         <div className="space-y-1.5">
           <InlineStatRow
             label="Deposit Name"
@@ -202,7 +275,7 @@ export function DepositReconciliationTopSection({
             valueTitle={metadata.depositName}
             align="left"
           />
-          <InlineStatRow label="Date" value={formattedDate} valueTitle={formattedDate} align="left" />
+          <InlineStatRow label="Report Date" value={formattedDate} valueTitle={formattedDate} align="left" />
           <InlineStatRow
             label="Payment Type"
             value={metadata.paymentType || "-"}
@@ -227,6 +300,81 @@ export function DepositReconciliationTopSection({
           <InlineStatRow label="Deposit Line Items" value={String(lineItems.length)} />
           <InlineStatRow label="Items Matched" value={String(matchedLineItemCount)} />
           <InlineStatRow label="Remaining" value={String(Math.max(0, lineItems.length - matchedLineItemCount))} />
+        </div>
+
+        <div className="space-y-1.5">
+          {verificationEditable ? (
+            <>
+              <InlineStatRow
+                label="Actual Received Amount"
+                value={
+                  <input
+                    value={receivedAmountDraft}
+                    onChange={event => setReceivedAmountDraft(event.target.value)}
+                    onBlur={() => void saveVerificationDraft()}
+                    placeholder=""
+                    inputMode="decimal"
+                    className={cn(
+                      "w-full bg-transparent text-right tabular-nums outline-none",
+                      verificationSaving ? "opacity-70" : "",
+                    )}
+                    aria-label="Actual Received Amount"
+                  />
+                }
+              />
+              <InlineStatRow
+                label="Received Date"
+                value={
+                  <input
+                    value={receivedDateDraft}
+                    onChange={event => setReceivedDateDraft(event.target.value)}
+                    onBlur={() => void saveVerificationDraft()}
+                    placeholder=""
+                    className={cn(
+                      "w-full bg-transparent text-right tabular-nums outline-none",
+                      verificationSaving ? "opacity-70" : "",
+                    )}
+                    aria-label="Received Date"
+                  />
+                }
+              />
+              <InlineStatRow
+                label="Received By"
+                value={
+                  <input
+                    value={receivedByDraft}
+                    onChange={event => setReceivedByDraft(event.target.value)}
+                    onBlur={() => void saveVerificationDraft()}
+                    placeholder=""
+                    className={cn("w-full bg-transparent text-left outline-none", verificationSaving ? "opacity-70" : "")}
+                    aria-label="Received By"
+                  />
+                }
+                align="left"
+              />
+              {verificationError ? (
+                <div className="text-[10px] font-medium text-rose-700">{verificationError}</div>
+              ) : null}
+            </>
+          ) : (
+            <>
+              <InlineStatRow
+                label="Actual Received Amount"
+                value={
+                  metadata.actualReceivedAmount == null
+                    ? "-"
+                    : currencyFormatter.format(Number(metadata.actualReceivedAmount))
+                }
+              />
+              <InlineStatRow label="Received Date" value={formattedReceivedDate} valueTitle={formattedReceivedDate} />
+              <InlineStatRow
+                label="Received By"
+                value={metadata.receivedBy || "-"}
+                valueTitle={metadata.receivedBy || "-"}
+                align="left"
+              />
+            </>
+          )}
         </div>
       </div>
 

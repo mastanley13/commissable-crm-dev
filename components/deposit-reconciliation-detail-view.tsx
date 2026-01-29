@@ -32,6 +32,9 @@ export interface DepositReconciliationMetadata {
   depositDate: string
   createdBy: string
   paymentType: string
+  actualReceivedAmount?: number | null
+  receivedDate?: string | null
+  receivedBy?: string | null
   usageTotal: number
   unallocated: number
   allocated: number
@@ -623,11 +626,8 @@ export function DepositReconciliationDetailView({
   }, [lineItems, selectedLineId, onLineSelectionChange])
 
   useEffect(() => {
-    if (selectedLineId) {
-      setSelectedLineItems([selectedLineId])
-    } else {
-      setSelectedLineItems([])
-    }
+    if (!selectedLineId) return
+    setSelectedLineItems(previous => (previous.includes(selectedLineId) ? previous : [selectedLineId, ...previous]))
   }, [selectedLineId])
 
   useEffect(() => {
@@ -657,10 +657,10 @@ export function DepositReconciliationDetailView({
     sharedTableBodyHeight ?? scheduleTableBodyHeight ?? DEFAULT_TABLE_BODY_HEIGHT
 
   const selectedLineForMatch = useMemo(() => {
-    const lineId = selectedLineItems[0]
+    const lineId = selectedLineId ?? selectedLineItems[0]
     if (!lineId) return null
     return lineItemRows.find(item => item.id === lineId) ?? null
-  }, [lineItemRows, selectedLineItems])
+  }, [lineItemRows, selectedLineId, selectedLineItems])
 
   const isUnmatchSelection = useMemo(() => {
     if (!selectedLineForMatch) return false
@@ -972,7 +972,7 @@ export function DepositReconciliationDetailView({
   )
 
   const handleCreateFlexSelected = useCallback(async () => {
-    const lineId = selectedLineItemsRef.current[0]
+    const lineId = selectedLineIdRef.current ?? selectedLineItemsRef.current[0]
     if (!lineId) {
       showError("No line selected", "Select a deposit line item to create a flex entry.")
       return
@@ -1090,7 +1090,7 @@ export function DepositReconciliationDetailView({
   )
 
   const handleMatchSelected = useCallback(() => {
-    const lineId = selectedLineItemsRef.current[0]
+    const lineId = selectedLineIdRef.current ?? selectedLineItemsRef.current[0]
     if (!lineId) {
       showError("No line selected", "Select a deposit line item to match.")
       return
@@ -2053,12 +2053,28 @@ export function DepositReconciliationDetailView({
 
   const handleLineItemSelect = useCallback(
     (lineId: string, selected: boolean) => {
+      const previousSelected = selectedLineItemsRef.current
+
       if (selected) {
-        setSelectedLineItems([lineId])
+        const nextSelected = previousSelected.includes(lineId)
+          ? previousSelected
+          : [lineId, ...previousSelected]
+        setSelectedLineItems(nextSelected)
         onLineSelectionChange?.(lineId)
-      } else {
-        setSelectedLineItems([])
+        return
+      }
+
+      const nextSelected = previousSelected.filter(id => id !== lineId)
+      setSelectedLineItems(nextSelected)
+
+      const currentActive = selectedLineIdRef.current ?? null
+      if (nextSelected.length === 0) {
         onLineSelectionChange?.(null)
+        return
+      }
+
+      if (!currentActive || currentActive === lineId || !nextSelected.includes(currentActive)) {
+        onLineSelectionChange?.(nextSelected[0] ?? null)
       }
     },
     [onLineSelectionChange]
@@ -2067,14 +2083,18 @@ export function DepositReconciliationDetailView({
   const handleLineItemSelectAll = useCallback(
     (selected: boolean) => {
       if (selected) {
-        if (sortedLineItems.length > 0) {
-          const firstId = sortedLineItems[0]!.id
-          setSelectedLineItems([firstId])
-          onLineSelectionChange?.(firstId)
-        } else {
+        const visibleIds = sortedLineItems.map(item => item.id)
+        if (visibleIds.length === 0) {
           setSelectedLineItems([])
           onLineSelectionChange?.(null)
+          return
         }
+
+        setSelectedLineItems(visibleIds)
+        const currentActive = selectedLineIdRef.current ?? null
+        const nextActive =
+          currentActive && visibleIds.includes(currentActive) ? currentActive : visibleIds[0] ?? null
+        onLineSelectionChange?.(nextActive)
         return
       }
       setSelectedLineItems([])
@@ -2605,6 +2625,11 @@ export function DepositReconciliationDetailView({
           label: "Match",
           icon: ClipboardCheck,
           tone: "primary",
+          disabled: selectedLineItems.length !== 1,
+          tooltip: count =>
+            count === 1
+              ? "Match the selected line item to the selected schedule"
+              : "Select exactly one line item to match",
           onClick: handleBulkLineMatch
         },
         {
@@ -2612,6 +2637,11 @@ export function DepositReconciliationDetailView({
           label: "Remove Match",
           icon: Trash2,
           tone: "danger",
+          disabled: selectedLineItems.length !== 1,
+          tooltip: count =>
+            count === 1
+              ? "Remove the match from the selected line item"
+              : "Select exactly one line item to remove a match",
           onClick: handleBulkLineUnmatch
         },
         {
@@ -2956,6 +2986,7 @@ export function DepositReconciliationDetailView({
         metadata={metadata}
         lineItems={lineItemRows}
         autoMatchSummary={autoMatchSummary}
+        verificationEditable={canManageReconciliation && !metadata.reconciled}
         actions={
           <>
             {onBackToReconciliation ? (
