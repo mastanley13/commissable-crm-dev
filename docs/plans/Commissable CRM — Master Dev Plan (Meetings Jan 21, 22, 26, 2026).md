@@ -50,6 +50,8 @@ This aligns with:
 * ✅ **P0-UI-001 — Commission rate + currency display fixes in reconciliation** (Completed Jan 29, 2026)  
   * Percent fields now render at the expected scale (e.g., **16.00%** instead of **1,600%**).  
   * Reconciliation list money fields now render with currency formatting (e.g., **$10,000.00**).
+* ✅ **P0-UI-002 — Column wrapping + tighter columns for reconciliation usability** (Completed Jan 29, 2026)  
+  * Key “usage/commission” columns can be tightened without breaking header/value readability (consistent min-width behavior across columns).
 * ✅ **P0-UI-005 — Default view Unmatched (and remove “Suggested” tab for deposit line items)** (Completed Jan 29, 2026)  
   * Deposit line items status filter no longer includes a “Suggested” option (Suggested remains available for the revenue schedule suggestions table).  
   * Default landing view remains **Unmatched**.
@@ -156,6 +158,7 @@ This aligns with:
 
 ### **P0-UI-002 — Fix column wrapping \+ allow tighter columns for reconciliation usability**
 
+* **Status:** ✅ Completed (Jan 29, 2026)  
 * **Client Impact:** Medium–High (improves speed \+ reduces errors)  
 * **Effort:** Easy  
 * **Time:** \~2–6 hours  

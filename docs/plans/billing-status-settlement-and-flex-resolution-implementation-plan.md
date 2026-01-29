@@ -45,12 +45,22 @@ We will complete Billing Status by:
   - any base schedule dispute changes,
   - any changes to adjustments/settlement metadata.
 
-### 2.3 Apply-To-Future Safety
+### 2.3 Chargeback Handling (Flex Chargeback + Reversal)
+- Chargeback schedules are always `billingStatus=InDispute` on creation (no “Pending” billing status).
+- Chargeback workflows may have an approval gate, but **approval does not auto-clear** `billingStatus=InDispute`.
+  - Approval should write its own audit event (approval metadata), even if billing status remains unchanged.
+- Chargeback reversals (positive offsets tied to a prior chargeback) must:
+  - link to the parent chargeback schedule for traceability,
+  - remain reportable/auditable as part of the chargeback’s dispute story,
+  - never silently clear the underlying dispute without an explicit resolution/settlement action.
+- Clearing a chargeback dispute happens only via explicit actions (same philosophy as Settlement / Flex Resolution), with a required reason.
+
+### 2.4 Apply-To-Future Safety
 - Billing Status changes and settlement effects on future schedules only occur when **explicitly requested** (toggle).
 - History preservation is enforced: no unintended changes to unrelated or already-finalized periods.
 - Tests verify scope boundaries.
 
-### 2.4 Side-by-Side Validation
+### 2.5 Side-by-Side Validation
 - We can produce a comparison report of:
   - legacy dispute constructs (legacy `inDispute`/“Disputed” semantics) vs `billingStatus=InDispute`
   - mismatches list for review and remediation.
@@ -100,6 +110,12 @@ Add persisted fields (either on `RevenueSchedule` for flex schedules only, or in
 - `flexResolutionReason` (required)
 - `flexResolvedById`, `flexResolvedAt`
 - `flexResolvedToRevenueScheduleId` (nullable; used when ApplyToExisting merges into another schedule)
+
+### 4.4 Chargeback workflow metadata (only if missing)
+If chargeback approval + reversal metadata is not already persisted in a dedicated model, add minimal fields so chargebacks are auditable and reportable:
+- `chargebackApprovalStatus`: `Pending | Approved | Rejected` (or equivalent)
+- `chargebackApprovedById`, `chargebackApprovedAt` (nullable)
+- `chargebackReversalOfRevenueScheduleId` (nullable; used on reversal schedules to point to the original chargeback)
 
 ---
 
@@ -159,6 +175,11 @@ Behavior:
    - record resolution metadata; clear from queue; require reason
 6) Audit all touched schedules.
 
+### 5.3 Chargeback approval semantics (existing endpoint upgrade)
+Wherever chargeback approval is handled today (Flex Review “Approve & Apply” or an equivalent endpoint), enforce:
+- Approval updates approval state + allocations as needed, but **does not** automatically change `billingStatus` out of `In Dispute`.
+- Approval emits an explicit audit event separate from any billing status transition.
+
 ---
 
 ## 6) UI Work (v1)
@@ -182,7 +203,7 @@ Goal: every billingStatus change has an audit record with a consistent schema.
 Implementation steps:
 - Introduce a helper that emits a standard “BillingStatusChanged” audit payload:
   - prior/new: `billingStatus`, `billingStatusSource`, `billingStatusReason`
-  - trigger: `AutoRecompute | AutoFlexCreate:* | ApproveFlex | FinalizeDeposit | UnfinalizeDeposit | Settlement:* | FlexResolved:*`
+  - trigger: `AutoRecompute | AutoFlexCreate:* | ApproveFlex | ApproveChargeback | FinalizeDeposit | UnfinalizeDeposit | Settlement:* | FlexResolved:*`
   - context IDs
 - Ensure each codepath uses the helper.
 
@@ -220,6 +241,9 @@ Acceptance:
 - Create flex product → base+flex InDispute → resolve flex:
   - AcceptAsOneTime clears flex only
   - ApplyToExisting clears flex; clears base only if last disputed child
+- Chargeback approval:
+  - creates/retains `billingStatus=InDispute`
+  - writes an approval audit event without changing billing status
 - Settlement:
   - does not overwrite expected baseline values
   - writes adjustments + metadata
@@ -242,4 +266,3 @@ Acceptance:
 ## 12) Open Items (explicitly tracked)
 - Whether ConvertToPermanent will actually create new product/schedules in this milestone or just record the resolution metadata (recommended: metadata-only in v1; creation can be Phase 3+).
 - Exact legacy dispute signal used for side-by-side comparison (recommended: legacy `inDispute`/Disputed constructs, not overpaid heuristics).
-

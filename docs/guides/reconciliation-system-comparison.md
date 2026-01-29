@@ -279,10 +279,21 @@ If the “learning loop” is desired as described, the system needs:
 - A governed workflow for updating catalog product metadata based on deposits (and avoiding bad writes).
 - Potentially a controlled merge process (suggest → approve → apply) similar to Flex Review.
 
+## Addendum (2026-01-29): Updated Flex + Chargeback Handling Decisions
+
+The implementation plans created after this comparative analysis lock in the following operational semantics:
+
+- **Chargebacks:** chargeback schedules are always Billing Status = `In Dispute` (no “Pending” billing status). Approval gating may remain, but approval does **not** auto-clear Billing Status; it should emit its own audit event and disputes clear only via explicit settlement/resolution actions.
+- **Flex resolution:** flex items are resolved via explicit resolution types (`ApplyToExisting | ConvertToPermanent | AcceptAsOneTime`) with a required reason. Clearing the base/parent dispute is conditional (only when the last disputed flex child is resolved in an apply-to-existing style outcome).
+
+References:
+
+- `docs/plans/billing-status-settlement-and-flex-resolution-implementation-plan.md`
+- `docs/plans/reconciliation-system-alignment-plan.md`
+
 ## Appendix: quick pointers
 
 - Spec doc: `Reconciliation System.docx.md`
 - Current reconciliation guide: `docs/guides/reconciliation.md`
 - Current deposit upload guide: `docs/guides/deposit-upload.md`
 - Current checklist results (as of 2026-01-21): `docs/guides/automated-checklist-results-deposit-upload-reconciliation-2026-01-21.md`
-

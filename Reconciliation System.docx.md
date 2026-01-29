@@ -2,6 +2,12 @@ This is excellent clarification\! Let me update the document with these importan
 
 ---
 
+**Implementation Clarifications (Jan 29, 2026)**
+
+* **Chargebacks:** Flex Chargeback items should be labeled **Billing Status = "In Dispute"** immediately on creation (not "Pending"). If an approval gate exists, treat it as a separate approval state; **approval does not auto-clear** Billing Status.
+* **Chargeback normalization:** If a chargeback line has **negative commission** and **no usage**, set **Actual Usage = abs(Commission Amount)** and **Commission Rate = 100.00%** (commission remains negative).
+* **Flex resolution:** FLEX items should resolve via an explicit resolution outcome (e.g., apply to existing, convert to permanent, or accept as one-time) with a reason. Clearing a base/parent schedule’s dispute should be conditional (only when applying into the base and it has no remaining disputed flex children).
+
 **Revenue Schedule Matching & Reconciliation System**
 
 **Overview**
@@ -1210,4 +1216,3 @@ Add the following columns to the Products Tab on the Opportunity Detail page, po
 ---
 
 Is there anything else you'd like me to clarify or expand upon?
-

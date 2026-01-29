@@ -56,10 +56,12 @@ Decide:
 
 Spec implies immediate “in dispute” placeholder allocation. Current system gates chargebacks via approval.
 
-Decide:
+Decision (as of 2026-01-29):
 
-- Keep approval gating (recommended) but represent it as `In Dispute` + “pending approval” state, or remove gating to match spec literally.
-- How “chargeback reversals” fit (current has them; spec doesn’t mention them).
+- Keep approval gating, but always represent chargebacks as Billing Status = `In Dispute` (no “Pending” billing status).
+- Model “pending approval” as a separate approval state/flag (not as Billing Status).
+- Approval does **not** auto-clear Billing Status; disputes clear only via explicit settlement/resolution actions with an audit trail.
+- Treat chargeback reversals as first-class, linked records (reversal points to the original chargeback) so the full story remains auditable/reportable.
 
 ### 0.3 Decide whether the spec’s structural reshaping is required
 
@@ -271,6 +273,18 @@ Acceptance criteria:
 
 - A flex schedule can be re-linked to a real product and optionally spawn future schedules without breaking reconciliation history.
 
+### 3.4 Flex resolution types (management closure)
+
+Implement a “Resolve Flex” action that removes items from the operational dispute queue with an explicit resolution type + reason:
+
+- `ApplyToExisting` (may clear base schedule dispute only when it is the last remaining disputed flex child)
+- `ConvertToPermanent`
+- `AcceptAsOneTime`
+
+Implementation note:
+
+- Keep the resolution API and audit schema consistent with `docs/plans/billing-status-settlement-and-flex-resolution-implementation-plan.md`.
+
 ## Phase 4 — Chargeback workflow alignment
 
 ### 4.1 Make chargebacks match spec outcomes while preserving approvals (recommended)
@@ -279,12 +293,13 @@ Implement:
 
 - Chargeback schedules always have Billing Status = `In Dispute`.
 - Pending approval state remains, but the schedule is still reportable as “in dispute”.
-- Approval moves pending match → applied and updates schedule status/rollups.
+- Approval may apply allocations/state transitions as needed, but **does not** automatically change Billing Status out of `In Dispute`.
+- Clearing/closing a chargeback dispute is an explicit settlement-style action with a required reason and audit entry.
 
 Acceptance criteria:
 
 - Chargeback items show up on the Dispute report whether approved or pending.
-- Approving a chargeback updates allocations and keeps audit traceability.
+- Approving a chargeback writes an approval audit event and preserves traceability, without silently removing the item from dispute workflows.
 
 ### 4.2 Align chargeback normalization to spec (if adopted)
 
