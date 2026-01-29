@@ -1132,21 +1132,29 @@ export default function RevenueSchedulesPage() {
   const filteredByStatusAndColumns = useMemo(() => {
     let next = activeFilter === 'active' ? filteredRevenueSchedules.filter(r => r.active) : [...filteredRevenueSchedules]
 
-    if (statusQuickFilter !== 'all') {
-      next = next.filter(row => {
-        const rawStatus = String((row as any).scheduleStatus ?? '').toLowerCase()
-        const gross = parseCurrency((row as any).expectedUsageGross ?? (row as any).expectedUsage)
-        const adj = parseCurrency((row as any).expectedUsageAdjustment ?? (row as any).usageAdjustment)
-        const net = gross + adj
-        const isDispute = rawStatus.includes('dispute') || Boolean((row as any).inDispute)
-        const isOpen = rawStatus === 'open' ? true : rawStatus === 'reconciled' ? false : Math.abs(net) > 0.0001
-        const isReconciled = rawStatus === 'reconciled' ? true : rawStatus === 'open' ? false : !isOpen
-        if (statusQuickFilter === 'open') return isOpen
-        if (statusQuickFilter === 'reconciled') return isReconciled
-        if (statusQuickFilter === 'in_dispute') return isDispute
-        return true
-      })
-    }
+      if (statusQuickFilter !== 'all') {
+        next = next.filter(row => {
+          const rawBilling = String((row as any).billingStatus ?? '').toLowerCase().replace(/[\s_-]/g, '')
+
+          // Prefer Billing Status lifecycle for quick filters (spec alignment).
+          // Fallback to legacy heuristics when billingStatus isn't present.
+          const hasBillingStatus = rawBilling.length > 0
+
+          const rawStatus = String((row as any).scheduleStatus ?? '').toLowerCase()
+          const gross = parseCurrency((row as any).expectedUsageGross ?? (row as any).expectedUsage)
+          const adj = parseCurrency((row as any).expectedUsageAdjustment ?? (row as any).usageAdjustment)
+          const net = gross + adj
+
+          const isDispute = hasBillingStatus ? rawBilling === 'indispute' : rawStatus.includes('dispute') || Boolean((row as any).inDispute)
+          const isOpen = hasBillingStatus ? rawBilling === 'open' : rawStatus === 'open' ? true : rawStatus === 'reconciled' ? false : Math.abs(net) > 0.0001
+          const isReconciled = hasBillingStatus ? rawBilling === 'reconciled' : rawStatus === 'reconciled' ? true : rawStatus === 'open' ? false : !isOpen
+
+          if (statusQuickFilter === 'open') return isOpen
+          if (statusQuickFilter === 'reconciled') return isReconciled
+          if (statusQuickFilter === 'in_dispute') return isDispute
+          return true
+        })
+      }
 
     if (startDate || endDate) {
       const start = startDate ? new Date(startDate) : null

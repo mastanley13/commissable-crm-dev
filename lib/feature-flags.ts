@@ -42,3 +42,15 @@ export function isRevenueScheduleDetailRedesignEnabled(
 export function isTopNavigationExperimentEnabled(): boolean {
   return parseBooleanFlag(process.env.NEXT_PUBLIC_TOP_NAV ?? "")
 }
+
+/**
+ * Feature flag: enables Billing Status automation (auto transitions).
+ *
+ * - Controlled by env var NEXT_PUBLIC_BILLING_STATUS_AUTOMATION.
+ * - Default is ON (so existing deployments keep current behavior).
+ */
+export function isBillingStatusAutomationEnabled(): boolean {
+  const raw = process.env.NEXT_PUBLIC_BILLING_STATUS_AUTOMATION
+  if (raw === undefined || raw === null || raw.trim() === "") return true
+  return parseBooleanFlag(raw)
+}

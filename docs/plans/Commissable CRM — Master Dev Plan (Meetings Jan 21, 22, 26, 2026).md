@@ -140,9 +140,12 @@ This aligns with:
 * **Effort:** Easy  
 * **Time:** \~2–6 hours  
 * **Source:** Jan 26 next steps (“Fix column wrapping”) and discussion  
+* **Root Cause:** Reconciliation deposit line item columns had inconsistent `minWidth` rules (some were hard-coded much larger than others like `Other - Product Name`), which prevented tightening columns down to the same usable minimum.
+* **Implementation (Jan 29, 2026):** Updated `components/deposit-reconciliation-detail-view.tsx` to compute `minWidth` for usage/commission columns via `calculateMinWidth` (same approach as `Other - Product Name`) so all columns can be resized tighter while preserving header wrapping and body truncation.
 * **Acceptance Criteria:**  
   1. Key “usage/commission” columns no longer wrap in a way that makes scanning difficult.  
   2. Columns can be resized/tightened to a reasonable width without breaking header/body alignment.
+  3. Usage/commission columns can be tightened to the same minimum behavior as `Other - Product Name` (header wraps; values truncate; sort controls remain usable).
 
 ---
 

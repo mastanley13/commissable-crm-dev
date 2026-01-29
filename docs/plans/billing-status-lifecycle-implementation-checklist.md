@@ -73,7 +73,8 @@ Checklist:
 - [x] After a non-negative allocation is applied and `recomputeRevenueScheduleFromMatches(...)` runs, apply Billing Status rules:
   - [x] **STRICT rule implemented:** a schedule only becomes `billingStatus=Reconciled` after deposit finalize (i.e., no unreconciled applied matches remain).
   - [x] If overage exceeds tolerance and the system returns a “prompt” decision, do **not** auto-set `In Dispute` yet (only set on Flex creation).
-- [ ] Ensure any existing `inDispute` UI flags and filters switch to `billingStatus === InDispute` everywhere they represent “Dispute”.
+- [x] Ensure any existing `inDispute` UI flags and filters switch to `billingStatus === InDispute` everywhere they represent “Dispute”.
+  - Status: revenue schedules API + Revenue Schedules dashboard quick filter now prefer `billingStatus`; Opportunity schedule helpers now respect `billingStatus` for `inDispute`.
 - [ ] Add audit log event for automated Billing Status transitions (who/why). (Partial: Flex Product parent/base auto-set emits an audit entry.)
 
 ### B) Create Flex (manual creation)
@@ -132,7 +133,7 @@ Checklist:
   - [x] `RevenueSchedule.status` (existing variance result)
   - [x] `RevenueSchedule.billingStatus` (operational lifecycle per spec)
 - [x] Ensure recompute is idempotent and safe to call repeatedly (deposit matching calls it often).
-- [ ] Decide precedence rules: if a user manually sets `billingStatus`, does recompute override it?
+- [x] Decide precedence rules: if a user manually sets `billingStatus`, does recompute override it?
   - [x] Recommended: store `billingStatusSource` (`Auto|Manual|Settlement`) or similar and only auto-update when source is `Auto`.
 
 ## Test plan (repo-specific)
@@ -144,12 +145,12 @@ Unit tests (fast, deterministic):
   - [x] STRICT rule: “settled” + “finalized matches” → Reconciled; otherwise → Open
 
 Integration tests (DB-backed, existing patterns):
-- [ ] Apply-match non-negative line → recompute → Billing Status updates.
-- [ ] Create-flex (FlexProduct) → parent/flex Billing Status updates as chosen.
-- [ ] Chargeback → approve-flex → recompute → Billing Status stays/changes per rule.
+- [x] Apply-match non-negative line → recompute → Billing Status updates.
+- [x] Create-flex (FlexProduct) → parent/flex Billing Status updates as chosen.
+- [x] Chargeback → approve-flex → recompute → Billing Status stays/changes per rule.
 
 ## Rollout checklist
 
-- [ ] Add a feature flag for “spec billing status automation” if you want to roll out safely.
+- [x] Add a feature flag for “spec billing status automation” if you want to roll out safely.
 - [ ] Run reports/filters side-by-side (old “Overpaid => dispute” vs new `billingStatus`) until validated.
 - [x] Provide a one-time backfill migration for legacy schedules if rule set changes (already started with Billing Status backfill; adjust if rules change).

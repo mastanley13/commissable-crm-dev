@@ -7,6 +7,7 @@ import {
   RevenueScheduleStatus,
 } from "@prisma/client"
 import { computeNextBillingStatus } from "@/lib/reconciliation/billing-status"
+import { isBillingStatusAutomationEnabled } from "@/lib/feature-flags"
 
 type PrismaClientOrTx = PrismaClient | Prisma.TransactionClient
 
@@ -154,6 +155,7 @@ export async function recomputeRevenueScheduleFromMatches(
   })
 
   const canAutoUpdateBillingStatus = schedule.billingStatusSource === RevenueScheduleBillingStatusSource.Auto
+  const automationEnabled = isBillingStatusAutomationEnabled()
 
   const nextBillingStatus = computeNextBillingStatus({
     currentBillingStatus: schedule.billingStatus,
@@ -165,7 +167,7 @@ export async function recomputeRevenueScheduleFromMatches(
   })
 
   const billingStatusUpdate =
-    canAutoUpdateBillingStatus && nextBillingStatus !== schedule.billingStatus
+    automationEnabled && canAutoUpdateBillingStatus && nextBillingStatus !== schedule.billingStatus
       ? {
           billingStatus: nextBillingStatus,
           billingStatusUpdatedAt: new Date(),

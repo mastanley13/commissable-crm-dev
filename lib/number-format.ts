@@ -53,3 +53,14 @@ export function formatPercentDisplay(raw: string, opts: { alwaysSymbol?: boolean
   return opts.alwaysSymbol ? formatted : formatted
 }
 
+export function normalizePercentFractionValue(value: number | null | undefined): number {
+  const numeric = typeof value === "number" ? value : Number(value ?? 0)
+  if (!Number.isFinite(numeric)) return 0
+
+  // Most of the app treats percent values as *fractions* (0.16 => 16%).
+  // Some upstream sources provide whole-percent values (16 => 16%).
+  // Heuristic: treat unusually-large values as whole-percent and convert.
+  const abs = Math.abs(numeric)
+  return abs > 3 ? numeric / 100 : numeric
+}
+

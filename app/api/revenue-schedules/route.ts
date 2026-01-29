@@ -4,6 +4,7 @@ import {
   Prisma,
   RevenueScheduleFlexClassification,
   RevenueScheduleFlexReasonCode,
+  RevenueScheduleBillingStatus,
   RevenueScheduleStatus,
 } from "@prisma/client"
 import { withAuth } from "@/lib/api-auth"
@@ -30,6 +31,7 @@ export async function GET(request: NextRequest) {
       const query = searchParams.get("q")?.trim() ?? ""
       const statusFilter = (searchParams.get("status") ?? "all").toLowerCase()
       const disputeOnly = searchParams.get("inDispute") === "true"
+      const billingStatusFilter = (searchParams.get("billingStatus") ?? "").trim().toLowerCase()
       const startDateParam = searchParams.get("startDate")
       const endDateParam = searchParams.get("endDate")
       const sortColumn = searchParams.get("sort") ?? "scheduleDate"
@@ -93,7 +95,18 @@ export async function GET(request: NextRequest) {
       }
 
       if (disputeOnly) {
-        andFilters.push({ status: RevenueScheduleStatus.Overpaid })
+        andFilters.push({ billingStatus: RevenueScheduleBillingStatus.InDispute })
+      } else if (billingStatusFilter) {
+        const normalized = billingStatusFilter.replace(/[\s_-]/g, "")
+        const map: Record<string, RevenueScheduleBillingStatus> = {
+          open: RevenueScheduleBillingStatus.Open,
+          reconciled: RevenueScheduleBillingStatus.Reconciled,
+          indispute: RevenueScheduleBillingStatus.InDispute,
+        }
+        const parsed = map[normalized]
+        if (parsed) {
+          andFilters.push({ billingStatus: parsed })
+        }
       }
 
       if (startDateParam) {

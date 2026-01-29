@@ -19,6 +19,7 @@ import { recomputeDepositLineItemAllocations } from "@/lib/matching/deposit-line
 import { logRevenueScheduleAudit } from "@/lib/audit"
 import { isBonusLikeProduct } from "@/lib/flex/bonus-detection"
 import { enqueueFlexReviewItem } from "@/lib/flex/flex-review-queue"
+import { isBillingStatusAutomationEnabled } from "@/lib/feature-flags"
 
 type PrismaClientOrTx = PrismaClient | Prisma.TransactionClient
 
@@ -165,6 +166,8 @@ async function createFlexSchedule(
       ? RevenueScheduleBillingStatus.InDispute
       : RevenueScheduleBillingStatus.Open
 
+  const automationEnabled = isBillingStatusAutomationEnabled()
+
   return tx.revenueSchedule.create({
     data: {
       tenantId,
@@ -184,10 +187,14 @@ async function createFlexSchedule(
       flexSourceDepositId,
       flexSourceDepositLineItemId,
       scheduleNumber,
-      billingStatus,
-      billingStatusSource: RevenueScheduleBillingStatusSource.Auto,
-      billingStatusUpdatedAt: new Date(),
-      billingStatusReason: `AutoFlexCreate:${String(flexClassification)}`,
+      ...(automationEnabled
+        ? {
+            billingStatus,
+            billingStatusSource: RevenueScheduleBillingStatusSource.Auto,
+            billingStatusUpdatedAt: new Date(),
+            billingStatusReason: `AutoFlexCreate:${String(flexClassification)}`,
+          }
+        : {}),
     } as any,
     select: { id: true },
   })
@@ -556,7 +563,7 @@ export async function executeFlexProductSplit(
     })
 
     const shouldAutoUpdateBaseBillingStatus =
-      baseBefore?.billingStatusSource === RevenueScheduleBillingStatusSource.Auto
+      isBillingStatusAutomationEnabled() && baseBefore?.billingStatusSource === RevenueScheduleBillingStatusSource.Auto
 
     const baseAfter = shouldAutoUpdateBaseBillingStatus
       ? await tx.revenueSchedule.update({

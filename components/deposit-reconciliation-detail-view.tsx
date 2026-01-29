@@ -1630,7 +1630,7 @@ export function DepositReconciliationDetailView({
         id: "usage",
         label: depositFieldLabels.usage,
         width: 140,
-        minWidth: 140,
+        minWidth: minTextWidth(depositFieldLabels.usage),
         sortable: true,
         hideable: false,
         render: (value: number) => currencyFormatter.format(value)
@@ -1639,7 +1639,7 @@ export function DepositReconciliationDetailView({
         id: "usageAllocated",
         label: depositFieldLabels.usageAllocated,
         width: 180,
-        minWidth: 160,
+        minWidth: minTextWidth(depositFieldLabels.usageAllocated),
         sortable: true,
         render: (value: number) => currencyFormatter.format(value)
       },
@@ -1647,7 +1647,7 @@ export function DepositReconciliationDetailView({
         id: "usageUnallocated",
         label: depositFieldLabels.usageUnallocated,
         width: 200,
-        minWidth: 180,
+        minWidth: minTextWidth(depositFieldLabels.usageUnallocated),
         sortable: true,
         render: (value: number) => currencyFormatter.format(value)
       },
@@ -1655,7 +1655,7 @@ export function DepositReconciliationDetailView({
         id: "commissionRate",
         label: depositFieldLabels.commissionRate,
         width: 200,
-        minWidth: 170,
+        minWidth: minTextWidth(depositFieldLabels.commissionRate),
         sortable: true,
         render: (value: number) => percentFormatter.format(value)
       },
@@ -1663,7 +1663,7 @@ export function DepositReconciliationDetailView({
         id: "commission",
         label: depositFieldLabels.commission,
         width: 160,
-        minWidth: 140,
+        minWidth: minTextWidth(depositFieldLabels.commission),
         sortable: true,
         hideable: false,
         render: (value: number) => currencyFormatter.format(value)
@@ -1672,7 +1672,7 @@ export function DepositReconciliationDetailView({
         id: "commissionAllocated",
         label: depositFieldLabels.commissionAllocated,
         width: 200,
-        minWidth: 180,
+        minWidth: minTextWidth(depositFieldLabels.commissionAllocated),
         sortable: true,
         render: (value: number) => currencyFormatter.format(value)
       },
@@ -1680,7 +1680,7 @@ export function DepositReconciliationDetailView({
         id: "commissionUnallocated",
         label: depositFieldLabels.commissionUnallocated,
         width: 210,
-        minWidth: 190,
+        minWidth: minTextWidth(depositFieldLabels.commissionUnallocated),
         sortable: true,
         render: (value: number) => currencyFormatter.format(value)
       },

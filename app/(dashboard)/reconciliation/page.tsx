@@ -1072,6 +1072,23 @@ useEffect(() => {
         };
       }
 
+      if (
+        [
+          'totalRevenue',
+          'totalCommissions',
+          'totalUsage',
+          'usageAllocated',
+          'usageUnallocated',
+          'commissionAllocated',
+          'commissionUnallocated',
+        ].includes(column.id)
+      ) {
+        return {
+          ...column,
+          render: (value: any) => currencyFormatter.format(Number(value ?? 0)),
+        }
+      }
+
       if (column.id === 'depositName') {
         return {
           ...column,

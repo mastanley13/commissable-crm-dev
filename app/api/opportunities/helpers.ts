@@ -1,4 +1,12 @@
-import { ActivityStatus, OpportunityStatus, OpportunityStage, OpportunityType, RevenueScheduleStatus, OpportunityProductStatus } from "@prisma/client"
+import {
+  ActivityStatus,
+  OpportunityStatus,
+  OpportunityStage,
+  OpportunityType,
+  OpportunityProductStatus,
+  RevenueScheduleBillingStatus,
+  RevenueScheduleStatus,
+} from "@prisma/client"
 import { isActivityOpen } from "@/lib/activity-status"
 import { resolveOtherSource, resolveOtherValue } from "@/lib/other-field"
 
@@ -620,25 +628,33 @@ export function mapOpportunityProductToDetail(item: OpportunityProductWithRelati
   }
 }
 
-function mapRevenueStatus(status: string | null | undefined, usageBalance: number, commissionDifference: number): {
+function mapRevenueStatus(
+  status: string | null | undefined,
+  billingStatus: RevenueScheduleBillingStatus | null | undefined,
+  usageBalance: number,
+  commissionDifference: number,
+): {
   status: string
   inDispute: boolean
 } {
   const hasVariance = Math.abs(usageBalance) > 0.005 || Math.abs(commissionDifference) > 0.005
 
   if (status === RevenueScheduleStatus.Reconciled) {
-    return { status: "Reconciled", inDispute: false }
+    return { status: "Reconciled", inDispute: billingStatus === RevenueScheduleBillingStatus.InDispute }
   }
 
   if (status === RevenueScheduleStatus.Overpaid) {
-    return { status: "Overpaid", inDispute: true }
+    return {
+      status: "Overpaid",
+      inDispute: billingStatus ? billingStatus === RevenueScheduleBillingStatus.InDispute : true,
+    }
   }
 
   if (status === RevenueScheduleStatus.Underpaid) {
-    return { status: "Underpaid", inDispute: hasVariance }
+    return { status: "Underpaid", inDispute: billingStatus === RevenueScheduleBillingStatus.InDispute ? true : hasVariance }
   }
 
-  return { status: "Unreconciled", inDispute: hasVariance }
+  return { status: "Unreconciled", inDispute: billingStatus === RevenueScheduleBillingStatus.InDispute ? true : hasVariance }
 }
 
 function mapRevenueScheduleToDetail(schedule: RevenueScheduleWithRelations): OpportunityRevenueScheduleDetail {
@@ -695,7 +711,7 @@ function mapRevenueScheduleToDetail(schedule: RevenueScheduleWithRelations): Opp
     actualUsage !== 0 ? actualCommission / actualUsage : 0
   const commissionRateDifferenceDecimal = expectedCommissionRateDecimal - actualCommissionRateDecimal
 
-  const statusInfo = mapRevenueStatus(status, usageBalance, commissionDifference)
+  const statusInfo = mapRevenueStatus(status, (schedule as any).billingStatus ?? null, usageBalance, commissionDifference)
 
   return {
     id: schedule.id,
