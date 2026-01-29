@@ -422,28 +422,6 @@ export function CreateTemplateStep({
     <div className="flex items-start gap-10">
       <div className="w-[360px]">
         <div className="space-y-4">
-          <FormField label="Vendor" required>
-            <div className="relative w-[300px]">
-              <input
-                type="text"
-                value={vendorQuery}
-                onChange={event => setVendorQuery(event.target.value)}
-                onFocus={() => setShowVendorDropdown(true)}
-                placeholder="Search vendors"
-                className={`${underlineInputClass.replace('w-full', 'w-[300px]')} h-[40px]`}
-              />
-              {showVendorDropdown ? (
-                <DropdownList
-                  loading={vendorLoading}
-                  options={vendorOptions}
-                  emptyLabel="No vendors found"
-                  onSelect={option => handleVendorSelect(option)}
-                  onDismiss={() => setShowVendorDropdown(false)}
-                />
-              ) : null}
-            </div>
-          </FormField>
-
           <FormField label="Distributor" required>
             <div className="relative w-[300px]">
               <input
@@ -461,6 +439,28 @@ export function CreateTemplateStep({
                   emptyLabel="No distributors found"
                   onSelect={option => handleDistributorSelect(option)}
                   onDismiss={() => setShowDistributorDropdown(false)}
+                />
+              ) : null}
+            </div>
+          </FormField>
+
+          <FormField label="Vendor" required>
+            <div className="relative w-[300px]">
+              <input
+                type="text"
+                value={vendorQuery}
+                onChange={event => setVendorQuery(event.target.value)}
+                onFocus={() => setShowVendorDropdown(true)}
+                placeholder="Search vendors"
+                className={`${underlineInputClass.replace('w-full', 'w-[300px]')} h-[40px]`}
+              />
+              {showVendorDropdown ? (
+                <DropdownList
+                  loading={vendorLoading}
+                  options={vendorOptions}
+                  emptyLabel="No vendors found"
+                  onSelect={option => handleVendorSelect(option)}
+                  onDismiss={() => setShowVendorDropdown(false)}
                 />
               ) : null}
             </div>

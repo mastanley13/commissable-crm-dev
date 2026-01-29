@@ -40,6 +40,16 @@ This aligns with:
 
 ---
 
+## **Progress (as of Jan 29, 2026)**
+
+### **Completed**
+
+* ✅ **P0-REC-001 — Account Legal Name mapping option** (Completed Jan 29, 2026)  
+  * Mapping UI now includes **“Account Legal Name”** (stored on the deposit line item as the account name raw field used by matching).  
+  * Matching now uses the mapped Account Legal Name to resolve the correct customer account (when a unique match exists) and filter candidate revenue schedules accordingly.
+
+---
+
 ## **Effort / time sizing scale (for this plan)**
 
 * **Easy**: 1–6 hours (mostly UI \+ small backend changes)  
@@ -81,6 +91,7 @@ This aligns with:
 
 ### **P0-REC-001 — Add Account Legal Name as a deposit mapping option (fix “Unknown Account”)**
 
+* **Status:** ✅ Completed (Jan 29, 2026)  
 * **Client Impact:** High (unblocks AI matching and correct account attribution)  
 * **Effort:** Easy–Medium  
 * **Time:** \~0.5–1.5 days  
@@ -599,7 +610,7 @@ These are explicitly mentioned but not fully specified in the meeting notes:
 
 If you have *very limited* sprint time, start here (high impact, low effort):
 
-* P0-REC-001 Account Legal Name mapping option  
+* P0-REC-001 Account Legal Name mapping option (DONE Jan 29, 2026)  
 * P0-REC-002 Create missing test schedules (VoIP etc.)  
 * P0-UI-001 Fix commission rate display  
 * P0-UI-005 Default view Unmatched (remove Suggested tab)  
@@ -607,4 +618,3 @@ If you have *very limited* sprint time, start here (high impact, low effort):
 * P0-DEP-001 Deposit verification fields \+ relabel Report Date
 
 These directly address the issues called out across Jan 21/22/26 and make the system usable for realistic reconciliation testing.
-
