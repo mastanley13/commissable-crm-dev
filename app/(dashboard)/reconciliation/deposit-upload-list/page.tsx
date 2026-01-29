@@ -27,6 +27,8 @@ import {
 
 type WizardStep = 'create-template' | 'map-fields' | 'review'
 
+type BackButtonConfig = { label: string; onClick: () => void; disabled?: boolean }
+
 const generateIdempotencyKey = () => {
   try {
     if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -376,7 +378,7 @@ export default function DepositUploadListPage() {
       selectedFile,
   )
 
-  const getBackButtonConfig = () => {
+  const getBackButtonConfig = (): BackButtonConfig | null => {
     switch (activeStep) {
       case 'create-template':
         return null
@@ -390,6 +392,7 @@ export default function DepositUploadListPage() {
             setImportResult(null)
             setActiveStep('map-fields')
           },
+          disabled: importSubmitting,
         }
       default:
         return null
@@ -456,7 +459,7 @@ export default function DepositUploadListPage() {
               <button
                 type="button"
                 onClick={backButtonConfig.onClick}
-                disabled={backButtonConfig.disabled}
+                disabled={backButtonConfig.disabled ?? false}
                 className="inline-flex items-center self-start rounded-lg border border-gray-300 bg-white px-2 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 md:self-auto"
               >
                 {backButtonConfig.label}
@@ -496,6 +499,7 @@ export default function DepositUploadListPage() {
           {activeStep === 'review' ? (
             <ReviewStep
               csvHeaders={csvHeaders}
+              sampleRows={sampleRows}
               mapping={mapping}
               fieldCatalog={fieldCatalog}
               validationIssues={validationIssues}

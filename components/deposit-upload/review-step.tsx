@@ -1,12 +1,17 @@
 "use client"
 
 import Link from "next/link"
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
+import { ChevronLeft, ChevronRight } from "lucide-react"
 import { getColumnSelectionV2, type DepositMappingConfigV2 } from "@/lib/deposit-import/template-mapping-v2"
 import type { DepositImportFieldTarget } from "@/lib/deposit-import/field-catalog"
 
+const PREVIEW_PAGE_SIZE = 1
+const COLUMN_TABLE_MAX_HEIGHT_CLASS = "h-[280px] overflow-y-auto"
+
 interface ReviewStepProps {
   csvHeaders: string[]
+  sampleRows: string[][]
   mapping: DepositMappingConfigV2
   fieldCatalog: DepositImportFieldTarget[]
   validationIssues: string[]
@@ -20,6 +25,7 @@ interface ReviewStepProps {
 
 export function ReviewStep({
   csvHeaders,
+  sampleRows,
   mapping,
   fieldCatalog,
   validationIssues,
@@ -31,8 +37,44 @@ export function ReviewStep({
   onSubmit
 }: ReviewStepProps) {
   const [activeTab, setActiveTab] = useState<"mapped" | "unmapped">("mapped")
+  const [previewRowIndex, setPreviewRowIndex] = useState(0)
+
+  useEffect(() => {
+    setPreviewRowIndex(0)
+  }, [sampleRows.length])
 
   const fieldCatalogById = useMemo(() => new Map(fieldCatalog.map(target => [target.id, target])), [fieldCatalog])
+
+  const totalPreviewRows = sampleRows.length
+  const effectiveIndex =
+    totalPreviewRows === 0 ? 0 : Math.min(previewRowIndex, Math.max(0, totalPreviewRows - 1))
+  const windowStart = effectiveIndex
+  const windowEndExclusive =
+    totalPreviewRows === 0 ? 0 : Math.min(totalPreviewRows, windowStart + PREVIEW_PAGE_SIZE)
+  const previewWindow = sampleRows.slice(windowStart, windowEndExclusive)
+  const isFirstWindow = windowStart === 0
+  const isLastWindow = windowEndExclusive >= totalPreviewRows
+  const previewRangeLabel =
+    totalPreviewRows === 0
+      ? "No rows"
+      : windowStart + 1 === windowEndExclusive
+        ? `Row ${windowStart + 1} of ${totalPreviewRows}`
+        : `Rows ${windowStart + 1}-${windowEndExclusive} of ${totalPreviewRows}`
+
+  const goToPreviousRow = () => {
+    setPreviewRowIndex(previous => Math.max(0, previous - PREVIEW_PAGE_SIZE))
+  }
+
+  const goToNextRow = () => {
+    setPreviewRowIndex(previous => {
+      if (totalPreviewRows === 0) return previous
+      const next = previous + PREVIEW_PAGE_SIZE
+      if (next >= totalPreviewRows) {
+        return previous
+      }
+      return next
+    })
+  }
 
   const mappingRows = useMemo(() => {
     return csvHeaders.map((header, index) => {
@@ -60,6 +102,7 @@ export function ReviewStep({
 
       return {
         key: `${index}:${header}`,
+        index,
         header: header || "(unnamed column)",
         mappedToLabel,
         status
@@ -125,74 +168,142 @@ export function ReviewStep({
       </div>
 
       <div className="rounded-xl border border-gray-100 bg-gray-50 p-4 space-y-3">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <p className="text-sm font-semibold text-gray-900">Mapping review</p>
-          <div className="flex items-center gap-2 text-xs">
-            <button
-              type="button"
-              onClick={() => setActiveTab("mapped")}
-              className={`rounded-full border px-3 py-1 font-semibold ${
-                activeTab === "mapped"
-                  ? "border-primary-600 bg-primary-600 text-white"
-                  : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
-              }`}
-            >
-              Mapped ({mappedRows.length})
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab("unmapped")}
-              className={`rounded-full border px-3 py-1 font-semibold ${
-                activeTab === "unmapped"
-                  ? "border-primary-600 bg-primary-600 text-white"
-                  : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
-              }`}
-            >
-              Unmapped ({unmappedRows.length})
-            </button>
-          </div>
+          {totalPreviewRows > 0 ? (
+            <div className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-2 py-1 text-xs text-gray-600">
+              <button
+                type="button"
+                onClick={goToPreviousRow}
+                disabled={isFirstWindow}
+                className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-gray-300 bg-white text-gray-700 disabled:border-gray-200 disabled:text-gray-300"
+                aria-label="Previous sample row"
+              >
+                <ChevronLeft className="h-3 w-3" />
+              </button>
+              <span className="min-w-[120px] text-center">{previewRangeLabel}</span>
+              <button
+                type="button"
+                onClick={goToNextRow}
+                disabled={isLastWindow}
+                className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-gray-300 bg-white text-gray-700 disabled:border-gray-200 disabled:text-gray-300"
+                aria-label="Next sample row"
+              >
+                <ChevronRight className="h-3 w-3" />
+              </button>
+            </div>
+          ) : null}
         </div>
 
-        <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
-          <div className="hidden border-b border-primary-700 bg-primary-600 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-white md:grid md:grid-cols-[minmax(0,1.6fr)_120px_minmax(0,1.8fr)]">
-            <div>Field label in file</div>
-            <div>Status</div>
-            <div>Map to import field</div>
+        <div className="flex flex-col overflow-hidden">
+          <div
+            className="flex flex-wrap gap-1 border-x border-t border-gray-200 bg-gray-100 pt-2 px-3 pb-0"
+            role="tablist"
+            aria-label="Deposit upload review tabs"
+          >
+            {[
+              { id: "mapped" as const, label: `Mapped (${mappedRows.length})` },
+              { id: "unmapped" as const, label: `Unmapped (${unmappedRows.length})` },
+            ].map(tab => {
+              const isActive = tab.id === activeTab
+              return (
+                <button
+                  key={tab.id}
+                  id={`deposit-review-tab-${tab.id}`}
+                  type="button"
+                  role="tab"
+                  aria-selected={isActive}
+                  aria-controls={`deposit-review-panel-${tab.id}`}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`rounded-t-md border px-3 py-1.5 text-sm font-semibold shadow-sm transition ${
+                    isActive
+                      ? "relative -mb-[1px] z-10 border-primary-700 bg-primary-700 text-white hover:bg-primary-800"
+                      : "border-blue-300 bg-gradient-to-b from-blue-100 to-blue-200 text-primary-800 hover:border-blue-400 hover:from-blue-200 hover:to-blue-300"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              )
+            })}
           </div>
 
-          {visibleRows.length === 0 ? (
-            <div className="px-3 py-3 text-sm text-gray-500">
-              {activeTab === "mapped" ? "No mapped columns." : "No unmapped columns."}
-            </div>
-          ) : (
-            <div className="divide-y divide-gray-200">
-              {visibleRows.map(row => (
-                <div
-                  key={row.key}
-                  className="grid gap-2 px-3 py-2 md:grid-cols-[minmax(0,1.6fr)_120px_minmax(0,1.8fr)] md:items-center"
-                >
-                  <div className="flex flex-col justify-center gap-0.5">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 md:hidden">
-                      Field label in file
-                    </p>
-                    <p className="text-sm font-semibold text-gray-900 break-words">{row.header}</p>
-                  </div>
-
-                  <div className="flex flex-col justify-center gap-0.5 md:items-center">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 md:hidden">Status</p>
-                    {statusBadge(row.status)}
-                  </div>
-
-                  <div className="flex flex-col justify-center gap-0.5">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 md:hidden">
-                      Map to import field
-                    </p>
-                    <p className="text-sm text-gray-700 break-words">{row.mappedToLabel}</p>
-                  </div>
+          <div className="border-x border-b border-gray-200 bg-white pt-0">
+            <div className="border-t-2 border-t-primary-600 min-w-0 overflow-hidden">
+              <div
+                id={`deposit-review-panel-${activeTab}`}
+                role="tabpanel"
+                aria-labelledby={`deposit-review-tab-${activeTab}`}
+              >
+                <div className="hidden border-b border-primary-700 bg-primary-600 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-white md:grid md:grid-cols-[minmax(0,1.3fr)_minmax(0,1.5fr)_120px_minmax(0,1.7fr)]">
+                  <div>Field label in file</div>
+                  <div>Preview information</div>
+                  <div>Status</div>
+                  <div>Map to import field</div>
                 </div>
-              ))}
+
+                {visibleRows.length === 0 ? (
+                  <div className="px-3 py-3 text-sm text-gray-500">
+                    {activeTab === "mapped" ? "No mapped columns." : "No unmapped columns."}
+                  </div>
+                ) : (
+                  <div className={`${COLUMN_TABLE_MAX_HEIGHT_CLASS} divide-y divide-gray-200`}>
+                    {visibleRows.map(row => {
+                      const previewValues = previewWindow
+                        .map(sampleRow => sampleRow[row.index] ?? "")
+                        .filter(value => typeof value === "string" && value.trim().length > 0)
+
+                      return (
+                        <div
+                          key={row.key}
+                          className="grid gap-2 px-3 py-2 md:grid-cols-[minmax(0,1.3fr)_minmax(0,1.5fr)_120px_minmax(0,1.7fr)] md:items-center"
+                        >
+                          <div className="flex flex-col justify-center gap-0.5">
+                            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 md:hidden">
+                              Field label in file
+                            </p>
+                            <p className="text-sm font-semibold text-gray-900 break-words">{row.header}</p>
+                          </div>
+
+                          <div className="flex flex-col justify-center gap-0.5 text-xs text-gray-600">
+                            <p className="font-semibold uppercase tracking-wide text-gray-500 md:hidden">
+                              Preview information
+                            </p>
+                            {previewValues.length > 0 ? (
+                              previewValues.map((value, valueIndex) => (
+                                <p
+                                  key={`${row.key}-preview-${valueIndex}`}
+                                  className={valueIndex === 0 ? "truncate" : "truncate text-gray-500"}
+                                  title={value}
+                                >
+                                  {value}
+                                </p>
+                              ))
+                            ) : (
+                              <p className="text-gray-400">No sample values in these rows.</p>
+                            )}
+                          </div>
+
+                          <div className="flex flex-col justify-center gap-0.5 md:items-center">
+                            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 md:hidden">
+                              Status
+                            </p>
+                            {statusBadge(row.status)}
+                          </div>
+
+                          <div className="flex flex-col justify-center gap-0.5">
+                            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 md:hidden">
+                              Map to import field
+                            </p>
+                            <p className="text-sm text-gray-700 break-words">{row.mappedToLabel}</p>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
-          )}
+          </div>
         </div>
       </div>
 

@@ -60,6 +60,12 @@ This aligns with:
   * Added verification fields to capture actual payment receipt details (Received Date, Received By, Actual Received Amount).
 * ✅ **P0-DEP-002 — Ticket fields + relabels (Vendor Ticket ID, Vendor Contact, Created By; “Ticket ID” → House Ticket Number)** (Completed Jan 29, 2026)  
   * Tickets now capture vendor ticket metadata (Vendor Ticket ID, Vendor Contact) and display Created By; the internal ticket identifier is labeled **House Ticket Number**.
+* ✅ **P0-MAP-002 — Restyle mapping review** (Completed Jan 29, 2026)  
+  * Review now uses a Map Fields-style table with **Mapped / Unmapped** tabs (with row counts) and a 3-column layout.
+  * “Sample rows” are removed from Review to keep the page focused on mapping and validation.
+* ✅ **P0-MAP-003 — Merge Review + Confirm (start import from Review)** (Completed Jan 29, 2026)  
+  * Users now start the import directly from the Review page (no separate Confirm step).
+  * Review header shows right-aligned **Rows detected** and **Mapped fields**, and the Start Import button explains why it’s disabled when blocked.
 
 ---
 
@@ -279,6 +285,7 @@ This aligns with:
   1. Added Vendor Ticket ID storage on tickets and surfaced it in ticket create + ticket detail UI.
   2. Added Vendor Contact lookup on ticket create (selects an existing contact) and displayed Vendor Contact on ticket detail.
   3. Displayed Created By on ticket detail and relabeled “Ticket Number” to **House Ticket Number** in the ticket UI.
+  4. Clarified roles: **Created By** = the user who created the ticket; **Assigned To/Owner** (where shown) remains the assignee.
 * **Requirements:**  
   1. New fields:  
      * Vendor Ticket ID  
@@ -289,7 +296,7 @@ This aligns with:
      * Owner → Created By  
 * **Dependencies:** “Vendor Contact lookup” requires an existing contact lookup component.  
 * **Acceptance Criteria:**  
-  1. Fields exist on the relevant record(s) (deposit? ticket? dispute record — **ASSUMED deposit detail context**, since Jan 26 notes are under deposit/reconciliation workflow).  
+  1. Fields exist on the Ticket record and display consistently (ticket list, ticket detail, and revenue schedule ticket list).  
   2. Vendor Contact field can search and select an existing contact.  
   3. Relabeled fields show updated labels everywhere (list view, detail view, exports if applicable).
 
@@ -316,6 +323,7 @@ This aligns with:
 
 ### **P0-MAP-002 — Restyle mapping review (Mapped/Unmapped tabs; remove sample rows; 3-column layout; row count)**
 
+* **Status:** ✅ Completed (Jan 29, 2026)  
 * **Client Impact:** Medium (improves mapping confidence and speed)  
 * **Effort:** Medium  
 * **Time:** \~1–2 days  
@@ -334,6 +342,7 @@ This aligns with:
 
 ### **P0-MAP-003 — Merge “Review” step into the main field mapping page**
 
+* **Status:** ✅ Completed (Jan 29, 2026)  
 * **Client Impact:** Medium (simplifies workflow)  
 * **Effort:** Medium  
 * **Time:** \~0.5–2 days  
