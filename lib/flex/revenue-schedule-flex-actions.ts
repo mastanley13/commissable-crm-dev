@@ -5,6 +5,7 @@ import {
   DepositLineMatchStatus,
   Prisma,
   PrismaClient,
+  RevenueScheduleBillingStatus,
   RevenueScheduleFlexClassification,
   RevenueScheduleFlexReasonCode,
   RevenueScheduleType,
@@ -125,6 +126,7 @@ async function createFlexSchedule(
     accountId,
     opportunityId,
     opportunityProductId,
+    parentRevenueScheduleId,
     distributorAccountId,
     vendorAccountId,
     productId,
@@ -140,6 +142,7 @@ async function createFlexSchedule(
     accountId: string
     opportunityId: string | null
     opportunityProductId: string | null
+    parentRevenueScheduleId?: string | null
     distributorAccountId: string | null
     vendorAccountId: string | null
     productId: string | null
@@ -153,11 +156,20 @@ async function createFlexSchedule(
   },
 ) {
   const scheduleNumber = await generateRevenueScheduleName(tx as any)
+
+  const billingStatus =
+    flexClassification === RevenueScheduleFlexClassification.FlexProduct ||
+    flexClassification === RevenueScheduleFlexClassification.FlexChargeback ||
+    flexClassification === RevenueScheduleFlexClassification.FlexChargebackReversal
+      ? RevenueScheduleBillingStatus.InDispute
+      : RevenueScheduleBillingStatus.Open
+
   return tx.revenueSchedule.create({
     data: {
       tenantId,
       opportunityId,
       opportunityProductId,
+      parentRevenueScheduleId: parentRevenueScheduleId ?? null,
       accountId,
       productId,
       distributorAccountId,
@@ -171,6 +183,7 @@ async function createFlexSchedule(
       flexSourceDepositId,
       flexSourceDepositLineItemId,
       scheduleNumber,
+      billingStatus,
     } as any,
     select: { id: true },
   })
@@ -508,6 +521,7 @@ export async function executeFlexProductSplit(
     accountId: baseSchedule.accountId,
     opportunityId: baseSchedule.opportunityId ?? null,
     opportunityProductId: baseSchedule.opportunityProductId ?? null,
+    parentRevenueScheduleId: baseScheduleId,
     distributorAccountId: baseSchedule.distributorAccountId ?? null,
     vendorAccountId: baseSchedule.vendorAccountId ?? null,
     productId: product.id,
@@ -532,6 +546,35 @@ export async function executeFlexProductSplit(
   })
 
   if (createdScheduleId) {
+    const baseBefore = await tx.revenueSchedule.findFirst({
+      where: { tenantId, id: baseScheduleId, deletedAt: null },
+      select: { billingStatus: true },
+    })
+
+    const baseAfter = await tx.revenueSchedule.update({
+      where: { id: baseScheduleId },
+      data: { billingStatus: RevenueScheduleBillingStatus.InDispute },
+      select: { id: true, billingStatus: true },
+    })
+
+    if (baseBefore && baseBefore.billingStatus !== baseAfter.billingStatus) {
+      await logRevenueScheduleAudit(
+        AuditAction.Update,
+        baseScheduleId,
+        userId,
+        tenantId,
+        request,
+        { billingStatus: baseBefore.billingStatus },
+        {
+          action: "AutoBillingStatusInDisputeFromFlexProduct",
+          billingStatus: baseAfter.billingStatus,
+          createdFlexScheduleId: createdScheduleId,
+          depositId,
+          depositLineItemId: lineItemId,
+        },
+      )
+    }
+
     await enqueueFlexReviewItem(tx as any, {
       tenantId,
       createdById: userId,
@@ -944,6 +987,7 @@ export async function createFlexChargebackReversalForPositiveLine(
       flexSourceDepositId: depositId,
       flexSourceDepositLineItemId: lineItemId,
       scheduleNumber,
+      billingStatus: RevenueScheduleBillingStatus.InDispute,
     } as any,
     select: { id: true },
   })

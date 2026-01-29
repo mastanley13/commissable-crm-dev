@@ -23,18 +23,26 @@ Manual editing remains allowed, but must be treated as an explicit “settlement
 
 ## Decisions to lock in before coding (blockers)
 
-- [ ] **Parent dispute rule:** when a Flex Product schedule is created for an overage, does the **parent schedule** also become `In Dispute` (spec), even if the parent’s remaining variance is now balanced after splitting? (`docs/guides/reconciliation-system-comparison.md`)
-- [ ] **What makes a schedule `Reconciled`?**
-  - [ ] Strict: `billingStatus=Reconciled` only when schedule is financially settled and/or deposit is finalized.
+- [x] **Parent dispute rule:** when a Flex Product schedule is created for an overage, does the **parent schedule** also become `In Dispute` (spec), even if the parent’s remaining variance is now balanced after splitting? (`docs/guides/reconciliation-system-comparison.md`)
+  - Decision (P0): **YES** — set both the Flex schedule and its parent/base schedule to `In Dispute` when a Flex Product is created.
+  - Why: prevents the base schedule from appearing “clean” while an overage investigation is still active; matches the spec’s “parent + flex both In Dispute” model.
+- [x] **What makes a schedule `Reconciled`?**
+  - [x] Strict: `billingStatus=Reconciled` only when the schedule is financially settled **and** the deposit batch is finalized/reconciled.
   - [ ] Lenient: `billingStatus=Reconciled` whenever `RevenueSchedule.status=Reconciled`.
-- [ ] **“Clear dispute” semantics:** which actions clear `In Dispute`?
+  - Why: treat Billing Status as the operational end-state (reports/collections truth), not a mid-stream mirror of `RevenueSchedule.status`.
+- [x] **“Clear dispute” semantics:** which actions clear `In Dispute`?
   - [ ] Auto-adjust within tolerance
-  - [ ] Admin “Accept Actual”
-  - [ ] Admin “Write Off”
-  - [ ] Flex “resolved” (rename/assign product) (future phase)
-- [ ] **Chargeback governance:** do we set `billingStatus=InDispute` immediately on chargeback schedule creation (spec), even though allocation application is approval-gated today?
-- [ ] **Manual overrides:** do we need metadata to preserve intent (recommended)?
-  - [ ] add fields like `billingStatusUpdatedById`, `billingStatusUpdatedAt`, `billingStatusReason` (or a separate audit trail record), so automation and admin actions are distinguishable.
+  - [x] Admin “Accept Actual” (settlement/override; clears dispute if it produces an explicitly settled outcome)
+  - [x] Admin “Write Off” (settlement/override; clears dispute if it produces an explicitly settled outcome)
+  - [x] Flex “resolved” (rename/assign product) (future phase; clears dispute once resolution produces a settled outcome)
+  - Note: do **not** use auto-adjust-within-tolerance to clear disputes; tolerance handling should generally prevent disputes from being created in the first place (disputes are reserved for true exception workflows like Flex/Chargeback/research).
+- [x] **Chargeback governance:** do we set `billingStatus=InDispute` immediately on chargeback schedule creation (spec), even though allocation application is approval-gated today?
+  - Decision (P0): **YES** — set `billingStatus` to In Dispute immediately on chargeback schedule creation, even if approval gates applying the allocation.
+- [x] **Manual overrides:** do we need metadata to preserve intent (recommended)?
+  - [x] Add fields: `billingStatusUpdatedById`, `billingStatusUpdatedAt`, `billingStatusReason`
+  - [x] Recommended: add `billingStatusSource = Auto | Manual | Settlement` so auto-rules do not clobber manual/settlement decisions.
+
+- [x] **P0 complete:** Decisions locked (2026-01-29).
 
 ## Implementation approach (recommended)
 
@@ -140,4 +148,3 @@ Integration tests (DB-backed, existing patterns):
 - [ ] Add a feature flag for “spec billing status automation” if you want to roll out safely.
 - [ ] Run reports/filters side-by-side (old “Overpaid => dispute” vs new `billingStatus`) until validated.
 - [ ] Provide a one-time backfill migration for legacy schedules if rule set changes (already started with Billing Status backfill; adjust if rules change).
-

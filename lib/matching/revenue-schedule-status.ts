@@ -1,4 +1,11 @@
-import { DepositLineMatchStatus, Prisma, PrismaClient, RevenueScheduleStatus } from "@prisma/client"
+import {
+  DepositLineMatchStatus,
+  Prisma,
+  PrismaClient,
+  RevenueScheduleBillingStatus,
+  RevenueScheduleStatus,
+} from "@prisma/client"
+import { computeNextBillingStatus } from "@/lib/reconciliation/billing-status"
 
 type PrismaClientOrTx = PrismaClient | Prisma.TransactionClient
 
@@ -10,6 +17,7 @@ export type RevenueScheduleRecomputeResult = {
   schedule: {
     id: string
     status: RevenueScheduleStatus
+    billingStatus: RevenueScheduleBillingStatus
     actualUsage: number | null
     actualCommission: number | null
   }
@@ -82,6 +90,9 @@ export async function recomputeRevenueScheduleFromMatches(
       actualUsageAdjustment: true,
       expectedCommission: true,
       actualCommissionAdjustment: true,
+      status: true,
+      billingStatus: true,
+      flexClassification: true,
     },
   })
 
@@ -105,6 +116,15 @@ export async function recomputeRevenueScheduleFromMatches(
   const actualUsage = toNumber(matchAggregation._sum.usageAmount)
   const actualCommission = toNumber(matchAggregation._sum.commissionAmount)
   const matchCount = typeof matchAggregation._count === "number" ? matchAggregation._count : 0
+
+  const unreconciledAppliedMatchCount = await client.depositLineMatch.count({
+    where: {
+      tenantId,
+      revenueScheduleId,
+      status: DepositLineMatchStatus.Applied,
+      reconciled: false,
+    },
+  })
 
   const expectedUsage = toNumber(schedule.expectedUsage)
   const expectedUsageAdjustment = toNumber(schedule.usageAdjustment)
@@ -131,16 +151,26 @@ export async function recomputeRevenueScheduleFromMatches(
     varianceTolerance: options.varianceTolerance,
   })
 
+  const billingStatus = computeNextBillingStatus({
+    currentBillingStatus: schedule.billingStatus,
+    scheduleStatus: status,
+    flexClassification: schedule.flexClassification,
+    hasAppliedMatches: matchCount > 0,
+    hasUnreconciledAppliedMatches: unreconciledAppliedMatchCount > 0,
+  })
+
   const updated = await client.revenueSchedule.update({
     where: { id: revenueScheduleId },
     data: {
       actualUsage,
       actualCommission,
       status,
+      billingStatus,
     },
     select: {
       id: true,
       status: true,
+      billingStatus: true,
     },
   })
 
@@ -148,6 +178,7 @@ export async function recomputeRevenueScheduleFromMatches(
     schedule: {
       id: updated.id,
       status: updated.status,
+      billingStatus: updated.billingStatus,
       actualUsage,
       actualCommission,
     },
