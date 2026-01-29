@@ -6,7 +6,6 @@ import { useBreadcrumbs } from '@/lib/breadcrumb-context'
 import { CreateTemplateStep } from '@/components/deposit-upload/create-template-step'
 import { MapFieldsStep } from '@/components/deposit-upload/map-fields-step'
 import { ReviewStep } from '@/components/deposit-upload/review-step'
-import { ConfirmStep } from '@/components/deposit-upload/confirm-step'
 import type { DepositUploadFormState } from '@/components/deposit-upload/types'
 import { parseSpreadsheetFile } from '@/lib/deposit-import/parse-file'
 import { DEPOSIT_IMPORT_TARGET_IDS, type DepositImportFieldTarget } from '@/lib/deposit-import/field-catalog'
@@ -27,7 +26,7 @@ import {
   type TelarusTemplateFieldsV1,
 } from '@/lib/deposit-import/telarus-template-fields'
 
-type WizardStep = 'create-template' | 'map-fields' | 'review' | 'confirm'
+type WizardStep = 'create-template' | 'map-fields' | 'review'
 
 const generateIdempotencyKey = () => {
   try {
@@ -74,7 +73,6 @@ export default function DepositUploadListPage() {
   const [templateMapping, setTemplateMapping] = useState<DepositMappingConfigV2 | null>(null)
   const [templateFields, setTemplateFields] = useState<TelarusTemplateFieldsV1 | null>(null)
   const [validationIssues, setValidationIssues] = useState<string[]>([])
-  const [importSummary, setImportSummary] = useState<{ totalRows: number; mappedFields: number } | null>(null)
   const [importSubmitting, setImportSubmitting] = useState(false)
   const [importError, setImportError] = useState<string | null>(null)
   const [importResult, setImportResult] = useState<{ depositId: string } | null>(null)
@@ -285,7 +283,6 @@ export default function DepositUploadListPage() {
 
   const goToMapFields = () => setActiveStep('map-fields')
   const goToReview = () => setActiveStep('review')
-  const goToConfirm = () => setActiveStep('confirm')
   const goToCreateTemplate = () => setActiveStep('create-template')
 
   const { depositReceivedDate, distributorLabel, vendorLabel, commissionPeriod } = formState
@@ -311,21 +308,21 @@ export default function DepositUploadListPage() {
   const mappedTargetSummary = getMappedTargets(mapping, fieldCatalog)
   const mappedTargetCount = Object.keys(mapping.targets ?? {}).length
 
-  const handleProceedFromReview = () => {
-    setImportSummary({
-      totalRows: parsedRowCount,
-      mappedFields: mappedTargetCount,
-    })
-    goToConfirm()
-  }
-
   const handleConfirmSubmit = async () => {
     if (!selectedFile) {
       setImportError('Please re-select the file before importing.')
       return
     }
-    if (!importSummary) {
-      setImportError('Review the data before importing.')
+    if (validationIssues.length > 0) {
+      setImportError('Resolve the validation issues before importing.')
+      return
+    }
+    if (parsedRowCount <= 0) {
+      setImportError('No rows detected from the uploaded file.')
+      return
+    }
+    if (mappedTargetCount <= 0) {
+      setImportError('No mapped fields selected.')
       return
     }
 
@@ -369,12 +366,6 @@ export default function DepositUploadListPage() {
     }
   }
 
-  const handleBackToReview = () => {
-    setImportError(null)
-    setImportResult(null)
-    setActiveStep('review')
-  }
-
   const requiredFieldsComplete =
     Boolean(mapping.targets?.[DEPOSIT_IMPORT_TARGET_IDS.usage]) ||
     Boolean(mapping.targets?.[DEPOSIT_IMPORT_TARGET_IDS.commission])
@@ -396,13 +387,11 @@ export default function DepositUploadListPage() {
       case 'review':
         return {
           label: 'Back to Map Fields',
-          onClick: () => setActiveStep('map-fields'),
-        }
-      case 'confirm':
-        return {
-          label: 'Back to Review',
-          onClick: handleBackToReview,
-          disabled: importSubmitting,
+          onClick: () => {
+            setImportError(null)
+            setImportResult(null)
+            setActiveStep('map-fields')
+          },
         }
       default:
         return null
@@ -508,22 +497,13 @@ export default function DepositUploadListPage() {
 
           {activeStep === 'review' ? (
             <ReviewStep
-              csvHeaders={csvHeaders}
-              sampleRows={sampleRows}
               fieldMapping={mappedTargetSummary}
               validationIssues={validationIssues}
-              onBack={goToMapFields}
-              onProceed={handleProceedFromReview}
-            />
-          ) : null}
-
-          {activeStep === 'confirm' ? (
-            <ConfirmStep
-              importSummary={importSummary}
+              totalRows={parsedRowCount}
+              mappedFields={mappedTargetCount}
               submitting={importSubmitting}
               error={importError}
               result={importResult}
-              onBack={goToReview}
               onSubmit={handleConfirmSubmit}
             />
           ) : null}

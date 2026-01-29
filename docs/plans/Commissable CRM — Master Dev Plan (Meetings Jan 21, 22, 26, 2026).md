@@ -325,6 +325,11 @@ This aligns with:
 * **Effort:** Medium  
 * **Time:** \~0.5–2 days  
 * **Source:** Jan 21 “StrategixAI” next steps  
+* **Implementation (Jan 29, 2026):**
+  1. Removed the dedicated Confirm step from the upload wizard flow; users now start the import directly from the Review page.
+  2. Review page now shows right-aligned **Rows detected** and **Mapped fields** for quick confirmation.
+  3. Removed the “Sample rows” section from Review to keep the page focused on mapping validation and starting the import.
+  4. “Start Import” is disabled until requirements are met, with clear on-screen reasons when blocked.
 * **Acceptance Criteria:**  
   1. Upload → mapping flow no longer requires a separate dedicated “Review” step/page.  
   2. User can see mapped/unmapped status and proceed/confirm on the same mapping page.  
