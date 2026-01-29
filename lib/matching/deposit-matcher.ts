@@ -655,6 +655,26 @@ async function fetchCandidateSchedules(
     ? addMonths(endOfMonth(referenceDate), options.dateWindowMonths)
     : endOfMonth(referenceDate)
 
+  if (!lineItem.accountId) {
+    const accountName = typeof lineItem.accountNameRaw === "string" ? lineItem.accountNameRaw.trim() : ""
+    if (accountName) {
+      const matches = await prisma.account.findMany({
+        where: {
+          tenantId,
+          OR: [
+            { accountLegalName: { equals: accountName, mode: "insensitive" } },
+            { accountName: { equals: accountName, mode: "insensitive" } },
+          ],
+        },
+        select: { id: true },
+        take: 2,
+      })
+      if (matches.length === 1) {
+        lineItem.accountId = matches[0]!.id
+      }
+    }
+  }
+
   const strictWhere: Prisma.RevenueScheduleWhereInput = {
     tenantId,
     scheduleDate: { gte: fromDate, lte: toDate },

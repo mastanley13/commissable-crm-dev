@@ -161,6 +161,7 @@ model User {
   commissionPayoutsUpdated    CommissionPayout[]        @relation("CommissionPayoutUpdatedBy")
   revenueSchedulesCreated     RevenueSchedule[]        @relation("RevenueScheduleCreatedBy")
   revenueSchedulesUpdated     RevenueSchedule[]        @relation("RevenueScheduleUpdatedBy")
+  billingStatusUpdatedRevenueSchedules RevenueSchedule[] @relation("RevenueScheduleBillingStatusUpdatedBy")
   roleGrants                  RolePermission[]         @relation("RolePermissionGrantedBy")
   opportunityRolesCreated     OpportunityRole[]        @relation("OpportunityRoleCreatedBy")
   opportunityRolesUpdated     OpportunityRole[]        @relation("OpportunityRoleUpdatedBy")
@@ -687,6 +688,10 @@ model RevenueSchedule {
   distributorOrderId         String?
   status                     RevenueScheduleStatus @default(Unreconciled)
   billingStatus              RevenueScheduleBillingStatus @default(Open)
+  billingStatusSource        RevenueScheduleBillingStatusSource @default(Auto)
+  billingStatusUpdatedById   String?               @db.Uuid
+  billingStatusUpdatedAt     DateTime?
+  billingStatusReason        String?
   houseSplitPercentOverride  Decimal?             @db.Decimal(5, 4)
   houseRepSplitPercentOverride Decimal?           @db.Decimal(5, 4)
   subagentSplitPercentOverride Decimal?           @db.Decimal(5, 4)
@@ -708,6 +713,7 @@ model RevenueSchedule {
   opportunityProduct         OpportunityProduct?   @relation(fields: [opportunityProductId], references: [id])
   product                    Product?              @relation(fields: [productId], references: [id])
   tenant                     Tenant                @relation(fields: [tenantId], references: [id])
+  billingStatusUpdatedBy     User?                 @relation("RevenueScheduleBillingStatusUpdatedBy", fields: [billingStatusUpdatedById], references: [id])
   updatedBy                  User?                 @relation("RevenueScheduleUpdatedBy", fields: [updatedById], references: [id])
   vendor                     Account?              @relation("RevenueScheduleVendor", fields: [vendorAccountId], references: [id])
   tickets                    Ticket[]
@@ -721,6 +727,8 @@ model RevenueSchedule {
   @@index([tenantId, opportunityId])
   @@index([tenantId, deletedAt])
   @@index([tenantId, parentRevenueScheduleId])
+  @@index([tenantId, billingStatusSource])
+  @@index([tenantId, billingStatusUpdatedById])
 }
 
 model Reconciliation {
@@ -1437,6 +1445,12 @@ enum RevenueScheduleBillingStatus {
   Open
   Reconciled
   InDispute
+}
+
+enum RevenueScheduleBillingStatusSource {
+  Auto
+  Manual
+  Settlement
 }
 
 enum ReconciliationStatus {

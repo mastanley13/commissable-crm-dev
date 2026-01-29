@@ -3,6 +3,7 @@ import assert from "node:assert/strict"
 
 import {
   RevenueScheduleBillingStatus,
+  RevenueScheduleBillingStatusSource,
   RevenueScheduleFlexClassification,
   RevenueScheduleStatus,
 } from "@prisma/client"
@@ -11,6 +12,7 @@ import { computeNextBillingStatus } from "../lib/reconciliation/billing-status"
 test("computeNextBillingStatus: flex schedules are always In Dispute", () => {
   const result = computeNextBillingStatus({
     currentBillingStatus: RevenueScheduleBillingStatus.Open,
+    billingStatusSource: RevenueScheduleBillingStatusSource.Auto,
     scheduleStatus: RevenueScheduleStatus.Reconciled,
     flexClassification: RevenueScheduleFlexClassification.FlexProduct,
     hasAppliedMatches: true,
@@ -23,6 +25,7 @@ test("computeNextBillingStatus: flex schedules are always In Dispute", () => {
 test("computeNextBillingStatus: In Dispute is sticky for non-flex schedules (phase 1)", () => {
   const result = computeNextBillingStatus({
     currentBillingStatus: RevenueScheduleBillingStatus.InDispute,
+    billingStatusSource: RevenueScheduleBillingStatusSource.Auto,
     scheduleStatus: RevenueScheduleStatus.Reconciled,
     flexClassification: RevenueScheduleFlexClassification.Normal,
     hasAppliedMatches: true,
@@ -35,6 +38,7 @@ test("computeNextBillingStatus: In Dispute is sticky for non-flex schedules (pha
 test("computeNextBillingStatus: STRICT Reconciled requires finalized/applied matches", () => {
   const reconciled = computeNextBillingStatus({
     currentBillingStatus: RevenueScheduleBillingStatus.Open,
+    billingStatusSource: RevenueScheduleBillingStatusSource.Auto,
     scheduleStatus: RevenueScheduleStatus.Reconciled,
     flexClassification: RevenueScheduleFlexClassification.Normal,
     hasAppliedMatches: true,
@@ -44,6 +48,7 @@ test("computeNextBillingStatus: STRICT Reconciled requires finalized/applied mat
 
   const notFinalizedYet = computeNextBillingStatus({
     currentBillingStatus: RevenueScheduleBillingStatus.Open,
+    billingStatusSource: RevenueScheduleBillingStatusSource.Auto,
     scheduleStatus: RevenueScheduleStatus.Reconciled,
     flexClassification: RevenueScheduleFlexClassification.Normal,
     hasAppliedMatches: true,
@@ -55,6 +60,7 @@ test("computeNextBillingStatus: STRICT Reconciled requires finalized/applied mat
 test("computeNextBillingStatus: returns Open when schedule is not settled", () => {
   const result = computeNextBillingStatus({
     currentBillingStatus: RevenueScheduleBillingStatus.Reconciled,
+    billingStatusSource: RevenueScheduleBillingStatusSource.Auto,
     scheduleStatus: RevenueScheduleStatus.Overpaid,
     flexClassification: RevenueScheduleFlexClassification.Normal,
     hasAppliedMatches: true,
@@ -63,4 +69,3 @@ test("computeNextBillingStatus: returns Open when schedule is not settled", () =
 
   assert.equal(result, RevenueScheduleBillingStatus.Open)
 })
-

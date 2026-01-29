@@ -8,6 +8,7 @@ import {
   DepositPaymentType,
   AuditAction,
   RevenueScheduleBillingStatus,
+  RevenueScheduleBillingStatusSource,
 } from "@prisma/client"
 import { logProductAudit, logRevenueScheduleAudit } from "@/lib/audit"
 
@@ -353,6 +354,10 @@ export async function PATCH(request: NextRequest, { params }: { params: { revenu
             errors.billingStatus = "Billing Status must be Open, Reconciled, or In Dispute."
           } else {
             data.billingStatus = parsed
+            data.billingStatusSource = RevenueScheduleBillingStatusSource.Manual
+            data.billingStatusUpdatedById = req.user.id
+            data.billingStatusUpdatedAt = new Date()
+            data.billingStatusReason = "ManualEdit"
             hasChanges = true
           }
         }

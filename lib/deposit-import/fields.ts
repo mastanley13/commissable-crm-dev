@@ -26,7 +26,7 @@ export const depositFieldDefinitions: DepositFieldDefinition[] = [
   },
   {
     id: "accountNameRaw",
-    label: "Account / Customer Name",
+    label: "Account Legal Name",
     type: "string",
     scope: "line",
   },

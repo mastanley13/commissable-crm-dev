@@ -41,6 +41,7 @@ Manual editing remains allowed, but must be treated as an explicit “settlement
 - [x] **Manual overrides:** do we need metadata to preserve intent (recommended)?
   - [x] Add fields: `billingStatusUpdatedById`, `billingStatusUpdatedAt`, `billingStatusReason`
   - [x] Recommended: add `billingStatusSource = Auto | Manual | Settlement` so auto-rules do not clobber manual/settlement decisions.
+  - Status: implemented (schema + migration + API behavior) and recompute respects `billingStatusSource` (2026-01-29).
 
 - [x] **P0 complete:** Decisions locked (2026-01-29).
 
@@ -53,9 +54,10 @@ Manual editing remains allowed, but must be treated as an explicit “settlement
 - Keep `billingStatus` as the **operational truth** for Dispute/Collections reporting (per spec), not as a cosmetic UI label.
 
 Suggested module placement:
-- [ ] Add `lib/reconciliation/billing-status.ts` (or `lib/matching/billing-status.ts`) exporting:
+- [x] Add `lib/reconciliation/billing-status.ts` (or `lib/matching/billing-status.ts`) exporting:
   - `computeNextBillingStatus(...)`
   - `applyBillingStatusTransitions(tx, scheduleIds, ...)`
+  - Status: implemented and wired into schedule recompute (2026-01-29).
 
 ## Checklist by flow (repo-specific)
 
@@ -68,11 +70,11 @@ Files:
 - `lib/flex/revenue-schedule-flex-actions.ts`
 
 Checklist:
-- [ ] After a non-negative allocation is applied and `recomputeRevenueScheduleFromMatches(...)` runs, apply Billing Status rules:
-  - [ ] If variance is within tolerance and schedule is settled, set `billingStatus` appropriately (likely `Reconciled` or `Open` based on your decision).
-  - [ ] If overage exceeds tolerance and the system returns a “prompt” decision, do **not** auto-set `In Dispute` yet (spec sets it when Flex is created, not when prompt is shown), unless you decide otherwise.
+- [x] After a non-negative allocation is applied and `recomputeRevenueScheduleFromMatches(...)` runs, apply Billing Status rules:
+  - [x] **STRICT rule implemented:** a schedule only becomes `billingStatus=Reconciled` after deposit finalize (i.e., no unreconciled applied matches remain).
+  - [x] If overage exceeds tolerance and the system returns a “prompt” decision, do **not** auto-set `In Dispute` yet (only set on Flex creation).
 - [ ] Ensure any existing `inDispute` UI flags and filters switch to `billingStatus === InDispute` everywhere they represent “Dispute”.
-- [ ] Add audit log event for automated Billing Status transitions (who/why).
+- [ ] Add audit log event for automated Billing Status transitions (who/why). (Partial: Flex Product parent/base auto-set emits an audit entry.)
 
 ### B) Create Flex (manual creation)
 
@@ -81,13 +83,13 @@ Files:
 - `lib/flex/revenue-schedule-flex-actions.ts`
 
 Checklist:
-- [ ] For `kind === "FlexProduct"`:
-  - [ ] Ensure the created flex schedule has `billingStatus=InDispute`.
-  - [ ] If you adopt spec semantics: also set the **attached/parent/base schedule** `billingStatus=InDispute`.
-- [ ] For `kind === "Chargeback"`:
-  - [ ] Ensure the created chargeback schedule has `billingStatus=InDispute` immediately, even if match remains pending approval.
-- [ ] For `kind === "ChargebackReversal"`:
-  - [ ] Decide whether reversal is `InDispute` until approved/applied, or follows another rule.
+- [x] For `kind === "FlexProduct"`:
+  - [x] Ensure the created flex schedule has `billingStatus=InDispute`.
+  - [x] Spec semantics (P0): also set the **parent/base schedule** `billingStatus=InDispute` when a Flex Product is created as an overage split.
+- [x] For `kind === "Chargeback"`:
+  - [x] Ensure the created chargeback schedule has `billingStatus=InDispute` immediately, even if match remains pending approval.
+- [x] For `kind === "ChargebackReversal"`:
+  - [x] Decision (Phase 1): reversal is `InDispute` on creation (pending approval) and remains `InDispute` unless explicitly settled.
 
 ### C) Resolve Flex (Adjust / FlexProduct / Manual)
 
@@ -98,9 +100,11 @@ Files:
 - `lib/reconciliation/future-schedules.ts` (apply-forward path)
 
 Checklist:
-- [ ] After `executeFlexAdjustmentSplit(...)` or `executeFlexProductSplit(...)`, apply Billing Status transitions:
-  - [ ] Base schedule: decide whether this clears dispute (spec: “clear dispute” when settled) and set accordingly.
-  - [ ] Flex schedule: set `InDispute` when created; clear when “resolved” (future rename/assign UX).
+- [x] After `executeFlexAdjustmentSplit(...)` or `executeFlexProductSplit(...)`, apply Billing Status transitions:
+  - [x] Base schedule: Flex Product overage creation sets base schedule to `In Dispute` (P0).
+  - [ ] Base schedule: clearing `In Dispute` only via explicit settlement actions (“Accept Actual” / “Write Off” / Flex resolved) (not implemented yet).
+  - [x] Flex schedule: Flex Product / Chargeback / Chargeback Reversal schedules are created as `In Dispute`.
+  - [ ] Flex schedule: clear when “resolved” (future rename/assign UX).
 - [ ] If `applyToFuture` mutates expectations, ensure Billing Status changes are limited to the intended scope (don’t accidentally flip already-settled periods).
 
 ### D) Chargeback approval flow
@@ -111,9 +115,9 @@ Files:
 - `lib/matching/revenue-schedule-status.ts`
 
 Checklist:
-- [ ] On chargeback creation: set `billingStatus=InDispute` (spec).
-- [ ] On approval (match becomes Applied) and recompute runs:
-  - [ ] ensure Billing Status remains `InDispute` unless explicitly settled (spec suggests chargebacks often remain placeholders).
+- [x] On chargeback creation: set `billingStatus=InDispute` (spec).
+- [x] On approval (match becomes Applied) and recompute runs:
+  - [x] ensure Billing Status remains `InDispute` unless explicitly settled (chargebacks remain placeholders).
 - [ ] Add audit events that distinguish “auto-set on chargeback detection” vs “approval applied”.
 
 ### E) Matcher / status recompute (the “source of truth” layer)
@@ -123,20 +127,20 @@ Files:
 - `lib/matching/deposit-matcher.ts`
 
 Checklist:
-- [ ] Extend recompute to update *both*:
-  - [ ] `RevenueSchedule.status` (existing variance result)
-  - [ ] `RevenueSchedule.billingStatus` (operational lifecycle per spec)
-- [ ] Ensure recompute is idempotent and safe to call repeatedly (deposit matching calls it often).
+- [x] Extend recompute to update *both*:
+  - [x] `RevenueSchedule.status` (existing variance result)
+  - [x] `RevenueSchedule.billingStatus` (operational lifecycle per spec)
+- [x] Ensure recompute is idempotent and safe to call repeatedly (deposit matching calls it often).
 - [ ] Decide precedence rules: if a user manually sets `billingStatus`, does recompute override it?
-  - [ ] Recommended: store `billingStatusSource` (`Auto|Manual|Settlement`) or similar and only auto-update when source is `Auto`.
+  - [x] Recommended: store `billingStatusSource` (`Auto|Manual|Settlement`) or similar and only auto-update when source is `Auto`.
 
 ## Test plan (repo-specific)
 
 Unit tests (fast, deterministic):
-- [ ] Add tests for the Billing Status Engine mapping:
-  - [ ] Overpaid/outside tolerance → InDispute (flex created)
-  - [ ] Chargeback schedule created → InDispute
-  - [ ] Reconciled schedule → Reconciled (if that rule is adopted)
+- [x] Add tests for the Billing Status Engine mapping:
+  - [x] Flex schedule created → InDispute
+  - [x] Chargeback schedule created → InDispute
+  - [x] STRICT rule: “settled” + “finalized matches” → Reconciled; otherwise → Open
 
 Integration tests (DB-backed, existing patterns):
 - [ ] Apply-match non-negative line → recompute → Billing Status updates.
@@ -147,4 +151,4 @@ Integration tests (DB-backed, existing patterns):
 
 - [ ] Add a feature flag for “spec billing status automation” if you want to roll out safely.
 - [ ] Run reports/filters side-by-side (old “Overpaid => dispute” vs new `billingStatus`) until validated.
-- [ ] Provide a one-time backfill migration for legacy schedules if rule set changes (already started with Billing Status backfill; adjust if rules change).
+- [x] Provide a one-time backfill migration for legacy schedules if rule set changes (already started with Billing Status backfill; adjust if rules change).

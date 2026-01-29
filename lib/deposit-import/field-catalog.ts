@@ -43,7 +43,7 @@ const depositLineItemTargets: DepositImportFieldTarget[] = [
   },
   {
     id: "depositLineItem.accountNameRaw",
-    label: "Account Name",
+    label: "Account Legal Name",
     entity: "depositLineItem",
     dataType: "string",
     persistence: "depositLineItemColumn",

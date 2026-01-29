@@ -4,6 +4,7 @@ import {
   Prisma,
   PrismaClient,
   RevenueScheduleBillingStatus,
+  RevenueScheduleBillingStatusSource,
   RevenueScheduleFlexClassification,
   RevenueScheduleStatus,
 } from "@prisma/client"
@@ -13,6 +14,7 @@ type PrismaClientOrTx = PrismaClient | Prisma.TransactionClient
 
 export type BillingStatusInputs = {
   currentBillingStatus: RevenueScheduleBillingStatus
+  billingStatusSource: RevenueScheduleBillingStatusSource
   scheduleStatus: RevenueScheduleStatus
   flexClassification: RevenueScheduleFlexClassification
   hasAppliedMatches: boolean
@@ -22,11 +24,16 @@ export type BillingStatusInputs = {
 export function computeNextBillingStatus(inputs: BillingStatusInputs): RevenueScheduleBillingStatus {
   const {
     currentBillingStatus,
+    billingStatusSource,
     scheduleStatus,
     flexClassification,
     hasAppliedMatches,
     hasUnreconciledAppliedMatches,
   } = inputs
+
+  if (billingStatusSource !== RevenueScheduleBillingStatusSource.Auto) {
+    return currentBillingStatus
+  }
 
   const isFlexDispute =
     flexClassification === RevenueScheduleFlexClassification.FlexProduct ||
@@ -75,6 +82,7 @@ export async function applyBillingStatusTransitions(
       id: true,
       status: true,
       billingStatus: true,
+      billingStatusSource: true,
       flexClassification: true,
     },
   })
@@ -109,11 +117,14 @@ export async function applyBillingStatusTransitions(
   const updatedScheduleIds: string[] = []
 
   for (const schedule of schedules) {
+    if (schedule.billingStatusSource !== RevenueScheduleBillingStatusSource.Auto) continue
+
     const appliedCount = appliedCountByScheduleId.get(schedule.id) ?? 0
     const unreconciledAppliedCount = unreconciledAppliedCountByScheduleId.get(schedule.id) ?? 0
 
     const nextBillingStatus = computeNextBillingStatus({
       currentBillingStatus: schedule.billingStatus,
+      billingStatusSource: schedule.billingStatusSource,
       scheduleStatus: schedule.status,
       flexClassification: schedule.flexClassification,
       hasAppliedMatches: appliedCount > 0,
@@ -124,7 +135,12 @@ export async function applyBillingStatusTransitions(
 
     await client.revenueSchedule.update({
       where: { id: schedule.id },
-      data: { billingStatus: nextBillingStatus },
+      data: {
+        billingStatus: nextBillingStatus,
+        billingStatusUpdatedAt: new Date(),
+        billingStatusReason: reason ?? "AutoBillingStatusTransition",
+        ...(userId ? { billingStatusUpdatedById: userId } : {}),
+      },
       select: { id: true },
     })
     updatedScheduleIds.push(schedule.id)
@@ -147,4 +163,3 @@ export async function applyBillingStatusTransitions(
 
   return { updatedScheduleIds }
 }
-

@@ -6,6 +6,7 @@ import {
   Prisma,
   PrismaClient,
   RevenueScheduleBillingStatus,
+  RevenueScheduleBillingStatusSource,
   RevenueScheduleFlexClassification,
   RevenueScheduleFlexReasonCode,
   RevenueScheduleType,
@@ -184,6 +185,9 @@ async function createFlexSchedule(
       flexSourceDepositLineItemId,
       scheduleNumber,
       billingStatus,
+      billingStatusSource: RevenueScheduleBillingStatusSource.Auto,
+      billingStatusUpdatedAt: new Date(),
+      billingStatusReason: `AutoFlexCreate:${String(flexClassification)}`,
     } as any,
     select: { id: true },
   })
@@ -548,16 +552,27 @@ export async function executeFlexProductSplit(
   if (createdScheduleId) {
     const baseBefore = await tx.revenueSchedule.findFirst({
       where: { tenantId, id: baseScheduleId, deletedAt: null },
-      select: { billingStatus: true },
+      select: { billingStatus: true, billingStatusSource: true },
     })
 
-    const baseAfter = await tx.revenueSchedule.update({
-      where: { id: baseScheduleId },
-      data: { billingStatus: RevenueScheduleBillingStatus.InDispute },
-      select: { id: true, billingStatus: true },
-    })
+    const shouldAutoUpdateBaseBillingStatus =
+      baseBefore?.billingStatusSource === RevenueScheduleBillingStatusSource.Auto
 
-    if (baseBefore && baseBefore.billingStatus !== baseAfter.billingStatus) {
+    const baseAfter = shouldAutoUpdateBaseBillingStatus
+      ? await tx.revenueSchedule.update({
+          where: { id: baseScheduleId },
+          data: {
+            billingStatus: RevenueScheduleBillingStatus.InDispute,
+            billingStatusSource: RevenueScheduleBillingStatusSource.Auto,
+            billingStatusUpdatedById: userId,
+            billingStatusUpdatedAt: new Date(),
+            billingStatusReason: "AutoFlexProductParentDispute",
+          },
+          select: { id: true, billingStatus: true },
+        })
+      : null
+
+    if (baseBefore && baseAfter && baseBefore.billingStatus !== baseAfter.billingStatus) {
       await logRevenueScheduleAudit(
         AuditAction.Update,
         baseScheduleId,
@@ -988,6 +1003,9 @@ export async function createFlexChargebackReversalForPositiveLine(
       flexSourceDepositLineItemId: lineItemId,
       scheduleNumber,
       billingStatus: RevenueScheduleBillingStatus.InDispute,
+      billingStatusSource: RevenueScheduleBillingStatusSource.Auto,
+      billingStatusUpdatedAt: new Date(),
+      billingStatusReason: "AutoFlexCreate:FlexChargebackReversal",
     } as any,
     select: { id: true },
   })

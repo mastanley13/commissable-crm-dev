@@ -3,6 +3,7 @@ import {
   Prisma,
   PrismaClient,
   RevenueScheduleBillingStatus,
+  RevenueScheduleBillingStatusSource,
   RevenueScheduleStatus,
 } from "@prisma/client"
 import { computeNextBillingStatus } from "@/lib/reconciliation/billing-status"
@@ -92,6 +93,7 @@ export async function recomputeRevenueScheduleFromMatches(
       actualCommissionAdjustment: true,
       status: true,
       billingStatus: true,
+      billingStatusSource: true,
       flexClassification: true,
     },
   })
@@ -151,13 +153,25 @@ export async function recomputeRevenueScheduleFromMatches(
     varianceTolerance: options.varianceTolerance,
   })
 
-  const billingStatus = computeNextBillingStatus({
+  const canAutoUpdateBillingStatus = schedule.billingStatusSource === RevenueScheduleBillingStatusSource.Auto
+
+  const nextBillingStatus = computeNextBillingStatus({
     currentBillingStatus: schedule.billingStatus,
+    billingStatusSource: schedule.billingStatusSource,
     scheduleStatus: status,
     flexClassification: schedule.flexClassification,
     hasAppliedMatches: matchCount > 0,
     hasUnreconciledAppliedMatches: unreconciledAppliedMatchCount > 0,
   })
+
+  const billingStatusUpdate =
+    canAutoUpdateBillingStatus && nextBillingStatus !== schedule.billingStatus
+      ? {
+          billingStatus: nextBillingStatus,
+          billingStatusUpdatedAt: new Date(),
+          billingStatusReason: "AutoRecompute",
+        }
+      : {}
 
   const updated = await client.revenueSchedule.update({
     where: { id: revenueScheduleId },
@@ -165,7 +179,7 @@ export async function recomputeRevenueScheduleFromMatches(
       actualUsage,
       actualCommission,
       status,
-      billingStatus,
+      ...billingStatusUpdate,
     },
     select: {
       id: true,
