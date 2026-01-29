@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
-import { AuditAction, RevenueScheduleBillingStatus, RevenueScheduleBillingStatusSource } from "@prisma/client"
+import {
+  AuditAction,
+  DepositLineMatchStatus,
+  RevenueScheduleBillingStatus,
+  RevenueScheduleBillingStatusSource,
+} from "@prisma/client"
 import { withPermissions } from "@/lib/api-auth"
 import { prisma } from "@/lib/db"
 import { recomputeRevenueScheduleFromMatches } from "@/lib/matching/revenue-schedule-status"
@@ -96,7 +101,7 @@ export async function POST(request: NextRequest, { params }: { params: { revenue
           where: {
             tenantId,
             revenueScheduleId,
-            status: "Applied",
+            status: DepositLineMatchStatus.Applied,
             reconciled: false,
           },
         })
@@ -173,4 +178,3 @@ export async function POST(request: NextRequest, { params }: { params: { revenue
     }
   })
 }
-

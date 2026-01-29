@@ -6,7 +6,7 @@ import { recomputeDepositAggregates } from "@/lib/matching/deposit-aggregates"
 import { recomputeDepositLineItemAllocations } from "@/lib/matching/deposit-line-allocations"
 import { recomputeRevenueScheduleFromMatches } from "@/lib/matching/revenue-schedule-status"
 import { getTenantVarianceTolerance } from "@/lib/matching/settings"
-import { getClientIP, getUserAgent, logAudit } from "@/lib/audit"
+import { getClientIP, getUserAgent, logAudit, logRevenueScheduleAudit } from "@/lib/audit"
 
 interface ApproveFlexRequestBody {
   revenueScheduleId?: string
@@ -60,6 +60,18 @@ export async function POST(
           throw new Error("No pending FLEX match found to approve")
         }
 
+        const scheduleBefore = await tx.revenueSchedule.findFirst({
+          where: { tenantId, id: match.revenueScheduleId, deletedAt: null },
+          select: {
+            status: true,
+            billingStatus: true,
+            billingStatusSource: true,
+            expectedUsage: true,
+            usageAdjustment: true,
+            expectedCommission: true,
+          },
+        })
+
         const flexClassification = (match.revenueSchedule as any)?.flexClassification ?? null
         const isApprovable =
           flexClassification === RevenueScheduleFlexClassification.FlexChargeback ||
@@ -79,7 +91,14 @@ export async function POST(
         const updatedLine = await recomputeDepositLineItemAllocations(tx, lineId, tenantId)
         const deposit = await recomputeDepositAggregates(tx, depositId, tenantId)
 
-        return { revenueSchedule, lineItem: updatedLine.line, deposit, approvedMatchId: match.id }
+        return {
+          revenueSchedule,
+          lineItem: updatedLine.line,
+          deposit,
+          approvedMatchId: match.id,
+          scheduleBefore,
+          scheduleId: match.revenueScheduleId,
+        }
       })
 
       await logAudit({
@@ -98,6 +117,25 @@ export async function POST(
         },
       })
 
+      if (result.scheduleId) {
+        await logRevenueScheduleAudit(
+          AuditAction.Update,
+          result.scheduleId,
+          req.user.id,
+          tenantId,
+          request,
+          result.scheduleBefore ?? undefined,
+          {
+            action: "ApproveFlex",
+            depositId,
+            depositLineItemId: lineId,
+            approvedMatchId: result.approvedMatchId,
+            status: result.revenueSchedule?.schedule?.status ?? null,
+            billingStatus: result.revenueSchedule?.schedule?.billingStatus ?? null,
+          },
+        )
+      }
+
       return NextResponse.json({ data: result })
     } catch (error) {
       console.error("Failed to approve flex match", error)
@@ -108,4 +146,3 @@ export async function POST(
     }
   })
 }
-

@@ -102,7 +102,8 @@ Files:
 Checklist:
 - [x] After `executeFlexAdjustmentSplit(...)` or `executeFlexProductSplit(...)`, apply Billing Status transitions:
   - [x] Base schedule: Flex Product overage creation sets base schedule to `In Dispute` (P0).
-  - [ ] Base schedule: clearing `In Dispute` only via explicit settlement actions (“Accept Actual” / “Write Off” / Flex resolved) (not implemented yet).
+  - [x] Base schedule: clearing `In Dispute` only via explicit settlement actions (“Accept Actual” / “Write Off” / Flex resolved).
+    - Implemented (Phase 2): settlement endpoint `POST /api/revenue-schedules/[revenueScheduleId]/settlement` sets `billingStatusSource=Settlement` and clears dispute to `Open` (or `Reconciled` if deposit finalized).
   - [x] Flex schedule: Flex Product / Chargeback / Chargeback Reversal schedules are created as `In Dispute`.
   - [ ] Flex schedule: clear when “resolved” (future rename/assign UX).
 - [ ] If `applyToFuture` mutates expectations, ensure Billing Status changes are limited to the intended scope (don’t accidentally flip already-settled periods).
@@ -118,7 +119,7 @@ Checklist:
 - [x] On chargeback creation: set `billingStatus=InDispute` (spec).
 - [x] On approval (match becomes Applied) and recompute runs:
   - [x] ensure Billing Status remains `InDispute` unless explicitly settled (chargebacks remain placeholders).
-- [ ] Add audit events that distinguish “auto-set on chargeback detection” vs “approval applied”.
+- [x] Add audit events that distinguish “auto-set on chargeback detection” vs “approval applied”.
 
 ### E) Matcher / status recompute (the “source of truth” layer)
 
