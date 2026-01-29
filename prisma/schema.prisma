@@ -1041,6 +1041,7 @@ model Ticket {
   vendorAccountId      String?          @db.Uuid
   assignedToId         String?          @db.Uuid
   createdById          String?          @db.Uuid
+  vendorTicketId       String?
   issue                String
   status               TicketStatus     @default(Open)
   priority             TicketPriority   @default(Medium)

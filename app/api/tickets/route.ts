@@ -18,6 +18,8 @@ type TicketRow = {
   status: string
   assignedToName: string
   requestorName: string
+  vendorTicketId: string
+  vendorContactName: string
   revenueScheduleId: string
   revenueSchedule: string
   opportunityName: string
@@ -116,6 +118,11 @@ type TicketWithRelations = Prisma.TicketGetPayload<{
       }
     }
     createdBy: {
+      select: {
+        fullName: true
+      }
+    }
+    contact: {
       select: {
         fullName: true
       }
@@ -229,6 +236,8 @@ function mapTicketToRow(ticket: TicketWithRelations): TicketRow {
     status: String(ticket.status),
     assignedToName: ticket.assignedTo?.fullName ?? "",
     requestorName: ticket.createdBy?.fullName ?? "",
+    vendorTicketId: ticket.vendorTicketId ?? "",
+    vendorContactName: ticket.contact?.fullName ?? "",
     revenueScheduleId,
     revenueSchedule: revenueScheduleName,
     opportunityName,
@@ -288,6 +297,10 @@ export async function POST(request: NextRequest) {
       const revenueScheduleIdInput = coerceId((payload as any).revenueScheduleId)
       const distributorAccountIdInput = coerceId((payload as any).distributorAccountId)
       const vendorAccountIdInput = coerceId((payload as any).vendorAccountId)
+      const vendorContactIdInput = coerceId((payload as any).vendorContactId ?? (payload as any).contactId)
+      const vendorTicketIdInput = typeof (payload as any).vendorTicketId === "string"
+        ? (payload as any).vendorTicketId.trim()
+        : ""
       const productNameVendorInput = typeof (payload as any).productNameVendor === "string"
         ? (payload as any).productNameVendor.trim()
         : ""
@@ -369,6 +382,23 @@ export async function POST(request: NextRequest) {
         }
       }
 
+      let contactId: string | null = vendorContactIdInput
+      if (contactId) {
+        const contact = await prisma.contact.findFirst({
+          where: { id: contactId, tenantId },
+          select: { id: true, accountId: true }
+        })
+        if (!contact) {
+          return NextResponse.json({ error: "Vendor contact not found" }, { status: 404 })
+        }
+        if (vendorAccountId && contact.accountId !== vendorAccountId) {
+          return NextResponse.json({ error: "Vendor contact must belong to the selected vendor" }, { status: 400 })
+        }
+        contactId = contact.id
+      }
+
+      const vendorTicketId = vendorTicketIdInput.length > 0 ? vendorTicketIdInput : null
+
       const notesParts: string[] = []
       if (ticketType) {
         notesParts.push(`Type: ${ticketType}`)
@@ -392,6 +422,8 @@ export async function POST(request: NextRequest) {
           revenueScheduleId,
           distributorAccountId,
           vendorAccountId,
+          contactId,
+          vendorTicketId,
           issue,
           notes: notesValue,
           status: active ? TicketStatus.Open : TicketStatus.Closed,
@@ -445,7 +477,8 @@ export async function POST(request: NextRequest) {
             }
           },
           assignedTo: { select: { fullName: true } },
-          createdBy: { select: { fullName: true } }
+          createdBy: { select: { fullName: true } },
+          contact: { select: { fullName: true } }
         }
       })
 
@@ -555,6 +588,9 @@ export async function GET(request: NextRequest) {
           },
           createdBy: {
             select: { fullName: true }
+          },
+          contact: {
+            select: { fullName: true }
           }
         }
       })
@@ -619,6 +655,12 @@ export async function GET(request: NextRequest) {
                 return row.assignedToName.toLowerCase().includes(value)
               case "requestor":
                 return row.requestorName.toLowerCase().includes(value)
+              case "vendorTicketId":
+                return row.vendorTicketId.toLowerCase().includes(value)
+              case "vendorContactName":
+                return row.vendorContactName.toLowerCase().includes(value)
+              case "createdByName":
+                return row.requestorName.toLowerCase().includes(value)
               default:
                 return true
             }
@@ -644,7 +686,10 @@ export async function GET(request: NextRequest) {
         orderIdVendor: "orderIdVendor",
         ticketNumber: "ticketNumber",
         owner: "assignedToName",
-        requestor: "requestorName"
+        requestor: "requestorName",
+        vendorTicketId: "vendorTicketId",
+        vendorContactName: "vendorContactName",
+        createdByName: "requestorName"
       }
       const sortField = sortableFields[sortByParam] ?? "distributorName"
       rows.sort((a, b) => {

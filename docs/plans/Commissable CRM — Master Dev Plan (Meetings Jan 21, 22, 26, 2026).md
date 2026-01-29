@@ -58,6 +58,8 @@ This aligns with:
 * ✅ **P0-DEP-001 — Deposit verification fields + “Report Date” relabel** (Completed Jan 29, 2026)  
   * “Date” is now labeled **Report Date** to clarify it represents the vendor report’s date.  
   * Added verification fields to capture actual payment receipt details (Received Date, Received By, Actual Received Amount).
+* ✅ **P0-DEP-002 — Ticket fields + relabels (Vendor Ticket ID, Vendor Contact, Created By; “Ticket ID” → House Ticket Number)** (Completed Jan 29, 2026)  
+  * Tickets now capture vendor ticket metadata (Vendor Ticket ID, Vendor Contact) and display Created By; the internal ticket identifier is labeled **House Ticket Number**.
 
 ---
 
@@ -163,6 +165,7 @@ This aligns with:
 
 ### **P0-UI-003 — Ensure bottom revenue schedule grid filters dynamically based on selected status / context in top deposit grid**
 
+* **Status:** ✅ Completed (Jan 29, 2026)  
 * **Client Impact:** High (core reconciliation flow speed)  
 * **Effort:** Medium  
 * **Time:** \~0.5–2 days  
@@ -177,6 +180,7 @@ This aligns with:
 
 ### **P0-UI-004 — Enable multi-select on reconciliation page**
 
+* **Status:** ✅ Completed (Jan 29, 2026)  
 * **Client Impact:** High (required for 1:M and M:1 matching workflows)  
 * **Effort:** Medium  
 * **Time:** \~1–2 days  
@@ -266,10 +270,15 @@ This aligns with:
 
 ### **P0-DEP-002 — Add ticket fields \+ relabels (Vendor Ticket ID, Vendor Contact, Created By; “Ticket ID” → House Ticket Number)**
 
+* **Status:** ✅ Completed (Jan 29, 2026)  
 * **Client Impact:** Medium–High (supports tracking disputes and auditability)  
 * **Effort:** Easy–Medium  
 * **Time:** \~0.5–1.5 days  
 * **Source:** Jan 26 next steps \+ action items  
+* **Implementation (Jan 29, 2026):**
+  1. Added Vendor Ticket ID storage on tickets and surfaced it in ticket create + ticket detail UI.
+  2. Added Vendor Contact lookup on ticket create (selects an existing contact) and displayed Vendor Contact on ticket detail.
+  3. Displayed Created By on ticket detail and relabeled “Ticket Number” to **House Ticket Number** in the ticket UI.
 * **Requirements:**  
   1. New fields:  
      * Vendor Ticket ID  
@@ -311,6 +320,10 @@ This aligns with:
 * **Effort:** Medium  
 * **Time:** \~1–2 days  
 * **Source:** Jan 21 action item  
+* **Implementation (Jan 29, 2026):**
+  1. Review page mapping summary now uses the same table styling as the Map Fields step.
+  2. Review UI now provides **Mapped** / **Unmapped** tabs with row counts.
+  3. Removed the “Sample rows” section (review remains focused on mapping + validation + import).
 * **Acceptance Criteria:**  
   1. Review UI has two tabs: **Mapped** and **Unmapped**.  
   2. Sample rows are removed (or hidden by default).  

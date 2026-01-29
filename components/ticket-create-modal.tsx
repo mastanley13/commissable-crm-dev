@@ -28,6 +28,9 @@ interface TicketCreateModalProps {
 
 type TicketFormState = {
   issue: string
+  vendorTicketId: string
+  vendorContactId: string
+  vendorContactName: string
   ticketType: string
   lastActivityDate: string
   distributorAccountId: string
@@ -60,6 +63,9 @@ const dropdownCls =
 
 const INITIAL_FORM: TicketFormState = {
   issue: "",
+  vendorTicketId: "",
+  vendorContactId: "",
+  vendorContactName: "",
   ticketType: "",
   lastActivityDate: "",
   distributorAccountId: "",
@@ -94,21 +100,25 @@ export function TicketCreateModal({
 
   const [distributorQuery, setDistributorQuery] = useState("")
   const [vendorQuery, setVendorQuery] = useState("")
+  const [vendorContactQuery, setVendorContactQuery] = useState("")
   const [opportunityQuery, setOpportunityQuery] = useState("")
   const [revenueScheduleQuery, setRevenueScheduleQuery] = useState("")
 
   const [distributorOptions, setDistributorOptions] = useState<Option[]>([])
   const [vendorOptions, setVendorOptions] = useState<Option[]>([])
+  const [vendorContactOptions, setVendorContactOptions] = useState<Option[]>([])
   const [opportunityOptions, setOpportunityOptions] = useState<Option[]>([])
   const [revenueScheduleOptions, setRevenueScheduleOptions] = useState<Option[]>([])
 
   const [distributorLoading, setDistributorLoading] = useState(false)
   const [vendorLoading, setVendorLoading] = useState(false)
+  const [vendorContactLoading, setVendorContactLoading] = useState(false)
   const [opportunityLoading, setOpportunityLoading] = useState(false)
   const [revenueScheduleLoading, setRevenueScheduleLoading] = useState(false)
 
   const [showDistributorDropdown, setShowDistributorDropdown] = useState(false)
   const [showVendorDropdown, setShowVendorDropdown] = useState(false)
+  const [showVendorContactDropdown, setShowVendorContactDropdown] = useState(false)
   const [showOpportunityDropdown, setShowOpportunityDropdown] = useState(false)
   const [showRevenueScheduleDropdown, setShowRevenueScheduleDropdown] = useState(false)
 
@@ -134,6 +144,7 @@ export function TicketCreateModal({
     setForm(initial)
     setDistributorQuery(initial.distributorName)
     setVendorQuery(initial.vendorName)
+    setVendorContactQuery(initial.vendorContactName)
     setOpportunityQuery(initial.opportunityName)
     setRevenueScheduleQuery(initial.revenueScheduleName)
   }, [
@@ -222,6 +233,42 @@ export function TicketCreateModal({
 
     return () => controller.abort()
   }, [isOpen, vendorQuery])
+
+  useEffect(() => {
+    if (!isOpen) return
+    const controller = new AbortController()
+    setVendorContactLoading(true)
+
+    const params = new URLSearchParams({
+      page: "1",
+      pageSize: "20",
+    })
+    const trimmed = vendorContactQuery.trim()
+    if (trimmed.length > 0) {
+      params.set("q", trimmed)
+    }
+
+    fetch(`/api/contacts?${params.toString()}`, { cache: "no-store", signal: controller.signal })
+      .then(async response => {
+        const payload = await response.json().catch(() => null)
+        if (!response.ok) throw new Error(payload?.error ?? "Unable to load contacts")
+        const items: any[] = Array.isArray(payload?.data) ? payload.data : []
+        const options: Option[] = items.map(item => ({
+          value: item.id,
+          label: item.fullName ?? item.contactName ?? "Contact",
+          subLabel: item.accountName ?? item.account ?? undefined
+        }))
+        setVendorContactOptions(options)
+      })
+      .catch(error => {
+        if (error instanceof DOMException && error.name === "AbortError") return
+        console.error("Failed to load contacts", error)
+        setVendorContactOptions([])
+      })
+      .finally(() => setVendorContactLoading(false))
+
+    return () => controller.abort()
+  }, [isOpen, vendorContactQuery])
 
   useEffect(() => {
     if (!isOpen) return
@@ -328,6 +375,8 @@ export function TicketCreateModal({
       const payload = {
         issue: form.issue.trim(),
         notes: form.notes.trim(),
+        vendorTicketId: form.vendorTicketId.trim() || undefined,
+        vendorContactId: form.vendorContactId || undefined,
         ticketType: form.ticketType || undefined,
         productNameVendor: form.productNameVendor || undefined,
         distributorAccountId: form.distributorAccountId || null,
@@ -373,10 +422,10 @@ export function TicketCreateModal({
         </div>
 
         <form onSubmit={handleSubmit} className="max-h-[80vh] overflow-y-auto px-6 py-5">
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            {/* Row 1: Core Ticket Information */}
-            <div>
-              <label className={labelCls}>Ticket Number</label>
+           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+             {/* Row 1: Core Ticket Information */}
+             <div>
+              <label className={labelCls}>House Ticket Number</label>
               <input
                 type="text"
                 value="Auto-generated on save"
@@ -411,31 +460,42 @@ export function TicketCreateModal({
               </select>
             </div>
 
-            <div>
-              <label className={labelCls}>Last Activity Date</label>
-              <input
-                type="text"
-                value={form.lastActivityDate || "YYYY-MM-DD"}
-                disabled
-                className={inputCls}
-              />
-            </div>
+             <div>
+               <label className={labelCls}>Last Activity Date</label>
+               <input
+                 type="text"
+                 value={form.lastActivityDate || "YYYY-MM-DD"}
+                 disabled
+                 className={inputCls}
+               />
+             </div>
 
-            {/* Row 2-3: Relationship Fields */}
-            <div className="relative">
-              <label className={labelCls}>Vendor Name</label>
-              <input
-                type="text"
-                value={form.vendorName || vendorQuery}
-                placeholder="Select vendor"
-                onChange={event => {
-                  setVendorQuery(event.target.value)
-                  setForm(prev => ({ ...prev, vendorName: event.target.value, vendorAccountId: "" }))
-                }}
-                onFocus={() => setShowVendorDropdown(true)}
-                onBlur={() => setTimeout(() => setShowVendorDropdown(false), 120)}
-                className={inputCls}
-              />
+             <div>
+               <label className={labelCls}>Vendor Ticket ID</label>
+               <input
+                 type="text"
+                 value={form.vendorTicketId}
+                 onChange={event => setForm(prev => ({ ...prev, vendorTicketId: event.target.value }))}
+                 className={inputCls}
+                 placeholder="Enter vendor ticket id"
+               />
+             </div>
+
+             {/* Row 2-3: Relationship Fields */}
+             <div className="relative">
+               <label className={labelCls}>Vendor Name</label>
+               <input
+                 type="text"
+                 value={form.vendorName || vendorQuery}
+                 placeholder="Select vendor"
+                 onChange={event => {
+                   setVendorQuery(event.target.value)
+                   setForm(prev => ({ ...prev, vendorName: event.target.value, vendorAccountId: "" }))
+                 }}
+                 onFocus={() => setShowVendorDropdown(true)}
+                 onBlur={() => setTimeout(() => setShowVendorDropdown(false), 120)}
+                 className={inputCls}
+               />
               {showVendorDropdown && vendorOptions.length > 0 && (
                 <div className={dropdownCls}>
                   {vendorOptions.map(option => (
@@ -461,13 +521,55 @@ export function TicketCreateModal({
                     <div className="px-3 py-2 text-xs text-gray-500">Loading vendors…</div>
                   )}
                 </div>
-              )}
-            </div>
+               )}
+             </div>
 
-            <div className="relative">
-              <label className={labelCls}>Distributor Name</label>
-              <input
-                type="text"
+             <div className="relative">
+               <label className={labelCls}>Vendor Contact</label>
+               <input
+                 type="text"
+                 value={form.vendorContactName || vendorContactQuery}
+                 placeholder="Select vendor contact"
+                 onChange={event => {
+                   setVendorContactQuery(event.target.value)
+                   setForm(prev => ({ ...prev, vendorContactName: event.target.value, vendorContactId: "" }))
+                 }}
+                 onFocus={() => setShowVendorContactDropdown(true)}
+                 onBlur={() => setTimeout(() => setShowVendorContactDropdown(false), 120)}
+                 className={inputCls}
+               />
+               {showVendorContactDropdown && vendorContactOptions.length > 0 && (
+                 <div className={dropdownCls}>
+                   {vendorContactOptions.map(option => (
+                     <button
+                       key={option.value}
+                       type="button"
+                       onClick={() => {
+                         setForm(prev => ({
+                           ...prev,
+                           vendorContactId: option.value,
+                           vendorContactName: option.label
+                         }))
+                         setVendorContactQuery(option.label)
+                         setShowVendorContactDropdown(false)
+                       }}
+                       className="block w-full px-3 py-2 text-left text-sm hover:bg-primary-50 focus:bg-primary-50"
+                     >
+                       <div className="font-medium text-gray-900">{option.label}</div>
+                       {option.subLabel && <div className="text-xs text-gray-500">{option.subLabel}</div>}
+                     </button>
+                   ))}
+                   {vendorContactLoading && (
+                     <div className="px-3 py-2 text-xs text-gray-500">Loading contactsâ€¦</div>
+                   )}
+                 </div>
+               )}
+             </div>
+
+             <div className="relative">
+               <label className={labelCls}>Distributor Name</label>
+               <input
+                 type="text"
                 value={form.distributorName || distributorQuery}
                 placeholder="Select distributor"
                 onChange={event => {

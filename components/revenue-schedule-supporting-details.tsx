@@ -447,7 +447,9 @@ export const RevenueScheduleSupportingDetails = forwardRef<
 
   const RS_TICKET_FILTER_COLUMNS: Array<{ id: string; label: string }> = useMemo(
     () => [
-      { id: "ticketNumber", label: "Ticket Number" },
+      { id: "ticketNumber", label: "House Ticket Number" },
+      { id: "vendorTicketId", label: "Vendor Ticket ID" },
+      { id: "vendorContactName", label: "Vendor Contact" },
       { id: "issue", label: "Issue" },
       { id: "distributorName", label: "Distributor Name" },
       { id: "vendorName", label: "Vendor Name" },
@@ -533,12 +535,32 @@ export const RevenueScheduleSupportingDetails = forwardRef<
       },
       {
         id: "ticketNumber",
-        label: "Ticket Number",
+        label: "House Ticket Number",
         width: 150,
         minWidth: 130,
         maxWidth: 220,
         sortable: true,
         accessor: "ticketNumber"
+      },
+      {
+        id: "vendorTicketId",
+        label: "Vendor Ticket ID",
+        width: 170,
+        minWidth: 140,
+        maxWidth: 260,
+        sortable: true,
+        accessor: "vendorTicketId",
+        hidden: true
+      },
+      {
+        id: "vendorContactName",
+        label: "Vendor Contact",
+        width: 190,
+        minWidth: 150,
+        maxWidth: 300,
+        sortable: true,
+        accessor: "vendorContactName",
+        hidden: true
       },
       {
         id: "createdAt",
@@ -605,7 +627,7 @@ export const RevenueScheduleSupportingDetails = forwardRef<
       },
       {
         id: "requestor",
-        label: "Requestor",
+        label: "Created By",
         width: 170,
         minWidth: 140,
         maxWidth: 240,
@@ -1035,6 +1057,8 @@ export const RevenueScheduleSupportingDetails = forwardRef<
       revenueSchedule: row?.revenueSchedule ?? "",
       opportunityName: row?.opportunityName ?? "",
       ticketNumber: row?.ticketNumber ?? "",
+      vendorTicketId: row?.vendorTicketId ?? "",
+      vendorContactName: row?.vendorContactName ?? "",
       createdAt: row?.createdAt ?? "",
       dueDate: row?.dueDate ?? "",
       priority: row?.priority ?? "",

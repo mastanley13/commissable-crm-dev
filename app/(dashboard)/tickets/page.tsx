@@ -32,6 +32,9 @@ interface TicketRow {
   opportunityId?: string
   orderIdVendor?: string
   ticketNumber?: string
+  vendorTicketId?: string
+  vendorContactName?: string
+  createdByName?: string
   active: boolean
   ownerName: string
 }
@@ -184,9 +187,39 @@ const TICKET_COLUMNS: Column[] = [
   },
   {
     id: 'ticketNumber',
-    label: 'Ticket Number',
+    label: 'House Ticket Number',
     width: 180,
-    minWidth: calculateMinWidth({ label: 'Ticket Number', type: 'text', sortable: true }, { absoluteMin: 140 }),
+    minWidth: calculateMinWidth({ label: 'House Ticket Number', type: 'text', sortable: true }, { absoluteMin: 140 }),
+    maxWidth: 260,
+    sortable: true,
+    type: 'text',
+    hidden: true
+  },
+  {
+    id: 'vendorTicketId',
+    label: 'Vendor Ticket ID',
+    width: 200,
+    minWidth: calculateMinWidth({ label: 'Vendor Ticket ID', type: 'text', sortable: true }, { absoluteMin: 160 }),
+    maxWidth: 280,
+    sortable: true,
+    type: 'text',
+    hidden: true
+  },
+  {
+    id: 'vendorContactName',
+    label: 'Vendor Contact',
+    width: 200,
+    minWidth: calculateMinWidth({ label: 'Vendor Contact', type: 'text', sortable: true }, { absoluteMin: 160 }),
+    maxWidth: 280,
+    sortable: true,
+    type: 'text',
+    hidden: true
+  },
+  {
+    id: 'createdByName',
+    label: 'Created By',
+    width: 180,
+    minWidth: calculateMinWidth({ label: 'Created By', type: 'text', sortable: true }, { absoluteMin: 140 }),
     maxWidth: 260,
     sortable: true,
     type: 'text',
@@ -302,8 +335,11 @@ export default function TicketsPage() {
         opportunityId: item?.opportunityId ?? "",
         orderIdVendor: item?.orderIdVendor ?? "",
         ticketNumber: item?.ticketNumber ?? "",
+        vendorTicketId: item?.vendorTicketId ?? "",
+        vendorContactName: item?.vendorContactName ?? "",
+        createdByName: item?.requestorName ?? item?.createdByName ?? "",
         active: item?.active !== false,
-        ownerName: item?.ownerName ?? "Unassigned"
+        ownerName: item?.assignedToName ?? item?.ownerName ?? "Unassigned"
       }))
       setTickets(rows)
 

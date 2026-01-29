@@ -10,6 +10,9 @@ import { AuditHistoryTab } from "./audit-history-tab"
 export interface TicketDetailRecord {
   id: string
   ticketNumber: string
+  vendorTicketId: string | null
+  vendorContactId: string | null
+  vendorContactName: string | null
   issue: string
   status: string
   priority: string
@@ -123,10 +126,18 @@ export function TicketDetailsView({ ticket, loading, error, onRefresh }: TicketD
             <div className="grid gap-3 lg:grid-cols-2">
               <div className="space-y-1">
                 <FieldRow
-                  label="Ticket Number"
+                  label="House Ticket Number"
                   value={
                     <div className={fieldBoxClass}>
                       <span className="block truncate">{ticket.ticketNumber || "--"}</span>
+                    </div>
+                  }
+                />
+                <FieldRow
+                  label="Vendor Ticket ID"
+                  value={
+                    <div className={fieldBoxClass}>
+                      <span className="block truncate">{ticket.vendorTicketId ?? "--"}</span>
                     </div>
                   }
                 />
@@ -145,6 +156,23 @@ export function TicketDetailsView({ ticket, loading, error, onRefresh }: TicketD
                   value={
                     <div className={fieldBoxClass}>
                       <span className="block truncate">{ticket.assignedToName ?? "Unassigned"}</span>
+                    </div>
+                  }
+                />
+                <FieldRow
+                  label="Vendor Contact"
+                  value={
+                    <div className={fieldBoxClass}>
+                      {ticket.vendorContactId && ticket.vendorContactName ? (
+                        <Link
+                          href={`/contacts/${ticket.vendorContactId}`}
+                          className="block w-full truncate text-primary-700 hover:text-primary-800 text-[11px]"
+                        >
+                          {ticket.vendorContactName}
+                        </Link>
+                      ) : (
+                        <span className="block truncate">{ticket.vendorContactName ?? "--"}</span>
+                      )}
                     </div>
                   }
                 />
@@ -257,6 +285,14 @@ export function TicketDetailsView({ ticket, loading, error, onRefresh }: TicketD
                   value={
                     <div className={fieldBoxClass}>
                       <span className="block truncate">{ticket.severity}</span>
+                    </div>
+                  }
+                />
+                <FieldRow
+                  label="Created By"
+                  value={
+                    <div className={fieldBoxClass}>
+                      <span className="block truncate">{ticket.createdByName ?? "--"}</span>
                     </div>
                   }
                 />

@@ -15,7 +15,6 @@ import {
   setColumnSelectionV2,
   createCustomFieldForColumnV2,
   extractDepositMappingV2FromTemplateConfig,
-  getMappedTargets,
   type DepositMappingConfigV2,
   type DepositColumnSelectionV2,
 } from '@/lib/deposit-import/template-mapping-v2'
@@ -305,7 +304,6 @@ export default function DepositUploadListPage() {
     setFormState(previous => (previous.depositName === generated ? previous : { ...previous, depositName: generated }))
   }, [depositReceivedDate, distributorLabel, vendorLabel])
 
-  const mappedTargetSummary = getMappedTargets(mapping, fieldCatalog)
   const mappedTargetCount = Object.keys(mapping.targets ?? {}).length
 
   const handleConfirmSubmit = async () => {
@@ -497,7 +495,9 @@ export default function DepositUploadListPage() {
 
           {activeStep === 'review' ? (
             <ReviewStep
-              fieldMapping={mappedTargetSummary}
+              csvHeaders={csvHeaders}
+              mapping={mapping}
+              fieldCatalog={fieldCatalog}
               validationIssues={validationIssues}
               totalRows={parsedRowCount}
               mappedFields={mappedTargetCount}

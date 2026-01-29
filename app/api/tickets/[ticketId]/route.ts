@@ -72,6 +72,12 @@ export async function GET(
               id: true,
               fullName: true
             }
+          },
+          contact: {
+            select: {
+              id: true,
+              fullName: true
+            }
           }
         }
       })
@@ -91,6 +97,9 @@ export async function GET(
       const detail = {
         id: ticket.id,
         ticketNumber,
+        vendorTicketId: ticket.vendorTicketId ?? null,
+        vendorContactId: ticket.contact?.id ?? null,
+        vendorContactName: ticket.contact?.fullName ?? null,
         issue: ticket.issue,
         status: ticket.status,
         priority: ticket.priority,
