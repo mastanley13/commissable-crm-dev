@@ -47,6 +47,14 @@ This aligns with:
 * ✅ **P0-REC-001 — Account Legal Name mapping option** (Completed Jan 29, 2026)  
   * Mapping UI now includes **“Account Legal Name”** (stored on the deposit line item as the account name raw field used by matching).  
   * Matching now uses the mapped Account Legal Name to resolve the correct customer account (when a unique match exists) and filter candidate revenue schedules accordingly.
+* ✅ **P0-UI-001 — Commission rate + currency display fixes in reconciliation** (Completed Jan 29, 2026)  
+  * Percent fields now render at the expected scale (e.g., **16.00%** instead of **1,600%**).  
+  * Reconciliation list money fields now render with currency formatting (e.g., **$10,000.00**).
+* ✅ **P0-UI-005 — Default view Unmatched (and remove “Suggested” tab for deposit line items)** (Completed Jan 29, 2026)  
+  * Deposit line items status filter no longer includes a “Suggested” option (Suggested remains available for the revenue schedule suggestions table).  
+  * Default landing view remains **Unmatched**.
+* ✅ **P0-UI-006 — Disable auto-selection of the first deposit line item** (Completed Jan 29, 2026)  
+  * Opening a deposit no longer auto-selects the first deposit line item; users explicitly choose a line before loading suggested schedules.
 
 ---
 
@@ -123,6 +131,7 @@ This aligns with:
 
 ### **P0-UI-001 — Fix commission rate display/calculation issue in reconciliation grid**
 
+* **Status:** ✅ Completed (Jan 29, 2026)  
 * **Client Impact:** High (financial accuracy \+ user trust)  
 * **Effort:** Easy  
 * **Time:** \~2–6 hours  
@@ -179,6 +188,7 @@ This aligns with:
 
 ### **P0-UI-005 — Set reconciliation default view to Unmatched and remove “Suggested” tab**
 
+* **Status:** ✅ Completed (Jan 29, 2026)  
 * **Client Impact:** Medium–High (reduces confusion and click count)  
 * **Effort:** Easy  
 * **Time:** \~1–4 hours  
@@ -192,6 +202,7 @@ This aligns with:
 
 ### **P0-UI-006 — Disable auto-selection of the first deposit line item**
 
+* **Status:** ✅ Completed (Jan 29, 2026)  
 * **Client Impact:** Medium (prevents accidental matches/filters)  
 * **Effort:** Easy  
 * **Time:** \~1–2 hours  
@@ -615,8 +626,8 @@ If you have *very limited* sprint time, start here (high impact, low effort):
 
 * P0-REC-001 Account Legal Name mapping option (DONE Jan 29, 2026)  
 * P0-REC-002 Create missing test schedules (VoIP etc.)  
-* P0-UI-001 Fix commission rate display  
-* P0-UI-005 Default view Unmatched (remove Suggested tab)  
+* P0-UI-001 Fix commission rate display (DONE Jan 29, 2026)  
+* P0-UI-005 Default view Unmatched (remove Suggested tab) (DONE Jan 29, 2026)  
 * P0-NAV-001 Fix “Go to revenue schedule” link  
 * P0-DEP-001 Deposit verification fields \+ relabel Report Date
 

@@ -59,11 +59,12 @@ export default function DepositReconciliationDetailPage() {
         setMetadata(data.metadata ?? null)
         const normalizedLineItems = Array.isArray(data.lineItems) ? data.lineItems : []
         setLineItems(normalizedLineItems)
-        if (normalizedLineItems.length > 0) {
-          setSelectedLineId(normalizedLineItems[0]!.id)
-        } else {
-          setSelectedLineId(null)
-        }
+        setSelectedLineId(previous => {
+          if (previous && normalizedLineItems.some(item => item.id === previous)) {
+            return previous
+          }
+          return null
+        })
       } catch (err: unknown) {
         if (cancelled) return
         console.error("Failed to load deposit detail", err)

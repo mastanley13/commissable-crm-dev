@@ -618,7 +618,7 @@ export function DepositReconciliationDetailView({
     setLineItemRows(lineItems)
     setSelectedLineItems(prev => prev.filter(id => lineItems.some(item => item.id === id)))
     if (selectedLineId && !lineItems.some(item => item.id === selectedLineId)) {
-      onLineSelectionChange?.(lineItems.length > 0 ? lineItems[0]!.id : null)
+      onLineSelectionChange?.(null)
     }
   }, [lineItems, selectedLineId, onLineSelectionChange])
 

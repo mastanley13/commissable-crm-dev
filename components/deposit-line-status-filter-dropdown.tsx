@@ -13,7 +13,6 @@ interface DepositLineStatusFilterDropdownProps {
 }
 
 const statusOptions: Array<{ id: DepositLineStatusFilterValue; label: string }> = [
-  { id: "suggested", label: "Suggested" },
   { id: "unmatched", label: "Unmatched" },
   { id: "matched", label: "Matched" },
   { id: "reconciled", label: "Reconciled" },
@@ -36,7 +35,7 @@ export function DepositLineStatusFilterDropdown({
           className={`inline-flex w-[150px] items-center justify-between gap-2 rounded-lg border border-gray-300 bg-white text-sm font-medium text-gray-700 shadow-sm transition-all hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 ${paddingClasses} ${minHeightClass}`}
           aria-label="Filter deposit line items"
         >
-          <span>{selectedOption?.label ?? "Matched"}</span>
+          <span>{selectedOption?.label ?? "Unmatched"}</span>
           <ChevronDown className="h-4 w-4 text-gray-500" />
         </button>
       </DropdownMenu.Trigger>
