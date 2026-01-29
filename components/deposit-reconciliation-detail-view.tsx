@@ -440,7 +440,7 @@ export function DepositReconciliationDetailView({
     autoMatchMinConfidence: 0.95,
   })
   const [confidencePrefsLoading, setConfidencePrefsLoading] = useState(false)
-  const [lineTab, setLineTab] = useState<LineTabKey>("all")
+  const [lineTab, setLineTab] = useState<LineTabKey>("unmatched")
   const [scheduleTab, setScheduleTab] = useState<ScheduleTabKey>("suggested")
   const [lineSearch, setLineSearch] = useState("")
   const [scheduleSearch, setScheduleSearch] = useState("")
@@ -484,6 +484,20 @@ export function DepositReconciliationDetailView({
   const undoingLineIdRef = useRef<string | null>(null)
   const confidenceSaveTimerRef = useRef<number | null>(null)
   const allocationDraftRef = useRef<AllocationDraft>(allocationDraft)
+
+  useEffect(() => {
+    if (lineTab === "unmatched") {
+      setScheduleTab("suggested")
+      return
+    }
+    if (lineTab === "matched") {
+      setScheduleTab("matched")
+      return
+    }
+    if (lineTab === "reconciled") {
+      setScheduleTab("reconciled")
+    }
+  }, [lineTab])
 
   useEffect(() => {
     allocationDraftRef.current = allocationDraft
