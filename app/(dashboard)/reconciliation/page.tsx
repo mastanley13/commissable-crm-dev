@@ -1140,6 +1140,10 @@ useEffect(() => {
     router.push('/reconciliation/deposit-upload-list')
   }, [router])
 
+  const handleFlexReviewQueue = useCallback(() => {
+    router.push('/reconciliation/flex-review')
+  }, [router])
+
   const reconciliationBulkActions = useMemo<BulkActionsGridProps>(() => ({
     selectedCount: selectedReconciliations.length,
     entityName: 'reconciliation records',
@@ -1191,6 +1195,15 @@ useEffect(() => {
             >
               <span className="sr-only">Next month</span>
               <span aria-hidden="true">{'>'}</span>
+            </button>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleFlexReviewQueue}
+              className="inline-flex h-8 items-center justify-center rounded-md bg-blue-600 px-3 text-sm font-semibold text-white shadow-sm hover:bg-blue-700"
+            >
+              Flex Review Queue
             </button>
           </div>
         </div>
