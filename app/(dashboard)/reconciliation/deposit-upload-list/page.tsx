@@ -235,7 +235,7 @@ export default function DepositUploadListPage() {
       issues.push('Map either "Actual Usage" or "Actual Commission".')
     }
     if (!selectedFile) {
-      issues.push('Select a CSV or Excel file to continue.')
+      issues.push('Select a CSV, Excel, or PDF file to continue.')
     }
     if (parsingError) {
       issues.push('Resolve the file parsing error before continuing.')

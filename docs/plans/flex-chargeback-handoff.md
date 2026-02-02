@@ -1,4 +1,4 @@
-According to documents from **January 21–22, 2026** (meeting summary + transcript) and the **Milestone 3 Reconciliation Specifications / Reconciliation SOW**, below is a coding-agent handoff that outlines the **Flex** and **Chargeback** workflows end-to-end, using only what’s in the provided knowledge base. 
+﻿According to documents from **January 21â€“22, 2026** (meeting summary + transcript) and the **Milestone 3 Reconciliation Specifications / Reconciliation SOW**, below is a coding-agent handoff that outlines the **Flex** and **Chargeback** workflows end-to-end, using only whatâ€™s in the provided knowledge base. 
 
 ---
 
@@ -8,23 +8,23 @@ According to documents from **January 21–22, 2026** (meeting summary + transcr
 
 ### Revenue Schedule (RS)
 
-Expected usage/commission event with a unique schedule ID. After reconciliation, a schedule “closes” and is typically not reconciled again unless reopened by admin/manager. 
+Expected usage/commission event with a unique schedule ID. After reconciliation, a schedule â€œclosesâ€ and is typically not reconciled again unless reopened by admin/manager. 
 
 ### Flex Schedule / Flex Product
 
-A special schedule created to capture exceptions (especially **overages** / **unmatched**). Tagged in UI/reports with “**-F**”. 
+A special schedule created to capture exceptions (especially **overages** / **unmatched**). Tagged in UI/reports with â€œ**-F**â€. 
 
-> Important naming ambiguity in transcripts: **“Flex schedule”** is also used (Jan 21) to describe a **month-to-month continuation feature**. The reconciliation exception object is also called flex. Treat these as separate concepts unless/until unified. 
+> Important naming ambiguity in transcripts: **â€œFlex scheduleâ€** is also used (Jan 21) to describe a **month-to-month continuation feature**. The reconciliation exception object is also called flex. Treat these as separate concepts unless/until unified. 
 >
 > Decision (Milestone 0): treat **month-to-month continuation** as the **schedule extension** workflow, and treat **Flex** as a **reconciliation-time variance/exception** workflow (see `Reconciliation System.docx.md`). 
 
 ### Chargeback Schedule
 
-Special schedule for **negative deposits**. Tagged “**-CB**”. 
+Special schedule for **negative deposits**. Tagged â€œ**-CB**â€. 
 
 ### Chargeback Reversal Schedule
 
-Schedule created when a chargeback is reversed. Tagged “**-CB-REV**”. 
+Schedule created when a chargeback is reversed. Tagged â€œ**-CB-REV**â€. 
 
 ---
 
@@ -34,34 +34,34 @@ Schedule created when a chargeback is reversed. Tagged “**-CB-REV**”.
 
 * Import creates **Deposit** + **Deposit Line Items**.
 * Matching engine suggests RS candidates; on approval, system writes Actual Usage/Commission, computes variance, marks line settled, and logs audit. 
-* Batch finalization: when all lines are allocated/flagged, submit batch; **Deposit → Reconciled** and show summary/exceptions. 
+* Batch finalization: when all lines are allocated/flagged, submit batch; **Deposit â†’ Reconciled** and show summary/exceptions. 
 
 ### 1.2 Flex creation triggers (exception handling)
 
 The knowledge base indicates Flex schedules are created for:
 
-1. **Overage**: deposit exceeds expected; system auto-creates Flex RS tagged “-F”; default schedule date is the **Deposit month period** (`Deposit.month`, i.e., first of the report month); admin notified; appears in Flex tracker. 
+1. **Overage**: deposit exceeds expected; system auto-creates Flex RS tagged â€œ-Fâ€; default schedule date is the **Deposit month period** (`Deposit.month`, i.e., first of the report month); admin notified; appears in Flex tracker. 
 
-2. **All unmatched / no match**: Milestone 3 explicitly states “FLEX schedules for all unmatched”. Also: “Below 70% match = no match, create flex schedule.” 
+2. **All unmatched / no match**: Milestone 3 explicitly states â€œFLEX schedules for all unmatchedâ€. Also: â€œBelow 70% match = no match, create flex schedule.â€ 
 
-   * Implementation note (Milestone 0): “70% match” refers to the **confidence thresholds** in Reconciliation Settings:
+   * Implementation note (Milestone 0): â€œ70% matchâ€ refers to the **confidence thresholds** in Reconciliation Settings:
      * **Suggested Matches Display Confidence** (what to show as suggestions to the user),
-     * **AI auto match confidence** (what’s required for automation to propose/apply matches). 
+     * **AI auto match confidence** (whatâ€™s required for automation to propose/apply matches). 
 
 3. **Commission-only deposits (no RS found)**: create Flex with Usage = Commission and Rate = 100%. 
 
-4. **Underpayment** is referenced as an exception category; Milestone 3 lists a “FLEX-U underpayment” type, and the SOW says underpayment marks RS partially paid/underpaid and keeps balance/aging. (This is adjacent to Flex but may be implemented as a status rather than a “-F” schedule, depending on how you interpret both docs.) 
+4. **Underpayment** is referenced as an exception category; Milestone 3 lists a â€œFLEX-U underpaymentâ€ type, and the SOW says underpayment marks RS partially paid/underpaid and keeps balance/aging. (This is adjacent to Flex but may be implemented as a status rather than a â€œ-Fâ€ schedule, depending on how you interpret both docs.) 
 
 ### 1.3 Chargeback creation triggers
 
 * **Negative amounts = chargebacks** (Milestone 3). 
-* SOW edge case: “Negative deposit: Create Chargeback RS (-CB); reversal creates CB-REV; show both in reports.” 
+* SOW edge case: â€œNegative deposit: Create Chargeback RS (-CB); reversal creates CB-REV; show both in reports.â€ 
 
 ---
 
 ## 2) Required naming conventions & tagging
 
-From the Jan 22 “FLEX Discussions” section:
+From the Jan 22 â€œFLEX Discussionsâ€ section:
 
 * Flex: `RS-XXXXXXX-F`
 * Chargeback: `RS-XXXXXXX-CB`
@@ -69,8 +69,8 @@ From the Jan 22 “FLEX Discussions” section:
 
 From the SOW:
 
-* Flex tagged “-F” in UI/reports.
-* Chargeback tagged “-CB”; reversals tagged “-CB-REV”. 
+* Flex tagged â€œ-Fâ€ in UI/reports.
+* Chargeback tagged â€œ-CBâ€; reversals tagged â€œ-CB-REVâ€. 
 
 UI indicators:
 
@@ -78,46 +78,46 @@ UI indicators:
 
 ---
 
-## 3) Flex workflow (creation → queue → resolution)
+## 3) Flex workflow (creation â†’ queue â†’ resolution)
 
 ### 3.1 Flex creation (system behavior)
 
 Minimum behaviors specified:
 
-* When triggered, system creates a **Flex schedule** tagged “-F”. 
+* When triggered, system creates a **Flex schedule** tagged â€œ-Fâ€. 
 * Default schedule date = the **Deposit month period** (`Deposit.month`, i.e., first of the report month) and user can edit pre-reconciliation. 
 * Admin notified; Flex appears in Flex tracker. 
-* Dedicated tracking/reports and “review tasks” / aging exist for Flex. 
+* Dedicated tracking/reports and â€œreview tasksâ€ / aging exist for Flex. 
 
-**Flex types (Milestone 3 “Handle Exceptions”):**
+**Flex types (Milestone 3 â€œHandle Exceptionsâ€):**
 
 * `FLEX-O` (overage)
 * `FLEX-U` (underpayment)
 * `FLEX-B` (bonus)
 * `FLEX-CB` (chargeback) 
 
-> Note: This “FLEX-CB” classification conflicts a bit with the separate “-CB” / “-CB-REV” tagging approach described elsewhere. Keep both requirements visible to avoid implementing only one interpretation. 
+> Note: This â€œFLEX-CBâ€ classification conflicts a bit with the separate â€œ-CBâ€ / â€œ-CB-REVâ€ tagging approach described elsewhere. Keep both requirements visible to avoid implementing only one interpretation. 
 
 ### 3.2 Flex queue / operational routine
 
 Daily workflow explicitly includes:
 
-* “Check FLEX Queue: Review overnight FLEX products”
-* “Clear Exception Queue: Red alerts requiring action” 
+* â€œCheck FLEX Queue: Review overnight FLEX productsâ€
+* â€œClear Exception Queue: Red alerts requiring actionâ€ 
 
-### 3.3 Flex product management / resolution options (Jan 22 “FLEX Discussions”)
+### 3.3 Flex product management / resolution options (Jan 22 â€œFLEX Discussionsâ€)
 
 All Flex products require management review and are visible in reporting/dashboard widgets.
 
 The document specifies three resolution paths:
 
-#### Option A — Apply to Existing Schedule
+#### Option A â€” Apply to Existing Schedule
 
 * Add overage amount to original schedule
 * Delete Flex product after updating original schedule
 * Requires approval
 
-#### Option B — Convert to Regular Schedule
+#### Option B â€” Convert to Regular Schedule
 
 * Find correct product and rename Flex product
 * Update revenue schedule details
@@ -126,47 +126,47 @@ The document specifies three resolution paths:
 Additional requirements from the same Jan 22 meeting doc:
 
 * **When converting**, system should prompt whether the flex should be treated as **one-time or recurring**.
-* If it’s a recurring product, the system must **create additional schedules** (beyond the initial flex instance).
+* If itâ€™s a recurring product, the system must **create additional schedules** (beyond the initial flex instance).
 
 Also: when converting/renaming, require user to specify **product family and subtype** to filter the product catalog and improve search.
 
-#### Option C — Bonus Commission Scenario
+#### Option C â€” Bonus Commission Scenario
 
 * For one-time commissions, apply **100% commission rate** to match the deposit amount
 
-### 3.4 “Flex product workflow” requirements (Jan 22 meeting summary)
+### 3.4 â€œFlex product workflowâ€ requirements (Jan 22 meeting summary)
 
 The Jan 22 meeting summary adds an implementation-specific expectation:
 
-* Flex products are created as an **opportunity product tied to the opportunity’s vendor/distributor**.
+* Flex products are created as an **opportunity product tied to the opportunityâ€™s vendor/distributor**.
 
-> This is important because the SOW defines “Flex Schedule” as a special RS record; Jan 22 describes creating an “opportunity product” as part of the flow. Make sure the code agent doesn’t implement only one layer. 
+> This is important because the SOW defines â€œFlex Scheduleâ€ as a special RS record; Jan 22 describes creating an â€œopportunity productâ€ as part of the flow. Make sure the code agent doesnâ€™t implement only one layer. 
 
 ---
 
-## 4) Chargeback workflow (creation → dispute/approval → reversal)
+## 4) Chargeback workflow (creation â†’ dispute/approval â†’ reversal)
 
 ### 4.1 Chargeback creation behavior
 
 Baseline from SOW:
 
-* Negative deposits create **Chargeback schedules** tagged “-CB” with **negative expected usage/commission**. 
+* Negative deposits create **Chargeback schedules** tagged â€œ-CBâ€ with **negative expected usage/commission**. 
 * Reversals generate **CB-REV schedules**; both are shown for audit/reporting. 
 
-### 4.2 Chargeback status + “In Dispute” requirement (Jan 22)
+### 4.2 Chargeback status + â€œIn Disputeâ€ requirement (Jan 22)
 
 The Jan 22 meeting summary indicates a current mismatch between expected vs current labeling:
 
-* Chargebacks are currently being labeled **“pending”**, but they **should be “in dispute”**. 
+* Chargebacks are currently being labeled **â€œpendingâ€**, but they **should be â€œin disputeâ€**. 
 
 ### 4.3 Admin approval workflow for chargebacks (Decision locked)
 
 * Decision (Milestone 0): **Admin approves chargebacks**.
-* The meeting notes mention a “manager approval” requirement; implement this as **Admin-only** approval via RBAC/permission matrix unless/until the role mapping is changed.
+* The meeting notes mention a â€œmanager approvalâ€ requirement; implement this as **Admin-only** approval via RBAC/permission matrix unless/until the role mapping is changed.
 * There is currently **no UI** for chargeback approvals; this is a gap to implement. 
-* The SOW also calls out that the permission matrix must cover “approve chargebacks.” 
+* The SOW also calls out that the permission matrix must cover â€œapprove chargebacks.â€ 
 
-### 4.4 Chargeback scenario flow (Workflow Overview “Scenario E”)
+### 4.4 Chargeback scenario flow (Workflow Overview â€œScenario Eâ€)
 
 A concrete scenario is documented:
 
@@ -175,7 +175,7 @@ A concrete scenario is documented:
 * Chargeback schedule is marked as **Disputed** and requires **admin approval**.
 * Later, if a reversal occurs, system creates a separate schedule tagged `-CB-REV` (positive amount).
 
-> This is the clearest end-to-end narrative for CB/CB-REV creation + “don’t modify the original schedule” + approval gating. It should be treated as the canonical chargeback flow unless superseded.
+> This is the clearest end-to-end narrative for CB/CB-REV creation + â€œdonâ€™t modify the original scheduleâ€ + approval gating. It should be treated as the canonical chargeback flow unless superseded.
 
 ---
 
@@ -235,20 +235,20 @@ It also proposes a data shape where RevenueSchedule has flags `[FLEX|CB|CB_REV]`
 
 1. **Flex creation** when:
 
-   * overage exists (deposit exceeds expectation) → create “-F” schedule and notify/admin task. 
-   * no match / unmatched lines (including “<70% match” rule) → create “-F” schedule. 
-   * commission-only deposit with no RS found → create “-F” schedule with Usage=Commission, Rate=100%. 
+   * overage exists (deposit exceeds expectation) â†’ create â€œ-Fâ€ schedule and notify/admin task. 
+   * no match / unmatched lines (including â€œ<70% matchâ€ rule) â†’ create â€œ-Fâ€ schedule. 
+   * commission-only deposit with no RS found â†’ create â€œ-Fâ€ schedule with Usage=Commission, Rate=100%. 
 
 2. **Naming / tagging**: `RS-XXXXXXX-F` and visible in UI/reports.
 
-3. **Default dating** (Decision locked — not tenant-configurable):
+3. **Default dating** (Decision locked â€” not tenant-configurable):
 
    * Default Flex schedule date to the **Deposit month period** (`Deposit.month`, i.e., first of the report month). 
 
 4. **Flex queue/tracker**:
 
    * Create admin notification + tracking entry; appears in Flex tracker with aging/assignment. 
-   * Daily routine includes “Check FLEX Queue”. 
+   * Daily routine includes â€œCheck FLEX Queueâ€. 
 
 5. **Resolution UI/actions** (must exist):
 
@@ -261,17 +261,17 @@ It also proposes a data shape where RevenueSchedule has flags `[FLEX|CB|CB_REV]`
 6. **Data model alignment**:
 
    * Jan 22: create flex as an *opportunity product* tied to vendor/distributor.
-   * SOW: flex is a special RS record (tag “-F”). 
+   * SOW: flex is a special RS record (tag â€œ-Fâ€). 
 
 ## B) Chargebacks
 
 1. **Chargeback creation**:
 
-   * Negative deposit → create “-CB” schedule with negative expected usage/commission. 
+   * Negative deposit â†’ create â€œ-CBâ€ schedule with negative expected usage/commission. 
 
 2. **Chargeback reversal**:
 
-   * Reversal creates “-CB-REV” schedule; show both in reports/audit. 
+   * Reversal creates â€œ-CB-REVâ€ schedule; show both in reports/audit. 
 
 3. **Naming convention** (per Jan 22):
 
@@ -280,7 +280,7 @@ It also proposes a data shape where RevenueSchedule has flags `[FLEX|CB|CB_REV]`
 
 4. **Status / dispute labeling**
 
-   * Change “pending” labeling to “in dispute” for chargebacks. 
+   * Change â€œpendingâ€ labeling to â€œin disputeâ€ for chargebacks. 
 
 5. **Approval workflow**
 
@@ -310,7 +310,7 @@ It also proposes a data shape where RevenueSchedule has flags `[FLEX|CB|CB_REV]`
 
 ## 8) Definition of done
 
-**Flex is “done” when:**
+**Flex is â€œdoneâ€ when:**
 
 * Creating a Flex schedule is deterministic and traceable (source deposit/line, reason code, linked parent schedule if applicable).
 * Flex schedules reliably appear in an operational queue with assignment + aging.
@@ -320,16 +320,16 @@ It also proposes a data shape where RevenueSchedule has flags `[FLEX|CB|CB_REV]`
   * Bonus commission (100% rate) path when applicable.
 * Billing Status semantics are correct and do not auto-clear disputes without explicit settlement/resolution.
 
-**Chargebacks are “done” when:**
+**Chargebacks are â€œdoneâ€ when:**
 
 * Negative lines create a `-CB` schedule and enter a pending approval state (match is not applied until approved).
 * CB reversal lines create a linked `-CB-REV` schedule and also require approval.
-* The “negative commission, no usage” normalization rule is enforced consistently.
+* The â€œnegative commission, no usageâ€ normalization rule is enforced consistently.
 * Approvals are gated by the correct role/permission and are fully audited (who/when/decision/notes).
 
-**Operationally “done” when:**
+**Operationally â€œdoneâ€ when:**
 
-* Reporting can isolate Flex/CB/CB‑REV and show parent/child linkage.
+* Reporting can isolate Flex/CB/CBâ€‘REV and show parent/child linkage.
 * A repeatable smoke dataset + automated tests exist for all core scenarios.
 
 ## 9) Repo findings snapshot (what already exists)
@@ -339,13 +339,13 @@ These are **implementation signals found in the codebase** (validate via a smoke
 * Naming/tagging helpers exist: `-F`, `-CB`, `-CB-REV` display suffixes (`lib/flex/revenue-schedule-display.ts`).
 * Flex Product split creation exists and enqueues a review item (`lib/flex/revenue-schedule-flex-actions.ts`).
 * Chargeback + chargeback reversal creation exists and enqueues review items; both are created as `billingStatus=InDispute` when billing-status automation is enabled (`lib/flex/revenue-schedule-flex-actions.ts`).
-* A “Flex Review Queue” UI exists with assignment + aging filters and actions to **approve & apply** and **resolve** items (`app/(dashboard)/reconciliation/flex-review/page.tsx`).
-* Approval endpoints exist for chargeback/CB‑REV pending matches and are permission-gated by `reconciliation.manage` (`app/api/flex-review/[itemId]/approve-and-apply/route.ts`, `app/api/reconciliation/deposits/[depositId]/line-items/[lineId]/approve-flex/route.ts`).
+* A â€œFlex Review Queueâ€ UI exists with assignment + aging filters and actions to **approve & apply** and **resolve** items (`app/(dashboard)/reconciliation/flex-review/page.tsx`).
+* Approval endpoints exist for chargeback/CBâ€‘REV pending matches and are permission-gated by `reconciliation.manage` (`app/api/flex-review/[itemId]/approve-and-apply/route.ts`, `app/api/reconciliation/deposits/[depositId]/line-items/[lineId]/approve-flex/route.ts`).
 
-**Known gaps vs the Jan 21–22 workflow docs (based on repo scan):**
+**Known gaps vs the Jan 21â€“22 workflow docs (based on repo scan):**
 
-* “Flex resolution” actions are not implemented end-to-end yet (Apply to existing / Convert to regular / One-time vs recurring + create additional schedules). Current “resolve” appears to only mark the queue item resolved/rejected (no schedule/product mutation).
-* Chargeback normalization rule (negative commission with no usage → set usage to abs(commission) and rate 100%) is specified in the reconciliation spec but not clearly implemented in chargeback creation.
+* â€œFlex resolutionâ€ actions are not implemented end-to-end yet (Apply to existing / Convert to regular / One-time vs recurring + create additional schedules). Current â€œresolveâ€ appears to only mark the queue item resolved/rejected (no schedule/product mutation).
+* Chargeback normalization rule (negative commission with no usage â†’ set usage to abs(commission) and rate 100%) is specified in the reconciliation spec but not clearly implemented in chargeback creation.
 * Approval is currently gated by `reconciliation.manage` (broad); Milestone 0 decision requires **Admin-only** chargeback approvals, so RBAC/permissions must be tightened.
 
 ---
@@ -362,11 +362,11 @@ These are locked in based on stakeholder direction:
 3. **Flex schedule dating rule**
    * Do **not** make this tenant-configurable.
    * Default Flex schedule date to **`Deposit.month` (report month period)**.
-4. **Flex vs “month-to-month continuation” terminology**
+4. **Flex vs â€œmonth-to-month continuationâ€ terminology**
    * Month-to-month continuation = **Schedule Extension**.
    * Flex = **variance/exception workflows**.
 5. **Unmatched creation triggers**
-   * “70%” is the confidence threshold controlled in Reconciliation Settings:
+   * â€œ70%â€ is the confidence threshold controlled in Reconciliation Settings:
      * **Suggested Matches Display Confidence** (UI suggestions),
      * **AI auto match confidence** (automation).
 
@@ -396,7 +396,7 @@ These are locked in based on stakeholder direction:
   * enqueue a Flex review/tracker item for management action.
 * [ ] Unmatched/no match:
   * use the confidence thresholds in Reconciliation Settings:
-    * if no candidate meets **Suggested Matches Display Confidence**, treat as “no match” and create Flex per spec.
+    * if no candidate meets **Suggested Matches Display Confidence**, treat as â€œno matchâ€ and create Flex per spec.
     * AI auto-match should only act when candidates meet **AI auto match confidence**.
   * enqueue for review and ensure idempotency (no duplicates on retries).
 * [ ] Commission-only lines (no RS found):
@@ -409,7 +409,7 @@ These are locked in based on stakeholder direction:
 * [ ] Negative deposit line detection:
   * create `-CB` schedule and queue item,
   * create a **pending/suggested** match (not applied) until approval,
-  * preserve “original schedule not modified” (Scenario E).
+  * preserve â€œoriginal schedule not modifiedâ€ (Scenario E).
 * [ ] **Normalization rule (spec):** if commission is negative and usage is missing/zero, set:
   * Actual Usage = abs(commission),
   * Commission Rate = 100%,
@@ -421,37 +421,37 @@ These are locked in based on stakeholder direction:
 ### 11.3 Queue / tracker UX (operational workbench)
 
 * [ ] Ensure the queue shows, at minimum:
-  * classification badge (F / CB / CB‑REV),
+  * classification badge (F / CB / CBâ€‘REV),
   * reason code,
   * age/aging,
-  * assignment + “assign to me/unassign”,
+  * assignment + â€œassign to me/unassignâ€,
   * links to deposit, deposit line, and schedule.
 * [ ] Add queue filters needed for real ops:
   * vendor/distributor, customer account, amount thresholds, reason code, classification, age, status, assignee.
 * [ ] Add bulk actions (optional but high leverage):
   * bulk assign, bulk approve, bulk resolve/reject.
 * [ ] Notification strategy:
-  * decide and implement “admin notified” requirement (in‑app notification, email, or task list).
+  * decide and implement â€œadmin notifiedâ€ requirement (inâ€‘app notification, email, or task list).
 
 ### 11.4 Flex resolution workflows (the big missing piece)
 
 Implement these as **actual mutations** (not just marking the queue item resolved) with audits and recompute:
 
-**Option A — Apply to existing schedule**
+**Option A â€” Apply to existing schedule**
 
 * [ ] UI action: select target schedule(s) to absorb the flex amount.
 * [ ] Backend: move allocation/expected adjustments per the chosen model, recompute status, then delete/retire the flex schedule.
 * [ ] Audit: record who approved, what moved, and why.
 
-**Option B — Convert to regular schedule**
+**Option B â€” Convert to regular schedule**
 
-* [ ] UI modal: require Family + Subtype → filter catalog → choose product.
+* [ ] UI modal: require Family + Subtype â†’ filter catalog â†’ choose product.
 * [ ] Prompt: one-time vs recurring.
 * [ ] If recurring: create N additional schedules (rules to define: cadence, end date, collisions).
-* [ ] Convert flex schedule(s) into a “normal” schedule/product association.
+* [ ] Convert flex schedule(s) into a â€œnormalâ€ schedule/product association.
 * [ ] Audit: record old/new product, recurrence choice, schedules created, and reason.
 
-**Option C — Bonus commission scenario**
+**Option C â€” Bonus commission scenario**
 
 * [ ] UI + backend path to treat as one-time commission with 100% rate where required by the spec.
 
@@ -471,20 +471,20 @@ Implement these as **actual mutations** (not just marking the queue item resolve
 
 * [ ] Reporting views/exports:
   * filter/group by flex classification and reason code,
-  * show CB + CB‑REV pairs and linkage (parent/child).
+  * show CB + CBâ€‘REV pairs and linkage (parent/child).
 * [ ] Audit coverage for every action:
   * create flex/chargeback/reversal, approve, resolve/reject, apply-to-existing, convert-to-regular, schedule deletes, and any billing status transitions.
 
 ### 11.7 Testing + validation
 
 * [ ] Create a repeatable smoke dataset and script these scenarios end-to-end:
-  * overage within tolerance → adjustment,
-  * overage above tolerance → flex product created → resolve via Option A and Option B,
-  * unknown product → flex product created → convert,
-  * negative line → chargeback pending approval → approve → verify status,
-  * reversal line → CB‑REV pending approval → approve → verify linkage.
+  * overage within tolerance â†’ adjustment,
+  * overage above tolerance â†’ flex product created â†’ resolve via Option A and Option B,
+  * unknown product â†’ flex product created â†’ convert,
+  * negative line â†’ chargeback pending approval â†’ approve â†’ verify status,
+  * reversal line â†’ CBâ€‘REV pending approval â†’ approve â†’ verify linkage.
 * [ ] Add automated tests for:
-  * billing status transitions (flex/CB/CB‑REV),
+  * billing status transitions (flex/CB/CBâ€‘REV),
   * chargeback normalization rule,
   * approval RBAC gates,
   * idempotency (no duplicate schedules created on retries).
@@ -493,7 +493,7 @@ Implement these as **actual mutations** (not just marking the queue item resolve
 
 ## 12) Milestone status (as of Feb 2, 2026)
 
-### Milestone 1 — Chargebacks complete (3–7 days)
+### Milestone 1 â€” Chargebacks complete (3â€“7 days)
 
 **Implemented (code):**
 
@@ -502,14 +502,14 @@ Implement these as **actual mutations** (not just marking the queue item resolve
 
 **Still needs verification (smoke + data):**
 
-* Confirm CB‑REV creation + approval flow in the Flex Review Queue.
+* Confirm CBâ€‘REV creation + approval flow in the Flex Review Queue.
 * Confirm audit trail for approvals (approver + timestamp) is visible in the audit view you rely on.
 
 **Milestone 1 status:** **Mostly complete** (pending verification checks above).
 
-### Milestone 2 — Flex resolution complete (4–10 days)
+### Milestone 2 â€” Flex resolution complete (4â€“10 days)
 
-**Go/No‑Go:** OK to start once the two verification items above are validated in the UI.
+**Go/Noâ€‘Go:** OK to start once the two verification items above are validated in the UI.
 
 ---
 
@@ -518,9 +518,9 @@ Implement these as **actual mutations** (not just marking the queue item resolve
 **Implemented (code):**
 
 * Flex Review Queue resolves FLEX items with explicit outcomes (not just marking the queue item resolved):
-  * **Option A â€” Apply to existing schedule**: adds the flex scheduleâ€™s expected usage/commission into a target schedule (defaults to parent when present), moves deposit matches, then **soft-deletes** the flex schedule.
-  * **Option B â€” Convert to regular schedule**: requires **Family + Subtype** selection, filters Product catalog by vendor/distributor + family/subtype, then converts the flex schedule to a normal schedule/product. Supports **one-time vs recurring**; recurring can create additional monthly schedules.
-  * **Option C â€” Bonus commission**: converts the flex schedule to a one-time bonus schedule (100% rate semantics) and clears dispute status for that schedule via an explicit resolution outcome.
+  * **Option A Ã¢â‚¬â€ Apply to existing schedule**: adds the flex scheduleÃ¢â‚¬â„¢s expected usage/commission into a target schedule (defaults to parent when present), moves deposit matches, then **soft-deletes** the flex schedule.
+  * **Option B Ã¢â‚¬â€ Convert to regular schedule**: requires **Family + Subtype** selection, filters Product catalog by vendor/distributor + family/subtype, then converts the flex schedule to a normal schedule/product. Supports **one-time vs recurring**; recurring can create additional monthly schedules.
+  * **Option C Ã¢â‚¬â€ Bonus commission**: converts the flex schedule to a one-time bonus schedule (100% rate semantics) and clears dispute status for that schedule via an explicit resolution outcome.
 * Billing Status semantics align with the reconciliation spec:
   * FLEX schedules are only cleared from **In Dispute** via an explicit resolution outcome (these actions set billing status source to Manual for the resolved schedule).
   * Parent schedule dispute is cleared **conditionally** (only when no remaining disputed flex children exist).
@@ -539,7 +539,7 @@ Implement these as **actual mutations** (not just marking the queue item resolve
 
 ---
 
-### Milestone 3 � Ops polish (2�5 days)
+### Milestone 3 — Ops polish (2–5 days)
 
 **Progress update (Feb 2, 2026):** Milestone 3 work has progressed in the Flex Review Queue UI + API.
 
@@ -548,33 +548,38 @@ Implement these as **actual mutations** (not just marking the queue item resolve
 * **Queue filters** now include: Flex type, reason code, vendor, distributor, schedule search, age, and min-amount (in addition to status/assignment).
 * **Server-side filtering + pagination** support added to the Flex Review API (query params for status/assignment/type/reason/vendor/distributor/schedule/age/min-amount).
 * **CSV export** for the filtered queue (server-side export).
+* **UI pagination controls** added (page navigation + page size) and the queue now queries server-side pages.
 * **Bulk selection + actions** are available for open items:
   * Assign to me / Unassign
   * **Approve & Apply** (Admin only; for CB / CB-REV items)
   * **Resolve / Reject** bulk action for non-chargeback items (with optional bulk notes)
 * "Select all open items" checkbox enables faster triage for ops users.
-* **Digest endpoint** added for daily summary notifications to reconciliation managers (open + overdue counts).
+* **Digest endpoints** added:
+  * Manager-triggered digest (permission-gated) for the current tenant.
+  * Job-triggered digest (JOB_SECRET-gated) for per-tenant or all-tenant runs.
 
 **Still needs verification (smoke + data):**
 
 * Confirm filters return the intended set for real deposits (vendor/distributor coverage + reason/type accuracy) and that CSV export matches those filters.
 * Validate bulk actions against large result sets (10+ items) and mixed item types, including skipped chargebacks in bulk resolve.
 * Confirm bulk approve respects Admin-only gating and handles partial failures gracefully in UI.
-* Decide whether to add **UI pagination controls** (API supports pagination; UI currently fetches a large page size).
-* Decide how/when to run the **digest job** (scheduler/cron) and verify notifications surface in the UI.
+* Confirm pagination behaves correctly (page reset on filter change, total pages accurate, selection cleared on page change).
+* Configure a scheduler/cron to call the **flex review digest job** daily and verify notifications appear at `/notifications`.
+* Verification checklist: `docs/plans/milestone-3-ops-polish-verification.md`
 
-**Milestone 3 status:** **In progress** (API + UI enhancements implemented; pending verification + remaining scope above).
+**Milestone 3 status:** **Implemented** (pending verification + scheduler configuration above).
 
 ---
 
 ## 13) Recommended sequencing (milestones)
 
-1. **Milestone 0 — Validate what exists (1–2 days):** run smoke dataset through queue + approval paths; document gaps.
-2. **Milestone 1 — Chargebacks complete (3–7 days):** normalization + approval UI/RBAC + audit + CB‑REV linking.
-3. **Milestone 2 — Flex resolution complete (4–10 days):** implement Option A/B/C end-to-end with audits + billing-status semantics.
-4. **Milestone 3 — Ops polish (2–5 days):** queue filters/bulk actions, notifications, reporting hardening.
+1. **Milestone 0 â€” Validate what exists (1â€“2 days):** run smoke dataset through queue + approval paths; document gaps.
+2. **Milestone 1 â€” Chargebacks complete (3â€“7 days):** normalization + approval UI/RBAC + audit + CBâ€‘REV linking.
+3. **Milestone 2 â€” Flex resolution complete (4â€“10 days):** implement Option A/B/C end-to-end with audits + billing-status semantics.
+4. **Milestone 3 â€” Ops polish (2â€“5 days):** queue filters/bulk actions, notifications, reporting hardening.
 
 ---
 
-If you want, I can convert this into a clean `.docx` “handoff packet” formatted for engineering tickets (same content, just structured for copy/paste into your tracker).
+If you want, I can convert this into a clean `.docx` â€œhandoff packetâ€ formatted for engineering tickets (same content, just structured for copy/paste into your tracker).
+
 

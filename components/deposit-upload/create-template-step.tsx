@@ -573,12 +573,12 @@ export function CreateTemplateStep({
 
           <div>
             <label className="flex h-[170px] w-[300px] cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-gray-300 bg-slate-50 p-4 text-center text-sm text-gray-600 hover:bg-gray-50">
-              <Upload className="h-6 w-6 text-primary-500" />
-              <div>
-                Drag & drop files
-                <span className="text-gray-400"> or browse .csv/.xlsx/.xls</span>
-              </div>
-              <input type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={onFileChange} />
+                <Upload className="h-6 w-6 text-primary-500" />
+                <div>
+                  Drag & drop files
+                <span className="text-gray-400"> or browse .csv/.xlsx/.xls/.pdf</span>
+                </div>
+              <input type="file" accept=".csv,.xlsx,.xls,.pdf" className="hidden" onChange={onFileChange} />
               {selectedFile ? (
                 <p className="text-xs text-gray-500">Selected: {selectedFile.name}</p>
               ) : (
