@@ -125,17 +125,21 @@ function computeWithinTolerance(params: {
   )
 }
 
-function buildDefaultAllocations(params: {
+export function buildDefaultAllocationsForMatchGroup(params: {
   matchType: MatchSelectionType
   lines: Array<{
     id: string
     usageUnallocated: number
     commissionUnallocated: number
+    lineNumber?: number | null
+    createdAt?: Date | null
   }>
   schedules: Array<{
     id: string
     expectedUsageNet: number
     expectedCommissionNet: number
+    scheduleDate?: Date | null
+    createdAt?: Date | null
   }>
 }): MatchGroupAllocationInput[] {
   if (params.matchType === "OneToMany") {
@@ -180,6 +184,83 @@ function buildDefaultAllocations(params: {
     }))
   }
 
+  if (params.matchType === "ManyToMany") {
+    const sortedSchedules = [...params.schedules].sort((a, b) => {
+      const dateA = a.scheduleDate ? a.scheduleDate.getTime() : Number.POSITIVE_INFINITY
+      const dateB = b.scheduleDate ? b.scheduleDate.getTime() : Number.POSITIVE_INFINITY
+      if (dateA !== dateB) return dateA - dateB
+
+      const createdA = a.createdAt ? a.createdAt.getTime() : Number.POSITIVE_INFINITY
+      const createdB = b.createdAt ? b.createdAt.getTime() : Number.POSITIVE_INFINITY
+      return createdA - createdB
+    })
+
+    const sortedLines = [...params.lines].sort((a, b) => {
+      const numberA = typeof a.lineNumber === "number" ? a.lineNumber : Number.POSITIVE_INFINITY
+      const numberB = typeof b.lineNumber === "number" ? b.lineNumber : Number.POSITIVE_INFINITY
+      if (numberA !== numberB) return numberA - numberB
+
+      const createdA = a.createdAt ? a.createdAt.getTime() : Number.POSITIVE_INFINITY
+      const createdB = b.createdAt ? b.createdAt.getTime() : Number.POSITIVE_INFINITY
+      return createdA - createdB
+    })
+
+    const remainingUsage = new Map<string, number>()
+    const remainingCommission = new Map<string, number>()
+    for (const schedule of sortedSchedules) {
+      remainingUsage.set(schedule.id, Math.max(0, toNumber(schedule.expectedUsageNet)))
+      remainingCommission.set(schedule.id, Math.max(0, toNumber(schedule.expectedCommissionNet)))
+    }
+
+    const out: MatchGroupAllocationInput[] = []
+
+    for (const line of sortedLines) {
+      let usageRemaining = Math.max(0, toNumber(line.usageUnallocated))
+      let commissionRemaining = Math.max(0, toNumber(line.commissionUnallocated))
+
+      for (const schedule of sortedSchedules) {
+        if (isEffectivelyZero(usageRemaining) && isEffectivelyZero(commissionRemaining)) break
+
+        const scheduleUsageRemaining = remainingUsage.get(schedule.id) ?? 0
+        const scheduleCommissionRemaining = remainingCommission.get(schedule.id) ?? 0
+
+        const usageAmount = roundMoney(Math.min(usageRemaining, scheduleUsageRemaining))
+        const commissionAmount = roundMoney(Math.min(commissionRemaining, scheduleCommissionRemaining))
+
+        if (isEffectivelyZero(usageAmount) && isEffectivelyZero(commissionAmount)) continue
+
+        out.push({
+          lineId: line.id,
+          scheduleId: schedule.id,
+          usageAmount,
+          commissionAmount,
+        })
+
+        usageRemaining = roundMoney(usageRemaining - usageAmount)
+        commissionRemaining = roundMoney(commissionRemaining - commissionAmount)
+
+        remainingUsage.set(schedule.id, roundMoney(scheduleUsageRemaining - usageAmount))
+        remainingCommission.set(schedule.id, roundMoney(scheduleCommissionRemaining - commissionAmount))
+      }
+    }
+
+    if (out.length === 0) {
+      const line = sortedLines[0]
+      const schedule = sortedSchedules[0]
+      if (!line || !schedule) return []
+      return [
+        {
+          lineId: line.id,
+          scheduleId: schedule.id,
+          usageAmount: Math.max(0, toNumber(line.usageUnallocated)),
+          commissionAmount: Math.max(0, toNumber(line.commissionUnallocated)),
+        },
+      ]
+    }
+
+    return out
+  }
+
   return []
 }
 
@@ -199,21 +280,6 @@ export async function buildMatchGroupPreview(
 
   const lineIds = Array.from(new Set((params.lineIds ?? []).map(id => id.trim()).filter(Boolean)))
   const scheduleIds = Array.from(new Set((params.scheduleIds ?? []).map(id => id.trim()).filter(Boolean)))
-
-  if (params.matchType === "ManyToMany") {
-    return {
-      ok: false,
-      tenantVarianceTolerance,
-      matchType: params.matchType,
-      issues: [
-        {
-          level: "error",
-          code: "match_type_not_supported",
-          message: "Many-to-many (M:M) matching is not supported yet for the wizard MVP.",
-        },
-      ],
-    }
-  }
 
   if (!isSelectionCompatibleWithType({ matchType: params.matchType, lineCount: lineIds.length, scheduleCount: scheduleIds.length })) {
     return {
@@ -235,6 +301,8 @@ export async function buildMatchGroupPreview(
       where: { tenantId: params.tenantId, depositId: params.depositId, id: { in: lineIds } },
       select: {
         id: true,
+        lineNumber: true,
+        createdAt: true,
         status: true,
         reconciled: true,
         usage: true,
@@ -253,6 +321,8 @@ export async function buildMatchGroupPreview(
       } as any,
       select: {
         id: true,
+        scheduleDate: true,
+        createdAt: true,
         expectedUsage: true,
         usageAdjustment: true,
         actualUsageAdjustment: true,
@@ -315,6 +385,8 @@ export async function buildMatchGroupPreview(
     const actualCommissionAdjustment = toNumber(schedule.actualCommissionAdjustment)
     return {
       id: schedule.id,
+      scheduleDate: schedule.scheduleDate,
+      createdAt: schedule.createdAt,
       expectedUsageNet,
       expectedCommissionNet,
       actualUsageAdjustment,
@@ -322,15 +394,19 @@ export async function buildMatchGroupPreview(
     }
   })
 
-  const defaultAllocations = buildDefaultAllocations({
+  const defaultAllocations = buildDefaultAllocationsForMatchGroup({
     matchType: params.matchType,
     lines: lines.map(line => ({
       id: line.id,
       usageUnallocated: toNumber(line.usageUnallocated ?? Math.max(0, toNumber(line.usage) - toNumber(line.usageAllocated))),
       commissionUnallocated: toNumber(line.commissionUnallocated ?? Math.max(0, toNumber(line.commission) - toNumber(line.commissionAllocated))),
+      lineNumber: line.lineNumber ?? null,
+      createdAt: line.createdAt,
     })),
     schedules: scheduleMeta.map(schedule => ({
       id: schedule.id,
+      scheduleDate: schedule.scheduleDate,
+      createdAt: schedule.createdAt,
       expectedUsageNet: schedule.expectedUsageNet,
       expectedCommissionNet: schedule.expectedCommissionNet,
     })),
@@ -439,14 +515,7 @@ export async function buildMatchGroupPreview(
         message: "This allocation references an already-reconciled match and cannot be changed.",
       })
     }
-    const changesExistingGroupedMatch =
-      existing &&
-      existing.status === DepositLineMatchStatus.Applied &&
-      Boolean(existing.matchGroupId) &&
-      (!isEffectivelyZero(allocation.usageAmount - toNumber(existing.usageAmount)) ||
-        !isEffectivelyZero(allocation.commissionAmount - toNumber(existing.commissionAmount)))
-
-    if (changesExistingGroupedMatch) {
+    if (existing && existing.status === DepositLineMatchStatus.Applied && existing.matchGroupId) {
       issues.push({
         level: "error",
         code: "match_group_conflict",

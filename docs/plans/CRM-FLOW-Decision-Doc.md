@@ -11,9 +11,35 @@ Note: `docs/plans/CRM-FLOW-001_CRM-MATCH-002-Guide.md` is the repo-specific exec
 
 ## Progress note (2026-02-02)
 
-- **CRM-MATCH-003 shipped**: comma-separated ID + product-alias parsing (case-insensitive match, preserve casing), admin edits, and reversible auto-fill via audit history undo.
-- This pattern is a concrete example of how we want "metadata side effects" to be handled elsewhere: **write an explicit audit entry with `previousValues` + `newValues`, and provide a scoped, permissioned undo**.
-- QA checklist for this work: `docs/plans/CRM-MATCH-003-UAT.md`.
+### Shipped in this repo (2026-02-02)
+
+- **CRM‑FLOW‑001 shipped**: atomic match-group apply/undo, M:M defaults, and Bundle / Rip-and-Replace endpoints (plus wizard integration).
+- **CRM‑MATCH‑002 shipped**: match-type selection classifier + guided Match Wizard (1:M, M:1, M:M) with Preview → Apply flow.
+- **CRM‑MATCH‑003 shipped**: comma-separated ID + product-alias parsing (case-insensitive match, preserve casing), admin edits, and reversible auto-fill via audit history undo.
+
+### Key implementation touchpoints
+
+- Match type detection: `lib/matching/match-selection.ts`
+- Wizard UI: `components/reconciliation-match-wizard-modal.tsx`
+- Match-group APIs:
+  - `POST /api/reconciliation/deposits/:depositId/matches/preview`
+  - `POST /api/reconciliation/deposits/:depositId/matches/apply`
+  - `POST /api/reconciliation/deposits/:depositId/matches/:matchGroupId/undo`
+- Bundle APIs:
+  - `POST /api/reconciliation/deposits/:depositId/bundle-rip-replace/apply`
+  - `POST /api/reconciliation/deposits/:depositId/bundle-rip-replace/:bundleAuditLogId/undo`
+
+### Known gaps / decisions still open
+
+- **Negative lines in bundle / multi-match wizard**: not supported yet (use Flex/chargeback flow).
+- **Wizard Flex remainder creation** (leftover → create Flex schedule) is not implemented yet.
+- **Role-gating** (Accounting unmatch vs Manager undo) is still a decision to lock; endpoints are currently permissioned by `reconciliation.manage`.
+- **Bundle idempotency**: rerunning bundle can create duplicates (no idempotency key / operation table yet).
+
+### QA / how to test
+
+- Manual UAT checklist is captured in `docs/CRM‑FLOW‑001 — Bundle _ Split Rules Spec (1_M, M_1, M_M) + Undo_Unmatch.md` (see “13) How to test”).
+- Automated tests: `npm test` (includes an M:M FIFO default allocation unit test).
 
 ## **0\) Ground truth constraints we must design around**
 

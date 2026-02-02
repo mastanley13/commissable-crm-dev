@@ -25,6 +25,44 @@ Note: Sprint planning suggests MVP order: **1:M \+ M:1 first, M:M next**; this s
 
 ---
 
+## **0.1\) Implementation status (as of 2026-02-02)**
+
+This spec has now been **implemented** in the reconciliation workbench with a guided wizard + atomic match-group apply/undo.
+
+### ✅ Implemented (CRM‑FLOW‑001 + CRM‑MATCH‑002)
+
+* **Match-type detection + routing** (1:1 vs 1:M vs M:1 vs M:M) is live via `classifyMatchSelection()` and drives whether the system:
+  * applies immediately (1:1), or
+  * interrupts into the Match Wizard (non‑1:1).
+* **Match Wizard UI** (Selection → Allocation → Preview → Apply) supports:
+  * **1:M Split allocation wizard**
+  * **M:1 allocation wizard**
+  * **M:M allocation wizard** (matrix entry)
+  * **M:1 Bundle branch** (“Rip & Replace”) that creates new products/schedules, then switches into M:M allocation for the newly-created schedules.
+* **Atomic match-group concept** is implemented:
+  * `DepositMatchGroup` groups allocations (rows in `DepositLineMatch`) so apply/undo is atomic and auditable.
+  * Endpoints:
+    * `POST /api/reconciliation/deposits/:depositId/matches/preview`
+    * `POST /api/reconciliation/deposits/:depositId/matches/apply`
+    * `POST /api/reconciliation/deposits/:depositId/matches/:matchGroupId/undo`
+* **M:M default allocation proposal** is implemented (FIFO/greedy fill across schedules) and used both server-side (preview defaults) and in the wizard UI.
+* **Undo/unmatch completeness**:
+  * “Unmatch” still exists for line-level removal of allocations.
+  * “Undo match group” reverts all allocations created by the group, recomputes lines/schedules/deposit, and writes audit logs.
+  * Auto-fill side effects are recorded and **best-effort undone** during match-group undo via `undoAutoFillAuditLog()`.
+* **Bundle / Rip-and-Replace** endpoints are implemented:
+  * `POST /api/reconciliation/deposits/:depositId/bundle-rip-replace/apply`
+  * `POST /api/reconciliation/deposits/:depositId/bundle-rip-replace/:bundleAuditLogId/undo`
+
+### ⚠️ Current limitations / follow-ups
+
+* **Negative deposit lines are not supported** in:
+  * the multi-match wizard flows (preview blocks with a chargeback guidance error), and
+  * the bundle rip/replace flow (apply rejects).
+* **Flex remainder creation inside the wizard** (the “leftover → create Flex” prompt described in examples) is not implemented yet.
+* **Role-gating remains a decision**: endpoints are currently permissioned by `reconciliation.manage`; the spec’s manager-only undo vs accounting unmatch distinction still needs to be locked.
+* **Bundle idempotency**: rerunning bundle can create duplicates (no idempotency key / operation table yet).
+
 ## **1\) Key terms (domain objects)**
 
 Use these canonical definitions:
@@ -386,15 +424,91 @@ These are the specific unknowns blocking full implementation fidelity; everythin
 
 ## **12\) Delivery checklist for the coding agent**
 
-Implement in this order (aligned with sprint MVP guidance):
+The items below are now **implemented** (as of 2026-02-02):
 
-1. **Match-type detection** on Match click; wizard skeleton invoked for 1:M and M:1 first.  
-2. **1:M split allocation wizard** with chronological schedule ordering \+ validation “cannot exceed.”  
-3. **M:1 partial payment support** (multiple deposit lines to schedule, running totals).  
-4. **Undo/unmatch** for allocations, with “restore pre-match states” and audit log (and role checks).  
-5. **M:M wizard** (next sprint per plan), using the canonical allocation model \+ FIFO default proposal.
+1. ✅ **Match-type detection** on Match click; wizard invoked for non‑1:1.  
+2. ✅ **1:M split allocation wizard** (chronological ordering + cannot exceed line totals).  
+3. ✅ **M:1 wizard** (allocate multiple lines to one schedule) **and** Bundle (“Rip & Replace”) branch.  
+4. ✅ **Undo/unmatch**:
+   * line-level **Unmatch** (existing endpoint)
+   * group-level **Undo match group** (atomic undo + audit)
+5. ✅ **M:M wizard** + FIFO default proposal.
+
+Remaining / follow-up work:
+
+* ⬜ **Bundle negative-line support** (tax/tier/chargeback lines in the bundle scenario).
+* ⬜ **Wizard → Flex remainder** creation flow (optional but referenced in examples).
+* ⬜ **Permission model lock** (Accounting vs Manager responsibilities for unmatch/undo).
+* ⬜ **Bundle idempotency** and “duplicate bundle” prevention.
+
+---
+
+## **13\) How to test (manual UAT checklist)**
+
+### **Prereqs**
+
+* Run the app: `npm run dev`
+* Use a test user with permission `reconciliation.manage`
+* Have a deposit with at least:
+  * 2+ deposit line items, and
+  * 2+ revenue schedules (for M:M), and
+  * at least one schedule that is linked to an `opportunityProductId` and has a `scheduleDate` (required for bundle rip/replace)
+
+### **Test 1 — 1:M Split allocation**
+
+1. In the deposit reconciliation workbench, select **exactly 1 deposit line** and **2+ schedules**.
+2. Click **Match**.
+3. In the wizard:
+   * verify detected type `1:M`
+   * adjust allocations (ensure totals do not exceed the line totals)
+   * **Run Preview** (should warn if schedules are outside tolerance; hard-block only on errors)
+   * **Apply** (creates a match group)
+4. Validate:
+   * deposit line status becomes Matched / Partially Matched based on allocation completeness
+   * schedule actuals + status recompute
+   * audit entries exist for schedules + match group
+5. In the wizard Apply step, click **Undo match group** and confirm all values recompute back.
+
+### **Test 2 — M:1 Allocate (partial payment)**
+
+1. Select **2+ deposit lines** and **exactly 1 schedule**.
+2. Click **Match** → wizard opens in `M:1`.
+3. Choose **Allocate** (not Bundle).
+4. Run Preview → Apply → Undo match group.
+
+### **Test 3 — M:M Allocation matrix**
+
+1. Select **2+ deposit lines** and **2+ schedules**.
+2. Click **Match** → wizard opens in `M:M`.
+3. Confirm the default allocation proposal is prefilled (FIFO/greedy across schedules).
+4. Run Preview → Apply → Undo match group.
+
+### **Test 4 — Bundle / Rip-and-Replace**
+
+1. Select **2+ deposit lines** and **exactly 1 schedule** (must have `opportunityProductId` + `scheduleDate`).
+2. Click **Match** → wizard opens in `M:1`.
+3. Choose **Bundle (Rip & Replace)**.
+4. Choose a replace mode:
+   * **Keep old schedules** (no deletion), or
+   * **Soft-delete unreconciled old schedules**
+5. Click **Create bundle schedules**.
+6. Validate wizard switches into **M:M** and schedules list updates to the newly-created schedules for the current period, with 1:1 allocations prefilled.
+7. Run Preview → Apply (match group).
+8. Undo sequence:
+   1. **Undo match group**
+   2. **Undo bundle** (should succeed after match group undo; bundle undo is blocked if created schedules still have applied matches)
+
+### **Test 5 — Validation / safety checks**
+
+* Attempt multi-match with any **reconciled** line: it should be blocked.
+* Attempt multi-match with a **negative** line item: preview should be blocked and direct you to the chargeback/flex flow.
+* Attempt to include a line↔schedule pair that already belongs to an existing match group: preview should block (match-group conflict).
+
+### **Automated tests**
+
+* Run: `npm test`
+  * Includes a unit test for the M:M FIFO default allocation proposal.
 
 ---
 
 If you want, I can also output this as a “ticket-ready” breakdown (subtasks \+ acceptance tests per subtask) so your coding agent can translate it into implementation PRs quickly—without adding any new requirements beyond what’s already cited here.
-

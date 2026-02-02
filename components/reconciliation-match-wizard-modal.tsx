@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { ModalHeader } from "./ui/modal-header"
 import { cn } from "@/lib/utils"
 import type { DepositLineItemRow, SuggestedMatchScheduleRow } from "@/lib/mock-data"
@@ -137,6 +137,72 @@ function buildDefaultAllocations(params: {
     return out
   }
 
+  if (params.matchType === "ManyToMany") {
+    const schedulesSorted = [...params.schedules].sort((a, b) => {
+      const dateA = a.revenueScheduleDate ? new Date(a.revenueScheduleDate).getTime() : Number.POSITIVE_INFINITY
+      const dateB = b.revenueScheduleDate ? new Date(b.revenueScheduleDate).getTime() : Number.POSITIVE_INFINITY
+      if (dateA !== dateB) return dateA - dateB
+      return (a.revenueScheduleName ?? "").localeCompare(b.revenueScheduleName ?? "")
+    })
+    const linesSorted = [...params.lines].sort((a, b) => (a.lineItem ?? 0) - (b.lineItem ?? 0))
+
+    const usageRemainingBySchedule = new Map<string, number>()
+    const commissionRemainingBySchedule = new Map<string, number>()
+
+    for (const schedule of schedulesSorted) {
+      usageRemainingBySchedule.set(schedule.id, Math.max(0, Number(schedule.expectedUsageNet ?? 0)))
+      commissionRemainingBySchedule.set(schedule.id, Math.max(0, Number(schedule.expectedCommissionNet ?? 0)))
+    }
+
+    const out: Record<string, AllocationDraft> = {}
+    for (const line of linesSorted) {
+      let usageRemaining = Math.max(0, Number(line.usageUnallocated ?? 0))
+      let commissionRemaining = Math.max(0, Number(line.commissionUnallocated ?? 0))
+
+      for (const schedule of schedulesSorted) {
+        if (usageRemaining <= 0.005 && commissionRemaining <= 0.005) break
+
+        const scheduleUsageRemaining = usageRemainingBySchedule.get(schedule.id) ?? 0
+        const scheduleCommissionRemaining = commissionRemainingBySchedule.get(schedule.id) ?? 0
+
+        const usageAmount = Math.round(Math.min(usageRemaining, scheduleUsageRemaining) * 100) / 100
+        const commissionAmount = Math.round(Math.min(commissionRemaining, scheduleCommissionRemaining) * 100) / 100
+
+        if (usageAmount <= 0.005 && commissionAmount <= 0.005) continue
+
+        out[allocationKey(line.id, schedule.id)] = {
+          usage: usageAmount ? usageAmount.toFixed(2) : "",
+          commission: commissionAmount ? commissionAmount.toFixed(2) : "",
+        }
+
+        usageRemaining = Math.round((usageRemaining - usageAmount) * 100) / 100
+        commissionRemaining = Math.round((commissionRemaining - commissionAmount) * 100) / 100
+
+        usageRemainingBySchedule.set(schedule.id, Math.round((scheduleUsageRemaining - usageAmount) * 100) / 100)
+        commissionRemainingBySchedule.set(
+          schedule.id,
+          Math.round((scheduleCommissionRemaining - commissionAmount) * 100) / 100,
+        )
+      }
+    }
+
+    if (Object.keys(out).length === 0) {
+      const line = linesSorted[0]
+      const schedule = schedulesSorted[0]
+      if (!line || !schedule) return {}
+      const usage = Math.max(0, Number(line.usageUnallocated ?? 0))
+      const commission = Math.max(0, Number(line.commissionUnallocated ?? 0))
+      return {
+        [allocationKey(line.id, schedule.id)]: {
+          usage: usage ? usage.toFixed(2) : "",
+          commission: commission ? commission.toFixed(2) : "",
+        },
+      }
+    }
+
+    return out
+  }
+
   return {}
 }
 
@@ -162,8 +228,24 @@ export function ReconciliationMatchWizardModal(props: {
   const [undoLoading, setUndoLoading] = useState(false)
   const [undoError, setUndoError] = useState<string | null>(null)
 
-  const lineCount = props.selectedLines.length
-  const scheduleCount = props.selectedSchedules.length
+  const [wizardSchedules, setWizardSchedules] = useState<SuggestedMatchScheduleRow[]>(props.selectedSchedules)
+  const [manyToOneMode, setManyToOneMode] = useState<"allocation" | "bundle">("allocation")
+  const [bundleApplyMode, setBundleApplyMode] = useState<"keep_old" | "soft_delete_old">("keep_old")
+  const [bundleApplyReason, setBundleApplyReason] = useState("")
+  const [bundleAuditLogId, setBundleAuditLogId] = useState<string | null>(null)
+  const [bundleLoading, setBundleLoading] = useState(false)
+  const [bundleError, setBundleError] = useState<string | null>(null)
+  const [bundleUndoReason, setBundleUndoReason] = useState("")
+  const [bundleUndoLoading, setBundleUndoLoading] = useState(false)
+  const [bundleUndoError, setBundleUndoError] = useState<string | null>(null)
+
+  const skipAllocationResetRef = useRef(false)
+
+  const selectedLines = props.selectedLines
+  const selectedSchedules = wizardSchedules
+
+  const lineCount = selectedLines.length
+  const scheduleCount = selectedSchedules.length
   const effectiveType = overrideType ?? props.detectedType
 
   useEffect(() => {
@@ -179,14 +261,25 @@ export function ReconciliationMatchWizardModal(props: {
     setUndoReason("")
     setUndoLoading(false)
     setUndoError(null)
+    setWizardSchedules(props.selectedSchedules)
+    setManyToOneMode("allocation")
+    setBundleApplyMode("keep_old")
+    setBundleApplyReason("")
+    setBundleAuditLogId(null)
+    setBundleLoading(false)
+    setBundleError(null)
+    setBundleUndoReason("")
+    setBundleUndoLoading(false)
+    setBundleUndoError(null)
+    skipAllocationResetRef.current = false
     setAllocations(
       buildDefaultAllocations({
         matchType: props.detectedType,
-        lines: props.selectedLines,
+        lines: selectedLines,
         schedules: props.selectedSchedules,
       }),
     )
-  }, [props.open, props.detectedType, props.selectedLines, props.selectedSchedules])
+  }, [props.open, props.detectedType, props.selectedLines, props.selectedSchedules, selectedLines])
 
   useEffect(() => {
     if (!props.open) return
@@ -196,14 +289,20 @@ export function ReconciliationMatchWizardModal(props: {
     setApplyError(null)
     setUndoError(null)
     setUndoReason("")
+
+    if (skipAllocationResetRef.current) {
+      skipAllocationResetRef.current = false
+      return
+    }
+
     setAllocations(
       buildDefaultAllocations({
         matchType: effectiveType,
-        lines: props.selectedLines,
-        schedules: props.selectedSchedules,
+        lines: selectedLines,
+        schedules: selectedSchedules,
       }),
     )
-  }, [effectiveType, props.open, props.selectedLines, props.selectedSchedules])
+  }, [effectiveType, props.open, selectedLines, selectedSchedules])
 
   const selectionCompatible = useMemo(
     () => isSelectionCompatibleWithType({ type: effectiveType, lineCount, scheduleCount }),
@@ -211,13 +310,13 @@ export function ReconciliationMatchWizardModal(props: {
   )
 
   const selectionTotals = useMemo(() => {
-    const lineUsageTotal = props.selectedLines.reduce((sum, row) => sum + (Number(row.usage) || 0), 0)
-    const lineCommissionTotal = props.selectedLines.reduce((sum, row) => sum + (Number(row.commission) || 0), 0)
-    const scheduleExpectedUsage = props.selectedSchedules.reduce(
+    const lineUsageTotal = selectedLines.reduce((sum, row) => sum + (Number(row.usage) || 0), 0)
+    const lineCommissionTotal = selectedLines.reduce((sum, row) => sum + (Number(row.commission) || 0), 0)
+    const scheduleExpectedUsage = selectedSchedules.reduce(
       (sum, row) => sum + (Number(row.expectedUsageNet) || 0),
       0,
     )
-    const scheduleExpectedCommission = props.selectedSchedules.reduce(
+    const scheduleExpectedCommission = selectedSchedules.reduce(
       (sum, row) => sum + (Number(row.expectedCommissionNet) || 0),
       0,
     )
@@ -227,7 +326,7 @@ export function ReconciliationMatchWizardModal(props: {
       scheduleExpectedUsage,
       scheduleExpectedCommission,
     }
-  }, [props.selectedLines, props.selectedSchedules])
+  }, [selectedLines, selectedSchedules])
 
   const stepMeta = useMemo(
     () => [
@@ -241,15 +340,14 @@ export function ReconciliationMatchWizardModal(props: {
 
   const selectionBlockedReason = useMemo(() => {
     if (!selectionCompatible) return "Selection does not match match type."
-    if (effectiveType === "ManyToMany") return "M:M is deferred for MVP."
     return null
   }, [effectiveType, selectionCompatible])
 
   const allocationRows = useMemo(() => {
     if (effectiveType === "OneToMany") {
-      const line = props.selectedLines[0]
+      const line = selectedLines[0]
       if (!line) return []
-      return props.selectedSchedules.map(schedule => {
+      return selectedSchedules.map(schedule => {
         const key = allocationKey(line.id, schedule.id)
         const draft = allocations[key] ?? { usage: "", commission: "" }
         return {
@@ -266,9 +364,9 @@ export function ReconciliationMatchWizardModal(props: {
     }
 
     if (effectiveType === "ManyToOne") {
-      const schedule = props.selectedSchedules[0]
+      const schedule = selectedSchedules[0]
       if (!schedule) return []
-      return props.selectedLines.map(line => {
+      return selectedLines.map(line => {
         const key = allocationKey(line.id, schedule.id)
         const draft = allocations[key] ?? { usage: "", commission: "" }
         return {
@@ -284,8 +382,36 @@ export function ReconciliationMatchWizardModal(props: {
       })
     }
 
+    if (effectiveType === "ManyToMany") {
+      const schedulesSorted = [...selectedSchedules].sort((a, b) => {
+        const dateA = a.revenueScheduleDate ? new Date(a.revenueScheduleDate).getTime() : Number.POSITIVE_INFINITY
+        const dateB = b.revenueScheduleDate ? new Date(b.revenueScheduleDate).getTime() : Number.POSITIVE_INFINITY
+        if (dateA !== dateB) return dateA - dateB
+        return (a.revenueScheduleName ?? "").localeCompare(b.revenueScheduleName ?? "")
+      })
+
+      const linesSorted = [...selectedLines].sort((a, b) => (a.lineItem ?? 0) - (b.lineItem ?? 0))
+
+      return linesSorted.flatMap(line =>
+        schedulesSorted.map(schedule => {
+          const key = allocationKey(line.id, schedule.id)
+          const draft = allocations[key] ?? { usage: "", commission: "" }
+          return {
+            key,
+            lineId: line.id,
+            scheduleId: schedule.id,
+            label: `${line.accountName} · ${line.productName} → ${schedule.revenueScheduleName ?? schedule.id}`,
+            expectedUsageNet: Number(schedule.expectedUsageNet ?? 0),
+            expectedCommissionNet: Number(schedule.expectedCommissionNet ?? 0),
+            usage: draft.usage,
+            commission: draft.commission,
+          }
+        }),
+      )
+    }
+
     return []
-  }, [allocations, effectiveType, props.selectedLines, props.selectedSchedules])
+  }, [allocations, effectiveType, selectedLines, selectedSchedules])
 
   const allocationTotals = useMemo(() => {
     let usage = 0
@@ -299,8 +425,10 @@ export function ReconciliationMatchWizardModal(props: {
     return { usage: Math.round(usage * 100) / 100, commission: Math.round(commission * 100) / 100 }
   }, [allocationRows])
 
-  const canProceedToAllocation = selectionCompatible && effectiveType !== "ManyToMany"
-  const canProceedToPreview = canProceedToAllocation && allocationRows.length > 0
+  const canProceedToAllocation = selectionCompatible
+  const bundleBlocking =
+    effectiveType === "ManyToOne" && manyToOneMode === "bundle" && !bundleAuditLogId
+  const canProceedToPreview = canProceedToAllocation && allocationRows.length > 0 && !bundleBlocking
 
   const allocationsPayload = useMemo(() => {
     return allocationRows.map(row => ({
@@ -333,8 +461,8 @@ export function ReconciliationMatchWizardModal(props: {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             matchType: effectiveType,
-            lineIds: props.selectedLines.map(line => line.id),
-            scheduleIds: props.selectedSchedules.map(schedule => schedule.id),
+            lineIds: selectedLines.map(line => line.id),
+            scheduleIds: selectedSchedules.map(schedule => schedule.id),
             allocations: allocationsPayload,
           }),
         },
@@ -366,8 +494,8 @@ export function ReconciliationMatchWizardModal(props: {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             matchType: effectiveType,
-            lineIds: props.selectedLines.map(line => line.id),
-            scheduleIds: props.selectedSchedules.map(schedule => schedule.id),
+            lineIds: selectedLines.map(line => line.id),
+            scheduleIds: selectedSchedules.map(schedule => schedule.id),
             allocations: allocationsPayload,
           }),
         },
@@ -415,6 +543,121 @@ export function ReconciliationMatchWizardModal(props: {
       setUndoError(err instanceof Error ? err.message : "Unknown error")
     } finally {
       setUndoLoading(false)
+    }
+  }
+
+  const applyBundleRipReplace = async () => {
+    setBundleLoading(true)
+    setBundleError(null)
+
+    try {
+      if (selectedLines.length < 2) {
+        throw new Error("Bundle requires at least two deposit line items.")
+      }
+      if (selectedSchedules.length !== 1) {
+        throw new Error("Bundle requires selecting exactly one schedule.")
+      }
+
+      const response = await fetch(
+        `/api/reconciliation/deposits/${encodeURIComponent(props.depositId)}/bundle-rip-replace/apply`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            lineIds: selectedLines.map(line => line.id),
+            revenueScheduleId: selectedSchedules[0]!.id,
+            mode: bundleApplyMode,
+            reason: bundleApplyReason.trim() || null,
+          }),
+        },
+      )
+
+      const payload = await response.json().catch(() => null)
+      if (!response.ok) {
+        throw new Error(payload?.error || "Failed to create bundle schedules")
+      }
+
+      const bundleAuditLogId = payload?.data?.bundleAuditLogId as string | undefined
+      const scheduleRows = payload?.data?.scheduleRows as SuggestedMatchScheduleRow[] | undefined
+      const lineToScheduleMap = payload?.data?.lineToScheduleMap as Array<{ lineId: string; scheduleId: string }> | undefined
+
+      if (!bundleAuditLogId || !Array.isArray(scheduleRows) || !Array.isArray(lineToScheduleMap)) {
+        throw new Error("Bundle succeeded but returned an invalid response.")
+      }
+
+      setBundleAuditLogId(bundleAuditLogId)
+      setWizardSchedules(scheduleRows)
+
+      const nextAllocations: Record<string, AllocationDraft> = {}
+      for (const mapping of lineToScheduleMap) {
+        const line = selectedLines.find(item => item.id === mapping.lineId)
+        if (!line) continue
+        const usage = Math.max(0, Number(line.usageUnallocated ?? 0))
+        const commission = Math.max(0, Number(line.commissionUnallocated ?? 0))
+        nextAllocations[allocationKey(mapping.lineId, mapping.scheduleId)] = {
+          usage: usage ? usage.toFixed(2) : "",
+          commission: commission ? commission.toFixed(2) : "",
+        }
+      }
+
+      skipAllocationResetRef.current = true
+      setOverrideType("ManyToMany")
+      setManyToOneMode("allocation")
+      setAllocations(nextAllocations)
+      setPreview(null)
+      setPreviewError(null)
+      setAppliedMatchGroupId(null)
+      setStep(0)
+      props.onApplied?.()
+    } catch (err) {
+      setBundleError(err instanceof Error ? err.message : "Unknown error")
+    } finally {
+      setBundleLoading(false)
+    }
+  }
+
+  const undoBundleRipReplace = async () => {
+    if (!bundleAuditLogId) return
+    setBundleUndoLoading(true)
+    setBundleUndoError(null)
+
+    try {
+      const response = await fetch(
+        `/api/reconciliation/deposits/${encodeURIComponent(props.depositId)}/bundle-rip-replace/${encodeURIComponent(bundleAuditLogId)}/undo`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ reason: bundleUndoReason.trim() || null }),
+        },
+      )
+
+      const payload = await response.json().catch(() => null)
+      if (!response.ok) {
+        throw new Error(payload?.error || "Failed to undo bundle operation")
+      }
+
+      setBundleAuditLogId(null)
+      setWizardSchedules(props.selectedSchedules)
+      setBundleUndoReason("")
+      skipAllocationResetRef.current = true
+      setOverrideType(null)
+      setManyToOneMode("allocation")
+      setAllocations(
+        buildDefaultAllocations({
+          matchType: props.detectedType,
+          lines: selectedLines,
+          schedules: props.selectedSchedules,
+        }),
+      )
+      setPreview(null)
+      setPreviewError(null)
+      setAppliedMatchGroupId(null)
+      setStep(0)
+      props.onApplied?.()
+    } catch (err) {
+      setBundleUndoError(err instanceof Error ? err.message : "Unknown error")
+    } finally {
+      setBundleUndoLoading(false)
     }
   }
 
@@ -490,11 +733,10 @@ export function ReconciliationMatchWizardModal(props: {
                   </p>
                 </div>
               ) : effectiveType === "ManyToMany" ? (
-                <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-amber-900">
+                <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-slate-800">
                   <p className="font-semibold">M:M is detected</p>
-                  <p className="mt-1 text-xs">
-                    Sprint 1 MVP focuses on 1:M and M:1. For now, this wizard blocks M:M and will be enabled once
-                    FLOW-001 fully specifies M:M allocation + undo semantics.
+                  <p className="mt-1 text-xs text-slate-600">
+                    Review allocations carefully. Preview will warn on over/under tolerance before you apply.
                   </p>
                 </div>
               ) : null}
@@ -547,64 +789,179 @@ export function ReconciliationMatchWizardModal(props: {
                 </div>
               </div>
 
-              <div className="space-y-2">
-                {allocationRows.map(row => (
-                  <div key={row.key} className="rounded-md border border-slate-200 p-3">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div className="min-w-[220px]">
-                        <p className="font-semibold text-slate-900">{row.label}</p>
-                        {effectiveType === "OneToMany" ? (
-                          <p className="text-xs text-slate-600">
-                            Expected: {currencyFormatter.format(row.expectedUsageNet)} usage /{" "}
-                            {currencyFormatter.format(row.expectedCommissionNet)} commission
-                          </p>
-                        ) : null}
-                      </div>
-                      <div className="flex flex-wrap items-center gap-3">
-                        <div className="space-y-1">
-                          <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                            Usage
-                          </label>
-                          <input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            className="w-32 rounded border border-slate-200 px-2 py-1 text-sm text-slate-800"
-                            value={row.usage}
-                            onChange={e =>
-                              setAllocations(prev => ({
-                                ...prev,
-                                [row.key]: { ...(prev[row.key] ?? { usage: "", commission: "" }), usage: e.target.value },
-                              }))
-                            }
-                          />
+              {bundleAuditLogId && !appliedMatchGroupId ? (
+                <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-emerald-900">
+                  <p className="font-semibold">Bundle created</p>
+                  <p className="mt-1 text-xs">Audit ID: {bundleAuditLogId}</p>
+
+                  <div className="mt-3 space-y-2">
+                    <label className="text-xs font-semibold uppercase tracking-wide text-emerald-900/80">
+                      Bundle undo reason (optional)
+                    </label>
+                    <input
+                      className="w-full rounded border border-emerald-200 bg-white px-3 py-2 text-sm text-slate-800"
+                      value={bundleUndoReason}
+                      onChange={e => setBundleUndoReason(e.target.value)}
+                      disabled={bundleUndoLoading}
+                      placeholder="Why are you undoing this bundle?"
+                    />
+                    {bundleUndoError ? <p className="text-xs font-semibold text-red-700">{bundleUndoError}</p> : null}
+                    <button
+                      type="button"
+                      className="rounded border border-emerald-200 bg-white px-3 py-2 text-sm font-semibold text-emerald-900 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
+                      onClick={() => void undoBundleRipReplace()}
+                      disabled={bundleUndoLoading}
+                    >
+                      {bundleUndoLoading ? "Undoing bundle..." : "Undo bundle"}
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+
+              {effectiveType === "ManyToOne" && !bundleAuditLogId ? (
+                <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">M:1 Mode</p>
+                  <div className="mt-2 flex flex-col gap-2 text-sm text-slate-800">
+                    <label className="flex items-start gap-2">
+                      <input
+                        type="radio"
+                        name="m1-mode"
+                        checked={manyToOneMode === "allocation"}
+                        onChange={() => setManyToOneMode("allocation")}
+                        disabled={bundleLoading}
+                      />
+                      <span>
+                        <span className="font-semibold">Allocate</span>{" "}
+                        <span className="text-xs text-slate-600">(multiple lines → one schedule)</span>
+                      </span>
+                    </label>
+                    <label className="flex items-start gap-2">
+                      <input
+                        type="radio"
+                        name="m1-mode"
+                        checked={manyToOneMode === "bundle"}
+                        onChange={() => setManyToOneMode("bundle")}
+                        disabled={bundleLoading}
+                      />
+                      <span>
+                        <span className="font-semibold">Bundle (Rip &amp; Replace)</span>{" "}
+                        <span className="text-xs text-slate-600">(create products/schedules for future auto-match)</span>
+                      </span>
+                    </label>
+                  </div>
+                </div>
+              ) : null}
+
+              {effectiveType === "ManyToOne" && manyToOneMode === "bundle" && !bundleAuditLogId ? (
+                <div className="rounded-md border border-slate-200 p-3">
+                  <p className="font-semibold text-slate-900">Rip &amp; Replace bundle</p>
+                  <p className="mt-1 text-xs text-slate-600">
+                    Creates new products + schedules starting from the selected schedule date, then switches this wizard
+                    into an M:M allocation against the newly created schedules.
+                  </p>
+
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-1">
+                      <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                        Replace mode
+                      </label>
+                      <select
+                        className="w-full rounded border border-slate-200 bg-white px-2 py-1 text-sm text-slate-800"
+                        value={bundleApplyMode}
+                        onChange={e =>
+                          setBundleApplyMode(e.target.value === "soft_delete_old" ? "soft_delete_old" : "keep_old")
+                        }
+                        disabled={bundleLoading}
+                      >
+                        <option value="keep_old">Keep old schedules (no deletion)</option>
+                        <option value="soft_delete_old">Soft-delete unreconciled old schedules</option>
+                      </select>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                        Reason (optional)
+                      </label>
+                      <input
+                        className="w-full rounded border border-slate-200 bg-white px-2 py-1 text-sm text-slate-800"
+                        value={bundleApplyReason}
+                        onChange={e => setBundleApplyReason(e.target.value)}
+                        disabled={bundleLoading}
+                        placeholder="Why create this bundle?"
+                      />
+                    </div>
+                  </div>
+
+                  {bundleError ? <p className="mt-2 text-sm font-semibold text-red-600">{bundleError}</p> : null}
+
+                  <button
+                    type="button"
+                    className="mt-3 rounded bg-primary-600 px-3 py-2 text-sm font-semibold text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+                    onClick={() => void applyBundleRipReplace()}
+                    disabled={bundleLoading}
+                  >
+                    {bundleLoading ? "Creating bundle..." : "Create bundle schedules"}
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {allocationRows.map(row => (
+                    <div key={row.key} className="rounded-md border border-slate-200 p-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="min-w-[220px]">
+                          <p className="font-semibold text-slate-900">{row.label}</p>
+                          {effectiveType === "OneToMany" || effectiveType === "ManyToMany" ? (
+                            <p className="text-xs text-slate-600">
+                              Expected: {currencyFormatter.format(row.expectedUsageNet)} usage /{" "}
+                              {currencyFormatter.format(row.expectedCommissionNet)} commission
+                            </p>
+                          ) : null}
                         </div>
-                        <div className="space-y-1">
-                          <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                            Commission
-                          </label>
-                          <input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            className="w-32 rounded border border-slate-200 px-2 py-1 text-sm text-slate-800"
-                            value={row.commission}
-                            onChange={e =>
-                              setAllocations(prev => ({
-                                ...prev,
-                                [row.key]: {
-                                  ...(prev[row.key] ?? { usage: "", commission: "" }),
-                                  commission: e.target.value,
-                                },
-                              }))
-                            }
-                          />
+                        <div className="flex flex-wrap items-center gap-3">
+                          <div className="space-y-1">
+                            <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                              Usage
+                            </label>
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              className="w-32 rounded border border-slate-200 px-2 py-1 text-sm text-slate-800"
+                              value={row.usage}
+                              onChange={e =>
+                                setAllocations(prev => ({
+                                  ...prev,
+                                  [row.key]: { ...(prev[row.key] ?? { usage: "", commission: "" }), usage: e.target.value },
+                                }))
+                              }
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                              Commission
+                            </label>
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              className="w-32 rounded border border-slate-200 px-2 py-1 text-sm text-slate-800"
+                              value={row.commission}
+                              onChange={e =>
+                                setAllocations(prev => ({
+                                  ...prev,
+                                  [row.key]: {
+                                    ...(prev[row.key] ?? { usage: "", commission: "" }),
+                                    commission: e.target.value,
+                                  },
+                                }))
+                              }
+                            />
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
           ) : null}
 
