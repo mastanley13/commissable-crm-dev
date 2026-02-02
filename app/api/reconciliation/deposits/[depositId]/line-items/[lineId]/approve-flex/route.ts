@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { AuditAction, DepositLineMatchStatus, RevenueScheduleFlexClassification } from "@prisma/client"
-import { withPermissions, createErrorResponse } from "@/lib/api-auth"
+import { withRole, createErrorResponse } from "@/lib/api-auth"
 import { prisma } from "@/lib/db"
 import { recomputeDepositAggregates } from "@/lib/matching/deposit-aggregates"
 import { recomputeDepositLineItemAllocations } from "@/lib/matching/deposit-line-allocations"
@@ -16,7 +16,7 @@ export async function POST(
   request: NextRequest,
   { params }: { params: { depositId: string; lineId: string } },
 ) {
-  return withPermissions(request, ["reconciliation.manage"], async req => {
+  return withRole(request, ["ADMIN"], async req => {
     const depositId = params?.depositId?.trim()
     const lineId = params?.lineId?.trim()
     const tenantId = req.user.tenantId

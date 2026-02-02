@@ -793,11 +793,30 @@ export async function createFlexChargebackForNegativeLine(
     throw new Error("Deposit line item not found")
   }
 
-  const usage = toNumber(line.usage)
-  const commission = toNumber(line.commission)
+  const rawUsage = toNumber(line.usage)
+  const rawCommission = toNumber(line.commission)
+
+  let usage = rawUsage
+  let commission = rawCommission
+  let normalizedChargeback = false
+
+  if (isEffectivelyZero(rawUsage) && rawCommission < 0) {
+    usage = Math.abs(rawCommission)
+    normalizedChargeback = true
+  }
 
   if (usage >= 0 && commission >= 0) {
     throw new Error("Chargeback creation requires a negative usage or commission amount")
+  }
+
+  if (normalizedChargeback) {
+    await tx.depositLineItem.update({
+      where: { id: lineItemId },
+      data: {
+        usage,
+        commissionRate: 1,
+      },
+    })
   }
 
   // Remove existing matches on this line to make the automation reversible via Unmatch.
@@ -863,7 +882,7 @@ export async function createFlexChargebackForNegativeLine(
     data: {
       status: DepositLineItemStatus.Suggested,
       usageAllocated: 0,
-      usageUnallocated: line.usage ?? 0,
+      usageUnallocated: usage,
       commissionAllocated: 0,
       commissionUnallocated: line.commission ?? 0,
     },
