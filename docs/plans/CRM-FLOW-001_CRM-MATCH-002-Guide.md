@@ -39,6 +39,12 @@ Before implementing MATCH-002 "real logic", lock these items inside `CRM-FLOW-De
 
 When those are locked, MATCH-002 becomes primarily: **selection -> wizard -> preview -> atomic apply -> atomic undo**.
 
+## Progress note (2026-02-02)
+
+- **CRM-MATCH-003 shipped**: comma-separated ID + alias parsing, matching-as-set overlap, admin edits, and reversible auto-fill via audit history undo.
+- Use this as the reference pattern for MATCH-002/Flow-001 “side-effect” handling: **write explicit before/after in audit log metadata and provide scoped undo**.
+- QA checklist: `docs/plans/CRM-MATCH-003-UAT.md`.
+
 ### **Decision crosswalk (Decision Doc -> implementation tasks)**
 
 Use this as the translation layer between the decision artifact and engineering work:

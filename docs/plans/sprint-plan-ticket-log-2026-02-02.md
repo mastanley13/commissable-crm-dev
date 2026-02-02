@@ -17,6 +17,7 @@ Ship an end-to-end reconciliation workflow that can be run with Debra on real fi
 - **CRM-DEP-006 (Upload)**: Multi-vendor toggle + ingestion implemented (one deposit per vendor); needs real-file verification.
 - **CRM-DEP-008 (Deposit detail)**: Vendor summary widget implemented (usage/commission allocated + unallocated by vendor); needs UI verification.
 - **CRM-FLEX-004 (Flex resolution)**: Implemented stored child/sister schedule numbering (`1234.1`), disputed-deposit finalization policy + RBAC, distributor+vendor placeholder scoping, and FlexProduct as an Opportunity Product line item; needs end-to-end verification.
+- **CRM-MATCH-003 (Matching robustness)**: Comma-separated IDs + product aliases support implemented, including admin edits, auto-fill (no overwrite), and undo via audit history (2026-02-02).
 
 ## Sprint sizing assumptions
 - Sprint 1 focuses on unblocking + closing P0/P0-adjacent work so a Debra E2E run can happen.
@@ -177,35 +178,35 @@ Ship an end-to-end reconciliation workflow that can be run with Debra on real fi
   - [x] Updates when line-item filters change (tab/search/column filters)
 
 ## Stage 2.3 - Matching robustness + admin tooling (P1)
-- [ ] **CRM-MATCH-003 (Not started)**: Comma-separated IDs parsing + admin edits + reversible metadata updates
-  - [ ] **Scope (v1)**: IDs + Other Product Name + Other Part Number (matching + admin edit UI)
-    - [ ] Opportunity "Other IDs": `accountIdVendor`, `customerIdVendor`, `orderIdVendor` (case-insensitive match; preserve original casing)
-    - [ ] Product "Other fields": `productNameVendor` (Other - Product Name), `partNumberVendor` (Other - Part Number)
-    - [ ] Deposit line sources: `DepositLineItem.accountIdVendor`, `DepositLineItem.customerIdVendor`, `DepositLineItem.orderIdVendor`, `DepositLineItem.productNameRaw`, `DepositLineItem.partNumberRaw`
-    - [ ] Import-mapped ID: `DepositLineItem.metadata.matching.externalScheduleId` (ensure it participates in matching + tooling)
-    - [ ] **Out of scope (v1, unless needed)**: `locationId`, `customerPurchaseOrder` multi-values
-  - [ ] **Parsing + normalization rules (shared)** (baseline: prototype in `app/(dashboard)/admin/prototypes/comma-separated-values/page.tsx`)
-    - [ ] Supported separators: comma, semicolon, newline; optional quotes (double-quote escaping supported)
-    - [ ] Normalize for matching: trim, collapse whitespace, de-dupe (case-insensitive), cap max items (e.g., 25)
-    - [ ] Preserve original casing for display/storage (canonical display join: `", "`)
-  - [ ] **Admin edits (real UI, not prototype)**
-    - [ ] Replace single-string inputs with multi-value editor for the scoped fields (chips/paste; read-only renders as comma-separated)
-    - [ ] Save in existing columns as canonical comma-separated string (v1; avoid schema migration)
-  - [ ] **Matching robustness**
-    - [ ] Treat scoped fields as value-sets: "any token overlaps" counts as exact match (vs single-string equality)
-    - [ ] Update order-id strong-conflict logic so a conflict only exists when both sides have values and overlap is empty
-    - [ ] Ensure product name / part number comparisons include parsed values (not just raw single strings)
-  - [ ] **Auto-add missing values on match (no overwrite)**
-    - [ ] On manual/auto match apply: if Opportunity/Product target fields are empty, auto-fill from matched DepositLineItem values
-    - [ ] Never overwrite non-empty existing values (including multi-value strings)
-  - [ ] **Reversible metadata updates**
-    - [ ] Log each auto-fill as an audit entry with explicit `previousValues` + `newValues` and metadata tag (e.g., `AutoFillFromDepositMatch`)
-    - [ ] Add an admin-only "Undo auto-fill" action to revert only those tagged audit entries (field-scoped)
-  - [ ] **Acceptance tests / must-pass checks**
-    - [ ] Paste `A1, A2` and `A3` (newline) persists and round-trips (de-dupe, cap, display formatting)
-    - [ ] Matching finds candidates when any token matches across IDs/product name/part number
-    - [ ] Auto-fill happens only when target fields are empty; never overwrites
-    - [ ] Undo restores the exact prior string values (including casing/spacing as stored)
+- [x] **CRM-MATCH-003 (Done 2026-02-02)**: Comma-separated IDs parsing + admin edits + reversible metadata updates
+  - **Scope delivered (v1)**: IDs + Other Product Name + Other Part Number (matching + admin edit UI)
+    - Opportunity "Other IDs": `accountIdVendor`, `customerIdVendor`, `orderIdVendor` (case-insensitive match; preserve original casing)
+    - Product "Other fields": `productNameVendor` (Other - Product Name), `partNumberVendor` (Other - Part Number)
+    - Deposit line sources: `DepositLineItem.accountIdVendor`, `DepositLineItem.customerIdVendor`, `DepositLineItem.orderIdVendor`, `DepositLineItem.productNameRaw`, `DepositLineItem.partNumberRaw`
+    - Import-mapped ID: `DepositLineItem.metadata.matching.externalScheduleId` participates in matching and signals
+  - **Shared parsing + normalization** (baseline: prototype in `app/(dashboard)/admin/prototypes/comma-separated-values/page.tsx`)
+    - Supported separators: comma, semicolon, newline; optional quotes (double-quote escaping supported)
+    - Normalize for matching: trim, collapse whitespace, de-dupe (case-insensitive), cap max items (default 25)
+    - Preserve original casing for display/storage (canonical display join: `", "`)
+  - **Admin edits (real UI, not prototype)**
+    - Opportunity edit modal supports comma-separated entry for "Other IDs" (stored canonically).
+    - Product create supports "Other - Product Name" + "Other - Part Number (Aliases)" (stored canonically).
+  - **Matching robustness**
+    - Treat scoped fields as value-sets: "any token overlaps" counts as an exact ID match (vs single-string equality).
+    - Order-ID strong-conflict logic updated so a conflict requires both sides have values and no overlap exists.
+    - Product comparisons include parsed values for vendor product name and part number aliases (plus `DepositLineItem.partNumberRaw`).
+  - **Auto-add missing values on match (no overwrite)**
+    - On manual/auto match apply: if Opportunity/Product target fields are empty, auto-fill from matched DepositLineItem values.
+    - Never overwrites non-empty existing values (including multi-value strings).
+  - **Reversible metadata updates**
+    - Auto-fill writes an audit entry tagged `AutoFillFromDepositMatch` with explicit `previousValues` + `newValues`.
+    - Admin-only "Undo auto-fill" action reverts only those tagged audit entries (field-scoped), with conflict detection.
+  - **Acceptance tests / must-pass checks**
+    - [x] Paste `A1, A2` and `A3` (newline) persists and round-trips (de-dupe, cap, display formatting).
+    - [x] Matching finds candidates when any token matches across IDs/product name/part number/external schedule ID.
+    - [x] Auto-fill happens only when target fields are empty; never overwrites.
+    - [x] Undo restores the exact prior stored string values (canonicalized as stored).
+  - **QA script**: `docs/plans/CRM-MATCH-003-UAT.md`
 - [ ] **CRM-MATCH-005 (Not started)**: Test dataset (e.g., VoIP) + confidence behavior tuning
 
 ## Stage 2.4 - Collections workflow (P1)

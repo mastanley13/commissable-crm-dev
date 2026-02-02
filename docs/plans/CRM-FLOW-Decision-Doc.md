@@ -9,6 +9,12 @@ Note: `docs/plans/CRM-FLOW-001_CRM-MATCH-002-Guide.md` is the repo-specific exec
 
 ---
 
+## Progress note (2026-02-02)
+
+- **CRM-MATCH-003 shipped**: comma-separated ID + product-alias parsing (case-insensitive match, preserve casing), admin edits, and reversible auto-fill via audit history undo.
+- This pattern is a concrete example of how we want "metadata side effects" to be handled elsewhere: **write an explicit audit entry with `previousValues` + `newValues`, and provide a scoped, permissioned undo**.
+- QA checklist for this work: `docs/plans/CRM-MATCH-003-UAT.md`.
+
 ## **0\) Ground truth constraints we must design around**
 
 ### **Current reconciliation state model and "apply vs finalize"**

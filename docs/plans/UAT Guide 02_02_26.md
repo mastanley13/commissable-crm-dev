@@ -450,3 +450,21 @@ Same content, but broken into:
 * **Pass/Fail \+ notes fields**
 
 (That tends to be easier to paste into a tracker / spreadsheet.)
+
+---
+
+## Flow 13 — Comma-separated IDs and aliases (CRM-MATCH-003)
+
+Use the dedicated checklist for detailed steps: `docs/plans/CRM-MATCH-003-UAT.md`.
+
+Minimum must-pass checks:
+
+1. **Admin edit + round-trip formatting**
+   - Enter `A1, a1` and `A2` (newline) in an Opportunity “Other IDs” field.
+   - Expected: de-duped, stored canonically, and shown as a comma-separated list.
+2. **Matching overlap**
+   - Expected: case-insensitive overlap across any token counts as an exact ID match.
+3. **Auto-fill (no overwrite)**
+   - Expected: apply match fills missing Opportunity/Product alias fields only when empty.
+4. **Undo**
+   - Expected: admin can undo the tagged auto-fill audit entry and fields revert safely (conflicts block undo).

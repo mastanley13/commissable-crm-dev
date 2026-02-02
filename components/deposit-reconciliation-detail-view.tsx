@@ -17,7 +17,9 @@ import { DepositVendorSummaryWidget } from "./deposit-vendor-summary-widget"
 import { ColumnChooserModal } from "./column-chooser-modal"
 import { TwoStageDeleteDialog } from "./two-stage-delete-dialog"
 import { ModalHeader } from "./ui/modal-header"
+import { ReconciliationMatchWizardModal } from "./reconciliation-match-wizard-modal"
 import { useTablePreferences } from "@/hooks/useTablePreferences"
+import { classifyMatchSelection, type MatchSelectionType } from "@/lib/matching/match-selection"
 import {
   DepositLineStatusFilterDropdown,
   type DepositLineStatusFilterValue
@@ -470,6 +472,11 @@ export function DepositReconciliationDetailView({
   const [manualFlexError, setManualFlexError] = useState<string | null>(null)
   const [aiAdjustmentModal, setAiAdjustmentModal] = useState<AiAdjustmentModalState | null>(null)
   const [allocationDraft, setAllocationDraft] = useState<AllocationDraft>({ usage: "", commission: "" })
+  const [matchWizard, setMatchWizard] = useState<{
+    detectedType: MatchSelectionType
+    selectedLines: DepositLineItemRow[]
+    selectedSchedules: SuggestedMatchScheduleRow[]
+  } | null>(null)
   const {
     refCallback: lineTableAreaRefCallback,
     maxBodyHeight: lineTableBodyHeight,
@@ -910,7 +917,21 @@ export function DepositReconciliationDetailView({
         return
       }
       if (selectedSchedulesNow.length > 1) {
-        showError("Too many schedules selected", "Select only one schedule to match to.")
+        if (!targetLine) {
+          showError("Line missing", "Unable to start matching because the selected line item is missing.")
+          return
+        }
+        const classification = classifyMatchSelection({ lineIds: [lineId], scheduleIds: selectedSchedulesNow })
+        if (!classification.ok) {
+          showError("Unable to start match", classification.error)
+          return
+        }
+        const selectedWizardSchedules = scheduleRows.filter(row => selectedSchedulesNow.includes(row.id))
+        setMatchWizard({
+          detectedType: classification.type,
+          selectedLines: [targetLine],
+          selectedSchedules: selectedWizardSchedules,
+        })
         return
       }
       const scheduleId = selectedSchedulesNow[0]!
@@ -969,8 +990,48 @@ export function DepositReconciliationDetailView({
         setMatchingLineId(null)
       }
     },
-    [lineItemRows, metadata.id, onLineSelectionChange, onMatchApplied, parseAllocationInput, showError, showSuccess]
+    [
+      classifyMatchSelection,
+      lineItemRows,
+      metadata.id,
+      onLineSelectionChange,
+      onMatchApplied,
+      parseAllocationInput,
+      scheduleRows,
+      showError,
+      showSuccess,
+    ]
   )
+
+  const openMatchWizardFromSelection = useCallback(() => {
+    const lineIds = selectedLineItemsRef.current
+    const scheduleIds = selectedSchedulesRef.current
+
+    const classification = classifyMatchSelection({ lineIds, scheduleIds })
+    if (!classification.ok) {
+      showError("Unable to start match", classification.error)
+      return
+    }
+
+    if (classification.type === "OneToOne") {
+      const lineId = selectedLineIdRef.current ?? lineIds[0]
+      if (!lineId) {
+        showError("No line selected", "Select a deposit line item to match.")
+        return
+      }
+      void handleRowMatchClick(lineId)
+      return
+    }
+
+    const selectedWizardLines = lineItemRows.filter(row => lineIds.includes(row.id))
+    const selectedWizardSchedules = scheduleRows.filter(row => scheduleIds.includes(row.id))
+
+    setMatchWizard({
+      detectedType: classification.type,
+      selectedLines: selectedWizardLines,
+      selectedSchedules: selectedWizardSchedules,
+    })
+  }, [handleRowMatchClick, lineItemRows, scheduleRows, showError])
 
   const handleCreateFlexSelected = useCallback(async () => {
     const lineId = selectedLineIdRef.current ?? selectedLineItemsRef.current[0]
@@ -1100,8 +1161,8 @@ export function DepositReconciliationDetailView({
       void unmatchLineById(lineId)
       return
     }
-    void handleRowMatchClick(lineId)
-  }, [handleRowMatchClick, isUnmatchSelection, showError, unmatchLineById])
+    openMatchWizardFromSelection()
+  }, [isUnmatchSelection, openMatchWizardFromSelection, showError, unmatchLineById])
 
   const handleLineColumnFiltersChange = useCallback((filters: ColumnFilter[]) => {
     if (!filters || filters.length === 0) {
@@ -2744,6 +2805,13 @@ export function DepositReconciliationDetailView({
 
   return (
     <div className="flex min-h-[calc(100vh-110px)] flex-col gap-0 px-3 pb-3 pt-0 sm:px-4">
+      <ReconciliationMatchWizardModal
+        open={Boolean(matchWizard)}
+        onClose={() => setMatchWizard(null)}
+        selectedLines={matchWizard?.selectedLines ?? []}
+        selectedSchedules={matchWizard?.selectedSchedules ?? []}
+        detectedType={matchWizard?.detectedType ?? "OneToOne"}
+      />
       {aiAdjustmentModal ? (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/40 px-4"
