@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react"
-import { ClipboardCheck, Eye, FileDown, Plus, Sparkles, Trash2 } from "lucide-react"
+import { ClipboardCheck, Eye, FileDown, Plus, Sparkles, Trash2, X } from "lucide-react"
 import { DynamicTable, type Column } from "./dynamic-table"
 import { ListHeader, type ColumnFilter } from "./list-header"
 import type { BulkActionsGridProps } from "./bulk-actions-grid"
@@ -462,6 +462,7 @@ export function DepositReconciliationDetailView({
   const [showScheduleColumnSettings, setShowScheduleColumnSettings] = useState(false)
   const [showFinalizePreview, setShowFinalizePreview] = useState(false)
   const [showUnreconcilePreview, setShowUnreconcilePreview] = useState(false)
+  const [showVendorSummaryModal, setShowVendorSummaryModal] = useState(false)
   const [lineSortConfig, setLineSortConfig] = useState<{ key: string; direction: "asc" | "desc" } | null>(null)
   const [scheduleSortConfig, setScheduleSortConfig] = useState<{ key: string; direction: "asc" | "desc" } | null>(null)
   const [showDeleteDepositDialog, setShowDeleteDepositDialog] = useState(false)
@@ -2812,6 +2813,32 @@ export function DepositReconciliationDetailView({
         selectedSchedules={matchWizard?.selectedSchedules ?? []}
         detectedType={matchWizard?.detectedType ?? "OneToOne"}
       />
+      {showVendorSummaryModal ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/40 px-4"
+          onClick={() => setShowVendorSummaryModal(false)}
+        >
+          <div className="w-full max-w-2xl rounded-xl bg-white shadow-xl" onClick={event => event.stopPropagation()}>
+            <ModalHeader
+              kicker="Deposit"
+              title="Vendor Summary"
+              right={
+                <button
+                  type="button"
+                  onClick={() => setShowVendorSummaryModal(false)}
+                  className="inline-flex items-center justify-center rounded-md p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
+                  aria-label="Close vendor summary"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              }
+            />
+            <div className="max-h-[calc(100vh-200px)] overflow-auto p-6">
+              <DepositVendorSummaryWidget lineItems={filteredLineItems} defaultVisibleRows={25} />
+            </div>
+          </div>
+        </div>
+      ) : null}
       {aiAdjustmentModal ? (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/40 px-4"
@@ -3067,6 +3094,13 @@ export function DepositReconciliationDetailView({
                 ← Back
               </button>
             ) : null}
+            <button
+              type="button"
+              onClick={() => setShowVendorSummaryModal(true)}
+              className="inline-flex items-center justify-center rounded border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+            >
+              Vendor Summary
+            </button>
             {includeFutureSchedulesControls ? (
               <div className="group relative inline-flex items-center" role="tooltip">
                 <label className="flex cursor-pointer items-center gap-1.5 rounded border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 transition hover:bg-slate-50">
@@ -3115,7 +3149,6 @@ export function DepositReconciliationDetailView({
           </>
         }
       />
-      <DepositVendorSummaryWidget className="mt-3" lineItems={filteredLineItems} />
       {false ? (<div className="-mx-3 border-b border-blue-100 bg-blue-50 px-3 py-2 sm:-mx-4 sm:px-4">
         {/* Row 1: Title + Status + Buttons */}
         <div className="flex items-center justify-between pb-2 mb-2">
