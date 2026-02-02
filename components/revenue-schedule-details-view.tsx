@@ -117,13 +117,15 @@ const baseFieldBoxClass =
 
 const BILLING_STATUS_OPTIONS: Array<{ value: string; label: string }> = [
   { value: "Open", label: "Open" },
-  { value: "Reconciled", label: "Reconciled" },
+  { value: "Reconciled", label: "Resolved" },
   { value: "InDispute", label: "In Dispute" },
 ]
 
 function formatBillingStatus(value: string | null | undefined): string {
   if (!value) return ""
-  return value === "InDispute" ? "In Dispute" : value
+  if (value === "InDispute") return "In Dispute"
+  if (value === "Reconciled") return "Resolved"
+  return value
 }
 
 function renderValue(value?: ReactNode) {

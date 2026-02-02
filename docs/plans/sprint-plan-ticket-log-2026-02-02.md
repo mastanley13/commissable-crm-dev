@@ -6,11 +6,14 @@ Plan created: **2026-02-02**
 Ship an end-to-end reconciliation workflow that can be run with Debra on real files (CRM-QA-002), with clear decisions on any blocked specs and a short list of must-pass acceptance tests (context pack Section 7).
 
 ## Current state (from ticket log statuses)
-- **Blocked (needs input):** CRM-DEP-005, CRM-REC-004, CRM-FLOW-001
+- **Blocked (needs input):** CRM-REC-004, CRM-FLOW-001
 - **In progress:** CRM-DEP-001, CRM-REC-008, CRM-FLEX-001, CRM-FLEX-003, CRM-FLEX-004
 - **Not started (includes P0 blockers):** CRM-DEP-006, CRM-MATCH-002, CRM-MATCH-004 (+ several P1/P2)
 - **Needs confirmation:** CRM-QA-001, CRM-QA-002
-- **Needs verification:** CRM-REC-003, CRM-RS-001
+- **Needs verification:** CRM-DEP-005, CRM-REC-003, CRM-RS-001
+
+## Progress updates (as of 2026-02-02)
+- **CRM-DEP-005 (Upload)**: PDF deposit upload implemented for text-based PDFs (no OCR); needs real-file verification.
 
 ## Sprint sizing assumptions
 - Sprint 1 focuses on unblocking + closing P0/P0-adjacent work so a Debra E2E run can happen.
@@ -32,21 +35,21 @@ Ship an end-to-end reconciliation workflow that can be run with Debra on real fi
   - [ ] Exact list of columns to freeze ("key columns")
   - [ ] Whether lock applies to both top and bottom grids
   - [ ] How horizontal scrollbar behaves (single/shared vs per-grid)
-- [ ] **CRM-DEP-005**: Confirm PDF scope:
-  - [ ] Upload (machine-readable only vs OCR) OR
-  - [ ] Export (which views/sections must be in the PDF) OR
+- [ ] **CRM-DEP-005**: PDF support for deposit workflow (upload implemented; export TBD)
+  - [x] Upload (machine-readable/text-based only; no OCR) — implemented (2026-02-02)
+  - [ ] Export (which views/sections must be in the PDF)
   - [ ] Both (define phased delivery if needed)
   - [ ] **Proposed plan (Upload)** — add PDF as a first-class import type for Deposit Upload:
-    - [ ] Define Phase 1 scope: **machine-readable PDFs only** (no OCR), with a clear “not readable” error path
+    - [x] Define Phase 1 scope: machine-readable PDFs only (no OCR), with a clear “not readable” error path
     - [ ] Collect sample PDFs (2–3 per vendor/distributor) + document “expected table” output (headers + rows)
-    - [ ] UX: allow `.pdf` in file picker + update helper copy/warnings (e.g., “PDF must be text-based”)
-    - [ ] Backend: parse PDF → `{ headers, rows }` so existing mapping/template flow can be reused
-      - [ ] Handle multi-page tables (merge pages, skip repeated headers, skip footer/total rows)
+    - [x] UX: allow `.pdf` in file picker + update helper copy/warnings (e.g., “PDF must be text-based”)
+    - [x] Backend: parse PDF → `{ headers, rows }` so existing mapping/template flow can be reused
+      - [ ] Validate multi-page tables + repeated headers/footer totals with real vendor PDFs
       - [ ] Normalize extracted values to match current import expectations (dates/currency/IDs)
-    - [ ] Error handling: detect common failure modes (scanned PDF, password-protected, empty extract) and return actionable guidance
+    - [x] Error handling: detect common failure modes (scanned PDF, password-protected, empty extract) and return actionable guidance
     - [ ] Guardrails: file size/page limits, parse timeout, audit/log parse duration + file metadata
-    - [ ] Tests: fixtures for 1–2 real-world PDFs + unit/integration coverage for “readable” and “unreadable” paths
-    - [ ] Acceptance: user can upload PDF → map fields → create deposit + lines; unreadable PDFs block with clear error
+    - [x] Tests: added unit coverage for readable + unreadable PDF paths
+    - [ ] Acceptance: upload PDF → map fields → create deposit + lines (pending real-file verification)
   - [ ] **Optional Phase 2 (later)** — OCR support (only if needed): decide provider/costs, add OCR pipeline, and extend acceptance tests
 - [ ] **CRM-QA-001 / CRM-QA-002**: Confirm checklist delivery + schedule Debra E2E slot; agree on the file set (single-vendor and whether multi-vendor is required for this first run).
 
@@ -80,6 +83,7 @@ Ship an end-to-end reconciliation workflow that can be run with Debra on real fi
   - [ ] Fix root cause and confirm known test data shows correctly
 
 ## Stage 1.3 - Verification-only items (quick checks)
+- [ ] **CRM-DEP-005 (Needs verification)**: Verify PDF deposit upload end-to-end with 1–2 real vendor PDFs (text-based).
 - [ ] **CRM-REC-003 (Needs verification)**: Confirm scrollbar behavior is fixed across browsers/layouts used by Debra.
 - [ ] **CRM-RS-001 (Needs verification)**: Confirm "Go to revenue schedule" link routes reliably from all entry points.
 
@@ -106,6 +110,31 @@ Ship an end-to-end reconciliation workflow that can be run with Debra on real fi
   - [ ] Parser skips "Total"/non-transaction rows
   - [ ] Row-level vendor drives template selection
   - [ ] Deposits/lines created without manual splitting
+  - [ ] **Proposed implementation plan**
+    - [ ] Scope decisions (write down + confirm):
+      - [ ] Output model: create **one deposit per vendor** (recommended) vs one deposit containing multiple vendors
+      - [ ] Required columns: ensure the upload includes **Vendor Name** and (if needed) **Distributor Name**
+      - [ ] Template requirement: Phase 1 requires a saved template per (Distributor, Vendor) combo; missing templates block with a clear action
+      - [ ] File types: Phase 1 supports CSV/XLSX/XLS; add PDF multi-vendor only after we have real PDF samples and a stable vendor-column extraction
+    - [ ] UX / wizard changes:
+      - [ ] Add `Multi-vendor` toggle on Step 1
+      - [ ] On file select, pre-parse and show a “Vendors detected” list + counts/total rows
+      - [ ] For each detected vendor: pick or auto-resolve the reconciliation template; show missing template warnings + link to create
+      - [ ] Mapping step: confirm whether mapping is global or per-vendor (recommended: per-vendor mapping driven by each template)
+    - [ ] Ingestion pipeline (server-side):
+      - [ ] Add a new multi-vendor import path (new endpoint or a flag) that:
+        - [ ] Parses the file once → rows
+        - [ ] Filters out non-transaction rows (Totals/subtotals/blank) using explicit rules + vendor-provided samples
+        - [ ] Splits rows by `(distributorNameRaw, vendorNameRaw)` and resolves those names → account IDs (with normalization + aliasing if needed)
+        - [ ] Resolves the template per group, applies mapping, and creates deposits/lines in a single import job (or one job per deposit)
+      - [ ] Guardrails: maximum distinct vendors per file, row limits, and clear partial-failure reporting (which vendors imported vs failed)
+      - [ ] Idempotency: define whether the idempotency key applies to the entire file or per vendor-group deposit
+    - [ ] Observability / ops:
+      - [ ] Persist import summary: vendors detected, vendors imported, skipped rows count, totals per vendor
+      - [ ] Actionable errors for: unknown vendor/distributor, missing template, ambiguous vendor names, no transaction rows after filtering
+    - [ ] Tests + verification:
+      - [ ] Add fixtures for a representative multi-vendor CSV/XLSX (with Totals rows) and assert splits + template resolution
+      - [ ] Add an end-to-end verification checklist for Debra’s real multi-vendor report(s)
 
 ## Stage 2.2 - Deposit detail ops improvements (P1)
 - [ ] **CRM-DEP-008 (Not started)**: Vendor summary widget (allocated/unallocated by vendor)

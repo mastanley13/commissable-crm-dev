@@ -12,7 +12,7 @@ import {
   RevenueScheduleType,
 } from "@prisma/client"
 import { randomUUID } from "crypto"
-import { generateRevenueScheduleName } from "@/lib/revenue-schedule-number"
+import { generateChildRevenueScheduleName, generateRevenueScheduleName } from "@/lib/revenue-schedule-number"
 import { recomputeRevenueScheduleFromMatches } from "@/lib/matching/revenue-schedule-status"
 import { recomputeDepositAggregates } from "@/lib/matching/deposit-aggregates"
 import { recomputeDepositLineItemAllocations } from "@/lib/matching/deposit-line-allocations"
@@ -83,13 +83,26 @@ async function createFlexProduct(
     revenueType: string
   },
 ) {
+  const canScopeByDistributorVendor = Boolean(vendorAccountId && distributorAccountId)
+  const preferDistributorVendorScope =
+    flexType === "FlexChargeback" || flexType === "FlexChargebackReversal" || flexType === "FlexProduct"
+  const reuseByDistributorVendor = canScopeByDistributorVendor && preferDistributorVendorScope
+
   const reusable = await tx.product.findFirst({
     where: {
       tenantId,
       isFlex: true,
-      flexAccountId: accountId,
       flexType,
       isActive: true,
+      ...(reuseByDistributorVendor
+        ? {
+            flexAccountId: null,
+            vendorAccountId,
+            distributorAccountId,
+          }
+        : {
+            flexAccountId: accountId,
+          }),
     },
     select: { id: true },
   })
@@ -109,7 +122,7 @@ async function createFlexProduct(
       revenueType: resolveRevenueType(revenueType),
       isActive: true,
       isFlex: true,
-      flexAccountId: accountId,
+      flexAccountId: reuseByDistributorVendor ? null : accountId,
       flexType,
       vendorAccountId,
       distributorAccountId,
@@ -157,7 +170,10 @@ async function createFlexSchedule(
     flexSourceDepositLineItemId: string | null
   },
 ) {
-  const scheduleNumber = await generateRevenueScheduleName(tx as any)
+  const scheduleNumber =
+    typeof parentRevenueScheduleId === "string" && parentRevenueScheduleId.trim().length > 0
+      ? await generateChildRevenueScheduleName(tx as any, parentRevenueScheduleId.trim())
+      : await generateRevenueScheduleName(tx as any)
 
   const billingStatus =
     flexClassification === RevenueScheduleFlexClassification.FlexProduct ||
@@ -528,10 +544,27 @@ export async function executeFlexProductSplit(
     revenueType: baseRevenueType,
   })
 
+  const flexOpportunityProductId = baseSchedule.opportunityId
+    ? (
+        await tx.opportunityProduct.create({
+          data: {
+            tenantId,
+            opportunityId: baseSchedule.opportunityId,
+            productId: product.id,
+            distributorAccountIdSnapshot: baseSchedule.distributorAccountId ?? null,
+            vendorAccountIdSnapshot: baseSchedule.vendorAccountId ?? null,
+            expectedUsage: splitUsage,
+            expectedCommission: splitCommission,
+          },
+          select: { id: true },
+        })
+      ).id
+    : null
+
   const scheduleData = {
     accountId: baseSchedule.accountId,
     opportunityId: baseSchedule.opportunityId ?? null,
-    opportunityProductId: baseSchedule.opportunityProductId ?? null,
+    opportunityProductId: flexOpportunityProductId,
     parentRevenueScheduleId: baseScheduleId,
     distributorAccountId: baseSchedule.distributorAccountId ?? null,
     vendorAccountId: baseSchedule.vendorAccountId ?? null,
@@ -686,11 +719,30 @@ export async function createFlexProductForUnknownLine(
     revenueType: "MRC_ThirdParty",
   })
 
+  const flexOpportunityProductId = attachOpportunityId
+    ? (
+        await tx.opportunityProduct.create({
+          data: {
+            tenantId,
+            opportunityId: attachOpportunityId,
+            productId: product.id,
+            distributorAccountIdSnapshot:
+              attachDistributorAccountId ?? line.deposit.distributorAccountId ?? null,
+            vendorAccountIdSnapshot:
+              attachVendorAccountId ?? line.vendorAccountId ?? line.deposit.vendorAccountId ?? null,
+            expectedUsage: usage,
+            expectedCommission: commission,
+          },
+          select: { id: true },
+        })
+      ).id
+    : null
+
   const schedule = await createFlexSchedule(tx, {
     tenantId,
     accountId: line.deposit.accountId,
     opportunityId: attachOpportunityId ?? null,
-    opportunityProductId: attachOpportunityProductId ?? null,
+    opportunityProductId: flexOpportunityProductId,
     distributorAccountId:
       attachDistributorAccountId ?? line.deposit.distributorAccountId ?? null,
     vendorAccountId:
@@ -1008,7 +1060,7 @@ export async function createFlexChargebackReversalForPositiveLine(
     revenueType: "NRC_FlatFee",
   })
 
-  const scheduleNumber = await generateRevenueScheduleName(tx as any)
+  const scheduleNumber = await generateChildRevenueScheduleName(tx as any, parent.id)
   const schedule = await tx.revenueSchedule.create({
     data: {
       tenantId,

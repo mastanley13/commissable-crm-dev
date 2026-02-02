@@ -7,6 +7,7 @@ export type ReconciliationSettings = {
   varianceTolerance: number
   includeFutureSchedulesDefault: boolean
   engineMode: "env" | "legacy" | "hierarchical"
+  finalizeDisputedDepositsPolicy: "block_all" | "allow_manager_admin" | "allow_all"
 }
 
 interface UseReconciliationSettingsResult {

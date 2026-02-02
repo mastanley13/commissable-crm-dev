@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
-import { AuditAction, DepositLineItemStatus, DepositLineMatchStatus, ReconciliationStatus } from "@prisma/client"
+import {
+  AuditAction,
+  DepositLineItemStatus,
+  DepositLineMatchStatus,
+  ReconciliationStatus,
+  RevenueScheduleBillingStatus,
+} from "@prisma/client"
 import { withPermissions, createErrorResponse } from "@/lib/api-auth"
 import { prisma } from "@/lib/db"
 import { recomputeRevenueSchedules } from "@/lib/matching/revenue-schedule-status"
@@ -38,6 +44,46 @@ export async function POST(request: NextRequest, { params }: { params: { deposit
     }
 
     const prefs = await getTenantMatchingPreferences(tenantId)
+
+    const disputedScheduleCount = await prisma.revenueSchedule.count({
+      where: {
+        tenantId,
+        deletedAt: null,
+        billingStatus: RevenueScheduleBillingStatus.InDispute,
+        depositLineMatches: {
+          some: {
+            tenantId,
+            status: DepositLineMatchStatus.Applied,
+            depositLineItem: { depositId, tenantId },
+          },
+        },
+      },
+    })
+
+    if (disputedScheduleCount > 0) {
+      const policy = prefs.finalizeDisputedDepositsPolicy
+
+      if (policy === "block_all") {
+        return createErrorResponse(
+          "Cannot finalize this deposit because it contains disputed schedules (Billing Status = In Dispute). Resolve disputes or update the tenant setting to allow disputed finalization.",
+          400,
+        )
+      }
+
+      if (policy === "allow_manager_admin") {
+        const isAdmin = req.user.role?.code === "ADMIN"
+        const isReconciliationManager = Boolean(
+          req.user.role?.permissions?.some(permission => permission.code === "reconciliation.manage"),
+        )
+
+        if (!isAdmin && !isReconciliationManager) {
+          return createErrorResponse(
+            "This deposit contains disputed schedules (Billing Status = In Dispute). Only reconciliation managers or admins can finalize disputed deposits (tenant policy).",
+            403,
+          )
+        }
+      }
+    }
 
     const updated = await prisma.$transaction(async (tx) => {
       // Mark all matched lines as reconciled

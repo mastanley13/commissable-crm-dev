@@ -13,7 +13,9 @@ export function formatRevenueScheduleDisplayName({
 
   switch (classification) {
     case "FlexProduct":
-      return `${base}-F`
+      // When a Flex Product is created as a child schedule (spec-style numbering like 1234.1),
+      // prefer the literal stored scheduleNumber without adding a suffix.
+      return base.includes(".") ? base : `${base}-F`
     case "FlexChargeback":
       return `${base}-CB`
     case "FlexChargebackReversal":
@@ -22,4 +24,3 @@ export function formatRevenueScheduleDisplayName({
       return base
   }
 }
-

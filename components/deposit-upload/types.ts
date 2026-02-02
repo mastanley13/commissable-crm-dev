@@ -11,6 +11,7 @@ export interface DepositUploadFormState {
   templateId: string
   templateLabel: string
   saveTemplateMapping: boolean
+  multiVendor: boolean
 }
 
 export interface TemplateResponse {

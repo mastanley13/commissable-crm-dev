@@ -3,6 +3,7 @@ import { withPermissions, createErrorResponse } from "@/lib/api-auth"
 import {
   getTenantMatchingPreferences,
   saveTenantMatchingPreferences,
+  type FinalizeDisputedDepositsPolicy,
   type MatchingEngineMode,
 } from "@/lib/matching/settings"
 
@@ -21,6 +22,7 @@ interface UpdateSettingsBody {
   varianceTolerance?: number
   includeFutureSchedulesDefault?: boolean
   engineMode?: MatchingEngineMode
+  finalizeDisputedDepositsPolicy?: FinalizeDisputedDepositsPolicy
 }
 
 export async function POST(request: NextRequest) {
@@ -54,10 +56,22 @@ export async function POST(request: NextRequest) {
       updates.engineMode = engineMode as MatchingEngineMode
     }
 
+    if (body.finalizeDisputedDepositsPolicy != null) {
+      const policy = body.finalizeDisputedDepositsPolicy
+      if (!["block_all", "allow_manager_admin", "allow_all"].includes(policy)) {
+        return createErrorResponse(
+          "finalizeDisputedDepositsPolicy must be block_all, allow_manager_admin, or allow_all",
+          400,
+        )
+      }
+      updates.finalizeDisputedDepositsPolicy = policy
+    }
+
     if (
       updates.varianceTolerance == null &&
       updates.includeFutureSchedulesDefault == null &&
-      updates.engineMode == null
+      updates.engineMode == null &&
+      updates.finalizeDisputedDepositsPolicy == null
     ) {
       return createErrorResponse("No valid settings provided", 400)
     }

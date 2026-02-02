@@ -13,6 +13,7 @@ import { useAuth } from "@/lib/auth-context"
 import { useToasts } from "./toast"
 import { TabDescription } from "@/components/section/TabDescription"
 import { DepositReconciliationTopSection } from "./deposit-reconciliation-top-section"
+import { DepositVendorSummaryWidget } from "./deposit-vendor-summary-widget"
 import { ColumnChooserModal } from "./column-chooser-modal"
 import { TwoStageDeleteDialog } from "./two-stage-delete-dialog"
 import { ModalHeader } from "./ui/modal-header"
@@ -3046,6 +3047,7 @@ export function DepositReconciliationDetailView({
           </>
         }
       />
+      <DepositVendorSummaryWidget className="mt-3" lineItems={filteredLineItems} />
       {false ? (<div className="-mx-3 border-b border-blue-100 bg-blue-50 px-3 py-2 sm:-mx-4 sm:px-4">
         {/* Row 1: Title + Status + Buttons */}
         <div className="flex items-center justify-between pb-2 mb-2">

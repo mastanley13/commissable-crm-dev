@@ -53,6 +53,7 @@ const initialFormState: DepositUploadFormState = {
   templateId: '',
   templateLabel: '',
   saveTemplateMapping: false,
+  multiVendor: false,
 }
 
 export default function DepositUploadListPage() {
@@ -76,7 +77,7 @@ export default function DepositUploadListPage() {
   const [validationIssues, setValidationIssues] = useState<string[]>([])
   const [importSubmitting, setImportSubmitting] = useState(false)
   const [importError, setImportError] = useState<string | null>(null)
-  const [importResult, setImportResult] = useState<{ depositId: string } | null>(null)
+  const [importResult, setImportResult] = useState<{ depositId?: string; depositIds?: string[] } | null>(null)
   const [idempotencyKey, setIdempotencyKey] = useState<string>(() => generateIdempotencyKey())
   const mappingHistoryRef = useRef<DepositMappingConfigV2[]>([])
   const [canUndo, setCanUndo] = useState(false)
@@ -178,7 +179,7 @@ export default function DepositUploadListPage() {
         const vendorAccountId = formState.vendorAccountId?.trim() ?? ''
         const templateId = formState.templateId?.trim() ?? ''
 
-        if (templateId && distributorAccountId && vendorAccountId) {
+        if (!formState.multiVendor && templateId && distributorAccountId && vendorAccountId) {
           try {
             const response = await fetch(`/api/reconciliation/templates/${encodeURIComponent(templateId)}`, {
               cache: 'no-store',
@@ -225,7 +226,7 @@ export default function DepositUploadListPage() {
     return () => {
       cancelled = true
     }
-  }, [selectedFile, formState.distributorAccountId, formState.vendorAccountId, formState.templateId])
+  }, [selectedFile, formState.distributorAccountId, formState.vendorAccountId, formState.templateId, formState.multiVendor])
 
   useEffect(() => {
     const issues: string[] = []
@@ -233,6 +234,9 @@ export default function DepositUploadListPage() {
     const hasCommission = Boolean(mapping.targets?.[DEPOSIT_IMPORT_TARGET_IDS.commission])
     if (!hasUsage && !hasCommission) {
       issues.push('Map either "Actual Usage" or "Actual Commission".')
+    }
+    if (formState.multiVendor && !mapping.targets?.["depositLineItem.vendorNameRaw"]) {
+      issues.push('Multi-vendor uploads require mapping the "Vendor Name" column.')
     }
     if (!selectedFile) {
       issues.push('Select a CSV, Excel, or PDF file to continue.')
@@ -244,7 +248,7 @@ export default function DepositUploadListPage() {
       issues.push('No data rows were detected in the uploaded file.')
     }
     setValidationIssues(issues)
-  }, [mapping, selectedFile, parsingError, parsedRowCount])
+  }, [mapping, selectedFile, parsingError, parsedRowCount, formState.multiVendor])
 
   const handleColumnSelectionChange = useCallback((columnName: string, selection: DepositColumnSelectionV2) => {
     setMapping(previous => {
@@ -343,6 +347,7 @@ export default function DepositUploadListPage() {
       formData.append('idempotencyKey', idempotencyKey)
       formData.append('createdByContactId', formState.createdByContactId)
       formData.append('mapping', JSON.stringify(mapping))
+      formData.append('multiVendor', formState.multiVendor ? 'true' : 'false')
 
       const response = await fetch('/api/reconciliation/deposits/import', {
         method: 'POST',
@@ -354,9 +359,17 @@ export default function DepositUploadListPage() {
       }
 
       const depositId = payload?.data?.depositId as string | undefined
-      setImportResult(depositId ? { depositId } : null)
-      if (depositId) {
-        router.prefetch(`/reconciliation/${depositId}`)
+      const depositIds = Array.isArray(payload?.data?.depositIds) ? (payload.data.depositIds as string[]) : undefined
+      if (depositIds && depositIds.length > 0) {
+        setImportResult({ depositIds })
+        for (const id of depositIds) {
+          router.prefetch(`/reconciliation/${id}`)
+        }
+      } else {
+        setImportResult(depositId ? { depositId } : null)
+        if (depositId) {
+          router.prefetch(`/reconciliation/${depositId}`)
+        }
       }
     } catch (error) {
       console.error('Deposit import failed', error)
@@ -369,12 +382,13 @@ export default function DepositUploadListPage() {
   const requiredFieldsComplete =
     Boolean(mapping.targets?.[DEPOSIT_IMPORT_TARGET_IDS.usage]) ||
     Boolean(mapping.targets?.[DEPOSIT_IMPORT_TARGET_IDS.commission])
-  const canProceedFromMapFields = requiredFieldsComplete && Boolean(csvHeaders.length) && !parsingError
+  const vendorColumnReady = !formState.multiVendor || Boolean(mapping.targets?.["depositLineItem.vendorNameRaw"])
+  const canProceedFromMapFields = requiredFieldsComplete && vendorColumnReady && Boolean(csvHeaders.length) && !parsingError
   const canProceedFromCreateTemplate = Boolean(
     formState.depositReceivedDate &&
       formState.commissionPeriod &&
       formState.distributorAccountId &&
-      formState.vendorAccountId &&
+      (formState.multiVendor || formState.vendorAccountId) &&
       selectedFile,
   )
 

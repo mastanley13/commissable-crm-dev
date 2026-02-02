@@ -63,6 +63,29 @@ export function CreateTemplateStep({
   const depositDateNativeRef = useRef<HTMLInputElement | null>(null)
   const commissionPeriodNativeRef = useRef<HTMLInputElement | null>(null)
 
+  const handleMultiVendorChange = (enabled: boolean) => {
+    if (enabled) {
+      setVendorQuery('')
+      setTemplateQuery('')
+      setNewTemplateName('')
+      setShowVendorDropdown(false)
+      setShowTemplateDropdown(false)
+      setTemplateOptions([])
+      setTemplateError(null)
+      onFormStateChange({
+        multiVendor: true,
+        vendorAccountId: '',
+        vendorLabel: '',
+        templateId: '',
+        templateLabel: '',
+        saveTemplateMapping: false,
+      })
+      return
+    }
+
+    onFormStateChange({ multiVendor: false })
+  }
+
   useEffect(() => {
     if (!shouldAutoFillCreatedBy) {
       return
@@ -276,6 +299,11 @@ export function CreateTemplateStep({
   }, [distributorQuery, fetchAccounts])
 
   useEffect(() => {
+    if (formState.multiVendor) {
+      setVendorOptions([])
+      setVendorLoading(false)
+      return
+    }
     const debounce = setTimeout(() => {
       void fetchAccounts({
         type: 'vendor',
@@ -288,12 +316,19 @@ export function CreateTemplateStep({
     return () => {
       clearTimeout(debounce)
     }
-  }, [vendorQuery, fetchAccounts])
+  }, [vendorQuery, fetchAccounts, formState.multiVendor])
 
   useEffect(() => {
     const distributorAccountId = formState.distributorAccountId?.trim()
     const vendorAccountId = formState.vendorAccountId?.trim()
     const query = templateQuery.trim()
+
+    if (formState.multiVendor) {
+      setTemplateOptions([])
+      setTemplateLoading(false)
+      setTemplateError(null)
+      return
+    }
 
     if (!distributorAccountId || !vendorAccountId) {
       setTemplateOptions([])
@@ -366,7 +401,7 @@ export function CreateTemplateStep({
       clearTimeout(debounce)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [formState.distributorAccountId, formState.vendorAccountId, templateQuery])
+  }, [formState.distributorAccountId, formState.vendorAccountId, templateQuery, formState.multiVendor])
 
   const handleCreateTemplate = useCallback(async () => {
     const distributorAccountId = formState.distributorAccountId?.trim()
@@ -444,27 +479,50 @@ export function CreateTemplateStep({
             </div>
           </FormField>
 
-          <FormField label="Vendor" required>
-            <div className="relative w-[300px]">
-              <input
-                type="text"
-                value={vendorQuery}
-                onChange={event => setVendorQuery(event.target.value)}
-                onFocus={() => setShowVendorDropdown(true)}
-                placeholder="Search vendors"
-                className={`${underlineInputClass.replace('w-full', 'w-[300px]')} h-[40px]`}
-              />
-              {showVendorDropdown ? (
-                <DropdownList
-                  loading={vendorLoading}
-                  options={vendorOptions}
-                  emptyLabel="No vendors found"
-                  onSelect={option => handleVendorSelect(option)}
-                  onDismiss={() => setShowVendorDropdown(false)}
-                />
-              ) : null}
+          <div className="flex w-[300px] items-center justify-between rounded-xl border border-gray-200 bg-white px-3 py-2">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Multi-vendor upload</p>
+              <p className="text-xs text-slate-600">Use vendor name from each row in the file</p>
             </div>
-          </FormField>
+            <label className="inline-flex items-center gap-2 text-xs text-slate-700">
+              <input
+                type="checkbox"
+                className="h-4 w-4 accent-primary-600"
+                checked={formState.multiVendor}
+                onChange={event => handleMultiVendorChange(event.target.checked)}
+              />
+              <span className="font-semibold">{formState.multiVendor ? 'On' : 'Off'}</span>
+            </label>
+          </div>
+
+          {!formState.multiVendor ? (
+            <FormField label="Vendor" required>
+              <div className="relative w-[300px]">
+                <input
+                  type="text"
+                  value={vendorQuery}
+                  onChange={event => setVendorQuery(event.target.value)}
+                  onFocus={() => setShowVendorDropdown(true)}
+                  placeholder="Search vendors"
+                  className={`${underlineInputClass.replace('w-full', 'w-[300px]')} h-[40px]`}
+                />
+                {showVendorDropdown ? (
+                  <DropdownList
+                    loading={vendorLoading}
+                    options={vendorOptions}
+                    emptyLabel="No vendors found"
+                    onSelect={option => handleVendorSelect(option)}
+                    onDismiss={() => setShowVendorDropdown(false)}
+                  />
+                ) : null}
+              </div>
+            </FormField>
+          ) : (
+            <div className="w-[300px] rounded-xl border border-slate-200 bg-slate-50 p-2 text-xs text-slate-700">
+              <p className="font-semibold">Vendor selection</p>
+              <p className="mt-1 text-slate-600">In multi-vendor mode, vendors are detected from the mapped “Vendor Name” column.</p>
+            </div>
+          )}
 
           <FormField label="Commission Period (YYYY-MM)" required>
             <div className="relative w-[300px]">

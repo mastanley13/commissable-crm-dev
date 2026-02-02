@@ -21,12 +21,18 @@ export function ReconciliationSettingsForm() {
   const [varianceTolerance, setVarianceTolerance] = useState(0)
   const [suggestedMatchesMinConfidence, setSuggestedMatchesMinConfidence] = useState(70)
   const [autoMatchMinConfidence, setAutoMatchMinConfidence] = useState(95)
+  const [finalizeDisputedDepositsPolicy, setFinalizeDisputedDepositsPolicy] = useState<
+    "block_all" | "allow_manager_admin" | "allow_all"
+  >("allow_manager_admin")
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
 
   useEffect(() => {
     if (tenantSettings?.varianceTolerance !== undefined) {
       setVarianceTolerance(Number((tenantSettings.varianceTolerance * 100).toFixed(1)))
+    }
+    if (tenantSettings?.finalizeDisputedDepositsPolicy) {
+      setFinalizeDisputedDepositsPolicy(tenantSettings.finalizeDisputedDepositsPolicy)
     }
   }, [tenantSettings])
 
@@ -46,6 +52,7 @@ export function ReconciliationSettingsForm() {
       await Promise.all([
         saveTenantSettings({
           varianceTolerance: varianceTolerance / 100,
+          finalizeDisputedDepositsPolicy,
         }),
         saveUserSettings({
           suggestedMatchesMinConfidence: suggestedMatchesMinConfidence / 100,
@@ -113,6 +120,36 @@ export function ReconciliationSettingsForm() {
             max={100}
             step={1}
           />
+
+          <div className="space-y-1">
+            <label className="block text-sm font-medium text-slate-900">
+              Deposit finalization when disputed (tenant default)
+            </label>
+            <p className="text-sm text-slate-600">
+              A deposit is considered disputed if it has applied allocations to any revenue schedule with Billing Status
+              set to &quot;In Dispute&quot;. This setting controls whether finalization is blocked and (optionally) restricted by
+              role/permission.
+            </p>
+            <select
+              value={finalizeDisputedDepositsPolicy}
+              onChange={event =>
+                setFinalizeDisputedDepositsPolicy(
+                  event.target.value as "block_all" | "allow_manager_admin" | "allow_all",
+                )
+              }
+              className="mt-2 w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-200"
+            >
+              <option value="allow_manager_admin">
+                Allow Managers/Admins to finalize disputed deposits (default)
+              </option>
+              <option value="block_all">Block finalization if any disputes exist</option>
+              <option value="allow_all">Allow any authorized user to finalize disputed deposits</option>
+            </select>
+            <p className="text-xs text-slate-500">
+              Default behavior: Managers (users with reconciliation.manage) and Admins can finalize deposits even when
+              disputes exist; other users will be blocked.
+            </p>
+          </div>
 
           {/* Save Button */}
           <div className="flex items-center gap-3">

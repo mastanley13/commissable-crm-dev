@@ -19,7 +19,7 @@ interface ReviewStepProps {
   mappedFields: number
   submitting: boolean
   error: string | null
-  result: { depositId: string } | null
+  result: { depositId?: string; depositIds?: string[] } | null
   onSubmit: () => void
 }
 
@@ -327,12 +327,29 @@ export function ReviewStep({
       {result ? (
         <div className="rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-800 space-y-2">
           <p className="font-semibold">Import completed</p>
-          <p>
-            Deposit created successfully.{" "}
-            <Link href={`/reconciliation/${result.depositId}`} className="underline font-semibold">
-              View deposit detail
-            </Link>
-          </p>
+          {Array.isArray(result.depositIds) && result.depositIds.length > 0 ? (
+            <div className="space-y-1">
+              <p>Deposits created successfully:</p>
+              <ul className="list-disc pl-5">
+                {result.depositIds.map(depositId => (
+                  <li key={depositId}>
+                    <Link href={`/reconciliation/${depositId}`} className="underline font-semibold">
+                      {depositId}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : result.depositId ? (
+            <p>
+              Deposit created successfully.{" "}
+              <Link href={`/reconciliation/${result.depositId}`} className="underline font-semibold">
+                View deposit detail
+              </Link>
+            </p>
+          ) : (
+            <p>Import completed.</p>
+          )}
         </div>
       ) : (
         <div className="rounded-xl border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-800">

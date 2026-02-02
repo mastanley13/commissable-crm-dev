@@ -66,10 +66,15 @@ The repo uses `RevenueSchedule.flexClassification` to distinguish:
 
 Flex product placeholders are **real `Product` rows** where:
 - `Product.isFlex = true`
-- `Product.flexAccountId = <customer account id>`
 - `Product.flexType = "FlexProduct" | "FlexChargeback" | "FlexChargebackReversal"`
 
-Note: current flex product reuse is keyed on `(tenantId, isFlex=true, flexAccountId, flexType, isActive=true)`.
+Flex product scoping (intended alignment):
+- `FlexChargeback` / `FlexChargebackReversal` products are reused per **Distributor+Vendor** when both are present (and use `flexAccountId = null`).
+- `FlexProduct` placeholder products are reused per **Distributor+Vendor** when both are present (and use `flexAccountId = null`), while the per-deal identity lives on `OpportunityProduct`.
+
+When a Flex Product is created for an Opportunity, the flex schedule should reference a dedicated `OpportunityProduct` line item (not the base product's line item) to keep downstream context correct.
+
+Fallback behavior: if Distributor/Vendor context is missing, reuse may fall back to account-scoped products via `flexAccountId`.
 
 ---
 
@@ -335,8 +340,8 @@ Current repo:
 
 1) **Flex schedule naming convention differs**
    - Client expects parent/child numbering like `1234` -> `1234.1`.
-   - Current uses global sequential `scheduleNumber` and UI-only suffixes (`-F`, `-CB`, `-CB-REV`).
-   - Risk: client training/docs and downstream references ("find 1234.1") won't map cleanly.
+   - Alignment decision: store child `RevenueSchedule.scheduleNumber` as `parentNumber.N` whenever a schedule is created as a child (`parentRevenueScheduleId` set), so the literal stored value reflects sibling relationships.
+   - Remaining nuance: chargeback types may still show classification suffixes in some UI surfaces (`-CB`, `-CB-REV`) for clarity.
 
 2) **Chargebacks are not "applied" until approval**
    - Client flow reads like a placeholder allocation exists immediately (even if disputed).
@@ -345,8 +350,8 @@ Current repo:
 
 3) **Flex placeholder product scoping differs from client expectation**
    - Client outline implies standard "Flex Chargeback" exists per Distributor+Vendor combination.
-   - Current flex products are created/reused per **customer account** (`flexAccountId`) and flex type.
-   - Risk: (a) product catalog semantics diverge, (b) vendor/distributor scoping may be inconsistent if an account has multiple vendor/distributor contexts.
+   - Alignment decision: scope `FlexChargeback` / `FlexChargebackReversal` products per **Distributor+Vendor** (not per customer account) so reporting/matching context stays correct.
+   - Flex Product nuance: treat Flex Product identity as an Opportunity Product line item (deal-scoped) to avoid polluting/overloading the global catalog concept.
 
 4) **Resolution action can clear parent dispute in more cases than the client clarification**
    - Client clarification: clearing parent dispute should be conditional "only when applying into the base" and no remaining disputed flex children.
@@ -384,8 +389,8 @@ Current repo:
 
 If the client outline is the target operating model, the highest-leverage next decisions:
 
-- Decide whether we need to implement a **client-facing schedule number format** for Flex children (display-only vs real numbering).
-- Decide whether chargebacks should be **allocated immediately** (Applied) but remain `InDispute`, or keep the current approval-gated allocation.
-- Decide whether Flex placeholder products should be **per distributor/vendor** (as spec) vs per customer account (current).
-- Tighten the Flex Review Queue so "Resolved" always implies a **real resolution mutation** (or rename the non-mutating status to avoid confusion).
-- Add/define the **Collections** workflow (already tracked as CRM-FLEX-002).
+- Implement literal child `RevenueSchedule.scheduleNumber` formatting (`1234.1`) for sister/child schedules (not display-only).
+- Add a tenant setting (with RBAC) to choose whether disputed deposits can be finalized or must be blocked; default: allow managers/admins to finalize while disputed.
+- Scope `FlexChargeback` / `FlexChargebackReversal` placeholder products per Distributor+Vendor (not per customer account).
+- Treat `FlexProduct` as an Opportunity Product line item (deal-scoped) rather than a "main catalog" selection, and use the Opportunity Product detail page for that line item to avoid downstream context confusion.
+- Define "Resolved" as "finalized + no disputes" (i.e., Billing Status = `Reconciled`) and display it as "Resolved" in the UI.
