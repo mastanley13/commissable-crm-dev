@@ -85,6 +85,9 @@ export default function FlexReviewQueuePage() {
   const [bulkBusy, setBulkBusy] = useState(false)
   const [bulkNotes, setBulkNotes] = useState("")
   const [paginationTotal, setPaginationTotal] = useState<number | null>(null)
+  const [page, setPage] = useState<number>(1)
+  const [pageSize, setPageSize] = useState<number>(200)
+  const [totalPages, setTotalPages] = useState<number>(1)
 
   const [resolveItemId, setResolveItemId] = useState<string | null>(null)
   const [resolveAction, setResolveAction] = useState<FlexResolutionAction>("ApplyToExisting")
@@ -145,8 +148,8 @@ export default function FlexReviewQueuePage() {
       if (vendorFilter.trim()) params.set("vendor", vendorFilter.trim())
       if (distributorFilter.trim()) params.set("distributor", distributorFilter.trim())
       if (scheduleFilter.trim()) params.set("schedule", scheduleFilter.trim())
-      params.set("page", "1")
-      params.set("pageSize", "500")
+      params.set("page", String(page))
+      params.set("pageSize", String(pageSize))
       if (options?.includeAll) params.set("includeAll", "true")
       if (options?.format) params.set("format", options.format)
       return params
@@ -157,6 +160,8 @@ export default function FlexReviewQueuePage() {
       distributorFilter,
       minAbsCommission,
       minAgeDays,
+      page,
+      pageSize,
       reasonFilter,
       scheduleFilter,
       statusFilter,
@@ -182,6 +187,12 @@ export default function FlexReviewQueuePage() {
       setPaginationTotal(
         typeof payload?.pagination?.total === "number" ? payload.pagination.total : null,
       )
+      const nextTotalPages =
+        typeof payload?.pagination?.totalPages === "number" ? payload.pagination.totalPages : 1
+      setTotalPages(nextTotalPages)
+      if (page > nextTotalPages) {
+        setPage(nextTotalPages)
+      }
       setSelectedIds([])
     } catch (err) {
       console.error("Failed to load flex review queue", err)
@@ -191,6 +202,20 @@ export default function FlexReviewQueuePage() {
       setLoading(false)
     }
   }, [buildQueryParams, showError])
+
+  useEffect(() => {
+    setPage(prev => (prev === 1 ? prev : 1))
+  }, [
+    assignmentFilter,
+    classificationFilter,
+    distributorFilter,
+    minAbsCommission,
+    minAgeDays,
+    reasonFilter,
+    scheduleFilter,
+    statusFilter,
+    vendorFilter,
+  ])
 
   const familyById = useMemo(
     () => new Map(productFamilies.map(family => [family.id, family] as const)),
@@ -506,6 +531,17 @@ export default function FlexReviewQueuePage() {
             `Bulk ${status.toLowerCase()}`,
             `${failedCount} item${failedCount === 1 ? "" : "s"} failed to update.`,
           )
+        }
+        const errorCount =
+          payload?.errors && typeof payload.errors === "object"
+            ? Object.keys(payload.errors as Record<string, string>).length
+            : 0
+        if (errorCount > 0) {
+          showError(
+            `Bulk ${status.toLowerCase()}`,
+            `${errorCount} item${errorCount === 1 ? "" : "s"} reported errors. Check console for details.`,
+          )
+          console.error("Bulk resolve errors", payload.errors)
         }
         if (selectedChargebackItems.length > 0) {
           showError(
@@ -829,6 +865,9 @@ export default function FlexReviewQueuePage() {
       {selectedIds.length > 0 ? (
         <div className="mb-3 flex flex-wrap items-center gap-2 rounded border border-gray-200 bg-white px-3 py-2 text-sm">
           <span className="font-medium text-gray-700">{selectedIds.length} selected</span>
+          <span className="text-xs text-gray-500">
+            {selectedNonChargebackItems.length} flex / {selectedChargebackItems.length} chargeback
+          </span>
           <button
             className="rounded bg-white px-2.5 py-1.5 text-xs font-medium text-gray-700 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 disabled:opacity-50"
             onClick={() => void bulkAssign("assignToMe")}
@@ -1245,6 +1284,58 @@ export default function FlexReviewQueuePage() {
             )}
           </tbody>
         </table>
+      </div>
+
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-sm text-gray-600">
+        <div>
+          Page {page} of {totalPages}
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            className="rounded bg-white px-2.5 py-1.5 text-xs font-medium text-gray-700 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 disabled:opacity-50"
+            onClick={() => setPage(prev => Math.max(1, prev - 1))}
+            disabled={loading || page <= 1}
+          >
+            Previous
+          </button>
+          <input
+            className="w-16 rounded border border-gray-300 px-2 py-1 text-xs text-gray-700"
+            type="number"
+            min={1}
+            max={totalPages}
+            value={page}
+            onChange={event => {
+              const next = Number(event.target.value)
+              if (!Number.isFinite(next)) return
+              setPage(Math.min(Math.max(1, next), totalPages))
+            }}
+            disabled={loading}
+            title="Page number"
+          />
+          <button
+            className="rounded bg-white px-2.5 py-1.5 text-xs font-medium text-gray-700 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 disabled:opacity-50"
+            onClick={() => setPage(prev => Math.min(totalPages, prev + 1))}
+            disabled={loading || page >= totalPages}
+          >
+            Next
+          </button>
+          <select
+            className="rounded border border-gray-300 bg-white px-2 py-1 text-xs"
+            value={pageSize}
+            onChange={event => {
+              const next = Number(event.target.value) || 200
+              setPageSize(next)
+              setPage(1)
+            }}
+            disabled={loading}
+            title="Rows per page"
+          >
+            <option value={50}>50 / page</option>
+            <option value={100}>100 / page</option>
+            <option value={200}>200 / page</option>
+            <option value={500}>500 / page</option>
+          </select>
+        </div>
       </div>
     </div>
   )
