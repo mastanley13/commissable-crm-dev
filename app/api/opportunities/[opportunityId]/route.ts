@@ -14,6 +14,7 @@ import {
 } from "@/lib/opportunities/stage"
 import type { OpportunityStageValue } from "@/lib/opportunity-stage"
 import { logOpportunityAudit } from "@/lib/audit"
+import { canonicalizeMultiValueString } from "@/lib/multi-value"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -307,6 +308,9 @@ export async function PATCH(request: NextRequest, { params }: { params: { opport
           referredBy: true,
           shippingAddress: true,
           billingAddress: true,
+          accountIdVendor: true,
+          customerIdVendor: true,
+          orderIdVendor: true,
           subagentPercent: true,
           houseRepPercent: true,
           houseSplitPercent: true
@@ -409,6 +413,40 @@ export async function PATCH(request: NextRequest, { params }: { params: { opport
         // Maintain legacy behavior where subAgent is stored within description when explicit description is not provided
         data.description = formatSubAgentDescription(payload.subAgent)
         hasChanges = true
+      }
+
+      // "Other" identifiers (comma-separated supported; case-insensitive matching; preserve casing in storage)
+      if ("accountIdVendor" in payload) {
+        const raw = (payload as Record<string, unknown>).accountIdVendor
+        if (raw === null || raw === "") {
+          data.accountIdVendor = null
+          hasChanges = true
+        } else if (typeof raw === "string") {
+          data.accountIdVendor = canonicalizeMultiValueString(raw, { kind: "id" })
+          hasChanges = true
+        }
+      }
+
+      if ("customerIdVendor" in payload) {
+        const raw = (payload as Record<string, unknown>).customerIdVendor
+        if (raw === null || raw === "") {
+          data.customerIdVendor = null
+          hasChanges = true
+        } else if (typeof raw === "string") {
+          data.customerIdVendor = canonicalizeMultiValueString(raw, { kind: "id" })
+          hasChanges = true
+        }
+      }
+
+      if ("orderIdVendor" in payload) {
+        const raw = (payload as Record<string, unknown>).orderIdVendor
+        if (raw === null || raw === "") {
+          data.orderIdVendor = null
+          hasChanges = true
+        } else if (typeof raw === "string") {
+          data.orderIdVendor = canonicalizeMultiValueString(raw, { kind: "id" })
+          hasChanges = true
+        }
       }
 
       // Loss Reason (optional string) - used when deactivating opportunities from the Delete modal
@@ -575,6 +613,9 @@ export async function PATCH(request: NextRequest, { params }: { params: { opport
         if ("referredBy" in data) pushSet("referredBy", data.referredBy)
         if ("shippingAddress" in data) pushSet("shippingAddress", data.shippingAddress)
         if ("billingAddress" in data) pushSet("billingAddress", data.billingAddress)
+        if ("accountIdVendor" in data) pushSet("accountIdVendor", data.accountIdVendor)
+        if ("customerIdVendor" in data) pushSet("customerIdVendor", data.customerIdVendor)
+        if ("orderIdVendor" in data) pushSet("orderIdVendor", data.orderIdVendor)
         if ("subagentPercent" in data) pushSet("subagentPercent", data.subagentPercent)
         if ("houseRepPercent" in data) pushSet("houseRepPercent", data.houseRepPercent)
         if ("houseSplitPercent" in data) pushSet("houseSplitPercent", data.houseSplitPercent)
@@ -630,6 +671,9 @@ export async function PATCH(request: NextRequest, { params }: { params: { opport
           referredBy: existing.referredBy,
           shippingAddress: existing.shippingAddress,
           billingAddress: existing.billingAddress,
+          accountIdVendor: (existing as any).accountIdVendor ?? null,
+          customerIdVendor: (existing as any).customerIdVendor ?? null,
+          orderIdVendor: (existing as any).orderIdVendor ?? null,
           subagentPercent: existing.subagentPercent,
           houseRepPercent: existing.houseRepPercent,
           houseSplitPercent: existing.houseSplitPercent
@@ -644,6 +688,9 @@ export async function PATCH(request: NextRequest, { params }: { params: { opport
           referredBy: updated.referredBy,
           shippingAddress: updated.shippingAddress,
           billingAddress: updated.billingAddress,
+          accountIdVendor: (updated as any).accountIdVendor ?? null,
+          customerIdVendor: (updated as any).customerIdVendor ?? null,
+          orderIdVendor: (updated as any).orderIdVendor ?? null,
           subagentPercent: updated.subagentPercent,
           houseRepPercent: updated.houseRepPercent,
           houseSplitPercent: updated.houseSplitPercent

@@ -1913,6 +1913,7 @@ export function OpportunityDetailsView({
   const searchParams = useSearchParams()
   const opportunityOwnerId = opportunity?.owner?.id
   const opportunityOwnerName = opportunity?.owner?.name
+  const canUndoAutoFill = hasPermission("auditLogs.manage")
 
   // Lifted history state
   const [history] = useState<HistoryRow[]>(MOCK_HISTORY_ROWS)
@@ -1927,6 +1928,7 @@ export function OpportunityDetailsView({
   }
 
   const [activeTab, setActiveTab] = useState<TabKey>(getInitialTab())
+  const [historyReloadToken, setHistoryReloadToken] = useState(0)
 
   const isAssignedToUser = Boolean(opportunityOwnerId && opportunityOwnerId === authUser?.id)
   const canManageAccounts = hasPermission("accounts.manage")
@@ -1936,6 +1938,51 @@ export function OpportunityDetailsView({
     hasPermission("opportunities.edit.all") ||
     (hasPermission("opportunities.edit.assigned") && isAssignedToUser)
   const shouldEnableInline = canEditOpportunity && Boolean(opportunity)
+
+  const historyRowActionRenderer = useCallback(
+    (row: HistoryRow) => {
+      if (!canUndoAutoFill) return null
+      const undoableFields = new Set(["accountIdVendor", "customerIdVendor", "orderIdVendor"])
+      if (!undoableFields.has(row.field)) return null
+      if (String(row.action ?? "").toLowerCase() !== "update") return null
+
+      const auditLogId = String(row.id ?? "").slice(0, 36)
+      if (!auditLogId) return null
+
+      return (
+        <button
+          type="button"
+          className="text-blue-700 hover:underline text-[11px] font-semibold"
+          onClick={async () => {
+            const confirmed = window.confirm(
+              "Undo this auto-filled value? This will revert the field(s) back to their prior value."
+            )
+            if (!confirmed) return
+
+            try {
+              const response = await fetch(`/api/audit-logs/${encodeURIComponent(auditLogId)}/undo`, {
+                method: "POST",
+              })
+              const payload = await response.json().catch(() => null)
+              if (!response.ok) {
+                const message = payload?.error ?? "Undo failed"
+                throw new Error(message)
+              }
+
+              setHistoryReloadToken(value => value + 1)
+              await onRefresh?.()
+            } catch (error) {
+              const message = error instanceof Error ? error.message : "Undo failed"
+              window.alert(message)
+            }
+          }}
+        >
+          Undo
+        </button>
+      )
+    },
+    [canUndoAutoFill, onRefresh],
+  )
 
   const [ownerOptions, setOwnerOptions] = useState<OwnerOption[]>([])
   const [ownersLoading, setOwnersLoading] = useState(false)
@@ -5611,6 +5658,9 @@ useEffect(() => {
                     tableAreaRefCallback={tableAreaRefCallback}
                     tableBodyMaxHeight={tableBodyMaxHeight}
                     description={TAB_DESCRIPTIONS.history}
+                    rowActionLabel={canUndoAutoFill ? "Undo" : undefined}
+                    rowActionRenderer={canUndoAutoFill ? historyRowActionRenderer : undefined}
+                    reloadToken={historyReloadToken}
                   />
                 ) : null}
                 </div>

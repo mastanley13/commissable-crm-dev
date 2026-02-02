@@ -17,6 +17,7 @@ import {
   serializeDepositMappingForTemplateV2,
   type DepositMappingConfigV2,
 } from "@/lib/deposit-import/template-mapping-v2"
+import { shouldSkipMultiVendorRow } from "@/lib/deposit-import/multi-vendor"
 
 function startOfMonth(date: Date) {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1))
@@ -328,35 +329,6 @@ export async function POST(request: NextRequest) {
       const txStartMs = Date.now()
 
       const MULTI_VENDOR_VENDOR_NAME_TARGET_ID = "depositLineItem.vendorNameRaw"
-
-      const shouldSkipMultiVendorRow = (row: string[], vendorName: string | null) => {
-        const normalizedVendor = (vendorName ?? "").trim().toLowerCase()
-        if (!row.length) return true
-        if (row.every(value => !String(value ?? "").trim())) return true
-        if (
-          normalizedVendor === "total" ||
-          normalizedVendor === "totals" ||
-          normalizedVendor === "subtotal" ||
-          normalizedVendor === "sub-total" ||
-          normalizedVendor === "grand total" ||
-          normalizedVendor === "grand totals"
-        ) {
-          return true
-        }
-        const firstNonEmpty = row.find(value => String(value ?? "").trim().length > 0)
-        const normalizedFirst = String(firstNonEmpty ?? "").trim().toLowerCase()
-        if (
-          normalizedFirst === "total" ||
-          normalizedFirst === "totals" ||
-          normalizedFirst === "subtotal" ||
-          normalizedFirst === "sub-total" ||
-          normalizedFirst === "grand total" ||
-          normalizedFirst === "grand totals"
-        ) {
-          return true
-        }
-        return false
-      }
 
       const result = await prisma.$transaction(async tx => {
         if (multiVendor) {

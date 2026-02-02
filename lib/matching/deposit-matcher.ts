@@ -2,6 +2,7 @@ import { Prisma, DepositLineMatchStatus, RevenueScheduleStatus } from "@prisma/c
 import type { SuggestedMatchScheduleRow } from "@/lib/mock-data"
 import { prisma } from "@/lib/db"
 import { formatRevenueScheduleDisplayName } from "@/lib/flex/revenue-schedule-display"
+import { parseMultiValueInput, parseMultiValueMatchSet } from "@/lib/multi-value"
 
 type DepositLineWithRelations = Awaited<ReturnType<typeof fetchDepositLine>>
 const candidateScheduleInclude = {
@@ -114,6 +115,10 @@ const thresholds = {
   autoMatchThreshold: 0.97,
   suggestThreshold: 0.9,
   mediumThreshold: 0.75,
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value)
 }
 
 function isHierarchicalMatchingEnabledByEnv() {
@@ -256,26 +261,30 @@ function computeProductIdentitySimilarity(
   lineItem: NonNullable<DepositLineWithRelations>,
   schedule: RevenueScheduleWithRelations,
 ) {
+  const expandText = (value: string | null | undefined) => parseMultiValueInput(value, { kind: "text" }).values
+  const expandId = (value: string | null | undefined) => parseMultiValueInput(value, { kind: "id" }).values
+
   const lineNames = [
-    lineItem.productNameRaw,
-    lineItem.product?.productNameVendor,
-    lineItem.product?.productNameHouse,
+    ...expandText(lineItem.productNameRaw),
+    ...expandText(lineItem.product?.productNameVendor),
+    ...expandText(lineItem.product?.productNameHouse),
   ]
   const scheduleNames = [
-    schedule.product?.productNameVendor,
-    schedule.product?.productNameHouse,
+    ...expandText(schedule.product?.productNameVendor),
+    ...expandText(schedule.product?.productNameHouse),
   ]
   const productNameSim = computeBestStringSimilarity(lineNames, scheduleNames)
 
   const linePartNumbers = [
-    lineItem.product?.partNumberVendor,
-    lineItem.product?.partNumberHouse,
-    lineItem.product?.partNumberDistributor,
+    ...expandId(lineItem.partNumberRaw),
+    ...expandId(lineItem.product?.partNumberVendor),
+    ...expandId(lineItem.product?.partNumberHouse),
+    ...expandId(lineItem.product?.partNumberDistributor),
   ]
   const schedulePartNumbers = [
-    schedule.product?.partNumberVendor,
-    schedule.product?.partNumberHouse,
-    schedule.product?.partNumberDistributor,
+    ...expandId(schedule.product?.partNumberVendor),
+    ...expandId(schedule.product?.partNumberHouse),
+    ...expandId(schedule.product?.partNumberDistributor),
   ]
   const partNumberSim = computeBestStringSimilarity(linePartNumbers, schedulePartNumbers)
 
@@ -311,16 +320,24 @@ function checkCustomerIdExact(
   lineItem: NonNullable<DepositLineWithRelations>,
   schedule: RevenueScheduleWithRelations,
 ) {
-  const lineId = cleanId(lineItem.customerIdVendor)
-  if (!lineId) return false
-  const scheduleIds = [
+  const lineIds = parseMultiValueMatchSet(lineItem.customerIdVendor, { kind: "id" })
+  if (lineIds.size === 0) return false
+
+  const scheduleIdSources = [
     schedule.opportunity?.customerIdVendor,
     schedule.opportunity?.customerIdHouse,
     schedule.opportunity?.customerIdDistributor,
   ]
-    .map(cleanId)
-    .filter(Boolean)
-  return scheduleIds.includes(lineId)
+
+  const scheduleIds = new Set<string>()
+  for (const raw of scheduleIdSources) {
+    for (const token of parseMultiValueMatchSet(raw, { kind: "id" })) scheduleIds.add(token)
+  }
+
+  for (const token of lineIds) {
+    if (scheduleIds.has(token)) return true
+  }
+  return false
 }
 
 function checkAccountIdExact(
@@ -336,29 +353,62 @@ function checkLocationOrPoExact(
   lineItem: NonNullable<DepositLineWithRelations>,
   schedule: RevenueScheduleWithRelations,
 ) {
-  const lineLocation = cleanId(lineItem.locationId)
-  const scheduleLocation = cleanId(schedule.opportunity?.locationId)
-  const locationMatch = Boolean(lineLocation && scheduleLocation && lineLocation === scheduleLocation)
+  const lineLocations = parseMultiValueMatchSet(lineItem.locationId, { kind: "id" })
+  const scheduleLocations = parseMultiValueMatchSet(schedule.opportunity?.locationId, { kind: "id" })
+  const locationMatch =
+    lineLocations.size > 0 &&
+    scheduleLocations.size > 0 &&
+    Array.from(lineLocations).some(token => scheduleLocations.has(token))
 
-  const linePo = cleanId(lineItem.customerPurchaseOrder)
-  const schedulePo = cleanId(schedule.opportunity?.customerPurchaseOrder)
-  const poMatch = Boolean(linePo && schedulePo && linePo === schedulePo)
+  const linePos = parseMultiValueMatchSet(lineItem.customerPurchaseOrder, { kind: "id" })
+  const schedulePos = parseMultiValueMatchSet(schedule.opportunity?.customerPurchaseOrder, { kind: "id" })
+  const poMatch =
+    linePos.size > 0 &&
+    schedulePos.size > 0 &&
+    Array.from(linePos).some(token => schedulePos.has(token))
 
   return locationMatch || poMatch
+}
+
+function checkExternalScheduleIdExact(
+  lineItem: NonNullable<DepositLineWithRelations>,
+  schedule: RevenueScheduleWithRelations,
+) {
+  const metadata = (lineItem as any).metadata as unknown
+  if (!isPlainObject(metadata)) return false
+  const matching = metadata["matching"]
+  if (!isPlainObject(matching)) return false
+
+  const raw = matching["externalScheduleId"]
+  if (typeof raw !== "string") return false
+
+  const externalIds = parseMultiValueMatchSet(raw, { kind: "id" })
+  if (externalIds.size === 0) return false
+
+  const scheduleIds = parseMultiValueMatchSet(schedule.scheduleNumber, { kind: "id" })
+  if (scheduleIds.size === 0) return false
+
+  for (const token of externalIds) {
+    if (scheduleIds.has(token)) return true
+  }
+
+  return false
 }
 
 function hasStrongIdConflict(
   lineItem: NonNullable<DepositLineWithRelations>,
   schedule: RevenueScheduleWithRelations,
 ) {
-  const orderId = cleanId(lineItem.orderIdVendor)
-  const scheduleHasAnyOrder =
-    cleanId(schedule.orderIdHouse) ||
-    cleanId(schedule.distributorOrderId) ||
-    cleanId(schedule.opportunity?.orderIdVendor)
+  const lineOrders = parseMultiValueMatchSet(lineItem.orderIdVendor, { kind: "id" })
+  const scheduleOrders = new Set<string>([
+    ...parseMultiValueMatchSet(schedule.orderIdHouse, { kind: "id" }),
+    ...parseMultiValueMatchSet(schedule.distributorOrderId, { kind: "id" }),
+    ...parseMultiValueMatchSet(schedule.opportunity?.orderIdVendor, { kind: "id" }),
+  ])
 
-  if (orderId && scheduleHasAnyOrder && !hasOrderIdMatch(lineItem.orderIdVendor, schedule)) {
-    return true
+  if (lineOrders.size > 0 && scheduleOrders.size > 0) {
+    const hasOverlap = Array.from(lineOrders).some(token => scheduleOrders.has(token))
+    if (!hasOverlap) return true
   }
 
   // Customer IDs remain a positive signal (see checkCustomerIdExact) but
@@ -371,16 +421,18 @@ function hasStrongIdConflict(
     return true
   }
 
-  const lineLocation = cleanId(lineItem.locationId)
-  const scheduleLocation = cleanId(schedule.opportunity?.locationId)
-  if (lineLocation && scheduleLocation && lineLocation !== scheduleLocation) {
-    return true
+  const lineLocations = parseMultiValueMatchSet(lineItem.locationId, { kind: "id" })
+  const scheduleLocations = parseMultiValueMatchSet(schedule.opportunity?.locationId, { kind: "id" })
+  if (lineLocations.size > 0 && scheduleLocations.size > 0) {
+    const hasOverlap = Array.from(lineLocations).some(token => scheduleLocations.has(token))
+    if (!hasOverlap) return true
   }
 
-  const linePo = cleanId(lineItem.customerPurchaseOrder)
-  const schedulePo = cleanId(schedule.opportunity?.customerPurchaseOrder)
-  if (linePo && schedulePo && linePo !== schedulePo) {
-    return true
+  const linePos = parseMultiValueMatchSet(lineItem.customerPurchaseOrder, { kind: "id" })
+  const schedulePos = parseMultiValueMatchSet(schedule.opportunity?.customerPurchaseOrder, { kind: "id" })
+  if (linePos.size > 0 && schedulePos.size > 0) {
+    const hasOverlap = Array.from(linePos).some(token => schedulePos.has(token))
+    if (!hasOverlap) return true
   }
 
   return false
@@ -761,8 +813,7 @@ function scoreCandidateLegacy(
   )
 
   const customerIdMatch =
-    cleanId(lineItem.customerIdVendor) !== null &&
-    cleanId(schedule.opportunity?.customerIdVendor) === cleanId(lineItem.customerIdVendor)
+    checkCustomerIdExact(lineItem, schedule)
   signals.push(
     buildBooleanSignal("customer_id_exact", customerIdMatch, 0.12, "Customer/vendor ID matches"),
   )
@@ -790,10 +841,16 @@ function scoreCandidateLegacy(
     ),
   )
 
-  const productSimilarity = computeNameSimilarity(
-    normalizeName(lineItem.productNameRaw ?? lineItem.product?.productNameVendor ?? ""),
-    normalizeName(schedule.product?.productNameVendor ?? schedule.product?.productNameHouse ?? ""),
-  )
+  const legacyLineProductNames = [
+    ...parseMultiValueInput(lineItem.productNameRaw, { kind: "text" }).values,
+    ...parseMultiValueInput(lineItem.product?.productNameVendor, { kind: "text" }).values,
+    ...parseMultiValueInput(lineItem.product?.productNameHouse, { kind: "text" }).values,
+  ]
+  const legacyScheduleProductNames = [
+    ...parseMultiValueInput(schedule.product?.productNameVendor, { kind: "text" }).values,
+    ...parseMultiValueInput(schedule.product?.productNameHouse, { kind: "text" }).values,
+  ]
+  const productSimilarity = computeBestStringSimilarity(legacyLineProductNames, legacyScheduleProductNames)
   signals.push(
     buildSimilaritySignal("product_similarity", productSimilarity, 0.08, "Product name similarity"),
   )
@@ -855,6 +912,7 @@ function buildPassACandidate(
   const customerIdExact = checkCustomerIdExact(lineItem, schedule)
   const accountIdExact = checkAccountIdExact(lineItem, schedule)
   const locationOrPoExact = checkLocationOrPoExact(lineItem, schedule)
+  const externalScheduleIdExact = checkExternalScheduleIdExact(lineItem, schedule)
 
   signals.push(buildBooleanSignal("account_legal_exact", accountLegalExact, 0.2, "Account legal name matches"))
   signals.push(buildBooleanSignal("order_id_exact", orderIdExact, 0.2, "Order ID matches"))
@@ -863,9 +921,12 @@ function buildPassACandidate(
   signals.push(
     buildBooleanSignal("location_or_po_exact", locationOrPoExact, 0.2, "Location ID or Customer PO matches"),
   )
+  signals.push(
+    buildBooleanSignal("external_schedule_id_exact", externalScheduleIdExact, 0.2, "External schedule ID matches"),
+  )
 
   const hasStrongMatch =
-    accountLegalExact || orderIdExact || customerIdExact || accountIdExact || locationOrPoExact
+    accountLegalExact || orderIdExact || customerIdExact || accountIdExact || locationOrPoExact || externalScheduleIdExact
   if (!hasStrongMatch) return null
 
   const amountScore = Math.max(
@@ -949,13 +1010,21 @@ function scoreCandidatePassB(
 }
 
 function hasOrderIdMatch(orderId: string | null | undefined, schedule: RevenueScheduleWithRelations) {
-  const cleanOrder = cleanId(orderId)
-  if (!cleanOrder) return false
-  return (
-    cleanId(schedule.orderIdHouse) === cleanOrder ||
-    cleanId(schedule.distributorOrderId) === cleanOrder ||
-    cleanId(schedule.opportunity?.orderIdVendor) === cleanOrder
-  )
+  const lineOrders = parseMultiValueMatchSet(orderId, { kind: "id" })
+  if (lineOrders.size === 0) return false
+
+  const scheduleOrders = new Set<string>([
+    ...parseMultiValueMatchSet(schedule.orderIdHouse, { kind: "id" }),
+    ...parseMultiValueMatchSet(schedule.distributorOrderId, { kind: "id" }),
+    ...parseMultiValueMatchSet(schedule.opportunity?.orderIdVendor, { kind: "id" }),
+  ])
+  if (scheduleOrders.size === 0) return false
+
+  for (const token of lineOrders) {
+    if (scheduleOrders.has(token)) return true
+  }
+
+  return false
 }
 
 function buildBooleanSignal(

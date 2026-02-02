@@ -70,8 +70,13 @@ export function CreateTemplateStep({
       setShowTemplateDropdown(false)
       setTemplateOptions([])
       setTemplateError(null)
+      setVendorQuery('')
+      setVendorOptions([])
+      setShowVendorDropdown(false)
       onFormStateChange({
         multiVendor: true,
+        vendorAccountId: '',
+        vendorLabel: '',
         templateId: '',
         templateLabel: '',
         saveTemplateMapping: false,
@@ -478,8 +483,9 @@ export function CreateTemplateStep({
                   value={vendorQuery}
                   onChange={event => setVendorQuery(event.target.value)}
                   onFocus={() => setShowVendorDropdown(true)}
-                  placeholder="Search vendors"
-                  className={`${underlineInputClass.replace('w-full', 'w-[300px]')} h-[40px]`}
+                  placeholder={formState.multiVendor ? 'Multi-vendor enabled (vendor per row)' : 'Search vendors'}
+                  disabled={formState.multiVendor}
+                  className={`${underlineInputClass.replace('w-full', 'w-[300px]')} h-[40px] ${formState.multiVendor ? 'cursor-not-allowed bg-slate-50 opacity-70' : ''}`}
                 />
                 {showVendorDropdown ? (
                   <DropdownList
@@ -494,8 +500,8 @@ export function CreateTemplateStep({
             </FormField>
 
             <FormField label="Multi-Vendor Upload" className="min-w-[200px]" labelSpanClassName="whitespace-nowrap">
-              <div className="flex h-[40px] items-center">
-                <label className="inline-flex items-center gap-2 text-xs text-slate-700">
+              <div className="flex flex-col justify-center gap-1">
+                <label className="inline-flex h-[40px] items-center gap-2 text-xs text-slate-700">
                   <input
                     type="checkbox"
                     className="h-4 w-4 accent-primary-600"
@@ -504,6 +510,10 @@ export function CreateTemplateStep({
                   />
                   <span className="font-semibold">{formState.multiVendor ? 'On' : 'Off'}</span>
                 </label>
+                <p className="max-w-[260px] text-[11px] font-normal normal-case text-slate-500">
+                  When on, vendor is taken from the mapped <span className="font-semibold">Vendor Name</span> column and non-transaction rows
+                  (Totals/Subtotals) are skipped.
+                </p>
               </div>
             </FormField>
           </div>

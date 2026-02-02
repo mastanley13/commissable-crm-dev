@@ -746,7 +746,7 @@ export function OpportunityCreateModal({
                   value={form.orderIdVendor}
                   onChange={event => setForm(previous => ({ ...previous, orderIdVendor: event.target.value }))}
                   className={inputClass}
-                  placeholder="Enter Order ID (Other)"
+                  placeholder="ORD-1001, ORD-1002"
                 />
               </div>
 
@@ -1000,7 +1000,7 @@ export function OpportunityCreateModal({
                   value={form.accountIdVendor}
                   onChange={event => setForm(previous => ({ ...previous, accountIdVendor: event.target.value }))}
                   className={inputClass}
-                  placeholder="Enter Account ID (Other)"
+                  placeholder="ACCT-001, ACCT-002"
                 />
               </div>
 
@@ -1022,7 +1022,7 @@ export function OpportunityCreateModal({
                   value={form.customerIdVendor}
                   onChange={event => setForm(previous => ({ ...previous, customerIdVendor: event.target.value }))}
                   className={inputClass}
-                  placeholder="Enter Customer ID (Other)"
+                  placeholder="CUST-123, CUST-124"
                 />
               </div>
 

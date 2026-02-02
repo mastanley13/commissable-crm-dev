@@ -7,6 +7,7 @@ import { logProductAudit } from "@/lib/audit"
 import { ensureNoneDirectDistributorAccount } from "@/lib/none-direct-distributor"
 import { isEnabledRevenueType } from "@/lib/server-revenue-types"
 import { resolveOtherSource, resolveOtherValue } from "@/lib/other-field"
+import { canonicalizeMultiValueString } from "@/lib/multi-value"
 
 const PRODUCT_MUTATION_PERMISSIONS = [
   "products.update",
@@ -240,6 +241,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { produc
           productCode: true,
           productNameHouse: true,
           productNameVendor: true,
+          partNumberVendor: true,
           isActive: true,
           priceEach: true,
           commissionPercent: true,
@@ -276,7 +278,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { produc
           data.productNameVendor = null
           hasChanges = true
         } else if (typeof raw === "string") {
-          data.productNameVendor = raw.trim() || null
+          data.productNameVendor = canonicalizeMultiValueString(raw, { kind: "text" })
           hasChanges = true
         }
       }
@@ -377,7 +379,10 @@ export async function PATCH(request: NextRequest, { params }: { params: { produc
             ;(data as Record<string, unknown>)[key] = null
             hasChanges = true
           } else if (typeof raw === "string") {
-            ;(data as Record<string, unknown>)[key] = raw.trim() || null
+            ;(data as Record<string, unknown>)[key] =
+              key === "partNumberVendor"
+                ? canonicalizeMultiValueString(raw, { kind: "id" })
+                : raw.trim() || null
             hasChanges = true
           }
         }
@@ -536,6 +541,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { produc
         productCode: existing.productCode,
         productNameHouse: existing.productNameHouse,
         productNameVendor: existing.productNameVendor,
+        partNumberVendor: (existing as any).partNumberVendor ?? null,
         isActive: existing.isActive,
         priceEach: existing.priceEach,
         commissionPercent: existing.commissionPercent,
@@ -546,6 +552,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { produc
         productCode: updated.productCode,
         productNameHouse: updated.productNameHouse,
         productNameVendor: updated.productNameVendor,
+        partNumberVendor: (updated as any).partNumberVendor ?? null,
         isActive: updated.isActive,
         priceEach: updated.priceEach,
         commissionPercent: updated.commissionPercent,

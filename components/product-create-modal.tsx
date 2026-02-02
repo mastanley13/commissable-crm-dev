@@ -21,6 +21,7 @@ type CatalogProductOption = {
   distributorId?: string | null
   vendorId?: string | null
   productNameVendor?: string | null
+  partNumberVendor?: string | null
   productFamilyVendor?: string | null
   productSubtypeVendor?: string | null
   productFamilyHouse?: string | null
@@ -52,6 +53,7 @@ interface ProductFormState {
   productFamilyVendor: string
   productSubtypeVendor: string
   productNameVendor: string
+  partNumberVendor: string
   productCode: string
   productDescriptionVendor: string
   revenueType: string
@@ -96,6 +98,7 @@ const INITIAL_FORM: ProductFormState = {
   productFamilyVendor: "",
   productSubtypeVendor: "",
   productNameVendor: "",
+  partNumberVendor: "",
   productCode: "",
   productDescriptionVendor: "",
   revenueType: "",
@@ -387,6 +390,7 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
       distributorId: it.distributorId ?? it.distributorAccountId ?? null,
       vendorId: it.vendorId ?? it.vendorAccountId ?? null,
       productNameVendor: it.productNameVendor ?? null,
+      partNumberVendor: it.partNumberVendor ?? null,
       productFamilyVendor: it.productFamilyVendor ?? null,
       productSubtypeVendor: it.productSubtypeVendor ?? null,
       productFamilyHouse: it.productFamilyHouse ?? null,
@@ -594,6 +598,7 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
           productFamilyVendor: derivedProductFamilyVendor,
           productSubtypeVendor: derivedProductSubtypeVendor,
           productNameVendor: derivedProductNameVendor,
+          partNumberVendor: form.partNumberVendor.trim() || null,
           productCode: form.productCode.trim(),
           productDescriptionVendor: form.productDescriptionVendor.trim() || null,
           revenueType: form.revenueType,
@@ -990,16 +995,22 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
               <div className={columnCls}>
                 <div className="space-y-1">
                   <label className={labelCls}>Other - Product Name</label>
-                  <input className={inputCls} value={form.productNameVendor} onChange={handleChange("productNameVendor")} placeholder="Enter other product name" />
+                  <input className={inputCls} value={form.productNameVendor} onChange={handleChange("productNameVendor")} placeholder="Cable Services, Cable Services (Legacy Name)" />
                 </div>
               </div>
 
               {/* Other column */}
               <div className={columnCls}>
                 <div className="space-y-1">
-                  <label className={labelCls}>Other - Part Number</label>
-                  <input className={inputCls} value={form.productCode} onChange={handleChange("productCode")} placeholder="Enter other part #" />
+                  <label className={labelCls}>Vendor Part # (Primary)</label>
+                  <input className={inputCls} value={form.productCode} onChange={handleChange("productCode")} placeholder="PN-123" />
                   {errors.productCode ? <p className="text-[11px] text-rose-600">{errors.productCode}</p> : null}
+                </div>
+
+                <div className="space-y-1">
+                  <label className={labelCls}>Other - Part Number (Aliases)</label>
+                  <input className={inputCls} value={form.partNumberVendor} onChange={handleChange("partNumberVendor")} placeholder="PN-123, PN 124" />
+                  <p className="text-[11px] text-gray-500">Comma/newline separated aliases used by vendors.</p>
                 </div>
 
                 <div className="space-y-1">

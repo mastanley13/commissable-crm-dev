@@ -10,6 +10,7 @@ import { logProductAudit } from "@/lib/audit"
 import { ensureNoneDirectDistributorAccount } from "@/lib/none-direct-distributor"
 import { REVENUE_TYPE_DEFINITIONS } from "@/lib/revenue-types"
 import { isEnabledRevenueType } from "@/lib/server-revenue-types"
+import { canonicalizeMultiValueString } from "@/lib/multi-value"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -409,12 +410,13 @@ export async function POST(request: NextRequest) {
           productNameDistributor: getOptionalString((payload as any).productNameDistributor),
           productFamilyHouse,
           productSubtypeHouse,
-          productNameVendor: getOptionalString((payload as any).productNameVendor),
+          productNameVendor: canonicalizeMultiValueString(getOptionalString((payload as any).productNameVendor), { kind: "text" }),
           productFamilyVendor,
           productSubtypeVendor,
           distributorProductFamily,
           distributorProductSubtype,
           partNumberHouse: getOptionalString((payload as any).partNumberHouse),
+          partNumberVendor: canonicalizeMultiValueString(getOptionalString((payload as any).partNumberVendor), { kind: "id" }),
           productDescriptionVendor: getOptionalString((payload as any).productDescriptionVendor),
           description: getOptionalString((payload as any).description),
           revenueType: revenueTypeValue as any,
@@ -444,6 +446,7 @@ export async function POST(request: NextRequest) {
           productCode: created.productCode,
           productNameHouse: created.productNameHouse,
           productNameVendor: created.productNameVendor,
+          partNumberVendor: (created as any).partNumberVendor ?? null,
           isActive: created.isActive,
           priceEach: created.priceEach,
           commissionPercent: created.commissionPercent,

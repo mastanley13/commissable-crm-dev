@@ -14,6 +14,7 @@ import { AuditHistoryTab } from "./audit-history-tab"
 import { PicklistCombobox } from "./picklist-combobox"
 import { SelectCombobox } from "./select-combobox"
 import { TabDescription } from "@/components/section/TabDescription"
+import type { HistoryRow } from "./opportunity-types"
 
 export interface ProductOpportunityUsage {
   id: string
@@ -600,11 +601,12 @@ interface EditableProductHeaderProps {
   product: ProductDetailRecord
   editor: EntityEditor<ProductInlineForm>
   onSave: () => Promise<void>
+  onRefresh?: () => Promise<void> | void
   activeTab: TabKey
   onTabSelect: (tab: TabKey) => void
 }
 
-  function EditableProductHeader({ product, editor, onSave, activeTab, onTabSelect }: EditableProductHeaderProps) {
+  function EditableProductHeader({ product, editor, onSave, onRefresh, activeTab, onTabSelect }: EditableProductHeaderProps) {
     const activeField = editor.register("active")
     const nameField = editor.register("productNameHouse")
     const vendorNameField = editor.register("productNameVendor")
@@ -619,8 +621,54 @@ interface EditableProductHeaderProps {
     const familyVendorField = editor.register("productFamilyVendor")
     const subtypeVendorField = editor.register("productSubtypeVendor")
   const descVendorField = editor.register("productDescriptionVendor")
-  const vendorAccountField = editor.register("vendorAccountId")
-  const distributorAccountField = editor.register("distributorAccountId")
+   const vendorAccountField = editor.register("vendorAccountId")
+   const distributorAccountField = editor.register("distributorAccountId")
+   const [historyReloadToken, setHistoryReloadToken] = useState(0)
+
+   const handleUndoAutoFill = useCallback(async (row: HistoryRow) => {
+     const undoableFields = new Set(["productNameVendor", "partNumberVendor"])
+     if (!undoableFields.has(row.field)) return
+     if (String(row.action ?? "").toLowerCase() !== "update") return
+
+     const auditLogId = String(row.id ?? "").slice(0, 36)
+     if (!auditLogId) return
+
+     const confirmed = window.confirm("Undo this auto-filled value? This will revert the field(s) back to their prior value.")
+     if (!confirmed) return
+
+     try {
+       const response = await fetch(`/api/audit-logs/${encodeURIComponent(auditLogId)}/undo`, {
+         method: "POST",
+       })
+       const payload = await response.json().catch(() => null)
+       if (!response.ok) {
+         const message = payload?.error ?? "Undo failed"
+         throw new Error(message)
+       }
+
+       setHistoryReloadToken(value => value + 1)
+       await onRefresh?.()
+     } catch (error) {
+       const message = error instanceof Error ? error.message : "Undo failed"
+       window.alert(message)
+     }
+   }, [onRefresh])
+
+   const historyRowActionRenderer = useCallback((row: HistoryRow) => {
+     const undoableFields = new Set(["productNameVendor", "partNumberVendor"])
+     if (!undoableFields.has(row.field)) return null
+     if (String(row.action ?? "").toLowerCase() !== "update") return null
+
+     return (
+       <button
+         type="button"
+         className="text-blue-700 hover:underline text-[11px] font-semibold"
+         onClick={() => void handleUndoAutoFill(row)}
+       >
+         Undo
+       </button>
+     )
+   }, [handleUndoAutoFill])
 
   type AccountOption = { value: string; label: string; accountTypeName?: string }
   const [vendorOptions, setVendorOptions] = useState<AccountOption[]>([])
@@ -995,7 +1043,7 @@ interface EditableProductHeaderProps {
                 value={(vendorNameField.value as string) ?? ""}
                 onChange={vendorNameField.onChange}
                 onBlur={vendorNameField.onBlur}
-                placeholder="Enter other product name"
+                placeholder="Cable Services, Cable Services (Legacy Name)"
               />
             )}
 
@@ -1005,7 +1053,7 @@ interface EditableProductHeaderProps {
                 value={(partNumberVendorField?.value as string) ?? ""}
                 onChange={partNumberVendorField.onChange}
                 onBlur={partNumberVendorField.onBlur}
-                placeholder="Enter other part #"
+                placeholder="PN-123, PN 124"
               />
             )}
 
@@ -1024,7 +1072,14 @@ interface EditableProductHeaderProps {
         </div>
       )}
       {activeTab === "history" && product && (
-        <AuditHistoryTab entityName="Product" entityId={product.id} description={TAB_DESCRIPTIONS.history} />
+        <AuditHistoryTab
+          entityName="Product"
+          entityId={product.id}
+          description={TAB_DESCRIPTIONS.history}
+          rowActionLabel="Undo"
+          rowActionRenderer={historyRowActionRenderer}
+          reloadToken={historyReloadToken}
+        />
       )}
     </div>
   )
@@ -1137,6 +1192,7 @@ export function ProductDetailsView({
           product={product}
           editor={editor}
           onSave={handleSaveInline}
+          onRefresh={onRefresh}
           activeTab={activeTab}
           onTabSelect={handleTabSelect}
         />

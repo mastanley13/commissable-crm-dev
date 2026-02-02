@@ -15,6 +15,7 @@ import { logMatchingMetric } from "@/lib/matching/metrics"
 import { getClientIP, getUserAgent, logAudit, logRevenueScheduleAudit } from "@/lib/audit"
 import { evaluateFlexDecision } from "@/lib/flex/revenue-schedule-flex-decision"
 import { recomputeDepositLineItemAllocations } from "@/lib/matching/deposit-line-allocations"
+import { autoFillFromDepositMatch } from "@/lib/matching/auto-fill"
 import {
   createFlexChargebackForNegativeLine,
   executeFlexAdjustmentSplit,
@@ -86,6 +87,8 @@ export async function POST(
     const allocationCommission = commissionAmount ?? Number(lineItem.commission ?? 0)
 
     const varianceTolerance = await getTenantVarianceTolerance(tenantId)
+    const ipAddress = getClientIP(request)
+    const userAgent = getUserAgent(request)
 
     const result = await prisma.$transaction(async tx => {
       const hasNegativeLine =
@@ -176,6 +179,21 @@ export async function POST(
       })
 
       const updatedLine = await recomputeDepositLineItemAllocations(tx, lineItem.id, tenantId)
+
+      try {
+        await autoFillFromDepositMatch(tx, {
+          tenantId,
+          userId: req.user.id,
+          depositId,
+          depositLineItemId: lineItem.id,
+          revenueScheduleId,
+          depositLineMatchId: match.id,
+          ipAddress,
+          userAgent,
+        })
+      } catch (error) {
+        console.error("Failed to auto-fill IDs/metadata from matched deposit line", error)
+      }
 
       let revenueSchedule = await recomputeRevenueScheduleFromMatches(tx, revenueScheduleId, tenantId, {
         varianceTolerance,

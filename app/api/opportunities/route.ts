@@ -8,6 +8,7 @@ import { mapOpportunityToRow } from "./helpers"
 import { dedupeColumnFilters } from "@/lib/filter-utils"
 import type { ColumnFilter } from "@/components/list-header"
 import { logOpportunityAudit } from "@/lib/audit"
+import { canonicalizeMultiValueString } from "@/lib/multi-value"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -451,16 +452,25 @@ export async function POST(request: NextRequest) {
       let shippingAddress = coerceOptionalString((payload as Record<string, unknown>).shippingAddress)
       let billingAddress = coerceOptionalString((payload as Record<string, unknown>).billingAddress)
       const accountIdHouse = coerceOptionalString((payload as Record<string, unknown>).accountIdHouse)
-      const accountIdVendor = coerceOptionalString((payload as Record<string, unknown>).accountIdVendor)
+      const accountIdVendor = canonicalizeMultiValueString(
+        coerceOptionalString((payload as Record<string, unknown>).accountIdVendor),
+        { kind: "id" },
+      )
       const accountIdDistributor = coerceOptionalString((payload as Record<string, unknown>).accountIdDistributor)
       const customerIdHouse = coerceOptionalString((payload as Record<string, unknown>).customerIdHouse)
-      const customerIdVendor = coerceOptionalString((payload as Record<string, unknown>).customerIdVendor)
+      const customerIdVendor = canonicalizeMultiValueString(
+        coerceOptionalString((payload as Record<string, unknown>).customerIdVendor),
+        { kind: "id" },
+      )
       const customerIdDistributor = coerceOptionalString((payload as Record<string, unknown>).customerIdDistributor)
       const locationId =
         coerceOptionalString((payload as Record<string, unknown>).locationId) ??
         coerceOptionalString((payload as Record<string, unknown>).locationIdVendor)
       const orderIdHouse = coerceOptionalString((payload as Record<string, unknown>).orderIdHouse)
-      const orderIdVendor = coerceOptionalString((payload as Record<string, unknown>).orderIdVendor)
+      const orderIdVendor = canonicalizeMultiValueString(
+        coerceOptionalString((payload as Record<string, unknown>).orderIdVendor),
+        { kind: "id" },
+      )
       const orderIdDistributor = coerceOptionalString((payload as Record<string, unknown>).orderIdDistributor)
       const customerPurchaseOrder =
         coerceOptionalString((payload as Record<string, unknown>).customerPurchaseOrder) ??

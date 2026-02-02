@@ -14,6 +14,7 @@ import { getTenantMatchingPreferences } from "@/lib/matching/settings"
 import { getUserReconciliationConfidencePreferences } from "@/lib/matching/user-confidence-settings"
 import { logMatchingMetric } from "@/lib/matching/metrics"
 import { getClientIP, getUserAgent, logAudit } from "@/lib/audit"
+import { autoFillFromDepositMatch } from "@/lib/matching/auto-fill"
 
 interface AutoMatchSummary {
   processed: number
@@ -160,9 +161,11 @@ async function applyAutoMatch(
 ) {
   const allocationUsage = Number(line.usage ?? 0)
   const allocationCommission = Number(line.commission ?? 0)
+  const ipAddress = getClientIP(request)
+  const userAgent = getUserAgent(request)
 
   await prisma.$transaction(async tx => {
-    await tx.depositLineMatch.upsert({
+    const match = await tx.depositLineMatch.upsert({
       where: {
         depositLineItemId_revenueScheduleId: {
           depositLineItemId: line.id,
@@ -191,6 +194,21 @@ async function applyAutoMatch(
     await recomputeDepositLineItemAllocations(tx, line.id, tenantId)
 
     await recomputeDepositAggregates(tx, line.depositId, tenantId)
+
+    try {
+      await autoFillFromDepositMatch(tx, {
+        tenantId,
+        userId,
+        depositId: line.depositId,
+        depositLineItemId: line.id,
+        revenueScheduleId: scheduleId,
+        depositLineMatchId: match.id,
+        ipAddress,
+        userAgent,
+      })
+    } catch (error) {
+      console.error("Failed to auto-fill IDs/metadata from auto-matched deposit line", error)
+    }
   })
 
   await logMatchingMetric({

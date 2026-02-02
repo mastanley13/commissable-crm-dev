@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { LeadSource, OpportunityStage, OpportunityStatus } from "@prisma/client"
+import { LeadSource, OpportunityStage } from "@prisma/client"
 import { getOpportunityStageOptions, isOpportunityStageAutoManaged, isOpportunityStageValue, type OpportunityStageOption } from "@/lib/opportunity-stage"
 import { Loader2, X } from "lucide-react"
 import { useToasts } from "@/components/toast"
@@ -26,7 +26,9 @@ interface OpportunityEditFormState {
   ownerId: string
   leadSource: LeadSource | null
   subAgent: string
-  status: OpportunityStatus
+  accountIdVendor: string
+  customerIdVendor: string
+  orderIdVendor: string
 }
 
 const stageOptions: OpportunityStageOption[] = getOpportunityStageOptions()
@@ -90,7 +92,9 @@ export function OpportunityEditModal({ isOpen, opportunityId, onClose, onSuccess
           ownerId: data.ownerId || "",
           leadSource: (data.leadSource as LeadSource) ?? null,
           subAgent: data.subAgent ?? "",
-          status: (data.status as OpportunityStatus) || OpportunityStatus.Open
+          accountIdVendor: data.identifiers?.accountIdVendor ?? "",
+          customerIdVendor: data.identifiers?.customerIdVendor ?? "",
+          orderIdVendor: data.identifiers?.orderIdVendor ?? "",
         })
       })
       .catch(error => {
@@ -164,7 +168,9 @@ export function OpportunityEditModal({ isOpen, opportunityId, onClose, onSuccess
           estimatedCloseDate: form.estimatedCloseDate,
           leadSource: form.leadSource,
           subAgent: form.subAgent,
-          status: form.status
+          accountIdVendor: form.accountIdVendor,
+          customerIdVendor: form.customerIdVendor,
+          orderIdVendor: form.orderIdVendor,
         })
       })
 
@@ -222,7 +228,7 @@ export function OpportunityEditModal({ isOpen, opportunityId, onClose, onSuccess
                 />
               </div>
 
-              <div>
+              <div className="md:col-span-2">
                 <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500" htmlFor="opportunity-stage">
                   Stage
                 </label>
@@ -249,25 +255,6 @@ export function OpportunityEditModal({ isOpen, opportunityId, onClose, onSuccess
                     Stage updates automatically based on product billing status.
                   </p>
                 )}
-              </div>
-
-              <div>
-                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500" htmlFor="opportunity-status">
-                  Status
-                </label>
-                <select
-                  id="opportunity-status"
-                  value={form.status}
-                  onChange={event => setForm(current => current ? { ...current, status: event.target.value as OpportunityStatus } : current)}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  disabled={loading}
-                >
-                  {Object.values(OpportunityStatus).map(status => (
-                    <option key={status} value={status}>
-                      {status.replace(/([A-Z])/g, " $1").trim()}
-                    </option>
-                  ))}
-                </select>
               </div>
             </div>
 
@@ -345,6 +332,61 @@ export function OpportunityEditModal({ isOpen, opportunityId, onClose, onSuccess
                   disabled={loading}
                 />
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                Other IDs (comma-separated)
+              </div>
+              <div className="grid gap-4 md:grid-cols-3">
+                <div>
+                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500" htmlFor="opportunity-account-id-vendor">
+                    Other - Account ID
+                  </label>
+                  <input
+                    id="opportunity-account-id-vendor"
+                    type="text"
+                    value={form.accountIdVendor}
+                    onChange={event => setForm(current => current ? { ...current, accountIdVendor: event.target.value } : current)}
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    disabled={loading}
+                    placeholder="ACCT-001, ACCT-002"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500" htmlFor="opportunity-customer-id-vendor">
+                    Other - Customer ID
+                  </label>
+                  <input
+                    id="opportunity-customer-id-vendor"
+                    type="text"
+                    value={form.customerIdVendor}
+                    onChange={event => setForm(current => current ? { ...current, customerIdVendor: event.target.value } : current)}
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    disabled={loading}
+                    placeholder="CUST-123, CUST-124"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500" htmlFor="opportunity-order-id-vendor">
+                    Other - Order ID
+                  </label>
+                  <input
+                    id="opportunity-order-id-vendor"
+                    type="text"
+                    value={form.orderIdVendor}
+                    onChange={event => setForm(current => current ? { ...current, orderIdVendor: event.target.value } : current)}
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    disabled={loading}
+                    placeholder="ORD-1001, ORD-1002"
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-gray-500">
+                Paste multiple values separated by commas or new lines. Matching treats IDs case-insensitively.
+              </p>
             </div>
 
             {/* Validation Feedback */}

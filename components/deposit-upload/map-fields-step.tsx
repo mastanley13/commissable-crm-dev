@@ -21,7 +21,7 @@ import type { TelarusTemplateFieldsV1 } from "@/lib/deposit-import/telarus-templ
 const PREVIEW_PAGE_SIZE = 1
 const COLUMN_TABLE_PAGE_SIZE = 12
 // Fixed scroll area height for both column tables.
-const COLUMN_TABLE_MAX_HEIGHT_CLASS = "h-[280px] overflow-y-auto"
+const COLUMN_TABLE_MAX_HEIGHT_CLASS = "h-[500px] overflow-y-auto"
 
 interface MapFieldsStepProps {
   file: File | null

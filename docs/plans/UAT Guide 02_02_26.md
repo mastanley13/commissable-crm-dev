@@ -221,6 +221,13 @@ Separately, the reconciliation workflow spec uses tag conventions like:
 
 ### **5.4 FLEX resolution (P0)**
 
+**Where to click (navigation callout)**
+
+* In Reconciliation, select the Flex-created row (often tagged like `-F` / `FLEX-*`).  
+* Look for a right-side details panel/drawer (sometimes opened by clicking the row).  
+* In that details view, look for an action labeled **Resolve**, **Resolve Flex**, or **Resolve Exception** (often in an actions bar or `...` menu).  
+* If you cannot find any Resolve entry point anywhere in the UI, log it as a **P0 blocker** (Flex resolution workflow is not reachable).
+
 This is the big high-priority flow:
 
 1. Open a Flex item that was created.  
@@ -268,6 +275,13 @@ If the resolution UI is missing or incomplete, log as a **P0 failure** against t
 * Chargebacks are labeled “In Dispute” while awaiting review/approval; Jan 22 notes explicitly say the app was labeling them “pending” and needs to change to “in dispute”.
 
 ### **7.3 Manager approval**
+
+**Where to click (navigation callout)**
+
+* Start from the left nav and look for **Approvals**, **Reviews**, **Queue**, or **Chargebacks**.  
+* If there is no dedicated queue, use filters/search in Reconciliation/Schedules to find `-CB` items with status **In Dispute**, then open the schedule details panel.  
+* In the schedule/details view, look for **Approve** / **Reject** actions (often in an actions bar or `...` menu).  
+* If a Manager can see the chargeback but cannot take an action anywhere in the UI, log it as a **P0 blocker** (approval workflow not navigable).
 
 1. Log in as a Manager.  
 2. Find the chargeback awaiting review.  
@@ -326,6 +340,13 @@ Note: The Jan 22 meeting explicitly states manager approval is “set up” but 
 
 ### **9.2 Undo/unmatch restores original metadata (P1 \+ spec)**
 
+**Where to click (navigation callout)**
+
+* In Reconciliation, after matching, select the matched line(s) and look for an **Undo**, **Unmatch**, or **Revert Match** action in the bulk actions bar.  
+* If bulk actions are not available, open the matched row's details panel and look for the same actions under a `...` menu.  
+* For audit/history, open the Deposit / Deposit Line Item / Revenue Schedule details and look for **History**, **Audit**, **Activity**, or **Timeline** (and capture screenshots showing who/when/what).  
+* If there is no audit/history view anywhere, log it as a gap and clarify how Accounting is expected to verify changes.
+
 1. Perform a match that causes IDs/metadata to be appended/changed.  
 2. “Undo” or “Unmatch”.
 
@@ -371,6 +392,12 @@ Also confirm whether the UI supports the propagation model described in the reco
 ---
 
 ## **Flow 12 — End-to-end finalize and “Deposit \= Reconciled” condition**
+
+**Where to click (navigation callout)**
+
+* From the Deposit detail page, look for a primary action like **Finalize**, **Submit**, **Close Deposit**, or **Mark Reconciled** (often top-right).  
+* If reconciliation is a separate screen, look for the finalize action in that screen's header actions.  
+* If there is no finalize action anywhere, clarify whether the system auto-reconciles when allocation hits 100% (and what user action, if any, triggers status change).
 
 1. Continue reconciling until:  
 * all lines are allocated and/or properly handled (including Flex/Chargebacks).  
@@ -423,4 +450,3 @@ Same content, but broken into:
 * **Pass/Fail \+ notes fields**
 
 (That tends to be easier to paste into a tracker / spreadsheet.)
-
