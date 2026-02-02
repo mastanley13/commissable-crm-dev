@@ -992,7 +992,6 @@ export function DepositReconciliationDetailView({
       }
     },
     [
-      classifyMatchSelection,
       lineItemRows,
       metadata.id,
       onLineSelectionChange,

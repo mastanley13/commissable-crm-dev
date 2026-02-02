@@ -341,7 +341,7 @@ export function ReconciliationMatchWizardModal(props: {
   const selectionBlockedReason = useMemo(() => {
     if (!selectionCompatible) return "Selection does not match match type."
     return null
-  }, [effectiveType, selectionCompatible])
+  }, [selectionCompatible])
 
   const allocationRows = useMemo(() => {
     if (effectiveType === "OneToMany") {

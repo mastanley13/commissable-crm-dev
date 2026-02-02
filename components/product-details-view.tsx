@@ -1199,7 +1199,7 @@ export function ProductDetailsView({
       )
     }
     return <ProductHeader product={product} onEdit={onEdit} activeTab={activeTab} onTabSelect={handleTabSelect} />
-  }, [product, shouldEnableInline, editor, handleSaveInline, onEdit, activeTab, handleTabSelect])
+  }, [product, shouldEnableInline, editor, handleSaveInline, onEdit, onRefresh, activeTab, handleTabSelect])
 
   if (loading) {
     return (

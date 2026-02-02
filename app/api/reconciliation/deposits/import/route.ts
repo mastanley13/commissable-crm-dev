@@ -907,12 +907,17 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ data: { depositIds: (result as any).depositIds } })
       }
 
+      const depositId = result.depositId
+      if (!depositId) {
+        throw new Error("Deposit import did not return a depositId.")
+      }
+
       await logAudit({
         userId: req.user.id,
         tenantId,
         action: AuditAction.Create,
         entityName: "Deposit",
-        entityId: result.depositId,
+        entityId: depositId,
         ipAddress: getClientIP(request),
         userAgent: getUserAgent(request),
         metadata: {
@@ -945,7 +950,7 @@ export async function POST(request: NextRequest) {
             distributorAccountId,
             vendorAccountId,
             saveTemplateMapping,
-            depositId: result.depositId,
+            depositId,
             idempotencyKey,
           },
         })

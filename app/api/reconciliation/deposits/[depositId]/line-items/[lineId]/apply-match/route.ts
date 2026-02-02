@@ -314,8 +314,8 @@ export async function POST(
         commissionAmount: allocationCommission,
         confidenceScore,
         source: DepositLineMatchSource.Manual,
-        flexDecision: result?.flexDecision ?? null,
-        flexExecution: result?.flexExecution ?? null,
+        flexDecision: result?.flexDecision ? JSON.parse(JSON.stringify(result.flexDecision)) : null,
+        flexExecution: result?.flexExecution ? JSON.parse(JSON.stringify(result.flexExecution)) : null,
       },
     })
 

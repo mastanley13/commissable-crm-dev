@@ -144,14 +144,16 @@ export async function undoAutoFillAuditLog(
         entityName: log.entityName,
         entityId: log.entityId,
         changedFields,
-        previousValues: prevSnapshot,
-        newValues: nextSnapshot,
+        previousValues: JSON.parse(JSON.stringify(prevSnapshot)),
+        newValues: JSON.parse(JSON.stringify(nextSnapshot)),
         ipAddress: params.ipAddress,
         userAgent: params.userAgent,
-        metadata: {
-          action: "UndoAutoFillFromDepositMatch",
-          undoAuditLogId: params.auditLogId,
-        },
+        metadata: JSON.parse(
+          JSON.stringify({
+            action: "UndoAutoFillFromDepositMatch",
+            undoAuditLogId: params.auditLogId,
+          }),
+        ),
       },
       select: { id: true },
     })
@@ -200,14 +202,16 @@ export async function undoAutoFillAuditLog(
         entityName: log.entityName,
         entityId: log.entityId,
         changedFields,
-        previousValues: prevSnapshot,
-        newValues: nextSnapshot,
+        previousValues: JSON.parse(JSON.stringify(prevSnapshot)),
+        newValues: JSON.parse(JSON.stringify(nextSnapshot)),
         ipAddress: params.ipAddress,
         userAgent: params.userAgent,
-        metadata: {
-          action: "UndoAutoFillFromDepositMatch",
-          undoAuditLogId: params.auditLogId,
-        },
+        metadata: JSON.parse(
+          JSON.stringify({
+            action: "UndoAutoFillFromDepositMatch",
+            undoAuditLogId: params.auditLogId,
+          }),
+        ),
       },
       select: { id: true },
     })
@@ -217,4 +221,3 @@ export async function undoAutoFillAuditLog(
 
   throw new UndoAutoFillNotUndoableError("Undo not supported for this entity type")
 }
-

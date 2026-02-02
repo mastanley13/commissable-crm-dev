@@ -153,7 +153,7 @@ export async function POST(
         applyToFuture,
         futureUpdatedCount: result.futureUpdate?.updatedScheduleIds?.length ?? 0,
         futureUpdatedScheduleIds: result.futureUpdate?.updatedScheduleIds ?? [],
-        flexExecution: result.flexExecution ?? null,
+        flexExecution: result.flexExecution ? JSON.parse(JSON.stringify(result.flexExecution)) : null,
       },
     })
 

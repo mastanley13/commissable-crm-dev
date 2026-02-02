@@ -98,18 +98,20 @@ export async function autoFillFromDepositMatch(tx: Tx, params: AutoFillFromMatch
             entityName: "Opportunity",
             entityId: existing.id,
             changedFields,
-            previousValues,
-            newValues,
+            previousValues: JSON.parse(JSON.stringify(previousValues)),
+            newValues: JSON.parse(JSON.stringify(newValues)),
             ipAddress: params.ipAddress,
             userAgent: params.userAgent,
-            metadata: {
-              action: "AutoFillFromDepositMatch",
-              depositId: params.depositId,
-              depositLineItemId: params.depositLineItemId,
-              revenueScheduleId: params.revenueScheduleId,
-              depositLineMatchId: params.depositLineMatchId ?? null,
-              fields: Object.keys(update),
-            },
+            metadata: JSON.parse(
+              JSON.stringify({
+                action: "AutoFillFromDepositMatch",
+                depositId: params.depositId,
+                depositLineItemId: params.depositLineItemId,
+                revenueScheduleId: params.revenueScheduleId,
+                depositLineMatchId: params.depositLineMatchId ?? null,
+                fields: Object.keys(update),
+              }),
+            ),
           },
           select: { id: true },
         })
@@ -143,7 +145,7 @@ export async function autoFillFromDepositMatch(tx: Tx, params: AutoFillFromMatch
 
       if (Object.keys(update).length > 0) {
         const updated = await tx.product.update({
-          where: { id: existing.id },
+          where: { id: schedule.productId },
           data: update as any,
           select: { id: true, productNameVendor: true, partNumberVendor: true } as any,
         })
@@ -163,20 +165,22 @@ export async function autoFillFromDepositMatch(tx: Tx, params: AutoFillFromMatch
             userId: params.userId,
             action: AuditAction.Update,
             entityName: "Product",
-            entityId: existing.id,
+            entityId: schedule.productId,
             changedFields,
-            previousValues,
-            newValues,
+            previousValues: JSON.parse(JSON.stringify(previousValues)),
+            newValues: JSON.parse(JSON.stringify(newValues)),
             ipAddress: params.ipAddress,
             userAgent: params.userAgent,
-            metadata: {
-              action: "AutoFillFromDepositMatch",
-              depositId: params.depositId,
-              depositLineItemId: params.depositLineItemId,
-              revenueScheduleId: params.revenueScheduleId,
-              depositLineMatchId: params.depositLineMatchId ?? null,
-              fields: Object.keys(update),
-            },
+            metadata: JSON.parse(
+              JSON.stringify({
+                action: "AutoFillFromDepositMatch",
+                depositId: params.depositId,
+                depositLineItemId: params.depositLineItemId,
+                revenueScheduleId: params.revenueScheduleId,
+                depositLineMatchId: params.depositLineMatchId ?? null,
+                fields: Object.keys(update),
+              }),
+            ),
           },
           select: { id: true },
         })
@@ -187,4 +191,3 @@ export async function autoFillFromDepositMatch(tx: Tx, params: AutoFillFromMatch
 
   return { auditLogIds }
 }
-

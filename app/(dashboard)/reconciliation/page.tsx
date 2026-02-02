@@ -1120,6 +1120,7 @@ useEffect(() => {
       return column
     })
   }, [
+    currencyFormatter,
     preferenceColumns,
     selectedReconciliations,
     updatingReconciliationIds,

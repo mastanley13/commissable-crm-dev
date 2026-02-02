@@ -201,7 +201,7 @@ export default function FlexReviewQueuePage() {
     } finally {
       setLoading(false)
     }
-  }, [buildQueryParams, showError])
+  }, [buildQueryParams, page, showError])
 
   useEffect(() => {
     setPage(prev => (prev === 1 ? prev : 1))
@@ -430,6 +430,35 @@ export default function FlexReviewQueuePage() {
     }
     return payload
   }, [])
+
+  const selectableItems = useMemo(
+    () => filteredItems.filter(item => item.status === "Open"),
+    [filteredItems],
+  )
+  const allVisibleSelected =
+    selectableItems.length > 0 && selectableItems.every(item => selectedIdSet.has(item.id))
+  const selectedOpenItems = useMemo(
+    () => filteredItems.filter(item => selectedIdSet.has(item.id) && item.status === "Open"),
+    [filteredItems, selectedIdSet],
+  )
+  const selectedChargebackItems = useMemo(
+    () =>
+      selectedOpenItems.filter(
+        item =>
+          item.flexClassification === "FlexChargeback" ||
+          item.flexClassification === "FlexChargebackReversal",
+      ),
+    [selectedOpenItems],
+  )
+  const selectedNonChargebackItems = useMemo(
+    () =>
+      selectedOpenItems.filter(
+        item =>
+          item.flexClassification !== "FlexChargeback" &&
+          item.flexClassification !== "FlexChargebackReversal",
+      ),
+    [selectedOpenItems],
+  )
 
   const bulkAssign = useCallback(
     async (mode: "assignToMe" | "unassign") => {
@@ -686,35 +715,6 @@ export default function FlexReviewQueuePage() {
     showError,
     showSuccess,
   ])
-
-  const selectableItems = useMemo(
-    () => filteredItems.filter(item => item.status === "Open"),
-    [filteredItems],
-  )
-  const allVisibleSelected =
-    selectableItems.length > 0 && selectableItems.every(item => selectedIdSet.has(item.id))
-  const selectedOpenItems = useMemo(
-    () => filteredItems.filter(item => selectedIdSet.has(item.id) && item.status === "Open"),
-    [filteredItems, selectedIdSet],
-  )
-  const selectedChargebackItems = useMemo(
-    () =>
-      selectedOpenItems.filter(
-        item =>
-          item.flexClassification === "FlexChargeback" ||
-          item.flexClassification === "FlexChargebackReversal",
-      ),
-    [selectedOpenItems],
-  )
-  const selectedNonChargebackItems = useMemo(
-    () =>
-      selectedOpenItems.filter(
-        item =>
-          item.flexClassification !== "FlexChargeback" &&
-          item.flexClassification !== "FlexChargebackReversal",
-      ),
-    [selectedOpenItems],
-  )
 
   const toggleSelectAll = useCallback(
     (checked: boolean) => {

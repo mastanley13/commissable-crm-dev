@@ -8,7 +8,7 @@ export interface AuditLogParams {
   entityName: string
   entityId: string
   requestId?: string
-  changedFields?: Record<string, { from: unknown; to: unknown }>
+  changedFields?: Record<string, { from: Prisma.InputJsonValue | null; to: Prisma.InputJsonValue | null }>
   previousValues?: Record<string, unknown>
   newValues?: Record<string, unknown>
   ipAddress?: string
@@ -50,8 +50,8 @@ export async function logAudit(params: AuditLogParams): Promise<void> {
 export function getChangedFields(
   previous: Record<string, unknown>,
   current: Record<string, unknown>
-): Record<string, { from: unknown; to: unknown }> {
-  const changed: Record<string, { from: unknown; to: unknown }> = {}
+): Record<string, { from: Prisma.InputJsonValue | null; to: Prisma.InputJsonValue | null }> {
+  const changed: Record<string, { from: Prisma.InputJsonValue | null; to: Prisma.InputJsonValue | null }> = {}
 
   const allKeys = Array.from(
     new Set<string>([
@@ -111,7 +111,9 @@ function areAuditValuesEqual(a: unknown, b: unknown): boolean {
   return false
 }
 
-function normaliseAuditValue(value: unknown): unknown {
+function normaliseAuditValue(value: unknown): Prisma.InputJsonValue | null {
+  if (value === undefined || value === null) return null
+
   if (value instanceof Date) {
     return value.toISOString()
   }
@@ -130,7 +132,17 @@ function normaliseAuditValue(value: unknown): unknown {
     return value.toString()
   }
 
-  return value
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    return value
+  }
+
+  try {
+    const parsed = JSON.parse(JSON.stringify(value)) as unknown
+    if (parsed === null || parsed === undefined) return null
+    return parsed as Prisma.InputJsonValue
+  } catch {
+    return String(value)
+  }
 }
 
 function isPrismaDecimal(value: unknown): value is Prisma.Decimal {

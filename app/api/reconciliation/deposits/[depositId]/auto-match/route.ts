@@ -135,7 +135,7 @@ export async function POST(request: NextRequest, { params }: { params: { deposit
       userAgent: getUserAgent(request),
       metadata: {
         action: "AutoMatch",
-        summary,
+        summary: summary as unknown as Record<string, number>,
         performance: {
           durationMs: Date.now() - autoMatchStartMs,
           engineMode: prefs.engineMode,
