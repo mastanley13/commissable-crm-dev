@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { useBreadcrumbs } from "@/lib/breadcrumb-context"
 import { useToasts } from "@/components/toast"
@@ -15,6 +15,15 @@ type FlexReviewItem = {
   flexReasonCode: string | null
   revenueScheduleId: string
   revenueScheduleName: string
+  parentRevenueScheduleId: string | null
+  parentRevenueScheduleName: string | null
+  scheduleDate: string | null
+  opportunityId: string | null
+  productId: string | null
+  distributorAccountId: string | null
+  distributorName: string | null
+  vendorAccountId: string | null
+  vendorName: string | null
   sourceDepositId: string | null
   sourceDepositLineItemId: string | null
   expectedUsage: number | null
@@ -23,6 +32,26 @@ type FlexReviewItem = {
   assignedToName: string | null
   createdAt: string
   resolvedAt: string | null
+}
+
+type FlexResolutionAction = "ApplyToExisting" | "ConvertToRegular" | "BonusCommission"
+
+type ProductFamily = {
+  id: string
+  name: string
+}
+
+type ProductSubtype = {
+  id: string
+  name: string
+  productFamilyId: string | null
+}
+
+type ProductOption = {
+  id: string
+  name: string
+  vendorName: string
+  distributorName: string
 }
 
 function parseIsoDateMs(value: string): number | null {
@@ -48,6 +77,22 @@ export default function FlexReviewQueuePage() {
   const [minAgeDays, setMinAgeDays] = useState<number>(0)
   const [minAbsCommission, setMinAbsCommission] = useState<number>(0)
 
+  const [resolveItemId, setResolveItemId] = useState<string | null>(null)
+  const [resolveAction, setResolveAction] = useState<FlexResolutionAction>("ApplyToExisting")
+  const [resolveTargetSchedule, setResolveTargetSchedule] = useState<string>("")
+  const [resolveNotes, setResolveNotes] = useState<string>("")
+  const [resolveFamilyId, setResolveFamilyId] = useState<string>("")
+  const [resolveSubtypeId, setResolveSubtypeId] = useState<string>("")
+  const [resolveProductId, setResolveProductId] = useState<string>("")
+  const [resolveProductOptions, setResolveProductOptions] = useState<ProductOption[]>([])
+  const [resolveRecurring, setResolveRecurring] = useState<boolean>(false)
+  const [resolveAdditionalCount, setResolveAdditionalCount] = useState<number>(0)
+  const [resolveAdditionalStartDate, setResolveAdditionalStartDate] = useState<string>("")
+  const [resolveProductLoading, setResolveProductLoading] = useState<boolean>(false)
+
+  const [productFamilies, setProductFamilies] = useState<ProductFamily[]>([])
+  const [productSubtypes, setProductSubtypes] = useState<ProductSubtype[]>([])
+
   useEffect(() => {
     setBreadcrumbs([
       { name: "Home", href: "/dashboard" },
@@ -56,6 +101,28 @@ export default function FlexReviewQueuePage() {
     ])
     return () => setBreadcrumbs(null)
   }, [setBreadcrumbs])
+
+  useEffect(() => {
+    const loadMasterData = async () => {
+      try {
+        const response = await fetch("/api/products/master-data", { cache: "no-store" })
+        const payload = await response.json().catch(() => null)
+        if (!response.ok) {
+          throw new Error(payload?.error || "Failed to load product master data")
+        }
+        setProductFamilies(Array.isArray(payload?.families) ? payload.families : [])
+        setProductSubtypes(Array.isArray(payload?.subtypes) ? payload.subtypes : [])
+      } catch (err) {
+        console.error("Failed to load product master data", err)
+        showError(
+          "Load failed",
+          err instanceof Error ? err.message : "Failed to load product master data",
+        )
+      }
+    }
+
+    void loadMasterData()
+  }, [showError])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -75,14 +142,97 @@ export default function FlexReviewQueuePage() {
     }
   }, [showError])
 
+  const loadResolveProducts = useCallback(async () => {
+    if (!activeResolveItem) return
+    const family = familyById.get(resolveFamilyId)
+    const subtype = subtypeById.get(resolveSubtypeId)
+    if (!family || !subtype) {
+      setResolveProductOptions([])
+      return
+    }
+
+    const filters = [
+      { columnId: "productFamilyHouse", value: family.name },
+      { columnId: "productSubtypeHouse", value: subtype.name },
+    ] as Array<{ columnId: string; value: string }>
+
+    if (activeResolveItem.vendorAccountId) {
+      filters.push({ columnId: "vendorAccountId", value: activeResolveItem.vendorAccountId })
+    }
+    if (activeResolveItem.distributorAccountId) {
+      filters.push({ columnId: "distributorAccountId", value: activeResolveItem.distributorAccountId })
+    }
+
+    setResolveProductLoading(true)
+    try {
+      const response = await fetch(
+        `/api/products?filters=${encodeURIComponent(JSON.stringify(filters))}&pageSize=50`,
+        { cache: "no-store" },
+      )
+      const payload = await response.json().catch(() => null)
+      if (!response.ok) {
+        throw new Error(payload?.error || "Failed to load products")
+      }
+
+      const rows = Array.isArray(payload?.data) ? payload.data : []
+      const options = rows.map((row: any) => ({
+        id: row.id,
+        name: row.productNameHouse || row.productNameVendor || row.id,
+        vendorName: row.vendorName || "",
+        distributorName: row.distributorName || "",
+      }))
+      setResolveProductOptions(options)
+    } catch (err) {
+      console.error("Failed to load products", err)
+      showError("Load failed", err instanceof Error ? err.message : "Failed to load products")
+      setResolveProductOptions([])
+    } finally {
+      setResolveProductLoading(false)
+    }
+  }, [
+    activeResolveItem,
+    familyById,
+    resolveFamilyId,
+    resolveSubtypeId,
+    showError,
+    subtypeById,
+  ])
+
   useEffect(() => {
     void load()
   }, [load])
+
+  useEffect(() => {
+    if (resolveAction !== "ConvertToRegular" || !resolveItemId) return
+    if (resolveFamilyId && resolveSubtypeId) {
+      void loadResolveProducts()
+    } else {
+      setResolveProductOptions([])
+    }
+  }, [
+    loadResolveProducts,
+    resolveAction,
+    resolveFamilyId,
+    resolveItemId,
+    resolveSubtypeId,
+  ])
 
   const myUserId = user?.id ?? null
   const isAdmin = user?.role?.code === "ADMIN"
 
   const openCount = useMemo(() => items.filter(item => item.status === "Open").length, [items])
+  const familyById = useMemo(
+    () => new Map(productFamilies.map(family => [family.id, family] as const)),
+    [productFamilies],
+  )
+  const subtypeById = useMemo(
+    () => new Map(productSubtypes.map(subtype => [subtype.id, subtype] as const)),
+    [productSubtypes],
+  )
+  const activeResolveItem = useMemo(
+    () => (resolveItemId ? items.find(item => item.id === resolveItemId) ?? null : null),
+    [items, resolveItemId],
+  )
 
   const filteredItems = useMemo(() => {
     const now = Date.now()
@@ -160,30 +310,103 @@ export default function FlexReviewQueuePage() {
     [load, showError, showSuccess],
   )
 
-  const resolve = useCallback(
-    async (id: string) => {
-      try {
-        setBusyId(id)
-        const response = await fetch(`/api/flex-review/${encodeURIComponent(id)}/resolve`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status: "Resolved" }),
-        })
-        const payload = await response.json().catch(() => null)
-        if (!response.ok) {
-          throw new Error(payload?.error || "Resolve failed")
-        }
-        showSuccess("Resolved", "Flex review item resolved.")
-        await load()
-      } catch (err) {
-        console.error("Resolve failed", err)
-        showError("Resolve failed", err instanceof Error ? err.message : "Resolve failed")
-      } finally {
-        setBusyId(null)
+  const openResolve = useCallback((item: FlexReviewItem) => {
+    setResolveItemId(item.id)
+    setResolveAction("ApplyToExisting")
+    setResolveTargetSchedule(item.parentRevenueScheduleId ?? "")
+    setResolveNotes("")
+    setResolveFamilyId("")
+    setResolveSubtypeId("")
+    setResolveProductId("")
+    setResolveProductOptions([])
+    setResolveRecurring(false)
+    setResolveAdditionalCount(0)
+    setResolveAdditionalStartDate(item.scheduleDate ? item.scheduleDate.slice(0, 10) : "")
+  }, [])
+
+  const closeResolve = useCallback(() => {
+    setResolveItemId(null)
+    setResolveProductOptions([])
+  }, [])
+
+  const submitResolve = useCallback(async () => {
+    if (!resolveItemId || !activeResolveItem) return
+
+    if (resolveAction === "ApplyToExisting") {
+      const hasTarget = Boolean(resolveTargetSchedule?.trim()) || Boolean(activeResolveItem.parentRevenueScheduleId)
+      if (!hasTarget) {
+        showError("Missing target", "Select a target schedule to apply this flex amount.")
+        return
       }
-    },
-    [load, showError, showSuccess],
-  )
+    }
+
+    if (resolveAction === "ConvertToRegular") {
+      if (!resolveProductId) {
+        showError("Missing product", "Select a product to convert this flex schedule.")
+        return
+      }
+      if (resolveRecurring && resolveAdditionalCount > 0 && !resolveAdditionalStartDate) {
+        showError("Missing start date", "Select a start date for additional schedules.")
+        return
+      }
+    }
+
+    try {
+      setBusyId(resolveItemId)
+      const payload: any = {
+        action: resolveAction,
+        notes: resolveNotes || undefined,
+      }
+
+      if (resolveAction === "ApplyToExisting") {
+        if (resolveTargetSchedule?.trim()) {
+          payload.targetScheduleIdOrNumber = resolveTargetSchedule.trim()
+        }
+      }
+
+      if (resolveAction === "ConvertToRegular") {
+        payload.productId = resolveProductId
+        payload.recurring = resolveRecurring
+        if (resolveRecurring && resolveAdditionalCount > 0) {
+          payload.additionalScheduleCount = resolveAdditionalCount
+          payload.additionalScheduleStartDate = resolveAdditionalStartDate
+        }
+      }
+
+      const response = await fetch(`/api/flex-review/${encodeURIComponent(resolveItemId)}/resolve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+      const responsePayload = await response.json().catch(() => null)
+      if (!response.ok) {
+        throw new Error(responsePayload?.error || "Resolve failed")
+      }
+
+      showSuccess("Resolved", "Flex review item resolved.")
+      closeResolve()
+      await load()
+    } catch (err) {
+      console.error("Resolve failed", err)
+      showError("Resolve failed", err instanceof Error ? err.message : "Resolve failed")
+    } finally {
+      setBusyId(null)
+    }
+  }, [
+    activeResolveItem,
+    closeResolve,
+    load,
+    resolveAction,
+    resolveAdditionalCount,
+    resolveAdditionalStartDate,
+    resolveItemId,
+    resolveNotes,
+    resolveProductId,
+    resolveRecurring,
+    resolveTargetSchedule,
+    showError,
+    showSuccess,
+  ])
 
   return (
     <div className="p-6">
@@ -289,77 +512,288 @@ export default function FlexReviewQueuePage() {
                     ? { label: "Unassign", mode: "unassign" as const }
                     : { label: item.assignedToUserId ? "Take" : "Assign to me", mode: "assignToMe" as const }
 
+                const isResolveOpen = resolveItemId === item.id
+                const resolveDisabled = !canAct || busyId === item.id
+
+                const subtypesForFamily = resolveFamilyId
+                  ? productSubtypes.filter(subtype => subtype.productFamilyId === resolveFamilyId)
+                  : []
+
                 return (
-                  <tr key={item.id}>
-                    <td className="px-3 py-2">{item.status}</td>
-                    <td className="px-3 py-2">
-                      <Link
-                        className="text-blue-600 hover:text-blue-800"
-                        href={`/revenue-schedules/${encodeURIComponent(item.revenueScheduleId)}`}
-                      >
-                        {item.revenueScheduleName}
-                      </Link>
-                    </td>
-                    <td className="px-3 py-2">{item.flexClassification}</td>
-                    <td className="px-3 py-2">{item.flexReasonCode ?? "-"}</td>
-                    <td className="px-3 py-2 text-xs text-gray-700">{assignmentLabel}</td>
-                    <td className="px-3 py-2 text-right tabular-nums text-xs text-gray-700">
-                      {formatMoney(item.expectedCommission)}
-                    </td>
-                    <td className="px-3 py-2 text-right tabular-nums text-xs text-gray-700">
-                      {ageDays == null ? "-" : `${ageDays}d`}
-                    </td>
-                    <td className="px-3 py-2 text-xs text-gray-600">
-                      {item.sourceDepositId ? (
+                  <Fragment key={item.id}>
+                    <tr>
+                      <td className="px-3 py-2">{item.status}</td>
+                      <td className="px-3 py-2">
                         <Link
                           className="text-blue-600 hover:text-blue-800"
-                          href={`/reconciliation/${encodeURIComponent(item.sourceDepositId)}`}
+                          href={`/revenue-schedules/${encodeURIComponent(item.revenueScheduleId)}`}
                         >
-                          Deposit {item.sourceDepositId}
+                          {item.revenueScheduleName}
                         </Link>
-                      ) : (
-                        "-"
-                      )}
-                    </td>
-                    <td className="px-3 py-2 text-xs text-gray-600">{item.createdAt.slice(0, 10)}</td>
-                    <td className="px-3 py-2 text-right">
-                      {busyId === item.id ? (
-                        <span className="text-xs text-gray-500">Working...</span>
-                      ) : item.status !== "Open" ? (
-                        <span className="text-xs text-gray-500">-</span>
-                      ) : (
-                        <div className="flex justify-end gap-2">
-                          {canAssignToMe ? (
-                            <button
-                              className="rounded bg-white px-3 py-1.5 text-xs font-medium text-gray-700 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 disabled:opacity-50"
-                              onClick={() => void assign(item.id, assignmentAction.mode)}
-                              disabled={!canAct}
-                            >
-                              {assignmentAction.label}
-                            </button>
-                          ) : null}
-                          {isApprovable ? (
-                            <button
-                              className="rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-                              onClick={() => void approveAndApply(item.id)}
-                              disabled={!canAct || !isAdmin}
-                              title={!isAdmin ? "Admin approval required" : undefined}
-                            >
-                              Approve & Apply
-                            </button>
-                          ) : (
-                            <button
-                              className="rounded bg-gray-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-800 disabled:opacity-50"
-                              onClick={() => void resolve(item.id)}
-                              disabled={!canAct}
-                            >
-                              Mark Resolved
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </td>
-                  </tr>
+                      </td>
+                      <td className="px-3 py-2">{item.flexClassification}</td>
+                      <td className="px-3 py-2">{item.flexReasonCode ?? "-"}</td>
+                      <td className="px-3 py-2 text-xs text-gray-700">{assignmentLabel}</td>
+                      <td className="px-3 py-2 text-right tabular-nums text-xs text-gray-700">
+                        {formatMoney(item.expectedCommission)}
+                      </td>
+                      <td className="px-3 py-2 text-right tabular-nums text-xs text-gray-700">
+                        {ageDays == null ? "-" : `${ageDays}d`}
+                      </td>
+                      <td className="px-3 py-2 text-xs text-gray-600">
+                        {item.sourceDepositId ? (
+                          <Link
+                            className="text-blue-600 hover:text-blue-800"
+                            href={`/reconciliation/${encodeURIComponent(item.sourceDepositId)}`}
+                          >
+                            Deposit {item.sourceDepositId}
+                          </Link>
+                        ) : (
+                          "-"
+                        )}
+                      </td>
+                      <td className="px-3 py-2 text-xs text-gray-600">{item.createdAt.slice(0, 10)}</td>
+                      <td className="px-3 py-2 text-right">
+                        {busyId === item.id ? (
+                          <span className="text-xs text-gray-500">Working...</span>
+                        ) : item.status !== "Open" ? (
+                          <span className="text-xs text-gray-500">-</span>
+                        ) : (
+                          <div className="flex justify-end gap-2">
+                            {canAssignToMe ? (
+                              <button
+                                className="rounded bg-white px-3 py-1.5 text-xs font-medium text-gray-700 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 disabled:opacity-50"
+                                onClick={() => void assign(item.id, assignmentAction.mode)}
+                                disabled={!canAct}
+                              >
+                                {assignmentAction.label}
+                              </button>
+                            ) : null}
+                            {isApprovable ? (
+                              <button
+                                className="rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                                onClick={() => void approveAndApply(item.id)}
+                                disabled={!canAct || !isAdmin}
+                                title={!isAdmin ? "Admin approval required" : undefined}
+                              >
+                                Approve & Apply
+                              </button>
+                            ) : (
+                              <button
+                                className="rounded bg-gray-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-800 disabled:opacity-50"
+                                onClick={() => (isResolveOpen ? closeResolve() : openResolve(item))}
+                                disabled={!canAct}
+                              >
+                                {isResolveOpen ? "Close" : "Resolve"}
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                    {isResolveOpen ? (
+                      <tr>
+                        <td colSpan={10} className="bg-gray-50 px-4 py-4">
+                          <div className="space-y-4 text-sm text-gray-700">
+                            <div className="flex flex-wrap items-center gap-3">
+                              <label className="text-xs font-semibold uppercase tracking-wide text-gray-600">
+                                Resolution Action
+                              </label>
+                              <select
+                                className="rounded border border-gray-300 bg-white px-2 py-1 text-sm"
+                                value={resolveAction}
+                                onChange={e => setResolveAction(e.target.value as FlexResolutionAction)}
+                                disabled={resolveDisabled}
+                              >
+                                <option value="ApplyToExisting">Apply to existing schedule</option>
+                                <option value="ConvertToRegular">Convert to regular schedule</option>
+                                <option value="BonusCommission">Bonus commission (100% rate)</option>
+                              </select>
+                            </div>
+
+                            {resolveAction === "ApplyToExisting" ? (
+                              <div className="space-y-2">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <input
+                                    className="w-80 rounded border border-gray-300 px-2 py-1 text-sm"
+                                    placeholder="Target schedule id or number"
+                                    value={resolveTargetSchedule}
+                                    onChange={e => setResolveTargetSchedule(e.target.value)}
+                                    disabled={resolveDisabled}
+                                  />
+                                  {item.parentRevenueScheduleId ? (
+                                    <button
+                                      className="rounded bg-white px-2 py-1 text-xs font-medium text-gray-700 ring-1 ring-inset ring-gray-300 hover:bg-gray-50"
+                                      onClick={() => setResolveTargetSchedule(item.parentRevenueScheduleId ?? "")}
+                                      disabled={resolveDisabled}
+                                    >
+                                      Use parent ({item.parentRevenueScheduleName ?? item.parentRevenueScheduleId})
+                                    </button>
+                                  ) : null}
+                                </div>
+                                <p className="text-xs text-gray-500">
+                                  Adds the flex amount to the target schedule and retires the flex schedule.
+                                </p>
+                              </div>
+                            ) : null}
+
+                            {resolveAction === "ConvertToRegular" ? (
+                              <div className="space-y-3">
+                                <div className="flex flex-wrap gap-6 text-xs text-gray-500">
+                                  <div>
+                                    <div className="font-semibold text-gray-600">Distributor</div>
+                                    <div>{item.distributorName ?? "-"}</div>
+                                  </div>
+                                  <div>
+                                    <div className="font-semibold text-gray-600">Vendor</div>
+                                    <div>{item.vendorName ?? "-"}</div>
+                                  </div>
+                                </div>
+
+                                <div className="flex flex-wrap items-center gap-3">
+                                  <div>
+                                    <label className="block text-xs font-semibold text-gray-600">Product Family</label>
+                                    <select
+                                      className="mt-1 w-56 rounded border border-gray-300 bg-white px-2 py-1 text-sm"
+                                      value={resolveFamilyId}
+                                      onChange={e => {
+                                        setResolveFamilyId(e.target.value)
+                                        setResolveSubtypeId("")
+                                        setResolveProductId("")
+                                        setResolveProductOptions([])
+                                      }}
+                                      disabled={resolveDisabled}
+                                    >
+                                      <option value="">Select family</option>
+                                      {productFamilies.map(family => (
+                                        <option key={family.id} value={family.id}>
+                                          {family.name}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                  <div>
+                                    <label className="block text-xs font-semibold text-gray-600">Product Subtype</label>
+                                    <select
+                                      className="mt-1 w-56 rounded border border-gray-300 bg-white px-2 py-1 text-sm"
+                                      value={resolveSubtypeId}
+                                      onChange={e => {
+                                        setResolveSubtypeId(e.target.value)
+                                        setResolveProductId("")
+                                      }}
+                                      disabled={resolveDisabled || !resolveFamilyId}
+                                    >
+                                      <option value="">Select subtype</option>
+                                      {subtypesForFamily.map(subtype => (
+                                        <option key={subtype.id} value={subtype.id}>
+                                          {subtype.name}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                </div>
+
+                                <div>
+                                  <label className="block text-xs font-semibold text-gray-600">Product</label>
+                                  <div className="mt-1 flex flex-wrap items-center gap-2">
+                                    <select
+                                      className="w-80 rounded border border-gray-300 bg-white px-2 py-1 text-sm"
+                                      value={resolveProductId}
+                                      onChange={e => setResolveProductId(e.target.value)}
+                                      disabled={resolveDisabled || resolveProductLoading}
+                                    >
+                                      <option value="">
+                                        {resolveProductLoading ? "Loading products..." : "Select product"}
+                                      </option>
+                                      {resolveProductOptions.map(option => (
+                                        <option key={option.id} value={option.id}>
+                                          {option.name}
+                                        </option>
+                                      ))}
+                                    </select>
+                                    <button
+                                      className="rounded bg-white px-2 py-1 text-xs font-medium text-gray-700 ring-1 ring-inset ring-gray-300 hover:bg-gray-50"
+                                      onClick={() => void loadResolveProducts()}
+                                      disabled={resolveDisabled || resolveProductLoading || !resolveFamilyId || !resolveSubtypeId}
+                                    >
+                                      Refresh list
+                                    </button>
+                                  </div>
+                                </div>
+
+                                <div className="flex flex-wrap items-center gap-3">
+                                  <label className="flex items-center gap-2 text-sm text-gray-700">
+                                    <input
+                                      type="checkbox"
+                                      className="h-4 w-4 rounded border-gray-300 text-primary-600"
+                                      checked={resolveRecurring}
+                                      onChange={e => setResolveRecurring(e.target.checked)}
+                                      disabled={resolveDisabled}
+                                    />
+                                    Recurring (create additional schedules)
+                                  </label>
+                                  {resolveRecurring ? (
+                                    <>
+                                      <input
+                                        className="w-24 rounded border border-gray-300 px-2 py-1 text-sm"
+                                        type="number"
+                                        min={0}
+                                        value={resolveAdditionalCount}
+                                        onChange={e => setResolveAdditionalCount(Number(e.target.value) || 0)}
+                                        disabled={resolveDisabled}
+                                        placeholder="# additional"
+                                      />
+                                      <input
+                                        className="rounded border border-gray-300 px-2 py-1 text-sm"
+                                        type="date"
+                                        value={resolveAdditionalStartDate}
+                                        onChange={e => setResolveAdditionalStartDate(e.target.value)}
+                                        disabled={resolveDisabled}
+                                      />
+                                    </>
+                                  ) : null}
+                                </div>
+                              </div>
+                            ) : null}
+
+                            {resolveAction === "BonusCommission" ? (
+                              <p className="text-xs text-gray-500">
+                                Sets the flex schedule to a one-time bonus with 100% commission rate.
+                              </p>
+                            ) : null}
+
+                            <div>
+                              <label className="block text-xs font-semibold text-gray-600">Notes</label>
+                              <textarea
+                                className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm"
+                                rows={2}
+                                value={resolveNotes}
+                                onChange={e => setResolveNotes(e.target.value)}
+                                disabled={resolveDisabled}
+                              />
+                            </div>
+
+                            <div className="flex justify-end gap-2">
+                              <button
+                                className="rounded bg-white px-3 py-1.5 text-xs font-medium text-gray-700 ring-1 ring-inset ring-gray-300 hover:bg-gray-50"
+                                onClick={closeResolve}
+                                disabled={resolveDisabled}
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                className="rounded bg-gray-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-800 disabled:opacity-50"
+                                onClick={() => void submitResolve()}
+                                disabled={resolveDisabled}
+                              >
+                                Apply Resolution
+                              </button>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : null}
+                  </Fragment>
                 )
               })
             )}

@@ -39,8 +39,27 @@ export async function GET(request: NextRequest) {
               id: true,
               scheduleNumber: true,
               flexClassification: true,
+              scheduleDate: true,
               expectedUsage: true,
               expectedCommission: true,
+              parentRevenueScheduleId: true,
+              opportunityId: true,
+              productId: true,
+              distributorAccountId: true,
+              vendorAccountId: true,
+              parentRevenueSchedule: {
+                select: {
+                  id: true,
+                  scheduleNumber: true,
+                  flexClassification: true,
+                },
+              },
+              distributor: {
+                select: { id: true, accountName: true },
+              },
+              vendor: {
+                select: { id: true, accountName: true },
+              },
             },
           },
         },
@@ -50,11 +69,19 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({
         data: items.map(item => {
           const schedule = item.revenueSchedule
+          const parent = schedule?.parentRevenueSchedule ?? null
           const scheduleName = formatRevenueScheduleDisplayName({
             scheduleNumber: schedule?.scheduleNumber ?? null,
             fallbackId: schedule?.id ?? item.revenueScheduleId,
             flexClassification: schedule?.flexClassification ?? item.flexClassification ?? null,
           })
+          const parentScheduleName = parent
+            ? formatRevenueScheduleDisplayName({
+                scheduleNumber: parent.scheduleNumber ?? null,
+                fallbackId: parent.id,
+                flexClassification: parent.flexClassification ?? null,
+              })
+            : null
 
           return {
             id: item.id,
@@ -63,6 +90,15 @@ export async function GET(request: NextRequest) {
             flexReasonCode: item.flexReasonCode ?? null,
             revenueScheduleId: item.revenueScheduleId,
             revenueScheduleName: scheduleName,
+            parentRevenueScheduleId: schedule?.parentRevenueScheduleId ?? null,
+            parentRevenueScheduleName: parentScheduleName,
+            scheduleDate: schedule?.scheduleDate ? schedule.scheduleDate.toISOString() : null,
+            opportunityId: schedule?.opportunityId ?? null,
+            productId: schedule?.productId ?? null,
+            distributorAccountId: schedule?.distributorAccountId ?? null,
+            distributorName: schedule?.distributor?.accountName ?? null,
+            vendorAccountId: schedule?.vendorAccountId ?? null,
+            vendorName: schedule?.vendor?.accountName ?? null,
             sourceDepositId: item.sourceDepositId ?? null,
             sourceDepositLineItemId: item.sourceDepositLineItemId ?? null,
             expectedUsage: schedule?.expectedUsage == null ? null : toNumber(schedule.expectedUsage),

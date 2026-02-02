@@ -513,6 +513,32 @@ Implement these as **actual mutations** (not just marking the queue item resolve
 
 ---
 
+**Progress update (Feb 2, 2026):** Milestone 2 implementation is now in place in the Flex Review Queue and API.
+
+**Implemented (code):**
+
+* Flex Review Queue resolves FLEX items with explicit outcomes (not just marking the queue item resolved):
+  * **Option A â€” Apply to existing schedule**: adds the flex scheduleâ€™s expected usage/commission into a target schedule (defaults to parent when present), moves deposit matches, then **soft-deletes** the flex schedule.
+  * **Option B â€” Convert to regular schedule**: requires **Family + Subtype** selection, filters Product catalog by vendor/distributor + family/subtype, then converts the flex schedule to a normal schedule/product. Supports **one-time vs recurring**; recurring can create additional monthly schedules.
+  * **Option C â€” Bonus commission**: converts the flex schedule to a one-time bonus schedule (100% rate semantics) and clears dispute status for that schedule via an explicit resolution outcome.
+* Billing Status semantics align with the reconciliation spec:
+  * FLEX schedules are only cleared from **In Dispute** via an explicit resolution outcome (these actions set billing status source to Manual for the resolved schedule).
+  * Parent schedule dispute is cleared **conditionally** (only when no remaining disputed flex children exist).
+* Audit coverage exists for the key schedule mutations (updates, soft-delete, recurring creates) and the FlexReviewItem resolve action.
+
+**Still needs verification (smoke + data):**
+
+* Run end-to-end UI smoke for Option A/B/C and confirm the resulting expected amounts, matches, and billing statuses look correct in:
+  * Flex Review Queue,
+  * Revenue Schedule detail view(s),
+  * Any Dispute/Filters views you rely on.
+* Validate product catalog filtering matches the intended constraints (vendor/distributor + family + subtype).
+* Confirm parent schedule dispute-clearing behavior matches the Milestone 0 clarification (only clears when appropriate; no auto-clear outside explicit actions).
+
+**Milestone 2 status:** **Implemented** (pending verification checks above).
+
+---
+
 ## 13) Recommended sequencing (milestones)
 
 1. **Milestone 0 — Validate what exists (1–2 days):** run smoke dataset through queue + approval paths; document gaps.
