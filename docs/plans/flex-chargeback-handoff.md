@@ -539,25 +539,31 @@ Implement these as **actual mutations** (not just marking the queue item resolve
 
 ---
 
-### Milestone 3 â€” Ops polish (2â€“5 days)
+### Milestone 3 � Ops polish (2�5 days)
 
-**Progress update (Feb 2, 2026):** Milestone 3 work has started in the Flex Review Queue UI.
+**Progress update (Feb 2, 2026):** Milestone 3 work has progressed in the Flex Review Queue UI + API.
 
 **Implemented (code):**
 
-* **Queue filters** now include: Flex type, reason code, vendor, distributor, and schedule search (in addition to status/assignment/age/amount).
+* **Queue filters** now include: Flex type, reason code, vendor, distributor, schedule search, age, and min-amount (in addition to status/assignment).
+* **Server-side filtering + pagination** support added to the Flex Review API (query params for status/assignment/type/reason/vendor/distributor/schedule/age/min-amount).
+* **CSV export** for the filtered queue (server-side export).
 * **Bulk selection + actions** are available for open items:
   * Assign to me / Unassign
   * **Approve & Apply** (Admin only; for CB / CB-REV items)
-* “Select all open items” checkbox enables faster triage for ops users.
+  * **Resolve / Reject** bulk action for non-chargeback items (with optional bulk notes)
+* "Select all open items" checkbox enables faster triage for ops users.
+* **Digest endpoint** added for daily summary notifications to reconciliation managers (open + overdue counts).
 
 **Still needs verification (smoke + data):**
 
-* Confirm filters return the intended set for real deposits (vendor/distributor coverage + reason/type accuracy).
-* Validate bulk actions against large result sets (10+ items) and mixed item types.
+* Confirm filters return the intended set for real deposits (vendor/distributor coverage + reason/type accuracy) and that CSV export matches those filters.
+* Validate bulk actions against large result sets (10+ items) and mixed item types, including skipped chargebacks in bulk resolve.
 * Confirm bulk approve respects Admin-only gating and handles partial failures gracefully in UI.
+* Decide whether to add **UI pagination controls** (API supports pagination; UI currently fetches a large page size).
+* Decide how/when to run the **digest job** (scheduler/cron) and verify notifications surface in the UI.
 
-**Milestone 3 status:** **In progress** (UI changes implemented; pending verification + remaining scope below).
+**Milestone 3 status:** **In progress** (API + UI enhancements implemented; pending verification + remaining scope above).
 
 ---
 
@@ -571,3 +577,4 @@ Implement these as **actual mutations** (not just marking the queue item resolve
 ---
 
 If you want, I can convert this into a clean `.docx` “handoff packet” formatted for engineering tickets (same content, just structured for copy/paste into your tracker).
+

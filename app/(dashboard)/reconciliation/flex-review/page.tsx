@@ -83,6 +83,8 @@ export default function FlexReviewQueuePage() {
   const [scheduleFilter, setScheduleFilter] = useState<string>("")
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [bulkBusy, setBulkBusy] = useState(false)
+  const [bulkNotes, setBulkNotes] = useState("")
+  const [paginationTotal, setPaginationTotal] = useState<number | null>(null)
 
   const [resolveItemId, setResolveItemId] = useState<string | null>(null)
   const [resolveAction, setResolveAction] = useState<FlexResolutionAction>("ApplyToExisting")
@@ -131,15 +133,55 @@ export default function FlexReviewQueuePage() {
     void loadMasterData()
   }, [showError])
 
+  const buildQueryParams = useCallback(
+    (options?: { format?: string; includeAll?: boolean }) => {
+      const params = new URLSearchParams()
+      if (statusFilter !== "All") params.set("status", statusFilter)
+      if (assignmentFilter !== "all") params.set("assignment", assignmentFilter)
+      if (classificationFilter !== "All") params.set("classification", classificationFilter)
+      if (reasonFilter !== "All") params.set("reason", reasonFilter)
+      if (minAgeDays > 0) params.set("minAgeDays", String(minAgeDays))
+      if (minAbsCommission > 0) params.set("minAbsCommission", String(minAbsCommission))
+      if (vendorFilter.trim()) params.set("vendor", vendorFilter.trim())
+      if (distributorFilter.trim()) params.set("distributor", distributorFilter.trim())
+      if (scheduleFilter.trim()) params.set("schedule", scheduleFilter.trim())
+      params.set("page", "1")
+      params.set("pageSize", "500")
+      if (options?.includeAll) params.set("includeAll", "true")
+      if (options?.format) params.set("format", options.format)
+      return params
+    },
+    [
+      assignmentFilter,
+      classificationFilter,
+      distributorFilter,
+      minAbsCommission,
+      minAgeDays,
+      reasonFilter,
+      scheduleFilter,
+      statusFilter,
+      vendorFilter,
+    ],
+  )
+
+  const exportUrl = useMemo(() => {
+    const params = buildQueryParams({ format: "csv", includeAll: true })
+    return `/api/flex-review?${params.toString()}`
+  }, [buildQueryParams])
+
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const response = await fetch("/api/flex-review", { cache: "no-store" })
+      const params = buildQueryParams()
+      const response = await fetch(`/api/flex-review?${params.toString()}`, { cache: "no-store" })
       const payload = await response.json().catch(() => null)
       if (!response.ok) {
         throw new Error(payload?.error || "Failed to load flex review queue")
       }
       setItems(Array.isArray(payload?.data) ? payload.data : [])
+      setPaginationTotal(
+        typeof payload?.pagination?.total === "number" ? payload.pagination.total : null,
+      )
       setSelectedIds([])
     } catch (err) {
       console.error("Failed to load flex review queue", err)
@@ -148,7 +190,20 @@ export default function FlexReviewQueuePage() {
     } finally {
       setLoading(false)
     }
-  }, [showError])
+  }, [buildQueryParams, showError])
+
+  const familyById = useMemo(
+    () => new Map(productFamilies.map(family => [family.id, family] as const)),
+    [productFamilies],
+  )
+  const subtypeById = useMemo(
+    () => new Map(productSubtypes.map(subtype => [subtype.id, subtype] as const)),
+    [productSubtypes],
+  )
+  const activeResolveItem = useMemo(
+    () => (resolveItemId ? items.find(item => item.id === resolveItemId) ?? null : null),
+    [items, resolveItemId],
+  )
 
   const loadResolveProducts = useCallback(async () => {
     if (!activeResolveItem) return
@@ -207,7 +262,10 @@ export default function FlexReviewQueuePage() {
   ])
 
   useEffect(() => {
-    void load()
+    const handle = setTimeout(() => {
+      void load()
+    }, 250)
+    return () => clearTimeout(handle)
   }, [load])
 
   useEffect(() => {
@@ -230,18 +288,6 @@ export default function FlexReviewQueuePage() {
 
   const openCount = useMemo(() => items.filter(item => item.status === "Open").length, [items])
   const selectedIdSet = useMemo(() => new Set(selectedIds), [selectedIds])
-  const familyById = useMemo(
-    () => new Map(productFamilies.map(family => [family.id, family] as const)),
-    [productFamilies],
-  )
-  const subtypeById = useMemo(
-    () => new Map(productSubtypes.map(subtype => [subtype.id, subtype] as const)),
-    [productSubtypes],
-  )
-  const activeResolveItem = useMemo(
-    () => (resolveItemId ? items.find(item => item.id === resolveItemId) ?? null : null),
-    [items, resolveItemId],
-  )
   const classificationOptions = useMemo(() => {
     const values = new Set<string>()
     items.forEach(item => {
@@ -362,8 +408,7 @@ export default function FlexReviewQueuePage() {
 
   const bulkAssign = useCallback(
     async (mode: "assignToMe" | "unassign") => {
-      const openItems = filteredItems.filter(item => selectedIdSet.has(item.id) && item.status === "Open")
-      if (openItems.length === 0) {
+      if (selectedOpenItems.length === 0) {
         showError("No items selected", "Select at least one open flex review item.")
         return
       }
@@ -373,7 +418,7 @@ export default function FlexReviewQueuePage() {
         let success = 0
         let failed = 0
 
-        for (const item of openItems) {
+        for (const item of selectedOpenItems) {
           try {
             await postJson(`/api/flex-review/${encodeURIComponent(item.id)}/assign`, mode === "assignToMe" ? { assignToMe: true } : { unassign: true })
             success += 1
@@ -395,18 +440,11 @@ export default function FlexReviewQueuePage() {
         setBulkBusy(false)
       }
     },
-    [filteredItems, load, postJson, selectedIdSet, showError, showSuccess],
+    [load, postJson, selectedOpenItems, showError, showSuccess],
   )
 
   const bulkApprove = useCallback(async () => {
-    const approvableItems = filteredItems.filter(
-      item =>
-        selectedIdSet.has(item.id) &&
-        item.status === "Open" &&
-        (item.flexClassification === "FlexChargeback" || item.flexClassification === "FlexChargebackReversal"),
-    )
-
-    if (approvableItems.length === 0) {
+    if (selectedChargebackItems.length === 0) {
       showError("No items selected", "Select at least one chargeback item to approve.")
       return
     }
@@ -416,7 +454,7 @@ export default function FlexReviewQueuePage() {
       let success = 0
       let failed = 0
 
-      for (const item of approvableItems) {
+      for (const item of selectedChargebackItems) {
         try {
           await postJson(`/api/flex-review/${encodeURIComponent(item.id)}/approve-and-apply`)
           success += 1
@@ -437,7 +475,59 @@ export default function FlexReviewQueuePage() {
     } finally {
       setBulkBusy(false)
     }
-  }, [filteredItems, load, postJson, selectedIdSet, showError, showSuccess])
+  }, [load, postJson, selectedChargebackItems, showError, showSuccess])
+
+  const bulkResolve = useCallback(
+    async (status: "Resolved" | "Rejected") => {
+      if (selectedNonChargebackItems.length === 0) {
+        showError("No items selected", "Select at least one non-chargeback item to resolve.")
+        return
+      }
+
+      try {
+        setBulkBusy(true)
+        const payload = await postJson("/api/flex-review/bulk/resolve", {
+          itemIds: selectedNonChargebackItems.map(item => item.id),
+          status,
+          notes: bulkNotes || undefined,
+        })
+
+        const updated = typeof payload?.updated === "number" ? payload.updated : 0
+        const failedCount = Array.isArray(payload?.failed) ? payload.failed.length : 0
+
+        if (updated > 0) {
+          showSuccess(
+            `Bulk ${status.toLowerCase()}`,
+            `${updated} item${updated === 1 ? "" : "s"} updated.`,
+          )
+        }
+        if (failedCount > 0) {
+          showError(
+            `Bulk ${status.toLowerCase()}`,
+            `${failedCount} item${failedCount === 1 ? "" : "s"} failed to update.`,
+          )
+        }
+        if (selectedChargebackItems.length > 0) {
+          showError(
+            "Skipped chargebacks",
+            `${selectedChargebackItems.length} chargeback item${selectedChargebackItems.length === 1 ? "" : "s"} require approval instead.`,
+          )
+        }
+
+        setBulkNotes("")
+        await load()
+      } catch (err) {
+        console.error("Bulk resolve failed", err)
+        showError(
+          `Bulk ${status.toLowerCase()} failed`,
+          err instanceof Error ? err.message : "Bulk resolve failed",
+        )
+      } finally {
+        setBulkBusy(false)
+      }
+    },
+    [bulkNotes, load, postJson, selectedChargebackItems.length, selectedNonChargebackItems, showError, showSuccess],
+  )
 
   const approveAndApply = useCallback(
     async (id: string) => {
@@ -567,6 +657,28 @@ export default function FlexReviewQueuePage() {
   )
   const allVisibleSelected =
     selectableItems.length > 0 && selectableItems.every(item => selectedIdSet.has(item.id))
+  const selectedOpenItems = useMemo(
+    () => filteredItems.filter(item => selectedIdSet.has(item.id) && item.status === "Open"),
+    [filteredItems, selectedIdSet],
+  )
+  const selectedChargebackItems = useMemo(
+    () =>
+      selectedOpenItems.filter(
+        item =>
+          item.flexClassification === "FlexChargeback" ||
+          item.flexClassification === "FlexChargebackReversal",
+      ),
+    [selectedOpenItems],
+  )
+  const selectedNonChargebackItems = useMemo(
+    () =>
+      selectedOpenItems.filter(
+        item =>
+          item.flexClassification !== "FlexChargeback" &&
+          item.flexClassification !== "FlexChargebackReversal",
+      ),
+    [selectedOpenItems],
+  )
 
   const toggleSelectAll = useCallback(
     (checked: boolean) => {
@@ -594,7 +706,13 @@ export default function FlexReviewQueuePage() {
       <div className="mb-4 flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-gray-900">Flex Review Queue</h1>
-          <p className="text-sm text-gray-600">{loading ? "Loading..." : `${openCount} open item${openCount === 1 ? "" : "s"}`}</p>
+          <p className="text-sm text-gray-600">
+            {loading
+              ? "Loading..."
+              : `${openCount} open item${openCount === 1 ? "" : "s"}${
+                  typeof paginationTotal === "number" ? ` (${paginationTotal} total)` : ""
+                }`}
+          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <select
@@ -699,6 +817,12 @@ export default function FlexReviewQueuePage() {
           >
             Refresh
           </button>
+          <a
+            href={exportUrl}
+            className="rounded bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50"
+          >
+            Export CSV
+          </a>
         </div>
       </div>
 
@@ -719,6 +843,30 @@ export default function FlexReviewQueuePage() {
           >
             Unassign
           </button>
+          <button
+            className="rounded bg-gray-900 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-gray-800 disabled:opacity-50"
+            onClick={() => void bulkResolve("Resolved")}
+            disabled={bulkBusy || loading || selectedNonChargebackItems.length === 0}
+            title={
+              selectedNonChargebackItems.length === 0
+                ? "Select non-chargeback items to resolve"
+                : undefined
+            }
+          >
+            Resolve
+          </button>
+          <button
+            className="rounded bg-white px-2.5 py-1.5 text-xs font-medium text-gray-700 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 disabled:opacity-50"
+            onClick={() => void bulkResolve("Rejected")}
+            disabled={bulkBusy || loading || selectedNonChargebackItems.length === 0}
+            title={
+              selectedNonChargebackItems.length === 0
+                ? "Select non-chargeback items to reject"
+                : undefined
+            }
+          >
+            Reject
+          </button>
           {isAdmin ? (
             <button
               className="rounded bg-blue-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
@@ -728,6 +876,13 @@ export default function FlexReviewQueuePage() {
               Approve & Apply
             </button>
           ) : null}
+          <input
+            className="w-64 rounded border border-gray-300 px-2 py-1 text-xs text-gray-700"
+            placeholder="Bulk notes (optional)"
+            value={bulkNotes}
+            onChange={event => setBulkNotes(event.target.value)}
+            disabled={bulkBusy || loading}
+          />
           <button
             className="rounded bg-white px-2.5 py-1.5 text-xs font-medium text-gray-700 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 disabled:opacity-50"
             onClick={clearSelection}
