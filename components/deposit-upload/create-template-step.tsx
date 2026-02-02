@@ -65,17 +65,13 @@ export function CreateTemplateStep({
 
   const handleMultiVendorChange = (enabled: boolean) => {
     if (enabled) {
-      setVendorQuery('')
       setTemplateQuery('')
       setNewTemplateName('')
-      setShowVendorDropdown(false)
       setShowTemplateDropdown(false)
       setTemplateOptions([])
       setTemplateError(null)
       onFormStateChange({
         multiVendor: true,
-        vendorAccountId: '',
-        vendorLabel: '',
         templateId: '',
         templateLabel: '',
         saveTemplateMapping: false,
@@ -299,11 +295,6 @@ export function CreateTemplateStep({
   }, [distributorQuery, fetchAccounts])
 
   useEffect(() => {
-    if (formState.multiVendor) {
-      setVendorOptions([])
-      setVendorLoading(false)
-      return
-    }
     const debounce = setTimeout(() => {
       void fetchAccounts({
         type: 'vendor',
@@ -316,7 +307,7 @@ export function CreateTemplateStep({
     return () => {
       clearTimeout(debounce)
     }
-  }, [vendorQuery, fetchAccounts, formState.multiVendor])
+  }, [vendorQuery, fetchAccounts])
 
   useEffect(() => {
     const distributorAccountId = formState.distributorAccountId?.trim()
@@ -479,24 +470,8 @@ export function CreateTemplateStep({
             </div>
           </FormField>
 
-          <div className="flex w-[300px] items-center justify-between rounded-xl border border-gray-200 bg-white px-3 py-2">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Multi-vendor upload</p>
-              <p className="text-xs text-slate-600">Use vendor name from each row in the file</p>
-            </div>
-            <label className="inline-flex items-center gap-2 text-xs text-slate-700">
-              <input
-                type="checkbox"
-                className="h-4 w-4 accent-primary-600"
-                checked={formState.multiVendor}
-                onChange={event => handleMultiVendorChange(event.target.checked)}
-              />
-              <span className="font-semibold">{formState.multiVendor ? 'On' : 'Off'}</span>
-            </label>
-          </div>
-
-          {!formState.multiVendor ? (
-            <FormField label="Vendor" required>
+          <div className="flex items-start gap-4">
+            <FormField label="Vendor" required={!formState.multiVendor} className="flex-1">
               <div className="relative w-[300px]">
                 <input
                   type="text"
@@ -517,12 +492,21 @@ export function CreateTemplateStep({
                 ) : null}
               </div>
             </FormField>
-          ) : (
-            <div className="w-[300px] rounded-xl border border-slate-200 bg-slate-50 p-2 text-xs text-slate-700">
-              <p className="font-semibold">Vendor selection</p>
-              <p className="mt-1 text-slate-600">In multi-vendor mode, vendors are detected from the mapped “Vendor Name” column.</p>
-            </div>
-          )}
+
+            <FormField label="Multi-Vendor Upload" className="min-w-[200px]" labelSpanClassName="whitespace-nowrap">
+              <div className="flex h-[40px] items-center">
+                <label className="inline-flex items-center gap-2 text-xs text-slate-700">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 accent-primary-600"
+                    checked={formState.multiVendor}
+                    onChange={event => handleMultiVendorChange(event.target.checked)}
+                  />
+                  <span className="font-semibold">{formState.multiVendor ? 'On' : 'Off'}</span>
+                </label>
+              </div>
+            </FormField>
+          </div>
 
           <FormField label="Commission Period (YYYY-MM)" required>
             <div className="relative w-[300px]">
