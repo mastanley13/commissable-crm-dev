@@ -76,6 +76,13 @@ export default function FlexReviewQueuePage() {
   const [assignmentFilter, setAssignmentFilter] = useState<AssignmentFilter>("all")
   const [minAgeDays, setMinAgeDays] = useState<number>(0)
   const [minAbsCommission, setMinAbsCommission] = useState<number>(0)
+  const [classificationFilter, setClassificationFilter] = useState<string>("All")
+  const [reasonFilter, setReasonFilter] = useState<string>("All")
+  const [vendorFilter, setVendorFilter] = useState<string>("")
+  const [distributorFilter, setDistributorFilter] = useState<string>("")
+  const [scheduleFilter, setScheduleFilter] = useState<string>("")
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const [bulkBusy, setBulkBusy] = useState(false)
 
   const [resolveItemId, setResolveItemId] = useState<string | null>(null)
   const [resolveAction, setResolveAction] = useState<FlexResolutionAction>("ApplyToExisting")
@@ -133,6 +140,7 @@ export default function FlexReviewQueuePage() {
         throw new Error(payload?.error || "Failed to load flex review queue")
       }
       setItems(Array.isArray(payload?.data) ? payload.data : [])
+      setSelectedIds([])
     } catch (err) {
       console.error("Failed to load flex review queue", err)
       showError("Load failed", err instanceof Error ? err.message : "Failed to load flex review queue")
@@ -221,6 +229,7 @@ export default function FlexReviewQueuePage() {
   const isAdmin = user?.role?.code === "ADMIN"
 
   const openCount = useMemo(() => items.filter(item => item.status === "Open").length, [items])
+  const selectedIdSet = useMemo(() => new Set(selectedIds), [selectedIds])
   const familyById = useMemo(
     () => new Map(productFamilies.map(family => [family.id, family] as const)),
     [productFamilies],
@@ -233,11 +242,35 @@ export default function FlexReviewQueuePage() {
     () => (resolveItemId ? items.find(item => item.id === resolveItemId) ?? null : null),
     [items, resolveItemId],
   )
+  const classificationOptions = useMemo(() => {
+    const values = new Set<string>()
+    items.forEach(item => {
+      if (item.flexClassification) {
+        values.add(item.flexClassification)
+      }
+    })
+    return Array.from(values).sort()
+  }, [items])
+  const reasonOptions = useMemo(() => {
+    const values = new Set<string>()
+    items.forEach(item => {
+      if (item.flexReasonCode) {
+        values.add(item.flexReasonCode)
+      }
+    })
+    return Array.from(values).sort()
+  }, [items])
 
   const filteredItems = useMemo(() => {
     const now = Date.now()
+    const vendorQuery = vendorFilter.trim().toLowerCase()
+    const distributorQuery = distributorFilter.trim().toLowerCase()
+    const scheduleQuery = scheduleFilter.trim().toLowerCase()
+
     return items.filter(item => {
       if (statusFilter !== "All" && item.status !== statusFilter) return false
+      if (classificationFilter !== "All" && item.flexClassification !== classificationFilter) return false
+      if (reasonFilter !== "All" && (item.flexReasonCode ?? "") !== reasonFilter) return false
 
       if (assignmentFilter === "mine") {
         if (!myUserId || item.assignedToUserId !== myUserId) return false
@@ -257,9 +290,37 @@ export default function FlexReviewQueuePage() {
         if (absCommission < minAbsCommission) return false
       }
 
+      if (vendorQuery) {
+        const vendorName = item.vendorName?.toLowerCase() ?? ""
+        if (!vendorName.includes(vendorQuery)) return false
+      }
+
+      if (distributorQuery) {
+        const distributorName = item.distributorName?.toLowerCase() ?? ""
+        if (!distributorName.includes(distributorQuery)) return false
+      }
+
+      if (scheduleQuery) {
+        const scheduleName = item.revenueScheduleName?.toLowerCase() ?? ""
+        const parentName = item.parentRevenueScheduleName?.toLowerCase() ?? ""
+        if (!scheduleName.includes(scheduleQuery) && !parentName.includes(scheduleQuery)) return false
+      }
+
       return true
     })
-  }, [assignmentFilter, items, minAbsCommission, minAgeDays, myUserId, statusFilter])
+  }, [
+    assignmentFilter,
+    classificationFilter,
+    distributorFilter,
+    items,
+    minAbsCommission,
+    minAgeDays,
+    myUserId,
+    reasonFilter,
+    scheduleFilter,
+    statusFilter,
+    vendorFilter,
+  ])
 
   const assign = useCallback(
     async (id: string, mode: "assignToMe" | "unassign") => {
@@ -285,6 +346,98 @@ export default function FlexReviewQueuePage() {
     },
     [load, showError, showSuccess],
   )
+
+  const postJson = useCallback(async (url: string, body?: unknown) => {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: body ? JSON.stringify(body) : undefined,
+    })
+    const payload = await response.json().catch(() => null)
+    if (!response.ok) {
+      throw new Error(payload?.error || "Request failed")
+    }
+    return payload
+  }, [])
+
+  const bulkAssign = useCallback(
+    async (mode: "assignToMe" | "unassign") => {
+      const openItems = filteredItems.filter(item => selectedIdSet.has(item.id) && item.status === "Open")
+      if (openItems.length === 0) {
+        showError("No items selected", "Select at least one open flex review item.")
+        return
+      }
+
+      try {
+        setBulkBusy(true)
+        let success = 0
+        let failed = 0
+
+        for (const item of openItems) {
+          try {
+            await postJson(`/api/flex-review/${encodeURIComponent(item.id)}/assign`, mode === "assignToMe" ? { assignToMe: true } : { unassign: true })
+            success += 1
+          } catch (err) {
+            failed += 1
+            console.error("Bulk assign failed", err)
+          }
+        }
+
+        if (success > 0) {
+          showSuccess("Bulk update", `${success} item${success === 1 ? "" : "s"} updated.`)
+        }
+        if (failed > 0) {
+          showError("Bulk update", `${failed} item${failed === 1 ? "" : "s"} failed to update.`)
+        }
+
+        await load()
+      } finally {
+        setBulkBusy(false)
+      }
+    },
+    [filteredItems, load, postJson, selectedIdSet, showError, showSuccess],
+  )
+
+  const bulkApprove = useCallback(async () => {
+    const approvableItems = filteredItems.filter(
+      item =>
+        selectedIdSet.has(item.id) &&
+        item.status === "Open" &&
+        (item.flexClassification === "FlexChargeback" || item.flexClassification === "FlexChargebackReversal"),
+    )
+
+    if (approvableItems.length === 0) {
+      showError("No items selected", "Select at least one chargeback item to approve.")
+      return
+    }
+
+    try {
+      setBulkBusy(true)
+      let success = 0
+      let failed = 0
+
+      for (const item of approvableItems) {
+        try {
+          await postJson(`/api/flex-review/${encodeURIComponent(item.id)}/approve-and-apply`)
+          success += 1
+        } catch (err) {
+          failed += 1
+          console.error("Bulk approve failed", err)
+        }
+      }
+
+      if (success > 0) {
+        showSuccess("Bulk approve", `${success} item${success === 1 ? "" : "s"} approved.`)
+      }
+      if (failed > 0) {
+        showError("Bulk approve", `${failed} item${failed === 1 ? "" : "s"} failed to approve.`)
+      }
+
+      await load()
+    } finally {
+      setBulkBusy(false)
+    }
+  }, [filteredItems, load, postJson, selectedIdSet, showError, showSuccess])
 
   const approveAndApply = useCallback(
     async (id: string) => {
@@ -408,6 +561,33 @@ export default function FlexReviewQueuePage() {
     showSuccess,
   ])
 
+  const selectableItems = useMemo(
+    () => filteredItems.filter(item => item.status === "Open"),
+    [filteredItems],
+  )
+  const allVisibleSelected =
+    selectableItems.length > 0 && selectableItems.every(item => selectedIdSet.has(item.id))
+
+  const toggleSelectAll = useCallback(
+    (checked: boolean) => {
+      const openIds = selectableItems.map(item => item.id)
+      setSelectedIds(prev => {
+        if (checked) {
+          const next = new Set([...prev, ...openIds])
+          return Array.from(next)
+        }
+        return prev.filter(id => !openIds.includes(id))
+      })
+    },
+    [selectableItems],
+  )
+
+  const toggleSelected = useCallback((id: string) => {
+    setSelectedIds(prev => (prev.includes(id) ? prev.filter(itemId => itemId !== id) : [...prev, id]))
+  }, [])
+
+  const clearSelection = useCallback(() => setSelectedIds([]), [])
+
   return (
     <div className="p-6">
       <ToastContainer />
@@ -439,6 +619,59 @@ export default function FlexReviewQueuePage() {
             <option value="unassigned">Unassigned</option>
             <option value="mine">Assigned to me</option>
           </select>
+          <select
+            className="rounded border border-gray-300 bg-white px-2 py-2 text-sm"
+            value={classificationFilter}
+            onChange={e => setClassificationFilter(e.target.value)}
+            disabled={loading}
+          >
+            <option value="All">All types</option>
+            {classificationOptions.map(option => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+          <select
+            className="rounded border border-gray-300 bg-white px-2 py-2 text-sm"
+            value={reasonFilter}
+            onChange={e => setReasonFilter(e.target.value)}
+            disabled={loading}
+          >
+            <option value="All">All reasons</option>
+            {reasonOptions.map(option => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+          <input
+            className="w-40 rounded border border-gray-300 bg-white px-2 py-2 text-sm"
+            type="text"
+            value={vendorFilter}
+            onChange={e => setVendorFilter(e.target.value)}
+            placeholder="Vendor"
+            title="Filter by vendor name"
+            disabled={loading}
+          />
+          <input
+            className="w-44 rounded border border-gray-300 bg-white px-2 py-2 text-sm"
+            type="text"
+            value={distributorFilter}
+            onChange={e => setDistributorFilter(e.target.value)}
+            placeholder="Distributor"
+            title="Filter by distributor name"
+            disabled={loading}
+          />
+          <input
+            className="w-40 rounded border border-gray-300 bg-white px-2 py-2 text-sm"
+            type="text"
+            value={scheduleFilter}
+            onChange={e => setScheduleFilter(e.target.value)}
+            placeholder="Schedule"
+            title="Filter by schedule name"
+            disabled={loading}
+          />
           <input
             className="w-28 rounded border border-gray-300 bg-white px-2 py-2 text-sm"
             type="number"
@@ -469,10 +702,56 @@ export default function FlexReviewQueuePage() {
         </div>
       </div>
 
+      {selectedIds.length > 0 ? (
+        <div className="mb-3 flex flex-wrap items-center gap-2 rounded border border-gray-200 bg-white px-3 py-2 text-sm">
+          <span className="font-medium text-gray-700">{selectedIds.length} selected</span>
+          <button
+            className="rounded bg-white px-2.5 py-1.5 text-xs font-medium text-gray-700 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 disabled:opacity-50"
+            onClick={() => void bulkAssign("assignToMe")}
+            disabled={bulkBusy || loading}
+          >
+            Assign to me
+          </button>
+          <button
+            className="rounded bg-white px-2.5 py-1.5 text-xs font-medium text-gray-700 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 disabled:opacity-50"
+            onClick={() => void bulkAssign("unassign")}
+            disabled={bulkBusy || loading}
+          >
+            Unassign
+          </button>
+          {isAdmin ? (
+            <button
+              className="rounded bg-blue-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+              onClick={() => void bulkApprove()}
+              disabled={bulkBusy || loading}
+            >
+              Approve & Apply
+            </button>
+          ) : null}
+          <button
+            className="rounded bg-white px-2.5 py-1.5 text-xs font-medium text-gray-700 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 disabled:opacity-50"
+            onClick={clearSelection}
+            disabled={bulkBusy || loading}
+          >
+            Clear selection
+          </button>
+        </div>
+      ) : null}
+
       <div className="overflow-x-auto rounded border border-gray-200 bg-white">
         <table className="min-w-full divide-y divide-gray-200 text-sm">
           <thead className="bg-gray-50">
             <tr>
+              <th className="px-3 py-2 text-left font-semibold text-gray-700">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 rounded border-gray-300 text-primary-600"
+                  checked={allVisibleSelected}
+                  onChange={event => toggleSelectAll(event.target.checked)}
+                  disabled={loading || bulkBusy || selectableItems.length === 0}
+                  title="Select all open items"
+                />
+              </th>
               <th className="px-3 py-2 text-left font-semibold text-gray-700">Status</th>
               <th className="px-3 py-2 text-left font-semibold text-gray-700">Schedule</th>
               <th className="px-3 py-2 text-left font-semibold text-gray-700">Flex Type</th>
@@ -488,7 +767,7 @@ export default function FlexReviewQueuePage() {
           <tbody className="divide-y divide-gray-200">
             {filteredItems.length === 0 ? (
               <tr>
-                <td colSpan={10} className="px-3 py-6 text-center text-gray-500">
+                <td colSpan={11} className="px-3 py-6 text-center text-gray-500">
                   {loading ? "Loading..." : "No flex review items found."}
                 </td>
               </tr>
@@ -497,7 +776,7 @@ export default function FlexReviewQueuePage() {
                 const isApprovable =
                   item.flexClassification === "FlexChargeback" ||
                   item.flexClassification === "FlexChargebackReversal"
-                const canAct = item.status === "Open" && busyId !== item.id
+                const canAct = item.status === "Open" && busyId !== item.id && !bulkBusy
                 const createdAtMs = parseIsoDateMs(item.createdAt)
                 const ageDays =
                   createdAtMs == null ? null : Math.max(0, Math.floor((Date.now() - createdAtMs) / (24 * 60 * 60 * 1000)))
@@ -514,6 +793,8 @@ export default function FlexReviewQueuePage() {
 
                 const isResolveOpen = resolveItemId === item.id
                 const resolveDisabled = !canAct || busyId === item.id
+                const isSelected = selectedIdSet.has(item.id)
+                const isSelectable = item.status === "Open"
 
                 const subtypesForFamily = resolveFamilyId
                   ? productSubtypes.filter(subtype => subtype.productFamilyId === resolveFamilyId)
@@ -522,6 +803,16 @@ export default function FlexReviewQueuePage() {
                 return (
                   <Fragment key={item.id}>
                     <tr>
+                      <td className="px-3 py-2">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 rounded border-gray-300 text-primary-600"
+                          checked={isSelected}
+                          onChange={() => toggleSelected(item.id)}
+                          disabled={!isSelectable || bulkBusy}
+                          title={!isSelectable ? "Only open items can be selected" : undefined}
+                        />
+                      </td>
                       <td className="px-3 py-2">{item.status}</td>
                       <td className="px-3 py-2">
                         <Link

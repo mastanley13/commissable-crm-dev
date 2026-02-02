@@ -539,6 +539,28 @@ Implement these as **actual mutations** (not just marking the queue item resolve
 
 ---
 
+### Milestone 3 â€” Ops polish (2â€“5 days)
+
+**Progress update (Feb 2, 2026):** Milestone 3 work has started in the Flex Review Queue UI.
+
+**Implemented (code):**
+
+* **Queue filters** now include: Flex type, reason code, vendor, distributor, and schedule search (in addition to status/assignment/age/amount).
+* **Bulk selection + actions** are available for open items:
+  * Assign to me / Unassign
+  * **Approve & Apply** (Admin only; for CB / CB-REV items)
+* “Select all open items” checkbox enables faster triage for ops users.
+
+**Still needs verification (smoke + data):**
+
+* Confirm filters return the intended set for real deposits (vendor/distributor coverage + reason/type accuracy).
+* Validate bulk actions against large result sets (10+ items) and mixed item types.
+* Confirm bulk approve respects Admin-only gating and handles partial failures gracefully in UI.
+
+**Milestone 3 status:** **In progress** (UI changes implemented; pending verification + remaining scope below).
+
+---
+
 ## 13) Recommended sequencing (milestones)
 
 1. **Milestone 0 — Validate what exists (1–2 days):** run smoke dataset through queue + approval paths; document gaps.
