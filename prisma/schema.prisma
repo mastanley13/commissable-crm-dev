@@ -49,6 +49,7 @@ model Tenant {
   deposits                Deposit[]
   depositLineItems        DepositLineItem[]
   depositLineMatches      DepositLineMatch[]
+  depositMatchGroups      DepositMatchGroup[]
   revenueTypes            RevenueType[]
   systemSettings          SystemSetting[]
   userSettings            UserSetting[]
@@ -177,6 +178,8 @@ model User {
   updatedBy                   User?                    @relation("UserUpdatedBy", fields: [updatedById], references: [id])
   updatedUsers                User[]                   @relation("UserUpdatedBy")
   sessions                    UserSession[]
+  depositMatchGroupsCreated   DepositMatchGroup[]      @relation("DepositMatchGroupCreatedByUser")
+  depositMatchGroupsUndone    DepositMatchGroup[]      @relation("DepositMatchGroupUndoneByUser")
 
   @@unique([tenantId, email])
   @@index([tenantId, roleId])
@@ -795,6 +798,7 @@ model Deposit {
   createdByContact          Contact?             @relation("DepositCreatedByContact", fields: [createdByContactId], references: [id])
   tenant                    Tenant               @relation(fields: [tenantId], references: [id])
   lineItems                 DepositLineItem[]
+  matchGroups               DepositMatchGroup[]
 
   @@index([tenantId, accountId, month])
   @@index([tenantId, paymentDate])
@@ -859,6 +863,7 @@ model DepositLineMatch {
   tenantId          String                 @db.Uuid
   depositLineItemId String                 @db.Uuid
   revenueScheduleId String                 @db.Uuid
+  matchGroupId      String?                @db.Uuid
   usageAmount       Decimal?               @db.Decimal(16, 2)
   commissionAmount  Decimal?               @db.Decimal(16, 2)
   confidenceScore   Float?
@@ -872,11 +877,36 @@ model DepositLineMatch {
   tenant            Tenant                 @relation(fields: [tenantId], references: [id])
   depositLineItem   DepositLineItem        @relation(fields: [depositLineItemId], references: [id])
   revenueSchedule   RevenueSchedule        @relation(fields: [revenueScheduleId], references: [id])
+  matchGroup        DepositMatchGroup?     @relation(fields: [matchGroupId], references: [id], onDelete: SetNull)
 
   @@unique([depositLineItemId, revenueScheduleId])
   @@index([tenantId, depositLineItemId])
   @@index([tenantId, revenueScheduleId])
+  @@index([tenantId, matchGroupId])
   @@index([reconciled])
+}
+
+model DepositMatchGroup {
+  id              String                  @id @default(uuid()) @db.Uuid
+  tenantId        String                  @db.Uuid
+  depositId       String                  @db.Uuid
+  matchType       DepositMatchType
+  status          DepositMatchGroupStatus @default(Applied)
+  createdByUserId String                  @db.Uuid
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+  undoneAt        DateTime?
+  undoneByUserId  String?                 @db.Uuid
+  undoReason      String?
+
+  tenant          Tenant                  @relation(fields: [tenantId], references: [id])
+  deposit         Deposit                 @relation(fields: [depositId], references: [id])
+  createdByUser   User                    @relation("DepositMatchGroupCreatedByUser", fields: [createdByUserId], references: [id])
+  undoneByUser    User?                   @relation("DepositMatchGroupUndoneByUser", fields: [undoneByUserId], references: [id])
+  matches         DepositLineMatch[]
+
+  @@index([tenantId, depositId])
+  @@index([tenantId, createdAt])
 }
 
 model ReconciliationItem {
@@ -1500,6 +1530,18 @@ enum DepositLineMatchStatus {
 enum DepositLineMatchSource {
   Auto
   Manual
+}
+
+enum DepositMatchType {
+  OneToOne
+  OneToMany
+  ManyToOne
+  ManyToMany
+}
+
+enum DepositMatchGroupStatus {
+  Applied
+  Undone
 }
 
 enum GroupType {

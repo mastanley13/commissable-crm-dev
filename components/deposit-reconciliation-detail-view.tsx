@@ -2809,16 +2809,21 @@ export function DepositReconciliationDetailView({
       <ReconciliationMatchWizardModal
         open={Boolean(matchWizard)}
         onClose={() => setMatchWizard(null)}
+        depositId={metadata.id}
         selectedLines={matchWizard?.selectedLines ?? []}
         selectedSchedules={matchWizard?.selectedSchedules ?? []}
         detectedType={matchWizard?.detectedType ?? "OneToOne"}
+        onApplied={onMatchApplied}
       />
       {showVendorSummaryModal ? (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/40 px-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 backdrop-blur-sm px-4"
           onClick={() => setShowVendorSummaryModal(false)}
         >
-          <div className="w-full max-w-2xl rounded-xl bg-white shadow-xl" onClick={event => event.stopPropagation()}>
+          <div
+            className="w-full max-w-5xl h-[900px] flex flex-col rounded-xl bg-white shadow-xl"
+            onClick={event => event.stopPropagation()}
+          >
             <ModalHeader
               kicker="Deposit"
               title="Vendor Summary"
@@ -2833,7 +2838,7 @@ export function DepositReconciliationDetailView({
                 </button>
               }
             />
-            <div className="max-h-[calc(100vh-200px)] overflow-auto p-6">
+            <div className="flex-1 overflow-auto p-6">
               <DepositVendorSummaryWidget lineItems={filteredLineItems} defaultVisibleRows={25} />
             </div>
           </div>

@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { ModalHeader } from "./ui/modal-header"
 import { cn } from "@/lib/utils"
 import type { DepositLineItemRow, SuggestedMatchScheduleRow } from "@/lib/mock-data"
@@ -15,6 +15,41 @@ const currencyFormatter = new Intl.NumberFormat("en-US", {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
 })
+
+type AllocationDraft = {
+  usage: string
+  commission: string
+}
+
+type PreviewIssue = { level: "error" | "warning"; code: string; message: string }
+type PreviewResponse =
+  | { ok: false; issues: PreviewIssue[] }
+  | {
+      ok: true
+      tenantVarianceTolerance: number
+      issues: PreviewIssue[]
+      lines: Array<{
+        lineId: string
+        usage: number
+        commission: number
+        usageAllocatedBefore: number
+        commissionAllocatedBefore: number
+        usageAllocatedAfter: number
+        commissionAllocatedAfter: number
+        usageUnallocatedAfter: number
+        commissionUnallocatedAfter: number
+      }>
+      schedules: Array<{
+        scheduleId: string
+        expectedUsageNet: number
+        expectedCommissionNet: number
+        actualUsageNetAfter: number
+        actualCommissionNetAfter: number
+        usageBalanceAfter: number
+        commissionDifferenceAfter: number
+        withinToleranceAfter: boolean
+      }>
+    }
 
 function formatMatchType(type: MatchSelectionType) {
   switch (type) {
@@ -33,19 +68,142 @@ function formatMatchType(type: MatchSelectionType) {
   }
 }
 
+function parseAmount(raw: string): number | null {
+  const trimmed = raw.trim()
+  if (!trimmed) return null
+  const numeric = Number(trimmed)
+  if (!Number.isFinite(numeric)) return null
+  return Math.round(numeric * 100) / 100
+}
+
+function allocationKey(lineId: string, scheduleId: string) {
+  return `${lineId}:${scheduleId}`
+}
+
+function buildDefaultAllocations(params: {
+  matchType: MatchSelectionType
+  lines: DepositLineItemRow[]
+  schedules: SuggestedMatchScheduleRow[]
+}): Record<string, AllocationDraft> {
+  if (params.matchType === "OneToMany") {
+    const line = params.lines[0]
+    if (!line) return {}
+
+    const totalUsage = Math.max(0, Number(line.usageUnallocated ?? 0))
+    const totalCommission = Math.max(0, Number(line.commissionUnallocated ?? 0))
+
+    const weights = params.schedules.map(schedule => ({
+      scheduleId: schedule.id,
+      weight:
+        Math.max(0, Math.abs(Number(schedule.expectedUsageNet ?? 0))) +
+        Math.max(0, Math.abs(Number(schedule.expectedCommissionNet ?? 0))),
+    }))
+    const weightSum = weights.reduce((acc, row) => acc + row.weight, 0)
+    const denom = weightSum > 0.0001 ? weightSum : weights.length || 1
+
+    let usageRemaining = totalUsage
+    let commissionRemaining = totalCommission
+    const out: Record<string, AllocationDraft> = {}
+
+    weights.forEach((row, index) => {
+      const isLast = index === weights.length - 1
+      const fraction = weightSum > 0.0001 ? row.weight / denom : 1 / denom
+      const usage = isLast ? usageRemaining : Math.round(totalUsage * fraction * 100) / 100
+      const commission = isLast ? commissionRemaining : Math.round(totalCommission * fraction * 100) / 100
+      usageRemaining = Math.round((usageRemaining - usage) * 100) / 100
+      commissionRemaining = Math.round((commissionRemaining - commission) * 100) / 100
+
+      out[allocationKey(line.id, row.scheduleId)] = {
+        usage: usage ? usage.toFixed(2) : "",
+        commission: commission ? commission.toFixed(2) : "",
+      }
+    })
+
+    return out
+  }
+
+  if (params.matchType === "ManyToOne") {
+    const scheduleId = params.schedules[0]?.id
+    if (!scheduleId) return {}
+    const out: Record<string, AllocationDraft> = {}
+    for (const line of params.lines) {
+      const usage = Math.max(0, Number(line.usageUnallocated ?? 0))
+      const commission = Math.max(0, Number(line.commissionUnallocated ?? 0))
+      out[allocationKey(line.id, scheduleId)] = {
+        usage: usage ? usage.toFixed(2) : "",
+        commission: commission ? commission.toFixed(2) : "",
+      }
+    }
+    return out
+  }
+
+  return {}
+}
+
 export function ReconciliationMatchWizardModal(props: {
   open: boolean
   onClose: () => void
+  depositId: string
   selectedLines: DepositLineItemRow[]
   selectedSchedules: SuggestedMatchScheduleRow[]
   detectedType: MatchSelectionType
+  onApplied?: () => void
 }) {
   const [step, setStep] = useState<MatchWizardStep>(0)
   const [overrideType, setOverrideType] = useState<MatchSelectionType | null>(null)
+  const [allocations, setAllocations] = useState<Record<string, AllocationDraft>>({})
+  const [preview, setPreview] = useState<PreviewResponse | null>(null)
+  const [previewLoading, setPreviewLoading] = useState(false)
+  const [previewError, setPreviewError] = useState<string | null>(null)
+  const [applyLoading, setApplyLoading] = useState(false)
+  const [applyError, setApplyError] = useState<string | null>(null)
+  const [appliedMatchGroupId, setAppliedMatchGroupId] = useState<string | null>(null)
+  const [undoReason, setUndoReason] = useState("")
+  const [undoLoading, setUndoLoading] = useState(false)
+  const [undoError, setUndoError] = useState<string | null>(null)
 
   const lineCount = props.selectedLines.length
   const scheduleCount = props.selectedSchedules.length
   const effectiveType = overrideType ?? props.detectedType
+
+  useEffect(() => {
+    if (!props.open) return
+    setStep(0)
+    setOverrideType(null)
+    setPreview(null)
+    setPreviewLoading(false)
+    setPreviewError(null)
+    setApplyLoading(false)
+    setApplyError(null)
+    setAppliedMatchGroupId(null)
+    setUndoReason("")
+    setUndoLoading(false)
+    setUndoError(null)
+    setAllocations(
+      buildDefaultAllocations({
+        matchType: props.detectedType,
+        lines: props.selectedLines,
+        schedules: props.selectedSchedules,
+      }),
+    )
+  }, [props.open, props.detectedType, props.selectedLines, props.selectedSchedules])
+
+  useEffect(() => {
+    if (!props.open) return
+    setPreview(null)
+    setPreviewError(null)
+    setAppliedMatchGroupId(null)
+    setApplyError(null)
+    setUndoError(null)
+    setUndoReason("")
+    setAllocations(
+      buildDefaultAllocations({
+        matchType: effectiveType,
+        lines: props.selectedLines,
+        schedules: props.selectedSchedules,
+      }),
+    )
+  }, [effectiveType, props.open, props.selectedLines, props.selectedSchedules])
 
   const selectionCompatible = useMemo(
     () => isSelectionCompatibleWithType({ type: effectiveType, lineCount, scheduleCount }),
@@ -74,17 +232,191 @@ export function ReconciliationMatchWizardModal(props: {
   const stepMeta = useMemo(
     () => [
       { label: "Selection", description: "Review selection + detected match type" },
-      { label: "Allocation", description: "Enter allocations (coming next)" },
-      { label: "Preview", description: "Validate invariants + show deltas (coming next)" },
-      { label: "Apply", description: "Apply as one atomic action (coming next)" },
+      { label: "Allocation", description: "Enter allocations (partial allocations allowed)" },
+      { label: "Preview", description: "Validate + show deltas (tolerance warnings allowed)" },
+      { label: "Apply", description: "Apply as one atomic action (match group)" },
     ],
     [],
   )
 
-  const canGoNextFromSelection = selectionCompatible
+  const selectionBlockedReason = useMemo(() => {
+    if (!selectionCompatible) return "Selection does not match match type."
+    if (effectiveType === "ManyToMany") return "M:M is deferred for MVP."
+    return null
+  }, [effectiveType, selectionCompatible])
 
-  const allocationNotImplemented = effectiveType !== "OneToOne"
-  const applyEnabled = !allocationNotImplemented && effectiveType === "OneToOne"
+  const allocationRows = useMemo(() => {
+    if (effectiveType === "OneToMany") {
+      const line = props.selectedLines[0]
+      if (!line) return []
+      return props.selectedSchedules.map(schedule => {
+        const key = allocationKey(line.id, schedule.id)
+        const draft = allocations[key] ?? { usage: "", commission: "" }
+        return {
+          key,
+          lineId: line.id,
+          scheduleId: schedule.id,
+          label: schedule.revenueScheduleName ?? schedule.id,
+          expectedUsageNet: Number(schedule.expectedUsageNet ?? 0),
+          expectedCommissionNet: Number(schedule.expectedCommissionNet ?? 0),
+          usage: draft.usage,
+          commission: draft.commission,
+        }
+      })
+    }
+
+    if (effectiveType === "ManyToOne") {
+      const schedule = props.selectedSchedules[0]
+      if (!schedule) return []
+      return props.selectedLines.map(line => {
+        const key = allocationKey(line.id, schedule.id)
+        const draft = allocations[key] ?? { usage: "", commission: "" }
+        return {
+          key,
+          lineId: line.id,
+          scheduleId: schedule.id,
+          label: `${line.accountName} · ${line.productName}`,
+          expectedUsageNet: Number(schedule.expectedUsageNet ?? 0),
+          expectedCommissionNet: Number(schedule.expectedCommissionNet ?? 0),
+          usage: draft.usage,
+          commission: draft.commission,
+        }
+      })
+    }
+
+    return []
+  }, [allocations, effectiveType, props.selectedLines, props.selectedSchedules])
+
+  const allocationTotals = useMemo(() => {
+    let usage = 0
+    let commission = 0
+    for (const row of allocationRows) {
+      const usageAmount = parseAmount(row.usage) ?? 0
+      const commissionAmount = parseAmount(row.commission) ?? 0
+      usage += usageAmount
+      commission += commissionAmount
+    }
+    return { usage: Math.round(usage * 100) / 100, commission: Math.round(commission * 100) / 100 }
+  }, [allocationRows])
+
+  const canProceedToAllocation = selectionCompatible && effectiveType !== "ManyToMany"
+  const canProceedToPreview = canProceedToAllocation && allocationRows.length > 0
+
+  const allocationsPayload = useMemo(() => {
+    return allocationRows.map(row => ({
+      lineId: row.lineId,
+      scheduleId: row.scheduleId,
+      usageAmount: parseAmount(row.usage),
+      commissionAmount: parseAmount(row.commission),
+    }))
+  }, [allocationRows])
+
+  const hasPreviewErrors = useMemo(() => {
+    if (!preview) return false
+    if (!preview.ok) return true
+    return preview.issues.some(issue => issue.level === "error")
+  }, [preview])
+
+  const canConfirmApply = useMemo(() => {
+    return Boolean(preview && preview.ok && !hasPreviewErrors && !applyLoading && !appliedMatchGroupId)
+  }, [appliedMatchGroupId, applyLoading, hasPreviewErrors, preview])
+
+  const runPreview = async () => {
+    setPreviewLoading(true)
+    setPreviewError(null)
+    setPreview(null)
+    try {
+      const response = await fetch(
+        `/api/reconciliation/deposits/${encodeURIComponent(props.depositId)}/matches/preview`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            matchType: effectiveType,
+            lineIds: props.selectedLines.map(line => line.id),
+            scheduleIds: props.selectedSchedules.map(schedule => schedule.id),
+            allocations: allocationsPayload,
+          }),
+        },
+      )
+      const payload = await response.json().catch(() => null)
+      const data = payload?.data as PreviewResponse | undefined
+      if (!data) {
+        throw new Error(payload?.error || "Failed to preview match")
+      }
+      setPreview(data)
+      if (!data.ok) {
+        setPreviewError("Preview blocked by validation errors.")
+      }
+    } catch (err) {
+      setPreviewError(err instanceof Error ? err.message : "Unknown error")
+    } finally {
+      setPreviewLoading(false)
+    }
+  }
+
+  const applyMatchGroup = async () => {
+    setApplyLoading(true)
+    setApplyError(null)
+    try {
+      const response = await fetch(
+        `/api/reconciliation/deposits/${encodeURIComponent(props.depositId)}/matches/apply`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            matchType: effectiveType,
+            lineIds: props.selectedLines.map(line => line.id),
+            scheduleIds: props.selectedSchedules.map(schedule => schedule.id),
+            allocations: allocationsPayload,
+          }),
+        },
+      )
+      const payload = await response.json().catch(() => null)
+      if (!response.ok) {
+        const issues = payload?.issues as PreviewIssue[] | undefined
+        const message = payload?.error || "Failed to apply match group"
+        const issueText = issues?.length ? ` (${issues[0].message})` : ""
+        throw new Error(`${message}${issueText}`)
+      }
+      const groupId = payload?.data?.group?.id as string | undefined
+      if (!groupId) {
+        throw new Error("Apply succeeded but no matchGroupId was returned.")
+      }
+      setAppliedMatchGroupId(groupId)
+      props.onApplied?.()
+    } catch (err) {
+      setApplyError(err instanceof Error ? err.message : "Unknown error")
+    } finally {
+      setApplyLoading(false)
+    }
+  }
+
+  const undoMatchGroup = async () => {
+    if (!appliedMatchGroupId) return
+    setUndoLoading(true)
+    setUndoError(null)
+    try {
+      const response = await fetch(
+        `/api/reconciliation/deposits/${encodeURIComponent(props.depositId)}/matches/${encodeURIComponent(appliedMatchGroupId)}/undo`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ reason: undoReason.trim() || null }),
+        },
+      )
+      const payload = await response.json().catch(() => null)
+      if (!response.ok) {
+        throw new Error(payload?.error || "Failed to undo match group")
+      }
+      setAppliedMatchGroupId(null)
+      props.onApplied?.()
+    } catch (err) {
+      setUndoError(err instanceof Error ? err.message : "Unknown error")
+    } finally {
+      setUndoLoading(false)
+    }
+  }
 
   if (!props.open) return null
 
@@ -198,38 +530,232 @@ export function ReconciliationMatchWizardModal(props: {
           ) : null}
 
           {step === 1 ? (
-            <div className="space-y-2">
-              <p className="font-semibold text-slate-900">Allocation (coming next)</p>
-              <p className="text-sm text-slate-600">
-                This is the MATCH-002 wizard shell. Real allocation entry + validation is implemented after FLOW-001 is
-                locked and the preview/apply/undo group APIs are available.
-              </p>
-              <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
-                <p className="font-semibold">Detected: {formatMatchType(effectiveType)}</p>
-                <p className="mt-1">
-                  Next: allocation editor UI for 1:M and M:1, with validation and server preview.
-                </p>
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="space-y-1">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Allocation mode</p>
+                  <p className="text-base font-semibold text-slate-900">{formatMatchType(effectiveType)}</p>
+                  <p className="text-xs text-slate-600">Partial allocations are allowed.</p>
+                </div>
+                <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
+                  <p>
+                    Allocation totals:{" "}
+                    <span className="font-semibold">{currencyFormatter.format(allocationTotals.usage)}</span> usage,{" "}
+                    <span className="font-semibold">{currencyFormatter.format(allocationTotals.commission)}</span>{" "}
+                    commission
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                {allocationRows.map(row => (
+                  <div key={row.key} className="rounded-md border border-slate-200 p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="min-w-[220px]">
+                        <p className="font-semibold text-slate-900">{row.label}</p>
+                        {effectiveType === "OneToMany" ? (
+                          <p className="text-xs text-slate-600">
+                            Expected: {currencyFormatter.format(row.expectedUsageNet)} usage /{" "}
+                            {currencyFormatter.format(row.expectedCommissionNet)} commission
+                          </p>
+                        ) : null}
+                      </div>
+                      <div className="flex flex-wrap items-center gap-3">
+                        <div className="space-y-1">
+                          <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                            Usage
+                          </label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            className="w-32 rounded border border-slate-200 px-2 py-1 text-sm text-slate-800"
+                            value={row.usage}
+                            onChange={e =>
+                              setAllocations(prev => ({
+                                ...prev,
+                                [row.key]: { ...(prev[row.key] ?? { usage: "", commission: "" }), usage: e.target.value },
+                              }))
+                            }
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                            Commission
+                          </label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            className="w-32 rounded border border-slate-200 px-2 py-1 text-sm text-slate-800"
+                            value={row.commission}
+                            onChange={e =>
+                              setAllocations(prev => ({
+                                ...prev,
+                                [row.key]: {
+                                  ...(prev[row.key] ?? { usage: "", commission: "" }),
+                                  commission: e.target.value,
+                                },
+                              }))
+                            }
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           ) : null}
 
           {step === 2 ? (
-            <div className="space-y-2">
-              <p className="font-semibold text-slate-900">Preview (coming next)</p>
-              <p className="text-sm text-slate-600">
-                Preview will show computed deltas and validation issues (tolerance, conservation rules, rounding) before
-                apply.
-              </p>
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="font-semibold text-slate-900">Preview</p>
+                  <p className="text-xs text-slate-600">
+                    Shows validation issues and what will change. Underpaid/overpaid warnings are allowed.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="rounded bg-primary-600 px-3 py-2 text-sm font-semibold text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+                  onClick={() => void runPreview()}
+                  disabled={previewLoading}
+                >
+                  {previewLoading ? "Previewing..." : "Run Preview"}
+                </button>
+              </div>
+
+              {previewError ? <p className="text-sm font-semibold text-red-600">{previewError}</p> : null}
+
+              {preview ? (
+                <div className="space-y-3">
+                  {"issues" in preview && preview.issues?.length ? (
+                    <div className="rounded-md border border-slate-200 p-3">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Issues</p>
+                      <ul className="mt-2 list-disc space-y-1 pl-5 text-sm">
+                        {preview.issues.map((issue, idx) => (
+                          <li
+                            key={`${issue.code}-${idx}`}
+                            className={issue.level === "error" ? "text-red-700" : "text-amber-800"}
+                          >
+                            {issue.message}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+
+                  {preview.ok ? (
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="rounded-md border border-slate-200 p-3">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Lines after apply</p>
+                        <ul className="mt-2 space-y-1 text-sm">
+                          {preview.lines.map(line => (
+                            <li key={line.lineId} className="flex items-center justify-between gap-2">
+                              <span className="truncate">{line.lineId}</span>
+                              <span className="tabular-nums">
+                                {currencyFormatter.format(line.usageAllocatedAfter)} / {currencyFormatter.format(line.usage)}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                      <div className="rounded-md border border-slate-200 p-3">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                          Schedules after apply
+                        </p>
+                        <ul className="mt-2 space-y-2 text-sm">
+                          {preview.schedules.map(schedule => (
+                            <li key={schedule.scheduleId} className="space-y-1">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="truncate">{schedule.scheduleId}</span>
+                                <span
+                                  className={cn(
+                                    "text-xs font-semibold",
+                                    schedule.withinToleranceAfter ? "text-emerald-700" : "text-amber-800",
+                                  )}
+                                >
+                                  {schedule.withinToleranceAfter ? "Within tolerance" : "Outside tolerance"}
+                                </span>
+                              </div>
+                              <div className="flex items-center justify-between gap-2 text-xs text-slate-600">
+                                <span>
+                                  Balance: {currencyFormatter.format(schedule.usageBalanceAfter)} usage /{" "}
+                                  {currencyFormatter.format(schedule.commissionDifferenceAfter)} comm
+                                </span>
+                                <span>
+                                  Actual: {currencyFormatter.format(schedule.actualUsageNetAfter)} usage /{" "}
+                                  {currencyFormatter.format(schedule.actualCommissionNetAfter)} comm
+                                </span>
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              ) : (
+                <p className="text-sm text-slate-600">Run preview to validate before applying.</p>
+              )}
             </div>
           ) : null}
 
           {step === 3 ? (
-            <div className="space-y-2">
-              <p className="font-semibold text-slate-900">Apply (coming next)</p>
+            <div className="space-y-3">
+              <p className="font-semibold text-slate-900">Apply</p>
               <p className="text-sm text-slate-600">
-                Apply will commit allocations as a single atomic action and return a match group ID to support grouped
-                undo.
+                Confirm will create a match group and write allocations as Applied matches. Undo reverts the whole group.
               </p>
+
+              {applyError ? <p className="text-sm font-semibold text-red-600">{applyError}</p> : null}
+
+              {appliedMatchGroupId ? (
+                <div className="space-y-3 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-emerald-900">
+                  <p className="font-semibold">Applied successfully</p>
+                  <p className="text-xs">Match Group ID: {appliedMatchGroupId}</p>
+
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold uppercase tracking-wide text-emerald-900/80">
+                      Undo reason (optional)
+                    </label>
+                    <input
+                      className="w-full rounded border border-emerald-200 bg-white px-3 py-2 text-sm text-slate-800"
+                      value={undoReason}
+                      onChange={e => setUndoReason(e.target.value)}
+                      disabled={undoLoading}
+                      placeholder="Why are you undoing this match group?"
+                    />
+                    {undoError ? <p className="text-xs font-semibold text-red-700">{undoError}</p> : null}
+                    <button
+                      type="button"
+                      className="rounded border border-emerald-200 bg-white px-3 py-2 text-sm font-semibold text-emerald-900 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
+                      onClick={() => void undoMatchGroup()}
+                      disabled={undoLoading}
+                    >
+                      {undoLoading ? "Undoing..." : "Undo Match Group"}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  className="rounded bg-primary-600 px-3 py-2 text-sm font-semibold text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+                  onClick={() => void applyMatchGroup()}
+                  disabled={!canConfirmApply}
+                  title={
+                    !preview
+                      ? "Run preview first"
+                      : hasPreviewErrors
+                        ? "Fix preview errors before applying"
+                        : undefined
+                  }
+                >
+                  {applyLoading ? "Applying..." : "Confirm Apply"}
+                </button>
+              )}
             </div>
           ) : null}
         </div>
@@ -256,12 +782,12 @@ export function ReconciliationMatchWizardModal(props: {
                 type="button"
                 className="rounded bg-primary-600 px-3 py-2 text-sm font-semibold text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-slate-300"
                 onClick={() => setStep(prev => (prev >= 3 ? prev : ((prev + 1) as MatchWizardStep)))}
-                disabled={step === 0 ? !canGoNextFromSelection : effectiveType === "ManyToMany"}
+                disabled={step === 0 ? !canProceedToAllocation : step === 1 ? !canProceedToPreview : false}
                 title={
-                  step === 0 && !canGoNextFromSelection
-                    ? "Adjust selection or match type"
-                    : effectiveType === "ManyToMany"
-                      ? "M:M deferred for MVP"
+                  step === 0 && selectionBlockedReason
+                    ? selectionBlockedReason
+                    : step === 1 && allocationRows.length === 0
+                      ? "No allocation rows available"
                       : undefined
                 }
               >
@@ -271,10 +797,10 @@ export function ReconciliationMatchWizardModal(props: {
               <button
                 type="button"
                 className="rounded bg-primary-600 px-3 py-2 text-sm font-semibold text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-slate-300"
-                disabled={!applyEnabled}
-                title={!applyEnabled ? "Apply is enabled after preview/apply endpoints are implemented" : undefined}
+                disabled={true}
+                title="Use the Confirm Apply button in the Apply step."
               >
-                Confirm (disabled)
+                Confirm
               </button>
             )}
           </div>
@@ -283,4 +809,3 @@ export function ReconciliationMatchWizardModal(props: {
     </div>
   )
 }
-
