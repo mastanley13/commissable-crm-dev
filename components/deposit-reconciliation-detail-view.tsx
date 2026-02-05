@@ -1246,7 +1246,7 @@ export function DepositReconciliationDetailView({
         case "usageUnallocated":
           return currencyFormatter.format(row.usageUnallocated)
         case "commissionRate":
-          return percentFormatter.format(row.commissionRate)
+          return percentFormatter.format(row.commissionRate / 100)
         case "commission":
           return currencyFormatter.format(row.commission)
         case "commissionAllocated":
@@ -1719,7 +1719,7 @@ export function DepositReconciliationDetailView({
         width: 200,
         minWidth: minTextWidth(depositFieldLabels.commissionRate),
         sortable: true,
-        render: (value: number) => percentFormatter.format(value)
+        render: (value: number) => percentFormatter.format(value / 100)
       },
       {
         id: "commission",

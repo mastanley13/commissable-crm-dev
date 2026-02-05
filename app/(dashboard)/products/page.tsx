@@ -246,14 +246,12 @@ function formatPercent(value: number | null | undefined) {
   if (value === null || value === undefined || Number.isNaN(value)) {
     return '0.00%'
   }
-  const normalized = value > 1 ? value : value * 100
-  return `${normalized.toFixed(2)}%`
+  return `${value.toFixed(2)}%`
 }
 
 function getEditableDisplayValue(columnId: ProductEditableColumnId, rowValue: unknown): number {
   if (columnId === 'commissionPercent') {
-    const fraction = typeof rowValue === 'number' ? rowValue : Number(rowValue) || 0
-    return fraction * 100
+    return typeof rowValue === 'number' ? rowValue : Number(rowValue) || 0
   }
   return typeof rowValue === 'number' ? rowValue : Number(rowValue) || 0
 }
@@ -1196,8 +1194,7 @@ export default function ProductsPage() {
           payload.priceEach = normalised
         }
         if (columnId === 'commissionPercent') {
-          const fraction = normalised === 0 ? 0 : normalised > 1 ? normalised / 100 : normalised
-          payload.commissionPercent = fraction
+          payload.commissionPercent = normalised
         }
   
         try {
@@ -1298,13 +1295,7 @@ export default function ProductsPage() {
           patch.priceEach = productBulkPrompt.value
         }
         if (columnId === 'commissionPercent') {
-          const fraction =
-            productBulkPrompt.value === 0
-              ? 0
-              : productBulkPrompt.value > 1
-                ? productBulkPrompt.value / 100
-                : productBulkPrompt.value
-          patch.commissionPercent = fraction
+          patch.commissionPercent = productBulkPrompt.value
         }
 
         if (Object.keys(patch).length === 0) {
@@ -1536,8 +1527,7 @@ export default function ProductsPage() {
                   handleProductInlineChange(row, 'commissionPercent', parsed, spanRef.getBoundingClientRect())
                 }
   
-                const normalized = displayValue > 1 ? displayValue / 100 : displayValue
-              const formatted = normalized.toLocaleString('en-US', {
+                const formatted = (displayValue / 100).toLocaleString('en-US', {
                 style: 'percent',
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 2,
