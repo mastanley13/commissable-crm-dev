@@ -1,6 +1,14 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type PointerEvent as ReactPointerEvent,
+} from "react"
 import { FileSpreadsheet, AlertTriangle, ChevronLeft, ChevronRight, ChevronDown, Check } from "lucide-react"
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu"
 import {
@@ -22,6 +30,33 @@ const PREVIEW_PAGE_SIZE = 1
 const COLUMN_TABLE_PAGE_SIZE = 12
 // Fixed scroll area height for both column tables.
 const COLUMN_TABLE_MAX_HEIGHT_CLASS = "h-[500px] overflow-y-auto"
+
+type ColumnTableColumnId = "fileLabel" | "mapToImport" | "preview" | "status" | "templateSuggested"
+type ColumnTableColumnWidths = Record<ColumnTableColumnId, number>
+
+const COLUMN_TABLE_DEFAULT_FRACTIONS: Record<ColumnTableColumnId, number> = {
+  fileLabel: 0.2,
+  mapToImport: 0.28,
+  preview: 0.24,
+  status: 0.12,
+  templateSuggested: 0.16,
+}
+
+const COLUMN_TABLE_MIN_WIDTHS: Record<ColumnTableColumnId, number> = {
+  fileLabel: 170,
+  mapToImport: 220,
+  preview: 200,
+  status: 120,
+  templateSuggested: 200,
+}
+
+const COLUMN_TABLE_MAX_WIDTHS: Record<ColumnTableColumnId, number> = {
+  fileLabel: 600,
+  mapToImport: 720,
+  preview: 720,
+  status: 220,
+  templateSuggested: 720,
+}
 
 interface MapFieldsStepProps {
   file: File | null
@@ -67,10 +102,40 @@ export function MapFieldsStep({
   const [customDrafts, setCustomDrafts] = useState<
     Record<string, { label: string; section: DepositCustomFieldSection }>
   >({})
+  const columnTableContainerRef = useRef<HTMLDivElement | null>(null)
+  const [columnTableContainerWidth, setColumnTableContainerWidth] = useState<number>(0)
+  const [columnTableColumnWidths, setColumnTableColumnWidths] = useState<ColumnTableColumnWidths>({
+    fileLabel: 260,
+    mapToImport: 340,
+    preview: 300,
+    status: 140,
+    templateSuggested: 260,
+  })
+  const [isColumnTableManuallyResized, setIsColumnTableManuallyResized] = useState(false)
+  const resizeRef = useRef<{
+    columnId: ColumnTableColumnId
+    pointerId: number
+    startX: number
+    startWidth: number
+  } | null>(null)
+  const [resizingColumnId, setResizingColumnId] = useState<ColumnTableColumnId | null>(null)
 
   useEffect(() => {
     setPreviewRowIndex(0)
   }, [sampleRows.length])
+
+  useEffect(() => {
+    const element = columnTableContainerRef.current
+    if (!element || typeof ResizeObserver === "undefined") return
+
+    const observer = new ResizeObserver(entries => {
+      const nextWidth = Math.round(entries[0]?.contentRect?.width ?? 0)
+      setColumnTableContainerWidth(previous => (previous === nextWidth ? previous : nextWidth))
+    })
+
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [csvHeaders.length])
 
   useEffect(() => {
     setTemplateTablePage(0)
@@ -81,6 +146,45 @@ export function MapFieldsStep({
   useEffect(() => {
     setOpenDropdownKey(null)
   }, [activeColumnsTab])
+
+  useEffect(() => {
+    if (!columnTableContainerWidth || isColumnTableManuallyResized) return
+
+    const order: ColumnTableColumnId[] = [
+      "fileLabel",
+      "mapToImport",
+      "preview",
+      "status",
+      "templateSuggested",
+    ]
+
+    const next: ColumnTableColumnWidths = {
+      fileLabel: 0,
+      mapToImport: 0,
+      preview: 0,
+      status: 0,
+      templateSuggested: 0,
+    }
+
+    let allocated = 0
+    for (const columnId of order.slice(0, -1)) {
+      const fraction = COLUMN_TABLE_DEFAULT_FRACTIONS[columnId]
+      const minWidth = COLUMN_TABLE_MIN_WIDTHS[columnId]
+      const maxWidth = COLUMN_TABLE_MAX_WIDTHS[columnId]
+      const width = Math.round(columnTableContainerWidth * fraction)
+      next[columnId] = Math.max(minWidth, Math.min(width, maxWidth))
+      allocated += next[columnId]
+    }
+
+    const lastColumnId = order[order.length - 1]
+    const remaining = columnTableContainerWidth - allocated
+    next[lastColumnId] = Math.max(
+      COLUMN_TABLE_MIN_WIDTHS[lastColumnId],
+      Math.min(remaining, COLUMN_TABLE_MAX_WIDTHS[lastColumnId]),
+    )
+
+    setColumnTableColumnWidths(next)
+  }, [columnTableContainerWidth, isColumnTableManuallyResized])
 
   const totalPreviewRows = sampleRows.length
   const effectiveIndex =
@@ -240,6 +344,115 @@ export function MapFieldsStep({
     })
   }
 
+  const columnTableGridTemplate = useMemo(() => {
+    return [
+      `${columnTableColumnWidths.fileLabel}px`,
+      `${columnTableColumnWidths.mapToImport}px`,
+      `${columnTableColumnWidths.preview}px`,
+      `${columnTableColumnWidths.status}px`,
+      `${columnTableColumnWidths.templateSuggested}px`,
+    ].join(" ")
+  }, [columnTableColumnWidths])
+
+  const columnTableTotalWidth = useMemo(() => {
+    const sum =
+      columnTableColumnWidths.fileLabel +
+      columnTableColumnWidths.mapToImport +
+      columnTableColumnWidths.preview +
+      columnTableColumnWidths.status +
+      columnTableColumnWidths.templateSuggested
+    if (!columnTableContainerWidth) return sum
+    return Math.max(columnTableContainerWidth, sum)
+  }, [columnTableColumnWidths, columnTableContainerWidth])
+
+  const handleColumnResizePointerDown = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>, columnId: ColumnTableColumnId) => {
+      event.preventDefault()
+      event.stopPropagation()
+
+      setIsColumnTableManuallyResized(true)
+      resizeRef.current = {
+        columnId,
+        pointerId: event.pointerId,
+        startX: event.clientX,
+        startWidth: columnTableColumnWidths[columnId],
+      }
+      setResizingColumnId(columnId)
+
+      if (typeof event.currentTarget?.setPointerCapture === "function") {
+        try {
+          event.currentTarget.setPointerCapture(event.pointerId)
+        } catch {
+          // Ignore capture failures
+        }
+      }
+    },
+    [columnTableColumnWidths],
+  )
+
+  const handleColumnResizePointerMove = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    const resize = resizeRef.current
+    if (!resize) return
+    if (event.pointerId !== resize.pointerId) return
+
+    const deltaX = event.clientX - resize.startX
+    const minWidth = COLUMN_TABLE_MIN_WIDTHS[resize.columnId]
+    const maxWidth = COLUMN_TABLE_MAX_WIDTHS[resize.columnId]
+    const rawWidth = resize.startWidth + deltaX
+    const clampedWidth = Math.round(Math.max(minWidth, Math.min(rawWidth, maxWidth)))
+
+    setColumnTableColumnWidths(previous => {
+      if (previous[resize.columnId] === clampedWidth) return previous
+      return { ...previous, [resize.columnId]: clampedWidth }
+    })
+  }, [])
+
+  const finishColumnResize = useCallback(() => {
+    resizeRef.current = null
+    setResizingColumnId(null)
+  }, [])
+
+  const handleColumnResizePointerUp = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      const resize = resizeRef.current
+      if (!resize) return
+      if (event.pointerId !== resize.pointerId) return
+
+      event.preventDefault()
+      event.stopPropagation()
+
+      if (
+        typeof event.currentTarget?.hasPointerCapture === "function" &&
+        typeof event.currentTarget?.releasePointerCapture === "function"
+      ) {
+        try {
+          if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+            event.currentTarget.releasePointerCapture(event.pointerId)
+          }
+        } catch {
+          // ignore
+        }
+      }
+
+      finishColumnResize()
+    },
+    [finishColumnResize],
+  )
+
+  const handleColumnResizePointerCancel = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      const resize = resizeRef.current
+      if (!resize) return
+      if (event.pointerId !== resize.pointerId) return
+
+      event.preventDefault()
+      event.stopPropagation()
+
+      finishColumnResize()
+    },
+    [finishColumnResize],
+  )
+
   const renderColumnTableContent = ({
     rows,
     emptyLabel,
@@ -257,18 +470,38 @@ export function MapFieldsStep({
 
     return (
       <>
-        <div className="hidden border-b border-primary-700 bg-primary-600 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-white md:grid md:grid-cols-[minmax(0,1.3fr)_minmax(0,1.5fr)_120px_minmax(0,1.7fr)]">
-          <div>Field label in file</div>
-          <div>Preview information</div>
-          <div>Status</div>
-          <div>Map to import field</div>
-        </div>
+        <div
+          className="overflow-x-auto"
+          style={{ "--deposit-map-fields-columns": columnTableGridTemplate } as CSSProperties}
+        >
+          <div style={{ width: columnTableTotalWidth }} className="min-w-full">
+            <div className="hidden border-b border-primary-700 bg-primary-600 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-white md:grid md:grid-cols-[var(--deposit-map-fields-columns)]">
+              {[
+                { id: "fileLabel" as const, label: "Field label in file" },
+                { id: "mapToImport" as const, label: "Map to import field" },
+                { id: "preview" as const, label: "Preview information" },
+                { id: "status" as const, label: "Status" },
+                { id: "templateSuggested" as const, label: "Template suggested" },
+              ].map(({ id, label }) => (
+                <div key={id} className="relative">
+                  {label}
+                  <div
+                    className={`column-resizer ${resizingColumnId === id ? "resizing" : ""}`}
+                    onPointerDown={event => handleColumnResizePointerDown(event, id)}
+                    onPointerMove={handleColumnResizePointerMove}
+                    onPointerUp={handleColumnResizePointerUp}
+                    onPointerCancel={handleColumnResizePointerCancel}
+                    onClick={event => event.stopPropagation()}
+                    title="Drag to resize column"
+                  />
+                </div>
+              ))}
+            </div>
 
-        {rows.length === 0 ? (
-          <div className="px-3 py-3 text-sm text-gray-500">{emptyLabel}</div>
-        ) : (
-          <>
-            <div className={`${COLUMN_TABLE_MAX_HEIGHT_CLASS} divide-y divide-gray-200`}>
+            {rows.length === 0 ? (
+              <div className="px-3 py-3 text-sm text-gray-500">{emptyLabel}</div>
+            ) : (
+              <div className={`${COLUMN_TABLE_MAX_HEIGHT_CLASS} divide-y divide-gray-200`}>
               {pagedRows.map(({ header, index }) => {
               const previewValues = previewWindow
                 .map(row => row[index] ?? "")
@@ -309,8 +542,6 @@ export function MapFieldsStep({
                 closeMenu()
               }
 
-              const mappedField = selection.type === "target" ? selectedTarget : undefined
-
               let statusLabel = "Unmapped"
               let statusClass = "border-gray-200 bg-gray-50 text-gray-600"
               const templateHint = templateHintByNormalizedHeader.get(normalizeKey(header))
@@ -335,56 +566,13 @@ export function MapFieldsStep({
               return (
                 <div
                   key={`${header}-${index}`}
-                  className="grid gap-2 px-3 py-2 md:grid-cols-[minmax(0,1.3fr)_minmax(0,1.5fr)_120px_minmax(0,1.7fr)] md:items-center"
+                  className="grid gap-2 px-3 py-2 md:grid-cols-[var(--deposit-map-fields-columns)] md:items-center"
                 >
                   <div className="flex flex-col justify-center gap-0.5">
                     <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 md:hidden">
                       Field label in file
                     </p>
                     <p className="text-sm font-semibold text-gray-900 break-words">{columnName}</p>
-                  </div>
-
-                  <div className="flex flex-col justify-center gap-0.5 text-xs text-gray-600">
-                    <p className="font-semibold uppercase tracking-wide text-gray-500 md:hidden">
-                      Preview information
-                    </p>
-                    {previewValues.length > 0 ? (
-                      previewValues.map((value, valueIndex) => (
-                        <p
-                          key={`${header}-preview-${valueIndex}`}
-                          className={valueIndex === 0 ? "truncate" : "truncate text-gray-500"}
-                          title={value}
-                        >
-                          {value}
-                        </p>
-                      ))
-                    ) : (
-                      <p className="text-gray-400">No sample values in these rows.</p>
-                    )}
-                  </div>
-
-                  <div className="flex flex-col justify-center gap-0.5 md:items-center">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 md:hidden">
-                      Status
-                    </p>
-                    {(() => {
-                      const dotClass =
-                        statusLabel === "Mapped"
-                          ? "bg-emerald-600"
-                          : statusLabel === "Excluded"
-                            ? "bg-gray-500"
-                          : templateHint
-                            ? "bg-amber-600"
-                            : "bg-gray-500"
-                      return (
-                        <span
-                          className={`inline-flex w-fit items-center gap-1 rounded-full border px-1.5 py-0 text-[10px] font-semibold leading-4 whitespace-nowrap ${statusClass}`}
-                        >
-                          <span className={`h-1.5 w-1.5 rounded-full ${dotClass}`} />
-                          {statusLabel}
-                        </span>
-                      )
-                    })()}
                   </div>
 
                   <div className="flex flex-col justify-center gap-2">
@@ -523,18 +711,6 @@ export function MapFieldsStep({
                       </DropdownMenu.Portal>
                     </DropdownMenu.Root>
 
-                    {templateHint && !customDefinition && selection.type !== "target" ? (
-                      <p className="text-xs text-gray-600">
-                        Template suggests: <span className="font-semibold">{templateHint}</span>.
-                      </p>
-                    ) : null}
-
-                    {bestSuggestion && !templateHint && !customDefinition && selection.type === "additional" ? (
-                      <p className="text-xs text-gray-600">
-                        Suggested match: <span className="font-semibold">{bestSuggestion.label}</span>.
-                      </p>
-                    ) : null}
-
                     {customDefinition ? (
                       <p className="text-xs text-gray-600">
                         This column is mapped to a custom{" "}
@@ -545,40 +721,102 @@ export function MapFieldsStep({
                       </p>
                     ) : null}
                   </div>
+
+                  <div className="flex flex-col justify-center gap-0.5 text-xs text-gray-600">
+                    <p className="font-semibold uppercase tracking-wide text-gray-500 md:hidden">
+                      Preview information
+                    </p>
+                    {previewValues.length > 0 ? (
+                      previewValues.map((value, valueIndex) => (
+                        <p
+                          key={`${header}-preview-${valueIndex}`}
+                          className={valueIndex === 0 ? "truncate" : "truncate text-gray-500"}
+                          title={value}
+                        >
+                          {value}
+                        </p>
+                      ))
+                    ) : (
+                      <p className="text-gray-400">No sample values in these rows.</p>
+                    )}
+                  </div>
+
+                  <div className="flex flex-col justify-center gap-0.5 md:items-center">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 md:hidden">
+                      Status
+                    </p>
+                    {(() => {
+                      const dotClass =
+                        statusLabel === "Mapped"
+                          ? "bg-emerald-600"
+                          : statusLabel === "Excluded"
+                            ? "bg-gray-500"
+                            : templateHint
+                              ? "bg-amber-600"
+                              : "bg-gray-500"
+                      return (
+                        <span
+                          className={`inline-flex w-fit items-center gap-1 rounded-full border px-1.5 py-0 text-[10px] font-semibold leading-4 whitespace-nowrap ${statusClass}`}
+                        >
+                          <span className={`h-1.5 w-1.5 rounded-full ${dotClass}`} />
+                          {statusLabel}
+                        </span>
+                      )
+                    })()}
+                  </div>
+
+                  <div className="flex flex-col justify-center gap-0.5 text-xs text-gray-600">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 md:hidden">
+                      Template suggested
+                    </p>
+                    {templateHint && !customDefinition && selection.type !== "target" ? (
+                      <p className="text-gray-900 font-semibold break-words">{templateHint}</p>
+                    ) : bestSuggestion && !templateHint && !customDefinition && selection.type === "additional" ? (
+                      <div className="flex flex-col gap-0.5">
+                        <p className="text-gray-500">Suggested match</p>
+                        <p className="text-gray-900 font-semibold break-words">{bestSuggestion.label}</p>
+                      </div>
+                    ) : (
+                      <p className="text-gray-300 md:hidden">—</p>
+                    )}
+                  </div>
                 </div>
               )
               })}
             </div>
+            )}
+          </div>
+        </div>
 
-            <div className="flex items-center justify-between gap-2 border-t border-gray-200 bg-gray-50 px-3 py-1.5 text-xs text-gray-600">
-              <span>
-                Showing {rows.length === 0 ? 0 : startIndex + 1}-{endIndexExclusive} of {rows.length}
+        {rows.length === 0 ? null : (
+          <div className="flex items-center justify-between gap-2 border-t border-gray-200 bg-gray-50 px-3 py-1.5 text-xs text-gray-600">
+            <span>
+              Showing {rows.length === 0 ? 0 : startIndex + 1}-{endIndexExclusive} of {rows.length}
+            </span>
+            <div className="inline-flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => pagination.setPage(Math.max(0, currentPage - 1))}
+                disabled={currentPage === 0}
+                className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-gray-300 bg-white text-gray-700 disabled:border-gray-200 disabled:text-gray-300"
+                aria-label="Previous page"
+              >
+                <ChevronLeft className="h-3 w-3" />
+              </button>
+              <span className="min-w-[92px] text-center">
+                Page {currentPage + 1} of {pageCount}
               </span>
-              <div className="inline-flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => pagination.setPage(Math.max(0, currentPage - 1))}
-                  disabled={currentPage === 0}
-                  className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-gray-300 bg-white text-gray-700 disabled:border-gray-200 disabled:text-gray-300"
-                  aria-label="Previous page"
-                >
-                  <ChevronLeft className="h-3 w-3" />
-                </button>
-                <span className="min-w-[92px] text-center">
-                  Page {currentPage + 1} of {pageCount}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => pagination.setPage(Math.min(pageCount - 1, currentPage + 1))}
-                  disabled={currentPage >= pageCount - 1}
-                  className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-gray-300 bg-white text-gray-700 disabled:border-gray-200 disabled:text-gray-300"
-                  aria-label="Next page"
-                >
-                  <ChevronRight className="h-3 w-3" />
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => pagination.setPage(Math.min(pageCount - 1, currentPage + 1))}
+                disabled={currentPage >= pageCount - 1}
+                className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-gray-300 bg-white text-gray-700 disabled:border-gray-200 disabled:text-gray-300"
+                aria-label="Next page"
+              >
+                <ChevronRight className="h-3 w-3" />
+              </button>
             </div>
-          </>
+          </div>
         )}
       </>
     )
@@ -729,7 +967,7 @@ export function MapFieldsStep({
           </div>
 
           <div className="border-x border-b border-gray-200 bg-white pt-0">
-            <div className="border-t-2 border-t-primary-600 min-w-0 overflow-hidden">
+            <div ref={columnTableContainerRef} className="border-t-2 border-t-primary-600 min-w-0 overflow-hidden">
               {activeColumnsTab === "template" ? (
                 <div
                   id="deposit-map-fields-panel-template"
