@@ -818,7 +818,7 @@ export function DepositReconciliationDetailView({
     () =>
       new Intl.NumberFormat("en-US", {
         style: "percent",
-        minimumFractionDigits: 0,
+        minimumFractionDigits: 2,
         maximumFractionDigits: 2
       }),
     []

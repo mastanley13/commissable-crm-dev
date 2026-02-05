@@ -128,6 +128,10 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
   const [productNameVendor, setProductNameVendor] = useState("")
   const [productFamilyHouseInput, setProductFamilyHouseInput] = useState("")
   const [productSubtypeHouse, setProductSubtypeHouse] = useState("")
+  const [createFamilyQuery, setCreateFamilyQuery] = useState("")
+  const [createSubtypeQuery, setCreateSubtypeQuery] = useState("")
+  const [showCreateFamilyDropdown, setShowCreateFamilyDropdown] = useState(false)
+  const [showCreateSubtypeDropdown, setShowCreateSubtypeDropdown] = useState(false)
   const [productCode, setProductCode] = useState("")
   const [revenueType, setRevenueType] = useState("")
   const [revenueTypeOptions, setRevenueTypeOptions] = useState<Array<{ value: string; label: string }>>([])
@@ -146,6 +150,14 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
   const { showError, showSuccess } = useToasts()
 
   const vendorDistributorLocked = Boolean(vendorDistributorLock?.locked)
+
+  useEffect(() => {
+    setCreateFamilyQuery(productFamilyHouseInput)
+  }, [productFamilyHouseInput])
+
+  useEffect(() => {
+    setCreateSubtypeQuery(productSubtypeHouse)
+  }, [productSubtypeHouse])
 
   const familyIdByName = useMemo(
     () => new Map(masterFamilies.map((family) => [family.name, family.id] as const)),
@@ -1305,43 +1317,134 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
                   <label className={labelCls}>
                     {badge(3)}House - Product Family<span className="ml-1 text-red-500">*</span>
                   </label>
-                  <select
-                    value={productFamilyHouseInput}
+                  <input
+                    value={createFamilyQuery}
                     onChange={(e) => {
-                      const nextFamily = e.target.value
-                      setProductFamilyHouseInput(nextFamily)
-                      const allowed = getAllowedSubtypesForFamilyName(masterSubtypes, familyIdByName, nextFamily)
-                      if (productSubtypeHouse.trim() && !allowed.includes(productSubtypeHouse.trim())) {
+                      const nextValue = e.target.value
+                      setCreateFamilyQuery(nextValue)
+                      if (!nextValue.trim()) {
+                        setProductFamilyHouseInput("")
                         setProductSubtypeHouse("")
+                        setCreateSubtypeQuery("")
                       }
+                      setShowCreateFamilyDropdown(true)
                     }}
+                    onFocus={() => setShowCreateFamilyDropdown(true)}
+                    onBlur={() =>
+                      setTimeout(() => {
+                        setShowCreateFamilyDropdown(false)
+                        const trimmed = createFamilyQuery.trim()
+                        if (!trimmed) {
+                          setCreateFamilyQuery(productFamilyHouseInput)
+                          return
+                        }
+                        const exact = familyOptions.find((fam) => fam.toLowerCase() === trimmed.toLowerCase())
+                        if (!exact) {
+                          setCreateFamilyQuery(productFamilyHouseInput)
+                          return
+                        }
+                        if (exact !== productFamilyHouseInput) {
+                          setProductFamilyHouseInput(exact)
+                          const allowed = getAllowedSubtypesForFamilyName(masterSubtypes, familyIdByName, exact)
+                          if (productSubtypeHouse.trim() && !allowed.includes(productSubtypeHouse.trim())) {
+                            setProductSubtypeHouse("")
+                            setCreateSubtypeQuery("")
+                          }
+                        }
+                        setCreateFamilyQuery(exact)
+                      }, 200)
+                    }
+                    placeholder="Search or pick a family"
                     className={inputCls}
-                    disabled={(!selectedDistributorId || !selectedVendorId) && familyOptions.length > 0 ? true : familyOptions.length === 0}
-                  >
-                    <option value="">Select</option>
-                    {familyOptions.map((fam) => (
-                      <option key={fam} value={fam}>
-                        {fam}
-                      </option>
-                    ))}
-                  </select>
+                    disabled={((!selectedDistributorId || !selectedVendorId) && familyOptions.length > 0) ? true : familyOptions.length === 0}
+                    aria-autocomplete="list"
+                  />
+                  {showCreateFamilyDropdown && familyOptions.length > 0 && (
+                    <div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
+                      {familyOptions
+                        .filter((f) => f.toLowerCase().includes((createFamilyQuery || "").toLowerCase()))
+                        .map((fam) => (
+                          <button
+                            key={fam}
+                            type="button"
+                            className="w-full px-3 py-2 text-left text-sm hover:bg-primary-50"
+                            onMouseDown={(event) => {
+                              event.preventDefault()
+                              setCreateFamilyQuery(fam)
+                              setProductFamilyHouseInput(fam)
+                              const allowed = getAllowedSubtypesForFamilyName(masterSubtypes, familyIdByName, fam)
+                              if (productSubtypeHouse.trim() && !allowed.includes(productSubtypeHouse.trim())) {
+                                setProductSubtypeHouse("")
+                                setCreateSubtypeQuery("")
+                              }
+                              setShowCreateFamilyDropdown(false)
+                            }}
+                          >
+                            <div className="font-medium text-gray-900">{fam}</div>
+                          </button>
+                        ))}
+                    </div>
+                  )}
                 </div>
 
                 <div className="relative">
                   <label className={labelCls}>{badge(4)}House - Product Subtype</label>
-                  <select
-                    value={productSubtypeHouse}
-                    onChange={(e) => setProductSubtypeHouse(e.target.value)}
+                  <input
+                    value={createSubtypeQuery}
+                    onChange={(e) => {
+                      const nextValue = e.target.value
+                      setCreateSubtypeQuery(nextValue)
+                      if (!nextValue.trim()) {
+                        setProductSubtypeHouse("")
+                      }
+                      setShowCreateSubtypeDropdown(true)
+                    }}
+                    onFocus={() => setShowCreateSubtypeDropdown(true)}
+                    onBlur={() =>
+                      setTimeout(() => {
+                        setShowCreateSubtypeDropdown(false)
+                        const trimmed = createSubtypeQuery.trim()
+                        if (!trimmed) {
+                          setCreateSubtypeQuery(productSubtypeHouse)
+                          return
+                        }
+                        const exact = houseSubtypePicklist.find((sub) => sub.toLowerCase() === trimmed.toLowerCase())
+                        if (!exact) {
+                          setCreateSubtypeQuery(productSubtypeHouse)
+                          return
+                        }
+                        if (exact !== productSubtypeHouse) {
+                          setProductSubtypeHouse(exact)
+                        }
+                        setCreateSubtypeQuery(exact)
+                      }, 200)
+                    }
+                    placeholder="Search or pick a subtype"
                     className={inputCls}
                     disabled={!productFamilyHouseInput.trim() || houseSubtypePicklist.length === 0}
-                  >
-                    <option value="">Select</option>
-                    {houseSubtypePicklist.map((sub) => (
-                      <option key={sub} value={sub}>
-                        {sub}
-                      </option>
-                    ))}
-                  </select>
+                    aria-autocomplete="list"
+                  />
+                  {showCreateSubtypeDropdown && houseSubtypePicklist.length > 0 && productFamilyHouseInput.trim() && (
+                    <div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
+                      {houseSubtypePicklist
+                        .filter((s) => s.toLowerCase().includes((createSubtypeQuery || "").toLowerCase()))
+                        .map((sub) => (
+                          <button
+                            key={sub}
+                            type="button"
+                            className="w-full px-3 py-2 text-left text-sm hover:bg-primary-50"
+                            onMouseDown={(event) => {
+                              event.preventDefault()
+                              setCreateSubtypeQuery(sub)
+                              setProductSubtypeHouse(sub)
+                              setShowCreateSubtypeDropdown(false)
+                            }}
+                          >
+                            <div className="font-medium text-gray-900">{sub}</div>
+                          </button>
+                        ))}
+                    </div>
+                  )}
                 </div>
 
                 <div className="relative">

@@ -14,6 +14,11 @@ Turn `docs/02_04_work_log_ticket_plan_flat.csv` into an execution-ready backlog 
 - Priorities: P0 (1), P1 (11), P2 (8)
 - Biggest area: **Revenue Schedules** (11 items) plus **Revenue Schedules / UI** (1)
 
+## Progress updates (as of 2026-02-05)
+- **WL-017 (P0) completed**: fixed commission-rate percent formatting so **16.00% displays as 16.00%** (not 1,600.00%) on Catalog and related reconciliation views.
+- Standardized commission rate percent display to show **two decimals** (`XX.XX%`) where users expect fixed precision.
+- Confirmed unit convention for financial percent fields: store as **percent points (0-100)** and only convert to fractions when using percent formatters or doing math (`points / 100`).
+
 ## Definition of done (for the CSV/backlog)
 Each row (WL-001 … WL-020) has:
 1. **A single clear outcome** (what changes for the user).
@@ -27,7 +32,7 @@ Optional but recommended for execution:
 
 ## Phase 1 — Triage (60–90 minutes)
 1. **Confirm priority order** with stakeholders (especially P0/P1):
-   - P0: WL-017
+   - P0: WL-017 (DONE — 2026-02-05)
    - P1: WL-001, WL-002, WL-006, WL-007, WL-008, WL-010, WL-011, WL-013, WL-014, WL-015, WL-018
 2. **Decide “merge vs split”** for larger/overlapping UI work:
    - Revenue Schedule “Create/Clone” tickets overlap heavily (WL-006/007/008/009/010/011/012).
@@ -65,7 +70,7 @@ Adjust after triage, but this is a reasonable first pass:
 This is an implementation-oriented ordering that reduces risk and unblocks testing early.
 
 ### Package A — “Stop-the-line” correctness + UAT data
-1. WL-017 (P0) Catalog percent formatting
+1. WL-017 (P0) Catalog percent formatting (DONE — 2026-02-05)
 2. WL-001 (P1) Add deposit file + explicit match scenarios for UAT validation
 
 ### Package B — Revenue Schedules: Create/Clone redesign
