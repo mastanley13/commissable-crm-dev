@@ -442,6 +442,24 @@ function ProductHeader({ product, onEdit, activeTab, onTabSelect }: ProductHeade
 
         <div className="grid gap-6 lg:grid-cols-2">
           <div className="space-y-1.5">
+            <FieldRow label="Opportunity">
+              {product.opportunity?.id ? (
+                <Link href={`/opportunities/${product.opportunity.id}?tab=products`} className="w-full max-w-md">
+                  <div
+                    className={cn(
+                      fieldBoxClass,
+                      "cursor-pointer text-primary-700 hover:border-primary-500 hover:text-primary-800"
+                    )}
+                  >
+                    <span className="truncate">{product.opportunity.name || "--"}</span>
+                  </div>
+                </Link>
+              ) : (
+                <div className={fieldBoxClass}>
+                  <span className="text-gray-500">--</span>
+                </div>
+              )}
+            </FieldRow>
             <FieldRow label="House - Product Name">
               <div className={fieldBoxClass}>
                 {product.productNameHouse || <span className="text-gray-500">--</span>}
@@ -795,6 +813,24 @@ interface EditableProductHeaderProps {
 
         <div className="grid gap-6 lg:grid-cols-2">
           <div className="space-y-1.5">
+            <FieldRow label="Opportunity">
+              {product.opportunity?.id ? (
+                <Link href={`/opportunities/${product.opportunity.id}?tab=products`} className="w-full max-w-md">
+                  <div
+                    className={cn(
+                      fieldBoxClass,
+                      "cursor-pointer text-primary-700 hover:border-primary-500 hover:text-primary-800"
+                    )}
+                  >
+                    <span className="truncate">{product.opportunity.name || "--"}</span>
+                  </div>
+                </Link>
+              ) : (
+                <div className={fieldBoxClass}>
+                  <span className="text-gray-500">--</span>
+                </div>
+              )}
+            </FieldRow>
             {renderRow(
               "House - Product Name",
               <EditableField.Input
