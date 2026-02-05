@@ -484,7 +484,10 @@ export async function PATCH(request: NextRequest, { params }: { params: { revenu
           }
         }
 
-        const total = [nextHouse, nextHouseRep, nextSubagent].reduce((sum, value) => sum + (value ?? 0), 0)
+        const total = [nextHouse, nextHouseRep, nextSubagent].reduce<number>(
+          (sum, value) => sum + (value ?? 0),
+          0
+        )
         if (Number.isFinite(total) && Math.abs(total - 100) > 0.01) {
           const message = "Split total must equal 100%."
           errors.houseSplitPercent = errors.houseSplitPercent ?? message
