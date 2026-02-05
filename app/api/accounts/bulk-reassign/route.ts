@@ -331,7 +331,7 @@ function normalizePercent(value: unknown): number | null {
 
 function clampPercent(value: number): number {
   if (!Number.isFinite(value)) return 0;
-  return Math.max(0, Math.min(1, value));
+  return Math.max(0, Math.min(100, value));
 }
 
 function deriveHouseSplitPercent({
@@ -350,7 +350,7 @@ function deriveHouseSplitPercent({
 
   const subagent = normalizePercent(subagentPercent) ?? 0;
   const houseRep = normalizePercent(houseRepPercent) ?? 0;
-  const computed = 1 - (subagent + houseRep);
+  const computed = 100 - (subagent + houseRep);
 
   return clampPercent(computed);
 }

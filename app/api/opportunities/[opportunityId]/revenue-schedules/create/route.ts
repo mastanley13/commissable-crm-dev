@@ -88,16 +88,13 @@ function parsePercentValue(value: unknown): number | null {
     return null
   }
 
-  if (numeric > 1) {
-    const normalized = numeric / 100
-    return normalized >= 0 && normalized <= 1 ? normalized : null
-  }
-
-  if (numeric < 0 || numeric > 1) {
+  // Standard: percent points (0-100). Compatibility: accept fraction (0-1) and convert.
+  const points = Math.abs(numeric) <= 1 ? numeric * 100 : numeric
+  if (points < 0 || points > 100) {
     return null
   }
 
-  return numeric
+  return points
 }
 
 function addCadence(
@@ -228,22 +225,22 @@ export async function POST(
         const rawHouseRep = split.houseRep
         const rawSubagent = split.subagent
 
-        const houseFraction =
+        const housePoints =
           rawHouse === null || rawHouse === undefined
             ? null
             : parsePercentValue(rawHouse)
-        const houseRepFraction =
+        const houseRepPoints =
           rawHouseRep === null || rawHouseRep === undefined
             ? null
             : parsePercentValue(rawHouseRep)
-        const subagentFraction =
+        const subagentPoints =
           rawSubagent === null || rawSubagent === undefined
             ? null
             : parsePercentValue(rawSubagent)
 
         if (
           rawHouse !== undefined &&
-          houseFraction === null
+          housePoints === null
         ) {
           return NextResponse.json(
             { error: "House % must be between 0 and 100" },
@@ -253,7 +250,7 @@ export async function POST(
 
         if (
           rawHouseRep !== undefined &&
-          houseRepFraction === null
+          houseRepPoints === null
         ) {
           return NextResponse.json(
             { error: "House Rep % must be between 0 and 100" },
@@ -263,7 +260,7 @@ export async function POST(
 
         if (
           rawSubagent !== undefined &&
-          subagentFraction === null
+          subagentPoints === null
         ) {
           return NextResponse.json(
             { error: "Subagent % must be between 0 and 100" },
@@ -271,12 +268,12 @@ export async function POST(
           )
         }
 
-        const house = houseFraction ?? 0
-        const houseRep = houseRepFraction ?? 0
-        const subagent = subagentFraction ?? 0
+        const house = housePoints ?? 0
+        const houseRep = houseRepPoints ?? 0
+        const subagent = subagentPoints ?? 0
         const splitSum = house + houseRep + subagent
 
-        if (Math.abs(splitSum - 1) > 0.0001) {
+        if (Math.abs(splitSum - 100) > 0.01) {
           return NextResponse.json(
             { error: "Commission splits must total 100%" },
             { status: 400 },

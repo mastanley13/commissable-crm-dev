@@ -312,7 +312,7 @@ function getEffectiveSplitFractions(schedule: RevenueScheduleWithRelations): {
   const houseRepBase = schedule.opportunity?.houseRepPercent ?? null
   const subagentBase = schedule.opportunity?.subagentPercent ?? null
 
-  const resolve = (override: unknown, base: unknown): number | null => {
+  const resolveRaw = (override: unknown, base: unknown): number | null => {
     if (override !== null && override !== undefined) {
       const numeric = toNumber(override)
       return Number.isFinite(numeric) ? numeric : null
@@ -324,10 +324,24 @@ function getEffectiveSplitFractions(schedule: RevenueScheduleWithRelations): {
     return null
   }
 
+  const houseRaw = resolveRaw(houseOverride, houseBase)
+  const houseRepRaw = resolveRaw(houseRepOverride, houseRepBase)
+  const subagentRaw = resolveRaw(subagentOverride, subagentBase)
+
+  const finite = [houseRaw, houseRepRaw, subagentRaw].filter((v) => v !== null && Number.isFinite(v)) as number[]
+  const sum = finite.reduce((a, b) => a + b, 0)
+  const maxAbs = finite.reduce((m, v) => Math.max(m, Math.abs(v)), 0)
+  const looksLikeFractions = finite.length > 0 && maxAbs <= 1.5 && sum <= 1.5
+
+  const toFraction = (raw: number | null) => {
+    if (raw === null) return null
+    return looksLikeFractions ? raw : raw / 100
+  }
+
   return {
-    house: resolve(houseOverride, houseBase),
-    houseRep: resolve(houseRepOverride, houseRepBase),
-    subagent: resolve(subagentOverride, subagentBase)
+    house: toFraction(houseRaw),
+    houseRep: toFraction(houseRepRaw),
+    subagent: toFraction(subagentRaw)
   }
 }
 

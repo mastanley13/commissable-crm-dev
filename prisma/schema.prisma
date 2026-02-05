@@ -507,11 +507,11 @@ model Opportunity {
   createdAt             DateTime             @default(now())
   updatedAt             DateTime             @updatedAt
   billingAddress        String?
-  houseRepPercent       Decimal?             @db.Decimal(5, 4)
-  houseSplitPercent     Decimal?             @db.Decimal(5, 4)
+  houseRepPercent       Decimal?             @db.Decimal(5, 2)
+  houseSplitPercent     Decimal?             @db.Decimal(5, 2)
   referredBy            String?
   shippingAddress       String?
-  subagentPercent       Decimal?             @db.Decimal(5, 4)
+  subagentPercent       Decimal?             @db.Decimal(5, 2)
   accountIdDistributor  String?
   accountIdHouse        String?
   accountIdVendor       String?
@@ -695,9 +695,9 @@ model RevenueSchedule {
   billingStatusUpdatedById   String?               @db.Uuid
   billingStatusUpdatedAt     DateTime?
   billingStatusReason        String?
-  houseSplitPercentOverride  Decimal?             @db.Decimal(5, 4)
-  houseRepSplitPercentOverride Decimal?           @db.Decimal(5, 4)
-  subagentSplitPercentOverride Decimal?           @db.Decimal(5, 4)
+  houseSplitPercentOverride  Decimal?             @db.Decimal(5, 2)
+  houseRepSplitPercentOverride Decimal?           @db.Decimal(5, 2)
+  subagentSplitPercentOverride Decimal?           @db.Decimal(5, 2)
   isSelected                 Boolean               @default(false)
   notes                      String?
   comments                   String?

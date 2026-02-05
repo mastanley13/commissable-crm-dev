@@ -413,7 +413,7 @@ export function OpportunityCreateModal({
         return trimmed.length > 0 ? trimmed : null
       }
 
-      const percentToDecimal = (value: string) => {
+      const percentToPoints = (value: string) => {
         const trimmed = value.trim()
         if (trimmed.length === 0) {
           return null
@@ -422,26 +422,26 @@ export function OpportunityCreateModal({
         if (!Number.isFinite(numeric) || numeric < 0 || numeric > 100) {
           return null
         }
-        return numeric / 100
+        return numeric
       }
 
-      const subagentPercentDecimal = percentToDecimal(form.subagentPercent)
-      const houseRepPercentDecimal = percentToDecimal(form.houseRepPercent)
-      const houseSplitPercentDecimal = percentToDecimal(houseSplitPercentDisplay)
+      const subagentPercentPoints = percentToPoints(form.subagentPercent)
+      const houseRepPercentPoints = percentToPoints(form.houseRepPercent)
+      const houseSplitPercentPoints = percentToPoints(houseSplitPercentDisplay)
 
-      if (subagentPercentDecimal === null && form.subagentPercent.trim().length > 0) {
+      if (subagentPercentPoints === null && form.subagentPercent.trim().length > 0) {
         showError("Invalid subagent percent", "Subagent % must be between 0 and 100.")
         setSubmitting(false)
         return
       }
 
-      if (houseRepPercentDecimal === null && form.houseRepPercent.trim().length > 0) {
+      if (houseRepPercentPoints === null && form.houseRepPercent.trim().length > 0) {
         showError("Invalid house rep percent", "House Rep % must be between 0 and 100.")
         setSubmitting(false)
         return
       }
 
-      if (houseSplitPercentDecimal === null && houseSplitPercentDisplay.trim().length > 0) {
+      if (houseSplitPercentPoints === null && houseSplitPercentDisplay.trim().length > 0) {
         showError("Invalid house split percent", "House Split % must be between 0 and 100.")
         setSubmitting(false)
         return
@@ -470,9 +470,9 @@ export function OpportunityCreateModal({
         orderIdVendor: normalizeString(form.orderIdVendor),
         orderIdDistributor: normalizeString(form.orderIdDistributor),
         customerPurchaseOrder: normalizeString(form.customerPurchaseOrder),
-        subagentPercent: subagentPercentDecimal,
-        houseRepPercent: houseRepPercentDecimal,
-        houseSplitPercent: houseSplitPercentDecimal
+        subagentPercent: subagentPercentPoints,
+        houseRepPercent: houseRepPercentPoints,
+        houseSplitPercent: houseSplitPercentPoints
       }
 
       const response = await fetch("/api/opportunities", {

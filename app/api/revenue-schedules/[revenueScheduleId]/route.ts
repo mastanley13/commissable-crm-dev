@@ -254,20 +254,55 @@ export async function PATCH(request: NextRequest, { params }: { params: { revenu
           ? Number(existing.product.commissionPercent)
           : null
 
-      const previousEffectiveSplits = {
-        houseSplitPercent:
-          (existing as any).houseSplitPercentOverride ??
-          existing.opportunity?.houseSplitPercent ??
-          null,
-        houseRepSplitPercent:
-          (existing as any).houseRepSplitPercentOverride ??
-          existing.opportunity?.houseRepPercent ??
-          null,
-        subagentSplitPercent:
-          (existing as any).subagentSplitPercentOverride ??
-          existing.opportunity?.subagentPercent ??
-          null,
+      const toNullableNumber = (value: unknown): number | null => {
+        if (value === null || value === undefined) return null
+        const numeric = typeof value === "number" ? value : Number(value)
+        return Number.isFinite(numeric) ? numeric : null
       }
+
+      const previousEffectiveSplitsRaw = {
+        houseSplitPercent: toNullableNumber(
+          (existing as any).houseSplitPercentOverride ??
+            existing.opportunity?.houseSplitPercent ??
+            null
+        ),
+        houseRepSplitPercent: toNullableNumber(
+          (existing as any).houseRepSplitPercentOverride ??
+            existing.opportunity?.houseRepPercent ??
+            null
+        ),
+        subagentSplitPercent: toNullableNumber(
+          (existing as any).subagentSplitPercentOverride ??
+            existing.opportunity?.subagentPercent ??
+            null
+        ),
+      }
+
+      const previousEffectiveSplits = (() => {
+        const finite = [
+          previousEffectiveSplitsRaw.houseSplitPercent,
+          previousEffectiveSplitsRaw.houseRepSplitPercent,
+          previousEffectiveSplitsRaw.subagentSplitPercent,
+        ].filter((v) => v !== null && Number.isFinite(v)) as number[]
+        const sum = finite.reduce((a, b) => a + b, 0)
+        const maxAbs = finite.reduce((m, v) => Math.max(m, Math.abs(v)), 0)
+        const looksLikeFractions = finite.length > 0 && maxAbs <= 1.5 && sum <= 1.5
+        const factor = looksLikeFractions ? 100 : 1
+        return {
+          houseSplitPercent:
+            previousEffectiveSplitsRaw.houseSplitPercent === null
+              ? null
+              : previousEffectiveSplitsRaw.houseSplitPercent * factor,
+          houseRepSplitPercent:
+            previousEffectiveSplitsRaw.houseRepSplitPercent === null
+              ? null
+              : previousEffectiveSplitsRaw.houseRepSplitPercent * factor,
+          subagentSplitPercent:
+            previousEffectiveSplitsRaw.subagentSplitPercent === null
+              ? null
+              : previousEffectiveSplitsRaw.subagentSplitPercent * factor,
+        }
+      })()
 
       const previousScheduleValues: Record<string, unknown> = {
         scheduleNumber: (existing as any).scheduleNumber ?? null,
@@ -303,7 +338,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { revenu
         }
         const num = Number(raw.replace(/[^0-9.-]/g, ""))
         if (!Number.isFinite(num)) return null
-        return num <= 1 ? num * 100 : num
+        return num
       }
 
       const getTrimmedInput = (value: unknown): string => {
@@ -429,18 +464,9 @@ export async function PATCH(request: NextRequest, { params }: { params: { revenu
         const currentHouseRep = previousEffectiveSplits.houseRepSplitPercent
         const currentSubagent = previousEffectiveSplits.subagentSplitPercent
 
-        const nextHouse =
-          houseSplitPercentValue !== null
-            ? houseSplitPercentValue / 100
-            : currentHouse
-        const nextHouseRep =
-          houseRepSplitPercentValue !== null
-            ? houseRepSplitPercentValue / 100
-            : currentHouseRep
-        const nextSubagent =
-          subagentSplitPercentValue !== null
-            ? subagentSplitPercentValue / 100
-            : currentSubagent
+        const nextHouse = houseSplitPercentValue !== null ? houseSplitPercentValue : currentHouse
+        const nextHouseRep = houseRepSplitPercentValue !== null ? houseRepSplitPercentValue : currentHouseRep
+        const nextSubagent = subagentSplitPercentValue !== null ? subagentSplitPercentValue : currentSubagent
 
         const splits: Array<[string, number | null]> = [
           ["houseSplitPercent", nextHouse],
@@ -453,13 +479,13 @@ export async function PATCH(request: NextRequest, { params }: { params: { revenu
             errors[key] = errors[key] ?? "Provide all split percents."
             continue
           }
-          if (value < 0 || value > 1) {
+          if (value < 0 || value > 100) {
             errors[key] = errors[key] ?? "Split percent must be between 0 and 100."
           }
         }
 
         const total = [nextHouse, nextHouseRep, nextSubagent].reduce((sum, value) => sum + (value ?? 0), 0)
-        if (Number.isFinite(total) && Math.abs(total - 1) > 0.0001) {
+        if (Number.isFinite(total) && Math.abs(total - 100) > 0.01) {
           const message = "Split total must equal 100%."
           errors.houseSplitPercent = errors.houseSplitPercent ?? message
           errors.houseRepSplitPercent = errors.houseRepSplitPercent ?? message
@@ -580,13 +606,13 @@ export async function PATCH(request: NextRequest, { params }: { params: { revenu
       if (anySplitTouched) {
         const splitOverrideData: Record<string, any> = {}
         if (houseSplitPercentValue !== null) {
-          splitOverrideData.houseSplitPercentOverride = houseSplitPercentValue / 100
+          splitOverrideData.houseSplitPercentOverride = houseSplitPercentValue
         }
         if (houseRepSplitPercentValue !== null) {
-          splitOverrideData.houseRepSplitPercentOverride = houseRepSplitPercentValue / 100
+          splitOverrideData.houseRepSplitPercentOverride = houseRepSplitPercentValue
         }
         if (subagentSplitPercentValue !== null) {
-          splitOverrideData.subagentSplitPercentOverride = subagentSplitPercentValue / 100
+          splitOverrideData.subagentSplitPercentOverride = subagentSplitPercentValue
         }
 
         if (Object.keys(splitOverrideData).length > 0) {

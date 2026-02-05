@@ -549,7 +549,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { opport
         hasChanges = true
       }
 
-      // Percent fields (numbers in 0..1 range or null)
+      // Percent fields (split % points in 0..100 range or null)
       const percentFields = ["subagentPercent", "houseRepPercent", "houseSplitPercent"] as const
 
       for (const key of percentFields) {
@@ -559,17 +559,25 @@ export async function PATCH(request: NextRequest, { params }: { params: { opport
             ;(data as Record<string, unknown>)[key] = null
             hasChanges = true
           } else if (typeof raw === "number") {
-            if (!Number.isFinite(raw) || raw < 0 || raw > 1) {
-              return NextResponse.json({ error: `${String(key)} must be between 0 and 1` }, { status: 400 })
+            if (!Number.isFinite(raw)) {
+              return NextResponse.json({ error: `${String(key)} must be a number` }, { status: 400 })
             }
-            ;(data as Record<string, unknown>)[key] = raw
+            const points = Math.abs(raw) <= 1 ? raw * 100 : raw
+            if (points < 0 || points > 100) {
+              return NextResponse.json({ error: `${String(key)} must be between 0 and 100` }, { status: 400 })
+            }
+            ;(data as Record<string, unknown>)[key] = points
             hasChanges = true
           } else if (typeof raw === "string") {
             const parsed = Number(raw)
-            if (!Number.isFinite(parsed) || parsed < 0 || parsed > 1) {
-              return NextResponse.json({ error: `${String(key)} must be between 0 and 1` }, { status: 400 })
+            if (!Number.isFinite(parsed)) {
+              return NextResponse.json({ error: `${String(key)} must be a number` }, { status: 400 })
             }
-            ;(data as Record<string, unknown>)[key] = parsed
+            const points = Math.abs(parsed) <= 1 ? parsed * 100 : parsed
+            if (points < 0 || points > 100) {
+              return NextResponse.json({ error: `${String(key)} must be between 0 and 100` }, { status: 400 })
+            }
+            ;(data as Record<string, unknown>)[key] = points
             hasChanges = true
           }
         }

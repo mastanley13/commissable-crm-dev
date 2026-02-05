@@ -958,13 +958,15 @@ function inputStringToPercent(value: string): number | null {
   const trimmed = value.trim()
   if (!trimmed) return null
   // Accept values like "20", "20.00", "20%", "20.00 %"
-  const normalised = trimmed.replace(/\s+/g, "").replace(/%$/, "")
+  const compact = trimmed.replace(/\s+/g, "")
+  const hasPercent = compact.endsWith("%")
+  const normalised = compact.replace(/%$/, "")
   if (!normalised) return null
   const parsed = Number(normalised)
   if (!Number.isFinite(parsed)) return null
   if (parsed === 0) return 0
-  // If user typed 0..100 treat numbers >1 as percentage points
-  return parsed > 1 ? parsed / 100 : parsed
+  // Standard: percent points (0-100). Compatibility: accept fraction (0-1) when no % sign.
+  return !hasPercent && Math.abs(parsed) <= 1 ? parsed * 100 : parsed
 }
 
 function calculateHouseSplitPercent({
@@ -976,22 +978,29 @@ function calculateHouseSplitPercent({
   houseRepPercent: number | null | undefined
   fallbackPercent?: number | null | undefined
 }): number | null {
-  const subagent = normalisePercentValue(subagentPercent)
-  const houseRep = normalisePercentValue(houseRepPercent)
-  const fallback = normalisePercentValue(fallbackPercent)
+  const coercePoints = (value: number | null | undefined): number | null => {
+    if (value === null || value === undefined || Number.isNaN(value)) return null
+    const numeric = Number(value)
+    if (!Number.isFinite(numeric)) return null
+    return Math.abs(numeric) <= 1 ? numeric * 100 : numeric
+  }
+
+  const subagent = coercePoints(subagentPercent)
+  const houseRep = coercePoints(houseRepPercent)
+  const fallback = coercePoints(fallbackPercent)
 
   if (subagent == null && houseRep == null) {
     if (fallback != null) {
       return fallback
     }
-    return 1
+    return 100
   }
 
-  const computed = 1 - ((subagent ?? 0) + (houseRep ?? 0))
+  const computed = 100 - ((subagent ?? 0) + (houseRep ?? 0))
   if (!Number.isFinite(computed)) {
-    return fallback ?? 1
+    return fallback ?? 100
   }
-  const clamped = Math.max(0, Math.min(1, computed))
+  const clamped = Math.max(0, Math.min(100, computed))
   return clamped
 }
 
@@ -1129,8 +1138,8 @@ function validateOpportunityForm(form: OpportunityInlineForm): Record<string, st
   for (const [field, message] of percentRules) {
     const raw = form[field]
     if (!raw.trim()) continue
-    const parsedFraction = inputStringToPercent(raw)
-    if (parsedFraction === null || parsedFraction < 0 || parsedFraction > 1) {
+    const parsedPoints = inputStringToPercent(raw)
+    if (parsedPoints === null || parsedPoints < 0 || parsedPoints > 100) {
       errors[field] = message
     }
   }

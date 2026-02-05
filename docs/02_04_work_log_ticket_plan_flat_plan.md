@@ -89,10 +89,33 @@ Implement WL-010 first, then fold in the related UX/field fixes:
 - WL-020 (P2) Default Other–Product Name to House–Product Name; overwrite on deposit match
 
 ### Package E — Opportunities + cross-app UI polish
-- WL-003 (P2) Opportunity Product Detail shows Opportunity Name link
+- WL-003 (P2) Opportunity Product Detail shows Opportunity Name link (DONE)
 - WL-004 (P2) Opportunity Detail Products section shows first/last schedule dates
 - WL-005 (P2) Add Product popup font consistency
 - WL-019 (P2) Add dropdown arrows to picklists across system (define exact fields/pages in Assumptions)
+
+## WL-005 (Prep notes)
+Likely implementation location:
+- `components/opportunity-line-item-create-modal.tsx` (this modal has tabs for “Add Product from Catalog” vs “Create New Product”)
+
+What to verify (to reproduce quickly):
+1. Open the modal and compare **House - Product Family** in both tabs:
+   - Displayed field value font size/weight
+   - Dropdown option list font size/weight (expanded state)
+2. Confirm whether the inconsistency is:
+   - the field text (input vs select rendering), or
+   - the dropdown options list (custom dropdown buttons vs native select menu).
+
+What looks suspicious in code (starting point):
+- The inputs/selects use the same `inputCls` (`text-xs`), but the custom dropdown options use `text-sm` buttons (e.g. the “Add Product from Catalog” family/subtype dropdown lists).
+
+Proposed fix approach (keep scope tight to WL-005):
+- Standardize the **expanded dropdown option text** to match the field size (likely `text-xs`) for the House Product Family dropdown in the “Add Product from Catalog” tab.
+- Re-test the House Product Subtype dropdown right after (same pattern) to ensure it still looks consistent.
+
+QA checklist for WL-005:
+- Verify both tabs show the same typography for House Product Family (field + dropdown options).
+- Verify no regressions to other dropdowns in the modal (Vendor, Distributor, Product Name).
 
 ## Phase 4 — Test checklist (lightweight, but explicit)
 - **Regression smoke**
@@ -109,4 +132,3 @@ Implement WL-010 first, then fold in the related UX/field fixes:
 ## Phase 5 — Release notes and rollout
 - Bundle by package (A–E) so UAT can validate in waves.
 - For broad UI changes (WL-019), confirm scope and consider a feature flag if impact is high.
-

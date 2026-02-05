@@ -118,9 +118,9 @@ export async function POST(request: NextRequest) {
       const failed: string[] = []
       let updated = 0
 
-      const houseFraction = resolvedHouse / 100
-      const houseRepFraction = resolvedHouseRep / 100
-      const subagentFraction = resolvedSubagent / 100
+      const nextHouse = resolvedHouse
+      const nextHouseRep = resolvedHouseRep
+      const nextSubagent = resolvedSubagent
 
       for (const schedule of schedules) {
         const previousSplits = {
@@ -136,9 +136,9 @@ export async function POST(request: NextRequest) {
           await prisma.revenueSchedule.update({
             where: { id: schedule.id },
             data: {
-              houseSplitPercentOverride: houseFraction,
-              houseRepSplitPercentOverride: houseRepFraction,
-              subagentSplitPercentOverride: subagentFraction,
+              houseSplitPercentOverride: nextHouse,
+              houseRepSplitPercentOverride: nextHouseRep,
+              subagentSplitPercentOverride: nextSubagent,
               updatedById: req.user.id
             }
           })
@@ -152,9 +152,9 @@ export async function POST(request: NextRequest) {
             request,
             previousSplits,
             {
-              houseSplitPercent: houseFraction,
-              houseRepSplitPercent: houseRepFraction,
-              subagentSplitPercent: subagentFraction
+              houseSplitPercent: nextHouse,
+              houseRepSplitPercent: nextHouseRep,
+              subagentSplitPercent: nextSubagent
             }
           )
         } catch (error) {

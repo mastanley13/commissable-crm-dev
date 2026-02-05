@@ -382,20 +382,20 @@ export function OpportunityCreateModal({ isOpen, accountId, accountName, onClose
 
     setLoading(true)
     try {
-      const payload = {
-        accountId,
-        name: form.name.trim(),
-        stage: form.stage,
-        estimatedCloseDate: form.estimatedCloseDate,
-        ownerId: form.ownerId,
-        leadSource: form.leadSource,
-        referredBy: form.referredByContactId || null,
-        subAgent: form.subAgent.trim() || null,
-        subagentContactId: form.subagentContactId || null,
-        houseRepPercent: form.houseRepPercent ? parseFloat(form.houseRepPercent) / 100 : null,
-        subagentPercent: form.subagentPercent ? parseFloat(form.subagentPercent) / 100 : null,
-        description: form.description.trim() || null
-      }
+        const payload = {
+          accountId,
+          name: form.name.trim(),
+          stage: form.stage,
+          estimatedCloseDate: form.estimatedCloseDate,
+          ownerId: form.ownerId,
+          leadSource: form.leadSource,
+          referredBy: form.referredByContactId || null,
+          subAgent: form.subAgent.trim() || null,
+          subagentContactId: form.subagentContactId || null,
+          houseRepPercent: form.houseRepPercent ? parseFloat(form.houseRepPercent) : null,
+          subagentPercent: form.subagentPercent ? parseFloat(form.subagentPercent) : null,
+          description: form.description.trim() || null
+        }
 
       const response = await fetch("/api/opportunities", {
         method: "POST",

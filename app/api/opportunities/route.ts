@@ -102,16 +102,13 @@ function parsePercentValue(value: unknown): number | null {
     return null
   }
 
-  if (numeric > 1) {
-    const normalized = numeric / 100
-    return normalized >= 0 && normalized <= 1 ? normalized : null
-  }
-
-  if (numeric < 0 || numeric > 1) {
+  // Standard: percent points (0-100). Compatibility: accept fraction (0-1) and convert.
+  const points = Math.abs(numeric) <= 1 ? numeric * 100 : numeric
+  if (points < 0 || points > 100) {
     return null
   }
 
-  return numeric
+  return points
 }
 
 export async function GET(request: NextRequest) {
@@ -495,7 +492,7 @@ export async function POST(request: NextRequest) {
       }
 
       if (houseSplitPercent === null && subagentPercent !== null && houseRepPercent !== null) {
-        const computed = 1 - (subagentPercent + houseRepPercent)
+        const computed = 100 - (subagentPercent + houseRepPercent)
         houseSplitPercent = computed >= 0 ? computed : 0
       }
 

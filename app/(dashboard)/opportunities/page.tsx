@@ -1570,9 +1570,22 @@ export default function OpportunitiesPage() {
       if (column.id === 'subagentPercent' || column.id === 'houseRepPercent' || column.id === 'houseSplitPercent') {
         return {
           ...column,
-          render: (value: unknown) => {
-            const numValue = typeof value === 'number' ? value : Number(value) || 0
-            return `${(numValue * 100).toFixed(2)}%`
+          render: (value: unknown, row: OpportunityRow) => {
+            const raw = typeof value === 'number' ? value : Number(value)
+            if (!Number.isFinite(raw)) return '--'
+
+            const rawSplits = [
+              row.subagentPercent,
+              row.houseRepPercent,
+              row.houseSplitPercent,
+            ].map((it) => (typeof it === 'number' ? it : Number(it)))
+
+            const finite = rawSplits.filter((it) => Number.isFinite(it)) as number[]
+            const sum = finite.reduce((a, b) => a + b, 0)
+            const looksLikeFractions = finite.length > 0 && sum <= 1.5
+
+            const points = looksLikeFractions ? raw * 100 : raw
+            return `${points.toFixed(2)}%`
           },
         }
       }
