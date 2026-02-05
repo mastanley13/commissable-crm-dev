@@ -100,6 +100,8 @@ const PRODUCT_FILTER_COLUMNS: Array<{ id: string; label: string }> = [
   { id: "productName", label: "Product Name" },
   { id: "productCode", label: "Product Code" },
   { id: "revenueType", label: "Revenue Type" },
+  { id: "firstScheduleDate", label: "First Schedule Date" },
+  { id: "lastScheduleDate", label: "Last Schedule Date" },
   { id: "distributorName", label: "Distributor" },
   { id: "vendorName", label: "Vendor" }
 ]
@@ -279,6 +281,24 @@ export const PRODUCT_TABLE_BASE_COLUMNS: Column[] = [
   { id: "billingStatus", label: "Billing Status", width: 180, minWidth: calculateMinWidth({ label: "Billing Status", type: "text", sortable: true }), accessor: "billingStatus", sortable: true },
   { id: "revenueStartDate", label: "Start Date", width: 150, minWidth: calculateMinWidth({ label: "Start Date", type: "text", sortable: true }), accessor: "revenueStartDate", sortable: true },
   { id: "revenueEndDate", label: "End Date", width: 150, minWidth: calculateMinWidth({ label: "End Date", type: "text", sortable: true }), accessor: "revenueEndDate", sortable: true },
+  {
+    id: "firstScheduleDate",
+    label: "First Schedule Date",
+    width: 170,
+    minWidth: calculateMinWidth({ label: "First Schedule Date", type: "text", sortable: true }),
+    accessor: "firstScheduleDate",
+    sortable: true,
+    render: (value: string | null | undefined) => value || "--"
+  },
+  {
+    id: "lastScheduleDate",
+    label: "Last Schedule Date",
+    width: 170,
+    minWidth: calculateMinWidth({ label: "Last Schedule Date", type: "text", sortable: true }),
+    accessor: "lastScheduleDate",
+    sortable: true,
+    render: (value: string | null | undefined) => value || "--"
+  },
   { id: "distributorName", label: "Distributor", width: 200, minWidth: calculateMinWidth({ label: "Distributor", type: "text", sortable: true }), accessor: "distributorName", sortable: true },
   { id: "vendorName", label: "Vendor", width: 200, minWidth: calculateMinWidth({ label: "Vendor", type: "text", sortable: true }), accessor: "vendorName", sortable: true },
   { id: "createdAt", label: "Created", width: 160, minWidth: calculateMinWidth({ label: "Created", type: "text", sortable: true }), accessor: "createdAt", sortable: true },
@@ -2703,6 +2723,37 @@ useEffect(() => {
   const canModifyLineItems = canEditAnyLineItems || (canEditAssignedLineItems && ownsOpportunity)
   const lineItemIds = useMemo(() => opportunity?.lineItems.map(item => item.id) ?? [], [opportunity?.lineItems])
 
+  const scheduleDateBoundsByLineItemId = useMemo(() => {
+    const bounds = new Map<string, { first: string; last: string }>()
+    const schedules = opportunity?.revenueSchedules ?? []
+    if (schedules.length === 0) {
+      return bounds
+    }
+
+    for (const schedule of schedules) {
+      const lineItemId = schedule.opportunityProductId ?? null
+      if (!lineItemId) continue
+
+      const canonical = formatDate(schedule.scheduleDate ?? null)
+      if (!canonical || canonical === "--") continue
+
+      const existing = bounds.get(lineItemId)
+      if (!existing) {
+        bounds.set(lineItemId, { first: canonical, last: canonical })
+        continue
+      }
+
+      if (canonical < existing.first) {
+        existing.first = canonical
+      }
+      if (canonical > existing.last) {
+        existing.last = canonical
+      }
+    }
+
+    return bounds
+  }, [opportunity?.revenueSchedules])
+
   const productRows = useMemo(() => {
     if (!opportunity) {
       return []
@@ -2712,6 +2763,7 @@ useEffect(() => {
       const productName = item.productName ?? ""
       const productNameHouse = item.productNameHouse ?? productName
       const productNameVendor = item.productNameVendor ?? productName
+      const scheduleBounds = scheduleDateBoundsByLineItemId.get(item.id) ?? null
 
       return {
         id: item.id,
@@ -2728,6 +2780,8 @@ useEffect(() => {
         expectedUsage: item.expectedUsage,
         revenueStartDate: item.revenueStartDate,
         revenueEndDate: item.revenueEndDate,
+        firstScheduleDate: scheduleBounds?.first ?? null,
+        lastScheduleDate: scheduleBounds?.last ?? null,
         distributorId: item.distributorId ?? null,
         distributorName: item.distributorName ?? "",
         vendorId: item.vendorId ?? null,
@@ -2740,7 +2794,7 @@ useEffect(() => {
         isActive: item.active !== false
       }
     })
-  }, [opportunity])
+  }, [opportunity, scheduleDateBoundsByLineItemId])
 
   const effectiveProductRows = useMemo(() => {
     if (Object.keys(lineItemStatusOverrides).length === 0) {
@@ -4587,21 +4641,23 @@ useEffect(() => {
       return
     }
 
-    const headers = [
-      "Product",
-      "Product Code",
-      "Revenue Type",
-      "Quantity",
-      "Unit Price",
-      "Expected Usage",
-      "Expected Revenue",
-      "Expected Commission",
-      "Start Date",
-      "End Date",
-      "Distributor",
-      "Vendor",
-      "Active"
-    ]
+      const headers = [
+        "Product",
+        "Product Code",
+        "Revenue Type",
+        "Quantity",
+        "Unit Price",
+        "Expected Usage",
+        "Expected Revenue",
+        "Expected Commission",
+        "Start Date",
+        "End Date",
+        "First Schedule Date",
+        "Last Schedule Date",
+        "Distributor",
+        "Vendor",
+        "Active"
+      ]
 
     const escapeCsv = (value: unknown) => {
       if (value === null || value === undefined) {
@@ -4622,15 +4678,17 @@ useEffect(() => {
         row.quantity,
         row.unitPrice,
         row.expectedUsage,
-        row.expectedRevenue,
-        row.expectedCommission,
-        row.revenueStartDate,
-        row.revenueEndDate,
-        row.distributorName,
-        row.vendorName,
-        row.isActive ? "Active" : "Inactive"
-      ].map(escapeCsv).join(",")
-    )
+          row.expectedRevenue,
+          row.expectedCommission,
+          row.revenueStartDate,
+          row.revenueEndDate,
+          (row as any).firstScheduleDate,
+          (row as any).lastScheduleDate,
+          row.distributorName,
+          row.vendorName,
+          row.isActive ? "Active" : "Inactive"
+        ].map(escapeCsv).join(",")
+      )
 
     const csvContent = [headers.join(","), ...lines].join("\n")
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
