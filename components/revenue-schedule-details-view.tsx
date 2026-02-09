@@ -19,7 +19,7 @@ import { useUnsavedChangesPrompt } from "@/hooks/useUnsavedChangesPrompt"
 import { useAuth } from "@/lib/auth-context"
 import { EditableField } from "./editable-field"
 import { useToasts } from "./toast"
-import { getRevenueTypeLabel, REVENUE_TYPE_OPTIONS } from "@/lib/revenue-types"
+import { getRevenueTypeLabel } from "@/lib/revenue-types"
 
 interface FieldDefinition {
   fieldId: string
@@ -1082,8 +1082,11 @@ export function RevenueScheduleDetailsView({
     },
     {
       fieldId: "04.01.034",
-      label: "Payment Type",
-      value: schedule.paymentType
+      label: "Revenue Type",
+      value:
+        schedule.productRevenueTypeLabel ??
+        getRevenueTypeLabel(schedule.productRevenueType) ??
+        schedule.productRevenueType
     },
     { fieldId: "billingStatus", label: "Billing Status", value: formatBillingStatus(billingStatus) }
   ]

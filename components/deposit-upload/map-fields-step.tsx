@@ -823,96 +823,67 @@ export function MapFieldsStep({
   }
 
   return (
-    <div className="space-y-2">
-      <div className="grid gap-2 md:grid-cols-2 md:items-start">
-        {templateLabel ? (
-          <div className="rounded-xl border border-slate-200 bg-white p-2 text-sm text-slate-700">
-            <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-              <div>
+    <div className="space-y-1.5">
+      <div className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700">
+        <div className="grid gap-2 md:grid-cols-2 md:items-center">
+          <div className="min-w-0 space-y-0.5 md:border-r md:border-gray-200 md:pr-3">
+            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+              <div className="min-w-0">
                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Template</p>
-                <p className="font-semibold text-slate-900">{templateLabel}</p>
+                <p
+                  className="truncate text-sm font-semibold text-slate-900"
+                  title={templateLabel ?? "No template selected"}
+                >
+                  {templateLabel ?? "No template selected"}
+                </p>
               </div>
               {onSaveTemplateMappingChange ? (
-                <label className="inline-flex items-start gap-2 text-xs text-slate-700">
+                <label className="inline-flex items-center gap-1.5 text-xs text-slate-700">
                   <input
                     type="checkbox"
-                    className="mt-0.5 h-4 w-4 accent-primary-600"
+                    className="h-3.5 w-3.5 accent-primary-600"
                     checked={saveTemplateMapping}
                     onChange={event => onSaveTemplateMappingChange(event.target.checked)}
                   />
-                  <span className="leading-5">Save mapping updates to this template for future uploads</span>
+                  <span className="leading-4">Save mapping updates to template</span>
                 </label>
               ) : null}
             </div>
-            <p className="mt-1 text-xs text-slate-500">
-              Saving updates only affects future uploads that use this template. Existing deposits are not changed.
-            </p>
+            {templateLabel ? (
+              <p className="text-xs leading-4 text-slate-500">
+                Saving updates only affects future uploads that use this template. Existing deposits are not changed.
+              </p>
+            ) : (
+              <p className="text-xs leading-4 text-slate-500">Select a template to pre-fill known field mappings.</p>
+            )}
           </div>
-        ) : (
-          <div />
-        )}
 
-        <div className="rounded-xl border border-gray-100 bg-gray-50 p-2 text-sm text-gray-700">
-          <div className="flex items-center justify-between gap-2">
-            <p className="font-semibold text-gray-900">Uploaded file</p>
+          <div className="min-w-0 space-y-0.5">
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Uploaded file</p>
+            {file ? (
+              <div className="space-y-0.5 text-gray-600">
+                <p className="truncate" title={file.name}>
+                  {file.name}
+                </p>
+                {parsingError ? (
+                  <p className="text-xs text-red-600">{parsingError}</p>
+                ) : fieldCatalogError ? (
+                  <p className="text-xs text-red-600">{fieldCatalogError}</p>
+                ) : csvHeaders.length === 0 ? (
+                  <p className="text-xs text-gray-500">Select a CSV/XLS file with a header row to begin mapping.</p>
+                ) : null}
+              </div>
+            ) : (
+              <p className="text-xs text-gray-500">No file selected. Return to Create Deposit to attach a file.</p>
+            )}
           </div>
-          {file ? (
-            <div className="mt-1 space-y-0.5 text-gray-600">
-              <p>{file.name}</p>
-              {parsingError ? (
-                <p className="text-xs text-red-600">{parsingError}</p>
-              ) : fieldCatalogError ? (
-                <p className="text-xs text-red-600">{fieldCatalogError}</p>
-              ) : csvHeaders.length === 0 ? (
-                <p className="text-xs text-gray-500">Select a CSV/XLS file with a header row to begin mapping.</p>
-              ) : null}
-            </div>
-          ) : (
-            <p className="mt-2 text-gray-500">No file selected. Return to Create Deposit to attach a file.</p>
-          )}
         </div>
       </div>
 
-      <div className="flex flex-wrap items-start justify-between gap-1.5">
-        <p className="text-xs text-gray-600">
-          Map required fields like Usage and Commission. Optional fields can stay unmapped; saved templates pre-fill when
-          available.
-        </p>
-        <div className="flex items-center gap-2">
-          {totalPreviewRows > 0 ? (
-            <div className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-2 py-1 text-xs text-gray-600">
-              <button
-                type="button"
-                onClick={goToPreviousRow}
-                disabled={isFirstWindow}
-                className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-gray-300 bg-white text-gray-700 disabled:border-gray-200 disabled:text-gray-300"
-                aria-label="Previous sample row"
-              >
-                <ChevronLeft className="h-3 w-3" />
-              </button>
-              <span className="min-w-[120px] text-center">{previewRangeLabel}</span>
-              <button
-                type="button"
-                onClick={goToNextRow}
-                disabled={isLastWindow}
-                className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-gray-300 bg-white text-gray-700 disabled:border-gray-200 disabled:text-gray-300"
-                aria-label="Next sample row"
-              >
-                <ChevronRight className="h-3 w-3" />
-              </button>
-            </div>
-          ) : null}
-          <p className="text-xs text-gray-500">Columns detected: {csvHeaders.length || "0"}</p>
-          <button
-            type="button"
-            title="Map required fields like Usage and Commission to columns from your uploaded file. Optional fields can be left unmapped. Template Fields shows columns from your template mapping. New Fields shows columns not in the template with values and suggested matches. Exclude shows columns with no values, columns set to Do Not Map, and columns without suggested matches."
-            aria-label="Map Fields help"
-            className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-gray-300 bg-white text-[11px] font-semibold text-gray-600 hover:bg-gray-50"
-          >
-            ?
-          </button>
-        </div>
-      </div>
+      <p className="text-xs leading-4 text-gray-600">
+        Map required fields like Usage and Commission. Optional fields can stay unmapped; saved templates pre-fill when
+        available.
+      </p>
 
       {parsingError ? (
         <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700 flex items-start gap-2">
@@ -934,36 +905,69 @@ export function MapFieldsStep({
 
       {csvHeaders.length > 0 ? (
         <div className="flex flex-col overflow-hidden">
-          <div
-            className="flex flex-wrap gap-1 border-x border-t border-gray-200 bg-gray-100 pt-2 px-3 pb-0"
-            role="tablist"
-            aria-label="Deposit upload column mapping sections"
-          >
-            {[
-              { id: "template" as const, label: `Template Fields (${templateRows.length})` },
-              { id: "new" as const, label: `New Fields (${newRows.length})` },
-              { id: "exclude" as const, label: `Exclude (${excludeRows.length})` },
-            ].map(tab => {
-              const isActive = tab.id === activeColumnsTab
-              return (
-                <button
-                  key={tab.id}
-                  id={`deposit-map-fields-tab-${tab.id}`}
-                  type="button"
-                  role="tab"
-                  aria-selected={isActive}
-                  aria-controls={`deposit-map-fields-panel-${tab.id}`}
-                  onClick={() => setActiveColumnsTab(tab.id)}
-                  className={`rounded-t-md border px-3 py-1.5 text-sm font-semibold shadow-sm transition ${
-                    isActive
-                      ? "relative -mb-[1px] z-10 border-primary-700 bg-primary-700 text-white hover:bg-primary-800"
-                      : "border-blue-300 bg-gradient-to-b from-blue-100 to-blue-200 text-primary-800 hover:border-blue-400 hover:from-blue-200 hover:to-blue-300"
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              )
-            })}
+          <div className="flex flex-wrap items-center justify-between gap-2 border-x border-t border-gray-200 bg-gray-100 pt-2 px-3 pb-0">
+            <div role="tablist" aria-label="Deposit upload column mapping sections" className="flex flex-wrap gap-1">
+              {[
+                { id: "template" as const, label: `Template Fields (${templateRows.length})` },
+                { id: "new" as const, label: `New Fields (${newRows.length})` },
+                { id: "exclude" as const, label: `Exclude (${excludeRows.length})` },
+              ].map(tab => {
+                const isActive = tab.id === activeColumnsTab
+                return (
+                  <button
+                    key={tab.id}
+                    id={`deposit-map-fields-tab-${tab.id}`}
+                    type="button"
+                    role="tab"
+                    aria-selected={isActive}
+                    aria-controls={`deposit-map-fields-panel-${tab.id}`}
+                    onClick={() => setActiveColumnsTab(tab.id)}
+                    className={`rounded-t-md border px-3 py-1.5 text-sm font-semibold shadow-sm transition ${
+                      isActive
+                        ? "relative -mb-[1px] z-10 border-primary-700 bg-primary-700 text-white hover:bg-primary-800"
+                        : "border-blue-300 bg-gradient-to-b from-blue-100 to-blue-200 text-primary-800 hover:border-blue-400 hover:from-blue-200 hover:to-blue-300"
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                )
+              })}
+            </div>
+
+            <div className="flex items-center gap-2 pb-2">
+              {totalPreviewRows > 0 ? (
+                <div className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-2 py-1 text-xs text-gray-600">
+                  <button
+                    type="button"
+                    onClick={goToPreviousRow}
+                    disabled={isFirstWindow}
+                    className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-gray-300 bg-white text-gray-700 disabled:border-gray-200 disabled:text-gray-300"
+                    aria-label="Previous sample row"
+                  >
+                    <ChevronLeft className="h-3 w-3" />
+                  </button>
+                  <span className="min-w-[120px] text-center">{previewRangeLabel}</span>
+                  <button
+                    type="button"
+                    onClick={goToNextRow}
+                    disabled={isLastWindow}
+                    className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-gray-300 bg-white text-gray-700 disabled:border-gray-200 disabled:text-gray-300"
+                    aria-label="Next sample row"
+                  >
+                    <ChevronRight className="h-3 w-3" />
+                  </button>
+                </div>
+              ) : null}
+              <p className="text-xs text-gray-500">Columns detected: {csvHeaders.length || "0"}</p>
+              <button
+                type="button"
+                title="Map required fields like Usage and Commission to columns from your uploaded file. Optional fields can be left unmapped. Template Fields shows columns from your template mapping. New Fields shows columns not in the template with values and suggested matches. Exclude shows columns with no values, columns set to Do Not Map, and columns without suggested matches."
+                aria-label="Map Fields help"
+                className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-gray-300 bg-white text-[11px] font-semibold text-gray-600 hover:bg-gray-50"
+              >
+                ?
+              </button>
+            </div>
           </div>
 
           <div className="border-x border-b border-gray-200 bg-white pt-0">

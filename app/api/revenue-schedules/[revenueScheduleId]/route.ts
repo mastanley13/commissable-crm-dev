@@ -2,10 +2,8 @@ import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
 import { withAuth, withPermissions } from "@/lib/api-auth"
 import { mapRevenueScheduleToDetail, type RevenueScheduleWithRelations } from "../helpers"
-import { isRevenueTypeCode } from "@/lib/revenue-types"
 import {
   DepositLineMatchStatus,
-  DepositPaymentType,
   AuditAction,
   RevenueScheduleBillingStatus,
   RevenueScheduleBillingStatusSource,
@@ -14,58 +12,6 @@ import { logProductAudit, logRevenueScheduleAudit } from "@/lib/audit"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
-
-function formatDepositPaymentType(value: DepositPaymentType | null | undefined): string | null {
-  if (!value) return null
-  // Field IDs: 06.02.003 / 06.07.003 (Payment Type)
-  switch (value) {
-    case DepositPaymentType.ACH:
-      return "Bank Transfer"
-    case DepositPaymentType.Wire:
-      return "Wire Transfer"
-    case DepositPaymentType.Check:
-      return "Check"
-    case DepositPaymentType.CreditCard:
-      return "Credit Card"
-    case DepositPaymentType.Other:
-      return "Other"
-    default:
-      return String(value)
-  }
-}
-
-async function getRevenueSchedulePaymentType(tenantId: string, revenueScheduleId: string): Promise<string | null> {
-  const matches = await prisma.depositLineMatch.findMany({
-    where: {
-      tenantId,
-      revenueScheduleId,
-      status: DepositLineMatchStatus.Applied
-    },
-    select: {
-      depositLineItem: {
-        select: {
-          deposit: {
-            select: {
-              paymentType: true
-            }
-          }
-        }
-      }
-    }
-  })
-
-  const values = matches
-    .map(match => match.depositLineItem?.deposit?.paymentType ?? null)
-    .filter((value): value is DepositPaymentType => Boolean(value))
-
-  const unique = Array.from(new Set(values))
-    .map(formatDepositPaymentType)
-    .filter((value): value is string => Boolean(value))
-
-  if (unique.length === 0) return null
-  if (unique.length === 1) return unique[0]
-  return unique.join(", ")
-}
 
 async function getRevenueScheduleBillingMonth(tenantId: string, revenueScheduleId: string): Promise<string | null> {
   const matches = await prisma.depositLineMatch.findMany({
@@ -161,6 +107,9 @@ export async function GET(request: NextRequest, { params }: { params: { revenueS
             select: {
               id: true,
               productNameHouse: true,
+              productNameVendor: true,
+              productDescriptionVendor: true,
+              revenueType: true,
               commissionPercent: true,
               priceEach: true
             }
@@ -169,6 +118,8 @@ export async function GET(request: NextRequest, { params }: { params: { revenueS
             select: {
               id: true,
               productNameHouseSnapshot: true,
+              revenueTypeSnapshot: true,
+              product: { select: { revenueType: true } },
               quantity: true,
               unitPrice: true,
               expectedUsage: true,
@@ -210,8 +161,6 @@ export async function GET(request: NextRequest, { params }: { params: { revenueS
       }
 
       const detail = mapRevenueScheduleToDetail(schedule as RevenueScheduleWithRelations)
-      // Populate Payment Type from matched deposits, when available.
-      detail.paymentType = await getRevenueSchedulePaymentType(req.user.tenantId, revenueScheduleId)
       // Billing Month is derived from the earliest matched deposit month, when available.
       detail.billingMonth = await getRevenueScheduleBillingMonth(req.user.tenantId, revenueScheduleId)
 
@@ -651,8 +600,8 @@ export async function PATCH(request: NextRequest, { params }: { params: { revenu
           },
           distributor: { select: { id: true, accountName: true, accountNumber: true } },
           vendor: { select: { id: true, accountName: true, accountNumber: true } },
-          product: { select: { id: true, productNameHouse: true, commissionPercent: true, priceEach: true } },
-          opportunityProduct: { select: { id: true, productNameHouseSnapshot: true, quantity: true, unitPrice: true, expectedUsage: true, expectedCommission: true, revenueStartDate: true } },
+          product: { select: { id: true, productNameHouse: true, productNameVendor: true, productDescriptionVendor: true, revenueType: true, commissionPercent: true, priceEach: true } },
+          opportunityProduct: { select: { id: true, productNameHouseSnapshot: true, revenueTypeSnapshot: true, product: { select: { revenueType: true } }, quantity: true, unitPrice: true, expectedUsage: true, expectedCommission: true, revenueStartDate: true } },
           opportunity: { select: { id: true, name: true, orderIdHouse: true, orderIdVendor: true, orderIdDistributor: true, customerIdHouse: true, customerIdVendor: true, customerIdDistributor: true, locationId: true, houseSplitPercent: true, houseRepPercent: true, subagentPercent: true, distributorName: true, vendorName: true, billingAddress: true, shippingAddress: true, description: true, owner: { select: { fullName: true } } } }
         }
       })
@@ -708,7 +657,6 @@ export async function PATCH(request: NextRequest, { params }: { params: { revenu
       )
 
       const detail = mapRevenueScheduleToDetail(updated as RevenueScheduleWithRelations)
-      detail.paymentType = await getRevenueSchedulePaymentType(tenantId, revenueScheduleId)
       detail.billingMonth = await getRevenueScheduleBillingMonth(tenantId, revenueScheduleId)
       return NextResponse.json({ data: detail })
     } catch (error) {

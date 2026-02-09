@@ -63,6 +63,12 @@ export type RevenueScheduleWithRelations = Prisma.RevenueScheduleGetPayload<{
       select: {
         id: true
         productNameHouseSnapshot: true
+        revenueTypeSnapshot: true
+        product: {
+          select: {
+            revenueType: true
+          }
+        }
         quantity: true
         unitPrice: true
         expectedUsage: true
@@ -164,13 +170,15 @@ export interface RevenueScheduleDetail extends RevenueScheduleListItem {
   expectedCommissionRatePercent: string | null
   actualCommissionRatePercent: string | null
   commissionRateDifference: string | null
+  productRevenueType: string | null
+  productRevenueTypeLabel: string | null
   houseSplitPercent: string | null
   houseRepSplitPercent: string | null
   subagentSplitPercent: string | null
   subagentName: string | null
-   paymentType: string | null
-   // "Comments" in the UI map to the existing `notes` column on RevenueSchedule.
-   comments: string | null
+  paymentType: string | null
+  // "Comments" in the UI map to the existing `notes` column on RevenueSchedule.
+  comments: string | null
 }
 
 const currencyFormatter = new Intl.NumberFormat("en-US", {
@@ -476,7 +484,12 @@ export function mapRevenueScheduleToListItem(schedule: RevenueScheduleWithRelati
 export function mapRevenueScheduleToDetail(schedule: RevenueScheduleWithRelations): RevenueScheduleDetail {
   const listValues = mapRevenueScheduleToListItem(schedule)
   const expectedCommissionRate = schedule.product?.commissionPercent ?? null
-  const productRevenueType = schedule.product?.revenueType ?? null
+  const productRevenueType =
+    schedule.product?.revenueType ??
+    schedule.opportunityProduct?.product?.revenueType ??
+    schedule.opportunityProduct?.revenueTypeSnapshot ??
+    null
+  const productRevenueTypeLabel = getRevenueTypeLabel(productRevenueType) ?? null
 
   const expectedCommissionRateFraction = expectedCommissionRate !== null ? toNumber(expectedCommissionRate) / 100 : null
   const metrics = computeRevenueScheduleMetrics({
@@ -502,11 +515,14 @@ export function mapRevenueScheduleToDetail(schedule: RevenueScheduleWithRelation
     expectedCommissionRatePercent: formatPercent(metrics.expectedRateFraction),
     actualCommissionRatePercent: formatPercent(metrics.actualRateFraction),
     commissionRateDifference: formatPercent(metrics.commissionRateDifferenceFraction),
+    productRevenueType,
+    productRevenueTypeLabel,
     houseSplitPercent: formatPercentFromFraction(splits.house),
     houseRepSplitPercent: formatPercentFromFraction(splits.houseRep),
     subagentSplitPercent: formatPercentFromFraction(splits.subagent),
     subagentName: extractSubagentName(schedule.opportunity?.description) ?? null,
-    // Payment type is derived from deposit matches in the API route.
+    // Legacy field (was previously bound to deposit payment method).
+    // RS Detail should display Revenue Type via `productRevenueType*`.
     paymentType: null,
     comments: schedule.notes ?? null
   }
