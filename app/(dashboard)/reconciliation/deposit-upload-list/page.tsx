@@ -9,6 +9,7 @@ import { ReviewStep } from '@/components/deposit-upload/review-step'
 import type { DepositUploadFormState } from '@/components/deposit-upload/types'
 import { parseSpreadsheetFile } from '@/lib/deposit-import/parse-file'
 import { DEPOSIT_IMPORT_TARGET_IDS, type DepositImportFieldTarget } from '@/lib/deposit-import/field-catalog'
+import { shouldSkipMultiVendorRow } from '@/lib/deposit-import/multi-vendor'
 import {
   createEmptyDepositMappingV2,
   seedDepositMappingV2,
@@ -28,6 +29,15 @@ import {
 type WizardStep = 'create-template' | 'map-fields' | 'review'
 
 type BackButtonConfig = { label: string; onClick: () => void; disabled?: boolean }
+
+interface MultiVendorTemplateUsage {
+  vendorNameInFile: string
+  vendorAccountId: string
+  vendorAccountName: string
+  templateId: string
+  templateName: string
+  templateUpdatedAt: string
+}
 
 const generateIdempotencyKey = () => {
   try {
@@ -74,6 +84,12 @@ export default function DepositUploadListPage() {
   const [mapping, setMapping] = useState<DepositMappingConfigV2>(() => createEmptyDepositMappingV2())
   const [templateMapping, setTemplateMapping] = useState<DepositMappingConfigV2 | null>(null)
   const [templateFields, setTemplateFields] = useState<TelarusTemplateFieldsV1 | null>(null)
+  const [multiVendorTemplatesUsed, setMultiVendorTemplatesUsed] = useState<MultiVendorTemplateUsage[]>([])
+  const [multiVendorMissingVendors, setMultiVendorMissingVendors] = useState<string[]>([])
+  const [multiVendorVendorsMissingTemplates, setMultiVendorVendorsMissingTemplates] = useState<string[]>([])
+  const [multiVendorPreviewWarnings, setMultiVendorPreviewWarnings] = useState<string[]>([])
+  const [multiVendorPreviewError, setMultiVendorPreviewError] = useState<string | null>(null)
+  const [multiVendorPreviewLoading, setMultiVendorPreviewLoading] = useState(false)
   const [validationIssues, setValidationIssues] = useState<string[]>([])
   const [importSubmitting, setImportSubmitting] = useState(false)
   const [importError, setImportError] = useState<string | null>(null)
@@ -81,6 +97,10 @@ export default function DepositUploadListPage() {
   const [idempotencyKey, setIdempotencyKey] = useState<string>(() => generateIdempotencyKey())
   const mappingHistoryRef = useRef<DepositMappingConfigV2[]>([])
   const [canUndo, setCanUndo] = useState(false)
+  const parsedRowsRef = useRef<string[][]>([])
+  const mappedVendorColumnName = (mapping.targets?.["depositLineItem.vendorNameRaw"] ?? '').trim()
+  const mappedUsageColumnName = (mapping.targets?.[DEPOSIT_IMPORT_TARGET_IDS.usage] ?? '').trim()
+  const mappedCommissionColumnName = (mapping.targets?.[DEPOSIT_IMPORT_TARGET_IDS.commission] ?? '').trim()
 
   useEffect(() => {
     setBreadcrumbs([
@@ -136,6 +156,13 @@ export default function DepositUploadListPage() {
     setParsingError(null)
     setImportError(null)
     setImportResult(null)
+    setMultiVendorTemplatesUsed([])
+    setMultiVendorMissingVendors([])
+    setMultiVendorVendorsMissingTemplates([])
+    setMultiVendorPreviewWarnings([])
+    setMultiVendorPreviewError(null)
+    setMultiVendorPreviewLoading(false)
+    parsedRowsRef.current = []
     mappingHistoryRef.current = []
     setCanUndo(false)
   }, [])
@@ -152,6 +179,7 @@ export default function DepositUploadListPage() {
         if (cancelled) return
 
         const headers = parsed.headers
+        parsedRowsRef.current = parsed.rows
         setCsvHeaders(headers)
         setSampleRows(parsed.rows.slice(0, 25))
         setParsedRowCount(parsed.rows.length)
@@ -211,6 +239,7 @@ export default function DepositUploadListPage() {
       } catch (error) {
         if (cancelled) return
         console.error('Unable to parse file', error)
+        parsedRowsRef.current = []
         setCsvHeaders([])
         setSampleRows([])
         setParsedRowCount(0)
@@ -218,6 +247,12 @@ export default function DepositUploadListPage() {
         setMapping(createEmptyDepositMappingV2())
         setTemplateMapping(null)
         setTemplateFields(null)
+        setMultiVendorTemplatesUsed([])
+        setMultiVendorMissingVendors([])
+        setMultiVendorVendorsMissingTemplates([])
+        setMultiVendorPreviewWarnings([])
+        setMultiVendorPreviewError(null)
+        setMultiVendorPreviewLoading(false)
         mappingHistoryRef.current = []
         setCanUndo(false)
       }
@@ -227,6 +262,226 @@ export default function DepositUploadListPage() {
       cancelled = true
     }
   }, [selectedFile, formState.distributorAccountId, formState.vendorAccountId, formState.templateId, formState.multiVendor])
+
+  useEffect(() => {
+    if (!formState.multiVendor) {
+      setMultiVendorTemplatesUsed([])
+      setMultiVendorMissingVendors([])
+      setMultiVendorVendorsMissingTemplates([])
+      setMultiVendorPreviewWarnings([])
+      setMultiVendorPreviewError(null)
+      setMultiVendorPreviewLoading(false)
+      return
+    }
+
+    const distributorAccountId = formState.distributorAccountId?.trim() ?? ''
+    if (!selectedFile || !distributorAccountId || !csvHeaders.length || parsingError) {
+      setMultiVendorTemplatesUsed([])
+      setMultiVendorMissingVendors([])
+      setMultiVendorVendorsMissingTemplates([])
+      setMultiVendorPreviewWarnings([])
+      setMultiVendorPreviewError(null)
+      setMultiVendorPreviewLoading(false)
+      setTemplateMapping(null)
+      setTemplateFields(null)
+      return
+    }
+
+    if (!mappedVendorColumnName) {
+      setMultiVendorTemplatesUsed([])
+      setMultiVendorMissingVendors([])
+      setMultiVendorVendorsMissingTemplates([])
+      setMultiVendorPreviewWarnings([])
+      setMultiVendorPreviewError(null)
+      setMultiVendorPreviewLoading(false)
+      setTemplateMapping(null)
+      setTemplateFields(null)
+      return
+    }
+
+    const vendorNameIndex = csvHeaders.findIndex(header => header === mappedVendorColumnName)
+    if (vendorNameIndex < 0) {
+      setMultiVendorTemplatesUsed([])
+      setMultiVendorMissingVendors([])
+      setMultiVendorVendorsMissingTemplates([])
+      setMultiVendorPreviewWarnings([])
+      setMultiVendorPreviewError('Unable to locate the mapped "Vendor Name" column in the uploaded file.')
+      setMultiVendorPreviewLoading(false)
+      setTemplateMapping(null)
+      setTemplateFields(null)
+      return
+    }
+
+    const usageIndex = mappedUsageColumnName ? csvHeaders.findIndex(header => header === mappedUsageColumnName) : -1
+    const commissionIndex = mappedCommissionColumnName
+      ? csvHeaders.findIndex(header => header === mappedCommissionColumnName)
+      : -1
+
+    const normalizeNumber = (value: unknown) => {
+      if (value === undefined || value === null) return null
+      const normalized = String(value).replace(/[^0-9.\-]/g, '')
+      if (!normalized) return null
+      const numeric = Number(normalized)
+      return Number.isNaN(numeric) ? null : numeric
+    }
+
+    const vendorNamesSet = new Set<string>()
+    const missingVendorRows: number[] = []
+    for (let rowIndex = 0; rowIndex < parsedRowsRef.current.length; rowIndex += 1) {
+      const row = parsedRowsRef.current[rowIndex] ?? []
+      const usageValue = usageIndex >= 0 ? normalizeNumber(row[usageIndex]) : null
+      const commissionValue = commissionIndex >= 0 ? normalizeNumber(row[commissionIndex]) : null
+      if (usageValue === null && commissionValue === null) {
+        continue
+      }
+
+      const vendorNameRaw = typeof row[vendorNameIndex] === 'string' ? row[vendorNameIndex].trim() : String(row[vendorNameIndex] ?? '').trim()
+      const vendorName = vendorNameRaw.length > 0 ? vendorNameRaw : null
+      if (shouldSkipMultiVendorRow(row, vendorName)) {
+        continue
+      }
+
+      if (!vendorName) {
+        if (missingVendorRows.length < 25) {
+          missingVendorRows.push(rowIndex + 2)
+        }
+        continue
+      }
+      vendorNamesSet.add(vendorName)
+    }
+
+    if (missingVendorRows.length > 0) {
+      const sampleRowNumbers = missingVendorRows.slice(0, 10).join(', ')
+      setMultiVendorTemplatesUsed([])
+      setMultiVendorMissingVendors([])
+      setMultiVendorVendorsMissingTemplates([])
+      setMultiVendorPreviewWarnings([])
+      setMultiVendorPreviewError(
+        `Multi-vendor upload is missing vendor values in the mapped "Vendor Name" column (example row numbers: ${sampleRowNumbers}).`,
+      )
+      setMultiVendorPreviewLoading(false)
+      setTemplateMapping(null)
+      setTemplateFields(null)
+      return
+    }
+
+    const vendorNames = Array.from(vendorNamesSet)
+    if (vendorNames.length === 0) {
+      setMultiVendorTemplatesUsed([])
+      setMultiVendorMissingVendors([])
+      setMultiVendorVendorsMissingTemplates([])
+      setMultiVendorPreviewWarnings([])
+      setMultiVendorPreviewError('No usable vendor rows were found from the mapped "Vendor Name" column.')
+      setMultiVendorPreviewLoading(false)
+      setTemplateMapping(null)
+      setTemplateFields(null)
+      return
+    }
+
+    const controller = new AbortController()
+    let cancelled = false
+
+    const runPreview = async () => {
+      setMultiVendorPreviewLoading(true)
+      setMultiVendorPreviewError(null)
+      try {
+        const response = await fetch('/api/reconciliation/templates/multi-vendor-preview', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            distributorAccountId,
+            vendorNames,
+            options: { maxVendors: 100 },
+          }),
+          signal: controller.signal,
+        })
+
+        const payload = await response.json().catch(() => null)
+        if (!response.ok) {
+          throw new Error(payload?.error || 'Unable to resolve templates for multi-vendor upload.')
+        }
+        if (cancelled) return
+
+        const data = payload?.data ?? {}
+        const templatesUsed = Array.isArray(data.templatesUsed) ? (data.templatesUsed as MultiVendorTemplateUsage[]) : []
+        const missingVendors = Array.isArray(data.missingVendors) ? (data.missingVendors as string[]) : []
+        const vendorsMissingTemplates = Array.isArray(data.vendorsMissingTemplates)
+          ? (data.vendorsMissingTemplates as string[])
+          : []
+        const warnings = Array.isArray(data.warnings) ? (data.warnings as string[]) : []
+
+        setMultiVendorTemplatesUsed(templatesUsed)
+        setMultiVendorMissingVendors(missingVendors)
+        setMultiVendorVendorsMissingTemplates(vendorsMissingTemplates)
+        setMultiVendorPreviewWarnings(warnings)
+
+        const mergedMappingRaw = data?.mergedTemplateConfig?.depositMappingV2
+        const mergedTemplateFieldsRaw = data?.mergedTemplateConfig?.telarusTemplateFields
+
+        const nextTemplateMapping = mergedMappingRaw
+          ? stripTelarusGeneratedCustomFieldsV2(
+              extractDepositMappingV2FromTemplateConfig({ depositMapping: mergedMappingRaw }),
+            )
+          : null
+        const hasTemplateMapping =
+          nextTemplateMapping &&
+          (Object.keys(nextTemplateMapping.targets ?? {}).length > 0 ||
+            Object.keys(nextTemplateMapping.columns ?? {}).length > 0 ||
+            Object.keys(nextTemplateMapping.customFields ?? {}).length > 0)
+            ? nextTemplateMapping
+            : null
+
+        const nextTemplateFields = mergedTemplateFieldsRaw
+          ? extractTelarusTemplateFieldsFromTemplateConfig({
+              telarusTemplateFields: mergedTemplateFieldsRaw,
+            })
+          : null
+
+        setTemplateMapping(hasTemplateMapping)
+        setTemplateFields(nextTemplateFields)
+      } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') {
+          return
+        }
+        if (cancelled) return
+        console.error('Unable to load multi-vendor template preview', error)
+        setMultiVendorTemplatesUsed([])
+        setMultiVendorMissingVendors([])
+        setMultiVendorVendorsMissingTemplates([])
+        setMultiVendorPreviewWarnings([])
+        setTemplateMapping(null)
+        setTemplateFields(null)
+        setMultiVendorPreviewError(
+          error instanceof Error
+            ? error.message
+            : 'Unable to resolve templates for multi-vendor upload.',
+        )
+      } finally {
+        if (!cancelled) {
+          setMultiVendorPreviewLoading(false)
+        }
+      }
+    }
+
+    const timer = setTimeout(() => {
+      void runPreview()
+    }, 300)
+
+    return () => {
+      cancelled = true
+      controller.abort()
+      clearTimeout(timer)
+    }
+  }, [
+    formState.multiVendor,
+    formState.distributorAccountId,
+    mappedVendorColumnName,
+    mappedUsageColumnName,
+    mappedCommissionColumnName,
+    csvHeaders,
+    selectedFile,
+    parsingError,
+  ])
 
   useEffect(() => {
     const issues: string[] = []
@@ -247,8 +502,34 @@ export default function DepositUploadListPage() {
     if (selectedFile && parsedRowCount === 0 && !parsingError) {
       issues.push('No data rows were detected in the uploaded file.')
     }
+    if (formState.multiVendor && multiVendorPreviewLoading) {
+      issues.push('Resolving templates for multi-vendor upload. Please wait.')
+    }
+    if (formState.multiVendor && multiVendorPreviewError) {
+      issues.push(multiVendorPreviewError)
+    }
+    if (formState.multiVendor && multiVendorMissingVendors.length > 0) {
+      issues.push(
+        `Unable to resolve vendor account(s): ${multiVendorMissingVendors.slice(0, 8).join(', ')}.`,
+      )
+    }
+    if (formState.multiVendor && multiVendorVendorsMissingTemplates.length > 0) {
+      issues.push(
+        `Missing reconciliation template(s) for vendor(s): ${multiVendorVendorsMissingTemplates.slice(0, 8).join(', ')}.`,
+      )
+    }
     setValidationIssues(issues)
-  }, [mapping, selectedFile, parsingError, parsedRowCount, formState.multiVendor])
+  }, [
+    mapping,
+    selectedFile,
+    parsingError,
+    parsedRowCount,
+    formState.multiVendor,
+    multiVendorPreviewLoading,
+    multiVendorPreviewError,
+    multiVendorMissingVendors,
+    multiVendorVendorsMissingTemplates,
+  ])
 
   const handleColumnSelectionChange = useCallback((columnName: string, selection: DepositColumnSelectionV2) => {
     setMapping(previous => {
@@ -383,7 +664,14 @@ export default function DepositUploadListPage() {
     Boolean(mapping.targets?.[DEPOSIT_IMPORT_TARGET_IDS.usage]) ||
     Boolean(mapping.targets?.[DEPOSIT_IMPORT_TARGET_IDS.commission])
   const vendorColumnReady = !formState.multiVendor || Boolean(mapping.targets?.["depositLineItem.vendorNameRaw"])
-  const canProceedFromMapFields = requiredFieldsComplete && vendorColumnReady && Boolean(csvHeaders.length) && !parsingError
+  const multiVendorPreviewReady =
+    !formState.multiVendor ||
+    (!multiVendorPreviewLoading &&
+      !multiVendorPreviewError &&
+      multiVendorMissingVendors.length === 0 &&
+      multiVendorVendorsMissingTemplates.length === 0)
+  const canProceedFromMapFields =
+    requiredFieldsComplete && vendorColumnReady && Boolean(csvHeaders.length) && !parsingError && multiVendorPreviewReady
   const canProceedFromCreateTemplate = Boolean(
     formState.depositReceivedDate &&
       formState.commissionPeriod &&
@@ -501,7 +789,19 @@ export default function DepositUploadListPage() {
                 mapping={mapping}
                 templateMapping={templateMapping}
                 templateFields={templateFields}
-                templateLabel={formState.templateLabel}
+                templateLabel={
+                  formState.multiVendor
+                    ? multiVendorTemplatesUsed.length > 0
+                      ? `Templates Used (${multiVendorTemplatesUsed.length})`
+                      : ''
+                    : formState.templateLabel
+                }
+                multiVendor={formState.multiVendor}
+                templatesUsed={multiVendorTemplatesUsed}
+                previewWarnings={multiVendorPreviewWarnings}
+                missingVendors={multiVendorMissingVendors}
+                vendorsMissingTemplates={multiVendorVendorsMissingTemplates}
+                previewError={multiVendorPreviewError}
                 saveTemplateMapping={formState.saveTemplateMapping}
                 onSaveTemplateMappingChange={value => updateFormState({ saveTemplateMapping: value })}
                 parsingError={parsingError}

@@ -1,0 +1,25 @@
+TicketID,Priority,Epic,Title,Owner,Requestor,Target,Dependencies,Source
+CRM-DATA-RESET,P0,Testing/Data Hygiene,Clear deposit-related data in test environment,Hunter,Rob,ASAP,Access to test DB,02-02 summary L7-L13
+CRM-RS-BULK-RECALC,P0,Revenue Schedules,Fix bulk edit Price Each recalculation for all dependent fields,Hunter,Rob,ASAP,Identify dependent calculated fields; endpoint location,Rob-Feedback-02-05 L11-L18; L141-L146
+CRM-RS-DATE-TZ,P0,Revenue Schedules,Fix schedule date generation (1st of month @ 8am ET) to avoid DST/timezone drift,Hunter,Rob,ASAP,None,02-02 summary L25-L26 and L65-L66
+CRM-PROD-DATES-BACKFILL,P0,Products Tab,Backfill First/Last Schedule Dates for existing products (migration or on-the-fly query),Hunter,Rob,ASAP,Confirm whether fields are stored vs computed; choose approach,Rob-Feedback-02-05 L51-L62; L125-L131
+CRM-RS-DETAIL-FIELDS,P0,Revenue Schedules,Fix RS detail page fields (Revenue Type source; swap Subagent/House; House Rep required; Subagent default),Hunter,Rob,ASAP,None,02-02 summary L15-L24
+CRM-RS-INLINE-EDIT-POPUP,P0,Revenue Schedules,Inline edit popup: default effective date + show Old Price/New Price + fix notification text,Hunter,Rob,ASAP,Confirm effective date should default to oldest schedule,02-05 summary L15-L24 and L63-L66
+CRM-OPP-INLINE-EDIT-MACRO,P1,Opportunities,Reuse the same inline-edit “macro” functionality in the Opportunity view (if missing),Hunter,Rob,Soon,Confirm current availability in Opportunity UI,02-05 transcript @1:03:41
+CRM-MV-VENDOR-FILTER,P1,Deposit Upload/Multi-vendor,Add vendor filter to mapping screen for per-vendor mapping,Hunter,Rob,Before migration planning,None,02-02 summary L9-L13
+CRM-MV-SAVE-TEMPLATE-PROMPT,P1,Deposit Upload/Multi-vendor,Warn/prompt to save mapping template before navigating away,Hunter,Rob,Before migration planning,None,02-02 summary L11-L13
+CRM-MV-NEW-FIELDS-LAYOUT,P1,Deposit Upload/Multi-vendor,Move “New fields” section below tabs; include vendor filter; add “Save to template” prompt,Hunter,Rob,Before migration planning,None,02-02 transcript L43-L48
+CRM-REC-VENDOR-SUMMARY-WIDGET,P1,Reconciliation UI,Convert vendor summary modal to floating/draggable widget (vendor dropdown + unallocated metrics),Hunter,Rob,Before migration planning,UI mockup from Rob,02-02 summary L13-L14 and L35-L36; 02-02 transcript @1:05:43
+CRM-REC-FLEX-CHARGEBACKS-BUTTON,P1,Reconciliation UI,Add Flex/Chargebacks button/entry point on main Reconciliation page,Hunter,Rob,Before migration planning,None,02-02 summary L45-L46
+CRM-REC-FLEX-UI-REFINE,P1,Reconciliation UI,Refine Flex/Chargebacks UI (expected/actual/delta labels; related schedule column; green highlights; clear old data),Hunter,Rob,Before migration planning,None,02-02 summary L47-L48; 02-02 transcript @24:02
+CRM-REC-BACK-BUTTON-FIX,P2,Reconciliation UI,Fix Back button navigation on reconciliation/deposit pages,Hunter,Rob,When possible,None,02-02 summary L55-L56
+CRM-REC-MATCH-SEEDS-DETAIL,P2,Reconciliation UI,Improve Match Seeds “Y” indicator to show which matching criteria were hit,Hunter,Rob,When possible,None,02-02 transcript @8:37
+CRM-REC-APPLY-PREVIEW-HIGHLIGHT,P2,Reconciliation UI,When selecting bottom item, preview/populate actual usage & commission and highlight (green) before final match,Hunter,Rob,When possible,Clarify whether this replaces or complements existing Apply button,02-02 transcript @9:13
+CRM-DOC-PROPAGATION-UNDO,P0,Documentation,Write-up: data propagation rules (deposit→opp→product catalog) + Undo rollback expectations,Hunter,Rob,ASAP,None,02-02 summary L27-L28
+CRM-PDF-VALIDATION,P1,Deposit Upload,Pdf upload validation with real Commissable PDF deposit and matching opportunity,Hunter,Rob,Before migration planning,Rob to provide sample PDF + create matching opp,02-02 transcript @1:32:01
+CLOUDBOT-ONEPAGER,P0,CloudBot,Create 1-page CloudBot scope/security/deployment/DR/failover/access/updates/reuse/retainer doc,Mykel,Rob,ASAP,None,02-05 summary L61-L66; 02-05 transcript @48:11
+MIGRATION-PREWORK,P1,Data Migration,Send Hunter/Rob pre-work for Feb 19 data migration meeting (scenarios: cold start/full/hybrid),Hunter,Rob,Before Feb 19 meeting,None,02-05 summary L57-L60 and L67-L68
+ROB-TEST-DATA,P0,Client Inputs,Provide clean targeted test datasets (1:1, 1:M, M:1, overage/Flex, chargebacks, lump-sum),Rob,Rob,ASAP,None,02-02 summary L29-L34
+ROB-PDF-SAMPLE,P1,Client Inputs,Email sample PDF deposit to Hunter + create matching opportunity,Rob,Rob,Before PDF validation,None,02-02 transcript @1:32:01
+ROB-MULTIVENDOR-SAMPLE,P1,Client Inputs,Build and send 10–12 row multi-vendor deposit sample,Rob,Rob,Before mapping work,None,02-02 summary L69-L70
+ROB-WIDGET-MOCKUP,P1,Client Inputs,Create layout mockup for floating vendor summary widget,Rob,Rob,Before widget implementation,None,02-02 summary L35-L36

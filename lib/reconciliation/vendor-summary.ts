@@ -1,5 +1,14 @@
 import type { DepositLineItemRow } from "@/lib/mock-data"
 
+export type VendorStatusCounts = {
+  matched: number
+  partiallyMatched: number
+  unmatched: number
+  suggested: number
+  ignored: number
+  reconciled: number
+}
+
 export type VendorSummaryRow = {
   vendorName: string
   lineCount: number
@@ -8,6 +17,8 @@ export type VendorSummaryRow = {
   usageUnallocated: number
   commissionAllocated: number
   commissionUnallocated: number
+  commissionAllocatedPercent: number
+  statusCounts: VendorStatusCounts
 }
 
 export type VendorSummaryTotals = {
@@ -18,11 +29,30 @@ export type VendorSummaryTotals = {
   usageUnallocated: number
   commissionAllocated: number
   commissionUnallocated: number
+  commissionAllocatedPercent: number
+  statusCounts: VendorStatusCounts
 }
 
 function toNumber(value: unknown): number {
   const numeric = Number(value ?? 0)
   return Number.isFinite(numeric) ? numeric : 0
+}
+
+function computePercent(allocated: number, unallocated: number): number {
+  const total = allocated + unallocated
+  if (total <= 0) return 100
+  return Math.round((allocated / total) * 100)
+}
+
+function getStatusKey(item: DepositLineItemRow): keyof VendorStatusCounts {
+  if (item.reconciled) return "reconciled"
+  switch (item.status) {
+    case "Matched": return "matched"
+    case "Partially Matched": return "partiallyMatched"
+    case "Suggested": return "suggested"
+    case "Ignored": return "ignored"
+    default: return "unmatched"
+  }
 }
 
 export function buildVendorSummary(lineItems: DepositLineItemRow[]): {
@@ -37,6 +67,9 @@ export function buildVendorSummary(lineItems: DepositLineItemRow[]): {
   let totalUsageUnallocated = 0
   let totalCommissionAllocated = 0
   let totalCommissionUnallocated = 0
+  const totalStatusCounts: VendorStatusCounts = {
+    matched: 0, partiallyMatched: 0, unmatched: 0, suggested: 0, ignored: 0, reconciled: 0,
+  }
 
   for (const item of lineItems) {
     totalLineCount += 1
@@ -55,6 +88,9 @@ export function buildVendorSummary(lineItems: DepositLineItemRow[]): {
     totalCommissionAllocated += commissionAllocated
     totalCommissionUnallocated += commissionUnallocated
 
+    const statusKey = getStatusKey(item)
+    totalStatusCounts[statusKey] += 1
+
     const existing = byVendor.get(vendorName)
     if (existing) {
       existing.lineCount += 1
@@ -63,8 +99,14 @@ export function buildVendorSummary(lineItems: DepositLineItemRow[]): {
       existing.usageUnallocated += usageUnallocated
       existing.commissionAllocated += commissionAllocated
       existing.commissionUnallocated += commissionUnallocated
+      existing.statusCounts[statusKey] += 1
       continue
     }
+
+    const statusCounts: VendorStatusCounts = {
+      matched: 0, partiallyMatched: 0, unmatched: 0, suggested: 0, ignored: 0, reconciled: 0,
+    }
+    statusCounts[statusKey] = 1
 
     byVendor.set(vendorName, {
       vendorName,
@@ -74,10 +116,15 @@ export function buildVendorSummary(lineItems: DepositLineItemRow[]): {
       usageUnallocated,
       commissionAllocated,
       commissionUnallocated,
+      commissionAllocatedPercent: 0,
+      statusCounts,
     })
   }
 
   const rows = Array.from(byVendor.values())
+  for (const row of rows) {
+    row.commissionAllocatedPercent = computePercent(row.commissionAllocated, row.commissionUnallocated)
+  }
   rows.sort((a, b) => {
     if (b.commissionUnallocated !== a.commissionUnallocated) {
       return b.commissionUnallocated - a.commissionUnallocated
@@ -98,6 +145,8 @@ export function buildVendorSummary(lineItems: DepositLineItemRow[]): {
       usageUnallocated: totalUsageUnallocated,
       commissionAllocated: totalCommissionAllocated,
       commissionUnallocated: totalCommissionUnallocated,
+      commissionAllocatedPercent: computePercent(totalCommissionAllocated, totalCommissionUnallocated),
+      statusCounts: totalStatusCounts,
     },
   }
 }

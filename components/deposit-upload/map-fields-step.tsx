@@ -69,6 +69,19 @@ interface MapFieldsStepProps {
   templateMapping: DepositMappingConfigV2 | null
   templateFields: TelarusTemplateFieldsV1 | null
   templateLabel?: string
+  multiVendor?: boolean
+  templatesUsed?: Array<{
+    vendorNameInFile: string
+    vendorAccountId: string
+    vendorAccountName: string
+    templateId: string
+    templateName: string
+    templateUpdatedAt: string
+  }>
+  previewWarnings?: string[]
+  missingVendors?: string[]
+  vendorsMissingTemplates?: string[]
+  previewError?: string | null
   saveTemplateMapping?: boolean
   onSaveTemplateMappingChange?: (value: boolean) => void
   parsingError: string | null
@@ -87,6 +100,12 @@ export function MapFieldsStep({
   templateMapping,
   templateFields,
   templateLabel,
+  multiVendor = false,
+  templatesUsed = [],
+  previewWarnings = [],
+  missingVendors = [],
+  vendorsMissingTemplates = [],
+  previewError = null,
   saveTemplateMapping = false,
   onSaveTemplateMappingChange,
   parsingError,
@@ -829,15 +848,23 @@ export function MapFieldsStep({
           <div className="min-w-0 space-y-0.5 md:border-r md:border-gray-200 md:pr-3">
             <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
               <div className="min-w-0">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Template</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  {multiVendor ? "Templates Used" : "Template"}
+                </p>
                 <p
                   className="truncate text-sm font-semibold text-slate-900"
-                  title={templateLabel ?? "No template selected"}
+                  title={
+                    multiVendor
+                      ? templateLabel || "Map Vendor Name to resolve templates"
+                      : templateLabel ?? "No template selected"
+                  }
                 >
-                  {templateLabel ?? "No template selected"}
+                  {multiVendor
+                    ? templateLabel || "Map Vendor Name to resolve templates"
+                    : templateLabel ?? "No template selected"}
                 </p>
               </div>
-              {onSaveTemplateMappingChange ? (
+              {!multiVendor && onSaveTemplateMappingChange ? (
                 <label className="inline-flex items-center gap-1.5 text-xs text-slate-700">
                   <input
                     type="checkbox"
@@ -849,7 +876,43 @@ export function MapFieldsStep({
                 </label>
               ) : null}
             </div>
-            {templateLabel ? (
+
+            {multiVendor ? (
+              <>
+                {previewError ? (
+                  <p className="text-xs leading-4 text-red-600">{previewError}</p>
+                ) : missingVendors.length > 0 ? (
+                  <p className="text-xs leading-4 text-red-600">
+                    Unable to resolve vendor account(s): {missingVendors.slice(0, 8).join(", ")}.
+                  </p>
+                ) : vendorsMissingTemplates.length > 0 ? (
+                  <p className="text-xs leading-4 text-red-600">
+                    Missing reconciliation template(s) for vendor(s): {vendorsMissingTemplates.slice(0, 8).join(", ")}.
+                  </p>
+                ) : templatesUsed.length > 0 ? (
+                  <p className="text-xs leading-4 text-slate-500">
+                    Resolved {templatesUsed.length} distributor/vendor template pair
+                    {templatesUsed.length === 1 ? "" : "s"} from uploaded rows.
+                  </p>
+                ) : (
+                  <p className="text-xs leading-4 text-slate-500">
+                    Map Vendor Name to resolve distributor/vendor templates for multi-vendor uploads.
+                  </p>
+                )}
+                {previewWarnings.length > 0 ? (
+                  <p className="text-xs leading-4 text-amber-700">{previewWarnings[0]}</p>
+                ) : null}
+                {templatesUsed.length > 0 ? (
+                  <div className="max-h-24 overflow-y-auto rounded border border-slate-200 bg-slate-50 px-2 py-1 text-xs text-slate-700">
+                    {templatesUsed.map(item => (
+                      <p key={`${item.vendorAccountId}:${item.templateId}`}>
+                        {item.vendorNameInFile}: {item.templateName}
+                      </p>
+                    ))}
+                  </div>
+                ) : null}
+              </>
+            ) : templateLabel ? (
               <p className="text-xs leading-4 text-slate-500">
                 Saving updates only affects future uploads that use this template. Existing deposits are not changed.
               </p>
@@ -881,8 +944,7 @@ export function MapFieldsStep({
       </div>
 
       <p className="text-xs leading-4 text-gray-600">
-        Map required fields like Usage and Commission. Optional fields can stay unmapped; saved templates pre-fill when
-        available.
+        Map required fields like Usage and Commission. Optional fields can stay unmapped; saved templates pre-fill when available.
       </p>
 
       {parsingError ? (

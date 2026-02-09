@@ -464,6 +464,7 @@ export function DepositReconciliationDetailView({
   const [showFinalizePreview, setShowFinalizePreview] = useState(false)
   const [showUnreconcilePreview, setShowUnreconcilePreview] = useState(false)
   const [showVendorSummaryWidget, setShowVendorSummaryWidget] = useState(false)
+  const [vendorSummarySelectedVendor, setVendorSummarySelectedVendor] = useState<string | null>(null)
   const [lineSortConfig, setLineSortConfig] = useState<{ key: string; direction: "asc" | "desc" } | null>(null)
   const [scheduleSortConfig, setScheduleSortConfig] = useState<{ key: string; direction: "asc" | "desc" } | null>(null)
   const [showDeleteDepositDialog, setShowDeleteDepositDialog] = useState(false)
@@ -1159,6 +1160,19 @@ export function DepositReconciliationDetailView({
     }
     openMatchWizardFromSelection()
   }, [isUnmatchSelection, openMatchWizardFromSelection, showError, unmatchLineById])
+
+  const handleVendorSummaryClick = useCallback((vendorName: string) => {
+    if (!vendorName) {
+      setVendorSummarySelectedVendor(null)
+      setLineColumnFilters(prev => prev.filter(f => f.columnId !== "vendorName"))
+      return
+    }
+    setVendorSummarySelectedVendor(vendorName)
+    setLineColumnFilters(prev => {
+      const withoutVendor = prev.filter(f => f.columnId !== "vendorName")
+      return [...withoutVendor, { columnId: "vendorName" as LineFilterColumnId, value: vendorName }]
+    })
+  }, [])
 
   const handleLineColumnFiltersChange = useCallback((filters: ColumnFilter[]) => {
     if (!filters || filters.length === 0) {
@@ -2800,6 +2814,9 @@ export function DepositReconciliationDetailView({
         open={showVendorSummaryWidget}
         lineItems={filteredLineItems}
         onClose={() => setShowVendorSummaryWidget(false)}
+        onVendorClick={handleVendorSummaryClick}
+        selectedVendor={vendorSummarySelectedVendor}
+        filterContext={{ activeTab: lineTab, totalLineItems: lineItemRows.length }}
       />
       {aiAdjustmentModal ? (
         <div

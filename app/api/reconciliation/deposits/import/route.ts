@@ -17,7 +17,7 @@ import {
   serializeDepositMappingForTemplateV2,
   type DepositMappingConfigV2,
 } from "@/lib/deposit-import/template-mapping-v2"
-import { shouldSkipMultiVendorRow } from "@/lib/deposit-import/multi-vendor"
+import { groupRowsByVendor, resolveMultiVendorTemplates } from "@/lib/deposit-import/multi-vendor-template-resolver"
 
 function startOfMonth(date: Date) {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1))
@@ -328,15 +328,13 @@ export async function POST(request: NextRequest) {
     try {
       const txStartMs = Date.now()
 
-      const MULTI_VENDOR_VENDOR_NAME_TARGET_ID = "depositLineItem.vendorNameRaw"
-
       const result = await prisma.$transaction(async tx => {
         if (multiVendor) {
-          const vendorColumnName = mappingConfig.targets?.[MULTI_VENDOR_VENDOR_NAME_TARGET_ID]
+          const vendorColumnName = mappingConfig.targets?.["depositLineItem.vendorNameRaw"]
           if (!vendorColumnName) {
             throw new Error('Multi-vendor uploads require mapping the "Vendor Name" column.')
           }
-          const vendorNameIndex = columnIndex[MULTI_VENDOR_VENDOR_NAME_TARGET_ID]
+          const vendorNameIndex = columnIndex["depositLineItem.vendorNameRaw"]
           if (vendorNameIndex === undefined) {
             throw new Error('Unable to locate the mapped "Vendor Name" column in the uploaded file.')
           }
@@ -344,131 +342,69 @@ export async function POST(request: NextRequest) {
           const usageIndex = columnIndex[DEPOSIT_IMPORT_TARGET_IDS.usage]
           const commissionIndex = columnIndex[DEPOSIT_IMPORT_TARGET_IDS.commission]
 
-          const groups = new Map<string, { vendorName: string; rows: string[][] }>()
-          const missingVendorRows: number[] = []
+          const groupedRows = groupRowsByVendor({
+            rows: parsedFile.rows,
+            vendorNameIndex,
+            usageIndex,
+            commissionIndex,
+          })
 
-          for (let rowIndex = 0; rowIndex < parsedFile.rows.length; rowIndex += 1) {
-            const row = parsedFile.rows[rowIndex] ?? []
-            const usageValueRaw = usageIndex !== undefined ? normalizeNumber(row[usageIndex]) : null
-            const commissionValue = commissionIndex !== undefined ? normalizeNumber(row[commissionIndex]) : null
-            if (usageValueRaw === null && commissionValue === null) {
-              continue
-            }
-
-            const vendorNameRaw = normalizeString(row[vendorNameIndex])
-            if (shouldSkipMultiVendorRow(row, vendorNameRaw)) {
-              continue
-            }
-
-            if (!vendorNameRaw) {
-              if (missingVendorRows.length < 25) {
-                missingVendorRows.push(rowIndex + 2) // +1 for 0-index and +1 for header row
-              }
-              continue
-            }
-
-            const key = vendorNameRaw.trim().toLowerCase()
-            const group = groups.get(key)
-            if (group) {
-              group.rows.push(row)
-            } else {
-              groups.set(key, { vendorName: vendorNameRaw, rows: [row] })
-            }
-          }
-
-          if (missingVendorRows.length > 0) {
-            const sample = missingVendorRows.slice(0, 10).join(", ")
+          if (groupedRows.missingVendorRows.length > 0) {
+            const sample = groupedRows.missingVendorRows.slice(0, 10).join(", ")
             throw new Error(
               `Multi-vendor upload is missing vendor values in the mapped "Vendor Name" column (example row numbers: ${sample}).`,
             )
           }
 
-          if (groups.size === 0) {
+          if (groupedRows.groups.length === 0) {
             throw new Error("No usable rows were found in the uploaded file.")
           }
 
-          const vendorGroups = Array.from(groups.values())
-          const vendorAccounts: Array<{ id: string; accountName: string } | null> = []
-          for (const group of vendorGroups) {
-            // Avoid concurrent queries inside the interactive transaction.
-            const account = await tx.account.findFirst({
-              where: {
-                tenantId,
-                accountType: { is: { name: { equals: "Vendor", mode: "insensitive" } } },
-                OR: [
-                  { accountName: { equals: group.vendorName, mode: "insensitive" } },
-                  { accountLegalName: { equals: group.vendorName, mode: "insensitive" } },
-                ],
-              },
-              select: { id: true, accountName: true },
-            })
-            vendorAccounts.push(account)
-          }
+          const vendorGroups = groupedRows.groups
+          const templateResolution = await resolveMultiVendorTemplates({
+            db: tx,
+            tenantId,
+            distributorAccountId,
+            vendorNamesInFile: vendorGroups.map(group => group.vendorName),
+          })
 
-          const missingVendors: string[] = []
-          const vendorAccountIdByKey = new Map<string, { id: string; name: string }>()
-          for (let index = 0; index < vendorGroups.length; index += 1) {
-            const account = vendorAccounts[index]
-            const group = vendorGroups[index]
-            if (!account) {
-              missingVendors.push(group.vendorName)
-              continue
-            }
-            vendorAccountIdByKey.set(group.vendorName.trim().toLowerCase(), { id: account.id, name: account.accountName })
-          }
-
-          if (missingVendors.length > 0) {
+          if (templateResolution.missingVendors.length > 0) {
             throw new Error(
-              `Unable to resolve vendor account(s) from the uploaded file: ${missingVendors
+              `Unable to resolve vendor account(s) from the uploaded file: ${templateResolution.missingVendors
                 .slice(0, 10)
                 .join(", ")}. Please ensure the Vendor names match CRM account names.`,
             )
           }
 
-          const vendorAccountIds = Array.from(vendorAccountIdByKey.values()).map(value => value.id)
-          const templates = await tx.reconciliationTemplate.findMany({
-            where: {
-              tenantId,
-              distributorAccountId,
-              vendorAccountId: { in: vendorAccountIds },
-            },
-            select: { id: true, vendorAccountId: true },
-          })
-          const templateByVendorAccountId = new Map(templates.map(template => [template.vendorAccountId, template.id]))
-
-          const vendorsMissingTemplates: string[] = []
-          for (const group of vendorGroups) {
-            const resolvedVendor = vendorAccountIdByKey.get(group.vendorName.trim().toLowerCase())
-            if (!resolvedVendor) continue
-            if (!templateByVendorAccountId.get(resolvedVendor.id)) {
-              vendorsMissingTemplates.push(group.vendorName)
-            }
-          }
-
-          if (vendorsMissingTemplates.length > 0) {
+          if (templateResolution.vendorsMissingTemplates.length > 0) {
             throw new Error(
-              `Missing reconciliation template(s) for vendor(s): ${vendorsMissingTemplates
+              `Missing reconciliation template(s) for vendor(s): ${templateResolution.vendorsMissingTemplates
                 .slice(0, 10)
                 .join(", ")}. Create templates for these vendors and retry the upload.`,
             )
           }
+          const vendorAccountIds = Array.from(
+            new Set(templateResolution.templatesUsed.map(item => item.vendorAccountId)),
+          )
 
           const distributorAccount = await tx.account.findFirst({
             where: { tenantId, id: distributorAccountId },
             select: { accountName: true },
           })
 
-          const depositsCreated: { depositId: string; vendorAccountId: string }[] = []
+          const depositsCreated: { depositId: string; vendorAccountId: string; templateId: string }[] = []
           let processedRows = 0
 
           for (const group of vendorGroups) {
-            const resolvedVendor = vendorAccountIdByKey.get(group.vendorName.trim().toLowerCase())
-            if (!resolvedVendor) continue
-            const vendorAccountId = resolvedVendor.id
-            const reconciliationTemplateIdForVendor = templateByVendorAccountId.get(vendorAccountId) ?? null
+            const resolvedVendor = templateResolution.byVendorKey.get(group.vendorKey)
+            if (!resolvedVendor) {
+              throw new Error(`Unable to resolve vendor template for "${group.vendorName}".`)
+            }
+            const vendorAccountId = resolvedVendor.vendorAccountId
+            const reconciliationTemplateIdForVendor = resolvedVendor.templateId
 
             const generatedDepositName = [
-              resolvedVendor.name,
+              resolvedVendor.vendorAccountName,
               distributorAccount?.accountName ?? "",
               resolvedDepositDate.toISOString().slice(0, 10),
             ]
@@ -608,7 +544,11 @@ export async function POST(request: NextRequest) {
               },
             })
 
-            depositsCreated.push({ depositId: deposit.id, vendorAccountId })
+            depositsCreated.push({
+              depositId: deposit.id,
+              vendorAccountId,
+              templateId: reconciliationTemplateIdForVendor,
+            })
             processedRows += lineItemsData.length
 
             if (templateConfigToPersist && saveTemplateMapping && reconciliationTemplateIdForVendor) {
@@ -626,6 +566,12 @@ export async function POST(request: NextRequest) {
             multiVendor: true,
             vendorAccountIds,
             depositIds: depositsCreated.map(item => item.depositId),
+            templatesUsed: templateResolution.templatesUsed.map(item => ({
+              vendorNameInFile: item.vendorNameInFile,
+              vendorAccountId: item.vendorAccountId,
+              templateId: item.templateId,
+              templateName: item.templateName,
+            })) as unknown as Prisma.InputJsonValue,
             mapping: mappingConfig as unknown as Prisma.InputJsonValue,
             commissionPeriod: commissionPeriodInput || null,
             saveTemplateMapping,
@@ -877,7 +823,9 @@ export async function POST(request: NextRequest) {
       const totalDurationMs = Date.now() - totalStartMs
 
       if (multiVendor) {
-        const depositsCreated = (result as any)?.depositsCreated as { depositId: string; vendorAccountId: string }[] | undefined
+        const depositsCreated = (result as any)?.depositsCreated as
+          | { depositId: string; vendorAccountId: string; templateId: string }[]
+          | undefined
         if (Array.isArray(depositsCreated)) {
           for (const created of depositsCreated) {
             await logAudit({
@@ -892,6 +840,7 @@ export async function POST(request: NextRequest) {
                 fileName: file.name || "deposit-upload",
                 distributorAccountId,
                 vendorAccountId: created.vendorAccountId,
+                reconciliationTemplateId: created.templateId,
                 multiVendor: true,
                 idempotencyKey,
                 performance: {

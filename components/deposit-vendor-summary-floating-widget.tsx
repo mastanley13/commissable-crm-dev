@@ -6,7 +6,7 @@ import { GripHorizontal, X } from "lucide-react"
 import type { DepositLineItemRow } from "@/lib/mock-data"
 import { cn } from "@/lib/utils"
 
-import { DepositVendorSummaryWidget } from "./deposit-vendor-summary-widget"
+import { DepositVendorSummaryWidget, type FilterContext } from "./deposit-vendor-summary-widget"
 
 interface WidgetLayout {
   x: number
@@ -35,6 +35,9 @@ export interface DepositVendorSummaryFloatingWidgetProps {
   open: boolean
   lineItems: DepositLineItemRow[]
   onClose: () => void
+  onVendorClick?: (vendorName: string) => void
+  selectedVendor?: string | null
+  filterContext?: FilterContext | null
 }
 
 const STORAGE_KEY = "reconciliation.vendor-summary-floating-layout.v1"
@@ -75,6 +78,9 @@ export function DepositVendorSummaryFloatingWidget({
   open,
   lineItems,
   onClose,
+  onVendorClick,
+  selectedVendor,
+  filterContext,
 }: DepositVendorSummaryFloatingWidgetProps) {
   const [layout, setLayout] = useState<WidgetLayout>({ x: 24, y: 96, width: 980, height: 520 })
   const [isDragging, setIsDragging] = useState(false)
@@ -288,7 +294,13 @@ export function DepositVendorSummaryFloatingWidget({
         </div>
 
         <div className="min-h-0 flex-1 overflow-auto p-3">
-          <DepositVendorSummaryWidget lineItems={lineItems} defaultVisibleRows={25} />
+          <DepositVendorSummaryWidget
+            lineItems={lineItems}
+            defaultVisibleRows={25}
+            onVendorClick={onVendorClick}
+            selectedVendor={selectedVendor}
+            filterContext={filterContext}
+          />
         </div>
 
         <button
