@@ -13,6 +13,10 @@ import { logProductAudit, logRevenueScheduleAudit } from "@/lib/audit"
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
+function toMonthStartUtc(value: Date) {
+  return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), 1))
+}
+
 async function getRevenueScheduleBillingMonth(tenantId: string, revenueScheduleId: string): Promise<string | null> {
   const matches = await prisma.depositLineMatch.findMany({
     where: {
@@ -310,7 +314,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { revenu
           if (Number.isNaN(date.getTime())) {
             errors.revenueScheduleDate = "Invalid date. Use YYYY-MM-DD."
           } else {
-            data.scheduleDate = date
+            data.scheduleDate = toMonthStartUtc(date)
             hasChanges = true
           }
         } else {

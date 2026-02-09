@@ -1,6 +1,7 @@
 import { Prisma, DepositLineMatchStatus, RevenueScheduleStatus } from "@prisma/client"
 import type { SuggestedMatchScheduleRow } from "@/lib/mock-data"
 import { prisma } from "@/lib/db"
+import { formatDateOnlyUtc } from "@/lib/date-only"
 import { formatRevenueScheduleDisplayName } from "@/lib/flex/revenue-schedule-display"
 import { parseMultiValueInput, parseMultiValueMatchSet } from "@/lib/multi-value"
 
@@ -559,7 +560,7 @@ function buildCandidateBase(
       fallbackId: schedule.id,
       flexClassification: (schedule as any).flexClassification ?? null,
     }),
-    revenueScheduleDate: schedule.scheduleDate?.toISOString() ?? null,
+    revenueScheduleDate: formatDateOnlyUtc(schedule.scheduleDate) || null,
     createdAt: schedule.createdAt?.toISOString(),
     accountName: schedule.account?.accountName ?? null,
     accountLegalName: schedule.account?.accountLegalName ?? null,
@@ -590,6 +591,7 @@ export function candidatesToSuggestedRows(
   lineItem: NonNullable<DepositLineWithRelations>,
   candidates: ScoredCandidate[],
 ): SuggestedRowWithSignals[] {
+  const linePaymentDate = formatDateOnlyUtc(getLinePaymentDate(lineItem))
   return candidates.map(candidate => {
     const expectedUsageNet = candidate.expectedUsage + candidate.expectedUsageAdjustment
     const actualUsageNet = candidate.actualUsage + candidate.actualUsageAdjustment
@@ -637,7 +639,7 @@ export function candidatesToSuggestedRows(
       expectedUsageNet,
       actualUsage: actualUsageNet,
       usageBalance: expectedUsageNet - actualUsageNet,
-      paymentDate: candidate.revenueScheduleDate ?? "",
+      paymentDate: linePaymentDate,
       expectedCommissionGross: candidate.expectedCommission,
       expectedCommissionAdjustment: candidate.expectedCommissionAdjustment,
       expectedCommissionNet,

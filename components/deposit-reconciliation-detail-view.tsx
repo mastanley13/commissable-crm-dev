@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react"
-import { ClipboardCheck, Eye, FileDown, Plus, Sparkles, Trash2, X } from "lucide-react"
+import { ClipboardCheck, Eye, FileDown, Plus, Sparkles, Trash2 } from "lucide-react"
 import { DynamicTable, type Column } from "./dynamic-table"
 import { ListHeader, type ColumnFilter } from "./list-header"
 import type { BulkActionsGridProps } from "./bulk-actions-grid"
@@ -13,13 +13,14 @@ import { useAuth } from "@/lib/auth-context"
 import { useToasts } from "./toast"
 import { TabDescription } from "@/components/section/TabDescription"
 import { DepositReconciliationTopSection } from "./deposit-reconciliation-top-section"
-import { DepositVendorSummaryWidget } from "./deposit-vendor-summary-widget"
+import { DepositVendorSummaryFloatingWidget } from "./deposit-vendor-summary-floating-widget"
 import { ColumnChooserModal } from "./column-chooser-modal"
 import { TwoStageDeleteDialog } from "./two-stage-delete-dialog"
 import { ModalHeader } from "./ui/modal-header"
 import { ReconciliationMatchWizardModal } from "./reconciliation-match-wizard-modal"
 import { useTablePreferences } from "@/hooks/useTablePreferences"
 import { classifyMatchSelection, type MatchSelectionType } from "@/lib/matching/match-selection"
+import { formatDateOnlyUtc, parseDateSortValue } from "@/lib/date-only"
 import {
   DepositLineStatusFilterDropdown,
   type DepositLineStatusFilterValue
@@ -462,7 +463,7 @@ export function DepositReconciliationDetailView({
   const [showScheduleColumnSettings, setShowScheduleColumnSettings] = useState(false)
   const [showFinalizePreview, setShowFinalizePreview] = useState(false)
   const [showUnreconcilePreview, setShowUnreconcilePreview] = useState(false)
-  const [showVendorSummaryModal, setShowVendorSummaryModal] = useState(false)
+  const [showVendorSummaryWidget, setShowVendorSummaryWidget] = useState(false)
   const [lineSortConfig, setLineSortConfig] = useState<{ key: string; direction: "asc" | "desc" } | null>(null)
   const [scheduleSortConfig, setScheduleSortConfig] = useState<{ key: string; direction: "asc" | "desc" } | null>(null)
   const [showDeleteDepositDialog, setShowDeleteDepositDialog] = useState(false)
@@ -823,17 +824,12 @@ export function DepositReconciliationDetailView({
       }),
     []
   )
-  const dateFormatter = useMemo(
-    () => ({
-      format: (date: Date) => {
-        const year = date.getFullYear()
-        const month = String(date.getMonth() + 1).padStart(2, '0')
-        const day = String(date.getDate()).padStart(2, '0')
-        return `${year}-${month}-${day}`
-      }
-    }),
-    []
-  )
+  const formatDateValue = useCallback((value: string | Date | null | undefined) => {
+    if (!value) return ""
+    const normalized = formatDateOnlyUtc(value)
+    if (normalized) return normalized
+    return typeof value === "string" ? value : ""
+  }, [])
 
   const lineSearchValue = lineSearch.trim().toLowerCase()
   const scheduleSearchValue = scheduleSearch.trim().toLowerCase()
@@ -1228,8 +1224,7 @@ export function DepositReconciliationDetailView({
         case "status":
           return row.reconciled ? "Reconciled" : row.status
         case "paymentDate": {
-          const parsed = new Date(row.paymentDate)
-          return Number.isNaN(parsed.getTime()) ? row.paymentDate : dateFormatter.format(parsed)
+          return formatDateValue(row.paymentDate)
         }
         case "accountName":
           return row.accountName
@@ -1263,7 +1258,7 @@ export function DepositReconciliationDetailView({
           return ""
       }
     },
-    [currencyFormatter, percentFormatter, dateFormatter]
+    [currencyFormatter, percentFormatter, formatDateValue]
   )
 
   const getScheduleFilterValue = useCallback(
@@ -1280,8 +1275,7 @@ export function DepositReconciliationDetailView({
         case "productNameVendor":
           return row.productNameVendor
         case "revenueScheduleDate": {
-          const parsed = new Date(row.revenueScheduleDate)
-          return Number.isNaN(parsed.getTime()) ? row.revenueScheduleDate : dateFormatter.format(parsed)
+          return formatDateValue(row.revenueScheduleDate)
         }
         case "revenueScheduleName":
           return row.revenueScheduleName
@@ -1300,8 +1294,7 @@ export function DepositReconciliationDetailView({
         case "usageBalance":
           return currencyFormatter.format(row.usageBalance)
         case "paymentDate": {
-          const parsed = new Date(row.paymentDate)
-          return Number.isNaN(parsed.getTime()) ? row.paymentDate : dateFormatter.format(parsed)
+          return formatDateValue(row.paymentDate)
         }
         case "expectedCommissionGross":
           return currencyFormatter.format(row.expectedCommissionGross)
@@ -1323,7 +1316,7 @@ export function DepositReconciliationDetailView({
           return ""
       }
     },
-    [currencyFormatter, percentFormatter, dateFormatter]
+    [currencyFormatter, percentFormatter, formatDateValue]
   )
 
   const getLineSortValue = useCallback((row: DepositLineItemRow, columnId: string) => {
@@ -1333,7 +1326,7 @@ export function DepositReconciliationDetailView({
       case "status":
         return row.reconciled ? "Reconciled" : row.status
       case "paymentDate":
-        return Date.parse(row.paymentDate ?? "") || 0
+        return parseDateSortValue(row.paymentDate)
       case "usage":
         return Number(row.usage ?? 0)
       case "usageAllocated":
@@ -1358,7 +1351,7 @@ export function DepositReconciliationDetailView({
       case "matchConfidence":
         return Number(row.matchConfidence ?? 0)
       case "revenueScheduleDate":
-        return Date.parse(row.revenueScheduleDate ?? "") || 0
+        return parseDateSortValue(row.revenueScheduleDate)
       case "quantity":
         return Number(row.quantity ?? 0)
       case "priceEach":
@@ -1374,7 +1367,7 @@ export function DepositReconciliationDetailView({
       case "usageBalance":
         return Number(row.usageBalance ?? 0)
       case "paymentDate":
-        return Date.parse(row.paymentDate ?? "") || 0
+        return parseDateSortValue(row.paymentDate)
       case "expectedCommissionGross":
         return Number(row.expectedCommissionGross ?? 0)
       case "expectedCommissionAdjustment":
@@ -1615,10 +1608,7 @@ export function DepositReconciliationDetailView({
         width: 180,
         minWidth: minTextWidth(depositFieldLabels.paymentDate),
         sortable: true,
-        render: (value: string) => {
-          const parsed = new Date(value)
-          return Number.isNaN(parsed.getTime()) ? value : dateFormatter.format(parsed)
-        }
+        render: (value: string) => formatDateValue(value)
       },
       {
         id: "accountName",
@@ -1768,7 +1758,7 @@ export function DepositReconciliationDetailView({
         sortable: true
       }
     ]
-  }, [currencyFormatter, percentFormatter, dateFormatter])
+  }, [currencyFormatter, percentFormatter, formatDateValue])
 
   const baseScheduleColumns = useMemo<Column[]>(() => {
     const minTextWidth = (label: string, sortable = true) => calculateMinWidth({ label, type: "text", sortable })
@@ -1901,10 +1891,7 @@ export function DepositReconciliationDetailView({
         width: 180,
         minWidth: minTextWidth(scheduleFieldLabels.revenueScheduleDate),
         sortable: true,
-        render: (value: string) => {
-          const parsed = new Date(value)
-          return Number.isNaN(parsed.getTime()) ? value : dateFormatter.format(parsed)
-        }
+        render: (value: string) => formatDateValue(value)
       },
       {
         id: "revenueScheduleName",
@@ -1992,10 +1979,7 @@ export function DepositReconciliationDetailView({
         width: 180,
         minWidth: minTextWidth(scheduleFieldLabels.paymentDate),
         sortable: true,
-        render: (value: string) => {
-          const parsed = new Date(value)
-          return Number.isNaN(parsed.getTime()) ? value : dateFormatter.format(parsed)
-        }
+        render: (value: string) => formatDateValue(value)
       },
       {
         id: "expectedCommissionGross",
@@ -2075,7 +2059,7 @@ export function DepositReconciliationDetailView({
         )
       }
     ]
-  }, [currencyFormatter, percentFormatter, dateFormatter, confidencePrefs.autoMatchMinConfidence])
+  }, [currencyFormatter, percentFormatter, formatDateValue, confidencePrefs.autoMatchMinConfidence])
 
   // Line items table with persistence
   const {
@@ -2719,9 +2703,8 @@ export function DepositReconciliationDetailView({
   )
 
   const formattedDate = useMemo(() => {
-    const parsed = new Date(metadata.depositDate)
-    return Number.isNaN(parsed.getTime()) ? metadata.depositDate : dateFormatter.format(parsed)
-  }, [metadata.depositDate, dateFormatter])
+    return formatDateValue(metadata.depositDate)
+  }, [metadata.depositDate, formatDateValue])
 
   const commissionTotals = useMemo(() => {
     return lineItemRows.reduce(
@@ -2737,10 +2720,9 @@ export function DepositReconciliationDetailView({
 
   const reconciledAtTitle = useMemo(() => {
     if (!metadata.reconciledAt) return null
-    const parsed = new Date(metadata.reconciledAt)
-    if (Number.isNaN(parsed.getTime())) return `Finalized: ${metadata.reconciledAt}`
-    return `Finalized: ${dateFormatter.format(parsed)}`
-  }, [dateFormatter, metadata.reconciledAt])
+    const formatted = formatDateValue(metadata.reconciledAt)
+    return formatted ? `Finalized: ${formatted}` : `Finalized: ${metadata.reconciledAt}`
+  }, [formatDateValue, metadata.reconciledAt])
 
   const allocationPercentages = useMemo(() => {
     const safeUsageTotal = Number(metadata.usageTotal || 0)
@@ -2814,35 +2796,11 @@ export function DepositReconciliationDetailView({
         detectedType={matchWizard?.detectedType ?? "OneToOne"}
         onApplied={onMatchApplied}
       />
-      {showVendorSummaryModal ? (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 backdrop-blur-sm px-4"
-          onClick={() => setShowVendorSummaryModal(false)}
-        >
-          <div
-            className="w-full max-w-5xl h-[900px] flex flex-col rounded-xl bg-white shadow-xl"
-            onClick={event => event.stopPropagation()}
-          >
-            <ModalHeader
-              kicker="Deposit"
-              title="Vendor Summary"
-              right={
-                <button
-                  type="button"
-                  onClick={() => setShowVendorSummaryModal(false)}
-                  className="inline-flex items-center justify-center rounded-md p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
-                  aria-label="Close vendor summary"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              }
-            />
-            <div className="flex-1 overflow-auto p-6">
-              <DepositVendorSummaryWidget lineItems={filteredLineItems} defaultVisibleRows={25} />
-            </div>
-          </div>
-        </div>
-      ) : null}
+      <DepositVendorSummaryFloatingWidget
+        open={showVendorSummaryWidget}
+        lineItems={filteredLineItems}
+        onClose={() => setShowVendorSummaryWidget(false)}
+      />
       {aiAdjustmentModal ? (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/40 px-4"
@@ -3100,10 +3058,15 @@ export function DepositReconciliationDetailView({
             ) : null}
             <button
               type="button"
-              onClick={() => setShowVendorSummaryModal(true)}
-              className="inline-flex items-center justify-center rounded border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+              onClick={() => setShowVendorSummaryWidget(previous => !previous)}
+              className={cn(
+                "inline-flex items-center justify-center rounded border px-2.5 py-1 text-xs font-semibold shadow-sm transition",
+                showVendorSummaryWidget
+                  ? "border-primary-300 bg-primary-50 text-primary-800 hover:bg-primary-100"
+                  : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
+              )}
             >
-              Vendor Summary
+              {showVendorSummaryWidget ? "Hide Vendor Summary" : "Vendor Summary"}
             </button>
             {includeFutureSchedulesControls ? (
               <div className="group relative inline-flex items-center" role="tooltip">
