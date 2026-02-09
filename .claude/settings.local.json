@@ -29,7 +29,8 @@
       "Bash(git -C \"c:\\Users\\Administrator\\.cursor-projects\\projects\\Commissable CRM\" diff HEAD -- \"prisma/schema.prisma\")",
       "Bash(git -C \"c:\\Users\\Administrator\\.cursor-projects\\projects\\Commissable CRM\" diff --name-status HEAD)",
       "Bash(cat:*)",
-      "Bash(npx next build)"
+      "Bash(npx next build)",
+      "Bash(dir:*)"
     ],
     "deny": []
   }

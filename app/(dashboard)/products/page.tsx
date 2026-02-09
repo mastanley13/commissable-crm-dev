@@ -230,6 +230,7 @@ type ProductFillDownPrompt = {
   columnId: ProductEditableColumnId
   label: string
   value: number
+  previousValue: number
   rowId: string
   selectedCount: number
   anchor: { top: number; left: number }
@@ -1178,7 +1179,13 @@ export default function ProductsPage() {
   ])
 
   const handleProductInlineChange = useCallback(
-      async (row: ProductRow, columnId: ProductEditableColumnId, nextValue: number, rect: DOMRect | null) => {
+      async (
+        row: ProductRow,
+        columnId: ProductEditableColumnId,
+        nextValue: number,
+        rect: DOMRect | null,
+        previousValue?: number,
+      ) => {
       if (!canEditProducts) {
         requireAdminForEdit()
         return
@@ -1230,10 +1237,15 @@ export default function ProductsPage() {
         )
 
           if (selectedProducts.length >= 1 && rect && selectedProducts.includes(row.id)) {
+          const normalizedPrevious =
+            previousValue === undefined
+              ? normalised
+              : normaliseProductEditValue(columnId, previousValue) ?? previousValue
           setProductBulkPrompt({
             columnId,
             label: columnId === 'priceEach' ? 'Price Each' : 'Expected Commission Rate %',
             value: normalised,
+            previousValue: normalizedPrevious,
             rowId: row.id,
             selectedCount: selectedProducts.length,
             anchor: {
@@ -1277,6 +1289,23 @@ export default function ProductsPage() {
         return formatPercent(value)
       }
       return value.toLocaleString(undefined, {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 2,
+      })
+    }, [productBulkPrompt])
+
+    const productBulkPromptPreviousValueLabel = useMemo(() => {
+      if (!productBulkPrompt) {
+        return ''
+      }
+      const { columnId, previousValue } = productBulkPrompt
+      if (columnId === 'priceEach') {
+        return formatCurrency(previousValue)
+      }
+      if (columnId === 'commissionPercent') {
+        return formatPercent(previousValue)
+      }
+      return previousValue.toLocaleString(undefined, {
         minimumFractionDigits: 0,
         maximumFractionDigits: 2,
       })
@@ -1454,7 +1483,13 @@ export default function ProductsPage() {
                 const sanitised = rawText.replace(/[^0-9.\-]/g, '')
                   const parsed = sanitised === '' ? NaN : Number(sanitised)
                   if (Number.isNaN(parsed)) return
-                  handleProductInlineChange(row, 'priceEach', parsed, spanRef.getBoundingClientRect())
+                  handleProductInlineChange(
+                    row,
+                    'priceEach',
+                    parsed,
+                    spanRef.getBoundingClientRect(),
+                    displayValue,
+                  )
                 }
   
                 return (
@@ -1477,6 +1512,7 @@ export default function ProductsPage() {
                           columnId: 'priceEach',
                           label: 'Price Each',
                           value: displayValue,
+                          previousValue: displayValue,
                           rowId: row.id,
                           selectedCount: selectedProducts.length,
                           anchor: {
@@ -1524,7 +1560,13 @@ export default function ProductsPage() {
                 const sanitised = rawText.replace(/[^0-9.\-]/g, '')
                   const parsed = sanitised === '' ? NaN : Number(sanitised)
                   if (Number.isNaN(parsed)) return
-                  handleProductInlineChange(row, 'commissionPercent', parsed, spanRef.getBoundingClientRect())
+                  handleProductInlineChange(
+                    row,
+                    'commissionPercent',
+                    parsed,
+                    spanRef.getBoundingClientRect(),
+                    displayValue,
+                  )
                 }
   
                 const formatted = (displayValue / 100).toLocaleString('en-US', {
@@ -1553,6 +1595,7 @@ export default function ProductsPage() {
                           columnId: 'commissionPercent',
                           label: 'Expected Commission Rate %',
                           value: displayValue,
+                          previousValue: displayValue,
                           rowId: row.id,
                           selectedCount: selectedProducts.length,
                           anchor: {
@@ -1941,6 +1984,7 @@ export default function ProductsPage() {
         selectedCount={selectedProducts.length}
         fieldLabel={productBulkPrompt?.label ?? ''}
         valueLabel={productBulkPromptValueLabel}
+        previousValueLabel={productBulkPromptPreviousValueLabel}
         initialEffectiveDate={productBulkDefaultEffectiveDate}
         onClose={() => setProductBulkPrompt(null)}
         onSubmit={handleProductApplyFillDown}

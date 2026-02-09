@@ -339,6 +339,7 @@ type RevenueFillDownPrompt = {
   columnId: RevenueEditableColumnId
   label: string
   value: number
+  previousValue: number
   rowId: string
   selectedCount: number
   anchor: { top: number; left: number }
@@ -1052,17 +1053,28 @@ export default function RevenueSchedulesPage() {
   )
 
   const handleRevenueInlineChange = useCallback(
-    (rowId: string, columnId: RevenueEditableColumnId, nextValue: number, rect: DOMRect | null) => {
+    (
+      rowId: string,
+      columnId: RevenueEditableColumnId,
+      nextValue: number,
+      rect: DOMRect | null,
+      previousValue?: number,
+    ) => {
       const normalised = normalizeRevenueEditValue(columnId, nextValue)
       if (normalised === null) {
         return
       }
+      const normalizedPrevious =
+        previousValue === undefined
+          ? normalised
+          : normalizeRevenueEditValue(columnId, previousValue) ?? previousValue
 
       if (selectedSchedules.length >= 1 && selectedSchedules.includes(rowId) && rect) {
         setRevenueBulkPrompt({
           columnId,
           label: revenueEditableColumnsMeta[columnId].label,
           value: normalised,
+          previousValue: normalizedPrevious,
           rowId,
           selectedCount: selectedSchedules.length,
           anchor: {
@@ -1311,7 +1323,13 @@ export default function RevenueSchedulesPage() {
           const parsed = sanitised === '' ? NaN : Number(sanitised)
           if (Number.isNaN(parsed)) return
           const rowId = String(row.id)
-          handleRevenueInlineChange(rowId, columnId, parsed, spanRef.getBoundingClientRect())
+          handleRevenueInlineChange(
+            rowId,
+            columnId,
+            parsed,
+            spanRef.getBoundingClientRect(),
+            displayValue,
+          )
         }
 
         const formattedForDisplay = () => {
@@ -1360,6 +1378,7 @@ export default function RevenueSchedulesPage() {
                   columnId,
                   label,
                   value: displayValue,
+                  previousValue: displayValue,
                   rowId,
                   selectedCount: selectedSchedules.length,
                   anchor: {
@@ -1610,6 +1629,24 @@ export default function RevenueSchedulesPage() {
       maximumFractionDigits: meta.decimals,
     })
   }, [revenueBulkPrompt, revenueEditableColumnsMeta])
+
+  const revenueBulkPromptPreviousValueLabel = useMemo(() => {
+    if (!revenueBulkPrompt) {
+      return ''
+    }
+    const meta = revenueEditableColumnsMeta[revenueBulkPrompt.columnId]
+    const previousValue = revenueBulkPrompt.previousValue
+    if (meta.type === 'currency') {
+      return formatCurrency(previousValue)
+    }
+    if (meta.type === 'percent') {
+      return formatPercent(previousValue / 100)
+    }
+    return previousValue.toLocaleString(undefined, {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: meta.decimals,
+    })
+  }, [revenueBulkPrompt, revenueEditableColumnsMeta])
   
   // Update schedules data to include selection state
   const schedulesWithSelection = paginatedRevenueSchedules.map(schedule => ({
@@ -1751,6 +1788,7 @@ export default function RevenueSchedulesPage() {
         selectedCount={selectedSchedules.length}
         fieldLabel={revenueBulkPrompt?.label ?? ''}
         valueLabel={revenueBulkPromptValueLabel}
+        previousValueLabel={revenueBulkPromptPreviousValueLabel}
         initialEffectiveDate={revenueBulkDefaultEffectiveDate}
         onClose={() => setRevenueBulkPrompt(null)}
         onSubmit={handleRevenueApplyFillDown}

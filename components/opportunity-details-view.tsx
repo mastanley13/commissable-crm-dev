@@ -91,6 +91,7 @@ type RevenueFillDownPrompt = {
   columnId: RevenueEditableColumnId
   label: string
   value: number
+  previousValue: number
   rowId: string
   selectedCount: number
   anchor: { top: number; left: number }
@@ -3330,17 +3331,28 @@ useEffect(() => {
   )
 
   const handleRevenueInlineChange = useCallback(
-    (rowId: string, columnId: RevenueEditableColumnId, nextValue: number, rect: DOMRect | null) => {
+    (
+      rowId: string,
+      columnId: RevenueEditableColumnId,
+      nextValue: number,
+      rect: DOMRect | null,
+      previousValue?: number,
+    ) => {
       const normalised = normalizeRevenueEditValue(columnId, nextValue)
       if (normalised === null) {
         return
       }
+      const normalizedPrevious =
+        previousValue === undefined
+          ? normalised
+          : normalizeRevenueEditValue(columnId, previousValue) ?? previousValue
 
       if (selectedRevenueSchedules.length >= 1 && selectedRevenueSchedules.includes(rowId) && rect) {
         setRevenueBulkPrompt({
           columnId,
           label: revenueEditableColumnsMeta[columnId].label,
           value: normalised,
+          previousValue: normalizedPrevious,
           rowId,
           selectedCount: selectedRevenueSchedules.length,
           anchor: {
@@ -3435,6 +3447,21 @@ useEffect(() => {
     return formatNumber(value)
   }, [revenueBulkPrompt, revenueEditableColumnsMeta])
 
+  const revenueBulkPromptPreviousValueLabel = useMemo(() => {
+    if (!revenueBulkPrompt) {
+      return ""
+    }
+    const meta = revenueEditableColumnsMeta[revenueBulkPrompt.columnId]
+    const previousValue = revenueBulkPrompt.previousValue
+    if (meta.type === "currency") {
+      return formatCurrency(previousValue)
+    }
+    if (meta.type === "percent") {
+      return formatPercent(previousValue)
+    }
+    return formatNumber(previousValue)
+  }, [revenueBulkPrompt, revenueEditableColumnsMeta])
+
   const revenueTableColumns = useMemo(() => {
     const renderEditableCell = (columnId: RevenueEditableColumnId, label: string) => {
       // eslint-disable-next-line react/display-name
@@ -3450,7 +3477,13 @@ useEffect(() => {
           const parsed = sanitised === "" ? NaN : Number(sanitised)
           if (Number.isNaN(parsed)) return
           const nextValue = columnId === "expectedCommissionRatePercent" ? parsed : parsed
-          handleRevenueInlineChange(row.id, columnId, nextValue, spanRef.getBoundingClientRect())
+          handleRevenueInlineChange(
+            row.id,
+            columnId,
+            nextValue,
+            spanRef.getBoundingClientRect(),
+            displayValue,
+          )
         }
 
         const formattedForDisplay = () => {
@@ -3500,6 +3533,7 @@ useEffect(() => {
                   columnId,
                   label,
                   value: displayValue,
+                  previousValue: displayValue,
                   rowId: row.id,
                   selectedCount: selectedRevenueSchedules.length,
                   anchor: {
@@ -5790,6 +5824,7 @@ useEffect(() => {
         selectedCount={selectedRevenueSchedules.length}
         fieldLabel={revenueBulkPrompt?.label ?? ""}
         valueLabel={revenueBulkPromptValueLabel}
+        previousValueLabel={revenueBulkPromptPreviousValueLabel}
         initialEffectiveDate={revenueBulkDefaultEffectiveDate}
         onClose={() => setRevenueBulkPrompt(null)}
         onSubmit={handleRevenueApplyFillDown}

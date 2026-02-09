@@ -8,6 +8,7 @@ interface RevenueBulkApplyPanelProps {
   selectedCount: number
   fieldLabel: string
   valueLabel: string
+  previousValueLabel?: string
   initialEffectiveDate?: string | null
   onClose: () => void
   onSubmit: (effectiveDate: string) => Promise<void> | void
@@ -26,6 +27,7 @@ export function RevenueBulkApplyPanel({
   selectedCount,
   fieldLabel,
   valueLabel,
+  previousValueLabel,
   initialEffectiveDate,
   onClose,
   onSubmit,
@@ -109,6 +111,20 @@ export function RevenueBulkApplyPanel({
                 selected {pluralLabel}.
               </p>
             </div>
+
+            {previousValueLabel ? (
+              <div className="rounded-md border border-blue-100 bg-blue-50 px-3 py-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">
+                  Old vs new
+                </p>
+                <p className="mt-1 text-sm text-gray-700">
+                  <span className="font-medium text-gray-800">{fieldLabel}:</span>{" "}
+                  <span className="font-semibold text-gray-900">{previousValueLabel}</span>{" "}
+                  <span className="text-gray-500">-&gt;</span>{" "}
+                  <span className="font-semibold text-blue-700">{valueLabel}</span>
+                </p>
+              </div>
+            ) : null}
 
             <div className="space-y-2">
               <label
