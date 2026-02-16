@@ -21,6 +21,8 @@ export const DEPOSIT_IMPORT_TARGET_IDS = {
   usage: "depositLineItem.usage",
   commission: "depositLineItem.commission",
   commissionRate: "depositLineItem.commissionRate",
+  commissionType: "depositLineItem.commissionType",
+  commissionDate: "depositLineItem.commissionDate",
   externalScheduleId: "matching.externalScheduleId",
 }
 
@@ -40,6 +42,22 @@ const depositLineItemTargets: DepositImportFieldTarget[] = [
     dataType: "date",
     persistence: "depositLineItemColumn",
     columnName: "paymentDate",
+  },
+  {
+    id: DEPOSIT_IMPORT_TARGET_IDS.commissionDate,
+    label: "Commission Date",
+    entity: "depositLineItem",
+    dataType: "date",
+    persistence: "metadata",
+    metadataPath: ["depositLineItem", "commissionDate"],
+  },
+  {
+    id: DEPOSIT_IMPORT_TARGET_IDS.commissionType,
+    label: "Commission Type",
+    entity: "depositLineItem",
+    dataType: "string",
+    persistence: "metadata",
+    metadataPath: ["depositLineItem", "commissionType"],
   },
   {
     id: "depositLineItem.accountNameRaw",
