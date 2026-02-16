@@ -913,6 +913,36 @@ model DepositMatchGroup {
   @@index([tenantId, createdAt])
 }
 
+model BundleOperation {
+  id                       String   @id @default(uuid()) @db.Uuid
+  tenantId                 String   @db.Uuid
+  depositId                String   @db.Uuid
+  baseRevenueScheduleId    String   @db.Uuid
+  baseOpportunityProductId String   @db.Uuid
+  baseScheduleDate         DateTime
+  mode                     String
+  lineIds                  Json
+  idempotencyKey           String
+  reason                   String?
+  createdProductIds        Json
+  createdOpportunityProductIds Json
+  createdRevenueScheduleIds Json
+  replacedRevenueScheduleIds Json
+  lineToScheduleMap        Json
+  applyAuditLogId          String?  @db.Uuid
+  undoneAt                 DateTime?
+  undoneByUserId           String?  @db.Uuid
+  undoReason               String?
+  undoAuditLogId           String?  @db.Uuid
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  @@index([tenantId, depositId])
+  @@index([tenantId, idempotencyKey])
+  @@index([tenantId, applyAuditLogId])
+  @@index([tenantId, createdAt])
+}
+
 model ReconciliationItem {
   id                String          @id @default(uuid()) @db.Uuid
   tenantId          String          @db.Uuid

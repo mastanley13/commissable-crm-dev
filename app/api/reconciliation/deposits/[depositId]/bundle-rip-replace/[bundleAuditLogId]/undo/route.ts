@@ -67,16 +67,44 @@ export async function POST(
       return createErrorResponse("This audit entry is not a bundle rip/replace operation", 400)
     }
 
-    const createdRevenueScheduleIds = parseStringArray(metadata.createdRevenueScheduleIds)
-    const replacedScheduleIds = parseStringArray(metadata.replacedScheduleIds)
-    const createdOpportunityProductIds = parseStringArray(metadata.createdOpportunityProductIds)
-    const createdProductIds = parseStringArray(metadata.createdProductIds)
+    const bundleOperation = await (prisma as any).bundleOperation.findFirst({
+      where: { tenantId, depositId, applyAuditLogId: auditLogId },
+      select: {
+        id: true,
+        undoneAt: true,
+        undoAuditLogId: true,
+        createdRevenueScheduleIds: true,
+        replacedRevenueScheduleIds: true,
+        createdOpportunityProductIds: true,
+        createdProductIds: true,
+      },
+    })
+
+    const createdRevenueScheduleIds = bundleOperation
+      ? parseStringArray(bundleOperation.createdRevenueScheduleIds)
+      : parseStringArray(metadata.createdRevenueScheduleIds)
+
+    const replacedScheduleIds = bundleOperation
+      ? parseStringArray(bundleOperation.replacedRevenueScheduleIds)
+      : parseStringArray(metadata.replacedScheduleIds)
+
+    const createdOpportunityProductIds = bundleOperation
+      ? parseStringArray(bundleOperation.createdOpportunityProductIds)
+      : parseStringArray(metadata.createdOpportunityProductIds)
+
+    const createdProductIds = bundleOperation ? parseStringArray(bundleOperation.createdProductIds) : parseStringArray(metadata.createdProductIds)
 
     if (createdRevenueScheduleIds.length === 0) {
       return createErrorResponse("Bundle operation does not contain created schedules", 400)
     }
 
     try {
+      if (bundleOperation?.undoneAt) {
+        return NextResponse.json({
+          data: { ok: true as const, undoAuditLogId: bundleOperation.undoAuditLogId ?? null, alreadyUndone: true as const },
+        })
+      }
+
       const result = await prisma.$transaction(async tx => {
         const appliedMatchCount = await tx.depositLineMatch.count({
           where: {
@@ -128,6 +156,7 @@ export async function POST(
             metadata: {
               action: "BundleRipReplaceUndo",
               undoAuditLogId: auditLogId,
+              bundleOperationId: bundleOperation?.id ?? null,
               depositId,
               reason,
               createdRevenueScheduleIds,
@@ -138,6 +167,18 @@ export async function POST(
           },
           select: { id: true },
         })
+
+        if (bundleOperation?.id) {
+          await (tx as any).bundleOperation.update({
+            where: { id: bundleOperation.id },
+            data: {
+              undoneAt: new Date(),
+              undoneByUserId: req.user.id,
+              undoReason: reason,
+              undoAuditLogId: undoAudit.id,
+            },
+          })
+        }
 
         return { ok: true as const, undoAuditLogId: undoAudit.id }
       })
@@ -153,4 +194,3 @@ export async function POST(
     }
   })
 }
-

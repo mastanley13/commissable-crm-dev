@@ -4,7 +4,11 @@ import {
   stripTelarusGeneratedCustomFieldsV2,
   type TelarusTemplateFieldsV1,
 } from "@/lib/deposit-import/telarus-template-fields"
-import { shouldSkipMultiVendorRow } from "@/lib/deposit-import/multi-vendor"
+import {
+  isSummaryRowSkipEnabledForImport,
+  rowHasTotalsLabel,
+  shouldSkipMultiVendorRow,
+} from "@/lib/deposit-import/multi-vendor"
 import { normalizeKey } from "@/lib/deposit-import/normalize"
 
 export interface MultiVendorRowGroup {
@@ -135,9 +139,13 @@ export async function resolveMultiVendorTemplates(params: {
   vendorNamesInFile: string[]
 }): Promise<ResolveMultiVendorTemplatesResult> {
   const vendorNameByKey = new Map<string, string>()
+  const skipSummaryLabels = isSummaryRowSkipEnabledForImport()
   for (const rawName of params.vendorNamesInFile) {
     const vendorName = normalizeString(rawName)
     if (!vendorName) continue
+    if (skipSummaryLabels && rowHasTotalsLabel([vendorName], skipSummaryLabels)) {
+      continue
+    }
     const key = normalizeVendorKey(vendorName)
     if (!vendorNameByKey.has(key)) {
       vendorNameByKey.set(key, vendorName)

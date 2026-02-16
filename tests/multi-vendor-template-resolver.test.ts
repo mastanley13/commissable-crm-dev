@@ -76,6 +76,48 @@ test("resolveMultiVendorTemplates selects most-recent template per vendor determ
   assert.deepEqual(result.missingVendors, ["Unknown Vendor"])
 })
 
+test("resolveMultiVendorTemplates skips summary vendor labels when DEPOSIT_IMPORT_SKIP_SUMMARY_ROWS is enabled", async () => {
+  const previous = process.env.DEPOSIT_IMPORT_SKIP_SUMMARY_ROWS
+  process.env.DEPOSIT_IMPORT_SKIP_SUMMARY_ROWS = "1"
+  try {
+    const mockDb: MultiVendorResolverDbClient = {
+      account: {
+        findMany: async () => [{ id: "acct-1", accountName: "Vendor A", accountLegalName: "Vendor A LLC" }],
+      },
+      reconciliationTemplate: {
+        findMany: async () => [
+          {
+            id: "tmpl-a",
+            name: "Template A",
+            vendorAccountId: "acct-1",
+            updatedAt: new Date("2026-02-08T00:00:00.000Z"),
+            createdAt: new Date("2026-02-01T00:00:00.000Z"),
+            config: {},
+          },
+        ],
+      },
+    }
+
+    const result = await resolveMultiVendorTemplates({
+      db: mockDb,
+      tenantId: "tenant-1",
+      distributorAccountId: "dist-1",
+      vendorNamesInFile: ["Vendor A", "Vendor A Total", "Grand Total:", "Total Telecom"],
+    })
+
+    assert.equal(result.templatesUsed.length, 1)
+    assert.equal(result.templatesUsed[0]?.vendorNameInFile, "Vendor A")
+    assert.deepEqual(result.missingVendors, ["Total Telecom"])
+    assert.deepEqual(result.vendorsMissingTemplates, [])
+  } finally {
+    if (previous === undefined) {
+      delete process.env.DEPOSIT_IMPORT_SKIP_SUMMARY_ROWS
+    } else {
+      process.env.DEPOSIT_IMPORT_SKIP_SUMMARY_ROWS = previous
+    }
+  }
+})
+
 test("mergeMultiVendorTemplateConfigs merges mapping and telarus fields", () => {
   const merged = mergeMultiVendorTemplateConfigs([
     {
