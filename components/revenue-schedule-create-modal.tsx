@@ -227,7 +227,6 @@ export function RevenueScheduleCreateModal({
   })
 
   const [rateForm, setRateForm] = useState({
-    selectedIds: [] as string[],
     effectiveDate: "",
     ratePercent: "",
     scope: "selection" as ManageScope
@@ -547,7 +546,7 @@ export function RevenueScheduleCreateModal({
       notes: ""
     })
 
-    setRateForm({ selectedIds: [], effectiveDate: "", ratePercent: "", scope: "selection" })
+    setRateForm({ effectiveDate: "", ratePercent: "", scope: "selection" })
     setSplitForm({
       effectiveDate: "",
       scope: "selection",
@@ -665,7 +664,7 @@ export function RevenueScheduleCreateModal({
   )
 
   const canSubmitRates = Boolean(
-    rateForm.selectedIds.length > 0 &&
+    eligibleSelectedScheduleIds.length > 0 &&
     rateForm.effectiveDate.trim().length > 0 &&
     parseNumber(rateForm.ratePercent) !== null
   )
@@ -917,7 +916,7 @@ export function RevenueScheduleCreateModal({
     if (!canSubmitRates) return
 
     const payload = {
-      scheduleIds: rateForm.selectedIds,
+      scheduleIds: eligibleSelectedScheduleIds,
       effectiveDate: rateForm.effectiveDate,
       ratePercent: parseNumber(rateForm.ratePercent),
       scope: rateForm.scope
@@ -948,7 +947,7 @@ export function RevenueScheduleCreateModal({
     } finally {
       setSubmitting(false)
     }
-  }, [canSubmitRates, onClose, onSuccess, rateForm.effectiveDate, rateForm.ratePercent, rateForm.scope, rateForm.selectedIds, showError, showSuccess])
+  }, [canSubmitRates, eligibleSelectedScheduleIds, onClose, onSuccess, rateForm.effectiveDate, rateForm.ratePercent, rateForm.scope, showError, showSuccess])
 
   const handleSplitSubmit = useCallback(async () => {
     if (!canSubmitSplits) return
@@ -1147,7 +1146,7 @@ export function RevenueScheduleCreateModal({
     if (!canSubmitRates) return
 
     const payload = {
-      scheduleIds: rateForm.selectedIds,
+      scheduleIds: eligibleSelectedScheduleIds,
       effectiveDate: rateForm.effectiveDate,
       ratePercent: parseNumber(rateForm.ratePercent),
       scope: rateForm.scope
@@ -1170,7 +1169,7 @@ export function RevenueScheduleCreateModal({
       }
 
       const updatedCount: number =
-        typeof body?.updated === "number" ? body.updated : rateForm.selectedIds.length
+        typeof body?.updated === "number" ? body.updated : eligibleSelectedScheduleIds.length
       const failedIds: string[] = Array.isArray(body?.failed) ? body.failed : []
       const errors = (body?.errors ?? null) as Record<string, string> | null
 
@@ -1210,12 +1209,12 @@ export function RevenueScheduleCreateModal({
     }
   }, [
     canSubmitRates,
+    eligibleSelectedScheduleIds,
     onClose,
     onSuccess,
     rateForm.effectiveDate,
     rateForm.ratePercent,
     rateForm.scope,
-    rateForm.selectedIds,
     showError,
     showSuccess
   ])
@@ -1850,33 +1849,12 @@ export function RevenueScheduleCreateModal({
             <div className="space-y-5">
               <div>
                 <h3 className="text-sm font-semibold text-gray-900">Select schedules</h3>
-                {!scheduleOptions.length ? (
-                  <p className="mt-2 text-xs text-gray-600">No schedules available yet.</p>
-                ) : (
-                  <div className="mt-3 grid max-h-56 grid-cols-1 gap-2 overflow-y-auto rounded-lg border border-gray-200 p-3">
-                    {scheduleOptions.map(option => (
-                      <label key={option.id} className="flex items-center justify-between gap-3 rounded-md border border-gray-200 bg-white px-3 py-2 text-xs text-gray-700 shadow-sm">
-                        <span>
-                          <span className="block font-semibold text-gray-900">{option.label}</span>
-                          <span className="block text-[11px] text-gray-500">{option.scheduleDate ?? "Date pending"}</span>
-                        </span>
-                        <input
-                          type="checkbox"
-                          checked={rateForm.selectedIds.includes(option.id)}
-                          onChange={event => {
-                            const checked = event.target.checked
-                            setRateForm(prev => ({
-                              ...prev,
-                              selectedIds: checked
-                                ? [...prev.selectedIds, option.id]
-                                : prev.selectedIds.filter(id => id !== option.id)
-                            }))
-                          }}
-                        />
-                      </label>
-                    ))}
-                  </div>
-                )}
+                <SelectedSchedulesTable
+                  options={selectedScheduleOptions}
+                  selectedIds={selectedScheduleIds}
+                  getIneligibilityReason={getIneligibilityReason}
+                  onToggle={handleToggleSelectedSchedule}
+                />
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2">

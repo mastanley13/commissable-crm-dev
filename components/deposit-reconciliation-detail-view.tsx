@@ -720,7 +720,26 @@ export function DepositReconciliationDetailView({
     if (selectedLineForMatch.reconciled) return "Reconciled line items cannot be changed"
     if (selectedLineForMatch.status === "Ignored") return "Ignored line items cannot be allocated"
     if (selectedSchedules.length === 0) return "Select a schedule below"
-    if (selectedSchedules.length > 1) return "Select only one schedule to match to"
+
+    const selection = classifyMatchSelection({
+      lineIds: selectedLineItems,
+      scheduleIds: selectedSchedules,
+    })
+
+    if (!selection.ok) {
+      return selection.error
+    }
+
+    // Non-1:1 selections should open the Match Wizard (TC-03/TC-04 flows).
+    // Only enforce 1:1 allocation validations when the selection is actually 1:1.
+    if (selection.type !== "OneToOne") {
+      const hasReconciledSchedule = scheduleRows.some(
+        row => selectedSchedules.includes(row.id) && row.status === "Reconciled",
+      )
+      if (hasReconciledSchedule) return "Reconciled schedules cannot be changed"
+      return null
+    }
+
     if (selectedScheduleForMatch?.status === "Reconciled") return "Reconciled schedules cannot be changed"
     if (isUnmatchSelection) return null
 
@@ -751,7 +770,9 @@ export function DepositReconciliationDetailView({
     matchingLineId,
     undoingLineId,
     selectedLineForMatch,
-    selectedSchedules.length,
+    selectedLineItems,
+    selectedSchedules,
+    scheduleRows,
     allocationDraft.usage,
     allocationDraft.commission,
     parseAllocationInput,
@@ -2184,65 +2205,6 @@ export function DepositReconciliationDetailView({
     [sortedSchedules]
   )
 
-  const handleBulkLineMatch = useCallback(async () => {
-    const lineId = selectedLineIdRef.current ?? selectedLineItemsRef.current[0]
-    if (!lineId) {
-      showError("No line selected", "Select a deposit line item to match.")
-      return
-    }
-    const scheduleId = selectedSchedulesRef.current[0]
-    if (!scheduleId) {
-      showError("No schedule selected", "Select a schedule to match to.")
-      return
-    }
-    try {
-      const usageAmount = parseAllocationInput(allocationDraftRef.current.usage)
-      const commissionAmount = parseAllocationInput(allocationDraftRef.current.commission)
-      const response = await fetch(
-        `/api/reconciliation/deposits/${encodeURIComponent(metadata.id)}/line-items/${encodeURIComponent(lineId)}/apply-match`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            revenueScheduleId: scheduleId,
-            usageAmount: usageAmount ?? undefined,
-            commissionAmount: commissionAmount ?? undefined,
-          }),
-        }
-      )
-      const payload = await response.json().catch(() => null)
-      if (!response.ok) {
-        throw new Error(payload?.error || "Failed to apply match")
-      }
-
-      const flexDecision = payload?.data?.flexDecision as FlexDecisionPayload | undefined
-      const flexExecution = payload?.data?.flexExecution as any
-      setSelectedSchedules([])
-      onMatchApplied?.()
-
-      if (flexExecution?.action === "AutoChargeback") {
-        showSuccess("Chargeback created", "A Flex Chargeback entry was created and matched automatically.")
-        return
-      }
-
-      if (flexDecision?.action === "auto_adjust") {
-        showSuccess("Auto-adjustment created", "A one-time adjustment was created and matched automatically.")
-        return
-      }
-
-      if (flexDecision?.action === "prompt") {
-        setFlexPrompt({ lineId, scheduleId, decision: flexDecision })
-        showSuccess("Allocation saved", "Overage exceeds tolerance. Choose how to resolve the variance.")
-        return
-      }
-
-      showSuccess("Allocation saved", "The selected line item was allocated to the schedule.")
-    } catch (err) {
-      console.error("Failed to apply match", err)
-      showError("Unable to match", err instanceof Error ? err.message : "Unknown error")
-    }
-  }, [metadata.id, onMatchApplied, parseAllocationInput, showError, showSuccess])
-
   const handleBulkLineUnmatch = useCallback(async () => {
     await unmatchLineById()
   }, [unmatchLineById])
@@ -2690,7 +2652,7 @@ export function DepositReconciliationDetailView({
             count === 1
               ? "Match the selected line item to the selected schedule"
               : "Select exactly one line item to match",
-          onClick: handleBulkLineMatch
+          onClick: handleMatchSelected
         },
         {
           key: "unmatch",
@@ -2713,7 +2675,7 @@ export function DepositReconciliationDetailView({
         }
       ]
     }),
-    [handleBulkLineExport, handleBulkLineMatch, handleBulkLineUnmatch, selectedLineItems.length]
+    [handleBulkLineExport, handleBulkLineUnmatch, handleMatchSelected, selectedLineItems.length]
   )
 
   const formattedDate = useMemo(() => {
