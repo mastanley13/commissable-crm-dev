@@ -48,6 +48,7 @@ export type ScopedSchedule = {
   expectedUsage: number | null
   usageAdjustment: number | null
   expectedCommission: number | null
+  expectedCommissionAdjustment: number | null
 }
 
 export function buildNormalizedVendorProductKey({
@@ -193,7 +194,7 @@ export async function findFutureSchedulesInScope(
   }
 
   if (scope.kind === "opportunityProductId") {
-    const schedules = await client.revenueSchedule.findMany({
+    const schedules = (await client.revenueSchedule.findMany({
       where: {
         ...commonWhere,
         opportunityProductId: scope.opportunityProductId,
@@ -206,19 +207,26 @@ export async function findFutureSchedulesInScope(
         expectedUsage: true,
         usageAdjustment: true,
         expectedCommission: true,
+        // Keep this select resilient if Prisma types haven't been regenerated yet.
+        ...( { expectedCommissionAdjustment: true } as any ),
       },
       orderBy: { scheduleDate: "asc" },
-    })
+    })) as any[]
     return schedules.map(row => ({
-      ...row,
-      expectedUsage: row.expectedUsage == null ? null : toNumber(row.expectedUsage),
-      usageAdjustment: row.usageAdjustment == null ? null : toNumber(row.usageAdjustment),
-      expectedCommission: row.expectedCommission == null ? null : toNumber(row.expectedCommission),
+      id: (row as any).id,
+      scheduleNumber: (row as any).scheduleNumber ?? null,
+      scheduleDate: (row as any).scheduleDate ?? null,
+      status: (row as any).status,
+      expectedUsage: (row as any).expectedUsage == null ? null : toNumber((row as any).expectedUsage),
+      usageAdjustment: (row as any).usageAdjustment == null ? null : toNumber((row as any).usageAdjustment),
+      expectedCommission: (row as any).expectedCommission == null ? null : toNumber((row as any).expectedCommission),
+      expectedCommissionAdjustment:
+        (row as any).expectedCommissionAdjustment == null ? null : toNumber((row as any).expectedCommissionAdjustment),
     }))
   }
 
   if (scope.kind === "accountProductId") {
-    const schedules = await client.revenueSchedule.findMany({
+    const schedules = (await client.revenueSchedule.findMany({
       where: {
         ...commonWhere,
         productId: scope.productId,
@@ -231,18 +239,25 @@ export async function findFutureSchedulesInScope(
         expectedUsage: true,
         usageAdjustment: true,
         expectedCommission: true,
+        // Keep this select resilient if Prisma types haven't been regenerated yet.
+        ...( { expectedCommissionAdjustment: true } as any ),
       },
       orderBy: { scheduleDate: "asc" },
-    })
+    })) as any[]
     return schedules.map(row => ({
-      ...row,
-      expectedUsage: row.expectedUsage == null ? null : toNumber(row.expectedUsage),
-      usageAdjustment: row.usageAdjustment == null ? null : toNumber(row.usageAdjustment),
-      expectedCommission: row.expectedCommission == null ? null : toNumber(row.expectedCommission),
+      id: (row as any).id,
+      scheduleNumber: (row as any).scheduleNumber ?? null,
+      scheduleDate: (row as any).scheduleDate ?? null,
+      status: (row as any).status,
+      expectedUsage: (row as any).expectedUsage == null ? null : toNumber((row as any).expectedUsage),
+      usageAdjustment: (row as any).usageAdjustment == null ? null : toNumber((row as any).usageAdjustment),
+      expectedCommission: (row as any).expectedCommission == null ? null : toNumber((row as any).expectedCommission),
+      expectedCommissionAdjustment:
+        (row as any).expectedCommissionAdjustment == null ? null : toNumber((row as any).expectedCommissionAdjustment),
     }))
   }
 
-  const schedules = await client.revenueSchedule.findMany({
+  const schedules = (await client.revenueSchedule.findMany({
     where: commonWhere,
     select: {
       id: true,
@@ -252,6 +267,8 @@ export async function findFutureSchedulesInScope(
       expectedUsage: true,
       usageAdjustment: true,
       expectedCommission: true,
+      // Keep this select resilient if Prisma types haven't been regenerated yet.
+      ...( { expectedCommissionAdjustment: true } as any ),
       vendorAccountId: true,
       distributorAccountId: true,
       vendor: { select: { accountName: true } },
@@ -266,7 +283,7 @@ export async function findFutureSchedulesInScope(
       },
     },
     orderBy: { scheduleDate: "asc" },
-  })
+  })) as any[]
 
   return schedules
     .filter(row => computeScheduleScopeKey(row) === scope.key)
@@ -278,6 +295,8 @@ export async function findFutureSchedulesInScope(
       expectedUsage: row.expectedUsage == null ? null : toNumber(row.expectedUsage),
       usageAdjustment: row.usageAdjustment == null ? null : toNumber(row.usageAdjustment),
       expectedCommission: row.expectedCommission == null ? null : toNumber(row.expectedCommission),
+      expectedCommissionAdjustment:
+        (row as any).expectedCommissionAdjustment == null ? null : toNumber((row as any).expectedCommissionAdjustment),
     }))
 }
 
@@ -313,6 +332,8 @@ export async function findPriorOpenSchedulesInScope(
     actualUsage: true,
     actualUsageAdjustment: true,
     expectedCommission: true,
+    // Keep this select resilient if Prisma types haven't been regenerated yet.
+    ...( { expectedCommissionAdjustment: true } as any ),
     actualCommission: true,
     actualCommissionAdjustment: true,
     vendorAccountId: true,
@@ -337,12 +358,11 @@ export async function findPriorOpenSchedulesInScope(
       take: limit,
     })
 
-  const schedules =
-    scope.kind === "opportunityProductId"
-      ? await baseQuery({ ...commonWhere, opportunityProductId: scope.opportunityProductId })
-      : scope.kind === "accountProductId"
-        ? await baseQuery({ ...commonWhere, productId: scope.productId })
-        : await baseQuery(commonWhere)
+  const schedules = (scope.kind === "opportunityProductId"
+    ? await baseQuery({ ...commonWhere, opportunityProductId: scope.opportunityProductId })
+    : scope.kind === "accountProductId"
+      ? await baseQuery({ ...commonWhere, productId: scope.productId })
+      : await baseQuery(commonWhere)) as any[]
 
   const filtered =
     scope.kind === "normalizedVendorProductKey"
@@ -354,7 +374,9 @@ export async function findPriorOpenSchedulesInScope(
     const actualUsageNet = toNumber(row.actualUsage) + toNumber(row.actualUsageAdjustment)
     const usageBalance = expectedUsageNet - actualUsageNet
 
-    const expectedCommissionNet = toNumber(row.expectedCommission)
+    const expectedCommissionNet =
+      toNumber(row.expectedCommission) +
+      toNumber((row as any).expectedCommissionAdjustment ?? (row as any).actualCommissionAdjustment)
     const actualCommissionNet = toNumber(row.actualCommission) + toNumber(row.actualCommissionAdjustment)
     const commissionDifference = expectedCommissionNet - actualCommissionNet
 
@@ -390,16 +412,18 @@ export async function applyExpectedDeltasToFutureSchedules(
 
   for (const schedule of schedules) {
     const previousUsageAdjustment = toNumber(schedule.usageAdjustment)
-    const previousExpectedCommission = toNumber(schedule.expectedCommission)
+    const previousExpectedCommissionAdjustment = toNumber(schedule.expectedCommissionAdjustment)
 
     const nextUsageAdjustment =
       Math.abs(usageDelta) <= EPSILON ? previousUsageAdjustment : previousUsageAdjustment + usageDelta
-    const nextExpectedCommission =
-      Math.abs(commissionDelta) <= EPSILON ? previousExpectedCommission : previousExpectedCommission + commissionDelta
+    const nextExpectedCommissionAdjustment =
+      Math.abs(commissionDelta) <= EPSILON
+        ? previousExpectedCommissionAdjustment
+        : previousExpectedCommissionAdjustment + commissionDelta
 
     if (
       Math.abs(nextUsageAdjustment - previousUsageAdjustment) <= EPSILON &&
-      Math.abs(nextExpectedCommission - previousExpectedCommission) <= EPSILON
+      Math.abs(nextExpectedCommissionAdjustment - previousExpectedCommissionAdjustment) <= EPSILON
     ) {
       continue
     }
@@ -408,7 +432,7 @@ export async function applyExpectedDeltasToFutureSchedules(
       where: { id: schedule.id },
       data: {
         usageAdjustment: nextUsageAdjustment,
-        expectedCommission: nextExpectedCommission,
+        expectedCommissionAdjustment: nextExpectedCommissionAdjustment,
       },
     })
 
@@ -422,7 +446,7 @@ export async function applyExpectedDeltasToFutureSchedules(
       request,
       {
         usageAdjustment: schedule.usageAdjustment ?? null,
-        expectedCommission: schedule.expectedCommission ?? null,
+        expectedCommissionAdjustment: schedule.expectedCommissionAdjustment ?? null,
       },
       {
         action: "ApplyExpectedDeltaToFutureSchedule",
@@ -432,11 +456,10 @@ export async function applyExpectedDeltasToFutureSchedules(
         usageDelta,
         commissionDelta,
         usageAdjustment: nextUsageAdjustment,
-        expectedCommission: nextExpectedCommission,
+        expectedCommissionAdjustment: nextExpectedCommissionAdjustment,
       },
     )
   }
 
   return { updatedScheduleIds }
 }
-

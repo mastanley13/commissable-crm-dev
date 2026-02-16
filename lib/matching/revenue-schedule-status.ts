@@ -85,18 +85,20 @@ export async function recomputeRevenueScheduleFromMatches(
 ): Promise<RevenueScheduleRecomputeResult> {
   const schedule = await client.revenueSchedule.findFirst({
     where: { id: revenueScheduleId, tenantId },
-    select: {
+    // `as any` keeps this query resilient if Prisma types haven't been regenerated yet.
+    select: ({
       id: true,
       expectedUsage: true,
       usageAdjustment: true,
       actualUsageAdjustment: true,
       expectedCommission: true,
+      expectedCommissionAdjustment: true,
       actualCommissionAdjustment: true,
       status: true,
       billingStatus: true,
       billingStatusSource: true,
       flexClassification: true,
-    },
+    } as any),
   })
 
   if (!schedule) {
@@ -135,7 +137,9 @@ export async function recomputeRevenueScheduleFromMatches(
 
   const expectedCommission = toNumber(schedule.expectedCommission)
   const actualCommissionAdjustment = toNumber(schedule.actualCommissionAdjustment)
-  const expectedCommissionAdjustment = 0
+  const expectedCommissionAdjustment = toNumber(
+    (schedule as any).expectedCommissionAdjustment ?? schedule.actualCommissionAdjustment,
+  )
 
   const expectedUsageNet = expectedUsage + expectedUsageAdjustment
   const actualUsageNet = actualUsage + actualUsageAdjustment
@@ -154,20 +158,23 @@ export async function recomputeRevenueScheduleFromMatches(
     varianceTolerance: options.varianceTolerance,
   })
 
-  const canAutoUpdateBillingStatus = schedule.billingStatusSource === RevenueScheduleBillingStatusSource.Auto
+  const billingStatusSource = (schedule as any).billingStatusSource as RevenueScheduleBillingStatusSource
+  const billingStatus = (schedule as any).billingStatus as RevenueScheduleBillingStatus
+
+  const canAutoUpdateBillingStatus = billingStatusSource === RevenueScheduleBillingStatusSource.Auto
   const automationEnabled = isBillingStatusAutomationEnabled()
 
   const nextBillingStatus = computeNextBillingStatus({
-    currentBillingStatus: schedule.billingStatus,
-    billingStatusSource: schedule.billingStatusSource,
+    currentBillingStatus: billingStatus,
+    billingStatusSource,
     scheduleStatus: status,
-    flexClassification: schedule.flexClassification,
+    flexClassification: (schedule as any).flexClassification,
     hasAppliedMatches: matchCount > 0,
     hasUnreconciledAppliedMatches: unreconciledAppliedMatchCount > 0,
   })
 
   const billingStatusUpdate =
-    automationEnabled && canAutoUpdateBillingStatus && nextBillingStatus !== schedule.billingStatus
+    automationEnabled && canAutoUpdateBillingStatus && nextBillingStatus !== billingStatus
       ? {
           billingStatus: nextBillingStatus,
           billingStatusUpdatedAt: new Date(),

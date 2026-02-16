@@ -18,6 +18,7 @@ import {
   type DepositMappingConfigV2,
 } from "@/lib/deposit-import/template-mapping-v2"
 import { groupRowsByVendor, resolveMultiVendorTemplates } from "@/lib/deposit-import/multi-vendor-template-resolver"
+import { rowHasTotalsLabel } from "@/lib/deposit-import/multi-vendor"
 
 function startOfMonth(date: Date) {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1))
@@ -621,6 +622,10 @@ export async function POST(request: NextRequest) {
 
       const lineItemsData = parsedFile.rows
         .map((row, index) => {
+          if (rowHasTotalsLabel(row)) {
+            return null
+          }
+
           const metadata: Record<string, unknown> = {}
           const usageIndex = columnIndex[DEPOSIT_IMPORT_TARGET_IDS.usage]
           const commissionIndex = columnIndex[DEPOSIT_IMPORT_TARGET_IDS.commission]

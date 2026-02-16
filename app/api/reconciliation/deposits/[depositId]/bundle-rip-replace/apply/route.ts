@@ -360,7 +360,9 @@ export async function POST(request: NextRequest, { params }: { params: { deposit
         const actualUsage = roundMoney(toNumber((schedule as any).actualUsage) + toNumber((schedule as any).actualUsageAdjustment))
 
         const expectedCommission = roundMoney(toNumber((schedule as any).expectedCommission))
-        const expectedCommissionAdjustment = 0
+        const expectedCommissionAdjustment = roundMoney(
+          toNumber((schedule as any).expectedCommissionAdjustment ?? (schedule as any).actualCommissionAdjustment),
+        )
         const expectedCommissionNet = roundMoney(expectedCommission + expectedCommissionAdjustment)
         const actualCommission = roundMoney(toNumber((schedule as any).actualCommission) + toNumber((schedule as any).actualCommissionAdjustment))
 
@@ -409,4 +411,3 @@ export async function POST(request: NextRequest, { params }: { params: { deposit
     return NextResponse.json({ data: result })
   })
 }
-

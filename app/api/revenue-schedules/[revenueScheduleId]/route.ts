@@ -8,7 +8,8 @@ import {
   RevenueScheduleBillingStatus,
   RevenueScheduleBillingStatusSource,
 } from "@prisma/client"
-import { logProductAudit, logRevenueScheduleAudit } from "@/lib/audit"
+import { logRevenueScheduleAudit } from "@/lib/audit"
+import { roundCurrency } from "@/lib/revenue-schedule-calculations"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -207,6 +208,12 @@ export async function PATCH(request: NextRequest, { params }: { params: { revenu
           ? Number(existing.product.commissionPercent)
           : null
 
+      const previousScheduleRatePercentRaw = (existing as any)?.expectedCommissionRatePercent
+      const previousScheduleRatePercent =
+        previousScheduleRatePercentRaw !== null && previousScheduleRatePercentRaw !== undefined
+          ? Number(previousScheduleRatePercentRaw)
+          : previousProductCommission
+
       const toNullableNumber = (value: unknown): number | null => {
         if (value === null || value === undefined) return null
         const numeric = typeof value === "number" ? value : Number(value)
@@ -263,10 +270,11 @@ export async function PATCH(request: NextRequest, { params }: { params: { revenu
         expectedUsage: (existing as any).expectedUsage ?? null,
         expectedCommission: (existing as any).expectedCommission ?? null,
         usageAdjustment: (existing as any).usageAdjustment ?? null,
+        expectedCommissionAdjustment: (existing as any).expectedCommissionAdjustment ?? null,
         actualCommissionAdjustment: (existing as any).actualCommissionAdjustment ?? null,
         notes: (existing as any).notes ?? null,
         billingStatus: (existing as any).billingStatus ?? null,
-        expectedCommissionRatePercent: previousProductCommission,
+        expectedCommissionRatePercent: previousScheduleRatePercent,
         houseSplitPercent: previousEffectiveSplits.houseSplitPercent,
         houseRepSplitPercent: previousEffectiveSplits.houseRepSplitPercent,
         subagentSplitPercent: previousEffectiveSplits.subagentSplitPercent,
@@ -399,6 +407,12 @@ export async function PATCH(request: NextRequest, { params }: { params: { revenu
         }
       }
 
+      // Schedule-owned expected rate (percent points).
+      if (expectedRateInput && expectedRateValue !== null) {
+        data.expectedCommissionRatePercent = expectedRateValue
+        hasChanges = true
+      }
+
       const houseSplitInput = getTrimmedInput((payload as any)?.houseSplitPercent)
       const houseRepSplitInput = getTrimmedInput((payload as any)?.houseRepSplitPercent)
       const subagentSplitInput = getTrimmedInput((payload as any)?.subagentSplitPercent)
@@ -488,12 +502,18 @@ export async function PATCH(request: NextRequest, { params }: { params: { revenu
             : Number((existing as any)?.product?.priceEach ?? NaN)
 
       if (Number.isFinite(resolvedQuantity as number) && Number.isFinite(resolvedUnitPrice as number)) {
-        const expectedUsage = (resolvedQuantity as number) * (resolvedUnitPrice as number)
+        const expectedUsage = roundCurrency((resolvedQuantity as number) * (resolvedUnitPrice as number))
         data.expectedUsage = expectedUsage
 
-        const commissionPercent = Number((existing as any)?.product?.commissionPercent ?? NaN)
-        if (Number.isFinite(commissionPercent)) {
-          data.expectedCommission = expectedUsage * (commissionPercent / 100)
+        const effectiveRatePercent =
+          expectedRateValue !== null
+            ? expectedRateValue
+            : previousScheduleRatePercent !== null && Number.isFinite(previousScheduleRatePercent)
+              ? previousScheduleRatePercent
+              : null
+
+        if (effectiveRatePercent !== null && Number.isFinite(effectiveRatePercent)) {
+          data.expectedCommission = roundCurrency(expectedUsage * (effectiveRatePercent / 100))
           if (oppProductId) {
             oppProductData.expectedCommission = data.expectedCommission
           }
@@ -501,6 +521,18 @@ export async function PATCH(request: NextRequest, { params }: { params: { revenu
 
         if (oppProductId) {
           oppProductData.expectedUsage = expectedUsage
+        }
+      }
+      // Rate-only edits should still recompute expected commission when usage is present.
+      if (
+        expectedRateInput &&
+        expectedRateValue !== null &&
+        (data.expectedCommission === null || data.expectedCommission === undefined)
+      ) {
+        const expectedUsageExisting = toNullableNumber((existing as any)?.expectedUsage)
+        if (expectedUsageExisting !== null) {
+          data.expectedCommission = roundCurrency(expectedUsageExisting * (expectedRateValue / 100))
+          hasChanges = true
         }
       }
 
@@ -518,11 +550,11 @@ export async function PATCH(request: NextRequest, { params }: { params: { revenu
         }
       }
 
-      // Expected Commission Adjustment maps to RevenueSchedule.actualCommissionAdjustment (current schema field).
+      // Expected Commission Adjustment maps to RevenueSchedule.expectedCommissionAdjustment.
       if (expectedCommissionAdjustmentInput) {
         const adjustment = parseNumberInput(expectedCommissionAdjustmentInput)
         if (adjustment !== null) {
-          data.actualCommissionAdjustment = adjustment
+          data.expectedCommissionAdjustment = adjustment
           hasChanges = true
         }
       }
@@ -531,32 +563,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { revenu
         // continue; we may still update related entities below
       }
 
-      // Update related Product fields
-      if (productId) {
-        const productData: Record<string, any> = {}
-        if (expectedRateInput && expectedRateValue !== null) {
-          productData.commissionPercent = expectedRateValue
-        }
-        if (Object.keys(productData).length > 0) {
-          await prisma.product.update({ where: { id: productId }, data: productData })
-          hasChanges = true
-
-          if (typeof productData.commissionPercent === "number") {
-            const nextCommission = productData.commissionPercent
-            if (previousProductCommission !== nextCommission) {
-              await logProductAudit(
-                AuditAction.Update,
-                productId,
-                req.user.id,
-                tenantId,
-                request,
-                { commissionPercent: previousProductCommission },
-                { commissionPercent: nextCommission },
-              )
-            }
-          }
-        }
-      }
+      // Product commissionPercent is a default for new schedules only; do not mutate it in schedule edits.
 
       // Apply per-schedule commission split overrides when provided.
       if (anySplitTouched) {
@@ -614,11 +621,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { revenu
         return NextResponse.json({ error: "Revenue schedule not found after update" }, { status: 404 })
       }
 
-      const nextProductCommission =
-        updated.product?.commissionPercent !== null &&
-        updated.product?.commissionPercent !== undefined
-          ? Number(updated.product.commissionPercent)
-          : null
+      const nextScheduleRatePercent = toNullableNumber((updated as any)?.expectedCommissionRatePercent)
 
       const nextEffectiveSplits = {
         houseSplitPercent:
@@ -641,10 +644,11 @@ export async function PATCH(request: NextRequest, { params }: { params: { revenu
         expectedUsage: (updated as any).expectedUsage ?? null,
         expectedCommission: (updated as any).expectedCommission ?? null,
         usageAdjustment: (updated as any).usageAdjustment ?? null,
+        expectedCommissionAdjustment: (updated as any).expectedCommissionAdjustment ?? null,
         actualCommissionAdjustment: (updated as any).actualCommissionAdjustment ?? null,
         notes: (updated as any).notes ?? null,
         billingStatus: (updated as any).billingStatus ?? null,
-        expectedCommissionRatePercent: nextProductCommission,
+        expectedCommissionRatePercent: nextScheduleRatePercent,
         houseSplitPercent: nextEffectiveSplits.houseSplitPercent,
         houseRepSplitPercent: nextEffectiveSplits.houseRepSplitPercent,
         subagentSplitPercent: nextEffectiveSplits.subagentSplitPercent,

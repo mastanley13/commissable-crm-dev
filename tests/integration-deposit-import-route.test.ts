@@ -251,3 +251,45 @@ integrationTest("DU-AUTO-15: template persistence toggle controls template confi
   assert.ok(afterSave?.config, "Expected template config to be persisted when saveTemplateMapping=true")
 })
 
+integrationTest("DU-AUTO-16: single-vendor import skips total/subtotal summary rows", async ctx => {
+  const routeModule = await import("../app/api/reconciliation/deposits/import/route")
+  const POST = (routeModule as any).POST ?? (routeModule as any).default?.POST
+  assert.equal(typeof POST, "function")
+
+  const request = makeImportRequest({
+    sessionToken: ctx.sessionToken,
+    distributorAccountId: ctx.distributorAccountId,
+    vendorAccountId: ctx.vendorAccountId,
+    file: makeCsvFile(
+      [
+        "Description,Commission",
+        "Line 1,10",
+        "Totals,999",
+        "Sub-total,888",
+        "Grand Total:,777",
+        "Total Telecom,5",
+      ].join("\n"),
+    ),
+    mapping: { commission: "Commission" },
+    paymentDate: "2026-01-01",
+  })
+
+  const response = await POST(request)
+  assertStatus(response, 200)
+  const payload = await readJson<{ data?: { depositId?: string } }>(response)
+  assert.ok(payload.data?.depositId)
+
+  const dbModule = await import("../lib/db")
+  const prisma = (dbModule as any).prisma ?? (dbModule as any).default?.prisma
+  const lines = await prisma.depositLineItem.findMany({
+    where: { tenantId: ctx.tenantId, depositId: payload.data!.depositId },
+    select: { commission: true },
+    orderBy: { lineNumber: "asc" },
+  })
+
+  assert.equal(lines.length, 2)
+  assert.deepEqual(
+    lines.map(line => Number(line.commission ?? 0)),
+    [10, 5],
+  )
+})

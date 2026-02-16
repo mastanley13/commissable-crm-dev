@@ -39,12 +39,16 @@ test("computeRevenueScheduleMetricsFromDisplay computes usage gross/net and diff
     quantity: "2",
     priceEach: "$10.00",
     expectedUsageAdjustment: "$1.00",
+    expectedCommissionRatePercent: "10%",
     actualUsage: "$0.00"
   })
 
   assert.equal(computed.expectedUsageGross, 20)
   assert.equal(computed.expectedUsageNet, 21)
   assert.equal(computed.usageDifference, 21)
+
+  // Commission is based on usage gross (20) under the locked contract.
+  assert.equal(computed.expectedCommissionGross, 2)
 })
 
 test("computeRevenueScheduleMetricsFromDisplay derives expected/actual rates when fields missing", () => {

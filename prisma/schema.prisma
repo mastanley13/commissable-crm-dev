@@ -685,6 +685,10 @@ model RevenueSchedule {
   actualUsage                Decimal?              @db.Decimal(16, 2)
   actualUsageAdjustment      Decimal?              @db.Decimal(16, 2)
   expectedCommission         Decimal?              @db.Decimal(16, 2)
+  // Schedule-owned inputs for expected commission calculations.
+  // Percent points (e.g., 12.34 means 12.34%).
+  expectedCommissionRatePercent Decimal?           @db.Decimal(5, 2)
+  expectedCommissionAdjustment Decimal?            @db.Decimal(16, 2)
   actualCommission           Decimal?              @db.Decimal(16, 2)
   actualCommissionAdjustment Decimal?              @db.Decimal(16, 2)
   orderIdHouse               String?

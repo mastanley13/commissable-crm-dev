@@ -146,6 +146,7 @@ export interface RevenueScheduleListItem {
   expectedCommissionNet: string | null
   actualCommission: string | null
   commissionDifference: string | null
+  expectedCommissionRatePercent?: string | null
   customerIdDistributor: string | null
   customerIdOther?: string | null
   customerIdHouse?: string | null
@@ -218,13 +219,6 @@ function formatCurrency(value: unknown): string | null {
   if (value === null || value === undefined) return null
   const numeric = toNumber(value)
   return currencyFormatter.format(numeric)
-}
-
-function formatPercent(value: unknown): string | null {
-  if (value === null || value === undefined) return null
-  const numeric = toNumber(value)
-  if (!Number.isFinite(numeric)) return null
-  return percentFormatter.format(numeric)
 }
 
 function formatPercentFromFraction(value: unknown): string | null {
@@ -365,8 +359,19 @@ export function mapRevenueScheduleToListItem(schedule: RevenueScheduleWithRelati
   const actualUsage = toNumber(schedule.actualUsage)
 
   const expectedCommission = toNumber(schedule.expectedCommission ?? schedule.opportunityProduct?.expectedCommission)
-  const expectedCommissionAdjustment = toNumber(schedule.actualCommissionAdjustment)
+  const expectedCommissionAdjustment = toNumber(
+    (schedule as any).expectedCommissionAdjustment ?? schedule.actualCommissionAdjustment
+  )
   const actualCommission = toNumber(schedule.actualCommission)
+
+  const expectedRateRaw = toNumber(
+    (schedule as any).expectedCommissionRatePercent ?? schedule.product?.commissionPercent
+  )
+  const expectedRateFraction = Number.isFinite(expectedRateRaw)
+    ? Math.abs(expectedRateRaw) <= 1.5
+      ? expectedRateRaw
+      : expectedRateRaw / 100
+    : null
 
   const metrics = computeRevenueScheduleMetrics({
     expectedUsageGross: expectedUsage,
@@ -374,7 +379,8 @@ export function mapRevenueScheduleToListItem(schedule: RevenueScheduleWithRelati
     actualUsage,
     expectedCommissionGross: expectedCommission,
     expectedCommissionAdjustment,
-    actualCommission
+    actualCommission,
+    expectedRateFraction
   })
 
   const expectedUsageNet = metrics.expectedUsageNet ?? expectedUsage + usageAdjustment
@@ -463,6 +469,7 @@ export function mapRevenueScheduleToListItem(schedule: RevenueScheduleWithRelati
     expectedCommissionNet: formatCurrency(expectedCommissionNet),
     actualCommission: formatCurrency(actualCommission),
     commissionDifference: formatCurrency(commissionDifference),
+    expectedCommissionRatePercent: formatPercentFromFraction(metrics.expectedRateFraction),
     customerIdDistributor,
     customerIdOther,
     customerIdHouse: schedule.opportunity?.customerIdHouse ?? null,
@@ -483,7 +490,8 @@ export function mapRevenueScheduleToListItem(schedule: RevenueScheduleWithRelati
 
 export function mapRevenueScheduleToDetail(schedule: RevenueScheduleWithRelations): RevenueScheduleDetail {
   const listValues = mapRevenueScheduleToListItem(schedule)
-  const expectedCommissionRate = schedule.product?.commissionPercent ?? null
+  const expectedCommissionRate =
+    (schedule as any).expectedCommissionRatePercent ?? schedule.product?.commissionPercent ?? null
   const productRevenueType =
     schedule.product?.revenueType ??
     schedule.opportunityProduct?.product?.revenueType ??
@@ -491,14 +499,22 @@ export function mapRevenueScheduleToDetail(schedule: RevenueScheduleWithRelation
     null
   const productRevenueTypeLabel = getRevenueTypeLabel(productRevenueType) ?? null
 
-  const expectedCommissionRateFraction = expectedCommissionRate !== null ? toNumber(expectedCommissionRate) / 100 : null
+  const expectedCommissionRateNumber = expectedCommissionRate !== null ? toNumber(expectedCommissionRate) : NaN
+  const expectedCommissionRateFraction =
+    Number.isFinite(expectedCommissionRateNumber)
+      ? Math.abs(expectedCommissionRateNumber) <= 1.5
+        ? expectedCommissionRateNumber
+        : expectedCommissionRateNumber / 100
+      : null
   const metrics = computeRevenueScheduleMetrics({
     expectedUsageGross: toNumber(schedule.expectedUsage ?? schedule.opportunityProduct?.expectedUsage),
     expectedUsageAdjustment: toNumber(schedule.usageAdjustment),
     expectedUsageNet: null,
     actualUsage: toNumber(schedule.actualUsage),
     expectedCommissionGross: toNumber(schedule.expectedCommission ?? schedule.opportunityProduct?.expectedCommission),
-    expectedCommissionAdjustment: toNumber(schedule.actualCommissionAdjustment),
+    expectedCommissionAdjustment: toNumber(
+      (schedule as any).expectedCommissionAdjustment ?? schedule.actualCommissionAdjustment
+    ),
     expectedCommissionNet: null,
     actualCommission: toNumber(schedule.actualCommission),
     expectedRateFraction: expectedCommissionRateFraction,
@@ -512,9 +528,9 @@ export function mapRevenueScheduleToDetail(schedule: RevenueScheduleWithRelation
     legalName: schedule.account?.accountLegalName ?? null,
     shippingAddress: formatAddress(schedule.account?.shippingAddress),
     billingAddress: formatAddress(schedule.account?.billingAddress),
-    expectedCommissionRatePercent: formatPercent(metrics.expectedRateFraction),
-    actualCommissionRatePercent: formatPercent(metrics.actualRateFraction),
-    commissionRateDifference: formatPercent(metrics.commissionRateDifferenceFraction),
+    expectedCommissionRatePercent: formatPercentFromFraction(metrics.expectedRateFraction),
+    actualCommissionRatePercent: formatPercentFromFraction(metrics.actualRateFraction),
+    commissionRateDifference: formatPercentFromFraction(metrics.commissionRateDifferenceFraction),
     productRevenueType,
     productRevenueTypeLabel,
     houseSplitPercent: formatPercentFromFraction(splits.house),

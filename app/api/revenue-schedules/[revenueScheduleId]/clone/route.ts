@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db"
 import { withPermissions } from "@/lib/api-auth"
 import { mapRevenueScheduleToDetail, type RevenueScheduleWithRelations } from "../../helpers"
 import { logRevenueScheduleAudit } from "@/lib/audit"
+import { roundCurrency } from "@/lib/revenue-schedule-calculations"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -296,53 +297,71 @@ export async function POST(request: NextRequest, { params }: { params: { revenue
       const clones = await prisma.$transaction(async tx => {
         const results: RevenueScheduleWithRelations[] = []
 
-        // Fetch related data if we need to recalculate
+        // Fetch related data if we need to recalculate or snapshot defaults.
         let opportunityProduct = null
         let product = null
-        if (quantity !== null || unitPrice !== null) {
-          if (source.opportunityProductId) {
-            opportunityProduct = await tx.opportunityProduct.findUnique({
-              where: { id: source.opportunityProductId },
-              select: {
-                quantity: true,
-                unitPrice: true,
-                expectedUsage: true,
-                expectedCommission: true,
-              },
-            })
-          }
-          if (source.productId) {
-            product = await tx.product.findUnique({
-              where: { id: source.productId },
-              select: {
-                priceEach: true,
-                commissionPercent: true,
-              },
-            })
-          }
+        if (source.opportunityProductId) {
+          opportunityProduct = await tx.opportunityProduct.findUnique({
+            where: { id: source.opportunityProductId },
+            select: {
+              quantity: true,
+              unitPrice: true,
+              expectedUsage: true,
+              expectedCommission: true,
+            },
+          })
+        }
+        if (source.productId) {
+          product = await tx.product.findUnique({
+            where: { id: source.productId },
+            select: {
+              priceEach: true,
+              commissionPercent: true,
+            },
+          })
         }
 
-        // Calculate expectedUsage and expectedCommission with overrides
+        // Calculate expectedUsage (gross) and expectedCommission (gross) with overrides.
+        // Locked contract:
+        // - expectedUsage is gross (qty * priceEach)
+        // - expectedCommission is based on expectedUsage gross * rate
         let finalExpectedUsage = source.expectedUsage
         let finalUsageAdjustment = usageAdjustment !== null ? usageAdjustment : source.usageAdjustment
         let finalExpectedCommission = source.expectedCommission
+        const finalExpectedCommissionRatePercent =
+          source.expectedCommissionRatePercent !== null && source.expectedCommissionRatePercent !== undefined
+            ? Number(source.expectedCommissionRatePercent)
+            : product?.commissionPercent !== null && product?.commissionPercent !== undefined
+              ? Number(product.commissionPercent)
+              : null
+
+        const finalExpectedCommissionAdjustment =
+          source.expectedCommissionAdjustment !== null && source.expectedCommissionAdjustment !== undefined
+            ? source.expectedCommissionAdjustment
+            : source.actualCommissionAdjustment
 
         if (quantity !== null || unitPrice !== null) {
           // Get effective quantity and unit price
-          const effectiveQuantity = quantity ?? (opportunityProduct?.quantity ? Number(opportunityProduct.quantity) : 0)
-          const effectiveUnitPrice = unitPrice ?? (opportunityProduct?.unitPrice ? Number(opportunityProduct.unitPrice) : product?.priceEach ? Number(product.priceEach) : 0)
-          const effectiveAdjustment = finalUsageAdjustment ? Number(finalUsageAdjustment) : 0
+          const effectiveQuantity =
+            quantity ?? (opportunityProduct?.quantity ? Number(opportunityProduct.quantity) : NaN)
+          const effectiveUnitPrice =
+            unitPrice ??
+            (opportunityProduct?.unitPrice ? Number(opportunityProduct.unitPrice) : NaN) ??
+            (product?.priceEach ? Number(product.priceEach) : NaN)
 
-          // Recalculate expectedUsage: quantity * unitPrice + adjustment
-          const baseUsage = effectiveQuantity * effectiveUnitPrice
-          const calculatedExpectedUsage = baseUsage + effectiveAdjustment
+          if (!Number.isFinite(effectiveQuantity) || !Number.isFinite(effectiveUnitPrice)) {
+            throw new Error("Unable to recalculate expected usage: missing quantity or unit price")
+          }
 
-          // Recalculate expectedCommission using commission rate
-          const commissionRate = product?.commissionPercent ? Number(product.commissionPercent) / 100 : 0
-          const calculatedExpectedCommission = calculatedExpectedUsage * commissionRate
+          // Recalculate expectedUsage (gross): quantity * unitPrice
+          const baseUsage = roundCurrency(effectiveQuantity * effectiveUnitPrice)
+
+          // Recalculate expectedCommission (gross) using schedule-owned rate (percent points)
+          const ratePercent = finalExpectedCommissionRatePercent ?? 0
+          const calculatedExpectedCommission = roundCurrency(baseUsage * (ratePercent / 100))
 
           // Convert to Prisma Decimal
-          finalExpectedUsage = new Prisma.Decimal(calculatedExpectedUsage)
+          finalExpectedUsage = new Prisma.Decimal(baseUsage)
           finalExpectedCommission = new Prisma.Decimal(calculatedExpectedCommission)
         }
 
@@ -370,6 +389,9 @@ export async function POST(request: NextRequest, { params }: { params: { revenue
               expectedUsage: finalExpectedUsage,
               usageAdjustment: finalUsageAdjustment,
               expectedCommission: finalExpectedCommission,
+              expectedCommissionRatePercent:
+                finalExpectedCommissionRatePercent !== null ? new Prisma.Decimal(finalExpectedCommissionRatePercent) : null,
+              expectedCommissionAdjustment: finalExpectedCommissionAdjustment,
               orderIdHouse: source.orderIdHouse,
               distributorOrderId: source.distributorOrderId,
               notes: source.notes,
@@ -406,6 +428,8 @@ export async function POST(request: NextRequest, { params }: { params: { revenue
             scheduleDate: (created as any).scheduleDate ?? null,
             expectedUsage: (created as any).expectedUsage ?? null,
             expectedCommission: (created as any).expectedCommission ?? null,
+            expectedCommissionRatePercent: (created as any).expectedCommissionRatePercent ?? null,
+            expectedCommissionAdjustment: (created as any).expectedCommissionAdjustment ?? null,
           },
         )
       }

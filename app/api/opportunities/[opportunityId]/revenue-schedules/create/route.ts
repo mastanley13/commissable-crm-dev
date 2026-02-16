@@ -5,7 +5,7 @@ import { prisma } from "@/lib/db"
 import { withPermissions } from "@/lib/api-auth"
 import { hasAnyPermission } from "@/lib/auth"
 import { generateRevenueScheduleName } from "@/lib/revenue-schedule-number"
-import { logOpportunityAudit, logProductAudit, logRevenueScheduleAudit } from "@/lib/audit"
+import { logOpportunityAudit, logRevenueScheduleAudit } from "@/lib/audit"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -375,24 +375,6 @@ export async function POST(
               : notes
 
         const createdSchedules = await prisma.$transaction(async tx => {
-          // Update product commission percent so detail views show the expected rate.
-          let previousProductCommission: number | null = null
-          if (opportunityProduct.product?.id) {
-            previousProductCommission =
-              opportunityProduct.product.commissionPercent !== null &&
-              opportunityProduct.product.commissionPercent !== undefined
-                ? Number(opportunityProduct.product.commissionPercent)
-                : null
-
-            await tx.product.update({
-              where: { id: opportunityProduct.product.id },
-              data: {
-                commissionPercent: commissionRatePercent,
-                updatedById: req.user.id,
-              },
-            })
-          }
-
           const previousOpportunitySplits = {
             houseSplitPercent:
               existingOpportunity.houseSplitPercent != null
@@ -452,6 +434,8 @@ export async function POST(
                   scheduleDate,
                   expectedUsage: decimalFromNumber(expectedUsage),
                   expectedCommission: decimalFromNumber(expectedCommission),
+                  expectedCommissionRatePercent: decimalFromNumber(commissionRatePercent),
+                  expectedCommissionAdjustment: null,
                   scheduleNumber,
                   notes: combinedNotes,
                 },
@@ -475,23 +459,6 @@ export async function POST(
                 ? Number(created.expectedCommission)
                 : null,
             })
-          }
-
-          // Audit product commission change if applicable.
-          if (
-            opportunityProduct.product?.id &&
-            previousProductCommission !== null &&
-            previousProductCommission !== commissionRatePercent
-          ) {
-            await logProductAudit(
-              AuditAction.Update,
-              opportunityProduct.product.id,
-              req.user.id,
-              tenantId,
-              request,
-              { commissionPercent: previousProductCommission },
-              { commissionPercent: commissionRatePercent },
-            )
           }
 
           // Audit opportunity split changes if they changed.
@@ -535,6 +502,7 @@ export async function POST(
                   scheduleDate: schedule.scheduleDate,
                   expectedUsage: schedule.expectedUsage,
                   expectedCommission: schedule.expectedCommission,
+                  expectedCommissionRatePercent: commissionRatePercent,
                   isChargeback,
                   chargebackReason,
                 },

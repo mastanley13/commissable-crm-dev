@@ -331,8 +331,7 @@ export function OpportunityCreateModal({ isOpen, accountId, accountName, onClose
       form.estimatedCloseDate &&
       form.referredByContactId &&
       form.houseRepPercent &&
-      form.subagentPercent &&
-      form.description.trim()
+      form.subagentPercent
     )
   }, [accountId, form])
 
@@ -678,15 +677,14 @@ export function OpportunityCreateModal({ isOpen, accountId, accountName, onClose
                 className="w-full cursor-not-allowed border-b-2 border-gray-200 bg-transparent px-0 py-1 text-xs text-gray-400"
               />
             </div>
-            {/* Field 01.08..011: Opportunity Description - Required */}
+            {/* Field 01.08..011: Opportunity Description - Optional */}
             <div className="md:col-span-2">
-              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Opportunity Description<span className="ml-1 text-red-500">*</span></label>
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Opportunity Description</label>
               <textarea
                 value={form.description}
                 onChange={event => setForm(prev => ({ ...prev, description: event.target.value }))}
                 className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500 min-h-[80px] resize-vertical"
                 placeholder="Enter opportunity description"
-                required
               />
             </div>
           </div>

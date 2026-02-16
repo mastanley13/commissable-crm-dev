@@ -179,10 +179,11 @@ export function computeRevenueScheduleMetrics(inputs: RevenueScheduleNumericInpu
     (inputs.expectedCommissionNet !== null && inputs.expectedCommissionNet !== undefined) ||
     (inputs.actualCommission !== null && inputs.actualCommission !== undefined)
 
+  // Locked contract: expected commission is based on usage gross (qty * price), not usage net.
   const expectedCommissionGross =
     inputs.expectedCommissionGross ??
-    (expectedUsageNet !== null && expectedRateFraction !== null
-      ? expectedUsageNet * expectedRateFraction
+    (expectedUsageGross !== null && expectedRateFraction !== null
+      ? expectedUsageGross * expectedRateFraction
       : (inputs.expectedCommissionNet ?? null))
 
   const expectedCommissionNet = (() => {

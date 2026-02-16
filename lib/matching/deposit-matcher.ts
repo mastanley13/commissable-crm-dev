@@ -520,7 +520,9 @@ function computeScheduleMetrics(schedule: RevenueScheduleWithRelations): Schedul
   const actualUsageAdjustment = toNumber(schedule.actualUsageAdjustment)
 
   const expectedCommission = toNumber(schedule.expectedCommission)
-  const expectedCommissionAdjustment = 0
+  const expectedCommissionAdjustment = toNumber(
+    (schedule as any).expectedCommissionAdjustment ?? schedule.actualCommissionAdjustment,
+  )
   const actualCommission = toNumber(schedule.actualCommission)
   const actualCommissionAdjustment = toNumber(schedule.actualCommissionAdjustment)
 

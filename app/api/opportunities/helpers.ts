@@ -687,31 +687,31 @@ function mapRevenueScheduleToDetail(schedule: RevenueScheduleWithRelations): Opp
   const usageBalance = expectedUsageNet - actualUsage
 
   const expectedCommissionRaw = toNumber(schedule.expectedCommission)
-  const commissionPercentCandidate = toNumber(schedule.product?.commissionPercent)
-  const commissionPercentDecimal = commissionPercentCandidate > 1 ? commissionPercentCandidate / 100 : commissionPercentCandidate
-  const derivedCommissionFromRate = expectedUsageNet > 0 ? expectedUsageNet * commissionPercentDecimal : 0
+  const scheduleRateRaw = toNumber((schedule as any).expectedCommissionRatePercent ?? schedule.product?.commissionPercent)
+  const commissionPercentDecimal = scheduleRateRaw > 1 ? scheduleRateRaw / 100 : scheduleRateRaw
+  const derivedCommissionFromRate = expectedUsageGross > 0 ? expectedUsageGross * commissionPercentDecimal : 0
   const expectedCommissionGross = expectedCommissionRaw > 0 ? expectedCommissionRaw : derivedCommissionFromRate
-  const expectedCommissionAdjustment = 0
+  const expectedCommissionAdjustment = toNumber(
+    (schedule as any).expectedCommissionAdjustment ?? (schedule as any).actualCommissionAdjustment ?? 0
+  )
   const expectedCommissionNet = expectedCommissionGross + expectedCommissionAdjustment
 
   const actualCommission = toNumber(schedule.actualCommission)
   const actualCommissionAdjustment = toNumber((schedule as any).actualCommissionAdjustment)
   const commissionDifference = expectedCommissionNet - actualCommission
 
-  const derivedExpectedRateDecimal =
-    expectedUsageNet !== 0 ? expectedCommissionNet / expectedUsageNet : commissionPercentDecimal
   const expectedCommissionRateDecimal =
-    commissionPercentDecimal > 0 && Number.isFinite(commissionPercentDecimal)
-      ? commissionPercentDecimal
-      : Number.isFinite(derivedExpectedRateDecimal)
-        ? derivedExpectedRateDecimal
-        : 0
+    commissionPercentDecimal > 0 && Number.isFinite(commissionPercentDecimal) ? commissionPercentDecimal : 0
 
   const actualCommissionRateDecimal =
     actualUsage !== 0 ? actualCommission / actualUsage : 0
   const commissionRateDifferenceDecimal = expectedCommissionRateDecimal - actualCommissionRateDecimal
 
   const statusInfo = mapRevenueStatus(status, (schedule as any).billingStatus ?? null, usageBalance, commissionDifference)
+
+  const expectedCommissionRatePoints = expectedCommissionRateDecimal * 100
+  const actualCommissionRatePoints = actualCommissionRateDecimal * 100
+  const commissionRateDifferencePoints = commissionRateDifferenceDecimal * 100
 
   return {
     id: schedule.id,
@@ -745,9 +745,9 @@ function mapRevenueScheduleToDetail(schedule: RevenueScheduleWithRelations): Opp
     actualCommission,
     actualCommissionAdjustment,
     commissionDifference,
-    expectedCommissionRatePercent: expectedCommissionRateDecimal,
-    actualCommissionRatePercent: actualCommissionRateDecimal,
-    commissionRateDifferencePercent: commissionRateDifferenceDecimal,
+    expectedCommissionRatePercent: expectedCommissionRatePoints,
+    actualCommissionRatePercent: actualCommissionRatePoints,
+    commissionRateDifferencePercent: commissionRateDifferencePoints,
     createdAt: formatDateValue(schedule.createdAt ?? null),
     updatedAt: formatDateValue(schedule.updatedAt ?? null)
   }

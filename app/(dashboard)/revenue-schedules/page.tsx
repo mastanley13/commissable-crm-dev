@@ -1256,7 +1256,7 @@ export default function RevenueSchedulesPage() {
         expectedCommissionAdjustment: (row as any).expectedCommissionAdjustment,
         expectedCommissionNet: rawExpectedCommission,
         actualCommission: rawActualCommission,
-        expectedCommissionRatePercent: null,
+        expectedCommissionRatePercent: (row as any).expectedCommissionRatePercent ?? null,
         actualCommissionRatePercent: null,
       })
 
