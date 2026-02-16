@@ -6,6 +6,8 @@ import { Info, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useToasts } from "@/components/toast"
 import { formatCurrencyDisplay, formatDecimalToFixed, formatPercentDisplay, normalizeDecimalInput } from "@/lib/number-format"
+import { formatDateOnlyUtc } from "@/lib/date-only"
+import { diffMonthsUtc, parseDateInputToUtcDate, shiftScheduleDateMonthStartUtc, toMonthStartUtc } from "@/lib/revenue-schedule-date-shift"
 
 import type {
   OpportunityLineItemRecord,
@@ -13,9 +15,98 @@ import type {
 } from "./opportunity-types"
 import { ConfirmDialog } from "./confirm-dialog"
 
-type ModalTab = "create" | "rates" | "split" | "status" | "undo"
+type ModalTab = "create" | "rates" | "split" | "startDate" | "status" | "undo"
 type ManageScope = "selection" | "series"
 type AmountMode = "auto" | "manual"
+
+interface SelectedScheduleOption {
+  id: string
+  label: string
+  scheduleDate: string | null
+  productNameVendor: string | null
+  distributorName: string | null
+  vendorName: string | null
+  opportunityName: string | null
+}
+
+function SelectedSchedulesTable({
+  options,
+  selectedIds,
+  getIneligibilityReason,
+  onToggle,
+}: {
+  options: SelectedScheduleOption[]
+  selectedIds: string[]
+  getIneligibilityReason?: (id: string) => string | undefined
+  onToggle: (id: string, checked: boolean) => void
+}) {
+  if (options.length === 0) {
+    return (
+      <div className="mt-3 rounded-md border border-dashed border-gray-300 bg-white px-4 py-3 text-xs text-gray-600">
+        No schedules selected.
+      </div>
+    )
+  }
+
+  return (
+    <div className="mt-3 h-56 overflow-y-auto rounded-lg border border-gray-200">
+      <div className="min-w-[880px]">
+        <div className="grid grid-cols-[auto_minmax(0,2.1fr)_minmax(0,2.1fr)_minmax(0,1.6fr)_minmax(0,1.6fr)_minmax(0,2.2fr)_minmax(0,1.4fr)] border-b bg-gray-50 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+          <div className="text-center">Selected</div>
+          <div>Revenue Schedule</div>
+          <div>Other - Product Name</div>
+          <div>Distributor</div>
+          <div>Vendor</div>
+          <div>Opportunity</div>
+          <div>Schedule Date</div>
+        </div>
+        {options.map(option => {
+          const ineligibilityReason = getIneligibilityReason?.(option.id)
+          const isEligible = !ineligibilityReason
+          const checked = selectedIds.includes(option.id)
+
+          return (
+            <label
+              key={option.id}
+              title={ineligibilityReason}
+              className={cn(
+                "grid grid-cols-[auto_minmax(0,2.1fr)_minmax(0,2.1fr)_minmax(0,1.6fr)_minmax(0,1.6fr)_minmax(0,2.2fr)_minmax(0,1.4fr)] items-center border-b px-3 py-2 text-xs last:border-b-0",
+                isEligible ? "text-gray-700" : "cursor-not-allowed bg-gray-50 text-gray-400"
+              )}
+            >
+              <div className="flex items-center justify-center gap-2 pr-2">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 rounded border-slate-400 text-primary-600 accent-primary-600 disabled:opacity-60"
+                  checked={checked}
+                  disabled={!isEligible}
+                  onChange={event => {
+                    if (!isEligible) return
+                    onToggle(option.id, event.target.checked)
+                  }}
+                />
+                {ineligibilityReason ? (
+                  <span
+                    className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-gray-300 bg-white text-[10px] text-gray-500"
+                    title={ineligibilityReason}
+                  >
+                    <Info className="h-3 w-3" aria-hidden="true" />
+                  </span>
+                ) : null}
+              </div>
+              <div className="truncate font-semibold text-gray-900">{option.label}</div>
+              <div className="truncate">{option.productNameVendor || "--"}</div>
+              <div className="truncate">{option.distributorName || "--"}</div>
+              <div className="truncate">{option.vendorName || "--"}</div>
+              <div className="truncate">{option.opportunityName || "Opportunity"}</div>
+              <div className="truncate">{option.scheduleDate || "--"}</div>
+            </label>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
 
 interface CommissionSplitDefaults {
   house?: number | null
@@ -41,8 +132,8 @@ interface RevenueScheduleCreateModalProps {
   schedules: OpportunityRevenueScheduleRecord[]
   defaultCommissionSplits?: CommissionSplitDefaults
   /**
-   * Optional initial selection of schedule ids for the Deactivate/Delete tab.
-   * When provided, the Status tab will pre-select these schedules on first open.
+   * Optional initial selection of schedule ids when launching the modal from the
+   * Opportunity Revenue Schedules grid.
    */
   initialStatusSelection?: string[]
   onClose: () => void
@@ -64,6 +155,7 @@ const TAB_DEFINITIONS: Array<{ id: ModalTab; label: string }> = [
   { id: "create", label: "Create Schedules" },
   { id: "rates", label: "Change Commission Rate" },
   { id: "split", label: "Change Commission Split" },
+  { id: "startDate", label: "Change Start Date" },
   { id: "status", label: "Deactivate / Delete" },
   { id: "undo", label: "Remove Allocation" }
 ]
@@ -110,6 +202,8 @@ export function RevenueScheduleCreateModal({
   const { showError, showSuccess } = useToasts()
 
   const [activeTab, setActiveTab] = useState<ModalTab>("create")
+  const [selectedScheduleIds, setSelectedScheduleIds] = useState<string[]>([])
+  const [selectionPrefillApplied, setSelectionPrefillApplied] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -140,7 +234,6 @@ export function RevenueScheduleCreateModal({
   })
 
   const [splitForm, setSplitForm] = useState({
-    selectedIds: [] as string[],
     effectiveDate: "",
     scope: "selection" as ManageScope,
     house: "",
@@ -148,13 +241,16 @@ export function RevenueScheduleCreateModal({
     subagent: ""
   })
 
+  const [startDateForm, setStartDateForm] = useState({
+    newStartDate: "",
+    reason: "",
+  })
+
   const [statusForm, setStatusForm] = useState({
-    selectedIds: [] as string[],
     scope: "selection" as ManageScope,
     action: "deactivate" as "deactivate" | "delete",
     reason: ""
   })
-  const [statusPrefillApplied, setStatusPrefillApplied] = useState(false)
 
   const [depositMatches, setDepositMatches] = useState<DepositMatchRecord[]>([])
   const [depositSelection, setDepositSelection] = useState<string[]>([])
@@ -189,6 +285,7 @@ export function RevenueScheduleCreateModal({
       id: schedule.id,
       label: schedule.scheduleNumber || schedule.productNameVendor || `Schedule ${schedule.id.slice(0, 6)}`,
       scheduleDate: schedule.scheduleDate ? schedule.scheduleDate.slice(0, 10) : null,
+      productId: schedule.productId ?? null,
       commissionRate: schedule.expectedCommissionRatePercent ?? 0,
       productNameVendor: schedule.productNameVendor ?? null,
       distributorName: schedule.distributorName ?? null,
@@ -196,6 +293,23 @@ export function RevenueScheduleCreateModal({
       opportunityName: schedule.opportunityName ?? null
     }))
   }, [schedules])
+
+  const selectedScheduleOptions = useMemo(() => {
+    if (!selectedScheduleIds.length) {
+      return []
+    }
+    const selectedSet = new Set(selectedScheduleIds)
+    return scheduleOptions.filter(option => selectedSet.has(option.id))
+  }, [scheduleOptions, selectedScheduleIds])
+
+  const handleToggleSelectedSchedule = useCallback((id: string, checked: boolean) => {
+    setSelectedScheduleIds(prev => {
+      if (checked) {
+        return Array.from(new Set([...prev, id]))
+      }
+      return prev.filter(existingId => existingId !== id)
+    })
+  }, [])
 
   const handleDecimalChangeRate = (field: keyof typeof rateForm) => (
     event: React.ChangeEvent<HTMLInputElement>
@@ -298,13 +412,18 @@ export function RevenueScheduleCreateModal({
     [eligibleStatusIds, ineligibleReasons]
   )
 
-  const statusScheduleOptions = useMemo(() => {
-    if (!statusForm.selectedIds.length) {
+  const eligibleSelectedScheduleIds = useMemo(
+    () => selectedScheduleIds.filter(id => !getIneligibilityReason(id)),
+    [getIneligibilityReason, selectedScheduleIds]
+  )
+
+  const eligibleSelectedScheduleOptions = useMemo(() => {
+    if (!eligibleSelectedScheduleIds.length) {
       return []
     }
-    const selectedSet = new Set(statusForm.selectedIds)
+    const selectedSet = new Set(eligibleSelectedScheduleIds)
     return scheduleOptions.filter(option => selectedSet.has(option.id))
-  }, [scheduleOptions, statusForm.selectedIds])
+  }, [eligibleSelectedScheduleIds, scheduleOptions])
 
   const handleDecimalChangeCreate = (field: keyof typeof createForm) => (
     event: React.ChangeEvent<HTMLInputElement>
@@ -430,14 +549,16 @@ export function RevenueScheduleCreateModal({
 
     setRateForm({ selectedIds: [], effectiveDate: "", ratePercent: "", scope: "selection" })
     setSplitForm({
-      selectedIds: [],
       effectiveDate: "",
       scope: "selection",
       house: formatNumber(defaultHouse, 2),
       houseRep: formatNumber(defaultHouseRep, 2),
       subagent: formatNumber(defaultSubagent, 2)
     })
-    setStatusForm({ selectedIds: [], scope: "selection", action: "deactivate", reason: "" })
+    setStartDateForm({ newStartDate: "", reason: "" })
+    setStatusForm({ scope: "selection", action: "deactivate", reason: "" })
+    setSelectedScheduleIds([])
+    setSelectionPrefillApplied(false)
     setDepositSelection([])
     setDepositError(null)
 
@@ -457,7 +578,7 @@ export function RevenueScheduleCreateModal({
             : []
         if (!cancelled) {
           setDepositMatches(rows)
-          setDepositError(rows.length === 0 ? "No matched deposits found." : null)
+          setDepositError(null)
         }
       } catch (err) {
         if (!cancelled) {
@@ -557,18 +678,119 @@ export function RevenueScheduleCreateModal({
   }, [splitForm.house, splitForm.houseRep, splitForm.subagent])
 
   const canSubmitSplits = Boolean(
-    splitForm.selectedIds.length > 0 &&
+    eligibleSelectedScheduleIds.length > 0 &&
     splitForm.effectiveDate.trim().length > 0 &&
     Math.abs(splitFormTotals.total - 100) < 0.01
   )
 
-  const eligibleSelectedCount = useMemo(
-    () =>
-      statusForm.selectedIds.filter(id => !getIneligibilityReason(id)).length,
-    [getIneligibilityReason, statusForm.selectedIds]
+  const startDateProductIds = useMemo(() => {
+    const ids = new Set<string>()
+    eligibleSelectedScheduleOptions.forEach(option => {
+      if (option.productId) ids.add(option.productId)
+    })
+    return ids
+  }, [eligibleSelectedScheduleOptions])
+
+  const startDateMissingProductCount = useMemo(
+    () => eligibleSelectedScheduleOptions.filter(option => !option.productId).length,
+    [eligibleSelectedScheduleOptions],
   )
 
-  const ineligibleSelectedCount = statusForm.selectedIds.length - eligibleSelectedCount
+  const startDateSelectedDates = useMemo(() => {
+    const dateById = new Map<string, Date>()
+    const missingDateIds: string[] = []
+
+    eligibleSelectedScheduleOptions.forEach(option => {
+      const raw = option.scheduleDate ?? ""
+      const parsed = raw ? parseDateInputToUtcDate(raw) : null
+      if (!parsed) {
+        missingDateIds.push(option.id)
+        return
+      }
+      dateById.set(option.id, toMonthStartUtc(parsed))
+    })
+
+    return { dateById, missingDateIds }
+  }, [eligibleSelectedScheduleOptions])
+
+  const startDateBaselineDate = useMemo(() => {
+    const dates = Array.from(startDateSelectedDates.dateById.values())
+    if (!dates.length) return null
+    return dates.sort((a, b) => a.getTime() - b.getTime())[0] ?? null
+  }, [startDateSelectedDates])
+
+  const startDateNewStartDate = useMemo(() => {
+    const raw = startDateForm.newStartDate.trim()
+    if (!raw) return null
+    const parsed = parseDateInputToUtcDate(raw)
+    return parsed ? toMonthStartUtc(parsed) : null
+  }, [startDateForm.newStartDate])
+
+  const startDateDeltaMonths = useMemo(() => {
+    if (!startDateBaselineDate || !startDateNewStartDate) return null
+    return diffMonthsUtc(startDateBaselineDate, startDateNewStartDate)
+  }, [startDateBaselineDate, startDateNewStartDate])
+
+  const startDatePreviewRows = useMemo(() => {
+    if (startDateDeltaMonths === null) return []
+
+    const rows = eligibleSelectedScheduleOptions
+      .map(option => {
+        const current = startDateSelectedDates.dateById.get(option.id) ?? null
+        if (!current) return null
+        const shifted = shiftScheduleDateMonthStartUtc(current, startDateDeltaMonths)
+        return {
+          id: option.id,
+          label: option.label,
+          currentDate: formatDateOnlyUtc(current),
+          newDate: formatDateOnlyUtc(shifted),
+        }
+      })
+      .filter((row): row is NonNullable<typeof row> => Boolean(row))
+      .sort((a, b) => a.currentDate.localeCompare(b.currentDate))
+
+    return rows
+  }, [eligibleSelectedScheduleOptions, startDateDeltaMonths, startDateSelectedDates.dateById])
+
+  const startDateBlockingReasons = useMemo(() => {
+    const reasons: string[] = []
+
+    if (eligibleSelectedScheduleIds.length === 0) {
+      reasons.push("Select at least one eligible revenue schedule.")
+    }
+
+    if (eligibleSelectedScheduleIds.length > 0) {
+      if (startDateMissingProductCount > 0 || startDateProductIds.size !== 1) {
+        reasons.push("All selected schedules must belong to a single product.")
+      }
+
+      if (startDateSelectedDates.missingDateIds.length > 0) {
+        reasons.push("Some selected schedules are missing schedule dates and cannot be shifted.")
+      }
+    }
+
+    if (!startDateNewStartDate) {
+      reasons.push("Enter a valid new start date.")
+    }
+
+    if (!startDateForm.reason.trim()) {
+      reasons.push("Enter a reason to continue.")
+    }
+
+    return reasons
+  }, [
+    eligibleSelectedScheduleIds.length,
+    startDateForm.reason,
+    startDateMissingProductCount,
+    startDateNewStartDate,
+    startDateProductIds.size,
+    startDateSelectedDates.missingDateIds.length,
+  ])
+
+  const canSubmitStartDate = startDateBlockingReasons.length === 0
+
+  const eligibleSelectedCount = eligibleSelectedScheduleIds.length
+  const ineligibleSelectedCount = selectedScheduleIds.length - eligibleSelectedCount
 
   const canSubmitStatus = Boolean(
     eligibleSelectedCount > 0 &&
@@ -576,15 +798,26 @@ export function RevenueScheduleCreateModal({
   )
 
   const canSubmitUndo = depositSelection.length > 0
-  // When opening the modal from the Opportunity Revenue Schedules tab,
-  // seed the Status tab selection from any pre-selected schedules.
+
+  const depositMatchesForSelection = useMemo(() => {
+    if (selectedScheduleIds.length === 0) return []
+    const selectedSet = new Set(selectedScheduleIds)
+    return depositMatches.filter(match => selectedSet.has(match.scheduleId))
+  }, [depositMatches, selectedScheduleIds])
+
+  useEffect(() => {
+    const allowedIds = new Set(depositMatchesForSelection.map(match => match.id))
+    setDepositSelection(prev => prev.filter(id => allowedIds.has(id)))
+  }, [depositMatchesForSelection])
+
+  // When opening the modal from the Opportunity Revenue Schedules tab, seed selection from any pre-selected schedules.
   useEffect(() => {
     if (!isOpen) {
-      setStatusPrefillApplied(false)
+      setSelectionPrefillApplied(false)
       return
     }
 
-    if (statusPrefillApplied) {
+    if (selectionPrefillApplied) {
       return
     }
 
@@ -592,12 +825,9 @@ export function RevenueScheduleCreateModal({
       return
     }
 
-    setStatusForm(prev => ({
-      ...prev,
-      selectedIds: Array.from(new Set([...prev.selectedIds, ...initialStatusSelection]))
-    }))
-    setStatusPrefillApplied(true)
-  }, [initialStatusSelection, isOpen, statusPrefillApplied])
+    setSelectedScheduleIds(prev => Array.from(new Set([...prev, ...initialStatusSelection])))
+    setSelectionPrefillApplied(true)
+  }, [initialStatusSelection, isOpen, selectionPrefillApplied])
 
   const primaryLabel = activeTab === "create"
     ? "Create"
@@ -605,6 +835,8 @@ export function RevenueScheduleCreateModal({
       ? "Update Rates"
       : activeTab === "split"
         ? "Update Split"
+        : activeTab === "startDate"
+          ? "Apply Change"
         : activeTab === "status"
           ? statusForm.action === "delete" ? "Delete" : "Deactivate"
           : "Remove Allocation"
@@ -614,8 +846,10 @@ export function RevenueScheduleCreateModal({
       ? !canSubmitCreate
       : activeTab === "rates"
         ? !canSubmitRates
-        : activeTab === "split"
+      : activeTab === "split"
           ? !canSubmitSplits
+          : activeTab === "startDate"
+            ? !canSubmitStartDate
           : activeTab === "status"
             ? !canSubmitStatus
             : !canSubmitUndo
@@ -720,7 +954,7 @@ export function RevenueScheduleCreateModal({
     if (!canSubmitSplits) return
 
     const payload = {
-      scheduleIds: splitForm.selectedIds,
+      scheduleIds: eligibleSelectedScheduleIds,
       effectiveDate: splitForm.effectiveDate,
       splits: {
         house: parseNumber(splitForm.house),
@@ -755,12 +989,12 @@ export function RevenueScheduleCreateModal({
     } finally {
       setSubmitting(false)
     }
-  }, [canSubmitSplits, onClose, onSuccess, showError, showSuccess, splitForm.effectiveDate, splitForm.house, splitForm.houseRep, splitForm.scope, splitForm.selectedIds, splitForm.subagent])
+  }, [canSubmitSplits, eligibleSelectedScheduleIds, onClose, onSuccess, showError, showSuccess, splitForm.effectiveDate, splitForm.house, splitForm.houseRep, splitForm.scope, splitForm.subagent])
 
   const handleStatusSubmit = useCallback(async () => {
     if (!canSubmitStatus) return
 
-    const ids = statusForm.selectedIds.filter(id => !getIneligibilityReason(id))
+    const ids = eligibleSelectedScheduleIds
     if (!ids || ids.length === 0) {
       const message = "No eligible schedules selected to update."
       setError(message)
@@ -899,13 +1133,12 @@ export function RevenueScheduleCreateModal({
     }
   }, [
     canSubmitStatus,
-    getIneligibilityReason,
+    eligibleSelectedScheduleIds,
     onClose,
     onSuccess,
     showError,
     showSuccess,
     statusForm.action,
-    statusForm.selectedIds,
     statusForm.reason,
     statusForm.scope
   ])
@@ -991,7 +1224,7 @@ export function RevenueScheduleCreateModal({
     if (!canSubmitSplits) return
 
     const payload = {
-      scheduleIds: splitForm.selectedIds,
+      scheduleIds: eligibleSelectedScheduleIds,
       effectiveDate: splitForm.effectiveDate,
       splits: {
         house: parseNumber(splitForm.house),
@@ -1018,7 +1251,7 @@ export function RevenueScheduleCreateModal({
       }
 
       const updatedCount: number =
-        typeof body?.updated === "number" ? body.updated : splitForm.selectedIds.length
+        typeof body?.updated === "number" ? body.updated : eligibleSelectedScheduleIds.length
       const failedIds: string[] = Array.isArray(body?.failed) ? body.failed : []
       const errors = (body?.errors ?? null) as Record<string, string> | null
 
@@ -1058,6 +1291,7 @@ export function RevenueScheduleCreateModal({
     }
   }, [
     canSubmitSplits,
+    eligibleSelectedScheduleIds,
     onClose,
     onSuccess,
     showError,
@@ -1066,8 +1300,85 @@ export function RevenueScheduleCreateModal({
     splitForm.house,
     splitForm.houseRep,
     splitForm.scope,
-    splitForm.selectedIds,
     splitForm.subagent
+  ])
+
+  const submitChangeStartDate = useCallback(async () => {
+    if (!canSubmitStartDate) return
+
+    const payload = {
+      scheduleIds: eligibleSelectedScheduleIds,
+      newStartDate: startDateForm.newStartDate,
+      reason: startDateForm.reason.trim()
+    }
+
+    setSubmitting(true)
+    setError(null)
+    try {
+      const response = await fetch("/api/revenue-schedules/bulk/change-start-date", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      })
+
+      const body = await response.json().catch(() => null)
+
+      if (!response.ok) {
+        const message = body?.error ?? "Unable to change start date"
+        throw new Error(message)
+      }
+
+      const updatedCount: number =
+        typeof body?.updated === "number" ? body.updated : eligibleSelectedScheduleIds.length
+      const failedIds: string[] = Array.isArray(body?.failed) ? body.failed : []
+      const errors = (body?.errors ?? null) as Record<string, string> | null
+
+      if (updatedCount === 0) {
+        const message =
+          failedIds.length > 0
+            ? "No schedules were updated. Some schedules may be ineligible for changes."
+            : "No schedules were updated."
+        setError(message)
+        showError("Change Start Date failed", message)
+        return
+      }
+
+      if (failedIds.length > 0 && errors && typeof errors === "object") {
+        const detail = failedIds
+          .map(id => errors[id])
+          .filter(Boolean)
+          .join("; ")
+        if (detail) {
+          setError(detail)
+          showError("Some schedules could not be updated", detail)
+        }
+      }
+
+      const deltaMonths = typeof body?.deltaMonths === "number" ? body.deltaMonths : null
+      const shiftSummary = deltaMonths === null ? "Selected schedules were updated." : `Shifted by ${deltaMonths} month${deltaMonths === 1 ? "" : "s"}.`
+
+      showSuccess(
+        `Start date updated for ${updatedCount} schedule${updatedCount === 1 ? "" : "s"}.`,
+        shiftSummary
+      )
+      await onSuccess?.()
+      onClose()
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unable to change start date"
+      setError(message)
+      showError("Change Start Date failed", message)
+    } finally {
+      setSubmitting(false)
+    }
+  }, [
+    canSubmitStartDate,
+    eligibleSelectedScheduleIds,
+    onClose,
+    onSuccess,
+    showError,
+    showSuccess,
+    startDateForm.newStartDate,
+    startDateForm.reason,
   ])
 
   const handleUndoSubmit = useCallback(async () => {
@@ -1141,6 +1452,8 @@ export function RevenueScheduleCreateModal({
       submitBulkRateUpdate()
     } else if (activeTab === "split") {
       submitBulkSplitUpdate()
+    } else if (activeTab === "startDate") {
+      submitChangeStartDate()
     } else if (activeTab === "status") {
       if (!canSubmitStatus) return
       setShowStatusConfirm(true)
@@ -1152,6 +1465,7 @@ export function RevenueScheduleCreateModal({
     canSubmitStatus,
     handleCreateSubmit,
     handleUndoSubmit,
+    submitChangeStartDate,
     submitBulkRateUpdate,
     submitBulkSplitUpdate
   ])
@@ -1184,6 +1498,8 @@ export function RevenueScheduleCreateModal({
                   ? "Change Commission Rate"
                   : activeTab === "split"
                     ? "Change Commission Split"
+                    : activeTab === "startDate"
+                      ? "Change Start Date"
                     : activeTab === "status"
                       ? "Deactivate or Delete"
                       : "Remove Allocation"}
@@ -1610,33 +1926,12 @@ export function RevenueScheduleCreateModal({
             <div className="space-y-5">
               <div>
                 <h3 className="text-sm font-semibold text-gray-900">Select schedules</h3>
-                {!scheduleOptions.length ? (
-                  <p className="mt-2 text-xs text-gray-600">No schedules available yet.</p>
-                ) : (
-                  <div className="mt-3 grid max-h-56 grid-cols-1 gap-2 overflow-y-auto rounded-lg border border-gray-200 p-3">
-                    {scheduleOptions.map(option => (
-                      <label key={option.id} className="flex items-center justify-between gap-3 rounded-md border border-gray-200 bg-white px-3 py-2 text-xs text-gray-700 shadow-sm">
-                        <span>
-                          <span className="block font-semibold text-gray-900">{option.label}</span>
-                          <span className="block text-[11px] text-gray-500">Current rate {option.commissionRate.toFixed(2)}%</span>
-                        </span>
-                        <input
-                          type="checkbox"
-                          checked={splitForm.selectedIds.includes(option.id)}
-                          onChange={event => {
-                            const checked = event.target.checked
-                            setSplitForm(prev => ({
-                              ...prev,
-                              selectedIds: checked
-                                ? [...prev.selectedIds, option.id]
-                                : prev.selectedIds.filter(id => id !== option.id)
-                            }))
-                          }}
-                        />
-                      </label>
-                    ))}
-                  </div>
-                )}
+                <SelectedSchedulesTable
+                  options={selectedScheduleOptions}
+                  selectedIds={selectedScheduleIds}
+                  getIneligibilityReason={getIneligibilityReason}
+                  onToggle={handleToggleSelectedSchedule}
+                />
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2">
@@ -1720,76 +2015,109 @@ export function RevenueScheduleCreateModal({
             </div>
           ) : null}
 
+          {activeTab === "startDate" ? (
+            <div className="space-y-5">
+              <div>
+                <h3 className="text-sm font-semibold text-gray-900">Select schedules</h3>
+                <SelectedSchedulesTable
+                  options={selectedScheduleOptions}
+                  selectedIds={selectedScheduleIds}
+                  getIneligibilityReason={getIneligibilityReason}
+                  onToggle={handleToggleSelectedSchedule}
+                />
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className={labelCls}>New start date<span className="ml-1 text-red-500">*</span></label>
+                  <div className="relative">
+                    <input
+                      type="date"
+                      value={startDateForm.newStartDate}
+                      onChange={event => setStartDateForm(prev => ({ ...prev, newStartDate: event.target.value }))}
+                      className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1.5 text-xs focus:outline-none focus:border-primary-500 [color-scheme:light] [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-2 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-datetime-edit]:opacity-0"
+                      style={{ colorScheme: "light" }}
+                    />
+                    <span className="pointer-events-none absolute left-0 top-1/2 -translate-y-1/2 text-xs text-gray-900">
+                      {startDateForm.newStartDate || <span className="text-gray-400">YYYY-MM-DD</span>}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 text-xs text-gray-700">
+                  <p className="font-semibold text-gray-900">Preview</p>
+                  <div className="mt-2 space-y-1 text-[11px] text-gray-600">
+                    <p>Selected: <span className="font-semibold text-gray-900">{eligibleSelectedScheduleIds.length}</span></p>
+                    <p>Baseline date: <span className="font-semibold text-gray-900">{startDateBaselineDate ? formatDateOnlyUtc(startDateBaselineDate) : "--"}</span></p>
+                    <p>New start date: <span className="font-semibold text-gray-900">{startDateNewStartDate ? formatDateOnlyUtc(startDateNewStartDate) : "--"}</span></p>
+                    <p>Delta months: <span className="font-semibold text-gray-900">{startDateDeltaMonths !== null ? startDateDeltaMonths : "--"}</span></p>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className={labelCls}>Reason<span className="ml-1 text-red-500">*</span></label>
+                <textarea
+                  value={startDateForm.reason}
+                  onChange={event => setStartDateForm(prev => ({ ...prev, reason: event.target.value }))}
+                  className={textAreaCls}
+                  placeholder="Provide the reason for this change"
+                />
+              </div>
+
+              {startDateBlockingReasons.length > 0 ? (
+                <div className="rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-xs text-rose-700">
+                  <p className="font-semibold">Cannot apply change:</p>
+                  <ul className="mt-2 list-disc space-y-1 pl-5">
+                    {startDateBlockingReasons.map(reason => (
+                      <li key={reason}>{reason}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+
+              <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                <h3 className="text-sm font-semibold text-gray-900">Shift preview</h3>
+                {startDatePreviewRows.length === 0 ? (
+                  <p className="mt-2 text-xs text-gray-600">Select schedules and a new start date to preview the shift.</p>
+                ) : (
+                  <div className="mt-3 max-h-64 overflow-y-auto rounded-md border border-gray-200 bg-white">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-gray-100 text-gray-600">
+                        <tr>
+                          <th className="px-3 py-2">Schedule</th>
+                          <th className="px-3 py-2">Current date</th>
+                          <th className="px-3 py-2">New date</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {startDatePreviewRows.map(row => (
+                          <tr key={row.id} className="border-t border-gray-100 text-gray-700">
+                            <td className="px-3 py-2">
+                              <span className="font-semibold text-gray-900">{row.label}</span>
+                            </td>
+                            <td className="px-3 py-2">{row.currentDate}</td>
+                            <td className="px-3 py-2">{row.newDate}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : null}
+
           {activeTab === "status" ? (
             <div className="space-y-5">
               <div>
                 <h3 className="text-sm font-semibold text-gray-900">Select schedules</h3>
-                {!statusScheduleOptions.length ? (
-                  <p className="mt-2 text-xs text-gray-600">No schedules available yet.</p>
-                ) : (
-                  <div className="mt-3 h-56 overflow-y-auto rounded-lg border border-gray-200">
-                    <div className="min-w-[880px]">
-                      <div className="grid grid-cols-[auto_minmax(0,2.1fr)_minmax(0,2.1fr)_minmax(0,1.6fr)_minmax(0,1.6fr)_minmax(0,2.2fr)_minmax(0,1.4fr)] border-b bg-gray-50 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
-                        <div className="text-center">Selected</div>
-                        <div>Revenue Schedule</div>
-                        <div>Other - Product Name</div>
-                        <div>Distributor</div>
-                        <div>Vendor</div>
-                        <div>Opportunity</div>
-                        <div>Schedule Date</div>
-                      </div>
-                      {statusScheduleOptions.map(option => {
-                        const ineligibilityReason = getIneligibilityReason(option.id)
-                        const isEligible = !ineligibilityReason
-                        const checked = statusForm.selectedIds.includes(option.id)
-
-                        return (
-                          <label
-                            key={option.id}
-                            title={ineligibilityReason}
-                            className={cn(
-                              "grid grid-cols-[auto_minmax(0,2.1fr)_minmax(0,2.1fr)_minmax(0,1.6fr)_minmax(0,1.6fr)_minmax(0,2.2fr)_minmax(0,1.4fr)] items-center border-b px-3 py-2 text-xs last:border-b-0",
-                              isEligible ? "text-gray-700" : "cursor-not-allowed bg-gray-50 text-gray-400"
-                            )}
-                          >
-                            <div className="flex items-center justify-center gap-2 pr-2">
-                              <input
-                                type="checkbox"
-                                className="h-4 w-4 rounded border-slate-400 text-primary-600 accent-primary-600 disabled:opacity-60"
-                                checked={checked}
-                                disabled={!isEligible}
-                                onChange={event => {
-                                  if (!isEligible) return
-                                  const checkedInput = event.target.checked
-                                  setStatusForm(prev => ({
-                                    ...prev,
-                                    selectedIds: checkedInput
-                                      ? [...prev.selectedIds, option.id]
-                                      : prev.selectedIds.filter(id => id !== option.id)
-                                  }))
-                                }}
-                              />
-                              {ineligibilityReason ? (
-                                <span
-                                  className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-gray-300 bg-white text-[10px] text-gray-500"
-                                  title={ineligibilityReason}
-                                >
-                                  <Info className="h-3 w-3" aria-hidden="true" />
-                                </span>
-                              ) : null}
-                            </div>
-                            <div className="truncate font-semibold text-gray-900">{option.label}</div>
-                            <div className="truncate">{option.productNameVendor || "--"}</div>
-                            <div className="truncate">{option.distributorName || "--"}</div>
-                            <div className="truncate">{option.vendorName || "--"}</div>
-                            <div className="truncate">{option.opportunityName || "Opportunity"}</div>
-                            <div className="truncate">{option.scheduleDate || "--"}</div>
-                          </label>
-                        )
-                      })}
-                    </div>
-                  </div>
-                )}
+                <SelectedSchedulesTable
+                  options={selectedScheduleOptions}
+                  selectedIds={selectedScheduleIds}
+                  getIneligibilityReason={getIneligibilityReason}
+                  onToggle={handleToggleSelectedSchedule}
+                />
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2">
@@ -1841,6 +2169,15 @@ export function RevenueScheduleCreateModal({
                 </p>
               </div>
 
+              <div>
+                <h3 className="text-sm font-semibold text-gray-900">Select schedules</h3>
+                <SelectedSchedulesTable
+                  options={selectedScheduleOptions}
+                  selectedIds={selectedScheduleIds}
+                  onToggle={handleToggleSelectedSchedule}
+                />
+              </div>
+
               {depositLoading ? (
                 <div className="flex items-center gap-2 text-sm text-gray-600">
                   <Loader2 className="h-4 w-4 animate-spin text-primary-600" /> Loading deposit matches…
@@ -1853,7 +2190,17 @@ export function RevenueScheduleCreateModal({
                 </div>
               ) : null}
 
-              {depositMatches.length > 0 ? (
+              {!depositLoading && !depositError && depositMatchesForSelection.length === 0 ? (
+                <div className="rounded-md border border-dashed border-gray-300 bg-white px-4 py-3 text-xs text-gray-600">
+                  {selectedScheduleIds.length === 0
+                    ? "Select at least one schedule to view matched deposits."
+                    : depositMatches.length === 0
+                      ? "No matched deposits found."
+                      : "No matched deposits found for the selected schedules."}
+                </div>
+              ) : null}
+
+              {depositMatchesForSelection.length > 0 ? (
                 <div className="max-h-64 overflow-y-auto rounded-lg border border-gray-200">
                   <table className="w-full text-left text-xs">
                     <thead className="bg-gray-100 text-gray-600">
@@ -1865,7 +2212,7 @@ export function RevenueScheduleCreateModal({
                       </tr>
                     </thead>
                     <tbody>
-                      {depositMatches.map(match => (
+                      {depositMatchesForSelection.map(match => (
                         <tr key={match.id} className="border-t border-gray-100 text-gray-700">
                           <td className="px-3 py-2">
                             <input
