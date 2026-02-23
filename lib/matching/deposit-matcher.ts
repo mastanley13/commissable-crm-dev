@@ -630,7 +630,7 @@ export function candidatesToSuggestedRows(
       flexClassification: candidate.flexClassification ?? null,
       flexReasonCode: candidate.flexReasonCode ?? null,
       vendorName: candidate.vendorName ?? "",
-      legalName: candidate.accountLegalName ?? candidate.accountName ?? "",
+      legalName: candidate.accountLegalName ?? "",
       accountName: candidate.accountName ?? "",
       accountLegalName: candidate.accountLegalName ?? "",
       productNameVendor: candidate.productNameVendor ?? "",

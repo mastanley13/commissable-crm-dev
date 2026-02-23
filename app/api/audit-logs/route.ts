@@ -20,6 +20,9 @@ export async function GET(request: NextRequest) {
     const entityName = searchParams.get("entityName")
     const entityId = searchParams.get("entityId")
     const entityIdsParam = searchParams.get("entityIds")
+    const includeRelatedRevenueSchedulesParam = searchParams.get("includeRelatedRevenueSchedules")
+    const includeRelatedRevenueSchedules =
+      includeRelatedRevenueSchedulesParam === "true" || includeRelatedRevenueSchedulesParam === "1"
 
     if (!entityName) {
       return NextResponse.json({ error: "entityName is required" }, { status: 400 })
@@ -37,24 +40,53 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "entityId or entityIds is required" }, { status: 400 })
     }
 
+    if (includeRelatedRevenueSchedules && entityIds && entityIds.length > 0) {
+      return NextResponse.json(
+        { error: "includeRelatedRevenueSchedules is only supported with a single entityId" },
+        { status: 400 },
+      )
+    }
+
     const page = Math.max(1, Number(searchParams.get("page") ?? "1"))
     const pageSize = Math.min(200, Math.max(1, Number(searchParams.get("pageSize") ?? "50")))
     const summaryOnlyParam = searchParams.get("summaryOnly")
     const summaryOnly = summaryOnlyParam === "true" || summaryOnlyParam === "1"
 
-    const where: Prisma.AuditLogWhereInput = {
-      tenantId: req.user.tenantId,
-      entityName
-    }
-
-    if (entityIds && entityIds.length > 0) {
-      where.entityId = { in: entityIds }
-    } else if (entityId) {
-      where.entityId = entityId
-    }
-
     try {
       const client = await getPrisma()
+
+      const where: Prisma.AuditLogWhereInput = {
+        tenantId: req.user.tenantId,
+        entityName,
+      }
+
+      let revenueScheduleIdToLabel: Map<string, string | null> | null = null
+
+      if (entityIds && entityIds.length > 0) {
+        where.entityId = { in: entityIds }
+      } else if (entityId) {
+        where.entityId = entityId
+
+        if (includeRelatedRevenueSchedules && entityName === "Opportunity") {
+          const schedules = await client.revenueSchedule.findMany({
+            where: { tenantId: req.user.tenantId, opportunityId: entityId },
+            select: { id: true, scheduleNumber: true },
+          })
+
+          if (schedules.length > 0) {
+            revenueScheduleIdToLabel = new Map(
+              schedules.map(schedule => [schedule.id, schedule.scheduleNumber ?? null]),
+            )
+
+            where.OR = [
+              { entityName: "Opportunity", entityId },
+              { entityName: "RevenueSchedule", entityId: { in: schedules.map(schedule => schedule.id) } },
+            ]
+            delete (where as any).entityName
+            delete (where as any).entityId
+          }
+        }
+      }
 
       const [logs, total] = await client.$transaction([
         client.auditLog.findMany({
@@ -90,6 +122,10 @@ export async function GET(request: NextRequest) {
             id: log.id,
             entityName: log.entityName,
             entityId: log.entityId,
+            entityLabel:
+              log.entityName === "RevenueSchedule" && revenueScheduleIdToLabel
+                ? revenueScheduleIdToLabel.get(log.entityId) ?? null
+                : null,
             action: log.action,
             createdAt: log.createdAt.toISOString(),
             userId: log.userId,

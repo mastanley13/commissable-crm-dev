@@ -40,6 +40,7 @@ interface AuditLogAPIResponse {
   id: string
   entityName: string
   entityId: string
+  entityLabel?: string | null
   action: string
   createdAt: string
   userId: string | null
@@ -222,6 +223,10 @@ function convertAuditLogsToHistoryRows(logs: AuditLogAPIResponse[]): HistoryRow[
   logs.forEach(log => {
     const occurredAt = new Date(log.createdAt).toISOString().slice(0, 16).replace("T", " ")
     const userName = log.userName || "System"
+    const action =
+      log.entityName === "RevenueSchedule" && log.entityLabel
+        ? `${log.action} (${log.entityLabel})`
+        : log.action
 
     const changedEntries =
       log.changedFields && typeof log.changedFields === "object"
@@ -245,7 +250,7 @@ function convertAuditLogsToHistoryRows(logs: AuditLogAPIResponse[]): HistoryRow[
           id: `${log.id}-${fieldName}`,
           occurredAt,
           userName,
-          action: log.action,
+          action,
           field: fieldName,
           fromValue: formattedFrom,
           toValue: formattedTo
@@ -260,7 +265,7 @@ function convertAuditLogsToHistoryRows(logs: AuditLogAPIResponse[]): HistoryRow[
         id: log.id,
         occurredAt,
         userName,
-        action: log.action,
+        action,
         field: "-",
         fromValue: "-",
         toValue: "-"
@@ -314,7 +319,9 @@ export function AuditHistoryTab({
       setIsLoading(true)
       setError(null)
       try {
-        const url = `/api/audit-logs?entityName=${entityName}&entityId=${entityId}&pageSize=200&summaryOnly=true`
+        const includeRelatedRevenueSchedules =
+          entityName === "Opportunity" ? "&includeRelatedRevenueSchedules=true" : ""
+        const url = `/api/audit-logs?entityName=${entityName}&entityId=${entityId}&pageSize=200&summaryOnly=true${includeRelatedRevenueSchedules}`
         const response = await fetch(url)
 
         if (!response.ok) {

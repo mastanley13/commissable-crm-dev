@@ -92,45 +92,49 @@ function useSyncedHorizontalScroll(enabled: boolean, topRootRef: RefObject<HTMLE
   }, [enabled, topRootRef, bottomRootRef])
 }
 
-function reorderColumnsForFreeze(columns: Column[], frozenColumnIds: string[]) {
-  const frozenSet = new Set(frozenColumnIds)
+function reorderColumnsForPinnedRight(columns: Column[], pinnedColumnIds: string[]) {
+  const pinnedSet = new Set(pinnedColumnIds)
   const byId = new Map(columns.map(column => [column.id, column] as const))
-  const frozen = frozenColumnIds.map(id => byId.get(id)).filter(Boolean) as Column[]
-  const rest = columns.filter(column => !frozenSet.has(column.id))
-  return [...frozen, ...rest]
+  const pinned = pinnedColumnIds.map(id => byId.get(id)).filter(Boolean) as Column[]
+  const rest = columns.filter(column => !pinnedSet.has(column.id))
+  return [...rest, ...pinned]
 }
 
-function buildFrozenCss(scopeClass: string, columns: Column[], frozenCount: number) {
+function buildPinnedRightCss(scopeClass: string, columns: Column[], pinnedColumnIds: string[]) {
   const visibleColumns = columns.filter(column => !column.hidden)
-  const clampedFrozenCount = Math.max(0, Math.min(frozenCount, visibleColumns.length))
+  const pinnedSet = new Set(pinnedColumnIds)
+  const pinnedColumns = visibleColumns.filter(column => pinnedSet.has(column.id))
+  const pinnedCount = Math.max(0, Math.min(pinnedColumns.length, visibleColumns.length))
+  if (pinnedCount === 0) return ''
 
-  let left = 0
+  const pinnedFromRight = pinnedColumns.slice(-pinnedCount)
+  let right = 0
   const rules: string[] = []
 
-  for (let index = 0; index < clampedFrozenCount; index++) {
-    const col = visibleColumns[index]
-    const nth = index + 1
-    const leftPx = Math.max(0, Math.round(left))
-    const zHeader = 60 + (clampedFrozenCount - index)
-    const zBody = 30 + (clampedFrozenCount - index)
-    const isLast = index === clampedFrozenCount - 1
+  for (let indexFromRight = 0; indexFromRight < pinnedFromRight.length; indexFromRight++) {
+    const col = pinnedFromRight[pinnedFromRight.length - 1 - indexFromRight]
+    const nthLast = indexFromRight + 1
+    const rightPx = Math.max(0, Math.round(right))
+    const zHeader = 60 + (pinnedCount - indexFromRight)
+    const zBody = 30 + (pinnedCount - indexFromRight)
+    const isLeftmostPinned = indexFromRight === pinnedCount - 1
 
     rules.push(`
-.${scopeClass} .table-header .table-cell:nth-child(${nth}) {
+.${scopeClass} .table-header .table-cell:nth-last-child(${nthLast}) {
   position: sticky;
-  left: ${leftPx}px;
+  right: ${rightPx}px;
   z-index: ${zHeader};
 }
-.${scopeClass} .table-row > .table-cell:nth-child(${nth}) {
+.${scopeClass} .table-row > .table-cell:nth-last-child(${nthLast}) {
   position: sticky;
-  left: ${leftPx}px;
+  right: ${rightPx}px;
   z-index: ${zBody};
 }
-${isLast ? `.${scopeClass} .table-row > .table-cell:nth-child(${nth}) { box-shadow: 8px 0 10px -10px rgba(0,0,0,0.35); }` : ''}
-${isLast ? `.${scopeClass} .table-header .table-cell:nth-child(${nth}) { box-shadow: 8px 0 10px -10px rgba(0,0,0,0.35); }` : ''}
+${isLeftmostPinned ? `.${scopeClass} .table-row > .table-cell:nth-last-child(${nthLast}) { box-shadow: -8px 0 10px -10px rgba(0,0,0,0.35); }` : ''}
+${isLeftmostPinned ? `.${scopeClass} .table-header .table-cell:nth-last-child(${nthLast}) { box-shadow: -8px 0 10px -10px rgba(0,0,0,0.35); }` : ''}
     `)
 
-    left += col.width
+    right += col.width
   }
 
   return rules.join('\n')
@@ -299,12 +303,12 @@ function buildScheduleColumns(): Column[] {
   ]
 }
 
-const frozenLineColumnIds = ['select', 'usageUnallocated', 'actualCommissionRatePercent', 'actualCommission']
-const frozenScheduleColumnIds = ['select', 'actualUsage', 'actualCommissionRatePercent', 'actualCommission']
+const pinnedLineColumnIds = ['actualUsage', 'actualCommissionRatePercent', 'actualCommission']
+const pinnedScheduleColumnIds = ['actualUsage', 'actualCommissionRatePercent', 'actualCommission']
 
 export default function ReconciliationFrozenColumnsPrototypePage() {
   const [syncScroll, setSyncScroll] = useState(true)
-  const [freezeKeyColumns, setFreezeKeyColumns] = useState(true)
+  const [pinKeyColumns, setPinKeyColumns] = useState(true)
 
   const [lineColumns, setLineColumns] = useState<Column[]>(() => buildLineItemColumns())
   const [scheduleColumns, setScheduleColumns] = useState<Column[]>(() => buildScheduleColumns())
@@ -318,26 +322,23 @@ export default function ReconciliationFrozenColumnsPrototypePage() {
   useSyncedHorizontalScroll(syncScroll, lineTableRootRef, scheduleTableRootRef)
 
   useEffect(() => {
-    if (!freezeKeyColumns) {
+    if (!pinKeyColumns) {
       setLineColumns(buildLineItemColumns())
       setScheduleColumns(buildScheduleColumns())
       return
     }
 
-    setLineColumns(reorderColumnsForFreeze(buildLineItemColumns(), frozenLineColumnIds))
-    setScheduleColumns(reorderColumnsForFreeze(buildScheduleColumns(), frozenScheduleColumnIds))
-  }, [freezeKeyColumns])
-
-  const frozenLineCount = useMemo(() => (freezeKeyColumns ? frozenLineColumnIds.length : 0), [freezeKeyColumns])
-  const frozenScheduleCount = useMemo(() => (freezeKeyColumns ? frozenScheduleColumnIds.length : 0), [freezeKeyColumns])
+    setLineColumns(reorderColumnsForPinnedRight(buildLineItemColumns(), pinnedLineColumnIds))
+    setScheduleColumns(reorderColumnsForPinnedRight(buildScheduleColumns(), pinnedScheduleColumnIds))
+  }, [pinKeyColumns])
 
   const frozenCss = useMemo(() => {
-    if (!freezeKeyColumns) return ''
+    if (!pinKeyColumns) return ''
     return [
-      buildFrozenCss('proto-frozen-line', lineColumns, frozenLineCount),
-      buildFrozenCss('proto-frozen-schedule', scheduleColumns, frozenScheduleCount)
+      buildPinnedRightCss('proto-pinned-line', lineColumns, pinnedLineColumnIds),
+      buildPinnedRightCss('proto-pinned-schedule', scheduleColumns, pinnedScheduleColumnIds)
     ].join('\n')
-  }, [freezeKeyColumns, lineColumns, frozenLineCount, scheduleColumns, frozenScheduleCount])
+  }, [pinKeyColumns, lineColumns, scheduleColumns])
 
   return (
     <div className="h-full flex flex-col">
@@ -348,7 +349,7 @@ export default function ReconciliationFrozenColumnsPrototypePage() {
           <p className="mt-2 max-w-3xl text-sm text-gray-600">
             This page is a sandbox to evaluate two UX techniques for the Deposit Reconciliation stacked tables:
             <span className="font-semibold"> (1) sync horizontal scrolling</span> and
-            <span className="font-semibold"> (2) freeze key comparison columns</span>.
+            <span className="font-semibold"> (2) pin key comparison columns</span>.
           </p>
           <div className="mt-4 flex flex-wrap items-center gap-4 rounded-lg border border-slate-200 bg-white px-4 py-3">
             <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-slate-700">
@@ -364,14 +365,15 @@ export default function ReconciliationFrozenColumnsPrototypePage() {
               <input
                 type="checkbox"
                 className="h-4 w-4 rounded border-slate-300 text-primary-600 accent-primary-600"
-                checked={freezeKeyColumns}
-                onChange={event => setFreezeKeyColumns(event.target.checked)}
+                checked={pinKeyColumns}
+                onChange={event => setPinKeyColumns(event.target.checked)}
               />
-              Freeze key columns (prototype moves them left)
+              Pin key columns (right)
             </label>
             <div className="text-xs text-slate-500">
-              Note: This prototype freezes the <span className="font-semibold">left-most</span> columns, so key columns are
-              temporarily moved left to validate the interaction.
+              Pinned columns: <span className="font-semibold">Actual Usage</span>,{' '}
+              <span className="font-semibold">Actual Commission Rate %</span>,{' '}
+              <span className="font-semibold">Actual Commission</span>.
             </div>
           </div>
         </div>
@@ -386,7 +388,7 @@ export default function ReconciliationFrozenColumnsPrototypePage() {
                 Scroll horizontally in either table; when sync is enabled, the other table mirrors the position.
               </div>
             </div>
-            <div ref={lineTableRootRef} className={cn(freezeKeyColumns ? 'proto-frozen-line' : '')}>
+            <div ref={lineTableRootRef} className={cn(pinKeyColumns ? 'proto-pinned-line' : '')}>
               <DynamicTable
                 columns={lineColumns}
                 data={seedLineItems}
@@ -400,7 +402,9 @@ export default function ReconciliationFrozenColumnsPrototypePage() {
                 onSelectAll={selected => {
                   setSelectedLineItems(selected ? seedLineItems.map(row => row.id) : [])
                 }}
-                onColumnsChange={setLineColumns}
+                onColumnsChange={next => {
+                  setLineColumns(pinKeyColumns ? reorderColumnsForPinnedRight(next, pinnedLineColumnIds) : next)
+                }}
                 selectHeaderLabel="Select"
               />
             </div>
@@ -413,7 +417,7 @@ export default function ReconciliationFrozenColumnsPrototypePage() {
                 Use this section to verify key columns remain visible while comparing totals across both stacked tables.
               </div>
             </div>
-            <div ref={scheduleTableRootRef} className={cn(freezeKeyColumns ? 'proto-frozen-schedule' : '')}>
+            <div ref={scheduleTableRootRef} className={cn(pinKeyColumns ? 'proto-pinned-schedule' : '')}>
               <DynamicTable
                 columns={scheduleColumns}
                 data={seedSchedules}
@@ -427,7 +431,9 @@ export default function ReconciliationFrozenColumnsPrototypePage() {
                 onSelectAll={selected => {
                   setSelectedSchedules(selected ? seedSchedules.map(row => row.id) : [])
                 }}
-                onColumnsChange={setScheduleColumns}
+                onColumnsChange={next => {
+                  setScheduleColumns(pinKeyColumns ? reorderColumnsForPinnedRight(next, pinnedScheduleColumnIds) : next)
+                }}
                 selectHeaderLabel="Select"
               />
             </div>
