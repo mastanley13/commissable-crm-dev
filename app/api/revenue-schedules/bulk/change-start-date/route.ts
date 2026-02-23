@@ -57,7 +57,9 @@ export async function POST(request: NextRequest) {
         where: { id: { in: scheduleIds }, tenantId },
         select: {
           id: true,
+          accountId: true,
           productId: true,
+          opportunityProduct: { select: { productId: true } },
           scheduleDate: true,
         },
       })
@@ -76,16 +78,20 @@ export async function POST(request: NextRequest) {
         )
       }
 
+      const accountIds = new Set<string>()
       const productIds = new Set<string>()
       const schedulesMissingProduct: string[] = []
       const schedulesMissingDates: string[] = []
 
       for (const schedule of schedules) {
-        if (!schedule.productId) {
-          schedulesMissingProduct.push(schedule.id)
-        } else {
-          productIds.add(schedule.productId)
+        if (schedule.accountId) {
+          accountIds.add(schedule.accountId)
         }
+
+        const resolvedProductId = schedule.productId ?? schedule.opportunityProduct?.productId ?? null
+        if (!resolvedProductId) schedulesMissingProduct.push(schedule.id)
+        else productIds.add(resolvedProductId)
+
         if (!schedule.scheduleDate || Number.isNaN(schedule.scheduleDate.getTime())) {
           schedulesMissingDates.push(schedule.id)
         }
@@ -100,6 +106,10 @@ export async function POST(request: NextRequest) {
 
       if (productIds.size !== 1) {
         return createErrorResponse("All selected schedules must belong to a single product.", 400)
+      }
+
+      if (accountIds.size !== 1) {
+        return createErrorResponse("All selected schedules must belong to a single account.", 400)
       }
 
       if (schedulesMissingDates.length > 0) {
@@ -141,12 +151,17 @@ export async function POST(request: NextRequest) {
       }
 
       const productId = Array.from(productIds)[0]!
+      const accountId = Array.from(accountIds)[0]!
       const externalCollisions = await prisma.revenueSchedule.findMany({
         where: {
           tenantId,
-          productId,
+          accountId,
           id: { notIn: scheduleIds },
           scheduleDate: { in: proposedDates },
+          OR: [
+            { productId },
+            { productId: null, opportunityProduct: { productId } },
+          ],
         },
         select: { id: true, scheduleDate: true },
         take: 10,
@@ -211,4 +226,3 @@ export async function POST(request: NextRequest) {
     }
   })
 }
-

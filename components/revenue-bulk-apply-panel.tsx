@@ -1,17 +1,13 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
-import { Calendar } from "lucide-react"
-
 interface RevenueBulkApplyPanelProps {
   isOpen: boolean
   selectedCount: number
   fieldLabel: string
   valueLabel: string
   previousValueLabel?: string
-  initialEffectiveDate?: string | null
   onClose: () => void
-  onSubmit: (effectiveDate: string) => Promise<void> | void
+  onSubmit: () => Promise<void> | void
   isSubmitting?: boolean
   onBeforeSubmit?: () => void
   /**
@@ -28,7 +24,6 @@ export function RevenueBulkApplyPanel({
   fieldLabel,
   valueLabel,
   previousValueLabel,
-  initialEffectiveDate,
   onClose,
   onSubmit,
   isSubmitting = false,
@@ -36,50 +31,26 @@ export function RevenueBulkApplyPanel({
   entityLabelSingular = "schedule",
   entityLabelPlural,
 }: RevenueBulkApplyPanelProps) {
-  const [effectiveDate, setEffectiveDate] = useState<string>("")
-  const nativeDateInputRef = useRef<HTMLInputElement | null>(null)
-
   const pluralLabel = entityLabelPlural ?? `${entityLabelSingular}s`
   const effectiveEntityLabel = selectedCount === 1 ? entityLabelSingular : pluralLabel
-
-  useEffect(() => {
-    if (isOpen) {
-      setEffectiveDate(initialEffectiveDate ?? "")
-    }
-  }, [initialEffectiveDate, isOpen])
 
   if (!isOpen) {
     return null
   }
 
   const handleSubmit = async () => {
-    const trimmed = effectiveDate.trim()
-    if (!trimmed || isSubmitting) {
+    if (isSubmitting || selectedCount < 1) {
       return
     }
     if (onBeforeSubmit) {
       onBeforeSubmit()
     }
-    await onSubmit(trimmed)
+    await onSubmit()
   }
 
   const handleClose = () => {
     if (isSubmitting) return
     onClose()
-  }
-
-  const openNativePicker = () => {
-    if (isSubmitting) return
-    const input = nativeDateInputRef.current
-    if (!input) return
-    // Prefer showPicker when available (Chromium)
-    const anyInput = input as any
-    if (typeof anyInput.showPicker === "function") {
-      anyInput.showPicker()
-    } else {
-      input.focus()
-      input.click()
-    }
   }
 
   const applyLabel =
@@ -112,65 +83,27 @@ export function RevenueBulkApplyPanel({
               </p>
             </div>
 
-            {previousValueLabel ? (
-              <div className="rounded-md border border-blue-100 bg-blue-50 px-3 py-2">
-                <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">
-                  Old vs new
-                </p>
-                <p className="mt-1 text-sm text-gray-700">
-                  <span className="font-medium text-gray-800">{fieldLabel}:</span>{" "}
-                  <span className="font-semibold text-gray-900">{previousValueLabel}</span>{" "}
-                  <span className="text-gray-500">-&gt;</span>{" "}
-                  <span className="font-semibold text-blue-700">{valueLabel}</span>
-                </p>
-              </div>
-            ) : null}
+             {previousValueLabel ? (
+               <div className="rounded-md border border-blue-100 bg-blue-50 px-3 py-2">
+                 <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">
+                   Old vs new
+                 </p>
+                 <p className="mt-1 text-sm text-gray-700">
+                   <span className="font-medium text-gray-800">{fieldLabel}:</span>{" "}
+                   <span className="font-semibold text-gray-900">{previousValueLabel}</span>{" "}
+                   <span className="text-gray-500">-&gt;</span>{" "}
+                   <span className="font-semibold text-blue-700">{valueLabel}</span>
+                 </p>
+               </div>
+             ) : null}
 
-            <div className="space-y-2">
-              <label
-                htmlFor="revenue-bulk-effective-date"
-                className="text-sm font-medium text-gray-700"
-              >
-                Effective from (YYYY-MM-DD)
-              </label>
-              <div className="relative">
-                <input
-                  id="revenue-bulk-effective-date"
-                  type="text"
-                  value={effectiveDate}
-                  onChange={event => setEffectiveDate(event.target.value)}
-                  placeholder="YYYY-MM-DD"
-                  inputMode="numeric"
-                  pattern="\d{4}-\d{2}-\d{2}"
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 pr-10 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  disabled={isSubmitting}
-                />
-                <button
-                  type="button"
-                  onClick={openNativePicker}
-                  className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-600 disabled:cursor-not-allowed disabled:opacity-50"
-                  aria-label="Open date picker"
-                  disabled={isSubmitting}
-                >
-                  <Calendar className="h-4 w-4" />
-                </button>
-                <input
-                  ref={nativeDateInputRef}
-                  type="date"
-                  className="sr-only"
-                  value={effectiveDate}
-                  onChange={event => setEffectiveDate(event.target.value)}
-                  disabled={isSubmitting}
-                />
-              </div>
-              <p className="text-xs text-gray-500">
-                Changes will apply starting with {pluralLabel} on or after this date.
-              </p>
-            </div>
-          </div>
-        </div>
+             <p className="text-xs text-gray-500">
+               Changes apply to all selected {pluralLabel}.
+             </p>
+           </div>
+         </div>
 
-        <div className="flex items-center justify-between border-t border-gray-200 bg-gray-50 px-6 py-4">
+         <div className="flex items-center justify-between border-t border-gray-200 bg-gray-50 px-6 py-4">
           <button
             type="button"
             onClick={handleClose}
@@ -178,16 +111,16 @@ export function RevenueBulkApplyPanel({
             disabled={isSubmitting}
           >
             Cancel
-          </button>
-          <button
-            type="button"
-            onClick={handleSubmit}
-            disabled={isSubmitting || !effectiveDate.trim()}
-            className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300"
-          >
-            {isSubmitting ? "Applying..." : applyLabel}
-          </button>
-        </div>
+           </button>
+           <button
+             type="button"
+             onClick={handleSubmit}
+             disabled={isSubmitting || selectedCount < 1}
+             className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300"
+           >
+             {isSubmitting ? "Applying..." : applyLabel}
+           </button>
+         </div>
       </div>
     </div>
   )

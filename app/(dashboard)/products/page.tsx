@@ -1269,14 +1269,6 @@ export default function ProductsPage() {
       [canEditProducts, reloadProducts, requireAdminForEdit, selectedProducts, showError],
     )
 
-    const productBulkDefaultEffectiveDate = useMemo(() => {
-      const now = new Date()
-      const year = now.getFullYear()
-      const month = String(now.getMonth() + 1).padStart(2, '0')
-      const day = String(now.getDate()).padStart(2, '0')
-      return `${year}-${month}-${day}`
-    }, [])
-
     const productBulkPromptValueLabel = useMemo(() => {
       if (!productBulkPrompt) {
         return ''
@@ -1312,7 +1304,7 @@ export default function ProductsPage() {
     }, [productBulkPrompt])
 
       const handleProductApplyFillDown = useCallback(
-        async (effectiveDate: string) => {
+        async () => {
           if (!canEditProducts || !productBulkPrompt || selectedProducts.length < 1) {
             return
           }
@@ -1336,12 +1328,11 @@ export default function ProductsPage() {
           const response = await fetch('/api/products/bulk-update', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              ids: selectedProducts,
-              patch,
-              effectiveDate,
-            }),
-          })
+             body: JSON.stringify({
+               ids: selectedProducts,
+               patch,
+             }),
+           })
 
           const body = await response.json().catch(() => null)
           if (!response.ok) {
@@ -1985,7 +1976,6 @@ export default function ProductsPage() {
         fieldLabel={productBulkPrompt?.label ?? ''}
         valueLabel={productBulkPromptValueLabel}
         previousValueLabel={productBulkPromptPreviousValueLabel}
-        initialEffectiveDate={productBulkDefaultEffectiveDate}
         onClose={() => setProductBulkPrompt(null)}
         onSubmit={handleProductApplyFillDown}
         onBeforeSubmit={() => {

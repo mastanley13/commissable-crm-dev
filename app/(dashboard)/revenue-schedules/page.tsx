@@ -1090,7 +1090,7 @@ export default function RevenueSchedulesPage() {
   )
 
     const handleRevenueApplyFillDown = useCallback(
-      async (effectiveDate: string) => {
+      async () => {
         if (!revenueBulkPrompt || selectedSchedules.length < 1) {
           return
         }
@@ -1111,12 +1111,11 @@ export default function RevenueSchedulesPage() {
         const response = await fetch('/api/revenue-schedules/bulk-update', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            ids: selectedSchedules,
-            patch: payload,
-            effectiveDate,
-          }),
-        })
+           body: JSON.stringify({
+             ids: selectedSchedules,
+             patch: payload,
+           }),
+         })
         const body = await response.json().catch(() => null)
         if (!response.ok) {
           const message = body?.error ?? 'Unable to apply bulk update'
@@ -1604,14 +1603,6 @@ export default function RevenueSchedulesPage() {
     setRevenueBulkPrompt,
   ])
 
-  const revenueBulkDefaultEffectiveDate = useMemo(() => {
-    const now = new Date()
-    const year = now.getFullYear()
-    const month = String(now.getMonth() + 1).padStart(2, '0')
-    const day = String(now.getDate()).padStart(2, '0')
-    return `${year}-${month}-${day}`
-  }, [])
-
   const revenueBulkPromptValueLabel = useMemo(() => {
     if (!revenueBulkPrompt) {
       return ''
@@ -1789,7 +1780,6 @@ export default function RevenueSchedulesPage() {
         fieldLabel={revenueBulkPrompt?.label ?? ''}
         valueLabel={revenueBulkPromptValueLabel}
         previousValueLabel={revenueBulkPromptPreviousValueLabel}
-        initialEffectiveDate={revenueBulkDefaultEffectiveDate}
         onClose={() => setRevenueBulkPrompt(null)}
         onSubmit={handleRevenueApplyFillDown}
         onBeforeSubmit={() => {

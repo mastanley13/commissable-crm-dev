@@ -3368,7 +3368,7 @@ useEffect(() => {
   )
 
   const handleRevenueApplyFillDown = useCallback(
-    async (effectiveDate: string) => {
+    async () => {
       if (!revenueBulkPrompt || selectedRevenueSchedules.length < 1) {
         return
       }
@@ -3391,7 +3391,6 @@ useEffect(() => {
           body: JSON.stringify({
             ids: selectedRevenueSchedules,
             patch: payload,
-            effectiveDate
           })
         })
         const body = await response.json().catch(() => null)
@@ -3423,14 +3422,6 @@ useEffect(() => {
     }
     return filteredRevenueRows.filter(row => selectedRevenueSchedules.includes(row.id))
   }, [filteredRevenueRows, selectedRevenueSchedules])
-
-  const revenueBulkDefaultEffectiveDate = useMemo(() => {
-    const now = new Date()
-    const year = now.getFullYear()
-    const month = String(now.getMonth() + 1).padStart(2, "0")
-    const day = String(now.getDate()).padStart(2, "0")
-    return `${year}-${month}-${day}`
-  }, [])
 
   const revenueBulkPromptValueLabel = useMemo(() => {
     if (!revenueBulkPrompt) {
@@ -5825,7 +5816,6 @@ useEffect(() => {
         fieldLabel={revenueBulkPrompt?.label ?? ""}
         valueLabel={revenueBulkPromptValueLabel}
         previousValueLabel={revenueBulkPromptPreviousValueLabel}
-        initialEffectiveDate={revenueBulkDefaultEffectiveDate}
         onClose={() => setRevenueBulkPrompt(null)}
         onSubmit={handleRevenueApplyFillDown}
         onBeforeSubmit={() => {
