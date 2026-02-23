@@ -127,6 +127,7 @@ const depositFieldLabels = {
   lineItem: "Line Item",
   status: "Deposit Status",
   paymentDate: "Payment Date",
+  accountLegalName: "Account Legal Name",
   accountName: "Account Name",
   vendorName: "Vendor Name",
   productName: "Other - Product Name",
@@ -151,6 +152,7 @@ const depositFieldOrder: LineFilterColumnId[] = [
   "lineItem",
   "status",
   "paymentDate",
+  "accountLegalName",
   "accountName",
   "vendorName",
   "productName",
@@ -178,7 +180,8 @@ const scheduleFieldLabels = {
   lineItem: "Line Item",
   matchConfidence: "AI Confidence",
   vendorName: "Vendor Name",
-  legalName: "Legal Name",
+  legalName: "Account Legal Name",
+  accountName: "Account Name",
   productNameVendor: "Other - Product Name",
   revenueScheduleDate: "Revenue Schedule Date",
   revenueScheduleName: "Revenue Schedule Name",
@@ -205,6 +208,7 @@ const scheduleFieldOrder: Array<keyof typeof scheduleFieldLabels> = [
   "matchConfidence",
   "vendorName",
   "legalName",
+  "accountName",
   "productNameVendor",
   "revenueScheduleDate",
   "revenueScheduleName",
@@ -1261,6 +1265,8 @@ export function DepositReconciliationDetailView({
         case "paymentDate": {
           return formatDateValue(row.paymentDate)
         }
+        case "accountLegalName":
+          return row.accountLegalName ?? ""
         case "accountName":
           return row.accountName
         case "vendorName":
@@ -1307,6 +1313,8 @@ export function DepositReconciliationDetailView({
           return row.vendorName
         case "legalName":
           return row.legalName
+        case "accountName":
+          return row.accountName ?? ""
         case "productNameVendor":
           return row.productNameVendor
         case "revenueScheduleDate": {
@@ -1447,6 +1455,7 @@ export function DepositReconciliationDetailView({
 
       const matchesSearch = lineSearchValue
         ? [
+            item.accountLegalName ?? "",
             item.accountName,
             item.accountId,
             item.vendorName,
@@ -1511,6 +1520,8 @@ export function DepositReconciliationDetailView({
             schedule.revenueScheduleName,
             schedule.vendorName,
             schedule.legalName,
+            schedule.accountName ?? "",
+            schedule.accountLegalName ?? "",
             schedule.productNameVendor
           ]
             .map(value => value.toLowerCase())
@@ -1644,6 +1655,33 @@ export function DepositReconciliationDetailView({
         minWidth: minTextWidth(depositFieldLabels.paymentDate),
         sortable: true,
         render: (value: string) => formatDateValue(value)
+      },
+      {
+        id: "accountLegalName",
+        label: depositFieldLabels.accountLegalName,
+        width: 240,
+        minWidth: minTextWidth(depositFieldLabels.accountLegalName),
+        sortable: true,
+        render: (value: string | undefined, row: DepositLineItemRow) => {
+          const trimmedName = value?.trim()
+          const href = row.accountId
+            ? `/accounts/${encodeURIComponent(row.accountId)}`
+            : trimmedName
+              ? `/accounts?search=${encodeURIComponent(trimmedName)}`
+              : "/accounts"
+          const displayValue = trimmedName || "View account"
+          return (
+            <Link
+              href={href}
+              className="inline-flex max-w-full items-center text-sm font-semibold text-primary-600 transition hover:text-primary-700"
+              title={displayValue}
+              onClick={event => event.stopPropagation()}
+              data-disable-row-click="true"
+            >
+              <span className="truncate">{displayValue}</span>
+            </Link>
+          )
+        }
       },
       {
         id: "accountName",
@@ -1893,6 +1931,33 @@ export function DepositReconciliationDetailView({
         minWidth: minTextWidth(scheduleFieldLabels.legalName),
         sortable: true,
         render: (value: string, row: SuggestedMatchScheduleRow) => {
+          const trimmedName = value?.trim()
+          const href = row.accountId
+            ? `/accounts/${encodeURIComponent(row.accountId)}`
+            : trimmedName
+              ? `/accounts?search=${encodeURIComponent(trimmedName)}`
+              : "/accounts"
+          const displayValue = trimmedName || "View account"
+          return (
+            <Link
+              href={href}
+              className="inline-flex max-w-full items-center text-sm font-semibold text-primary-600 transition hover:text-primary-700"
+              title={displayValue}
+              onClick={event => event.stopPropagation()}
+              data-disable-row-click="true"
+            >
+              <span className="truncate">{displayValue}</span>
+            </Link>
+          )
+        }
+      },
+      {
+        id: "accountName",
+        label: scheduleFieldLabels.accountName,
+        width: 220,
+        minWidth: minTextWidth(scheduleFieldLabels.accountName),
+        sortable: true,
+        render: (value: string | undefined, row: SuggestedMatchScheduleRow) => {
           const trimmedName = value?.trim()
           const href = row.accountId
             ? `/accounts/${encodeURIComponent(row.accountId)}`
@@ -2420,6 +2485,8 @@ export function DepositReconciliationDetailView({
           return row.status
         case "paymentDate":
           return row.paymentDate
+        case "accountLegalName":
+          return row.accountLegalName ?? ""
         case "accountName":
           return row.accountName
         case "vendorName":
@@ -2528,6 +2595,8 @@ export function DepositReconciliationDetailView({
           return row.vendorName
         case "legalName":
           return row.legalName
+        case "accountName":
+          return row.accountName ?? ""
         case "productNameVendor":
           return row.productNameVendor
         case "revenueScheduleDate":

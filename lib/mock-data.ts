@@ -688,6 +688,7 @@ export type DepositLineItemRow = {
   status: 'Matched' | 'Partially Matched' | 'Unmatched' | 'Suggested' | 'Ignored'
   paymentDate: string
   accountName: string
+  accountLegalName?: string
   vendorName: string
   otherSource?: "Vendor" | "Distributor" | null
   lineItem: number
@@ -865,6 +866,8 @@ export type SuggestedMatchScheduleRow = {
   flexReasonCode?: string | null
   vendorName: string
   legalName: string
+  accountName?: string
+  accountLegalName?: string
   productNameVendor: string
   revenueScheduleDate: string
   revenueScheduleName: string

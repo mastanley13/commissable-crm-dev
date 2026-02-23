@@ -50,11 +50,23 @@ function mapDepositLineItem(deposit: any, line: any, index: number) {
     [line.orderIdVendor, null],
   ])
 
+  const accountName =
+    line.account?.accountName ??
+    line.accountNameRaw ??
+    line.account?.accountLegalName ??
+    "Unknown Account"
+  const accountLegalName =
+    line.account?.accountLegalName ??
+    line.accountNameRaw ??
+    line.account?.accountName ??
+    "Unknown Account"
+
   return {
     id: line.id,
     status: LINE_STATUS_LABEL[line.status as DepositLineItemStatus] ?? "Unmatched",
     paymentDate: line.paymentDate?.toISOString() ?? "",
-    accountName: line.accountNameRaw ?? line.account?.accountName ?? "Unknown Account",
+    accountName,
+    accountLegalName,
     vendorName: line.vendorNameRaw ?? line.vendorAccount?.accountName ?? deposit.vendor?.accountName ?? "Unknown Vendor",
     lineItem: line.lineNumber ?? index + 1,
     productName: line.productNameRaw ?? line.product?.productNameVendor ?? "Unknown Product",

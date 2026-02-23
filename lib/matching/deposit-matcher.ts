@@ -631,6 +631,8 @@ export function candidatesToSuggestedRows(
       flexReasonCode: candidate.flexReasonCode ?? null,
       vendorName: candidate.vendorName ?? "",
       legalName: candidate.accountLegalName ?? candidate.accountName ?? "",
+      accountName: candidate.accountName ?? "",
+      accountLegalName: candidate.accountLegalName ?? "",
       productNameVendor: candidate.productNameVendor ?? "",
       revenueScheduleDate: candidate.revenueScheduleDate ?? "",
       revenueScheduleName: candidate.revenueScheduleName,

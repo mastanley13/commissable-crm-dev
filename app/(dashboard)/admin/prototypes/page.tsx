@@ -12,6 +12,13 @@ const prototypePages = [
     tag: 'Revenue Schedules'
   },
   {
+    title: 'Reconciliation: Frozen Columns + Synced Scroll',
+    description:
+      'Prototype to test frozen (sticky) key columns and synchronized horizontal scrolling across stacked DynamicTable instances.',
+    href: '/admin/prototypes/reconciliation-frozen-columns',
+    tag: 'Matching'
+  },
+  {
     title: 'Comma-Separated Values (Other Fields)',
     description:
       'Detail-style prototype to add/remove multi-values and preview how they render as comma-separated strings.',
