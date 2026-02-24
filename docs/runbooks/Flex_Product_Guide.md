@@ -5,12 +5,21 @@ Scope: Flex Products created during reconciliation (unknown/unmappable lines and
 
 Related references:
 - Reconciliation UAT runbook: `docs/runbooks/2026-02-10-Reconciliation-Workflow-Test-Guide.md` (see **TC-12**)
+- M2M continuation runbook: `docs/runbooks/M2M_Schedule_Extension_Guide.md`
 - Flex/Chargeback implementation notes: `docs/plans/CRM-FLEX-004-flex-resolution-workflow-review-2026-02-02.md`
 - Flex Review Queue verification checklist: `docs/plans/milestone-3-ops-polish-verification.md`
 
 ---
 
 ## 1) What is a “Flex Product” in this repo?
+
+### 1.1 Canonical definitions (do not mix terms)
+
+- **Flex Product (Exception)**: reconciliation-time placeholder workflow for unknown/unmappable lines or overage outside tolerance.
+- **Schedule Extension (M2M)**: month-to-month schedule continuation when products remain billing after planned schedules are exhausted.
+
+This guide covers only **Flex Product (Exception)**.  
+For M2M behavior, use: `docs/runbooks/M2M_Schedule_Extension_Guide.md`.
 
 A **Flex Product** is an operational “placeholder” **Product + Revenue Schedule** created during reconciliation when:
 
@@ -116,7 +125,7 @@ Goal: allocate a line that has no valid match by creating a Flex Product schedul
   - `flexClassification = FlexProduct`
   - `flexReasonCode = UnknownProduct`
   - `scheduleType = OneTime`
-  - `scheduleDate = Deposit.month` (reporting month)
+  - `scheduleDate = first day of deposit reporting month` (`YYYY-MM-01`)
   - `expectedUsage/expectedCommission` match the deposit line amounts
   - `billingStatus = InDispute` (when automation is enabled)
 - A Flex Review Queue item is created (status **Open**) and a notification appears in `/notifications`.
@@ -154,7 +163,7 @@ Goal: match a line to a real schedule, trigger the “overage exceeds tolerance�
   - `parentRevenueScheduleId = <base schedule id>`
   - `flexClassification = FlexProduct`
   - `flexReasonCode = OverageOutsideTolerance`
-  - `scheduleDate = Deposit.month`
+  - `scheduleDate = first day of deposit reporting month` (`YYYY-MM-01`)
   - `expectedUsage/expectedCommission` equal the split (the overage amount)
 - Deposit matches are split:
   - base schedule match amount decreases by the split
@@ -254,4 +263,3 @@ Flex-related integration tests to look at:
 - `tests/integration-reconciliation-variance-flex.test.ts`
 - `tests/integration-billing-status-lifecycle.test.ts`
 - `tests/integration-flex-review.test.ts`
-

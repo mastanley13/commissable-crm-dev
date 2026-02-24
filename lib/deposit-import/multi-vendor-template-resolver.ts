@@ -5,7 +5,6 @@ import {
   type TelarusTemplateFieldsV1,
 } from "@/lib/deposit-import/telarus-template-fields"
 import {
-  isSummaryRowSkipEnabledForImport,
   rowHasTotalsLabel,
   shouldSkipMultiVendorRow,
 } from "@/lib/deposit-import/multi-vendor"
@@ -139,11 +138,10 @@ export async function resolveMultiVendorTemplates(params: {
   vendorNamesInFile: string[]
 }): Promise<ResolveMultiVendorTemplatesResult> {
   const vendorNameByKey = new Map<string, string>()
-  const skipSummaryLabels = isSummaryRowSkipEnabledForImport()
   for (const rawName of params.vendorNamesInFile) {
     const vendorName = normalizeString(rawName)
     if (!vendorName) continue
-    if (skipSummaryLabels && rowHasTotalsLabel([vendorName], skipSummaryLabels)) {
+    if (rowHasTotalsLabel([vendorName], true)) {
       continue
     }
     const key = normalizeVendorKey(vendorName)

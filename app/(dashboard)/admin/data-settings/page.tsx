@@ -1,14 +1,15 @@
 ﻿"use client"
 
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react"
-import { Settings2, Users, Layers, Grid3X3, DollarSign } from "lucide-react"
+import { Settings2, Users, Layers, Grid3X3, DollarSign, Upload } from "lucide-react"
 import { Trash2 } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
 import { TwoStageDeleteDialog } from "@/components/two-stage-delete-dialog"
+import { DataSettingsImportsSection } from "@/components/data-settings-imports-section"
 import type { DeletionConstraint } from "@/lib/deletion"
 import { sortByPicklistName } from "@/lib/picklist-sort"
 
-type SectionId = "manage-fields"
+type SectionId = "manage-fields" | "imports"
 
 type Section = {
   id: SectionId
@@ -24,6 +25,12 @@ const SECTIONS: Section[] = [
     icon: Layers,
     description:
       "Manage allowed values for Product Families, Account Types, and more."
+  },
+  {
+    id: "imports",
+    title: "Imports",
+    icon: Upload,
+    description: "Upload CSV files for Accounts, Contacts, Opportunities, and more."
   }
 ]
 
@@ -199,6 +206,8 @@ export default function DataSettingsPage() {
     switch (activeSection) {
       case "manage-fields":
         return <ManageFieldsSection />
+      case "imports":
+        return <DataSettingsImportsSection />
       default:
         return null
     }

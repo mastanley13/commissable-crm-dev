@@ -54,7 +54,11 @@ function deriveStageFromProductStatuses(statuses: OpportunityProductStatus[], ex
     return existingStage
   }
 
-  const hasActive = statuses.some(status => status === OpportunityProductStatus.ActiveBilling)
+  const hasActive = statuses.some(
+    status =>
+      status === OpportunityProductStatus.ActiveBilling ||
+      status === ("BillingM2M" as OpportunityProductStatus),
+  )
   if (hasActive) {
     return "ClosedWon_Billing"
   }
@@ -146,7 +150,11 @@ export function validateStageTransition(
   existingStage: OpportunityStageValue,
   productStatuses: OpportunityProductStatus[]
 ) {
-  const hasActiveBilling = productStatuses.some(status => status === OpportunityProductStatus.ActiveBilling)
+  const hasActiveBilling = productStatuses.some(
+    status =>
+      status === OpportunityProductStatus.ActiveBilling ||
+      status === ("BillingM2M" as OpportunityProductStatus),
+  )
   if (hasActiveBilling && desiredStage !== "ClosedWon_Billing") {
     throw new Error("Stage is locked to Closed Won - Billing while products are Active - Billing")
   }

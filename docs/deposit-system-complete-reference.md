@@ -564,14 +564,16 @@ When Multi-Vendor mode is enabled, a single file containing rows from multiple v
 
 **File:** `lib/deposit-import/multi-vendor.ts`
 
-Controlled by `DEPOSIT_IMPORT_SKIP_SUMMARY_ROWS` env var (`"1"`, `"true"`, `"yes"`, `"on"`).
+Always enabled (no feature flag).
 
 Rows are skipped if:
 - The entire row is blank
 - The vendor name matches a totals pattern (`Total`, `Totals`, `Grand Total`, `Sub-total`, `Subtotal`)
 - Any cell (≤ 32 chars) matches a totals pattern
 
-Pattern: `/^(?:grand\s+)?totals?$|^sub[- ]?totals?$/i`
+Patterns:
+- Strict: `/^(?:grand\\s+)?totals?$|^sub[- ]?totals?$/i`
+- Suffix (e.g. `"Vendor A Total"`): `/^(?:.*\\s+)?(?:grand\\s+)?(?:totals?|sub[- ]?totals?)$/i`
 
 ### Common failure modes
 
@@ -1152,7 +1154,6 @@ Updates payment verification fields on the deposit:
 | `MATCHING_DEBUG_LOG` | Enable matching debug logging |
 | `HIERARCHICAL_MATCHING_DEBUG` | Enable hierarchical matching debug output |
 | `NEXT_PUBLIC_MATCHING_DEBUG_LOG` | Client-side matching debug flag |
-| `DEPOSIT_IMPORT_SKIP_SUMMARY_ROWS` | Skip totals/summary rows during import (`"1"`, `"true"`, `"yes"`, `"on"`) |
 
 ---
 

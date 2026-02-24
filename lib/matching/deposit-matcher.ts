@@ -4,15 +4,18 @@ import { prisma } from "@/lib/db"
 import { formatDateOnlyUtc } from "@/lib/date-only"
 import { formatRevenueScheduleDisplayName } from "@/lib/flex/revenue-schedule-display"
 import { parseMultiValueInput, parseMultiValueMatchSet } from "@/lib/multi-value"
+import { resolveOtherSource, resolveOtherValue } from "@/lib/other-field"
 
 type DepositLineWithRelations = Awaited<ReturnType<typeof fetchDepositLine>>
 const candidateScheduleInclude = {
   account: { select: { accountName: true, accountLegalName: true } },
-  vendor: { select: { accountName: true } },
+  distributor: { select: { accountName: true, accountNumber: true } },
+  vendor: { select: { accountName: true, accountNumber: true } },
   product: {
     select: {
       productNameVendor: true,
       productNameHouse: true,
+      priceEach: true,
       partNumberVendor: true,
       partNumberHouse: true,
       partNumberDistributor: true,
@@ -21,8 +24,16 @@ const candidateScheduleInclude = {
       description: true,
     },
   },
+  opportunityProduct: {
+    select: {
+      quantity: true,
+      unitPrice: true,
+    },
+  },
   opportunity: {
     select: {
+      id: true,
+      name: true,
       customerIdVendor: true,
       customerIdHouse: true,
       customerIdDistributor: true,
@@ -58,10 +69,20 @@ export interface ScoredCandidate {
   createdAt?: string
   accountName: string | null
   accountLegalName: string | null
+  distributorName: string | null
   vendorName: string | null
+  opportunityName: string | null
   productNameVendor: string | null
   flexClassification?: string | null
   flexReasonCode?: string | null
+  scheduleStatus: string | null
+  otherSource: "Vendor" | "Distributor" | null
+  customerIdVendor: string | null
+  customerIdDistributor: string | null
+  orderIdVendor: string | null
+  orderIdDistributor: string | null
+  quantity: number
+  priceEach: number
   matchConfidence: number
   matchType: "exact" | "fuzzy" | "legacy"
   confidenceLevel: "high" | "medium" | "low"
@@ -555,6 +576,16 @@ function buildCandidateBase(
   metrics?: ScheduleMetrics,
 ) {
   const computedMetrics = metrics ?? computeScheduleMetrics(schedule)
+  const customerIdVendor = schedule.opportunity?.customerIdVendor ?? schedule.vendor?.accountNumber ?? null
+  const customerIdDistributor = schedule.opportunity?.customerIdDistributor ?? schedule.distributor?.accountNumber ?? null
+  const orderIdVendor = schedule.opportunity?.orderIdVendor ?? null
+  const orderIdDistributor = schedule.distributorOrderId ?? schedule.opportunity?.orderIdDistributor ?? null
+  const otherSource = resolveOtherSource([
+    [customerIdVendor, customerIdDistributor],
+    [orderIdVendor, orderIdDistributor],
+  ])
+  const unitPrice = schedule.opportunityProduct?.unitPrice ?? schedule.product?.priceEach ?? null
+  const quantity = schedule.opportunityProduct?.quantity ?? null
   return {
     revenueScheduleId: schedule.id,
     revenueScheduleName: formatRevenueScheduleDisplayName({
@@ -566,10 +597,20 @@ function buildCandidateBase(
     createdAt: schedule.createdAt?.toISOString(),
     accountName: schedule.account?.accountName ?? null,
     accountLegalName: schedule.account?.accountLegalName ?? null,
+    distributorName: schedule.distributor?.accountName ?? schedule.opportunity?.distributorName ?? null,
     vendorName: schedule.vendor?.accountName ?? schedule.opportunity?.vendorName ?? null,
+    opportunityName: schedule.opportunity?.name ?? null,
     productNameVendor: schedule.product?.productNameVendor ?? schedule.product?.productNameHouse ?? null,
     flexClassification: (schedule as any).flexClassification ?? null,
     flexReasonCode: (schedule as any).flexReasonCode ?? null,
+    scheduleStatus: schedule.status ? String(schedule.status) : null,
+    otherSource,
+    customerIdVendor: resolveOtherValue(customerIdVendor, customerIdDistributor).value,
+    customerIdDistributor,
+    orderIdVendor: resolveOtherValue(orderIdVendor, orderIdDistributor).value,
+    orderIdDistributor,
+    quantity: toNumber(quantity),
+    priceEach: toNumber(unitPrice),
     expectedUsage: computedMetrics.expectedUsage,
     expectedUsageAdjustment: computedMetrics.expectedUsageAdjustment,
     actualUsage: computedMetrics.actualUsage,
@@ -629,6 +670,14 @@ export function candidatesToSuggestedRows(
       confidenceLevel: candidate.confidenceLevel,
       flexClassification: candidate.flexClassification ?? null,
       flexReasonCode: candidate.flexReasonCode ?? null,
+      scheduleStatus: candidate.scheduleStatus ?? null,
+      distributorName: candidate.distributorName ?? null,
+      opportunityName: candidate.opportunityName ?? null,
+      customerIdVendor: candidate.customerIdVendor ?? null,
+      customerIdDistributor: candidate.customerIdDistributor ?? null,
+      orderIdVendor: candidate.orderIdVendor ?? null,
+      orderIdDistributor: candidate.orderIdDistributor ?? null,
+      otherSource: candidate.otherSource ?? null,
       vendorName: candidate.vendorName ?? "",
       legalName: candidate.accountLegalName ?? "",
       accountName: candidate.accountName ?? "",
@@ -636,8 +685,8 @@ export function candidatesToSuggestedRows(
       productNameVendor: candidate.productNameVendor ?? "",
       revenueScheduleDate: candidate.revenueScheduleDate ?? "",
       revenueScheduleName: candidate.revenueScheduleName,
-      quantity: 1,
-      priceEach: candidate.expectedUsage,
+      quantity: candidate.quantity ?? 0,
+      priceEach: candidate.priceEach ?? 0,
       expectedUsageGross: candidate.expectedUsage,
       expectedUsageAdjustment: candidate.expectedUsageAdjustment,
       expectedUsageNet,

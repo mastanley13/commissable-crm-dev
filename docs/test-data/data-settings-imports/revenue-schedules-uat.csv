@@ -1,0 +1,4 @@
+Account Name,Schedule Date,Schedule Type,Opportunity Name,Product Code,Expected Usage,Actual Usage,Expected Commission,Actual Commission,House Order ID,Distributor Order ID,Notes
+Acme Parent Holdings,2026-03-01,Recurring,UAT - Acme Parent Core Expansion,UAT-PROD-001,1200,1180,210,205,HO-UAT-1001,DIST-UAT-9001,UAT recurring schedule row 1
+Acme Subsidiary West,2026-03-01,Recurring,UAT - West Region Upgrade,UAT-PROD-002,850,830,145,140,HO-UAT-1002,DIST-UAT-9002,UAT recurring schedule row 2
+Channel Distributor Group,2026-03-15,OneTime,UAT - Distributor Partner Bundle,UAT-PROD-001,500,500,95,95,HO-UAT-1003,DIST-UAT-9003,UAT one-time schedule row 3

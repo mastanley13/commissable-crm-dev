@@ -1,0 +1,3 @@
+Product Code,Product Name (House),Revenue Type,Product Name (Vendor),Description,Price Each,Commission Percent,Is Active,Vendor Account Name,Distributor Account Name,Product Family (House),Product Subtype (House),Product Family (Vendor),Product Subtype (Vendor)
+UAT-PROD-001,Managed Connectivity Bundle,MRC_House,Vendor Connectivity Suite,Managed connectivity offer for UAT,199.99,18,true,Acme Vendor Services,Channel Distributor Group,,,,
+UAT-PROD-002,Cloud Security Addon,MRC_ThirdParty,Vendor Security Shield,Cloud security addon for UAT,89.5,12.5,true,Acme Vendor Services,Channel Distributor Group,,,,

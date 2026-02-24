@@ -1,12 +1,6 @@
 const TOTAL_LABEL_PATTERN = /^(?:grand\s+)?totals?$|^sub[- ]?totals?$/i
 const TOTAL_LABEL_SUFFIX_PATTERN = /^(?:.*\s+)?(?:grand\s+)?(?:totals?|sub[- ]?totals?)$/i
 
-function isSummaryRowSkipEnabled() {
-  const value = process.env.DEPOSIT_IMPORT_SKIP_SUMMARY_ROWS
-  if (!value) return false
-  return ["1", "true", "yes", "on"].includes(value.trim().toLowerCase())
-}
-
 function normalizeCell(value: unknown) {
   if (value === null || value === undefined) return ""
   return String(value).trim()
@@ -31,14 +25,10 @@ export function rowHasTotalsLabel(row: readonly unknown[], useSuffixMatch = fals
 }
 
 export function shouldSkipMultiVendorRow(row: readonly unknown[], vendorName: string | null | undefined) {
-  const useSuffixMatch = isSummaryRowSkipEnabled()
+  const useSuffixMatch = true
   if (!row.length) return true
   if (row.every(value => !normalizeCell(value))) return true
   if (isTotalsLabel(vendorName, useSuffixMatch)) return true
   if (rowHasTotalsLabel(row, useSuffixMatch)) return true
   return false
-}
-
-export function isSummaryRowSkipEnabledForImport() {
-  return isSummaryRowSkipEnabled()
 }

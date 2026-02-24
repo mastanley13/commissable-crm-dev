@@ -864,6 +864,14 @@ export type SuggestedMatchScheduleRow = {
   accountId?: string
   flexClassification?: string | null
   flexReasonCode?: string | null
+  scheduleStatus?: string | null
+  distributorName?: string | null
+  opportunityName?: string | null
+  customerIdVendor?: string | null
+  customerIdDistributor?: string | null
+  orderIdVendor?: string | null
+  orderIdDistributor?: string | null
+  otherSource?: "Vendor" | "Distributor" | null
   vendorName: string
   legalName: string
   accountName?: string

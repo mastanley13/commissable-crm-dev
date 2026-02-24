@@ -10,7 +10,7 @@ test("rowHasTotalsLabel detects Totals labels anywhere in the row", () => {
   assert.equal(rowHasTotalsLabel(["Vendor A", "Total Telecom", "123"]), false)
 })
 
-test("rowHasTotalsLabel supports suffix-based summary rows when strict mode is enabled", () => {
+test("rowHasTotalsLabel supports suffix-based summary rows", () => {
   assert.equal(rowHasTotalsLabel(["ACC Business Total", "123"], true), true)
   assert.equal(rowHasTotalsLabel(["AT&T Total", "123"], true), true)
   assert.equal(rowHasTotalsLabel(["Grand Total", "123"], true), true)
@@ -33,20 +33,9 @@ test("shouldSkipMultiVendorRow does not skip normal transactional rows", () => {
   assert.equal(shouldSkipMultiVendorRow(["Total Telecom", "Line 1", "100.00"], "Total Telecom"), false)
 })
 
-test("shouldSkipMultiVendorRow respects DEPOSIT_IMPORT_SKIP_SUMMARY_ROWS flag", () => {
-  const previous = process.env.DEPOSIT_IMPORT_SKIP_SUMMARY_ROWS
-  try {
-    process.env.DEPOSIT_IMPORT_SKIP_SUMMARY_ROWS = "0"
-    assert.equal(shouldSkipMultiVendorRow(["ACC Business Total", "100.00"], "ACC Business Total"), false)
-
-    process.env.DEPOSIT_IMPORT_SKIP_SUMMARY_ROWS = "1"
-    assert.equal(shouldSkipMultiVendorRow(["ACC Business Total", "100.00"], "ACC Business Total"), true)
-    assert.equal(shouldSkipMultiVendorRow(["Total Telecom", "100.00"], "Total Telecom"), false)
-  } finally {
-    if (previous === undefined) {
-      delete process.env.DEPOSIT_IMPORT_SKIP_SUMMARY_ROWS
-    } else {
-      process.env.DEPOSIT_IMPORT_SKIP_SUMMARY_ROWS = previous
-    }
-  }
+test("shouldSkipMultiVendorRow skips suffix-based summary labels by default", () => {
+  assert.equal(shouldSkipMultiVendorRow(["ACC Business Total", "100.00"], "ACC Business Total"), true)
+  assert.equal(shouldSkipMultiVendorRow(["AT&T Total", "100.00"], "AT&T Total"), true)
+  assert.equal(shouldSkipMultiVendorRow(["Grand Total:", "100.00"], "Grand Total:"), true)
+  assert.equal(shouldSkipMultiVendorRow(["Total Telecom", "100.00"], "Total Telecom"), false)
 })

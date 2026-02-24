@@ -1452,6 +1452,7 @@ enum OpportunityStage {
 enum OpportunityProductStatus {
   Provisioning
   ActiveBilling
+  BillingM2M
   BillingEnded
   Cancelled
 }

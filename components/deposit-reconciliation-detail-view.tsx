@@ -182,6 +182,8 @@ const scheduleFieldLabels = {
   vendorName: "Vendor Name",
   legalName: "Account Legal Name",
   accountName: "Account Name",
+  distributorName: "Distributor Name",
+  opportunityName: "Opportunity Name",
   productNameVendor: "Other - Product Name",
   revenueScheduleDate: "Revenue Schedule Date",
   revenueScheduleName: "Revenue Schedule Name",
@@ -200,13 +202,21 @@ const scheduleFieldLabels = {
   commissionDifference: "Commission Difference",
   expectedCommissionRatePercent: "Expected Commission Rate %",
   actualCommissionRatePercent: "Actual Commission Rate %",
-  commissionRateDifference: "Commission Rate Difference"
+  commissionRateDifference: "Commission Rate Difference",
+  scheduleStatus: "Schedule Status",
+  flexClassification: "Flex Type",
+  flexReasonCode: "Flex Reason",
+  customerIdVendor: "Other - Customer ID",
+  orderIdVendor: "Other - Order ID",
+  otherSource: "Other - Source",
 } as const
 
 const scheduleFieldOrder: Array<keyof typeof scheduleFieldLabels> = [
   "lineItem",
   "matchConfidence",
+  "distributorName",
   "vendorName",
+  "opportunityName",
   "legalName",
   "accountName",
   "productNameVendor",
@@ -227,7 +237,13 @@ const scheduleFieldOrder: Array<keyof typeof scheduleFieldLabels> = [
   "commissionDifference",
   "expectedCommissionRatePercent",
   "actualCommissionRatePercent",
-  "commissionRateDifference"
+  "commissionRateDifference",
+  "scheduleStatus",
+  "flexClassification",
+  "flexReasonCode",
+  "customerIdVendor",
+  "orderIdVendor",
+  "otherSource",
 ]
 
 type ScheduleFilterColumnId = keyof typeof scheduleFieldLabels
@@ -1309,8 +1325,12 @@ export function DepositReconciliationDetailView({
           return String(row.lineItem)
         case "matchConfidence":
           return percentFormatter.format(row.matchConfidence)
+        case "distributorName":
+          return row.distributorName ?? ""
         case "vendorName":
           return row.vendorName
+        case "opportunityName":
+          return row.opportunityName ?? ""
         case "legalName":
           return row.legalName
         case "accountName":
@@ -1355,6 +1375,18 @@ export function DepositReconciliationDetailView({
           return percentFormatter.format(row.actualCommissionRatePercent)
         case "commissionRateDifference":
           return percentFormatter.format(row.commissionRateDifference)
+        case "scheduleStatus":
+          return row.scheduleStatus ?? ""
+        case "flexClassification":
+          return row.flexClassification ?? ""
+        case "flexReasonCode":
+          return row.flexReasonCode ?? ""
+        case "customerIdVendor":
+          return row.customerIdVendor ?? row.customerIdDistributor ?? ""
+        case "orderIdVendor":
+          return row.orderIdVendor ?? row.orderIdDistributor ?? ""
+        case "otherSource":
+          return row.otherSource ?? ""
         default:
           return ""
       }
@@ -1518,7 +1550,9 @@ export function DepositReconciliationDetailView({
       const matchesSearch = scheduleSearchValue
         ? [
             schedule.revenueScheduleName,
+            schedule.distributorName ?? "",
             schedule.vendorName,
+            schedule.opportunityName ?? "",
             schedule.legalName,
             schedule.accountName ?? "",
             schedule.accountLegalName ?? "",
@@ -1925,6 +1959,22 @@ export function DepositReconciliationDetailView({
         sortable: true
       },
       {
+        id: "distributorName",
+        label: scheduleFieldLabels.distributorName,
+        width: 200,
+        minWidth: minTextWidth(scheduleFieldLabels.distributorName),
+        sortable: true,
+        hidden: true,
+      },
+      {
+        id: "opportunityName",
+        label: scheduleFieldLabels.opportunityName,
+        width: 220,
+        minWidth: minTextWidth(scheduleFieldLabels.opportunityName),
+        sortable: true,
+        hidden: true,
+      },
+      {
         id: "legalName",
         label: scheduleFieldLabels.legalName,
         width: 220,
@@ -1977,6 +2027,60 @@ export function DepositReconciliationDetailView({
             </Link>
           )
         }
+      },
+      {
+        id: "scheduleStatus",
+        label: scheduleFieldLabels.scheduleStatus,
+        width: 160,
+        minWidth: minTextWidth(scheduleFieldLabels.scheduleStatus),
+        sortable: true,
+        hidden: true,
+        render: (value: string | null | undefined) => value ?? "",
+      },
+      {
+        id: "flexClassification",
+        label: scheduleFieldLabels.flexClassification,
+        width: 160,
+        minWidth: minTextWidth(scheduleFieldLabels.flexClassification),
+        sortable: true,
+        hidden: true,
+        render: (value: string | null | undefined) => value ?? "",
+      },
+      {
+        id: "flexReasonCode",
+        label: scheduleFieldLabels.flexReasonCode,
+        width: 200,
+        minWidth: minTextWidth(scheduleFieldLabels.flexReasonCode),
+        sortable: true,
+        hidden: true,
+        render: (value: string | null | undefined) => value ?? "",
+      },
+      {
+        id: "customerIdVendor",
+        label: scheduleFieldLabels.customerIdVendor,
+        width: 200,
+        minWidth: minTextWidth(scheduleFieldLabels.customerIdVendor),
+        sortable: true,
+        hidden: true,
+        render: (_value: unknown, row: SuggestedMatchScheduleRow) => row.customerIdVendor ?? row.customerIdDistributor ?? "",
+      },
+      {
+        id: "orderIdVendor",
+        label: scheduleFieldLabels.orderIdVendor,
+        width: 200,
+        minWidth: minTextWidth(scheduleFieldLabels.orderIdVendor),
+        sortable: true,
+        hidden: true,
+        render: (_value: unknown, row: SuggestedMatchScheduleRow) => row.orderIdVendor ?? row.orderIdDistributor ?? "",
+      },
+      {
+        id: "otherSource",
+        label: scheduleFieldLabels.otherSource,
+        width: 160,
+        minWidth: minTextWidth(scheduleFieldLabels.otherSource),
+        sortable: true,
+        hidden: true,
+        render: (value: string | null | undefined) => value ?? "",
       },
       {
         id: "productNameVendor",
@@ -2591,8 +2695,12 @@ export function DepositReconciliationDetailView({
           return row.lineItem
         case "matchConfidence":
           return row.matchConfidence
+        case "distributorName":
+          return row.distributorName ?? ""
         case "vendorName":
           return row.vendorName
+        case "opportunityName":
+          return row.opportunityName ?? ""
         case "legalName":
           return row.legalName
         case "accountName":
@@ -2635,6 +2743,18 @@ export function DepositReconciliationDetailView({
           return row.actualCommissionRatePercent
         case "commissionRateDifference":
           return row.commissionRateDifference
+        case "scheduleStatus":
+          return row.scheduleStatus ?? ""
+        case "flexClassification":
+          return row.flexClassification ?? ""
+        case "flexReasonCode":
+          return row.flexReasonCode ?? ""
+        case "customerIdVendor":
+          return row.customerIdVendor ?? row.customerIdDistributor ?? ""
+        case "orderIdVendor":
+          return row.orderIdVendor ?? row.orderIdDistributor ?? ""
+        case "otherSource":
+          return row.otherSource ?? ""
         default:
           return ""
       }

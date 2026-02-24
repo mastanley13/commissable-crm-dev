@@ -1,0 +1,5 @@
+Account Name,Account Type,Account Legal Name,Status,Website URL,Description,Parent Account Name
+Acme Parent Holdings,Customer,Acme Parent Holdings LLC,Active,https://acme-parent.example,Parent account for UAT,
+Acme Subsidiary West,Customer,Acme Subsidiary West LLC,Active,https://acme-west.example,Child account for UAT,Acme Parent Holdings
+Channel Distributor Group,Distributor,Channel Distributor Group LLC,Active,https://channel-distributor.example,Distributor account for product mappings,
+Acme Vendor Services,Vendor,Acme Vendor Services LLC,Active,https://acme-vendor.example,Vendor account for product mappings,

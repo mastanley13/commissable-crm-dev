@@ -459,7 +459,7 @@ Key rules:
 
 - Rows with both usage and commission empty are ignored (same as single-vendor)
 - Rows that look like totals/summary rows can be skipped
-  - controlled by env var `DEPOSIT_IMPORT_SKIP_SUMMARY_ROWS`
+  - always enabled (no feature flag)
   - logic in `lib/deposit-import/multi-vendor.ts`
 - Vendor grouping is by a normalized vendor key (lowercased trimmed vendor name)
 - If vendor is missing on a usable row, the import fails with sample row numbers

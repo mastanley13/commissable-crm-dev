@@ -1,0 +1,4 @@
+Account Name,First Name,Last Name,Suffix,Job Title,Work Phone,Work Phone Extension,Mobile Phone,Email Address,Is Primary,Is Decision Maker,Preferred Contact Method,Description
+Acme Parent Holdings,Sarah,Mitchell,,Operations Director,555-210-1100,101,555-210-1199,sarah.mitchell+uat@acme.example,true,true,Email,Primary operations contact for UAT
+Acme Subsidiary West,David,Reed,,IT Manager,555-210-2200,202,555-210-2299,david.reed+uat@acme.example,false,true,Phone,Technical decision maker for UAT
+Channel Distributor Group,Lena,Ortiz,,Partner Manager,555-210-3300,303,555-210-3399,lena.ortiz+uat@channel.example,true,false,Email,Distributor contact for UAT

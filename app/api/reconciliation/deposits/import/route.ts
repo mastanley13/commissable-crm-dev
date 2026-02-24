@@ -18,7 +18,7 @@ import {
   type DepositMappingConfigV2,
 } from "@/lib/deposit-import/template-mapping-v2"
 import { groupRowsByVendor, resolveMultiVendorTemplates } from "@/lib/deposit-import/multi-vendor-template-resolver"
-import { isSummaryRowSkipEnabledForImport, rowHasTotalsLabel } from "@/lib/deposit-import/multi-vendor"
+import { rowHasTotalsLabel } from "@/lib/deposit-import/multi-vendor"
 
 function startOfMonth(date: Date) {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1))
@@ -620,7 +620,7 @@ export async function POST(request: NextRequest) {
           },
         })
 
-      const shouldSkipSummaryRows = isSummaryRowSkipEnabledForImport()
+      const shouldSkipSummaryRows = true
 
       const lineItemsData = parsedFile.rows
         .map((row, index) => {
