@@ -152,6 +152,7 @@ export function OpportunityCreateModal({
   const [roleContacts, setRoleContacts] = useState<SelectOption[]>([])
   const [roleContactsLoading, setRoleContactsLoading] = useState(false)
   const [roleDrafts, setRoleDrafts] = useState<OpportunityRoleDraft[]>([{ contactId: "", role: "" }])
+  const [roleServerError, setRoleServerError] = useState<string | null>(null)
   const skipReferredByBlurResetRef = useRef(false)
   const skipSubagentBlurResetRef = useRef(false)
 
@@ -168,6 +169,7 @@ export function OpportunityCreateModal({
     setForm(buildInitialForm(defaultAccountId))
     setAccountQuery("")
     setRoleDrafts([{ contactId: "", role: "" }])
+    setRoleServerError(null)
   }, [isOpen, defaultAccountId])
 
   useEffect(() => {
@@ -176,6 +178,7 @@ export function OpportunityCreateModal({
     }
 
     setRoleDrafts([{ contactId: "", role: "" }])
+    setRoleServerError(null)
   }, [isOpen, form.accountId])
 
   useEffect(() => {
@@ -513,6 +516,7 @@ export function OpportunityCreateModal({
   const handleClose = useCallback(() => {
     setForm(buildInitialForm(defaultAccountId))
     setAccountQuery("")
+    setRoleServerError(null)
     onClose()
   }, [defaultAccountId, onClose])
 
@@ -535,6 +539,7 @@ export function OpportunityCreateModal({
     }
 
     setSubmitting(true)
+    setRoleServerError(null)
     try {
       const normalizeString = (value: string) => {
         const trimmed = value.trim()
@@ -575,6 +580,10 @@ export function OpportunityCreateModal({
         return
       }
 
+      const roleDraftsToCreate = roleValidation.meaningful
+        .filter(draft => draft.contactId.trim().length > 0 && draft.role.trim().length > 0)
+        .map(draft => ({ contactId: draft.contactId.trim(), role: draft.role.trim() }))
+
       const payload = {
         accountId: form.accountId,
         name: form.name.trim(),
@@ -600,7 +609,8 @@ export function OpportunityCreateModal({
         customerPurchaseOrder: normalizeString(form.customerPurchaseOrder),
         subagentPercent: subagentPercentPoints,
         houseRepPercent: houseRepPercentPoints,
-        houseSplitPercent: houseSplitPercentPoints
+        houseSplitPercent: houseSplitPercentPoints,
+        roles: roleDraftsToCreate
       }
 
       const response = await fetch("/api/opportunities", {
@@ -612,45 +622,18 @@ export function OpportunityCreateModal({
       })
 
       if (!response.ok) {
-        const payload = (await response.json().catch(() => null)) as OpportunityCreateResponse | null
-        throw new Error(payload?.error ?? "Failed to create opportunity")
+        const errorPayload = (await response.json().catch(() => null)) as any
+        const serverRoleError = typeof errorPayload?.errors?.roles === "string" ? errorPayload.errors.roles : null
+        if (serverRoleError) {
+          setRoleServerError(serverRoleError)
+        }
+        throw new Error(errorPayload?.error ?? "Failed to create opportunity")
       }
 
       const result = (await response.json().catch(() => null)) as OpportunityCreateResponse | null
       const createdId = result?.data?.id ?? ""
 
-      let roleCreationError: string | null = null
-
-      if (createdId) {
-        const roleDraftsToCreate = roleValidation.meaningful
-          .filter(draft => draft.contactId.trim().length > 0 && draft.role.trim().length > 0)
-          .map(draft => ({ contactId: draft.contactId.trim(), role: draft.role.trim() }))
-
-        try {
-          await Promise.all(
-            roleDraftsToCreate.map(async roleDraft => {
-              const roleResponse = await fetch(`/api/opportunities/${createdId}/roles`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(roleDraft)
-              })
-
-              if (!roleResponse.ok) {
-                const roleErrorPayload = await roleResponse.json().catch(() => null)
-                throw new Error(roleErrorPayload?.error ?? "Failed to create opportunity role")
-              }
-            })
-          )
-        } catch (error) {
-          roleCreationError = error instanceof Error ? error.message : "Failed to create opportunity role"
-        }
-      }
-
-      if (roleCreationError) {
-        showError("Opportunity created", `Opportunity created, but adding role contacts failed: ${roleCreationError}`)
-      } else {
-        showSuccess("Opportunity created", "The opportunity has been added successfully.")
-      }
+      showSuccess("Opportunity created", "The opportunity has been added successfully.")
       if (createdId && onCreated) {
         onCreated(createdId)
       }
@@ -1099,9 +1082,15 @@ export function OpportunityCreateModal({
                     ))}
                   </div>
 
-                  <p className="mt-3 text-xs text-gray-500">
-                    At least one role contact is required to create an opportunity.
-                  </p>
+                  {roleServerError ? (
+                    <p className="mt-3 text-xs text-red-600">{roleServerError}</p>
+                  ) : roleValidation.hasIncomplete ? (
+                    <p className="mt-3 text-xs text-red-600">Please complete or remove incomplete role rows.</p>
+                  ) : !roleValidation.hasValid ? (
+                    <p className="mt-3 text-xs text-red-600">At least one role contact is required to create an opportunity.</p>
+                  ) : (
+                    <p className="mt-3 text-xs text-gray-500">At least one role contact is required to create an opportunity.</p>
+                  )}
                 </div>
               </div>
 

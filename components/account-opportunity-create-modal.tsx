@@ -83,6 +83,7 @@ export function OpportunityCreateModal({ isOpen, accountId, accountName, onClose
   const [roleContacts, setRoleContacts] = useState<SelectOption[]>([])
   const [roleContactsLoading, setRoleContactsLoading] = useState(false)
   const [roleDrafts, setRoleDrafts] = useState<OpportunityRoleDraft[]>([{ contactId: "", role: "" }])
+  const [roleServerError, setRoleServerError] = useState<string | null>(null)
   const skipReferredByBlurResetRef = useRef(false)
   const skipSubagentBlurResetRef = useRef(false)
 
@@ -109,6 +110,7 @@ export function OpportunityCreateModal({ isOpen, accountId, accountName, onClose
     setOwnerQuery("")
     setSubagentQuery("None")
     setRoleDrafts([{ contactId: "", role: "" }])
+    setRoleServerError(null)
 
     setOptionsLoading(true)
     let cancelled = false
@@ -492,7 +494,12 @@ export function OpportunityCreateModal({ isOpen, accountId, accountName, onClose
     }
 
     setLoading(true)
+    setRoleServerError(null)
     try {
+        const roleDraftsToCreate = roleValidation.meaningful
+          .filter(draft => draft.contactId.trim().length > 0 && draft.role.trim().length > 0)
+          .map(draft => ({ contactId: draft.contactId.trim(), role: draft.role.trim() }))
+
         const payload = {
           accountId,
           name: form.name.trim(),
@@ -505,7 +512,8 @@ export function OpportunityCreateModal({ isOpen, accountId, accountName, onClose
           subagentContactId: form.subagentContactId || null,
           houseRepPercent: form.houseRepPercent ? parseFloat(form.houseRepPercent) : null,
           subagentPercent: form.subagentPercent ? parseFloat(form.subagentPercent) : null,
-          description: form.description.trim() || null
+          description: form.description.trim() || null,
+          roles: roleDraftsToCreate
         }
 
       const response = await fetch("/api/opportunities", {
@@ -518,32 +526,15 @@ export function OpportunityCreateModal({ isOpen, accountId, accountName, onClose
 
       if (!response.ok) {
         const errorPayload = await response.json().catch(() => null)
+        const serverRoleError = typeof (errorPayload as any)?.errors?.roles === "string" ? (errorPayload as any).errors.roles : null
+        if (serverRoleError) {
+          setRoleServerError(serverRoleError)
+        }
         throw new Error(errorPayload?.error ?? "Failed to create opportunity")
       }
 
       const data = await response.json().catch(() => null)
       const opportunityId: string | undefined = data?.data?.id
-
-      if (opportunityId) {
-        const roleDraftsToCreate = roleValidation.meaningful
-          .filter(draft => draft.contactId.trim().length > 0 && draft.role.trim().length > 0)
-          .map(draft => ({ contactId: draft.contactId.trim(), role: draft.role.trim() }))
-
-        await Promise.all(
-          roleDraftsToCreate.map(async roleDraft => {
-            const roleResponse = await fetch(`/api/opportunities/${opportunityId}/roles`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(roleDraft)
-            })
-
-            if (!roleResponse.ok) {
-              const roleErrorPayload = await roleResponse.json().catch(() => null)
-              throw new Error(roleErrorPayload?.error ?? "Failed to create opportunity role")
-            }
-          })
-        )
-      }
 
       showSuccess("Opportunity created", "The opportunity has been added to this account.")
       onClose()
@@ -764,9 +755,15 @@ export function OpportunityCreateModal({ isOpen, accountId, accountName, onClose
                   ))}
                 </div>
 
-                <p className="mt-3 text-xs text-gray-500">
-                  At least one role contact is required to create an opportunity.
-                </p>
+                {roleServerError ? (
+                  <p className="mt-3 text-xs text-red-600">{roleServerError}</p>
+                ) : roleValidation.hasIncomplete ? (
+                  <p className="mt-3 text-xs text-red-600">Please complete or remove incomplete role rows.</p>
+                ) : !roleValidation.hasValid ? (
+                  <p className="mt-3 text-xs text-red-600">At least one role contact is required to create an opportunity.</p>
+                ) : (
+                  <p className="mt-3 text-xs text-gray-500">At least one role contact is required to create an opportunity.</p>
+                )}
               </div>
             </div>
 
@@ -858,13 +855,13 @@ export function OpportunityCreateModal({ isOpen, accountId, accountName, onClose
                 value={subagentQuery}
                 onChange={event => {
                   setSubagentQuery(event.target.value)
-                  setForm(prev => ({ ...prev, subAgent: "", subagentContactId: "" }))
+                  setForm(prev => ({ ...prev, subAgent: "", subagentContactId: "", subagentPercent: "0.00" }))
                   setShowSubagentDropdown(true)
                 }}
                 onFocus={() => {
                   if (subagentQuery.trim().toLowerCase() === "none") {
                     setSubagentQuery("")
-                    setForm(prev => ({ ...prev, subAgent: "", subagentContactId: "" }))
+                    setForm(prev => ({ ...prev, subAgent: "", subagentContactId: "", subagentPercent: "0.00" }))
                   }
                   setShowSubagentDropdown(true)
                 }}
@@ -878,7 +875,7 @@ export function OpportunityCreateModal({ isOpen, accountId, accountName, onClose
                     setSubagentQuery(prev => {
                       const trimmed = prev.trim()
                       if (trimmed.length === 0) {
-                        setForm(nextPrev => ({ ...nextPrev, subAgent: "", subagentContactId: "" }))
+                        setForm(nextPrev => ({ ...nextPrev, subAgent: "", subagentContactId: "", subagentPercent: "0.00" }))
                         return "None"
                       }
                       return prev
@@ -898,7 +895,7 @@ export function OpportunityCreateModal({ isOpen, accountId, accountName, onClose
                       skipSubagentBlurResetRef.current = true
                     }}
                     onClick={() => {
-                      setForm(prev => ({ ...prev, subAgent: "", subagentContactId: "" }))
+                      setForm(prev => ({ ...prev, subAgent: "", subagentContactId: "", subagentPercent: "0.00" }))
                       setSubagentQuery("None")
                       setShowSubagentDropdown(false)
                     }}
@@ -959,6 +956,8 @@ export function OpportunityCreateModal({ isOpen, accountId, accountName, onClose
                 }}
                 className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
                 placeholder="0.00%"
+                disabled={!form.subAgent.trim()}
+                title={!form.subAgent.trim() ? "Select a subagent to enable Subagent %." : undefined}
                 required
               />
             </div>

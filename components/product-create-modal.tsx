@@ -56,7 +56,6 @@ interface ProductFormState {
   productSubtypeVendor: string
   productNameVendor: string
   partNumberVendor: string
-  productCode: string
   productDescriptionVendor: string
   revenueType: string
   priceEach: string
@@ -93,6 +92,13 @@ function getAllowedSubtypesForFamilyName(
     .map((subtype) => subtype.name)
 }
 
+function getPrimaryPartNumber(raw: string): string {
+  return raw
+    .split(/[\r\n,]+/g)
+    .map((v) => v.trim())
+    .filter(Boolean)[0] ?? ""
+}
+
 const INITIAL_FORM: ProductFormState = {
   isActive: true,
   distributorAccountId: "",
@@ -101,7 +107,6 @@ const INITIAL_FORM: ProductFormState = {
   productSubtypeVendor: "",
   productNameVendor: "",
   partNumberVendor: "",
-  productCode: "",
   productDescriptionVendor: "",
   revenueType: "",
   priceEach: "",
@@ -277,7 +282,7 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
 
   const canSubmit = useMemo(() => {
     if (!form.productNameHouse.trim()) return false
-    if (!form.productCode.trim()) return false
+    if (!getPrimaryPartNumber(form.partNumberVendor)) return false
     if (!form.revenueType.trim()) return false
     const price = form.priceEach.trim()
     if (price) {
@@ -409,7 +414,7 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
   const runProductDedupe = useCallback(async (): Promise<{ exact: CatalogProductOption | null; likely: CatalogProductOption[] }> => {
     const houseName = form.productNameHouse.trim()
     const vendorName = form.productNameVendor.trim()
-    const code = form.productCode.trim()
+    const code = getPrimaryPartNumber(form.partNumberVendor)
 
     const effectiveName = (houseName || vendorName).slice(0, 120)
     const name = effectiveName.trim()
@@ -492,7 +497,7 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
 
     const likely = collected.filter((p) => p.id !== exact?.id)
     return { exact, likely }
-  }, [form.productNameHouse, form.productNameVendor, form.productCode])
+  }, [form.productNameHouse, form.productNameVendor, form.partNumberVendor])
 
   const ensureProductsLoaded = useCallback(() => {
     if (productOptions.length === 0) {
@@ -535,10 +540,10 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
         productFamilyVendor: option.productFamilyVendor ?? prev.productFamilyVendor,
         productSubtypeVendor: option.productSubtypeVendor ?? prev.productSubtypeVendor,
         productNameVendor: option.productNameVendor ?? prev.productNameVendor,
+        partNumberVendor: option.partNumberVendor ?? option.productCode ?? prev.partNumberVendor,
         productFamilyHouse: option.productFamilyHouse ?? prev.productFamilyHouse,
         productSubtypeHouse: option.productSubtypeHouse ?? prev.productSubtypeHouse,
         productNameHouse: option.name || prev.productNameHouse,
-        productCode: option.productCode ?? prev.productCode,
         revenueType: option.revenueType ?? prev.revenueType,
         priceEach: option.priceEach != null ? Number(option.priceEach).toFixed(2) : prev.priceEach,
         commissionPercent: option.commissionPercent != null ? Number(option.commissionPercent).toFixed(2) : prev.commissionPercent,
@@ -563,7 +568,7 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
         if (exact) {
           showError(
             "Existing product found",
-            "We found a product with the same Product Name or Vendor Part Number. Use the existing product from the catalog or cancel to avoid duplicates."
+            "We found a product with the same Product Name or Other - Part Number. Use the existing product from the catalog or cancel to avoid duplicates."
           )
           setLoading(false)
           return
@@ -571,7 +576,7 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
         if (likely.length > 0) {
           showError(
             "Possible duplicates found",
-            "We found similar products based on Product Name or Vendor Part Number. Review the matches, choose one to use, or cancel."
+            "We found similar products based on Product Name or Other - Part Number. Review the matches, choose one to use, or cancel."
           )
           setLoading(false)
           return
@@ -598,6 +603,7 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
         const derivedProductNameVendor = form.productNameVendor.trim() || form.productNameHouse.trim() || null
         const derivedProductFamilyVendor = form.productFamilyVendor.trim() || form.productFamilyHouse.trim() || null
         const derivedProductSubtypeVendor = form.productSubtypeVendor.trim() || form.productSubtypeHouse.trim() || null
+        const primaryPartNumberVendor = getPrimaryPartNumber(form.partNumberVendor)
 
         const payload = {
           isActive: Boolean(form.isActive),
@@ -607,7 +613,7 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
           productSubtypeVendor: derivedProductSubtypeVendor,
           productNameVendor: derivedProductNameVendor,
           partNumberVendor: form.partNumberVendor.trim() || null,
-          productCode: form.productCode.trim(),
+          productCode: primaryPartNumberVendor,
           productDescriptionVendor: form.productDescriptionVendor.trim() || null,
           revenueType: form.revenueType,
           priceEach: priceEachValue,
@@ -657,7 +663,7 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
               <div className="mb-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-xs text-amber-800">
                 <div className="font-semibold text-amber-900">Existing product found</div>
                 <div className="mt-1">
-                  A product with the same Product Name or Vendor Part Number already exists. Review it in the catalog and use the existing product instead of creating a duplicate, or cancel.
+                  A product with the same Product Name or Other - Part Number already exists. Review it in the catalog and use the existing product instead of creating a duplicate, or cancel.
                 </div>
                 <div className="mt-2">
                   <div className="font-medium text-gray-900">{dedupeExactMatch.name}</div>
@@ -684,7 +690,7 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
               <div className="mb-3 rounded-md border border-yellow-200 bg-yellow-50 p-3 text-xs text-yellow-800">
                 <div className="font-semibold text-yellow-900">Possible duplicates</div>
                 <div className="mt-1">
-                  We found similar products based on Product Name or Vendor Part Number. Review them before creating a new one, choose an existing product to use, or cancel.
+                  We found similar products based on Product Name or Other - Part Number. Review them before creating a new one, choose an existing product to use, or cancel.
                 </div>
                 <div className="mt-2 space-y-2">
                   {dedupeLikelyMatches.map((match) => (
@@ -1018,14 +1024,11 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
               {/* Other column */}
               <div className={columnCls}>
                 <div className="space-y-1">
-                  <label className={labelCls}>Vendor Part # (Primary)</label>
-                  <input className={inputCls} value={form.productCode} onChange={handleChange("productCode")} placeholder="PN-123" />
-                  {errors.productCode ? <p className="text-[11px] text-rose-600">{errors.productCode}</p> : null}
-                </div>
-
-                <div className="space-y-1">
-                  <label className={labelCls}>Other - Part Number (Aliases)</label>
+                  <label className={labelCls}>Other - Part Number</label>
                   <input className={inputCls} value={form.partNumberVendor} onChange={handleChange("partNumberVendor")} placeholder="PN-123, PN 124" />
+                  {errors.partNumberVendor || errors.productCode ? (
+                    <p className="text-[11px] text-rose-600">{errors.partNumberVendor ?? errors.productCode}</p>
+                  ) : null}
                   <p className="text-[11px] text-gray-500">Comma/newline separated aliases used by vendors.</p>
                 </div>
 

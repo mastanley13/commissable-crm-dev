@@ -9,6 +9,7 @@ import { dedupeColumnFilters } from "@/lib/filter-utils"
 import type { ColumnFilter } from "@/components/list-header"
 import { logOpportunityAudit } from "@/lib/audit"
 import { canonicalizeMultiValueString } from "@/lib/multi-value"
+import { normalizeRoleDrafts, requireAtLeastOneRole } from "@/lib/opportunities/roles-validation"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -444,6 +445,15 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Invalid request payload" }, { status: 400 })
       }
 
+      const normalizedRoles = normalizeRoleDrafts((payload as Record<string, unknown>).roles)
+      const roleRequirement = requireAtLeastOneRole(normalizedRoles.complete, normalizedRoles.hasIncomplete)
+      if (!roleRequirement.ok) {
+        return NextResponse.json(
+          { error: roleRequirement.error, errors: { roles: roleRequirement.error } },
+          { status: 400 }
+        )
+      }
+
       const accountId = typeof payload.accountId === "string" ? payload.accountId : ""
       const name = typeof payload.name === "string" ? payload.name.trim() : ""
       const stageValue = typeof payload.stage === "string" ? payload.stage : ""
@@ -453,7 +463,9 @@ export async function POST(request: NextRequest) {
       const subAgent = typeof payload.subAgent === "string" ? payload.subAgent.trim() : ""
       const descriptionInput = typeof payload.description === "string" ? payload.description.trim() : ""
       const descriptionValue = descriptionInput.length > 0 ? descriptionInput : null
-      const referredByValue = coerceOptionalString((payload as Record<string, unknown>).referredBy)
+      const referredByValue =
+        coerceOptionalString((payload as Record<string, unknown>).referredBy) ??
+        coerceOptionalString((payload as Record<string, unknown>).referredByContactId)
       let shippingAddress = coerceOptionalString((payload as Record<string, unknown>).shippingAddress)
       let billingAddress = coerceOptionalString((payload as Record<string, unknown>).billingAddress)
       const accountIdHouse = coerceOptionalString((payload as Record<string, unknown>).accountIdHouse)
@@ -485,6 +497,10 @@ export async function POST(request: NextRequest) {
       const subagentPercent = parsePercentValue(subagentPercentRaw)
       if (subagentPercentRaw !== undefined && subagentPercentRaw !== null && subagentPercent === null) {
         return NextResponse.json({ error: "Subagent % must be between 0 and 100" }, { status: 400 })
+      }
+
+      if (!subAgent && subagentPercent !== null && subagentPercent > 0) {
+        return NextResponse.json({ error: "Subagent must be selected when Subagent % is greater than 0" }, { status: 400 })
       }
 
       const houseRepPercentRaw = (payload as Record<string, unknown>).houseRepPercent
@@ -557,36 +573,94 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      const opportunity = await prisma.opportunity.create({
-        data: {
-          tenantId: req.user.tenantId,
-          accountId,
-          name,
-          stage: stageValue,
-          leadSource: leadSourceValue,
-          referredBy: referredByValue,
-          estimatedCloseDate: closeDate,
-          ownerId: validatedOwnerId,
-          description: finalDescription,
-          shippingAddress,
-          billingAddress,
-          subagentPercent,
-          houseRepPercent,
-          houseSplitPercent,
-          orderIdHouse,
-          orderIdVendor,
-          orderIdDistributor,
-          accountIdHouse,
-          accountIdVendor,
-          accountIdDistributor,
-          customerIdHouse,
-          customerIdVendor,
-          customerIdDistributor,
-          locationId,
-          customerPurchaseOrder,
-          createdById: req.user.id,
-          updatedById: req.user.id
+      const tenantId = req.user.tenantId
+      const roleContactIds = Array.from(new Set(normalizedRoles.complete.map(role => role.contactId)))
+      const roleContacts = await prisma.contact.findMany({
+        where: { tenantId, id: { in: roleContactIds } },
+        select: {
+          id: true,
+          fullName: true,
+          jobTitle: true,
+          emailAddress: true,
+          workPhone: true,
+          workPhoneExt: true,
+          mobilePhone: true
         }
+      })
+
+      const roleContactById = new Map(roleContacts.map(contact => [contact.id, contact]))
+      for (const contactId of roleContactIds) {
+        if (!roleContactById.has(contactId)) {
+          return NextResponse.json({ error: "Contact not found" }, { status: 404 })
+        }
+      }
+
+      const roleSnapshots = normalizedRoles.complete.map(roleDraft => {
+        const contact = roleContactById.get(roleDraft.contactId)
+        const fullName = (contact?.fullName ?? "").trim()
+        if (!fullName) {
+          return null
+        }
+        return {
+          tenantId,
+          contactId: roleDraft.contactId,
+          role: roleDraft.role,
+          fullName,
+          jobTitle: contact?.jobTitle ?? null,
+          email: contact?.emailAddress ?? null,
+          workPhone: contact?.workPhone ?? null,
+          phoneExtension: contact?.workPhoneExt ?? null,
+          mobile: contact?.mobilePhone ?? null,
+          active: true,
+          createdById: req.user.id
+        }
+      })
+
+      if (roleSnapshots.some(snapshot => snapshot === null)) {
+        return NextResponse.json({ error: "Full name is required" }, { status: 400 })
+      }
+
+      const opportunity = await prisma.$transaction(async tx => {
+        const created = await tx.opportunity.create({
+          data: {
+            tenantId,
+            accountId,
+            name,
+            stage: stageValue,
+            leadSource: leadSourceValue,
+            referredBy: referredByValue,
+            estimatedCloseDate: closeDate,
+            ownerId: validatedOwnerId,
+            description: finalDescription,
+            shippingAddress,
+            billingAddress,
+            subagentPercent,
+            houseRepPercent,
+            houseSplitPercent,
+            orderIdHouse,
+            orderIdVendor,
+            orderIdDistributor,
+            accountIdHouse,
+            accountIdVendor,
+            accountIdDistributor,
+            customerIdHouse,
+            customerIdVendor,
+            customerIdDistributor,
+            locationId,
+            customerPurchaseOrder,
+            createdById: req.user.id,
+            updatedById: req.user.id
+          }
+        })
+
+        await tx.opportunityRole.createMany({
+          data: (roleSnapshots as Array<NonNullable<(typeof roleSnapshots)[number]>>).map(snapshot => ({
+            ...snapshot,
+            opportunityId: created.id
+          }))
+        })
+
+        return created
       })
 
       // Log audit trail for opportunity creation

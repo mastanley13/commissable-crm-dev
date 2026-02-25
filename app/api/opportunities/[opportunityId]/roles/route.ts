@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
 import { withPermissions } from "@/lib/api-auth"
 import { hasAnyPermission } from "@/lib/auth"
+import { normalizePhoneExtension, phoneExtensionDigits, PHONE_EXTENSION_MAX_DIGITS } from "@/lib/phone-extension"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -24,6 +25,12 @@ const OPPORTUNITY_ROLE_EDIT_PERMISSIONS = Array.from(
 
 function normalizeString(value: unknown): string {
   return typeof value === "string" ? value.trim() : ""
+}
+
+function normalizeStringOrNumber(value: unknown): string {
+  if (typeof value === "string") return value.trim()
+  if (typeof value === "number" && Number.isFinite(value)) return String(value).trim()
+  return ""
 }
 
 export async function POST(
@@ -72,9 +79,26 @@ export async function POST(
       let jobTitle = normalizeString((payload as any).jobTitle)
       let email = normalizeString((payload as any).email)
       let workPhone = normalizeString((payload as any).workPhone)
-      let phoneExtension = normalizeString((payload as any).phoneExtension)
+      let phoneExtension = normalizeStringOrNumber((payload as any).phoneExtension)
       let mobile = normalizeString((payload as any).mobile)
       const active: boolean = (payload as any).active === false ? false : true
+
+      if (phoneExtension) {
+        const digits = phoneExtensionDigits(phoneExtension)
+        if (digits.length !== phoneExtension.length) {
+          return NextResponse.json(
+            { error: "Phone extension must be digits only" },
+            { status: 400 }
+          )
+        }
+        if (digits.length > PHONE_EXTENSION_MAX_DIGITS) {
+          return NextResponse.json(
+            { error: `Phone extension must be ${PHONE_EXTENSION_MAX_DIGITS} digits or less` },
+            { status: 400 }
+          )
+        }
+        phoneExtension = digits
+      }
 
       if (contactId) {
         const contact = await prisma.contact.findFirst({
@@ -97,7 +121,7 @@ export async function POST(
         if (!jobTitle) jobTitle = contact.jobTitle ?? ""
         if (!email) email = contact.emailAddress ?? ""
         if (!workPhone) workPhone = contact.workPhone ?? ""
-        if (!phoneExtension) phoneExtension = contact.workPhoneExt ?? ""
+        if (!phoneExtension) phoneExtension = normalizePhoneExtension(contact.workPhoneExt) ?? ""
         if (!mobile) mobile = contact.mobilePhone ?? ""
       }
 

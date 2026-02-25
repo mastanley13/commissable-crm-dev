@@ -330,6 +330,26 @@ export async function PATCH(request: NextRequest, { params }: { params: { opport
         }
       }
 
+      const activeRoleCount = await prisma.opportunityRole.count({
+        where: { tenantId, opportunityId: existing.id, active: true }
+      })
+
+      if (activeRoleCount === 0) {
+        const payloadKeys = Object.keys(payload as Record<string, unknown>)
+        const isDeactivating = (payload as any).active === false
+        const onlyAllowedKeys = payloadKeys.every(key => key === "active" || key === "lossReason")
+
+        if (!(isDeactivating && onlyAllowedKeys)) {
+          return NextResponse.json(
+            {
+              error: "At least one role contact is required to save this opportunity.",
+              errors: { roles: "Add at least one role contact before saving." }
+            },
+            { status: 400 }
+          )
+        }
+      }
+
       const data: Record<string, unknown> = { updatedById: req.user.id }
       let hasChanges = false
       let stageWasUpdated = false

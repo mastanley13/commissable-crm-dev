@@ -572,7 +572,7 @@ export function mapOpportunityToRow(opportunity: OpportunityWithRelations) {
     distributorAccountId,
     vendorName,
     vendorAccountId,
-    referredBy: opportunity.referredBy ?? opportunity.leadSource ?? "",
+    referredBy: opportunity.referredBy ?? "",
     shippingAddress,
     billingAddress,
     owner: ownerName,
