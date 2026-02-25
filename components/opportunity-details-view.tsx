@@ -17,6 +17,7 @@ import { useUnsavedChangesPrompt } from "@/hooks/useUnsavedChangesPrompt"
 import { useFieldHistory } from "@/hooks/useFieldHistory"
 import { calculateMinWidth } from "@/lib/column-width-utils"
 import { DEFAULT_OPEN_ACTIVITY_STATUS } from "@/lib/activity-status"
+import { DropdownChevron } from "./dropdown-chevron"
 import {
   OpportunityDetailRecord,
   OpportunityActivityRecord,
@@ -1608,7 +1609,7 @@ function EditableOpportunityHeader({
             "Subagent",
             <div className="relative w-full">
               <EditableField.Input
-                className="w-full"
+                className="w-full pr-8"
                 value={(subAgentField.value as string) ?? ""}
                 placeholder="Search or pick a subagent"
                 onChange={event => {
@@ -1621,6 +1622,7 @@ function EditableOpportunityHeader({
                   subAgentField.onBlur()
                 }}
               />
+              <DropdownChevron open={showSubagentDropdown} />
               {showSubagentDropdown && (subagentLoading || subagentOptions.length > 0) && (
                 <div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
                   {subagentLoading ? (

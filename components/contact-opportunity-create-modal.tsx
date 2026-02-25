@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { Loader2 } from "lucide-react"
+import { DropdownChevron } from "@/components/dropdown-chevron"
 import { useToasts } from "@/components/toast"
 import { getOpportunityStageOptions, type OpportunityStageOption } from "@/lib/opportunity-stage"
 
@@ -392,10 +393,11 @@ export function ContactOpportunityCreateModal({ isOpen, contactName, accountId, 
                   setTimeout(() => setShowOwnerDropdown(false), 200)
                 }}
                 placeholder="Type to search owners..."
-                className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
+                className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 pr-8 text-xs focus:outline-none focus:border-primary-500"
                 disabled={ownersLoading}
                 required
               />
+              <DropdownChevron open={showOwnerDropdown} />
               {showOwnerDropdown && filteredOwners.length > 0 && (
                 <div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
                   {filteredOwners.map(option => (
@@ -430,9 +432,10 @@ export function ContactOpportunityCreateModal({ isOpen, contactName, accountId, 
                   setTimeout(() => setShowContactDropdown(false), 200)
                 }}
                 placeholder="Type to search contacts..."
-                className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
+                className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 pr-8 text-xs focus:outline-none focus:border-primary-500"
                 disabled={contactsLoading}
               />
+              <DropdownChevron open={showContactDropdown} />
               {showContactDropdown && contacts.length > 0 && (
                 <div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
                   {contacts.map(option => (
@@ -468,9 +471,10 @@ export function ContactOpportunityCreateModal({ isOpen, contactName, accountId, 
                 onFocus={() => setShowSubagentDropdown(true)}
                 onBlur={() => setTimeout(() => setShowSubagentDropdown(false), 200)}
                 placeholder="Type to search subagents..."
-                className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
+                className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 pr-8 text-xs focus:outline-none focus:border-primary-500"
                 disabled={subagentsLoading}
               />
+              <DropdownChevron open={showSubagentDropdown} />
               {showSubagentDropdown && subagentQuery.length > 0 && subagents.length > 0 && (
                 <div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
                   {subagents.map(option => (

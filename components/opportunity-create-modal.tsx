@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { LeadSource, OpportunityStage } from "@prisma/client"
 import { ChevronDown, Loader2 } from "lucide-react"
 import { getOpportunityStageOptions, type OpportunityStageOption } from "@/lib/opportunity-stage"
+import { DropdownChevron } from "@/components/dropdown-chevron"
 import { useToasts } from "@/components/toast"
 import { formatDecimalToFixed, formatPercentDisplay, normalizeDecimalInput } from "@/lib/number-format"
 
@@ -910,10 +911,11 @@ export function OpportunityCreateModal({
                     }}
                     onFocus={() => setShowSubagentDropdown(true)}
                     onBlur={() => setTimeout(() => setShowSubagentDropdown(false), 200)}
-                    className={inputClass}
+                    className={`${inputClass} pr-8`}
                     placeholder="Type to search subagents..."
                     disabled={subagentsLoading}
                   />
+                  <DropdownChevron open={showSubagentDropdown} />
                   {showSubagentDropdown && subagentQuery.length > 0 && subagents.length > 0 && (
                     <div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
                       {subagents.map(option => (

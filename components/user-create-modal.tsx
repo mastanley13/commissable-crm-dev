@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react"
 import { Loader2 } from "lucide-react"
+import { DropdownChevron } from "@/components/dropdown-chevron"
 import { useToasts } from "@/components/toast"
 
 interface SelectOption {
@@ -277,9 +278,10 @@ export function UserCreateModal({ isOpen, onClose, onCreated }: UserCreateModalP
                 onFocus={() => setShowRoleDropdown(true)}
                 onBlur={() => setTimeout(() => setShowRoleDropdown(false), 200)}
                 placeholder="Type to search roles..."
-                className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
+                className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 pr-8 text-xs focus:outline-none focus:border-primary-500"
                 disabled={optionsLoading}
               />
+              <DropdownChevron open={showRoleDropdown} />
               {showRoleDropdown && roleQuery.length > 0 && filteredRoles.length > 0 && (
                 <div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
                   {filteredRoles.map(option => (

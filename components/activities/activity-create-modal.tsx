@@ -323,7 +323,7 @@ export function ActivityCreateModal({ isOpen, onClose, onCreated, defaultAccount
             </div>
             <div className="col-span-1">
               <label className="block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Account</label>
-              <div className="relative">
+              <div className="relative mt-1">
                 <input
                   type="text"
                   value={accountQuery || form.accountName}
@@ -332,7 +332,7 @@ export function ActivityCreateModal({ isOpen, onClose, onCreated, defaultAccount
                     setForm(prev => ({ ...prev, accountId: '', accountName: '' }))
                   }}
                   placeholder="Search accounts..."
-                  className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 pr-10 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 pr-10 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
                 />
                 <DropdownChevron open={accountResults.length > 0} className="right-3" />
               </div>
@@ -358,7 +358,7 @@ export function ActivityCreateModal({ isOpen, onClose, onCreated, defaultAccount
             </div>
             <div className="col-span-1">
               <label className="block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Contact</label>
-              <div className="relative">
+              <div className="relative mt-1">
                 <input
                   type="text"
                   value={contactQuery || form.contactName}
@@ -367,7 +367,7 @@ export function ActivityCreateModal({ isOpen, onClose, onCreated, defaultAccount
                     setForm(prev => ({ ...prev, contactId: '', contactName: '' }))
                   }}
                   placeholder="Search contacts..."
-                  className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 pr-10 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 pr-10 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
                 />
                 <DropdownChevron open={contactResults.length > 0} className="right-3" />
               </div>

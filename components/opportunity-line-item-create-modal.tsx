@@ -4,6 +4,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react"
 
 import { useToasts } from "@/components/toast"
 import { ModalHeader } from "@/components/ui/modal-header"
+import { DropdownChevron } from "@/components/dropdown-chevron"
 import { formatCurrencyDisplay, formatDecimalToFixed, formatPercentDisplay, normalizeDecimalInput } from "@/lib/number-format"
 import { sortByPicklistName } from "@/lib/picklist-sort"
 
@@ -402,7 +403,7 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
       productId: product.id,
       quantity: "1",
       unitPrice: product.priceEach != null ? Number(product.priceEach).toFixed(2) : prev.unitPrice,
-      commissionPercent: product.commissionPercent != null ? (Number(product.commissionPercent) * 100).toFixed(2) : prev.commissionPercent,
+      commissionPercent: product.commissionPercent != null ? Number(product.commissionPercent).toFixed(2) : prev.commissionPercent,
       commissionStartDate: firstDate,
       schedulePeriods: "1"
     }))
@@ -425,7 +426,7 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
         setForm(prev => ({
           ...prev,
           unitPrice: price != null ? Number(price).toFixed(2) : prev.unitPrice,
-          commissionPercent: commission != null ? (Number(commission) * 100).toFixed(2) : prev.commissionPercent,
+          commissionPercent: commission != null ? Number(commission).toFixed(2) : prev.commissionPercent,
         }))
       } catch {
         // Silent failure – keep whatever values we already have
@@ -626,7 +627,7 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
     setForm(prev => ({
       ...prev,
       unitPrice: selectedProduct.priceEach != null ? Number(selectedProduct.priceEach).toFixed(2) : prev.unitPrice,
-      commissionPercent: selectedProduct.commissionPercent != null ? (Number(selectedProduct.commissionPercent) * 100).toFixed(2) : prev.commissionPercent
+      commissionPercent: selectedProduct.commissionPercent != null ? Number(selectedProduct.commissionPercent).toFixed(2) : prev.commissionPercent
     }))
   }, [selectedProduct])
 
@@ -935,9 +936,10 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
                     onFocus={()=>setShowDistributorDropdown(true)}
                     onBlur={()=>setTimeout(()=>setShowDistributorDropdown(false),200)}
                     placeholder="Type or select distributor"
-                    className={inputCls}
+                    className={`${inputCls} pr-8`}
                     disabled={loading || vendorDistributorLockLoading || vendorDistributorLocked}
                   />
+                  <DropdownChevron open={showDistributorDropdown} />
                   {showDistributorDropdown && distributorOptions.length > 0 && (
                     <div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
                       {distributorOptions.filter(o=>o.label.toLowerCase().includes(distributorInput.toLowerCase())).map(opt=> (
@@ -957,9 +959,10 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
                     onFocus={()=>setShowVendorDropdown(true)}
                     onBlur={()=>setTimeout(()=>setShowVendorDropdown(false),200)}
                     placeholder="Type or select vendor"
-                    className={inputCls}
+                    className={`${inputCls} pr-8`}
                     disabled={loading || vendorDistributorLockLoading || vendorDistributorLocked}
                   />
+                  <DropdownChevron open={showVendorDropdown} />
                   {showVendorDropdown && vendorOptions.length > 0 && (
                     <div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
                       {vendorOptions.filter(o=>o.label.toLowerCase().includes(vendorInput.toLowerCase())).map(opt=> (
@@ -988,8 +991,9 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
                     onFocus={()=>setShowCatalogFamilyDropdown(true)}
                     onBlur={()=>setTimeout(()=>setShowCatalogFamilyDropdown(false),200)}
                     placeholder="Search or pick a family"
-                    className={inputCls}
+                    className={`${inputCls} pr-8`}
                   />
+                  <DropdownChevron open={showCatalogFamilyDropdown} />
                   {showCatalogFamilyDropdown && familyOptions.length > 0 && (
                     <div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
                       {familyOptions.filter(f => f.toLowerCase().includes((catalogFamilyInput||'').toLowerCase())).map(fam => (
@@ -1027,9 +1031,10 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
                     onFocus={()=>setShowCatalogSubtypeDropdown(true)}
                     onBlur={()=>setTimeout(()=>setShowCatalogSubtypeDropdown(false),200)}
                     placeholder="Search or pick a subtype"
-                    className={inputCls}
+                    className={`${inputCls} pr-8`}
                     disabled={!catalogFamilyInput.trim()}
                   />
+                  <DropdownChevron open={showCatalogSubtypeDropdown} />
                   {showCatalogSubtypeDropdown && subtypeOptions.length > 0 && catalogFamilyInput.trim() && (
                     <div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
                       {subtypeOptions.filter(f => f.toLowerCase().includes((catalogSubtypeInput||'').toLowerCase())).map(sub => (
@@ -1060,9 +1065,10 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
                       onFocus={()=>setShowProductDropdown(true)}
                       onBlur={()=>setTimeout(()=>setShowProductDropdown(false),200)}
                       placeholder="Type to search products by name, code, or vendor..."
-                      className={inputCls}
+                      className={`${inputCls} pr-8`}
                       aria-autocomplete="list"
                     />
+                    <DropdownChevron open={showProductDropdown} />
                     {showProductDropdown && (
                       <div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
                         {filteredCatalogProducts.map(option => {
@@ -1081,7 +1087,7 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
                                 productId: option.id,
                                 quantity: "1",
                                 unitPrice: option.priceEach != null ? Number(option.priceEach).toFixed(2) : prev.unitPrice,
-                                commissionPercent: option.commissionPercent != null ? (Number(option.commissionPercent) * 100).toFixed(2) : prev.commissionPercent,
+                                commissionPercent: option.commissionPercent != null ? Number(option.commissionPercent).toFixed(2) : prev.commissionPercent,
                                 commissionStartDate: firstDate,
                                 schedulePeriods: "1"
                               }))
@@ -1277,9 +1283,10 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
                     onFocus={()=>setShowDistributorDropdown(true)}
                     onBlur={()=>setTimeout(()=>setShowDistributorDropdown(false),200)}
                     placeholder="Type distributor name"
-                    className={inputCls}
+                    className={`${inputCls} pr-8`}
                     disabled={loading || vendorDistributorLockLoading || vendorDistributorLocked}
                   />
+                  <DropdownChevron open={showDistributorDropdown} />
                   {showDistributorDropdown && distributorOptions.length > 0 && (
                     <div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
                       {distributorOptions.filter(o=>o.label.toLowerCase().includes(distributorInput.toLowerCase())).map(opt=> (
@@ -1299,9 +1306,10 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
                     onFocus={()=>setShowVendorDropdown(true)}
                     onBlur={()=>setTimeout(()=>setShowVendorDropdown(false),200)}
                     placeholder="Type vendor name"
-                    className={inputCls}
+                    className={`${inputCls} pr-8`}
                     disabled={loading || vendorDistributorLockLoading || vendorDistributorLocked}
                   />
+                  <DropdownChevron open={showVendorDropdown} />
                   {showVendorDropdown && vendorOptions.length > 0 && (
                     <div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
                       {vendorOptions.filter(o=>o.label.toLowerCase().includes(vendorInput.toLowerCase())).map(opt=> (
@@ -1355,10 +1363,11 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
                       }, 200)
                     }
                     placeholder="Search or pick a family"
-                    className={inputCls}
+                    className={`${inputCls} pr-8`}
                     disabled={((!selectedDistributorId || !selectedVendorId) && familyOptions.length > 0) ? true : familyOptions.length === 0}
                     aria-autocomplete="list"
                   />
+                  <DropdownChevron open={showCreateFamilyDropdown} />
                   {showCreateFamilyDropdown && familyOptions.length > 0 && (
                     <div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
                       {familyOptions
@@ -1420,10 +1429,11 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
                       }, 200)
                     }
                     placeholder="Search or pick a subtype"
-                    className={inputCls}
+                    className={`${inputCls} pr-8`}
                     disabled={!productFamilyHouseInput.trim() || houseSubtypePicklist.length === 0}
                     aria-autocomplete="list"
                   />
+                  <DropdownChevron open={showCreateSubtypeDropdown} />
                   {showCreateSubtypeDropdown && houseSubtypePicklist.length > 0 && productFamilyHouseInput.trim() && (
                     <div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
                       {houseSubtypePicklist
@@ -1455,9 +1465,10 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
                     onFocus={()=>setShowProductNameDropdown(true)}
                     onBlur={()=>setTimeout(()=>setShowProductNameDropdown(false),200)}
                     placeholder="House product name"
-                    className={inputCls}
+                    className={`${inputCls} pr-8`}
                     disabled={!productFamilyHouseInput.trim()}
                   />
+                  <DropdownChevron open={showProductNameDropdown} />
                   {showProductNameDropdown && productNameOptions.length > 0 && productFamilyHouseInput.trim() && (
                     <div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
                       {productNameOptions.filter(n => n.toLowerCase().includes((productNameHouse||'').toLowerCase())).map(name => (

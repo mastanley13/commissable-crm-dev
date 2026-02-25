@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react"
 import { Loader2 } from "lucide-react"
 import { GroupType, GroupVisibility } from "@prisma/client"
+import { DropdownChevron } from "@/components/dropdown-chevron"
 import { useToasts } from "@/components/toast"
 
 interface SelectOption {
@@ -278,12 +279,13 @@ export function GroupEditModal({ isOpen, group, onClose, onSuccess }: GroupEditM
                 onFocus={() => setShowOwnerDropdown(true)}
                 onBlur={() => setTimeout(() => setShowOwnerDropdown(false), 200)}
                 placeholder="Type to search owners..."
-                className={`w-full rounded-lg border px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500 ${
+                className={`w-full rounded-lg border px-3 py-2 pr-10 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500 ${
                   !validationState.hasOwner && form.ownerId === "" ? 'border-amber-300' : 'border-gray-300'
                 }`}
                 disabled={optionsLoading}
                 required
               />
+              <DropdownChevron open={showOwnerDropdown} className="right-3" />
               {showOwnerDropdown && ownerQuery.length > 0 && filteredOwners.length > 0 && (
                 <div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
                   {filteredOwners.map(option => (

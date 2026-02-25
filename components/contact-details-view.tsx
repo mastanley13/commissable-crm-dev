@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { ChangeEvent, ReactNode, useCallback, useEffect, useState, useMemo, useRef, useLayoutEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { Loader2, Filter, Paperclip, Plus, Search, Settings, Trash2, ChevronDown, Check, Mail } from "lucide-react"
+import { Loader2, Filter, Paperclip, Plus, Search, Settings, Trash2, ChevronDown, Check } from "lucide-react"
 import { OpportunityStatus } from "@prisma/client"
 
 import { cn } from "@/lib/utils"
@@ -4395,16 +4395,6 @@ function EditableContactHeaderV2({
                     placeholder="name@example.com"
                   />
                 </div>
-                {String(emailField.value ?? "").trim() ? (
-                  <a
-                    href={`mailto:${String(emailField.value ?? "").trim()}`}
-                    className="shrink-0 text-primary-700 hover:text-primary-800"
-                    aria-label="Send email"
-                    title="Send email"
-                  >
-                    <Mail className="h-4 w-4" />
-                  </a>
-                ) : null}
               </div>
               {editor.errors.emailAddress ? (
                 <p className="text-[10px] text-red-600">{editor.errors.emailAddress}</p>

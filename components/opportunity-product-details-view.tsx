@@ -190,10 +190,15 @@ function percentToInputString(value: number | null | undefined): string {
 function inputStringToPercent(value: string): number | null {
   const trimmed = value.trim()
   if (!trimmed) return null
-  const parsed = Number(trimmed)
+  const compact = trimmed.replace(/\s+/g, "")
+  const hasPercent = compact.endsWith("%")
+  const normalized = hasPercent ? compact.slice(0, -1).trim() : compact
+  const parsed = Number(normalized.replace(/[^0-9.-]/g, ""))
   if (!Number.isFinite(parsed)) return null
   if (parsed === 0) return 0
-  return parsed > 1 ? parsed / 100 : parsed
+  // Persist as percent points (e.g. 16.00 => 16.00%).
+  // Compatibility: accept fraction input (0.16) when no % sign is present.
+  return !hasPercent && Math.abs(parsed) <= 1 ? parsed * 100 : parsed
 }
 
 function createProductInlineForm(product: OpportunityProductDetailRecord | null | undefined): ProductInlineForm | null {

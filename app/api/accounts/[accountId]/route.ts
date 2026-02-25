@@ -451,6 +451,7 @@ export async function PATCH(
       select: { 
         id: true, 
         status: true, 
+        accountTypeId: true,
         shippingAddressId: true, 
         billingAddressId: true,
         shippingSyncBilling: true
@@ -539,6 +540,22 @@ export async function PATCH(
       data,
       include: accountIncludeForList
     })
+
+    if ((existingAccount.accountTypeId ?? null) !== (updated.accountTypeId ?? null)) {
+      await prisma.contact.updateMany({
+        where: {
+          tenantId,
+          accountId
+        },
+        data: {
+          accountTypeId: updated.accountTypeId ?? null,
+          contactType: updated.accountType?.name ?? null,
+          updatedById: userId
+        }
+      })
+
+      revalidatePath('/contacts')
+    }
 
         await logAccountAudit(
           AuditAction.Update,

@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react"
 import { Loader2, X } from "lucide-react"
 import { GroupType, GroupVisibility } from "@prisma/client"
+import { DropdownChevron } from "@/components/dropdown-chevron"
 import { useToasts } from "@/components/toast"
 import { useAuth } from "@/lib/auth-context"
 
@@ -382,10 +383,11 @@ export function ContactGroupCreateModal({ isOpen, contactName, accountId, contac
                 onFocus={() => setShowOwnerDropdown(true)}
                 onBlur={() => setTimeout(() => setShowOwnerDropdown(false), 200)}
                 placeholder="Type to search owners..."
-                className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
+                className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 pr-8 text-xs focus:outline-none focus:border-primary-500"
                 disabled={optionsLoading}
                 required
               />
+              <DropdownChevron open={showOwnerDropdown} />
               {showOwnerDropdown && ownerQuery.length > 0 && filteredOwners.length > 0 && (
                 <div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
                   {filteredOwners.map(option => (

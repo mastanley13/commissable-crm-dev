@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react"
 import { Loader2 } from "lucide-react"
+import { DropdownChevron } from "./dropdown-chevron"
 import { useToasts } from "./toast"
 
 type Option = {
@@ -494,8 +495,9 @@ export function TicketCreateModal({
                  }}
                  onFocus={() => setShowVendorDropdown(true)}
                  onBlur={() => setTimeout(() => setShowVendorDropdown(false), 120)}
-                 className={inputCls}
+                 className={`${inputCls} pr-8`}
                />
+              <DropdownChevron open={showVendorDropdown} />
               {showVendorDropdown && vendorOptions.length > 0 && (
                 <div className={dropdownCls}>
                   {vendorOptions.map(option => (
@@ -536,8 +538,9 @@ export function TicketCreateModal({
                  }}
                  onFocus={() => setShowVendorContactDropdown(true)}
                  onBlur={() => setTimeout(() => setShowVendorContactDropdown(false), 120)}
-                 className={inputCls}
+                 className={`${inputCls} pr-8`}
                />
+              <DropdownChevron open={showVendorContactDropdown} />
                {showVendorContactDropdown && vendorContactOptions.length > 0 && (
                  <div className={dropdownCls}>
                    {vendorContactOptions.map(option => (
@@ -578,8 +581,9 @@ export function TicketCreateModal({
                 }}
                 onFocus={() => setShowDistributorDropdown(true)}
                 onBlur={() => setTimeout(() => setShowDistributorDropdown(false), 120)}
-                className={inputCls}
+                className={`${inputCls} pr-8`}
               />
+              <DropdownChevron open={showDistributorDropdown} />
               {showDistributorDropdown && distributorOptions.length > 0 && (
                 <div className={dropdownCls}>
                   {distributorOptions.map(option => (
@@ -625,8 +629,9 @@ export function TicketCreateModal({
                 }}
                 onFocus={() => setShowOpportunityDropdown(true)}
                 onBlur={() => setTimeout(() => setShowOpportunityDropdown(false), 120)}
-                className={inputCls}
+                className={`${inputCls} pr-8`}
               />
+              <DropdownChevron open={showOpportunityDropdown} />
               {showOpportunityDropdown && opportunityOptions.length > 0 && (
                 <div className={dropdownCls}>
                   {opportunityOptions.map(option => (
@@ -673,8 +678,9 @@ export function TicketCreateModal({
                 }}
                 onFocus={() => setShowRevenueScheduleDropdown(true)}
                 onBlur={() => setTimeout(() => setShowRevenueScheduleDropdown(false), 120)}
-                className={inputCls}
+                className={`${inputCls} pr-8`}
               />
+              <DropdownChevron open={showRevenueScheduleDropdown} />
               {showRevenueScheduleDropdown && revenueScheduleOptions.length > 0 && (
                 <div className={dropdownCls}>
                   {revenueScheduleOptions.map(option => (

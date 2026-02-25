@@ -8,6 +8,7 @@ import { formatCurrencyDisplay, formatDecimalToFixed, formatPercentDisplay, norm
 import { sortByPicklistName } from "@/lib/picklist-sort"
 import { PicklistCombobox } from "./picklist-combobox"
 import { SelectCombobox } from "./select-combobox"
+import { DropdownChevron } from "./dropdown-chevron"
 import { ModalHeader } from "./ui/modal-header"
 
 type SelectOption = { value: string; label: string }
@@ -581,9 +582,15 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
         const rawCommission = form.commissionPercent.trim()
         let commissionPercentValue: number | null = null
         if (rawCommission) {
-          const parsed = Number(rawCommission)
+          const compact = rawCommission.replace(/\s+/g, "")
+          const hasPercent = compact.endsWith("%")
+          const normalized = hasPercent ? compact.slice(0, -1).trim() : compact
+          const parsed = Number(normalized.replace(/[^0-9.-]/g, ""))
           if (Number.isFinite(parsed)) {
-            commissionPercentValue = parsed === 0 ? 0 : parsed > 1 ? parsed / 100 : parsed
+            // Persist commission percent as percent points (e.g. 16.00 => 16.00%).
+            // Compatibility: accept fraction input (0.16) when no % sign is present.
+            commissionPercentValue =
+              parsed === 0 ? 0 : !hasPercent && Math.abs(parsed) <= 1 ? parsed * 100 : parsed
           }
         }
 
@@ -734,8 +741,9 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
                       onFocus={() => setShowDistributorDropdown(true)}
                       onBlur={() => setTimeout(() => setShowDistributorDropdown(false), 200)}
                       placeholder="Type or select distributor"
-                      className={inputCls}
+                      className={`${inputCls} pr-8`}
                     />
+                    <DropdownChevron open={showDistributorDropdown} />
                     {showDistributorDropdown && distributorAccounts.length > 0 && (
                       <div className="absolute z-10 mt-1 max-h-52 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
                         {distributorAccounts
@@ -775,8 +783,9 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
                       onFocus={() => setShowVendorDropdown(true)}
                       onBlur={() => setTimeout(() => setShowVendorDropdown(false), 200)}
                       placeholder="Type or select vendor"
-                      className={inputCls}
+                      className={`${inputCls} pr-8`}
                     />
+                    <DropdownChevron open={showVendorDropdown} />
                     {showVendorDropdown && vendorAccounts.length > 0 && (
                       <div className="absolute z-10 mt-1 max-h-52 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
                         {vendorAccounts

@@ -278,55 +278,59 @@ export function DataSettingsImportsSection() {
       </div>
 
       <div className="rounded-lg border border-gray-200 bg-white p-4">
-        <div className="mb-3 flex flex-wrap gap-2">
-          {DATA_IMPORT_ENTITIES.map(entity => {
-            const isActive = entity.type === entityType
-            return (
-              <button
-                key={entity.type}
-                type="button"
-                onClick={() => handleEntityChange(entity.type)}
-                className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
-                  isActive
-                    ? "border-blue-600 bg-blue-50 text-blue-700"
-                    : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
-                }`}
-              >
-                {entity.label}
-              </button>
-            )
-          })}
-        </div>
-        <p className="text-sm text-gray-600">{entityDefinition?.description}</p>
-        {supportsUpsertToggle && (
-          <div className="mt-3 flex flex-col gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm md:flex-row md:items-center md:justify-between">
-            <div>
-              <p className="font-medium text-gray-900">Upsert existing matches</p>
-              <p className="text-xs text-gray-600">
-                When disabled, rows that match an existing record are skipped (no updates applied).
-              </p>
-            </div>
-            <div className="inline-flex w-full rounded-md border border-gray-300 bg-white p-1 md:w-auto">
-              <button
-                type="button"
-                onClick={() => setUpsertExisting(true)}
-                className={`flex-1 rounded px-3 py-1.5 text-xs font-medium transition-colors md:flex-none ${
-                  upsertExisting ? "bg-blue-600 text-white" : "text-gray-700 hover:bg-gray-50"
-                }`}
-              >
-                Upsert
-              </button>
-              <button
-                type="button"
-                onClick={() => setUpsertExisting(false)}
-                className={`flex-1 rounded px-3 py-1.5 text-xs font-medium transition-colors md:flex-none ${
-                  !upsertExisting ? "bg-blue-600 text-white" : "text-gray-700 hover:bg-gray-50"
-                }`}
-              >
-                Insert Only
-              </button>
-            </div>
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div className="flex flex-wrap gap-2">
+            {DATA_IMPORT_ENTITIES.map(entity => {
+              const isActive = entity.type === entityType
+              return (
+                <button
+                  key={entity.type}
+                  type="button"
+                  onClick={() => handleEntityChange(entity.type)}
+                  className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                    isActive
+                      ? "border-blue-600 bg-blue-50 text-blue-700"
+                      : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+                  }`}
+                >
+                  {entity.label}
+                </button>
+              )
+            })}
           </div>
+
+          {supportsUpsertToggle && (
+            <div className="flex w-full flex-col gap-1 md:w-auto md:items-end">
+              <p className="text-xs font-medium text-gray-700">Existing matches</p>
+              <div className="inline-flex w-full rounded-md border border-gray-300 bg-white p-1 md:w-auto">
+                <button
+                  type="button"
+                  onClick={() => setUpsertExisting(true)}
+                  className={`flex-1 rounded px-3 py-1.5 text-xs font-medium transition-colors md:flex-none ${
+                    upsertExisting ? "bg-blue-600 text-white" : "text-gray-700 hover:bg-gray-50"
+                  }`}
+                >
+                  Upsert
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setUpsertExisting(false)}
+                  className={`flex-1 rounded px-3 py-1.5 text-xs font-medium transition-colors md:flex-none ${
+                    !upsertExisting ? "bg-blue-600 text-white" : "text-gray-700 hover:bg-gray-50"
+                  }`}
+                >
+                  Insert Only
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <p className="mt-3 text-sm text-gray-600">{entityDefinition?.description}</p>
+        {supportsUpsertToggle && (
+          <p className="mt-1 text-xs text-gray-600">
+            When Insert Only is selected, rows that match an existing record are skipped (no updates applied).
+          </p>
         )}
       </div>
 
