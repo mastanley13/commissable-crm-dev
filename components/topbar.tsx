@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState, type ChangeEvent, type KeyboardEvent } from "react"
 import { usePathname, useRouter } from "next/navigation"
-import Image from "next/image"
 import { Search, MessageSquare, ChevronLeft, Bell, Loader2 } from "lucide-react"
 import { Breadcrumb } from "@/components/breadcrumb"
 import { pushIfModuleListPath } from "@/lib/breadcrumb-history"
@@ -285,21 +284,6 @@ export function Topbar() {
           <button className="rounded-lg p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600">
             <Bell className="h-4 w-4" />
           </button>
-
-          <div className="hidden sm:block h-6 w-px bg-gray-200" aria-hidden="true" />
-
-          <div className="hidden sm:flex items-center">
-            <Image
-              src="/branding/Commissable_Secondary_Logo_Blue_Background.png"
-              alt="Commissable"
-              width={140}
-              height={28}
-              unoptimized
-              className="object-contain"
-              priority
-              style={{ width: "auto", height: "28px" }}
-            />
-          </div>
         </div>
       </div>
     </div>
