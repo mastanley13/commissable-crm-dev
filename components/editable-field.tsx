@@ -2,6 +2,7 @@
 
 import { cloneElement, forwardRef, isValidElement, useId } from "react"
 import { cn } from "@/lib/utils"
+import { DropdownChevron } from "./dropdown-chevron"
 
 interface EditableFieldProps {
   label: React.ReactNode
@@ -123,18 +124,21 @@ interface EditableSelectProps extends React.SelectHTMLAttributes<HTMLSelectEleme
 
 export const EditableSelect = forwardRef<HTMLSelectElement, EditableSelectProps>(
   ({ className, invalid, children, ...props }, ref) => (
-    <select
-      ref={ref}
-      className={cn(
-        "w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs text-gray-900 transition focus:border-primary-500 focus:outline-none",
-        invalid && "border-red-500 focus:border-red-500",
-        props.disabled && "cursor-not-allowed opacity-70",
-        className
-      )}
-      {...props}
-    >
-      {children}
-    </select>
+    <div className="relative">
+      <select
+        ref={ref}
+        className={cn(
+          "w-full min-h-[28px] appearance-none border-b-2 border-gray-300 bg-transparent px-0 py-1 pr-8 text-xs text-gray-900 transition focus:border-primary-500 focus:outline-none",
+          invalid && "border-red-500 focus:border-red-500",
+          props.disabled && "cursor-not-allowed opacity-70",
+          className
+        )}
+        {...props}
+      >
+        {children}
+      </select>
+      <DropdownChevron />
+    </div>
   )
 )
 EditableSelect.displayName = "EditableSelect"

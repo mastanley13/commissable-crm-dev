@@ -38,7 +38,6 @@ interface ContactFormData {
   extension: string
   mobilePhone: string
   emailAddress: string
-  description: string
 }
 
 interface AccountAddressResponse {
@@ -78,8 +77,7 @@ function buildInitialContactForm(defaultAccountId?: string): ContactFormData {
     workPhone: "",
     extension: "",
     mobilePhone: "",
-    emailAddress: "",
-    description: ""
+    emailAddress: ""
   }
 }
 
@@ -114,6 +112,7 @@ export function ContactCreateModal({ isOpen, onClose, onSuccess, options, defaul
   const [formData, setFormData] = useState<ContactFormData>(() => buildInitialContactForm(defaultAccountId))
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [fieldErrors, setFieldErrors] = useState<Partial<Record<keyof ContactFormData, string>>>({})
   const [addresses, setAddresses] = useState<AddressState>({ shipping: null, billing: null, billingSameAsShipping: false })
   const [addressLoading, setAddressLoading] = useState(false)
   const [addressError, setAddressError] = useState<string | null>(null)
@@ -140,6 +139,7 @@ export function ContactCreateModal({ isOpen, onClose, onSuccess, options, defaul
     setAddresses({ shipping: null, billing: null, billingSameAsShipping: false })
     setAddressError(null)
     setError(null)
+    setFieldErrors({})
     setAccountTypeFallback(null)
   }, [defaultAccountId])
 
@@ -222,6 +222,43 @@ export function ContactCreateModal({ isOpen, onClose, onSuccess, options, defaul
     }))
   }
 
+  const PHONE_ERROR_MESSAGE = "Phone must be 10 digits (xxx-xxx-xxxx)."
+
+  const getPhoneDigits = (value: string) => value.replace(/\D/g, "")
+
+  const formatPhonePartial = (digits: string) => {
+    const cleaned = digits.slice(0, 10)
+    if (cleaned.length <= 3) return cleaned
+    if (cleaned.length <= 6) return `${cleaned.slice(0, 3)}-${cleaned.slice(3)}`
+    return `${cleaned.slice(0, 3)}-${cleaned.slice(3, 6)}-${cleaned.slice(6)}`
+  }
+
+  const handlePhoneChange = (field: "workPhone" | "mobilePhone") => (event: React.ChangeEvent<HTMLInputElement>) => {
+    const rawValue = event.target.value ?? ""
+    const rawDigits = getPhoneDigits(rawValue)
+    const formatted = formatPhonePartial(rawDigits)
+
+    setFormData(prev => ({
+      ...prev,
+      [field]: formatted
+    }))
+
+    setFieldErrors(prev => {
+      const next = { ...prev }
+
+      if (rawDigits.length > 10) {
+        next[field] = PHONE_ERROR_MESSAGE
+        return next
+      }
+
+      if (next[field]) {
+        delete next[field]
+      }
+
+      return next
+    })
+  }
+
   const handlePhoneBlur = (field: "workPhone" | "mobilePhone") => {
     setFormData(prev => {
       const current = prev[field]
@@ -229,7 +266,27 @@ export function ContactCreateModal({ isOpen, onClose, onSuccess, options, defaul
         return prev
       }
 
-      const formatted = formatPhoneNumber(current)
+      const digits = getPhoneDigits(current)
+
+      setFieldErrors(prevErrors => {
+        const next = { ...prevErrors }
+        if (!digits) {
+          if (next[field]) delete next[field]
+          return next
+        }
+        if (digits.length !== 10) {
+          next[field] = PHONE_ERROR_MESSAGE
+          return next
+        }
+        if (next[field]) delete next[field]
+        return next
+      })
+
+      if (!digits || digits.length !== 10) {
+        return prev
+      }
+
+      const formatted = formatPhoneNumber(digits)
       if (formatted === current) {
         return prev
       }
@@ -263,6 +320,23 @@ export function ContactCreateModal({ isOpen, onClose, onSuccess, options, defaul
       return
     }
 
+    const workDigits = getPhoneDigits(formData.workPhone ?? "")
+    const mobileDigits = getPhoneDigits(formData.mobilePhone ?? "")
+    const nextFieldErrors: Partial<Record<keyof ContactFormData, string>> = {}
+
+    if (workDigits.length > 0 && workDigits.length !== 10) {
+      nextFieldErrors.workPhone = PHONE_ERROR_MESSAGE
+    }
+
+    if (mobileDigits.length > 0 && mobileDigits.length !== 10) {
+      nextFieldErrors.mobilePhone = PHONE_ERROR_MESSAGE
+    }
+
+    if (Object.keys(nextFieldErrors).length > 0) {
+      setFieldErrors(prev => ({ ...prev, ...nextFieldErrors }))
+      return
+    }
+
     if (!resolvedAccountTypeId) {
       const message = "Selected account does not have a contact type configured."
       setError(message)
@@ -291,7 +365,6 @@ export function ContactCreateModal({ isOpen, onClose, onSuccess, options, defaul
         workPhoneExt: formData.extension.trim() || undefined,
         mobilePhone: normalizedMobilePhone || undefined,
         emailAddress: formData.emailAddress.trim() || undefined,
-        description: formData.description.trim() || undefined,
         isPrimary: true // Always default to Active
       }
 

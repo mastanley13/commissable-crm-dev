@@ -1,7 +1,16 @@
 "use client"
 
 import { useCallback, useMemo, useState } from "react"
-import { AlertCircle, CheckCircle2, FileText, Loader2, Upload } from "lucide-react"
+import {
+  AlertCircle,
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  Download,
+  FileText,
+  Loader2,
+  Upload
+} from "lucide-react"
 import { parseSpreadsheetFile } from "@/lib/deposit-import/parse-file"
 import {
   DATA_IMPORT_ENTITIES,
@@ -26,6 +35,15 @@ interface ImportResult {
   skippedRows: number
   errorRows: number
   errors: ImportError[]
+}
+
+function toCsvLine(values: string[]) {
+  return values
+    .map(value => {
+      const escaped = value.replaceAll('"', '""')
+      return `"${escaped}"`
+    })
+    .join(",")
 }
 
 function normalizeKey(value: string) {
@@ -89,6 +107,7 @@ export function DataSettingsImportsSection() {
   const [entityType, setEntityType] = useState<DataImportEntityType>("accounts")
   const [step, setStep] = useState<WizardStep>("upload")
   const [upsertExisting, setUpsertExisting] = useState(true)
+  const [previewRowIndex, setPreviewRowIndex] = useState(0)
   const [selectedFileName, setSelectedFileName] = useState<string | null>(null)
   const [csvHeaders, setCsvHeaders] = useState<string[]>([])
   const [csvRows, setCsvRows] = useState<string[][]>([])
@@ -101,7 +120,10 @@ export function DataSettingsImportsSection() {
 
   const entityDefinition = useMemo(() => getDataImportEntityDefinition(entityType), [entityType])
   const rowObjects = useMemo(() => buildRowObjects(csvHeaders, csvRows), [csvHeaders, csvRows])
-  const sampleRow = csvRows[0] ?? []
+  const totalPreviewRows = csvRows.length
+  const effectivePreviewRowIndex =
+    totalPreviewRows === 0 ? 0 : Math.min(previewRowIndex, Math.max(0, totalPreviewRows - 1))
+  const sampleRow = csvRows[effectivePreviewRowIndex] ?? []
   const supportsUpsertToggle = entityType !== "revenue-schedules"
 
   const requiredFields = useMemo(
@@ -172,12 +194,14 @@ export function DataSettingsImportsSection() {
         setSelectedFileName(file.name)
         setCsvHeaders(parsed.headers)
         setCsvRows(parsed.rows)
+        setPreviewRowIndex(0)
         setFieldMapping(buildAutoMapping(parsed.headers, entityType))
       } catch (error) {
         setParseError(readErrorMessage(error))
         setSelectedFileName(file.name)
         setCsvHeaders([])
         setCsvRows([])
+        setPreviewRowIndex(0)
         setFieldMapping({})
       } finally {
         setIsParsing(false)
@@ -190,6 +214,7 @@ export function DataSettingsImportsSection() {
     setEntityType(nextType)
     setStep("upload")
     setUpsertExisting(true)
+    setPreviewRowIndex(0)
     setSelectedFileName(null)
     setCsvHeaders([])
     setCsvRows([])
@@ -217,6 +242,47 @@ export function DataSettingsImportsSection() {
       return next
     })
   }, [])
+
+  const previewRangeLabel =
+    totalPreviewRows === 0
+      ? "No rows"
+      : `Row ${effectivePreviewRowIndex + 1} of ${totalPreviewRows}`
+
+  const goToPreviousRow = useCallback(() => {
+    setPreviewRowIndex(previous => {
+      if (totalPreviewRows === 0) return previous
+      const next = previous - 1
+      return next > 0 ? next : 0
+    })
+  }, [totalPreviewRows])
+
+  const goToNextRow = useCallback(() => {
+    setPreviewRowIndex(previous => {
+      if (totalPreviewRows === 0) return previous
+      const next = previous + 1
+      if (next >= totalPreviewRows) return previous
+      return next
+    })
+  }, [totalPreviewRows])
+
+  const downloadTemplate = useCallback(() => {
+    if (!entityDefinition) return
+
+    const requiredHeaders = entityDefinition.fields.filter(field => field.required).map(field => field.label)
+    const templateHeaders =
+      requiredHeaders.length > 0 ? requiredHeaders : entityDefinition.fields.map(field => field.label)
+
+    const csv = `\uFEFF${toCsvLine(templateHeaders)}\n`
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" })
+    const url = URL.createObjectURL(blob)
+
+    const anchor = document.createElement("a")
+    anchor.href = url
+    anchor.download = `${entityDefinition.type}-import-template.csv`
+    anchor.click()
+
+    URL.revokeObjectURL(url)
+  }, [entityDefinition])
 
   const runImport = useCallback(async () => {
     if (!entityDefinition) {
@@ -299,31 +365,42 @@ export function DataSettingsImportsSection() {
             })}
           </div>
 
-          {supportsUpsertToggle && (
-            <div className="flex w-full flex-col gap-1 md:w-auto md:items-end">
-              <p className="text-xs font-medium text-gray-700">Existing matches</p>
-              <div className="inline-flex w-full rounded-md border border-gray-300 bg-white p-1 md:w-auto">
-                <button
-                  type="button"
-                  onClick={() => setUpsertExisting(true)}
-                  className={`flex-1 rounded px-3 py-1.5 text-xs font-medium transition-colors md:flex-none ${
-                    upsertExisting ? "bg-blue-600 text-white" : "text-gray-700 hover:bg-gray-50"
-                  }`}
-                >
-                  Upsert
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setUpsertExisting(false)}
-                  className={`flex-1 rounded px-3 py-1.5 text-xs font-medium transition-colors md:flex-none ${
-                    !upsertExisting ? "bg-blue-600 text-white" : "text-gray-700 hover:bg-gray-50"
-                  }`}
-                >
-                  Insert Only
-                </button>
+          <div className="flex w-full flex-col gap-2 md:w-auto md:flex-row md:items-end md:justify-end">
+            <button
+              type="button"
+              onClick={downloadTemplate}
+              className="inline-flex items-center justify-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50"
+            >
+              <Download className="h-4 w-4" />
+              Download template
+            </button>
+
+            {supportsUpsertToggle && (
+              <div className="flex w-full flex-col gap-1 md:w-auto md:items-end">
+                <p className="text-xs font-medium text-gray-700">Existing matches</p>
+                <div className="inline-flex w-full rounded-md border border-gray-300 bg-white p-1 md:w-auto">
+                  <button
+                    type="button"
+                    onClick={() => setUpsertExisting(true)}
+                    className={`flex-1 rounded px-3 py-1.5 text-xs font-medium transition-colors md:flex-none ${
+                      upsertExisting ? "bg-blue-600 text-white" : "text-gray-700 hover:bg-gray-50"
+                    }`}
+                  >
+                    Upsert
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setUpsertExisting(false)}
+                    className={`flex-1 rounded px-3 py-1.5 text-xs font-medium transition-colors md:flex-none ${
+                      !upsertExisting ? "bg-blue-600 text-white" : "text-gray-700 hover:bg-gray-50"
+                    }`}
+                  >
+                    Insert Only
+                  </button>
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
         <p className="mt-3 text-sm text-gray-600">{entityDefinition?.description}</p>
@@ -407,15 +484,40 @@ export function DataSettingsImportsSection() {
 
       {step === "mapping" && (
         <div className="rounded-lg border border-gray-200 bg-white p-4">
-          <div className="mb-3 flex items-center justify-between">
+          <div className="mb-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
             <h2 className="text-sm font-semibold text-gray-900">Field Mapping Table</h2>
-            <button
-              type="button"
-              onClick={() => setFieldMapping(buildAutoMapping(csvHeaders, entityType))}
-              className="text-xs font-medium text-blue-700 hover:text-blue-800"
-            >
-              Auto-map headers
-            </button>
+            <div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-3">
+              {totalPreviewRows > 0 ? (
+                <div className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-2 py-1 text-xs text-gray-600">
+                  <button
+                    type="button"
+                    onClick={goToPreviousRow}
+                    disabled={effectivePreviewRowIndex === 0}
+                    className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-gray-300 bg-white text-gray-700 disabled:border-gray-200 disabled:text-gray-300"
+                    aria-label="Previous sample row"
+                  >
+                    <ChevronLeft className="h-3 w-3" />
+                  </button>
+                  <span className="min-w-[120px] text-center">{previewRangeLabel}</span>
+                  <button
+                    type="button"
+                    onClick={goToNextRow}
+                    disabled={effectivePreviewRowIndex + 1 >= totalPreviewRows}
+                    className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-gray-300 bg-white text-gray-700 disabled:border-gray-200 disabled:text-gray-300"
+                    aria-label="Next sample row"
+                  >
+                    <ChevronRight className="h-3 w-3" />
+                  </button>
+                </div>
+              ) : null}
+              <button
+                type="button"
+                onClick={() => setFieldMapping(buildAutoMapping(csvHeaders, entityType))}
+                className="text-xs font-medium text-blue-700 hover:text-blue-800"
+              >
+                Auto-map headers
+              </button>
+            </div>
           </div>
 
           <div className="max-h-[420px] overflow-auto rounded-md border border-gray-200">

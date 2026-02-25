@@ -51,6 +51,11 @@ const DERIVED_PERMISSION_MAP: Record<string, string[]> = {
   // Grant Data Settings access to roles that already have full system settings control
   "admin.data_settings.manage": [
     "system.settings.write"
+  ],
+  // Merge is a more sensitive Data Settings operation but should be available to Data Settings admins.
+  "admin.data_settings.merge": [
+    "admin.data_settings.manage",
+    "system.settings.write"
   ]
 }
 

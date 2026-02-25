@@ -85,7 +85,7 @@ export function PicklistCombobox({
         onFocus={() => setOpen(true)}
         onBlur={() => setTimeout(resolveBlur, 200)}
         placeholder={placeholder}
-        className={cn(inputClassName, "pr-8")}
+        className={cn(inputClassName, "min-h-[28px] pr-8")}
         disabled={Boolean(disabled)}
         aria-autocomplete="list"
       />

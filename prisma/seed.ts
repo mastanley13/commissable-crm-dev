@@ -142,6 +142,7 @@ async function seed() {
     prisma.permission.create({ data: { code: "admin.users.update", name: "Update Users", category: "Admin" } }),
     prisma.permission.create({ data: { code: "admin.users.delete", name: "Delete Users", category: "Admin" } }),
     prisma.permission.create({ data: { code: "admin.data_settings.manage", name: "Manage Data Settings", category: "Admin" } }),
+    prisma.permission.create({ data: { code: "admin.data_settings.merge", name: "Merge Records", category: "Admin" } }),
 
     // Activities (granular)
     prisma.permission.create({ data: { code: "activities.read", name: "Read Activities", category: "Activities" } }),
@@ -172,6 +173,7 @@ async function seed() {
         "admin.permissions.read",
         "admin.users.read", "admin.users.create", "admin.users.update", "admin.users.delete",
         "admin.data_settings.manage",
+        "admin.data_settings.merge",
       ]
     },
     {

@@ -304,6 +304,9 @@ model Account {
   billingAddressId                     String?                  @db.Uuid
   createdById                          String?                  @db.Uuid
   updatedById                          String?                  @db.Uuid
+  mergedIntoAccountId                  String?                  @db.Uuid
+  mergedAt                             DateTime?
+  mergedById                           String?                  @db.Uuid
   accountNumber                        String?
   accountName                          String
   accountLegalName                     String?
@@ -328,6 +331,9 @@ model Account {
   billingAddress                       Address?                 @relation("AccountBillingAddress", fields: [billingAddressId], references: [id])
   createdBy                            User?                    @relation("AccountCreatedBy", fields: [createdById], references: [id])
   industry                             Industry?                @relation(fields: [industryId], references: [id])
+  mergedIntoAccount                    Account?                 @relation("AccountMergedInto", fields: [mergedIntoAccountId], references: [id])
+  mergedAccounts                       Account[]                @relation("AccountMergedInto")
+  mergedBy                             User?                    @relation("AccountMergedBy", fields: [mergedById], references: [id])
   owner                                User?                    @relation("AccountOwner", fields: [ownerId], references: [id])
   parent                               Account?                 @relation("AccountParent", fields: [parentAccountId], references: [id])
   children                             Account[]                @relation("AccountParent")
@@ -361,6 +367,8 @@ model Account {
   @@index([tenantId, accountTypeId])
   @@index([tenantId, ownerId])
   @@index([tenantId, status])
+  @@index([tenantId, mergedIntoAccountId])
+  @@index([tenantId, mergedAt])
 }
 
 model AccountAssignment {
@@ -406,6 +414,9 @@ model Contact {
   mailingAddressId               String?                  @db.Uuid
   createdById                    String?                  @db.Uuid
   updatedById                    String?                  @db.Uuid
+  mergedIntoContactId            String?                  @db.Uuid
+  mergedAt                       DateTime?
+  mergedById                     String?                  @db.Uuid
   suffix                         String?
   prefix                         String?
   firstName                      String
@@ -444,6 +455,9 @@ model Contact {
   createdBy                      User?                    @relation("ContactCreatedBy", fields: [createdById], references: [id])
   deletedBy                      User?                    @relation("ContactDeletedBy", fields: [deletedById], references: [id])
   mailingAddress                 Address?                 @relation("ContactMailingAddress", fields: [mailingAddressId], references: [id])
+  mergedIntoContact              Contact?                 @relation("ContactMergedInto", fields: [mergedIntoContactId], references: [id])
+  mergedContacts                 Contact[]                @relation("ContactMergedInto")
+  mergedBy                       User?                    @relation("ContactMergedBy", fields: [mergedById], references: [id])
   owner                          User?                    @relation("ContactOwner", fields: [ownerId], references: [id])
   reportsTo                      Contact?                 @relation("ContactReportsTo", fields: [reportsToContactId], references: [id])
   directReports                  Contact[]                @relation("ContactReportsTo")
@@ -461,6 +475,8 @@ model Contact {
   @@index([tenantId, lastName, firstName])
   @@index([tenantId, emailAddress])
   @@index([tenantId, deletedAt])
+  @@index([tenantId, mergedIntoContactId])
+  @@index([tenantId, mergedAt])
 }
 
 model ContactPreference {
@@ -1656,6 +1672,7 @@ enum AuditAction {
   Import
   Export
   Login
+  Merge
 }
 
 enum FlexReviewStatus {

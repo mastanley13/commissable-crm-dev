@@ -45,6 +45,10 @@ const DERIVED_PERMISSION_MAP: Record<string, string[]> = {
   // system settings admins as Data Settings admins.
   "admin.data_settings.manage": [
     "system.settings.write"
+  ],
+  "admin.data_settings.merge": [
+    "admin.data_settings.manage",
+    "system.settings.write"
   ]
 }
 
