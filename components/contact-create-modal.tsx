@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { Loader2 } from "lucide-react"
 
 import { formatPhoneNumber } from "@/lib/validation-shared"
+import { PHONE_EXTENSION_MAX_DIGITS, toPhoneExtensionDigits } from "@/lib/phone-extension"
 import { useToasts } from "./toast"
 import { ModalHeader } from "./ui/modal-header"
 
@@ -582,8 +583,11 @@ export function ContactCreateModal({ isOpen, onClose, onSuccess, options, defaul
               <input
                 id="contact-extension"
                 type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                maxLength={PHONE_EXTENSION_MAX_DIGITS}
                 value={formData.extension}
-                onChange={event => handleInputChange("extension", event.target.value)}
+                onChange={event => handleInputChange("extension", toPhoneExtensionDigits(event.target.value))}
                 placeholder="Extension"
                 className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
               />

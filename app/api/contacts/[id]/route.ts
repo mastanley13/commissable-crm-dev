@@ -9,6 +9,7 @@ import { logContactAudit } from "@/lib/audit"
 import { mapOpportunityToRow } from "../../opportunities/helpers"
 import { revalidatePath } from "next/cache"
 import { ensureActiveOwnerOrNull } from "@/lib/validation"
+import { normalizePhoneExtension, phoneExtensionDigits, PHONE_EXTENSION_MAX_DIGITS } from "@/lib/phone-extension"
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic';
 
@@ -424,7 +425,23 @@ export async function PATCH(
     if (body.jobTitle !== undefined) updateData.jobTitle = body.jobTitle
     if (body.department !== undefined) updateData.department = body.department
     if (body.workPhone !== undefined) updateData.workPhone = body.workPhone
-    if (body.workPhoneExt !== undefined) updateData.workPhoneExt = body.workPhoneExt
+    if (body.workPhoneExt !== undefined) {
+      const raw = body.workPhoneExt
+      const rawString = raw === null || raw === undefined ? "" : String(raw)
+      const trimmed = rawString.trim()
+
+      if (trimmed.length > 0) {
+        const digits = phoneExtensionDigits(trimmed)
+        if (digits.length === 0) {
+          return createErrorResponse("Work Phone Extension must contain at least 1 digit", 400)
+        }
+        if (digits.length > PHONE_EXTENSION_MAX_DIGITS) {
+          return createErrorResponse(`Work Phone Extension must be ${PHONE_EXTENSION_MAX_DIGITS} digits or less`, 400)
+        }
+      }
+
+      updateData.workPhoneExt = normalizePhoneExtension(raw)
+    }
     if (body.mobilePhone !== undefined) updateData.mobilePhone = body.mobilePhone
     if (body.otherPhone !== undefined) updateData.otherPhone = body.otherPhone
     if (body.fax !== undefined) updateData.fax = body.fax

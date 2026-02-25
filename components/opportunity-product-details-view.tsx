@@ -114,6 +114,8 @@ interface ProductDetailsViewProps {
 const fieldLabelClass = "text-[11px] font-semibold uppercase tracking-wide text-gray-500"
 const fieldBoxClass =
   "flex min-h-[28px] w-full max-w-md items-center justify-between border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis"
+const fieldBoxMultilineClass =
+  "min-h-[28px] w-full max-w-md border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs leading-5 text-gray-900 whitespace-pre-wrap break-words"
 
 interface ProductInlineForm {
   active: boolean
@@ -545,7 +547,7 @@ function ProductHeader({ product, onEdit, activeTab, onTabSelect }: ProductHeade
               </div>
             </FieldRow>
             <FieldRow label="House - Description">
-              <div className={cn(fieldBoxClass, "min-h-[60px] items-start whitespace-pre-wrap py-2")}>
+              <div className={fieldBoxMultilineClass}>
                 {productDescriptionHouse || <span className="text-gray-500">--</span>}
               </div>
             </FieldRow>
@@ -596,13 +598,13 @@ function ProductHeader({ product, onEdit, activeTab, onTabSelect }: ProductHeade
                      : null) || <span className="text-gray-500">--</span>}
                </div>
              </FieldRow>
-             <div className="grid items-start gap-6 sm:grid-cols-[200px,1fr]">
-               <span className={cn(fieldLabelClass, "pt-1.5")}>Other - Product Description</span>
-               <div className={cn(fieldBoxClass, "min-h-[80px] items-start whitespace-pre-wrap py-2")}>
-                 {product.productDescriptionVendor || product.productDescriptionDistributor || <span className="text-gray-500">--</span>}
-               </div>
-             </div>
-          </div>
+              <div className="grid items-start gap-6 sm:grid-cols-[200px,1fr]">
+                <span className={cn(fieldLabelClass, "pt-1.5")}>Other - Product Description</span>
+                <div className={fieldBoxMultilineClass}>
+                  {product.productDescriptionVendor || product.productDescriptionDistributor || <span className="text-gray-500">--</span>}
+                </div>
+              </div>
+           </div>
           </div>
         </div>
       )}

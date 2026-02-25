@@ -15,6 +15,7 @@ export interface ValidationResult {
 }
 
 import { VALIDATION_PATTERNS, formatPhoneNumber as sharedFormatPhoneNumber } from "./validation-shared"
+import { phoneExtensionDigits, PHONE_EXTENSION_MAX_DIGITS } from "./phone-extension"
 
 export { VALIDATION_PATTERNS } from "./validation-shared"
 
@@ -311,6 +312,27 @@ export function validateContactData(data: any): ValidationResult {
   if (data.mobilePhone) {
     const mobilePhoneResult = validatePhone(data.mobilePhone, 'Mobile Phone')
     errors.push(...mobilePhoneResult.errors)
+  }
+
+  if (data.workPhoneExt !== undefined && data.workPhoneExt !== null) {
+    const raw = typeof data.workPhoneExt === "string" ? data.workPhoneExt : String(data.workPhoneExt)
+    const trimmed = raw.trim()
+    if (trimmed.length > 0) {
+      const digits = phoneExtensionDigits(trimmed)
+      if (digits.length === 0) {
+        errors.push({
+          field: "Work Phone Extension",
+          message: "Work Phone Extension must contain at least 1 digit",
+          value: data.workPhoneExt
+        })
+      } else if (digits.length > PHONE_EXTENSION_MAX_DIGITS) {
+        errors.push({
+          field: "Work Phone Extension",
+          message: `Work Phone Extension must be ${PHONE_EXTENSION_MAX_DIGITS} digits or less`,
+          value: data.workPhoneExt
+        })
+      }
+    }
   }
   
   return {

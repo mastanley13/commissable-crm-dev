@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 
 import { Loader2 } from "lucide-react"
 
+import { PHONE_EXTENSION_MAX_DIGITS, toPhoneExtensionDigits } from "@/lib/phone-extension"
 import { useToasts } from "./toast"
 import { ModalHeader } from "./ui/modal-header"
 
@@ -265,9 +266,10 @@ export function ContactEditModal({ isOpen, onClose, onSuccess, contact }: Contac
 
   const handleFieldChange = (field: keyof ContactFormData) => (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const value = event.target.type === "checkbox" ? (event.target as HTMLInputElement).checked : event.target.value
+    const nextValue = field === "extension" && typeof value === "string" ? toPhoneExtensionDigits(value) : value
     setForm(prev => ({
       ...prev,
-      [field]: value
+      [field]: nextValue
     }))
   }
 
@@ -547,6 +549,9 @@ export function ContactEditModal({ isOpen, onClose, onSuccess, contact }: Contac
                   <input
                     id="edit-contact-extension"
                     type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={PHONE_EXTENSION_MAX_DIGITS}
                     value={form.extension}
                     onChange={handleFieldChange("extension")}
                     placeholder="Extension"

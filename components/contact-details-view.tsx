@@ -33,6 +33,7 @@ import { useEntityEditor, type EntityEditor } from "@/hooks/useEntityEditor"
 import { useUnsavedChangesPrompt } from "@/hooks/useUnsavedChangesPrompt"
 import { useAuth } from "@/lib/auth-context"
 import { VALIDATION_PATTERNS, formatPhoneNumber } from "@/lib/validation-shared"
+import { normalizePhoneExtension, phoneExtensionDigits, PHONE_EXTENSION_MAX_DIGITS, toPhoneExtensionDigits } from "@/lib/phone-extension"
 import { FieldRow as DetailFieldRow } from "./detail/FieldRow"
 import { fieldBoxClass as sharedFieldBoxClass } from "./detail/shared"
 import { ContactHeaderV2 } from "./contact-header-v2"
@@ -240,7 +241,7 @@ function createContactInlineForm(detail: ContactDetail | null | undefined): Cont
     jobTitle: detail.jobTitle ?? "",
     department: detail.department ?? "",
     workPhone: detail.workPhone ?? "",
-    workPhoneExt: detail.workPhoneExt ?? "",
+    workPhoneExt: toPhoneExtensionDigits(detail.workPhoneExt ?? ""),
     mobilePhone: detail.mobilePhone ?? "",
     otherPhone: detail.otherPhone ?? "",
     fax: detail.fax ?? "",
@@ -280,7 +281,7 @@ function buildContactPayload(patch: Partial<ContactInlineForm>, draft: ContactIn
   if ("jobTitle" in patch) payload.jobTitle = nullableString(draft.jobTitle)
   if ("department" in patch) payload.department = nullableString(draft.department)
   if ("workPhone" in patch) payload.workPhone = nullableString(draft.workPhone) ? formatPhoneNumber(trimmed(draft.workPhone)) : null
-  if ("workPhoneExt" in patch) payload.workPhoneExt = nullableString(draft.workPhoneExt)
+  if ("workPhoneExt" in patch) payload.workPhoneExt = normalizePhoneExtension(draft.workPhoneExt)
   if ("mobilePhone" in patch) payload.mobilePhone = nullableString(draft.mobilePhone) ? formatPhoneNumber(trimmed(draft.mobilePhone)) : null
   if ("otherPhone" in patch) payload.otherPhone = nullableString(draft.otherPhone) ? formatPhoneNumber(trimmed(draft.otherPhone)) : null
   if ("fax" in patch) payload.fax = nullableString(draft.fax)
@@ -339,6 +340,15 @@ function validateContactForm(form: ContactInlineForm): Record<string, string> {
   validatePhone(form.mobilePhone, "mobilePhone")
   validatePhone(form.otherPhone, "otherPhone")
   validatePhone(form.assistantPhone, "assistantPhone")
+
+  if (form.workPhoneExt.trim()) {
+    const digits = phoneExtensionDigits(form.workPhoneExt)
+    if (digits.length === 0) {
+      errors.workPhoneExt = "Enter extension as digits only."
+    } else if (digits.length > PHONE_EXTENSION_MAX_DIGITS) {
+      errors.workPhoneExt = `Extension must be ${PHONE_EXTENSION_MAX_DIGITS} digits or less.`
+    }
+  }
 
   if (form.preferredContactMethod.trim().length === 0) {
     errors.preferredContactMethod = "Select a preferred contact method."
@@ -814,7 +824,10 @@ function EditableContactHeader({
                     <EditableField.Input
                       className="w-20"
                       value={(workPhoneExtField.value as string) ?? ""}
-                      onChange={workPhoneExtField.onChange}
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      maxLength={PHONE_EXTENSION_MAX_DIGITS}
+                      onChange={(event: ChangeEvent<HTMLInputElement>) => editor.setField("workPhoneExt", toPhoneExtensionDigits(event.target.value))}
                       onBlur={workPhoneExtField.onBlur}
                       placeholder="Ext"
                     />
@@ -4474,7 +4487,10 @@ function EditableContactHeaderV2({
                   <EditableField.Input
                     className="w-20 h-[28px] py-0 text-[11px]"
                     value={(workPhoneExtField.value as string) ?? ""}
-                    onChange={workPhoneExtField.onChange}
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={PHONE_EXTENSION_MAX_DIGITS}
+                    onChange={(event: ChangeEvent<HTMLInputElement>) => editor.setField("workPhoneExt", toPhoneExtensionDigits(event.target.value))}
                     onBlur={workPhoneExtField.onBlur}
                     placeholder="Ext"
                   />

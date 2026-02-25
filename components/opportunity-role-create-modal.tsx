@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react"
 import { Loader2 } from "lucide-react"
 import { useToasts } from "@/components/toast"
+import { PHONE_EXTENSION_MAX_DIGITS, toPhoneExtensionDigits } from "@/lib/phone-extension"
 
 interface ContactOption {
   value: string
@@ -422,7 +423,15 @@ export function OpportunityRoleCreateModal({ isOpen, opportunityId, onClose, onS
                 </div>
                 <div>
                   <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Extension</label>
-                  <input type="text" value={phoneExtension} onChange={e => setPhoneExtension(e.target.value)} className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500" />
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={PHONE_EXTENSION_MAX_DIGITS}
+                    value={phoneExtension}
+                    onChange={e => setPhoneExtension(toPhoneExtensionDigits(e.target.value))}
+                    className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
+                  />
                 </div>
                 <div className="sm:col-span-2">
                   <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Mobile</label>

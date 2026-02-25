@@ -10,6 +10,7 @@ import { PicklistCombobox } from "./picklist-combobox"
 import { SelectCombobox } from "./select-combobox"
 import { DropdownChevron } from "./dropdown-chevron"
 import { ModalHeader } from "./ui/modal-header"
+import { AutosizeTextarea } from "./ui/autosize-textarea"
 
 type SelectOption = { value: string; label: string }
 
@@ -118,7 +119,7 @@ const inputCls =
 const selectCls =
   "w-full border-b-2 border-gray-300 bg-transparent px-0 py-1.5 text-xs focus:border-primary-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
 const textAreaCls =
-  "min-h-[60px] w-full resize-y border-b-2 border-gray-300 bg-transparent px-0 py-1.5 text-xs leading-5 focus:border-primary-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+  "min-h-[28px] w-full resize-none overflow-hidden border-b-2 border-gray-300 bg-transparent px-0 py-1.5 text-xs leading-5 focus:border-primary-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
 const columnCls = "space-y-1.5 max-w-[420px] w-full mx-auto"
 
 export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreateModalProps) {
@@ -994,7 +995,13 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
                 {/* Combined field spanning two rows to align with Product Family + Product Subtype */}
                 <div className="space-y-1">
                   <label className={labelCls}>House - Description</label>
-                  <textarea className={`${textAreaCls} h-[90px]`} value={form.description} onChange={handleChange("description")} placeholder="Add description" />
+                  <AutosizeTextarea
+                    maxHeight={180}
+                    className={textAreaCls}
+                    value={form.description}
+                    onChange={handleChange("description")}
+                    placeholder="Add description"
+                  />
                 </div>
               </div>
             </div>
@@ -1024,7 +1031,13 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
 
                 <div className="space-y-1">
                   <label className={labelCls}>Other - Product Description</label>
-                  <textarea rows={1} className={textAreaCls} value={form.productDescriptionVendor} onChange={handleChange("productDescriptionVendor")} placeholder="Add other description" />
+                  <AutosizeTextarea
+                    maxHeight={180}
+                    className={textAreaCls}
+                    value={form.productDescriptionVendor}
+                    onChange={handleChange("productDescriptionVendor")}
+                    placeholder="Add other description"
+                  />
                 </div>
               </div>
             </div>

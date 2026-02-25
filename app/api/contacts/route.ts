@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db"
 import { withPermissions, createErrorResponse } from "@/lib/api-auth"
 import { logContactAudit } from "@/lib/audit"
 import { validateContactData, createValidationErrorResponse, normalizeEmail, formatPhoneNumber, ensureActiveOwnerOrNull } from "@/lib/validation"
+import { normalizePhoneExtension } from "@/lib/phone-extension"
 import { revalidatePath } from "next/cache"
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic';
@@ -363,6 +364,7 @@ export async function POST(request: NextRequest) {
 
       const { accountId, firstName, lastName, suffix, jobTitle, workPhone, workPhoneExt, mobilePhone, emailAddress,
               ownerId, isPrimary, isDecisionMaker, preferredContactMethod } = body
+      const normalizedWorkPhoneExt = normalizePhoneExtension(workPhoneExt)
 
       const account = await prisma.account.findFirst({
         where: {
@@ -413,7 +415,7 @@ export async function POST(request: NextRequest) {
           fullName,
           jobTitle,
           workPhone: workPhone ? formatPhoneNumber(workPhone) : null,
-          workPhoneExt,
+          workPhoneExt: normalizedWorkPhoneExt,
           mobilePhone: mobilePhone ? formatPhoneNumber(mobilePhone) : null,
           emailAddress: emailAddress ? normalizeEmail(emailAddress) : null,
           accountTypeId: derivedAccountTypeId,
