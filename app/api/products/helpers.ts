@@ -82,7 +82,7 @@ export function mapProductToRow(product: ProductWithRelations): ProductListRow {
   const revenueScheduleCount = product._count?.revenueSchedules ?? 0
 
   const productNameOther = resolveOtherValue(product.productNameVendor, product.productNameDistributor).value
-  const partNumberVendor = product.partNumberVendor ?? product.productCode ?? null
+  const partNumberVendor = product.partNumberVendor ?? null
   const partNumberOther = resolveOtherValue(partNumberVendor, product.partNumberDistributor).value
   const productDescriptionOther = resolveOtherValue(product.productDescriptionVendor, product.productDescriptionDistributor).value
   const otherSource = resolveOtherSource([
@@ -106,7 +106,7 @@ export function mapProductToRow(product: ProductWithRelations): ProductListRow {
     productSubtypeVendor: product.productSubtypeVendor ?? null,
     productNameVendor: product.productNameVendor ?? "",
     productNameOther,
-    partNumberVendor: product.productCode ?? "",
+    partNumberVendor: product.partNumberVendor ?? "",
     partNumberOther,
     productDescriptionHouse: product.description ?? "",
     productDescriptionVendor: product.productDescriptionVendor ?? null,

@@ -138,7 +138,7 @@ export async function GET(request: NextRequest, { params }: { params: { productI
       const anyProduct = product as any
 
       const productNameOther = resolveOtherValue(product.productNameVendor, anyProduct.productNameDistributor ?? null).value
-      const partNumberVendorValue = (anyProduct.partNumberVendor ?? product.productCode ?? null) as string | null
+      const partNumberVendorValue = (anyProduct.partNumberVendor ?? null) as string | null
       const partNumberOther = resolveOtherValue(partNumberVendorValue, anyProduct.partNumberDistributor ?? null).value
       const productDescriptionOther = resolveOtherValue(anyProduct.productDescriptionVendor ?? null, anyProduct.productDescriptionDistributor ?? null).value
       const otherSource = resolveOtherSource([
@@ -571,7 +571,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { produc
 
       const updatedAny = updated as any
       const productNameOther = resolveOtherValue(updated.productNameVendor, updatedAny.productNameDistributor ?? null).value
-      const partNumberVendorValue = (updatedAny.partNumberVendor ?? updated.productCode ?? null) as string | null
+      const partNumberVendorValue = (updatedAny.partNumberVendor ?? null) as string | null
       const partNumberOther = resolveOtherValue(partNumberVendorValue, updatedAny.partNumberDistributor ?? null).value
       const productDescriptionOther = resolveOtherValue(updatedAny.productDescriptionVendor ?? null, updatedAny.productDescriptionDistributor ?? null).value
       const otherSource = resolveOtherSource([

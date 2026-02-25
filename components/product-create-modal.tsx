@@ -282,7 +282,6 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
 
   const canSubmit = useMemo(() => {
     if (!form.productNameHouse.trim()) return false
-    if (!getPrimaryPartNumber(form.partNumberVendor)) return false
     if (!form.revenueType.trim()) return false
     const price = form.priceEach.trim()
     if (price) {
@@ -603,7 +602,6 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
         const derivedProductNameVendor = form.productNameVendor.trim() || form.productNameHouse.trim() || null
         const derivedProductFamilyVendor = form.productFamilyVendor.trim() || form.productFamilyHouse.trim() || null
         const derivedProductSubtypeVendor = form.productSubtypeVendor.trim() || form.productSubtypeHouse.trim() || null
-        const primaryPartNumberVendor = getPrimaryPartNumber(form.partNumberVendor)
 
         const payload = {
           isActive: Boolean(form.isActive),
@@ -613,7 +611,6 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
           productSubtypeVendor: derivedProductSubtypeVendor,
           productNameVendor: derivedProductNameVendor,
           partNumberVendor: form.partNumberVendor.trim() || null,
-          productCode: primaryPartNumberVendor,
           productDescriptionVendor: form.productDescriptionVendor.trim() || null,
           revenueType: form.revenueType,
           priceEach: priceEachValue,
@@ -970,7 +967,7 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
                       setCommissionPercentFocused(false)
                       handleDecimalBlur("commissionPercent")()
                     }}
-                    placeholder="e.g., 10.00%"
+                    placeholder="Enter commission rate %"
                   />
                   {errors.commissionPercent ? <p className="text-[11px] text-rose-600">{errors.commissionPercent}</p> : null}
                 </div>
@@ -1017,7 +1014,12 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
               <div className={columnCls}>
                 <div className="space-y-1">
                   <label className={labelCls}>Other - Product Name</label>
-                  <input className={inputCls} value={form.productNameVendor} onChange={handleChange("productNameVendor")} placeholder="Cable Services, Cable Services (Legacy Name)" />
+                  <input
+                    className={inputCls}
+                    value={form.productNameVendor}
+                    onChange={handleChange("productNameVendor")}
+                    placeholder="Enter other product name"
+                  />
                 </div>
               </div>
 
@@ -1025,7 +1027,12 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
               <div className={columnCls}>
                 <div className="space-y-1">
                   <label className={labelCls}>Other - Part Number</label>
-                  <input className={inputCls} value={form.partNumberVendor} onChange={handleChange("partNumberVendor")} placeholder="PN-123, PN 124" />
+                  <input
+                    className={inputCls}
+                    value={form.partNumberVendor}
+                    onChange={handleChange("partNumberVendor")}
+                    placeholder="Enter other part number(s)"
+                  />
                   {errors.partNumberVendor || errors.productCode ? (
                     <p className="text-[11px] text-rose-600">{errors.partNumberVendor ?? errors.productCode}</p>
                   ) : null}

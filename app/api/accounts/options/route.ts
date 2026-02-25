@@ -118,11 +118,11 @@ export async function GET(request: NextRequest) {
 
     await ensureCanonicalAccountTypes(tenantId)
 
-    const [accountTypes, industries, parentAccounts, owners] = await Promise.all([
+    const [accountTypes, industries, parentAccounts, owners, defaultHouseOwner] = await Promise.all([
       prisma.accountType.findMany({
         where: { tenantId, isActive: true },
         orderBy: { displayOrder: "asc" },
-        select: { id: true, name: true }
+        select: { id: true, name: true, code: true }
       }),
       prisma.industry.findMany({
         where: { tenantId },
@@ -138,6 +138,15 @@ export async function GET(request: NextRequest) {
         where: { tenantId, status: "Active" },
         orderBy: { fullName: "asc" },
         select: { id: true, fullName: true }
+      }),
+      prisma.user.findFirst({
+        where: {
+          tenantId,
+          status: "Active",
+          role: { is: { code: "ADMIN" } }
+        },
+        orderBy: { createdAt: "asc" },
+        select: { id: true }
       })
     ])
 
@@ -145,7 +154,8 @@ export async function GET(request: NextRequest) {
       accountTypes,
       industries,
       parentAccounts,
-      owners
+      owners,
+      defaultHouseOwnerId: defaultHouseOwner?.id ?? null
     })
   } catch (error) {
     console.error("Failed to load account options", error)

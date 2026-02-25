@@ -5,6 +5,7 @@ import { Loader2 } from "lucide-react"
 import { DropdownChevron } from "@/components/dropdown-chevron"
 import { useToasts } from "@/components/toast"
 import { getOpportunityStageOptions, type OpportunityStageOption } from "@/lib/opportunity-stage"
+import { normalizeRoleDrafts, requireAtLeastOneRole } from "@/lib/opportunities/roles-validation"
 
 interface SelectOption {
   value: string
@@ -358,13 +359,15 @@ export function ContactOpportunityCreateModal({ isOpen, contactName, accountId, 
   }, [ownerOptions, ownerQuery])
 
   const roleValidation = useMemo(() => {
-    const meaningful = roleDrafts.filter(draft => draft.contactId.trim().length > 0 || draft.role.trim().length > 0)
-    const incomplete = meaningful.filter(draft => !(draft.contactId.trim().length > 0 && draft.role.trim().length > 0))
-    const hasValid = meaningful.some(draft => draft.contactId.trim().length > 0 && draft.role.trim().length > 0)
+    const normalized = normalizeRoleDrafts(roleDrafts)
+    const incomplete = normalized.hasIncomplete
+    const hasValid = normalized.complete.length > 0
+    const requirement = requireAtLeastOneRole(normalized.complete, normalized.hasIncomplete)
     return {
-      meaningful,
+      complete: normalized.complete,
       hasValid,
-      hasIncomplete: incomplete.length > 0
+      hasIncomplete: incomplete,
+      requirement
     }
   }, [roleDrafts])
 
@@ -403,9 +406,7 @@ export function ContactOpportunityCreateModal({ isOpen, contactName, accountId, 
 
     const computedSubAgent = (form.subAgent?.trim() || (form.splitWithAgency ? "Partner agency" : "")) || null
 
-    const roleDraftsToCreate = roleValidation.meaningful
-      .filter(draft => draft.contactId.trim().length > 0 && draft.role.trim().length > 0)
-      .map(draft => ({ contactId: draft.contactId.trim(), role: draft.role.trim() }))
+    const roleDraftsToCreate = roleValidation.complete
 
     const payload = {
       accountId,
@@ -503,7 +504,7 @@ export function ContactOpportunityCreateModal({ isOpen, contactName, accountId, 
             </div>
 
             <div className="relative">
-              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Estimated Close Date</label>
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Estimated Close Date<span className="ml-1 text-red-500">*</span></label>
               <div className="relative">
                 <input
                   type="date"
@@ -511,6 +512,7 @@ export function ContactOpportunityCreateModal({ isOpen, contactName, accountId, 
                   onChange={event => setForm(prev => ({ ...prev, estimatedCloseDate: event.target.value }))}
                   className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 pr-10 text-xs focus:outline-none focus:border-primary-500 [color-scheme:light] [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-2 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-datetime-edit]:opacity-0 [&::-webkit-datetime-edit]:focus:opacity-100"
                   style={{ colorScheme: 'light' }}
+                  required
                   onFocus={(e) => {
                     e.currentTarget.classList.add('date-input-focused')
                   }}

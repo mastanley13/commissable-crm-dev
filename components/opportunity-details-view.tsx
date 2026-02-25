@@ -2035,6 +2035,25 @@ export function OpportunityDetailsView({
         return draft
       }
 
+      const hasActiveRole = Array.isArray((opportunity as any).roles)
+        ? ((opportunity as any).roles as any[]).some(role => role && role.active !== false)
+        : false
+
+      if (!hasActiveRole) {
+        const keys = Object.keys(payload as Record<string, unknown>)
+        const isDeactivating = (payload as any).active === false
+        const onlyAllowedKeys = keys.every(key => key === "active" || key === "lossReason")
+
+        if (!(isDeactivating && onlyAllowedKeys)) {
+          showError("Missing role contact", "Add at least one role contact before saving or changing stage.")
+          const error = new Error("At least one role contact is required to save this opportunity.") as Error & {
+            serverErrors?: Record<string, string>
+          }
+          error.serverErrors = { roles: "Add at least one role contact before saving." }
+          throw error
+        }
+      }
+
       try {
         const response = await fetch(`/api/opportunities/${opportunity.id}`, {
           method: "PATCH",
@@ -2380,6 +2399,8 @@ export function OpportunityDetailsView({
 
     return baseRoles
   }, [opportunity])
+
+  const hasActiveRoleContact = useMemo(() => roleRows.some(row => row.isActive !== false), [roleRows])
 
   const filteredRoleRows = useMemo(() => {
     let rows = [...roleRows]
@@ -5581,6 +5602,11 @@ useEffect(() => {
                   <div className="grid flex-1 grid-rows-[auto_minmax(0,1fr)] gap-1 border-x border-b border-gray-200 bg-white min-h-0 overflow-hidden pt-0 px-3 pb-0">
                     <div className="border-t-2 border-t-primary-600 -mr-3 min-w-0 overflow-hidden">
                       <TabDescription>{TAB_DESCRIPTIONS.roles}</TabDescription>
+                      {!hasActiveRoleContact && (
+                        <div className="mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                          Add at least one role contact before saving or changing stage.
+                        </div>
+                      )}
                       <ListHeader
                         inTab
                         showCreateButton

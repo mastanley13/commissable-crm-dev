@@ -75,6 +75,10 @@ async function createAddressRecord(tenantId: string, input: AddressInput | null)
   return address.id
 }
 
+function normalizeAccountTypeCode(value: string): string {
+  return value.replace(/[^a-z0-9]/gi, "").toUpperCase()
+}
+
 export async function GET(request: NextRequest) {
   return withPermissions(
     request,
@@ -271,15 +275,15 @@ export async function POST(request: NextRequest) {
         const tenantId = req.user.tenantId
         const userId = req.user.id
 
-    if (accountTypeId) {
-      const accountTypeExists = await prisma.accountType.findFirst({
-        where: { id: accountTypeId, tenantId },
-        select: { id: true }
-      })
+    const accountType = accountTypeId
+      ? await prisma.accountType.findFirst({
+          where: { id: accountTypeId, tenantId },
+          select: { id: true, code: true, name: true }
+        })
+      : null
 
-      if (!accountTypeExists) {
-        return NextResponse.json({ error: "Invalid account type" }, { status: 400 })
-      }
+    if (accountTypeId && !accountType) {
+      return NextResponse.json({ error: "Invalid account type" }, { status: 400 })
     }
 
     let parentAccountId = coerceOptionalId(payload.parentAccountId)
@@ -320,8 +324,36 @@ export async function POST(request: NextRequest) {
       )
     }
     
-    // Validate owner must be Active if provided
-    const ownerId = await ensureActiveOwnerOrNull(payload.ownerId, tenantId)
+    const isHouseAccountType =
+      Boolean(accountType) &&
+      normalizeAccountTypeCode(accountType?.code ?? accountType?.name ?? "") === "HOUSE_REP"
+
+    const hasOwnerInPayload =
+      payload.ownerId !== undefined &&
+      payload.ownerId !== null &&
+      String(payload.ownerId).trim().length > 0
+
+    let ownerId: string | null = null
+
+    if (hasOwnerInPayload) {
+      ownerId = await ensureActiveOwnerOrNull(payload.ownerId, tenantId)
+    } else if (isHouseAccountType) {
+      const defaultAdminOwner = await prisma.user.findFirst({
+        where: {
+          tenantId,
+          status: "Active",
+          role: { is: { code: "ADMIN" } }
+        },
+        orderBy: { createdAt: "asc" },
+        select: { id: true }
+      })
+      ownerId = defaultAdminOwner?.id ?? null
+
+      if (!ownerId) {
+        ownerId = await ensureActiveOwnerOrNull(userId, tenantId).catch(() => null)
+      }
+    }
+
     const industryId = coerceOptionalId(payload.industryId)
 
     const isActive = typeof payload.active === "boolean" ? payload.active : true

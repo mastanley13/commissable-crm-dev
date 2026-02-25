@@ -7,6 +7,7 @@ import { getOpportunityStageOptions, type OpportunityStageOption } from "@/lib/o
 import { DropdownChevron } from "@/components/dropdown-chevron"
 import { useToasts } from "@/components/toast"
 import { formatDecimalToFixed, formatPercentDisplay, normalizeDecimalInput } from "@/lib/number-format"
+import { normalizeRoleDrafts, requireAtLeastOneRole } from "@/lib/opportunities/roles-validation"
 
 interface SelectOption {
   value: string
@@ -435,13 +436,15 @@ export function OpportunityCreateModal({
   }, [isOpen, showError])
 
   const roleValidation = useMemo(() => {
-    const meaningful = roleDrafts.filter(draft => draft.contactId.trim().length > 0 || draft.role.trim().length > 0)
-    const incomplete = meaningful.filter(draft => !(draft.contactId.trim().length > 0 && draft.role.trim().length > 0))
-    const hasValid = meaningful.some(draft => draft.contactId.trim().length > 0 && draft.role.trim().length > 0)
+    const normalized = normalizeRoleDrafts(roleDrafts)
+    const incomplete = normalized.hasIncomplete
+    const hasValid = normalized.complete.length > 0
+    const requirement = requireAtLeastOneRole(normalized.complete, normalized.hasIncomplete)
     return {
-      meaningful,
+      complete: normalized.complete,
       hasValid,
-      hasIncomplete: incomplete.length > 0
+      hasIncomplete: incomplete,
+      requirement
     }
   }, [roleDrafts])
 
@@ -580,9 +583,7 @@ export function OpportunityCreateModal({
         return
       }
 
-      const roleDraftsToCreate = roleValidation.meaningful
-        .filter(draft => draft.contactId.trim().length > 0 && draft.role.trim().length > 0)
-        .map(draft => ({ contactId: draft.contactId.trim(), role: draft.role.trim() }))
+      const roleDraftsToCreate = roleValidation.complete
 
       const payload = {
         accountId: form.accountId,
@@ -645,7 +646,7 @@ export function OpportunityCreateModal({
     } finally {
       setSubmitting(false)
     }
-  }, [canSubmit, form, handleClose, houseSplitPercentDisplay, onCreated, roleValidation.hasIncomplete, roleValidation.hasValid, roleValidation.meaningful, showError, showSuccess])
+  }, [canSubmit, form, handleClose, houseSplitPercentDisplay, onCreated, roleValidation.complete, roleValidation.hasIncomplete, roleValidation.hasValid, showError, showSuccess])
 
   const selectedAccount = useMemo(
     () => accounts.find(option => option.value === form.accountId) ?? null,

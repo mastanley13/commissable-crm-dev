@@ -360,7 +360,7 @@ export async function POST(
 
       console.error("Failed to create opportunity line item", error)
       const message =
-        "Unable to add product to opportunity. A product with the same Product Name or Vendor Part Number may already exist. Use the existing product from the catalog or cancel."
+        "Unable to add product to opportunity. A product with the same Product Name or Other - Part Number may already exist. Use the existing product from the catalog or cancel."
       return NextResponse.json({ error: message }, { status: 500 })
     }
   })

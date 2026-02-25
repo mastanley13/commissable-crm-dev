@@ -651,14 +651,14 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
       if (exact) {
         showError(
           'Existing product found',
-          'We found a product with the same Product Name or Vendor Part Number. Use the existing product from the catalog or cancel to avoid duplicates.'
+          'We found a product with the same Product Name or Other - Part Number. Use the existing product from the catalog or cancel to avoid duplicates.'
         )
         return
       }
       if (likely.length > 0 && !skipLikelyCheck) {
         showError(
           'Possible duplicates found',
-          'We found similar products based on Product Name or Vendor Part Number. Review the matches, choose one to use, or cancel.'
+          'We found similar products based on Product Name or Other - Part Number. Review the matches, choose one to use, or cancel.'
         )
         return
       }
@@ -1229,7 +1229,7 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
               <div className="mb-4 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800">
                 <div className="font-semibold">Existing product found</div>
                 <div className="mt-1">
-                  We found a product with the same Product Name or Vendor Part Number. Use the existing product from the catalog to avoid duplicates, or cancel.
+                  We found a product with the same Product Name or Other - Part Number. Use the existing product from the catalog to avoid duplicates, or cancel.
                 </div>
                 <div className="mt-2 flex gap-2">
                   <button type="button" className="rounded-md bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-700" onClick={()=>switchToCatalogWithProduct(dedupeExactMatch)} disabled={loading}>
@@ -1245,7 +1245,7 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
               <div className="mb-4 rounded-md border border-yellow-200 bg-yellow-50 p-3 text-sm text-yellow-800">
                 <div className="font-semibold">Possible duplicates</div>
                 <div className="mt-1">
-                  We found similar products based on Product Name or Vendor Part Number. Choose an existing product to use, continue anyway, or cancel.
+                  We found similar products based on Product Name or Other - Part Number. Choose an existing product to use, continue anyway, or cancel.
                 </div>
                 <div className="mt-2 space-y-2">
                   {dedupeLikelyMatches.map(match => (

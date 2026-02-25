@@ -28,7 +28,7 @@ function resolveSortOrder(sortColumn: string, direction: "asc" | "desc"): Prisma
     productNameVendor: { productNameVendor: direction },
     distributorName: { distributor: { accountName: direction } },
     vendorName: { vendor: { accountName: direction } },
-    partNumberVendor: { productCode: direction },
+    partNumberVendor: { partNumberVendor: direction },
     commissionPercent: { commissionPercent: direction },
     priceEach: { priceEach: direction },
     revenueType: { revenueType: direction },
@@ -109,6 +109,7 @@ export async function GET(request: NextRequest) {
             { productNameHouse: { contains: query, mode: "insensitive" } },
             { productNameVendor: { contains: query, mode: "insensitive" } },
             { productCode: { contains: query, mode: "insensitive" } },
+            { partNumberVendor: { contains: query, mode: "insensitive" } },
             { distributor: { accountName: { contains: query, mode: "insensitive" } } },
             { vendor: { accountName: { contains: query, mode: "insensitive" } } },
           ]
@@ -158,7 +159,7 @@ export async function GET(request: NextRequest) {
               andConditions.push({ distributorAccountId: rawValue })
               break
             case "partNumberVendor":
-              andConditions.push({ productCode: { contains: rawValue, mode: "insensitive" } })
+              andConditions.push({ partNumberVendor: { contains: rawValue, mode: "insensitive" } })
               break
             case "revenueType": {
               const valueLower = rawValue.toLowerCase()
@@ -283,8 +284,7 @@ export async function POST(request: NextRequest) {
       const productNameHouse = getString((payload as any).productNameHouse)
       if (!productNameHouse) errors.productNameHouse = "Product name is required"
 
-      const productCode = getString((payload as any).productCode)
-      if (!productCode) errors.productCode = "Vendor part number is required"
+      const productCodeInput = getString((payload as any).productCode)
 
       const revenueTypeValue = getString((payload as any).revenueType)
       if (!revenueTypeValue) {
@@ -401,38 +401,64 @@ export async function POST(request: NextRequest) {
         distributorAccountId = noneDirect.id
       }
 
-      const created = await prisma.product.create({
-        // Cast to any to allow recently added nullable metadata fields
-        data: {
-          tenantId: req.user.tenantId,
-          productCode,
-          productNameHouse,
-          productNameDistributor: getOptionalString((payload as any).productNameDistributor),
-          productFamilyHouse,
-          productSubtypeHouse,
-          productNameVendor: canonicalizeMultiValueString(getOptionalString((payload as any).productNameVendor), { kind: "text" }),
-          productFamilyVendor,
-          productSubtypeVendor,
-          distributorProductFamily,
-          distributorProductSubtype,
-          partNumberHouse: getOptionalString((payload as any).partNumberHouse),
-          partNumberVendor: canonicalizeMultiValueString(getOptionalString((payload as any).partNumberVendor), { kind: "id" }),
-          productDescriptionVendor: getOptionalString((payload as any).productDescriptionVendor),
-          description: getOptionalString((payload as any).description),
-          revenueType: revenueTypeValue as any,
-          priceEach,
-          commissionPercent,
-          isActive: Boolean((payload as any).isActive),
-          vendorAccountId: vendorAccountId,
-          distributorAccountId: distributorAccountId,
-          createdById: req.user.id ?? null,
-          updatedById: req.user.id ?? null,
-        } as any,
-        include: {
-          distributor: { select: { id: true, accountName: true } },
-          vendor: { select: { id: true, accountName: true } },
+      const generateProductCode = () =>
+        (`AUTO-${Date.now()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`).slice(0, 64)
+
+      const providedProductCode = productCodeInput.trim()
+      const shouldRetryProductCode = providedProductCode.length === 0
+      let productCode = providedProductCode || generateProductCode()
+
+      const createProduct = async (nextCode: string) =>
+        prisma.product.create({
+          // Cast to any to allow recently added nullable metadata fields
+          data: {
+            tenantId: req.user.tenantId,
+            productCode: nextCode,
+            productNameHouse,
+            productNameDistributor: getOptionalString((payload as any).productNameDistributor),
+            productFamilyHouse,
+            productSubtypeHouse,
+            productNameVendor: canonicalizeMultiValueString(getOptionalString((payload as any).productNameVendor), { kind: "text" }),
+            productFamilyVendor,
+            productSubtypeVendor,
+            distributorProductFamily,
+            distributorProductSubtype,
+            partNumberHouse: getOptionalString((payload as any).partNumberHouse),
+            partNumberVendor: canonicalizeMultiValueString(getOptionalString((payload as any).partNumberVendor), { kind: "id" }),
+            productDescriptionVendor: getOptionalString((payload as any).productDescriptionVendor),
+            description: getOptionalString((payload as any).description),
+            revenueType: revenueTypeValue as any,
+            priceEach,
+            commissionPercent,
+            isActive: Boolean((payload as any).isActive),
+            vendorAccountId: vendorAccountId,
+            distributorAccountId: distributorAccountId,
+            createdById: req.user.id ?? null,
+            updatedById: req.user.id ?? null,
+          } as any,
+          include: {
+            distributor: { select: { id: true, accountName: true } },
+            vendor: { select: { id: true, accountName: true } },
+          }
+        })
+
+      let created: Awaited<ReturnType<typeof createProduct>> | null = null
+      for (let attempt = 0; attempt < 5; attempt++) {
+        try {
+          created = await createProduct(productCode)
+          break
+        } catch (error: any) {
+          if (error?.code === "P2002" && shouldRetryProductCode) {
+            productCode = generateProductCode()
+            continue
+          }
+          throw error
         }
-      })
+      }
+
+      if (!created) {
+        return NextResponse.json({ error: "Failed to create product" }, { status: 500 })
+      }
 
       // Log product creation to audit history
       await logProductAudit(
@@ -457,7 +483,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ data: mapProductToRow(created) }, { status: 201 })
     } catch (error: any) {
       if (error?.code === "P2002") {
-        return NextResponse.json({ error: "A product with this vendor part number already exists" }, { status: 409 })
+        return NextResponse.json({ error: "A product with this product code already exists" }, { status: 409 })
       }
 
       if (error?.code === "P2003") {

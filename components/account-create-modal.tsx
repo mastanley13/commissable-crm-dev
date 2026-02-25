@@ -36,6 +36,10 @@ interface OptionItem {
   name: string
 }
 
+interface AccountTypeOptionItem extends OptionItem {
+  code?: string
+}
+
 interface AccountCreateModalProps {
   isOpen: boolean
   onClose: () => void
@@ -138,10 +142,12 @@ export function AccountCreateModal({ isOpen, onClose, onSubmit }: AccountCreateM
   const [optionsLoading, setOptionsLoading] = useState(false)
   const [optionsError, setOptionsError] = useState<string | null>(null)
   const [optionsLoaded, setOptionsLoaded] = useState(false)
-  const [accountTypes, setAccountTypes] = useState<OptionItem[]>([])
+  const [accountTypes, setAccountTypes] = useState<AccountTypeOptionItem[]>([])
   const [industries, setIndustries] = useState<OptionItem[]>([])
   const [parentAccounts, setParentAccounts] = useState<OptionItem[]>([])
   const [owners, setOwners] = useState<OptionItem[]>([])
+  const [defaultHouseOwnerId, setDefaultHouseOwnerId] = useState<string>("")
+  const [ownerTouched, setOwnerTouched] = useState(false)
   const [parentAccountQuery, setParentAccountQuery] = useState("")
   const [showParentAccountResults, setShowParentAccountResults] = useState(false)
   const { user } = useAuth()
@@ -161,14 +167,12 @@ export function AccountCreateModal({ isOpen, onClose, onSubmit }: AccountCreateM
 
     setForm(INITIAL_FORM)
     setParentAccountQuery("")
-    // Pre-select current user as owner immediately if available
-    if (userId) {
-      setForm(prev => ({ ...prev, ownerId: userId }))
-    }
     setErrors({})
     setFormError(null)
     setOptionsLoaded(false)
     setOptionsError(null)
+    setDefaultHouseOwnerId("")
+    setOwnerTouched(false)
   }, [isOpen, userId])
 
   useEffect(() => {
@@ -187,7 +191,11 @@ export function AccountCreateModal({ isOpen, onClose, onSubmit }: AccountCreateM
         const data = await response.json()
         setAccountTypes(
           Array.isArray(data.accountTypes)
-            ? data.accountTypes.map((type: any) => ({ id: type.id, name: type.name ?? type.id }))
+            ? data.accountTypes.map((type: any) => ({
+                id: type.id,
+                name: type.name ?? type.id,
+                code: type.code ?? undefined
+              }))
             : []
         )
         setIndustries(
@@ -209,6 +217,7 @@ export function AccountCreateModal({ isOpen, onClose, onSubmit }: AccountCreateM
             ? data.owners.map((o: any) => ({ id: o.id, name: o.fullName ?? o.name ?? "" }))
             : []
         )
+        setDefaultHouseOwnerId(typeof data.defaultHouseOwnerId === "string" ? data.defaultHouseOwnerId : "")
         setOptionsLoaded(true)
       } catch (error) {
         console.error(error)
@@ -221,19 +230,68 @@ export function AccountCreateModal({ isOpen, onClose, onSubmit }: AccountCreateM
     fetchOptions()
   }, [isOpen, optionsLoaded])
 
-  // Default the Account Owner to the current user when options load
+  function normalizeAccountTypeCode(value: string): string {
+    return value.replace(/[^a-z0-9]/gi, "").toUpperCase()
+  }
+
+  function isHouseAccountType(accountTypeId: string): boolean {
+    if (!accountTypeId) return false
+    const selected = accountTypes.find(type => type.id === accountTypeId)
+    if (!selected) return false
+
+    const candidate =
+      typeof selected.code === "string" && selected.code.trim().length > 0
+        ? selected.code
+        : selected.name
+
+    return normalizeAccountTypeCode(candidate) === "HOUSE_REP"
+  }
+
+  // Default the Account Owner:
+  // - House: any active ADMIN user (fallback to current user if needed)
+  // - Otherwise: current user
   useEffect(() => {
     if (!isOpen) return
     if (!optionsLoaded) return
-    if (!userId) return
     if (!owners || owners.length === 0) return
-    if (form.ownerId && form.ownerId.length > 0) return
+    if (ownerTouched) return
 
-    const hasCurrentUser = owners.some(o => o.id === userId)
-    if (hasCurrentUser) {
-      setForm(prev => ({ ...prev, ownerId: userId }))
+    const hasCurrentUser = Boolean(userId) && owners.some(o => o.id === userId)
+    const wantsHouseDefault = isHouseAccountType(form.accountTypeId)
+    const desiredOwnerId = wantsHouseDefault
+      ? (defaultHouseOwnerId || (hasCurrentUser ? String(userId) : ""))
+      : (hasCurrentUser ? String(userId) : "")
+
+    if (!desiredOwnerId) return
+
+    const shouldOverrideForHouse =
+      wantsHouseDefault && Boolean(defaultHouseOwnerId) && form.ownerId !== defaultHouseOwnerId
+        ? (form.ownerId === "" || form.ownerId === String(userId))
+        : false
+
+    if (!wantsHouseDefault && form.ownerId && form.ownerId.length > 0 && form.ownerId !== defaultHouseOwnerId) {
+      // Respect pre-existing owner choice for non-house accounts (unless it was the auto-set house default).
+      return
     }
-  }, [isOpen, optionsLoaded, owners, userId, form.ownerId])
+
+    if (wantsHouseDefault && !shouldOverrideForHouse && form.ownerId && form.ownerId.length > 0) {
+      // Respect pre-existing owner choice once set for house accounts.
+      return
+    }
+
+    if (form.ownerId === desiredOwnerId) return
+    setForm(prev => ({ ...prev, ownerId: desiredOwnerId }))
+  }, [
+    isOpen,
+    optionsLoaded,
+    owners,
+    userId,
+    form.accountTypeId,
+    form.ownerId,
+    ownerTouched,
+    defaultHouseOwnerId,
+    accountTypes
+  ])
 
   useEffect(() => {
     // If creating a new parent account, keep the query as the new name
@@ -565,7 +623,10 @@ export function AccountCreateModal({ isOpen, onClose, onSubmit }: AccountCreateM
                 <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Account Owner</label>
                 <select
                   value={form.ownerId}
-                  onChange={handleFieldChange("ownerId")}
+                  onChange={(event) => {
+                    setOwnerTouched(true)
+                    handleFieldChange("ownerId")(event)
+                  }}
                   className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
                 >
                   <option value="">Select</option>
