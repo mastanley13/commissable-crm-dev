@@ -30,16 +30,26 @@ export function Sidebar() {
           <div className="flex items-center space-x-2">
             <div className="w-6 h-6 bg-white rounded-md flex items-center justify-center p-0.5">
               <Image 
-                src="/commissable-logo.png" 
+                src="/branding/Commissable_Secondary_Logo_Blue_Background.png"
                 alt="Commissable Logo" 
                 width={18} 
                 height={18}
+                unoptimized
                 className="object-contain"
                 style={{ width: 'auto', height: 'auto' }}
               />
             </div>
             {!collapsed && (
-              <span className="font-semibold text-base tracking-wide leading-none">COMMISSABLE</span>
+              <Image
+                src="/branding/Commissable_Main_Logo_White_Background.png"
+                alt="Commissable"
+                width={160}
+                height={24}
+                unoptimized
+                className="object-contain"
+                priority
+                style={{ width: 'auto', height: '24px' }}
+              />
             )}
           </div>
           <button
