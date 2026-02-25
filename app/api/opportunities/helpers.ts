@@ -439,6 +439,28 @@ function normalizeStatus(status?: OpportunityStatus | string | null): Opportunit
   return OpportunityStatus.Open
 }
 
+function normalizeStringOrNull(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null
+  }
+  const trimmed = value.trim()
+  return trimmed.length > 0 ? trimmed : null
+}
+
+function formatAccountAddress(addr?: {
+  line1?: string | null
+  line2?: string | null
+  city?: string | null
+  state?: string | null
+  postalCode?: string | null
+} | null): string | null {
+  if (!addr) return null
+  const parts = [addr.line1, addr.line2, addr.city, addr.state, addr.postalCode]
+    .map((value) => (typeof value === "string" ? value.trim() : ""))
+    .filter(Boolean)
+  return parts.length > 0 ? parts.join(", ") : null
+}
+
 export function mapOpportunityToRow(opportunity: OpportunityWithRelations) {
   const ownerName = opportunity.owner?.fullName
     ?? `${opportunity.owner?.firstName ?? ""} ${opportunity.owner?.lastName ?? ""}`.trim()
@@ -524,6 +546,16 @@ export function mapOpportunityToRow(opportunity: OpportunityWithRelations) {
     [opportunity.orderIdVendor, opportunity.orderIdDistributor],
   ])
 
+  const shippingAddress =
+    normalizeStringOrNull(opportunity.shippingAddress) ??
+    formatAccountAddress(opportunity.account?.shippingAddress) ??
+    null
+
+  const billingAddress =
+    normalizeStringOrNull(opportunity.billingAddress) ??
+    formatAccountAddress(opportunity.account?.billingAddress) ??
+    null
+
   return {
     id: opportunity.id,
     select: false,
@@ -541,6 +573,8 @@ export function mapOpportunityToRow(opportunity: OpportunityWithRelations) {
     vendorName,
     vendorAccountId,
     referredBy: opportunity.referredBy ?? opportunity.leadSource ?? "",
+    shippingAddress,
+    billingAddress,
     owner: ownerName,
     ownerId: opportunity.ownerId ?? null,
     estimatedCloseDate,
@@ -917,21 +951,6 @@ export function mapOpportunityToDetail(opportunity: OpportunityWithRelations): O
         accountLegalName: opportunity.account.accountLegalName ?? ""
       }
     : null
-
-  const formatAccountAddress = (addr?: RelatedAccount["shippingAddress"]): string | null => {
-    if (!addr) return null
-    const parts = [addr.line1, addr.line2, addr.city, addr.state, addr.postalCode]
-      .map(v => (typeof v === "string" ? v.trim() : ""))
-      .filter(Boolean)
-    if (parts.length === 0) return null
-    return parts.join(", ")
-  }
-
-  const normalizeStringOrNull = (value: unknown): string | null => {
-    if (typeof value !== "string") return null
-    const trimmed = value.trim()
-    return trimmed.length > 0 ? trimmed : null
-  }
 
   const owner = {
     id: opportunity.ownerId ?? null,

@@ -1046,6 +1046,13 @@ function AccountHeader({
           />
           <FieldRow
             label="Bill To Address"
+            labelExtra={
+              <label className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                <ReadOnlyCheckbox checked={Boolean(account.billingSameAsShipping)} />
+                <span>Same as Ship To</span>
+              </label>
+            }
+            labelExtraPosition="above"
             value={
               account.billingAddress ? (
                 renderAddressValue(account.billingAddress.line1, "Billing Street")
@@ -1056,12 +1063,6 @@ function AccountHeader({
           />
           <FieldRow
             label=""
-            labelExtra={
-              <label className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
-                <ReadOnlyCheckbox checked={Boolean(account.billingSameAsShipping)} />
-                <span>Same as Ship To</span>
-              </label>
-            }
             value={
               account.billingAddress ? (
                 renderAddressValue(
@@ -1418,6 +1419,19 @@ function EditableAccountHeader({
 
           <FieldRow
             label="Bill To Address"
+            labelExtra={
+              <label className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                  checked={Boolean(billingSameField.value)}
+                  onChange={handleBillingSameChange}
+                  disabled={editor.saving}
+                />
+                <span>Same as Ship To</span>
+              </label>
+            }
+            labelExtraPosition="above"
             value={
               <div className="flex flex-col gap-1">
                 <div className="max-w-md">
@@ -1438,18 +1452,6 @@ function EditableAccountHeader({
 
           <FieldRow
             label=""
-            labelExtra={
-              <label className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
-                <input
-                  type="checkbox"
-                  className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                  checked={Boolean(billingSameField.value)}
-                  onChange={handleBillingSameChange}
-                  disabled={editor.saving}
-                />
-                <span>Same as Ship To</span>
-              </label>
-            }
             value={
               <div className="max-w-md">
                 <EditableField.Input

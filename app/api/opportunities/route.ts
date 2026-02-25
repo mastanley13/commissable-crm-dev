@@ -319,7 +319,15 @@ export async function GET(request: NextRequest) {
           where,
           include: {
             owner: { select: { firstName: true, lastName: true, fullName: true } },
-            account: { select: { id: true, accountName: true, accountLegalName: true } },
+            account: {
+              select: {
+                id: true,
+                accountName: true,
+                accountLegalName: true,
+                shippingAddress: { select: { line1: true, line2: true, city: true, state: true, postalCode: true } },
+                billingAddress: { select: { line1: true, line2: true, city: true, state: true, postalCode: true } },
+              },
+            },
             products: {
               select: {
                 expectedUsage: true,

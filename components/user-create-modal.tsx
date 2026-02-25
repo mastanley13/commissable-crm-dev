@@ -1,6 +1,6 @@
 "use client"
 
-import { FormEvent, useEffect, useMemo, useState } from "react"
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react"
 import { Loader2 } from "lucide-react"
 import { DropdownChevron } from "@/components/dropdown-chevron"
 import { useToasts } from "@/components/toast"
@@ -50,7 +50,8 @@ export function UserCreateModal({ isOpen, onClose, onCreated }: UserCreateModalP
   const [showRoleDropdown, setShowRoleDropdown] = useState(false)
   const [loading, setLoading] = useState(false)
   const [optionsLoading, setOptionsLoading] = useState(false)
-  const [submitMode, setSubmitMode] = useState<"save" | "saveAndNew">("save")
+  const [submittingMode, setSubmittingMode] = useState<"save" | "saveAndNew">("save")
+  const submittingRef = useRef(false)
   const { showError, showSuccess } = useToasts()
 
   useEffect(() => {
@@ -69,7 +70,8 @@ export function UserCreateModal({ isOpen, onClose, onCreated }: UserCreateModalP
       status: "Invited"
     })
     setRoleQuery("")
-    setSubmitMode("save")
+    setSubmittingMode("save")
+    submittingRef.current = false
 
     setOptionsLoading(true)
     fetch("/api/admin/roles", { cache: "no-store" })
@@ -112,11 +114,21 @@ export function UserCreateModal({ isOpen, onClose, onCreated }: UserCreateModalP
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    if (submittingRef.current || loading) {
+      return
+    }
     if (!canSubmit) {
       showError("Missing information", "Email, first name, and last name are required.")
       return
     }
 
+    const nativeEvent = event.nativeEvent as SubmitEvent
+    const submitter = (nativeEvent?.submitter ?? null) as HTMLButtonElement | null
+    const submitterMode = submitter?.dataset?.submitMode
+    const mode: "save" | "saveAndNew" = submitterMode === "saveAndNew" ? "saveAndNew" : "save"
+
+    submittingRef.current = true
+    setSubmittingMode(mode)
     setLoading(true)
     try {
       const payload: any = {
@@ -160,7 +172,7 @@ export function UserCreateModal({ isOpen, onClose, onCreated }: UserCreateModalP
       showSuccess("User created", "The user has been created successfully.")
       onCreated?.(userId ?? "")
 
-      if (submitMode === "saveAndNew") {
+      if (mode === "saveAndNew") {
         setForm(prev => ({
           ...prev,
           email: "",
@@ -170,7 +182,7 @@ export function UserCreateModal({ isOpen, onClose, onCreated }: UserCreateModalP
           jobTitle: "",
           department: ""
         }))
-        setSubmitMode("save")
+        setSubmittingMode("save")
       } else {
         onClose()
       }
@@ -182,6 +194,7 @@ export function UserCreateModal({ isOpen, onClose, onCreated }: UserCreateModalP
       )
     } finally {
       setLoading(false)
+      submittingRef.current = false
     }
   }
 
@@ -325,20 +338,20 @@ export function UserCreateModal({ isOpen, onClose, onCreated }: UserCreateModalP
             </button>
             <button
               type="submit"
-              onClick={() => setSubmitMode("saveAndNew")}
+              data-submit-mode="saveAndNew"
               disabled={loading || !canSubmit}
               className="flex items-center gap-2 rounded-full border border-primary-600 px-6 py-2 text-sm font-semibold text-primary-600 transition hover:bg-primary-50 disabled:cursor-not-allowed disabled:border-primary-300 disabled:text-primary-300"
             >
-              {loading && submitMode === "saveAndNew" && <Loader2 className="h-4 w-4 animate-spin" />}
+              {loading && submittingMode === "saveAndNew" && <Loader2 className="h-4 w-4 animate-spin" />}
               Save & New
             </button>
             <button
               type="submit"
-              onClick={() => setSubmitMode("save")}
+              data-submit-mode="save"
               disabled={loading || !canSubmit}
               className="flex items-center gap-2 rounded-full bg-primary-600 px-6 py-2 text-sm font-semibold text-white transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-primary-400"
             >
-              {loading && submitMode === "save" && <Loader2 className="h-4 w-4 animate-spin" />}
+              {loading && submittingMode === "save" && <Loader2 className="h-4 w-4 animate-spin" />}
               Save
             </button>
           </div>
