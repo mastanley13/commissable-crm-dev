@@ -1,6 +1,8 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import { ChevronDown } from "lucide-react"
+import { cn } from "@/lib/utils"
 
 export type SelectComboboxOption = { value: string; label: string }
 
@@ -92,9 +94,16 @@ export function SelectCombobox({
         onFocus={() => setOpen(true)}
         onBlur={() => setTimeout(resolveBlur, 200)}
         placeholder={placeholder}
-        className={inputClassName}
+        className={cn(inputClassName, "pr-8")}
         disabled={Boolean(disabled)}
         aria-autocomplete="list"
+      />
+      <ChevronDown
+        aria-hidden="true"
+        className={cn(
+          "pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 transition-transform",
+          open ? "rotate-180" : null
+        )}
       />
       {open && !disabled ? (
         <div className={dropdownClassName}>
@@ -118,4 +127,3 @@ export function SelectCombobox({
     </div>
   )
 }
-

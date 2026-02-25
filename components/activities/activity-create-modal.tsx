@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Plus, Loader2 } from 'lucide-react'
 import { ActivityStatus, ActivityType } from '@prisma/client'
 import { DEFAULT_OPEN_ACTIVITY_STATUS } from '@/lib/activity-status'
+import { DropdownChevron } from '@/components/dropdown-chevron'
 import { useToasts } from '@/components/toast'
 import { ModalHeader } from '@/components/ui/modal-header'
 
@@ -322,16 +323,19 @@ export function ActivityCreateModal({ isOpen, onClose, onCreated, defaultAccount
             </div>
             <div className="col-span-1">
               <label className="block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Account</label>
-              <input
-                type="text"
-                value={accountQuery || form.accountName}
-                onChange={event => {
-                  setAccountQuery(event.target.value)
-                  setForm(prev => ({ ...prev, accountId: '', accountName: '' }))
-                }}
-                placeholder="Search accounts..."
-                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-              />
+              <div className="relative">
+                <input
+                  type="text"
+                  value={accountQuery || form.accountName}
+                  onChange={event => {
+                    setAccountQuery(event.target.value)
+                    setForm(prev => ({ ...prev, accountId: '', accountName: '' }))
+                  }}
+                  placeholder="Search accounts..."
+                  className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 pr-10 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                />
+                <DropdownChevron open={accountResults.length > 0} className="right-3" />
+              </div>
               {accountResults.length > 0 && (
                 <div className="mt-1 max-h-40 overflow-y-auto rounded-md border border-gray-200 bg-white shadow">
                   {accountResults.map(result => (
@@ -354,16 +358,19 @@ export function ActivityCreateModal({ isOpen, onClose, onCreated, defaultAccount
             </div>
             <div className="col-span-1">
               <label className="block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Contact</label>
-              <input
-                type="text"
-                value={contactQuery || form.contactName}
-                onChange={event => {
-                  setContactQuery(event.target.value)
-                  setForm(prev => ({ ...prev, contactId: '', contactName: '' }))
-                }}
-                placeholder="Search contacts..."
-                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-              />
+              <div className="relative">
+                <input
+                  type="text"
+                  value={contactQuery || form.contactName}
+                  onChange={event => {
+                    setContactQuery(event.target.value)
+                    setForm(prev => ({ ...prev, contactId: '', contactName: '' }))
+                  }}
+                  placeholder="Search contacts..."
+                  className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 pr-10 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                />
+                <DropdownChevron open={contactResults.length > 0} className="right-3" />
+              </div>
               {contactResults.length > 0 && (
                 <div className="mt-1 max-h-40 overflow-y-auto rounded-md border border-gray-200 bg-white shadow">
                   {contactResults.map(result => (

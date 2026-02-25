@@ -33,12 +33,14 @@ interface ImportError {
 interface ImportResult {
   totalRows: number
   successRows: number
+  skippedRows: number
   errorRows: number
   errors: ImportError[]
 }
 
 interface ImportRequestBody {
   entityType: DataImportEntityType
+  upsertExisting: boolean
   mapping: Record<string, string>
   rows: Array<Record<string, unknown>>
 }
@@ -48,6 +50,11 @@ interface RowFailure {
   errorType: "validation" | "business_rule" | "system"
   message: string
 }
+
+type RowOutcome =
+  | { status: "success" }
+  | { status: "skipped" }
+  | { status: "error"; failure: RowFailure }
 
 interface AccountLookup {
   id: string
@@ -69,9 +76,14 @@ interface ImportContext {
   industryIdByNameCache: Map<string, string | null>
   activeUserIdByEmailCache: Map<string, string | null>
   opportunityIdByNameCache: Map<string, string | null>
+  contactIdByMatchKeyCache: Map<string, string | null>
   productByCodeCache: Map<string, ProductLookup | null>
   enabledRevenueTypeCodeByNormalizedCode: Map<string, string>
   enabledRevenueTypeCodeByNormalizedLabel: Map<string, string>
+}
+
+interface ImportOptions {
+  upsertExisting: boolean
 }
 
 function normalizeLookupKey(value: string) {
@@ -298,6 +310,51 @@ async function getOpportunityIdByName(
   return id
 }
 
+function buildContactMatchKey(
+  accountId: string,
+  emailAddress: string | null,
+  firstName: string,
+  lastName: string
+) {
+  const normalizedEmail = emailAddress ? emailAddress.trim().toLowerCase() : ""
+  if (normalizedEmail) {
+    return `email:${accountId}:${normalizedEmail}`
+  }
+  return `name:${accountId}:${normalizeLookupKey(firstName)}:${normalizeLookupKey(lastName)}`
+}
+
+async function getContactIdByMatchKey(
+  context: ImportContext,
+  accountId: string,
+  emailAddress: string | null,
+  firstName: string,
+  lastName: string
+) {
+  const cacheKey = buildContactMatchKey(accountId, emailAddress, firstName, lastName)
+  if (context.contactIdByMatchKeyCache.has(cacheKey)) {
+    return context.contactIdByMatchKeyCache.get(cacheKey) ?? null
+  }
+
+  const contact = await prisma.contact.findFirst({
+    where: {
+      tenantId: context.tenantId,
+      accountId,
+      deletedAt: null,
+      ...(emailAddress
+        ? { emailAddress: { equals: emailAddress.trim(), mode: "insensitive" } }
+        : {
+            firstName: { equals: firstName.trim(), mode: "insensitive" },
+            lastName: { equals: lastName.trim(), mode: "insensitive" }
+          })
+    },
+    select: { id: true }
+  })
+
+  const id = contact?.id ?? null
+  context.contactIdByMatchKeyCache.set(cacheKey, id)
+  return id
+}
+
 async function getProductByCode(context: ImportContext, productCode: string): Promise<ProductLookup | null> {
   const key = normalizeLookupKey(productCode)
   if (!key) {
@@ -332,17 +389,26 @@ async function getProductByCode(context: ImportContext, productCode: string): Pr
 
 async function importAccountRow(
   context: ImportContext,
-  values: Record<string, string>
-): Promise<RowFailure | null> {
+  values: Record<string, string>,
+  options: ImportOptions
+): Promise<RowOutcome> {
   const accountName = asTrimmedString(values.accountName)
+  const existing = await getAccountByName(context, accountName)
+  if (existing && !options.upsertExisting) {
+    return { status: "skipped" }
+  }
+
   const accountTypeName = asTrimmedString(values.accountTypeName)
 
   const accountTypeId = await getAccountTypeIdByName(context, accountTypeName)
   if (!accountTypeId) {
     return {
-      field: "accountTypeName",
-      errorType: "business_rule",
-      message: `Account Type "${accountTypeName}" was not found in Data Settings.`
+      status: "error",
+      failure: {
+        field: "accountTypeName",
+        errorType: "business_rule",
+        message: `Account Type "${accountTypeName}" was not found in Data Settings.`
+      }
     }
   }
 
@@ -352,9 +418,12 @@ async function importAccountRow(
     ownerId = await getActiveUserIdByEmail(context, ownerEmail)
     if (!ownerId) {
       return {
-        field: "ownerEmail",
-        errorType: "business_rule",
-        message: `Owner "${ownerEmail}" was not found as an active user.`
+        status: "error",
+        failure: {
+          field: "ownerEmail",
+          errorType: "business_rule",
+          message: `Owner "${ownerEmail}" was not found as an active user.`
+        }
       }
     }
   }
@@ -365,9 +434,12 @@ async function importAccountRow(
     const parent = await getAccountByName(context, parentAccountName)
     if (!parent) {
       return {
-        field: "parentAccountName",
-        errorType: "business_rule",
-        message: `Parent Account "${parentAccountName}" was not found.`
+        status: "error",
+        failure: {
+          field: "parentAccountName",
+          errorType: "business_rule",
+          message: `Parent Account "${parentAccountName}" was not found.`
+        }
       }
     }
     parentAccountId = parent.id
@@ -379,9 +451,12 @@ async function importAccountRow(
     industryId = await getIndustryIdByName(context, industryName)
     if (!industryId) {
       return {
-        field: "industryName",
-        errorType: "business_rule",
-        message: `Industry "${industryName}" was not found.`
+        status: "error",
+        failure: {
+          field: "industryName",
+          errorType: "business_rule",
+          message: `Industry "${industryName}" was not found.`
+        }
       }
     }
   }
@@ -390,13 +465,15 @@ async function importAccountRow(
   const parsedStatus = statusRaw ? resolveEnumValue(ACCOUNT_STATUS_LOOKUP, statusRaw) : null
   if (statusRaw && !parsedStatus) {
     return {
-      field: "status",
-      errorType: "validation",
-      message: `Status "${statusRaw}" is invalid.`
+      status: "error",
+      failure: {
+        field: "status",
+        errorType: "validation",
+        message: `Status "${statusRaw}" is invalid.`
+      }
     }
   }
 
-  const existing = await getAccountByName(context, accountName)
   const payload = {
     accountName,
     accountTypeId,
@@ -426,13 +503,14 @@ async function importAccountRow(
   }
 
   context.accountByNameCache.delete(normalizeLookupKey(accountName))
-  return null
+  return { status: "success" }
 }
 
 async function importContactRow(
   context: ImportContext,
-  values: Record<string, string>
-): Promise<RowFailure | null> {
+  values: Record<string, string>,
+  options: ImportOptions
+): Promise<RowOutcome> {
   const accountName = asTrimmedString(values.accountName)
   const firstName = asTrimmedString(values.firstName)
   const lastName = asTrimmedString(values.lastName)
@@ -440,17 +518,38 @@ async function importContactRow(
   const account = await getAccountByName(context, accountName)
   if (!account) {
     return {
-      field: "accountName",
-      errorType: "business_rule",
-      message: `Account "${accountName}" was not found.`
+      status: "error",
+      failure: {
+        field: "accountName",
+        errorType: "business_rule",
+        message: `Account "${accountName}" was not found.`
+      }
     }
+  }
+
+  const emailAddress = asOptionalString(values.emailAddress)
+  const normalizedEmail = emailAddress ? normalizeEmail(emailAddress) : null
+
+  const existingId = await getContactIdByMatchKey(
+    context,
+    account.id,
+    normalizedEmail,
+    firstName,
+    lastName
+  )
+
+  if (existingId && !options.upsertExisting) {
+    return { status: "skipped" }
   }
 
   if (!account.accountTypeId) {
     return {
-      field: "accountName",
-      errorType: "business_rule",
-      message: `Account "${accountName}" does not have an account type configured.`
+      status: "error",
+      failure: {
+        field: "accountName",
+        errorType: "business_rule",
+        message: `Account "${accountName}" does not have an account type configured.`
+      }
     }
   }
 
@@ -460,9 +559,12 @@ async function importContactRow(
     ownerId = await getActiveUserIdByEmail(context, ownerEmail)
     if (!ownerId) {
       return {
-        field: "ownerEmail",
-        errorType: "business_rule",
-        message: `Owner "${ownerEmail}" was not found as an active user.`
+        status: "error",
+        failure: {
+          field: "ownerEmail",
+          errorType: "business_rule",
+          message: `Owner "${ownerEmail}" was not found as an active user.`
+        }
       }
     }
   }
@@ -473,74 +575,104 @@ async function importContactRow(
     : null
   if (preferredContactMethodRaw && !preferredContactMethod) {
     return {
-      field: "preferredContactMethod",
-      errorType: "validation",
-      message: `Preferred Contact Method "${preferredContactMethodRaw}" is invalid.`
+      status: "error",
+      failure: {
+        field: "preferredContactMethod",
+        errorType: "validation",
+        message: `Preferred Contact Method "${preferredContactMethodRaw}" is invalid.`
+      }
     }
   }
 
   const isPrimary = parseOptionalBoolean(asTrimmedString(values.isPrimary))
   if (!isPrimary.valid) {
     return {
-      field: "isPrimary",
-      errorType: "validation",
-      message: `Is Primary "${values.isPrimary}" is invalid. Use true/false.`
+      status: "error",
+      failure: {
+        field: "isPrimary",
+        errorType: "validation",
+        message: `Is Primary "${values.isPrimary}" is invalid. Use true/false.`
+      }
     }
   }
 
   const isDecisionMaker = parseOptionalBoolean(asTrimmedString(values.isDecisionMaker))
   if (!isDecisionMaker.valid) {
     return {
-      field: "isDecisionMaker",
-      errorType: "validation",
-      message: `Is Decision Maker "${values.isDecisionMaker}" is invalid. Use true/false.`
+      status: "error",
+      failure: {
+        field: "isDecisionMaker",
+        errorType: "validation",
+        message: `Is Decision Maker "${values.isDecisionMaker}" is invalid. Use true/false.`
+      }
     }
   }
 
-  await prisma.contact.create({
-    data: {
-      tenantId: context.tenantId,
-      accountId: account.id,
-      accountTypeId: account.accountTypeId,
-      contactType: account.accountTypeName,
-      firstName,
-      lastName,
-      fullName: `${firstName} ${lastName}`.trim(),
-      suffix: asOptionalString(values.suffix),
-      jobTitle: asOptionalString(values.jobTitle),
-      workPhone: asOptionalString(values.workPhone) ? formatPhoneNumber(values.workPhone) : null,
-      workPhoneExt: asOptionalString(values.workPhoneExt),
-      mobilePhone: asOptionalString(values.mobilePhone) ? formatPhoneNumber(values.mobilePhone) : null,
-      emailAddress: asOptionalString(values.emailAddress)
-        ? normalizeEmail(values.emailAddress)
-        : null,
-      ownerId,
-      isPrimary: isPrimary.value ?? false,
-      isDecisionMaker: isDecisionMaker.value ?? false,
-      preferredContactMethod: preferredContactMethod ?? ContactMethod.Email,
-      description: asOptionalString(values.description),
-      createdById: context.userId,
-      updatedById: context.userId
-    }
-  })
+  const payload = {
+    accountId: account.id,
+    accountTypeId: account.accountTypeId,
+    contactType: account.accountTypeName,
+    firstName,
+    lastName,
+    fullName: `${firstName} ${lastName}`.trim(),
+    suffix: asOptionalString(values.suffix),
+    jobTitle: asOptionalString(values.jobTitle),
+    workPhone: asOptionalString(values.workPhone) ? formatPhoneNumber(values.workPhone) : null,
+    workPhoneExt: asOptionalString(values.workPhoneExt),
+    mobilePhone: asOptionalString(values.mobilePhone) ? formatPhoneNumber(values.mobilePhone) : null,
+    emailAddress: normalizedEmail,
+    ownerId,
+    isPrimary: isPrimary.value ?? false,
+    isDecisionMaker: isDecisionMaker.value ?? false,
+    preferredContactMethod: preferredContactMethod ?? ContactMethod.Email,
+    description: asOptionalString(values.description),
+    updatedById: context.userId
+  }
 
-  return null
+  if (existingId) {
+    await prisma.contact.update({
+      where: { id: existingId },
+      data: payload
+    })
+  } else {
+    await prisma.contact.create({
+      data: {
+        tenantId: context.tenantId,
+        ...payload,
+        createdById: context.userId
+      }
+    })
+  }
+
+  context.contactIdByMatchKeyCache.delete(
+    buildContactMatchKey(account.id, normalizedEmail, firstName, lastName)
+  )
+  return { status: "success" }
 }
 
 async function importOpportunityRow(
   context: ImportContext,
-  values: Record<string, string>
-): Promise<RowFailure | null> {
+  values: Record<string, string>,
+  options: ImportOptions
+): Promise<RowOutcome> {
   const accountName = asTrimmedString(values.accountName)
   const name = asTrimmedString(values.name)
 
   const account = await getAccountByName(context, accountName)
   if (!account) {
     return {
-      field: "accountName",
-      errorType: "business_rule",
-      message: `Account "${accountName}" was not found.`
+      status: "error",
+      failure: {
+        field: "accountName",
+        errorType: "business_rule",
+        message: `Account "${accountName}" was not found.`
+      }
     }
+  }
+
+  const existingId = await getOpportunityIdByName(context, name, account.id)
+  if (existingId && !options.upsertExisting) {
+    return { status: "skipped" }
   }
 
   const ownerEmail = asTrimmedString(values.ownerEmail)
@@ -549,9 +681,12 @@ async function importOpportunityRow(
     const userId = await getActiveUserIdByEmail(context, ownerEmail)
     if (!userId) {
       return {
-        field: "ownerEmail",
-        errorType: "business_rule",
-        message: `Owner "${ownerEmail}" was not found as an active user.`
+        status: "error",
+        failure: {
+          field: "ownerEmail",
+          errorType: "business_rule",
+          message: `Owner "${ownerEmail}" was not found as an active user.`
+        }
       }
     }
     ownerId = userId
@@ -561,9 +696,12 @@ async function importOpportunityRow(
   const stage = stageRaw ? resolveEnumValue(OPPORTUNITY_STAGE_LOOKUP, stageRaw) : null
   if (stageRaw && !stage) {
     return {
-      field: "stage",
-      errorType: "validation",
-      message: `Stage "${stageRaw}" is invalid.`
+      status: "error",
+      failure: {
+        field: "stage",
+        errorType: "validation",
+        message: `Stage "${stageRaw}" is invalid.`
+      }
     }
   }
 
@@ -571,79 +709,109 @@ async function importOpportunityRow(
   const leadSource = leadSourceRaw ? resolveEnumValue(LEAD_SOURCE_LOOKUP, leadSourceRaw) : null
   if (leadSourceRaw && !leadSource) {
     return {
-      field: "leadSource",
-      errorType: "validation",
-      message: `Lead Source "${leadSourceRaw}" is invalid.`
+      status: "error",
+      failure: {
+        field: "leadSource",
+        errorType: "validation",
+        message: `Lead Source "${leadSourceRaw}" is invalid.`
+      }
     }
   }
 
   const estimatedCloseDate = parseOptionalDate(asTrimmedString(values.estimatedCloseDate))
   if (!estimatedCloseDate.valid) {
     return {
-      field: "estimatedCloseDate",
-      errorType: "validation",
-      message: `Estimated Close Date "${values.estimatedCloseDate}" is invalid.`
+      status: "error",
+      failure: {
+        field: "estimatedCloseDate",
+        errorType: "validation",
+        message: `Estimated Close Date "${values.estimatedCloseDate}" is invalid.`
+      }
     }
   }
 
   const amount = parseOptionalNumber(asTrimmedString(values.amount))
   if (!amount.valid) {
     return {
-      field: "amount",
-      errorType: "validation",
-      message: `Amount "${values.amount}" is invalid.`
+      status: "error",
+      failure: {
+        field: "amount",
+        errorType: "validation",
+        message: `Amount "${values.amount}" is invalid.`
+      }
     }
   }
 
   const expectedCommission = parseOptionalNumber(asTrimmedString(values.expectedCommission))
   if (!expectedCommission.valid) {
     return {
-      field: "expectedCommission",
-      errorType: "validation",
-      message: `Expected Commission "${values.expectedCommission}" is invalid.`
+      status: "error",
+      failure: {
+        field: "expectedCommission",
+        errorType: "validation",
+        message: `Expected Commission "${values.expectedCommission}" is invalid.`
+      }
     }
   }
 
-  await prisma.opportunity.create({
-    data: {
-      tenantId: context.tenantId,
-      accountId: account.id,
-      ownerId,
-      name,
-      stage: stage ?? OpportunityStage.Qualification,
-      leadSource: leadSource ?? LeadSource.Referral,
-      estimatedCloseDate: estimatedCloseDate.value,
-      amount: amount.value,
-      expectedCommission: expectedCommission.value,
-      description: asOptionalString(values.description),
-      createdById: context.userId,
-      updatedById: context.userId
-    }
-  })
+  const payload = {
+    accountId: account.id,
+    ownerId,
+    name,
+    stage: stage ?? OpportunityStage.Qualification,
+    leadSource: leadSource ?? LeadSource.Referral,
+    estimatedCloseDate: estimatedCloseDate.value,
+    amount: amount.value,
+    expectedCommission: expectedCommission.value,
+    description: asOptionalString(values.description),
+    updatedById: context.userId
+  }
 
-  return null
+  if (existingId) {
+    await prisma.opportunity.update({
+      where: { id: existingId },
+      data: payload
+    })
+  } else {
+    await prisma.opportunity.create({
+      data: {
+        tenantId: context.tenantId,
+        ...payload,
+        createdById: context.userId
+      }
+    })
+  }
+
+  context.opportunityIdByNameCache.delete(`${account.id}:${normalizeLookupKey(name)}`)
+  return { status: "success" }
 }
 
 async function importRevenueScheduleRow(
   context: ImportContext,
   values: Record<string, string>
-): Promise<RowFailure | null> {
+): Promise<RowOutcome> {
   const accountName = asTrimmedString(values.accountName)
   const account = await getAccountByName(context, accountName)
   if (!account) {
     return {
-      field: "accountName",
-      errorType: "business_rule",
-      message: `Account "${accountName}" was not found.`
+      status: "error",
+      failure: {
+        field: "accountName",
+        errorType: "business_rule",
+        message: `Account "${accountName}" was not found.`
+      }
     }
   }
 
   const scheduleDate = parseOptionalDate(asTrimmedString(values.scheduleDate))
   if (!scheduleDate.valid) {
     return {
-      field: "scheduleDate",
-      errorType: "validation",
-      message: `Schedule Date "${values.scheduleDate}" is invalid.`
+      status: "error",
+      failure: {
+        field: "scheduleDate",
+        errorType: "validation",
+        message: `Schedule Date "${values.scheduleDate}" is invalid.`
+      }
     }
   }
 
@@ -653,9 +821,12 @@ async function importRevenueScheduleRow(
     : null
   if (scheduleTypeRaw && !scheduleType) {
     return {
-      field: "scheduleType",
-      errorType: "validation",
-      message: `Schedule Type "${scheduleTypeRaw}" is invalid.`
+      status: "error",
+      failure: {
+        field: "scheduleType",
+        errorType: "validation",
+        message: `Schedule Type "${scheduleTypeRaw}" is invalid.`
+      }
     }
   }
 
@@ -665,9 +836,12 @@ async function importRevenueScheduleRow(
     opportunityId = await getOpportunityIdByName(context, opportunityName, account.id)
     if (!opportunityId) {
       return {
-        field: "opportunityName",
-        errorType: "business_rule",
-        message: `Opportunity "${opportunityName}" was not found for account "${accountName}".`
+        status: "error",
+        failure: {
+          field: "opportunityName",
+          errorType: "business_rule",
+          message: `Opportunity "${opportunityName}" was not found for account "${accountName}".`
+        }
       }
     }
   }
@@ -678,9 +852,12 @@ async function importRevenueScheduleRow(
     product = await getProductByCode(context, productCode)
     if (!product) {
       return {
-        field: "productCode",
-        errorType: "business_rule",
-        message: `Product "${productCode}" was not found.`
+        status: "error",
+        failure: {
+          field: "productCode",
+          errorType: "business_rule",
+          message: `Product "${productCode}" was not found.`
+        }
       }
     }
   }
@@ -688,36 +865,48 @@ async function importRevenueScheduleRow(
   const expectedUsage = parseOptionalNumber(asTrimmedString(values.expectedUsage))
   if (!expectedUsage.valid) {
     return {
-      field: "expectedUsage",
-      errorType: "validation",
-      message: `Expected Usage "${values.expectedUsage}" is invalid.`
+      status: "error",
+      failure: {
+        field: "expectedUsage",
+        errorType: "validation",
+        message: `Expected Usage "${values.expectedUsage}" is invalid.`
+      }
     }
   }
 
   const actualUsage = parseOptionalNumber(asTrimmedString(values.actualUsage))
   if (!actualUsage.valid) {
     return {
-      field: "actualUsage",
-      errorType: "validation",
-      message: `Actual Usage "${values.actualUsage}" is invalid.`
+      status: "error",
+      failure: {
+        field: "actualUsage",
+        errorType: "validation",
+        message: `Actual Usage "${values.actualUsage}" is invalid.`
+      }
     }
   }
 
   const expectedCommission = parseOptionalNumber(asTrimmedString(values.expectedCommission))
   if (!expectedCommission.valid) {
     return {
-      field: "expectedCommission",
-      errorType: "validation",
-      message: `Expected Commission "${values.expectedCommission}" is invalid.`
+      status: "error",
+      failure: {
+        field: "expectedCommission",
+        errorType: "validation",
+        message: `Expected Commission "${values.expectedCommission}" is invalid.`
+      }
     }
   }
 
   const actualCommission = parseOptionalNumber(asTrimmedString(values.actualCommission))
   if (!actualCommission.valid) {
     return {
-      field: "actualCommission",
-      errorType: "validation",
-      message: `Actual Commission "${values.actualCommission}" is invalid.`
+      status: "error",
+      failure: {
+        field: "actualCommission",
+        errorType: "validation",
+        message: `Actual Commission "${values.actualCommission}" is invalid.`
+      }
     }
   }
 
@@ -743,14 +932,20 @@ async function importRevenueScheduleRow(
     }
   })
 
-  return null
+  return { status: "success" }
 }
 
 async function importProductRow(
   context: ImportContext,
-  values: Record<string, string>
-): Promise<RowFailure | null> {
+  values: Record<string, string>,
+  options: ImportOptions
+): Promise<RowOutcome> {
   const productCode = asTrimmedString(values.productCode)
+  const existing = await getProductByCode(context, productCode)
+  if (existing && !options.upsertExisting) {
+    return { status: "skipped" }
+  }
+
   const productNameHouse = asTrimmedString(values.productNameHouse)
   const revenueTypeInput = asTrimmedString(values.revenueType)
   const normalizedRevenueType = normalizeLookupKey(revenueTypeInput)
@@ -762,27 +957,36 @@ async function importProductRow(
 
   if (!resolvedRevenueType) {
     return {
-      field: "revenueType",
-      errorType: "business_rule",
-      message: `Revenue Type "${revenueTypeInput}" is not enabled in Data Settings.`
+      status: "error",
+      failure: {
+        field: "revenueType",
+        errorType: "business_rule",
+        message: `Revenue Type "${revenueTypeInput}" is not enabled in Data Settings.`
+      }
     }
   }
 
   const priceEach = parseOptionalNumber(asTrimmedString(values.priceEach))
   if (!priceEach.valid) {
     return {
-      field: "priceEach",
-      errorType: "validation",
-      message: `Price Each "${values.priceEach}" is invalid.`
+      status: "error",
+      failure: {
+        field: "priceEach",
+        errorType: "validation",
+        message: `Price Each "${values.priceEach}" is invalid.`
+      }
     }
   }
 
   const commissionPercent = parseOptionalNumber(asTrimmedString(values.commissionPercent))
   if (!commissionPercent.valid) {
     return {
-      field: "commissionPercent",
-      errorType: "validation",
-      message: `Commission Percent "${values.commissionPercent}" is invalid.`
+      status: "error",
+      failure: {
+        field: "commissionPercent",
+        errorType: "validation",
+        message: `Commission Percent "${values.commissionPercent}" is invalid.`
+      }
     }
   }
   if (
@@ -790,18 +994,24 @@ async function importProductRow(
     (commissionPercent.value < 0 || commissionPercent.value > 100)
   ) {
     return {
-      field: "commissionPercent",
-      errorType: "validation",
-      message: "Commission Percent must be between 0 and 100."
+      status: "error",
+      failure: {
+        field: "commissionPercent",
+        errorType: "validation",
+        message: "Commission Percent must be between 0 and 100."
+      }
     }
   }
 
   const activeValue = parseOptionalBoolean(asTrimmedString(values.isActive))
   if (!activeValue.valid) {
     return {
-      field: "isActive",
-      errorType: "validation",
-      message: `Is Active "${values.isActive}" is invalid. Use true/false.`
+      status: "error",
+      failure: {
+        field: "isActive",
+        errorType: "validation",
+        message: `Is Active "${values.isActive}" is invalid. Use true/false.`
+      }
     }
   }
 
@@ -811,9 +1021,12 @@ async function importProductRow(
     const vendor = await getAccountByName(context, vendorAccountName)
     if (!vendor) {
       return {
-        field: "vendorAccountName",
-        errorType: "business_rule",
-        message: `Vendor Account "${vendorAccountName}" was not found.`
+        status: "error",
+        failure: {
+          field: "vendorAccountName",
+          errorType: "business_rule",
+          message: `Vendor Account "${vendorAccountName}" was not found.`
+        }
       }
     }
     vendorAccountId = vendor.id
@@ -825,15 +1038,17 @@ async function importProductRow(
     const distributor = await getAccountByName(context, distributorAccountName)
     if (!distributor) {
       return {
-        field: "distributorAccountName",
-        errorType: "business_rule",
-        message: `Distributor Account "${distributorAccountName}" was not found.`
+        status: "error",
+        failure: {
+          field: "distributorAccountName",
+          errorType: "business_rule",
+          message: `Distributor Account "${distributorAccountName}" was not found.`
+        }
       }
     }
     distributorAccountId = distributor.id
   }
 
-  const existing = await getProductByCode(context, productCode)
   const payload = {
     productCode,
     productNameHouse,
@@ -868,31 +1083,35 @@ async function importProductRow(
   }
 
   context.productByCodeCache.delete(normalizeLookupKey(productCode))
-  return null
+  return { status: "success" }
 }
 
 async function processRowByEntity(
   entityType: DataImportEntityType,
   context: ImportContext,
-  values: Record<string, string>
+  values: Record<string, string>,
+  options: ImportOptions
 ) {
   switch (entityType) {
     case "accounts":
-      return importAccountRow(context, values)
+      return importAccountRow(context, values, options)
     case "contacts":
-      return importContactRow(context, values)
+      return importContactRow(context, values, options)
     case "opportunities":
-      return importOpportunityRow(context, values)
+      return importOpportunityRow(context, values, options)
     case "revenue-schedules":
       return importRevenueScheduleRow(context, values)
     case "products":
-      return importProductRow(context, values)
+      return importProductRow(context, values, options)
     default:
       return {
-        field: "entityType",
-        errorType: "validation",
-        message: "Unsupported entity type."
-      } satisfies RowFailure
+        status: "error",
+        failure: {
+          field: "entityType",
+          errorType: "validation",
+          message: "Unsupported entity type."
+        }
+      } satisfies RowOutcome
   }
 }
 
@@ -911,6 +1130,11 @@ export async function POST(request: NextRequest) {
     const definition = getDataImportEntityDefinition(entityType)
     if (!definition) {
       return createErrorResponse("Unsupported import target", 400)
+    }
+
+    const upsertExisting = payload.upsertExisting === undefined ? true : payload.upsertExisting
+    if (typeof upsertExisting !== "boolean") {
+      return createErrorResponse("Invalid upsertExisting flag", 400)
     }
 
     if (!payload.mapping || typeof payload.mapping !== "object" || Array.isArray(payload.mapping)) {
@@ -968,6 +1192,7 @@ export async function POST(request: NextRequest) {
       industryIdByNameCache: new Map(),
       activeUserIdByEmailCache: new Map(),
       opportunityIdByNameCache: new Map(),
+      contactIdByMatchKeyCache: new Map(),
       productByCodeCache: new Map(),
       enabledRevenueTypeCodeByNormalizedCode: new Map(
         revenueTypeOptions.map(option => [normalizeLookupKey(option.value), option.value])
@@ -980,9 +1205,12 @@ export async function POST(request: NextRequest) {
     const result: ImportResult = {
       totalRows: rows.length,
       successRows: 0,
+      skippedRows: 0,
       errorRows: 0,
       errors: []
     }
+
+    const options: ImportOptions = { upsertExisting }
 
     for (let index = 0; index < rows.length; index += 1) {
       const rowNumber = index + 2
@@ -1016,17 +1244,21 @@ export async function POST(request: NextRequest) {
       }
 
       try {
-        const failure = await processRowByEntity(entityType, context, values)
-        if (failure) {
+        const outcome = await processRowByEntity(entityType, context, values, options)
+        if (outcome.status === "error") {
           result.errorRows += 1
           if (result.errors.length < MAX_ERROR_ROWS) {
             result.errors.push({
               rowNumber,
-              field: failure.field,
-              errorType: failure.errorType,
-              message: failure.message
+              field: outcome.failure.field,
+              errorType: outcome.failure.errorType,
+              message: outcome.failure.message
             })
           }
+          continue
+        }
+        if (outcome.status === "skipped") {
+          result.skippedRows += 1
           continue
         }
         result.successRows += 1

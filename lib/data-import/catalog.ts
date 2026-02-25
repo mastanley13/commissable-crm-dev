@@ -44,7 +44,8 @@ export const DATA_IMPORT_ENTITIES: DataImportEntityDefinition[] = [
   {
     type: "contacts",
     label: "Contacts",
-    description: "Create contact records linked to existing accounts.",
+    description:
+      "Create or update contact records linked to existing accounts (matched by email when provided, otherwise by name).",
     fields: [
       { id: "accountName", label: "Account Name", required: true, aliases: ["account"] },
       { id: "firstName", label: "First Name", required: true, aliases: ["firstname"] },
@@ -70,7 +71,7 @@ export const DATA_IMPORT_ENTITIES: DataImportEntityDefinition[] = [
   {
     type: "opportunities",
     label: "Opportunities",
-    description: "Create opportunities linked to existing accounts.",
+    description: "Create or update opportunities linked to existing accounts (matched by account + opportunity name).",
     fields: [
       { id: "accountName", label: "Account Name", required: true, aliases: ["account"] },
       { id: "name", label: "Opportunity Name", required: true, aliases: ["opportunity", "opportunity name"] },

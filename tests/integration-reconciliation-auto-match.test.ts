@@ -44,8 +44,9 @@ integrationTest("REC-AUTO-15/16: auto-match preview/apply respects user confiden
       commission: 10,
       commissionAllocated: 0,
       commissionUnallocated: 10,
+      accountId: ctx.distributorAccountId,
       vendorAccountId: ctx.vendorAccountId,
-      accountNameRaw: "Acme Co",
+      accountNameRaw: "Test Distributor",
       vendorNameRaw: "Test Vendor",
       distributorNameRaw: "Test Distributor",
       productNameRaw: "Internet",
@@ -134,4 +135,3 @@ integrationTest("REC-AUTO-15/16: auto-match preview/apply respects user confiden
   assert.equal(match?.status, "Applied")
   assert.equal(match?.source, "Auto")
 })
-

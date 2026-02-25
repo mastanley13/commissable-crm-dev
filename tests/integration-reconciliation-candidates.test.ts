@@ -40,8 +40,9 @@ integrationTest("REC-AUTO-05/06: candidates endpoint honors engine mode + user c
       commission: 10,
       commissionAllocated: 0,
       commissionUnallocated: 10,
+      accountId: ctx.distributorAccountId,
       vendorAccountId: ctx.vendorAccountId,
-      accountNameRaw: "Acme Co",
+      accountNameRaw: "Test Distributor",
       vendorNameRaw: "Test Vendor",
       distributorNameRaw: "Test Distributor",
       productNameRaw: "Internet",
@@ -156,4 +157,3 @@ integrationTest("REC-AUTO-05/06: candidates endpoint honors engine mode + user c
   assert.ok((hierarchicalPayload.data?.length ?? 0) >= 1)
   assert.notEqual(hierarchicalPayload.data![0]!.matchType, "legacy")
 })
-

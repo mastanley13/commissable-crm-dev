@@ -75,7 +75,7 @@ export async function generateChildRevenueScheduleName(
       Prisma.sql`
         SELECT "scheduleNumber"
         FROM "RevenueSchedule"
-        WHERE "id" = ${parentRevenueScheduleId}
+        WHERE "id" = ${parentRevenueScheduleId}::uuid
         FOR UPDATE
       `,
     )

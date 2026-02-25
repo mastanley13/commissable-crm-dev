@@ -65,10 +65,25 @@ export function integrationTest(name: string, fn: (ctx: IntegrationContext) => P
 }
 
 function migrateDatabase(databaseUrl: string) {
-  const npx = process.platform === "win32" ? "npx.cmd" : "npx"
-  execFileSync(npx, ["prisma", "migrate", "deploy"], {
+  const migrateEnv = {
+    ...process.env,
+    DATABASE_URL: databaseUrl,
+    DIRECT_URL: databaseUrl,
+    USE_CLOUD_SQL_CONNECTOR: "false",
+  }
+
+  if (process.platform === "win32") {
+    const commandShell = process.env.ComSpec || "cmd.exe"
+    execFileSync(commandShell, ["/d", "/s", "/c", "npx prisma migrate deploy"], {
+      stdio: "inherit",
+      env: migrateEnv,
+    })
+    return
+  }
+
+  execFileSync("npx", ["prisma", "migrate", "deploy"], {
     stdio: "inherit",
-    env: { ...process.env, DATABASE_URL: databaseUrl, DIRECT_URL: databaseUrl, USE_CLOUD_SQL_CONNECTOR: "false" },
+    env: migrateEnv,
   })
 }
 
@@ -145,8 +160,8 @@ async function seedTenantUserAndAccounts(prisma: any): Promise<IntegrationContex
   const role = await prisma.role.create({
     data: {
       tenantId: tenant.id,
-      code: "TEST_RECONCILIATION_MANAGER",
-      name: "Test Reconciliation Manager",
+      code: "ADMIN",
+      name: "Test Admin",
       permissions: {
         create: [{ permissionId: managePerm.id }, { permissionId: viewPerm.id }],
       },

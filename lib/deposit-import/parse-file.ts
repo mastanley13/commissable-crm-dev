@@ -202,8 +202,12 @@ export async function parseSpreadsheetFile(file: File | Blob, fileName?: string,
     const parsed = Papa.parse<string[]>(text, {
       skipEmptyLines: "greedy",
     })
-    if (parsed.errors.length > 0) {
-      throw new Error(parsed.errors[0]?.message || "Unable to parse CSV file")
+    const blockingErrors = parsed.errors.filter(error => {
+      const code = (error as { code?: string }).code
+      return !(error.type === "Delimiter" && code === "UndetectableDelimiter")
+    })
+    if (blockingErrors.length > 0) {
+      throw new Error(blockingErrors[0]?.message || "Unable to parse CSV file")
     }
     const rows = parsed.data.filter(row => row && row.some(cell => cell?.trim()))
     const headers = normalizeRow(rows.shift())

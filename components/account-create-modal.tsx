@@ -3,6 +3,7 @@
 import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react"
 import { useAuth } from "@/lib/auth-context"
 import { SelectCombobox } from "./select-combobox"
+import { DropdownChevron } from "./dropdown-chevron"
 import { ModalHeader } from "./ui/modal-header"
 
 export interface AddressFormValues {
@@ -467,9 +468,10 @@ export function AccountCreateModal({ isOpen, onClose, onSubmit }: AccountCreateM
                     setTimeout(() => setShowParentAccountResults(false), 120)
                   }}
                   placeholder="Search parent accounts"
-                  className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
+                  className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 pr-8 text-xs focus:outline-none focus:border-primary-500"
                   autoComplete="off"
                 />
+                <DropdownChevron open={showParentAccountResults} />
                 {form.newParentAccountName && (
                   <div className="mt-1 flex items-center gap-2 text-xs text-green-600">
                     <span>New parent account will be created: &quot;{form.newParentAccountName}&quot;</span>

@@ -23,6 +23,7 @@ interface ImportError {
 interface ImportResult {
   totalRows: number
   successRows: number
+  skippedRows: number
   errorRows: number
   errors: ImportError[]
 }
@@ -87,6 +88,7 @@ function buildRowObjects(csvHeaders: string[], csvRows: string[][]): Array<Recor
 export function DataSettingsImportsSection() {
   const [entityType, setEntityType] = useState<DataImportEntityType>("accounts")
   const [step, setStep] = useState<WizardStep>("upload")
+  const [upsertExisting, setUpsertExisting] = useState(true)
   const [selectedFileName, setSelectedFileName] = useState<string | null>(null)
   const [csvHeaders, setCsvHeaders] = useState<string[]>([])
   const [csvRows, setCsvRows] = useState<string[][]>([])
@@ -100,6 +102,7 @@ export function DataSettingsImportsSection() {
   const entityDefinition = useMemo(() => getDataImportEntityDefinition(entityType), [entityType])
   const rowObjects = useMemo(() => buildRowObjects(csvHeaders, csvRows), [csvHeaders, csvRows])
   const sampleRow = csvRows[0] ?? []
+  const supportsUpsertToggle = entityType !== "revenue-schedules"
 
   const requiredFields = useMemo(
     () => (entityDefinition ? entityDefinition.fields.filter(field => field.required) : []),
@@ -186,6 +189,7 @@ export function DataSettingsImportsSection() {
   const handleEntityChange = useCallback((nextType: DataImportEntityType) => {
     setEntityType(nextType)
     setStep("upload")
+    setUpsertExisting(true)
     setSelectedFileName(null)
     setCsvHeaders([])
     setCsvRows([])
@@ -228,6 +232,7 @@ export function DataSettingsImportsSection() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           entityType,
+          upsertExisting,
           mapping: fieldMapping,
           rows: rowObjects
         })
@@ -251,7 +256,7 @@ export function DataSettingsImportsSection() {
     } finally {
       setIsSubmitting(false)
     }
-  }, [entityDefinition, entityType, fieldMapping, rowObjects])
+  }, [entityDefinition, entityType, fieldMapping, rowObjects, upsertExisting])
 
   const canMoveToMapping = csvHeaders.length > 0 && csvRows.length > 0 && !isParsing
   const canMoveToReview = canMoveToMapping && missingRequiredMappings.length === 0
@@ -293,6 +298,36 @@ export function DataSettingsImportsSection() {
           })}
         </div>
         <p className="text-sm text-gray-600">{entityDefinition?.description}</p>
+        {supportsUpsertToggle && (
+          <div className="mt-3 flex flex-col gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="font-medium text-gray-900">Upsert existing matches</p>
+              <p className="text-xs text-gray-600">
+                When disabled, rows that match an existing record are skipped (no updates applied).
+              </p>
+            </div>
+            <div className="inline-flex w-full rounded-md border border-gray-300 bg-white p-1 md:w-auto">
+              <button
+                type="button"
+                onClick={() => setUpsertExisting(true)}
+                className={`flex-1 rounded px-3 py-1.5 text-xs font-medium transition-colors md:flex-none ${
+                  upsertExisting ? "bg-blue-600 text-white" : "text-gray-700 hover:bg-gray-50"
+                }`}
+              >
+                Upsert
+              </button>
+              <button
+                type="button"
+                onClick={() => setUpsertExisting(false)}
+                className={`flex-1 rounded px-3 py-1.5 text-xs font-medium transition-colors md:flex-none ${
+                  !upsertExisting ? "bg-blue-600 text-white" : "text-gray-700 hover:bg-gray-50"
+                }`}
+              >
+                Insert Only
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="rounded-lg border border-gray-200 bg-white p-4">
@@ -538,7 +573,7 @@ export function DataSettingsImportsSection() {
                 <CheckCircle2 className="h-5 w-5 text-green-600" />
                 <h3 className="text-sm font-semibold text-gray-900">Import Complete</h3>
               </div>
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
                 <div className="rounded-md border border-gray-200 p-3">
                   <p className="text-xs text-gray-500">Total Rows</p>
                   <p className="text-base font-semibold text-gray-900">{importResult.totalRows}</p>
@@ -546,6 +581,10 @@ export function DataSettingsImportsSection() {
                 <div className="rounded-md border border-green-200 bg-green-50 p-3">
                   <p className="text-xs text-green-700">Succeeded</p>
                   <p className="text-base font-semibold text-green-700">{importResult.successRows}</p>
+                </div>
+                <div className="rounded-md border border-amber-200 bg-amber-50 p-3">
+                  <p className="text-xs text-amber-700">Skipped</p>
+                  <p className="text-base font-semibold text-amber-700">{importResult.skippedRows}</p>
                 </div>
                 <div className="rounded-md border border-red-200 bg-red-50 p-3">
                   <p className="text-xs text-red-700">Errors</p>
