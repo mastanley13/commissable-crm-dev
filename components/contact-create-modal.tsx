@@ -473,154 +473,157 @@ export function ContactCreateModal({ isOpen, onClose, onSuccess, options, defaul
             </div>
           )}
 
-          <div className="grid grid-cols-1 gap-6">
-            <div className="space-y-4">
-              <div className="grid grid-cols-[120px_1fr_1fr] gap-3">
-                <div>
-                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500" htmlFor="contact-suffix">Suffix</label>
-                  <select
-                    id="contact-suffix"
-                    value={formData.suffix}
-                    onChange={event => handleInputChange("suffix", event.target.value)}
-                    className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
-                  >
-                    <option value="">Select</option>
-                    <option value="Mr.">Mr.</option>
-                    <option value="Ms.">Ms.</option>
-                    <option value="Mrs.">Mrs.</option>
-                    <option value="Dr.">Dr.</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500" htmlFor="contact-first-name">
-                    First Name <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    id="contact-first-name"
-                    type="text"
-                    value={formData.firstName}
-                    onChange={event => handleInputChange("firstName", event.target.value)}
-                    className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
-                    placeholder="Enter First Name"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500" htmlFor="contact-last-name">
-                    Last Name <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    id="contact-last-name"
-                    type="text"
-                    value={formData.lastName}
-                    onChange={event => handleInputChange("lastName", event.target.value)}
-                    className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
-                    placeholder="Enter Last Name"
-                    required
-                  />
-                </div>
-              </div>
+          <div className="grid grid-cols-2 gap-x-12 gap-y-5">
+            <div className="max-w-[140px]">
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500" htmlFor="contact-suffix">
+                Suffix
+              </label>
+              <select
+                id="contact-suffix"
+                value={formData.suffix}
+                onChange={event => handleInputChange("suffix", event.target.value)}
+                className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
+              >
+                <option value="">Select</option>
+                <option value="Mr.">Mr.</option>
+                <option value="Ms.">Ms.</option>
+                <option value="Mrs.">Mrs.</option>
+                <option value="Dr.">Dr.</option>
+              </select>
+            </div>
 
-              <div>
-                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500" htmlFor="contact-job-title">
-                  Job Title
-                </label>
-                <input
-                  id="contact-job-title"
-                  type="text"
-                  value={formData.jobTitle}
-                  onChange={event => handleInputChange("jobTitle", event.target.value)}
-                  placeholder="Enter Job Title"
-                  className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
-                />
-              </div>
+            <div aria-hidden="true" />
 
-              <div>
-                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500" htmlFor="contact-contact-type">
-                  Contact Type
-                </label>
-                <input
-                  id="contact-contact-type"
-                  type="text"
-                  value={resolvedAccountTypeName || ""}
-                  readOnly
-                  className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
-                  placeholder="Select an account to view contact type"
-                />
-              </div>
+            <div>
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500" htmlFor="contact-first-name">
+                Name <span className="text-red-500">*</span>
+              </label>
+              <input
+                id="contact-first-name"
+                type="text"
+                value={formData.firstName}
+                onChange={event => handleInputChange("firstName", event.target.value)}
+                className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
+                placeholder="(First)"
+                required
+              />
+            </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500" htmlFor="contact-work-phone">
-                    Work Phone
-                  </label>
-                  <input
-                    id="contact-work-phone"
-                    type="tel"
-                    value={formData.workPhone}
-                    onChange={event => handleInputChange("workPhone", event.target.value)}
-                    onBlur={() => handlePhoneBlur("workPhone")}
-                    placeholder="555-123-4567"
-                    className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500" htmlFor="contact-extension">
-                    Extension
-                  </label>
-                  <input
-                    id="contact-extension"
-                    type="text"
-                    value={formData.extension}
-                    onChange={event => handleInputChange("extension", event.target.value)}
-                    placeholder="Extension"
-                    className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
-                  />
-                </div>
-              </div>
+            <div>
+              <label className="sr-only" htmlFor="contact-last-name">
+                Last Name <span className="text-red-500">*</span>
+              </label>
+              <input
+                id="contact-last-name"
+                type="text"
+                value={formData.lastName}
+                onChange={event => handleInputChange("lastName", event.target.value)}
+                className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
+                placeholder="(Last)"
+                required
+              />
+            </div>
 
-              <div>
-                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500" htmlFor="contact-mobile">
-                  Mobile
-                </label>
-                <input
-                  id="contact-mobile"
-                  type="tel"
-                  value={formData.mobilePhone}
-                  onChange={event => handleInputChange("mobilePhone", event.target.value)}
-                  onBlur={() => handlePhoneBlur("mobilePhone")}
-                  placeholder="555-987-6543"
-                  className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
-                />
-              </div>
+            <div>
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500" htmlFor="contact-job-title">
+                Job Title
+              </label>
+              <input
+                id="contact-job-title"
+                type="text"
+                value={formData.jobTitle}
+                onChange={event => handleInputChange("jobTitle", event.target.value)}
+                placeholder="Enter Job Title"
+                className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
+              />
+            </div>
 
-              <div>
-                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500" htmlFor="contact-email">
-                  Email Address
-                </label>
-                <input
-                  id="contact-email"
-                  type="email"
-                  value={formData.emailAddress}
-                  onChange={event => handleInputChange("emailAddress", event.target.value)}
-                  placeholder="Enter Email"
-                  className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
-                />
-              </div>
+            <div>
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500" htmlFor="contact-contact-type">
+                Contact Type
+              </label>
+              <input
+                id="contact-contact-type"
+                type="text"
+                value={resolvedAccountTypeName || ""}
+                readOnly
+                className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
+                placeholder="Select an account to view contact type"
+              />
+            </div>
 
-              <div>
-                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500" htmlFor="contact-description">
-                  Description
-                </label>
-                <textarea
-                  id="contact-description"
-                  rows={4}
-                  value={formData.description}
-                  onChange={event => handleInputChange("description", event.target.value)}
-                  placeholder="Enter Description"
-                  className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
-                />
-              </div>
+            <div>
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500" htmlFor="contact-work-phone">
+                Work Phone
+              </label>
+              <input
+                id="contact-work-phone"
+                type="tel"
+                inputMode="numeric"
+                value={formData.workPhone}
+                onChange={handlePhoneChange("workPhone")}
+                onBlur={() => handlePhoneBlur("workPhone")}
+                placeholder="555-123-4567"
+                aria-invalid={Boolean(fieldErrors.workPhone)}
+                aria-describedby={fieldErrors.workPhone ? "contact-work-phone-error" : undefined}
+                className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
+              />
+              {fieldErrors.workPhone && (
+                <p id="contact-work-phone-error" className="mt-1 text-xs text-red-600">
+                  {fieldErrors.workPhone}
+                </p>
+              )}
+            </div>
+
+            <div>
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500" htmlFor="contact-extension">
+                Extension
+              </label>
+              <input
+                id="contact-extension"
+                type="text"
+                value={formData.extension}
+                onChange={event => handleInputChange("extension", event.target.value)}
+                placeholder="Extension"
+                className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
+              />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500" htmlFor="contact-mobile">
+                Mobile
+              </label>
+              <input
+                id="contact-mobile"
+                type="tel"
+                inputMode="numeric"
+                value={formData.mobilePhone}
+                onChange={handlePhoneChange("mobilePhone")}
+                onBlur={() => handlePhoneBlur("mobilePhone")}
+                placeholder="555-987-6543"
+                aria-invalid={Boolean(fieldErrors.mobilePhone)}
+                aria-describedby={fieldErrors.mobilePhone ? "contact-mobile-error" : undefined}
+                className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
+              />
+              {fieldErrors.mobilePhone && (
+                <p id="contact-mobile-error" className="mt-1 text-xs text-red-600">
+                  {fieldErrors.mobilePhone}
+                </p>
+              )}
+            </div>
+
+            <div>
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500" htmlFor="contact-email">
+                Email Address
+              </label>
+              <input
+                id="contact-email"
+                type="email"
+                value={formData.emailAddress}
+                onChange={event => handleInputChange("emailAddress", event.target.value)}
+                placeholder="Enter Email"
+                className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
+              />
             </div>
           </div>
 

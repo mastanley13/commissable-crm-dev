@@ -90,12 +90,17 @@ export async function GET(request: NextRequest) {
         const accountTypeName = searchParams.get("accountType")?.trim() ?? ""
         const status = searchParams.get("status")?.trim() ?? ""
         const includeArchived = searchParams.get("includeArchived") === "true"
+        const includeMerged = searchParams.get("includeMerged") === "true"
         const ownerId = searchParams.get("ownerId")?.trim() ?? ""
         const sortBy = searchParams.get("sortBy")?.trim() ?? ""
         const sortDir = searchParams.get("sortDir")?.trim() ?? ""
         const filtersRaw = searchParams.get("filters")?.trim() ?? ""
 
         const whereClause: Record<string, unknown> = { tenantId }
+        if (!includeMerged) {
+          // Default: hide records that have been merged into another record.
+          whereClause.mergedIntoAccountId = null
+        }
         const normalizedStatus = status.toLowerCase()
         const archivedOnly = normalizedStatus === "archived" || normalizedStatus === "deleted"
 

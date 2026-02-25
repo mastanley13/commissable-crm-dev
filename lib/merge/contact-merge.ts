@@ -1,4 +1,5 @@
 import { AuditAction } from "@prisma/client"
+import type { Prisma } from "@prisma/client"
 import { prisma } from "@/lib/db"
 import type { MergeExecuteRequest, MergeExecuteResult, MergePreview, RelatedCount } from "./merge-types"
 import { buildFieldConflicts, resolveMergedFieldValue } from "./merge-utils"
@@ -50,6 +51,25 @@ type ContactPreviewRecord = {
   mergedIntoContactId: string | null
   mergedAt: Date | null
 } & Record<ContactMergeField, unknown>
+
+const CONTACT_MERGE_FIELD_SELECT = CONTACT_MERGE_FIELDS.reduce(
+  (acc, key) => {
+    acc[key] = true
+    return acc
+  },
+  {} as Record<ContactMergeField, true>
+)
+
+const CONTACT_PREVIEW_SELECT = {
+  id: true,
+  tenantId: true,
+  accountId: true,
+  fullName: true,
+  deletedAt: true,
+  mergedIntoContactId: true,
+  mergedAt: true,
+  ...CONTACT_MERGE_FIELD_SELECT,
+} satisfies Prisma.ContactSelect
 
 function mapContactPreviewFields(contact: ContactPreviewRecord): Record<string, unknown> {
   const fields: Record<string, unknown> = {}
@@ -106,37 +126,11 @@ export async function previewContactMerge(params: {
   const [target, source] = await Promise.all([
     prisma.contact.findFirst({
       where: { tenantId, id: targetId },
-      select: Object.fromEntries(
-        [
-          "id",
-          "tenantId",
-          "accountId",
-          "firstName",
-          "lastName",
-          "fullName",
-          "deletedAt",
-          "mergedIntoContactId",
-          "mergedAt",
-          ...CONTACT_MERGE_FIELDS,
-        ].map(key => [key, true])
-      ) as any
+      select: CONTACT_PREVIEW_SELECT
     }),
     prisma.contact.findFirst({
       where: { tenantId, id: sourceId },
-      select: Object.fromEntries(
-        [
-          "id",
-          "tenantId",
-          "accountId",
-          "firstName",
-          "lastName",
-          "fullName",
-          "deletedAt",
-          "mergedIntoContactId",
-          "mergedAt",
-          ...CONTACT_MERGE_FIELDS,
-        ].map(key => [key, true])
-      ) as any
+      select: CONTACT_PREVIEW_SELECT
     }),
   ])
 
@@ -238,37 +232,11 @@ export async function executeContactMerge(
     const [target, source] = await Promise.all([
       tx.contact.findFirst({
         where: { tenantId, id: targetId },
-        select: Object.fromEntries(
-          [
-            "id",
-            "tenantId",
-            "accountId",
-            "firstName",
-            "lastName",
-            "fullName",
-            "deletedAt",
-            "mergedIntoContactId",
-            "mergedAt",
-            ...CONTACT_MERGE_FIELDS,
-          ].map(key => [key, true])
-        ) as any
+        select: CONTACT_PREVIEW_SELECT
       }),
       tx.contact.findFirst({
         where: { tenantId, id: sourceId },
-        select: Object.fromEntries(
-          [
-            "id",
-            "tenantId",
-            "accountId",
-            "firstName",
-            "lastName",
-            "fullName",
-            "deletedAt",
-            "mergedIntoContactId",
-            "mergedAt",
-            ...CONTACT_MERGE_FIELDS,
-          ].map(key => [key, true])
-        ) as any
+        select: CONTACT_PREVIEW_SELECT
       }),
     ])
 
@@ -510,4 +478,3 @@ export async function executeContactMerge(
     }
   })
 }
-

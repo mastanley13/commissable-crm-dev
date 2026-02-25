@@ -142,7 +142,7 @@ async function seedTenantUserAndAccounts(prisma: any): Promise<IntegrationContex
     select: { id: true },
   })
 
-  const [managePerm, viewPerm] = await Promise.all([
+  const [managePerm, viewPerm, mergePerm] = await Promise.all([
     prisma.permission.upsert({
       where: { code: "reconciliation.manage" },
       update: {},
@@ -155,6 +155,12 @@ async function seedTenantUserAndAccounts(prisma: any): Promise<IntegrationContex
       create: { code: "reconciliation.view", name: "Reconciliation View", category: "Finance" },
       select: { id: true },
     }),
+    prisma.permission.upsert({
+      where: { code: "admin.data_settings.merge" },
+      update: {},
+      create: { code: "admin.data_settings.merge", name: "Merge Records", category: "Admin" },
+      select: { id: true },
+    }),
   ])
 
   const role = await prisma.role.create({
@@ -163,7 +169,11 @@ async function seedTenantUserAndAccounts(prisma: any): Promise<IntegrationContex
       code: "ADMIN",
       name: "Test Admin",
       permissions: {
-        create: [{ permissionId: managePerm.id }, { permissionId: viewPerm.id }],
+        create: [
+          { permissionId: managePerm.id },
+          { permissionId: viewPerm.id },
+          { permissionId: mergePerm.id },
+        ],
       },
     },
     select: { id: true },

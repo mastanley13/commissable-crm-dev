@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { Loader2 } from "lucide-react"
 import { LeadSource, OpportunityStage } from "@prisma/client"
 import { getOpportunityStageOptions, type OpportunityStageOption } from "@/lib/opportunity-stage"
@@ -15,6 +15,11 @@ interface SelectOption {
 
 interface ContactOption extends SelectOption {
   accountName?: string
+}
+
+interface OpportunityRoleDraft {
+  contactId: string
+  role: string
 }
 
 interface OpportunityCreateModalProps {
@@ -63,11 +68,11 @@ export function OpportunityCreateModal({ isOpen, accountId, accountName, onClose
   const [ownerQuery, setOwnerQuery] = useState("")
   const [showOwnerDropdown, setShowOwnerDropdown] = useState(false)
   const [contacts, setContacts] = useState<ContactOption[]>([])
-  const [contactQuery, setContactQuery] = useState("")
+  const [contactQuery, setContactQuery] = useState("None")
   const [contactsLoading, setContactsLoading] = useState(false)
   const [showContactDropdown, setShowContactDropdown] = useState(false)
   const [subagents, setSubagents] = useState<ContactOption[]>([])
-  const [subagentQuery, setSubagentQuery] = useState("")
+  const [subagentQuery, setSubagentQuery] = useState("None")
   const [subagentsLoading, setSubagentsLoading] = useState(false)
   const [showSubagentDropdown, setShowSubagentDropdown] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -75,6 +80,11 @@ export function OpportunityCreateModal({ isOpen, accountId, accountName, onClose
   const { showError, showSuccess } = useToasts()
   const [houseRepFocused, setHouseRepFocused] = useState(false)
   const [subagentPercentFocused, setSubagentPercentFocused] = useState(false)
+  const [roleContacts, setRoleContacts] = useState<SelectOption[]>([])
+  const [roleContactsLoading, setRoleContactsLoading] = useState(false)
+  const [roleDrafts, setRoleDrafts] = useState<OpportunityRoleDraft[]>([{ contactId: "", role: "" }])
+  const skipReferredByBlurResetRef = useRef(false)
+  const skipSubagentBlurResetRef = useRef(false)
 
   useEffect(() => {
     if (!isOpen) {
@@ -95,9 +105,10 @@ export function OpportunityCreateModal({ isOpen, accountId, accountName, onClose
       description: ""
     })
     setAccountLegalName("")
-    setContactQuery("")
+    setContactQuery("None")
     setOwnerQuery("")
-    setSubagentQuery("")
+    setSubagentQuery("None")
+    setRoleDrafts([{ contactId: "", role: "" }])
 
     setOptionsLoading(true)
     let cancelled = false
@@ -174,6 +185,81 @@ export function OpportunityCreateModal({ isOpen, accountId, accountName, onClose
   }, [isOpen, accountId, showError])
 
   useEffect(() => {
+    if (!isOpen || !accountId) {
+      setRoleContacts([])
+      return
+    }
+
+    let cancelled = false
+    setRoleContactsLoading(true)
+
+    const loadRoleContacts = async () => {
+      try {
+        const response = await fetch(`/api/accounts/${accountId}`, { cache: "no-store" })
+        if (!response.ok) {
+          throw new Error("Failed to load account contacts")
+        }
+
+        const payload = await response.json().catch(() => null)
+        const accountContacts: any[] = Array.isArray(payload?.data?.contacts) ? payload.data.contacts : []
+        const parentAccountId = typeof payload?.data?.parentAccountId === "string" ? payload.data.parentAccountId.trim() : ""
+
+        const baseOptions: SelectOption[] = accountContacts
+          .filter(item => item && item.active !== false)
+          .map(item => ({
+            value: String(item.id ?? ""),
+            label: String(item.fullName ?? "").trim() || "Unnamed contact"
+          }))
+          .filter(option => option.value.trim().length > 0)
+
+        const merged = new Map<string, SelectOption>()
+        for (const option of baseOptions) {
+          merged.set(option.value, option)
+        }
+
+        if (parentAccountId.length > 0) {
+          const parentResponse = await fetch(`/api/accounts/${parentAccountId}`, { cache: "no-store" })
+          if (parentResponse.ok) {
+            const parentPayload = await parentResponse.json().catch(() => null)
+            const parentAccountName = typeof parentPayload?.data?.accountName === "string" ? parentPayload.data.accountName.trim() : ""
+            const parentContacts: any[] = Array.isArray(parentPayload?.data?.contacts) ? parentPayload.data.contacts : []
+
+            for (const item of parentContacts) {
+              if (!item || item.active === false) continue
+              const value = String(item.id ?? "").trim()
+              if (!value) continue
+              const fullName = String(item.fullName ?? "").trim() || "Unnamed contact"
+              const label = parentAccountName ? `${fullName} (${parentAccountName})` : fullName
+              if (!merged.has(value)) {
+                merged.set(value, { value, label })
+              }
+            }
+          }
+        }
+
+        if (!cancelled) {
+          setRoleContacts(Array.from(merged.values()).sort((a, b) => a.label.localeCompare(b.label)))
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.error("Unable to load role contacts", error)
+          setRoleContacts([])
+        }
+      } finally {
+        if (!cancelled) {
+          setRoleContactsLoading(false)
+        }
+      }
+    }
+
+    void loadRoleContacts()
+
+    return () => {
+      cancelled = true
+    }
+  }, [isOpen, accountId])
+
+  useEffect(() => {
     if (!isOpen) {
       return
     }
@@ -187,7 +273,8 @@ export function OpportunityCreateModal({ isOpen, accountId, accountName, onClose
           pageSize: "50"
         })
 
-        const trimmedQuery = contactQuery.trim()
+        const rawQuery = contactQuery.trim()
+        const trimmedQuery = rawQuery.toLowerCase() === "none" ? "" : rawQuery
         if (trimmedQuery.length > 0) {
           params.set("q", trimmedQuery)
         }
@@ -250,7 +337,8 @@ export function OpportunityCreateModal({ isOpen, accountId, accountName, onClose
           pageSize: "50"
         })
 
-        const trimmedQuery = subagentQuery.trim()
+        const rawQuery = subagentQuery.trim()
+        const trimmedQuery = rawQuery.toLowerCase() === "none" ? "" : rawQuery
         if (trimmedQuery.length > 0) {
           params.set("q", trimmedQuery)
         }
@@ -323,6 +411,17 @@ export function OpportunityCreateModal({ isOpen, accountId, accountName, onClose
     return calculated >= 0 ? calculated.toFixed(2) : "0.00"
   }, [form.subagentPercent, form.houseRepPercent])
 
+  const roleValidation = useMemo(() => {
+    const meaningful = roleDrafts.filter(draft => draft.contactId.trim().length > 0 || draft.role.trim().length > 0)
+    const incomplete = meaningful.filter(draft => !(draft.contactId.trim().length > 0 && draft.role.trim().length > 0))
+    const hasValid = meaningful.some(draft => draft.contactId.trim().length > 0 && draft.role.trim().length > 0)
+    return {
+      meaningful,
+      hasValid,
+      hasIncomplete: incomplete.length > 0
+    }
+  }, [roleDrafts])
+
   const canSubmit = useMemo(() => {
     return Boolean(
       accountId &&
@@ -330,11 +429,12 @@ export function OpportunityCreateModal({ isOpen, accountId, accountName, onClose
       form.stage &&
       form.ownerId &&
       form.estimatedCloseDate &&
-      form.referredByContactId &&
       form.houseRepPercent &&
-      form.subagentPercent
+      form.subagentPercent &&
+      roleValidation.hasValid &&
+      !roleValidation.hasIncomplete
     )
-  }, [accountId, form])
+  }, [accountId, form, roleValidation.hasIncomplete, roleValidation.hasValid])
 
   const handlePercentChange = (
     field: "houseRepPercent" | "subagentPercent",
@@ -375,6 +475,17 @@ export function OpportunityCreateModal({ isOpen, accountId, accountName, onClose
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+
+    if (!roleValidation.hasValid) {
+      showError("Missing information", "At least one role contact is required.")
+      return
+    }
+
+    if (roleValidation.hasIncomplete) {
+      showError("Missing information", "Please complete or remove incomplete role rows.")
+      return
+    }
+
     if (!canSubmit) {
       showError("Missing information", "Please complete all required fields.")
       return
@@ -412,6 +523,28 @@ export function OpportunityCreateModal({ isOpen, accountId, accountName, onClose
 
       const data = await response.json().catch(() => null)
       const opportunityId: string | undefined = data?.data?.id
+
+      if (opportunityId) {
+        const roleDraftsToCreate = roleValidation.meaningful
+          .filter(draft => draft.contactId.trim().length > 0 && draft.role.trim().length > 0)
+          .map(draft => ({ contactId: draft.contactId.trim(), role: draft.role.trim() }))
+
+        await Promise.all(
+          roleDraftsToCreate.map(async roleDraft => {
+            const roleResponse = await fetch(`/api/opportunities/${opportunityId}/roles`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(roleDraft)
+            })
+
+            if (!roleResponse.ok) {
+              const roleErrorPayload = await roleResponse.json().catch(() => null)
+              throw new Error(roleErrorPayload?.error ?? "Failed to create opportunity role")
+            }
+          })
+        )
+      }
+
       showSuccess("Opportunity created", "The opportunity has been added to this account.")
       onClose()
       if (opportunityId) {
@@ -552,33 +685,155 @@ export function OpportunityCreateModal({ isOpen, accountId, accountName, onClose
                 </div>
               )}
             </div>
-            {/* Field 01.08..007: Referred By - Required */}
+            {/* Role Contacts - Required */}
+            <div className="md:col-span-2">
+              <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <label className="block text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                    Role Contacts<span className="ml-1 text-red-500">*</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setRoleDrafts(prev => [...prev, { contactId: "", role: "" }])}
+                    className="rounded-full bg-white px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-primary-700 shadow-sm ring-1 ring-gray-200 hover:bg-gray-50"
+                    disabled={roleContactsLoading}
+                    title={roleContactsLoading ? "Loading contacts..." : "Add another role"}
+                  >
+                    Add Role
+                  </button>
+                </div>
+
+                {roleContactsLoading && (
+                  <div className="mt-3 text-sm text-gray-500">Loading available contacts…</div>
+                )}
+
+                {!roleContactsLoading && roleContacts.length === 0 && (
+                  <div className="mt-3 text-sm text-gray-500">
+                    No contacts found for this account (or its parent). Create a contact first.
+                  </div>
+                )}
+
+                <div className="mt-3 space-y-2">
+                  {roleDrafts.map((draft, index) => (
+                    <div key={`${index}`} className="grid grid-cols-1 gap-2 md:grid-cols-[2fr_2fr_auto] md:items-end">
+                      <div>
+                        <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Contact</label>
+                        <select
+                          value={draft.contactId}
+                          onChange={event => {
+                            const value = event.target.value
+                            setRoleDrafts(prev => prev.map((row, i) => (i === index ? { ...row, contactId: value } : row)))
+                          }}
+                          className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
+                          disabled={roleContactsLoading || roleContacts.length === 0}
+                        >
+                          <option value="">Select contact</option>
+                          {roleContacts.map(option => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Role</label>
+                        <input
+                          type="text"
+                          value={draft.role}
+                          onChange={event => {
+                            const value = event.target.value
+                            setRoleDrafts(prev => prev.map((row, i) => (i === index ? { ...row, role: value } : row)))
+                          }}
+                          className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
+                          placeholder="e.g., Decision Maker, Buyer"
+                        />
+                      </div>
+
+                      <div className="flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() => setRoleDrafts(prev => (prev.length > 1 ? prev.filter((_, i) => i !== index) : [{ contactId: "", role: "" }]))}
+                          className="rounded-full bg-white px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-gray-500 shadow-sm ring-1 ring-gray-200 hover:bg-gray-50"
+                          title="Remove role"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <p className="mt-3 text-xs text-gray-500">
+                  At least one role contact is required to create an opportunity.
+                </p>
+              </div>
+            </div>
+
+            {/* Field 01.08..007: Referred By - Optional (default None) */}
             <div className="relative">
-              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Referred By<span className="ml-1 text-red-500">*</span></label>
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Referred By</label>
               <input
                 type="text"
                 value={contactQuery}
                 onChange={event => {
                   setContactQuery(event.target.value)
+                  setForm(prev => ({ ...prev, referredByContactId: "" }))
                   setShowContactDropdown(true)
                 }}
-                onFocus={() => setShowContactDropdown(true)}
+                onFocus={() => {
+                  if (contactQuery.trim().toLowerCase() === "none") {
+                    setContactQuery("")
+                    setForm(prev => ({ ...prev, referredByContactId: "" }))
+                  }
+                  setShowContactDropdown(true)
+                }}
                 onBlur={() => {
                   // Delay hiding to allow click on dropdown items
                   setTimeout(() => setShowContactDropdown(false), 200)
+                  setTimeout(() => {
+                    if (skipReferredByBlurResetRef.current) {
+                      skipReferredByBlurResetRef.current = false
+                      return
+                    }
+                    setContactQuery(prev => {
+                      const trimmed = prev.trim()
+                      if (trimmed.length === 0) {
+                        setForm(nextPrev => ({ ...nextPrev, referredByContactId: "" }))
+                        return "None"
+                      }
+                      return prev
+                    })
+                  }, 210)
                 }}
                 placeholder="Type to search contacts..."
                 className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 pr-8 text-xs focus:outline-none focus:border-primary-500"
                 disabled={contactsLoading}
-                required
               />
               <DropdownChevron open={showContactDropdown} />
               {showContactDropdown && contacts.length > 0 && (
                 <div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
+                  <button
+                    type="button"
+                    onMouseDown={() => {
+                      skipReferredByBlurResetRef.current = true
+                    }}
+                    onClick={() => {
+                      setForm(prev => ({ ...prev, referredByContactId: "" }))
+                      setContactQuery("None")
+                      setShowContactDropdown(false)
+                    }}
+                    className="w-full px-3 py-2 text-left text-sm hover:bg-primary-50 focus:bg-primary-50 focus:outline-none"
+                  >
+                    <div className="font-medium text-gray-900">None</div>
+                  </button>
                   {contacts.map(option => (
                     <button
                       key={option.value}
                       type="button"
+                      onMouseDown={() => {
+                        skipReferredByBlurResetRef.current = true
+                      }}
                       onClick={() => {
                         setForm(prev => ({ ...prev, referredByContactId: option.value }))
                         setContactQuery(option.label)
@@ -603,23 +858,61 @@ export function OpportunityCreateModal({ isOpen, accountId, accountName, onClose
                 value={subagentQuery}
                 onChange={event => {
                   setSubagentQuery(event.target.value)
+                  setForm(prev => ({ ...prev, subAgent: "", subagentContactId: "" }))
                   setShowSubagentDropdown(true)
                 }}
-                onFocus={() => setShowSubagentDropdown(true)}
+                onFocus={() => {
+                  if (subagentQuery.trim().toLowerCase() === "none") {
+                    setSubagentQuery("")
+                    setForm(prev => ({ ...prev, subAgent: "", subagentContactId: "" }))
+                  }
+                  setShowSubagentDropdown(true)
+                }}
                 onBlur={() => {
                   setTimeout(() => setShowSubagentDropdown(false), 200)
+                  setTimeout(() => {
+                    if (skipSubagentBlurResetRef.current) {
+                      skipSubagentBlurResetRef.current = false
+                      return
+                    }
+                    setSubagentQuery(prev => {
+                      const trimmed = prev.trim()
+                      if (trimmed.length === 0) {
+                        setForm(nextPrev => ({ ...nextPrev, subAgent: "", subagentContactId: "" }))
+                        return "None"
+                      }
+                      return prev
+                    })
+                  }, 210)
                 }}
                 placeholder="Type to search subagents..."
                 className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 pr-8 text-xs focus:outline-none focus:border-primary-500"
                 disabled={subagentsLoading}
               />
               <DropdownChevron open={showSubagentDropdown} />
-              {showSubagentDropdown && subagentQuery.length > 0 && subagents.length > 0 && (
+              {showSubagentDropdown && subagentQuery.trim().toLowerCase() !== "none" && subagentQuery.length > 0 && subagents.length > 0 && (
                 <div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
+                  <button
+                    type="button"
+                    onMouseDown={() => {
+                      skipSubagentBlurResetRef.current = true
+                    }}
+                    onClick={() => {
+                      setForm(prev => ({ ...prev, subAgent: "", subagentContactId: "" }))
+                      setSubagentQuery("None")
+                      setShowSubagentDropdown(false)
+                    }}
+                    className="w-full px-3 py-2 text-left text-sm hover:bg-primary-50 focus:bg-primary-50 focus:outline-none"
+                  >
+                    <div className="font-medium text-gray-900">None</div>
+                  </button>
                   {subagents.map(option => (
                     <button
                       key={option.value}
                       type="button"
+                      onMouseDown={() => {
+                        skipSubagentBlurResetRef.current = true
+                      }}
                       onClick={() => {
                         setForm(prev => ({ ...prev, subAgent: option.label, subagentContactId: option.value }))
                         setSubagentQuery(option.label)

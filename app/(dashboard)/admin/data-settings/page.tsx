@@ -1,15 +1,16 @@
 ﻿"use client"
 
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react"
-import { Settings2, Users, Layers, Grid3X3, DollarSign, Upload } from "lucide-react"
+import { Settings2, Users, Layers, Grid3X3, DollarSign, Upload, GitMerge } from "lucide-react"
 import { Trash2 } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
 import { TwoStageDeleteDialog } from "@/components/two-stage-delete-dialog"
 import { DataSettingsImportsSection } from "@/components/data-settings-imports-section"
+import { DataSettingsMergesSection } from "@/components/data-settings-merges-section"
 import type { DeletionConstraint } from "@/lib/deletion"
 import { sortByPicklistName } from "@/lib/picklist-sort"
 
-type SectionId = "manage-fields" | "imports"
+type SectionId = "manage-fields" | "imports" | "merges"
 
 type Section = {
   id: SectionId
@@ -31,6 +32,12 @@ const SECTIONS: Section[] = [
     title: "Imports",
     icon: Upload,
     description: "Upload CSV files for Accounts, Contacts, Opportunities, and more."
+  },
+  {
+    id: "merges",
+    title: "Merges",
+    icon: GitMerge,
+    description: "Merge duplicate Accounts and Contacts into a single record."
   }
 ]
 
@@ -174,6 +181,7 @@ export default function DataSettingsPage() {
   const [activeSection, setActiveSection] = useState<SectionId>("manage-fields")
 
   const canManage = hasPermission("admin.data_settings.manage")
+  const canMerge = hasPermission("admin.data_settings.merge")
 
   if (isLoading) {
     return (
@@ -208,6 +216,17 @@ export default function DataSettingsPage() {
         return <ManageFieldsSection />
       case "imports":
         return <DataSettingsImportsSection />
+      case "merges":
+        return canMerge ? (
+          <DataSettingsMergesSection />
+        ) : (
+          <div className="rounded-lg border border-red-200 bg-red-50 p-4">
+            <h2 className="text-lg font-semibold text-red-800">Access Denied</h2>
+            <p className="text-sm text-red-600">
+              You need the appropriate admin permissions to merge records.
+            </p>
+          </div>
+        )
       default:
         return null
     }
@@ -224,6 +243,9 @@ export default function DataSettingsPage() {
           </div>
           <nav className="space-y-1">
             {SECTIONS.map(section => {
+              if (section.id === "merges" && !canMerge) {
+                return null
+              }
               const Icon = section.icon
               const isActive = activeSection === section.id
               return (

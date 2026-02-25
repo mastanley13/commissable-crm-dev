@@ -189,9 +189,14 @@ export async function GET(request: NextRequest) {
         const filterGroupsInput = parseJsonArray<FilterGroupInput>(filterGroupsParam)
         const includeDeleted = searchParams.get("includeDeleted") === "true"
         const deletedOnly = searchParams.get("deletedOnly") === "true"
+        const includeMerged = searchParams.get("includeMerged") === "true"
 
         // Build where clause
         const whereClause: any = { tenantId }
+        if (!includeMerged) {
+          // Default: hide contacts that have been merged into another contact.
+          whereClause.mergedIntoContactId = null
+        }
 
         // Deleted filters:
         // - default: exclude soft-deleted contacts

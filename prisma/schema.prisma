@@ -133,6 +133,7 @@ model User {
   accountsCreated             Account[]                @relation("AccountCreatedBy")
   accountsOwned               Account[]                @relation("AccountOwner")
   accountsUpdated             Account[]                @relation("AccountUpdatedBy")
+  accountsMergedBy            Account[]                @relation("AccountMergedBy")
   accountAssignmentsManaged   AccountAssignment[]      @relation("AccountAssignmentAssignedBy")
   accountAssignments          AccountAssignment[]
   accountNotes                AccountNote[]
@@ -145,6 +146,7 @@ model User {
   contactsDeleted             Contact[]                @relation("ContactDeletedBy")
   contactsOwned               Contact[]                @relation("ContactOwner")
   contactsUpdated             Contact[]                @relation("ContactUpdatedBy")
+  contactsMergedBy            Contact[]                @relation("ContactMergedBy")
   contactPreferences          ContactPreference[]
   exportJobs                  ExportJob[]
   groupsOwned                 Group[]                  @relation("GroupOwner")
