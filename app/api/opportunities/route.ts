@@ -10,6 +10,7 @@ import type { ColumnFilter } from "@/components/list-header"
 import { logOpportunityAudit } from "@/lib/audit"
 import { canonicalizeMultiValueString } from "@/lib/multi-value"
 import { normalizeRoleDrafts } from "@/lib/opportunities/roles-validation"
+import { isHouseAccountType } from "@/lib/account-type"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -103,14 +104,17 @@ function parsePercentValue(value: unknown): number | null {
     return null
   }
 
-  // Standard: percent points (0-100). Compatibility: accept fraction (0-1) and convert.
-  const points = Math.abs(numeric) <= 1 ? numeric * 100 : numeric
+  // Standard: percent points (0-100)
+  const points = numeric
   if (points < 0 || points > 100) {
     return null
   }
 
   return points
 }
+
+const SUBAGENT_PERCENT_MIN = 0.01
+const SUBAGENT_PERCENT_MAX = 99.99
 
 export async function GET(request: NextRequest) {
   return withPermissions(request, OPPORTUNITY_VIEW_PERMISSIONS, async (req) => {
@@ -454,7 +458,29 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      const accountId = typeof payload.accountId === "string" ? payload.accountId : ""
+      const accountId = typeof payload.accountId === "string" ? payload.accountId.trim() : ""
+      const tenantId = req.user.tenantId
+
+      if (!accountId) {
+        return NextResponse.json({ error: "Account is required" }, { status: 400 })
+      }
+
+      const account = await prisma.account.findFirst({
+        where: { id: accountId, tenantId },
+        select: {
+          id: true,
+          accountType: { select: { code: true, name: true } }
+        }
+      })
+
+      if (!account) {
+        return NextResponse.json({ error: "Account not found" }, { status: 404 })
+      }
+
+      if (isHouseAccountType(account.accountType)) {
+        return NextResponse.json({ error: "Opportunities cannot be created for House accounts." }, { status: 400 })
+      }
+
       const name = typeof payload.name === "string" ? payload.name.trim() : ""
       const stageValue = typeof payload.stage === "string" ? payload.stage : ""
       const leadSourceValue = typeof payload.leadSource === "string" ? payload.leadSource : ""
@@ -499,8 +525,17 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Subagent % must be between 0 and 100" }, { status: 400 })
       }
 
-      if (!subAgent && subagentPercent !== null && subagentPercent > 0) {
-        return NextResponse.json({ error: "Subagent must be selected when Subagent % is greater than 0" }, { status: 400 })
+      if (!subAgent) {
+        if (subagentPercent !== null && subagentPercent > 0) {
+          return NextResponse.json({ error: "Subagent must be selected when Subagent % is greater than 0" }, { status: 400 })
+        }
+      } else {
+        if (subagentPercent === null) {
+          return NextResponse.json({ error: "Subagent % is required when Subagent is selected" }, { status: 400 })
+        }
+        if (subagentPercent < SUBAGENT_PERCENT_MIN || subagentPercent > SUBAGENT_PERCENT_MAX) {
+          return NextResponse.json({ error: "Subagent % must be between 0.01 and 99.99" }, { status: 400 })
+        }
       }
 
       const houseRepPercentRaw = (payload as Record<string, unknown>).houseRepPercent
@@ -550,7 +585,7 @@ export async function POST(request: NextRequest) {
       // If shipping/billing not provided, default them from the Account's addresses
       if (!shippingAddress || !billingAddress) {
         const accountWithAddresses = await prisma.account.findFirst({
-          where: { id: accountId, tenantId: req.user.tenantId },
+          where: { id: accountId, tenantId },
           select: {
             shippingAddress: { select: { line1: true, line2: true, city: true, state: true, postalCode: true } },
             billingAddress: { select: { line1: true, line2: true, city: true, state: true, postalCode: true } }
@@ -573,7 +608,6 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      const tenantId = req.user.tenantId
       const roleContactIds = Array.from(new Set(normalizedRoles.complete.map(role => role.contactId)))
       const roleContacts =
         roleContactIds.length > 0

@@ -471,11 +471,11 @@ function SummaryTab({ opportunity }: { opportunity: OpportunityDetailRecord }) {
       for (const row of rows) {
         const __grossVal: unknown = (row as any)?.[grossKey];
         const gross = typeof __grossVal === "number" ? (__grossVal as number) : 0
-        // Accept numbers (0..1 or 0..100), strings like "20%", or undefined
+        // Accept numbers or strings (percent points 0..100), or undefined
         const parseSplit = (value: unknown): number | null => {
           if (typeof value === "number") {
-            // Treat >1 as percentage points
-            return value > 1 ? value / 100 : value
+            if (!Number.isFinite(value)) return null
+            return value / 100
           }
           if (typeof value === "string") {
             const trimmed = value.trim()
@@ -483,7 +483,7 @@ function SummaryTab({ opportunity }: { opportunity: OpportunityDetailRecord }) {
             const normalized = trimmed.replace(/\s+/g, "").replace(/%$/, "")
             const n = Number(normalized)
             if (!Number.isFinite(n)) return null
-            return n > 1 ? n / 100 : n
+            return n / 100
           }
           return null
         }
@@ -494,11 +494,11 @@ function SummaryTab({ opportunity }: { opportunity: OpportunityDetailRecord }) {
 
         const resolvedRep = repPct ?? normalisePercentValue(opportunity.houseRepPercent) ?? 0
         const resolvedSub = subPct ?? normalisePercentValue(opportunity.subagentPercent) ?? 0
-        const resolvedHouse = housePct ?? calculateHouseSplitPercent({
+        const resolvedHouse = housePct ?? normalisePercentValue(calculateHouseSplitPercent({
           subagentPercent: opportunity.subagentPercent,
           houseRepPercent: opportunity.houseRepPercent,
           fallbackPercent: opportunity.houseSplitPercent
-        }) ?? 0
+        }) ?? 0) ?? 0
 
         rep += gross * resolvedRep
         subagent += gross * resolvedSub
@@ -511,11 +511,11 @@ function SummaryTab({ opportunity }: { opportunity: OpportunityDetailRecord }) {
     const gross = toNumberOrUndefined((opportunity as any)?.totals?.[grossKey]) ?? 0
     const repPct = normalisePercentValue(opportunity.houseRepPercent) ?? 0
     const subPct = normalisePercentValue(opportunity.subagentPercent) ?? 0
-    const housePct = calculateHouseSplitPercent({
+    const housePct = normalisePercentValue(calculateHouseSplitPercent({
       subagentPercent: opportunity.subagentPercent,
       houseRepPercent: opportunity.houseRepPercent,
       fallbackPercent: opportunity.houseSplitPercent
-    }) ?? 0
+    }) ?? 0) ?? 0
     return {
       rep: gross * repPct,
       subagent: gross * subPct,
@@ -864,7 +864,7 @@ function normalisePercentValue(value: number | null | undefined): number | null 
   if (value === null || value === undefined || Number.isNaN(value)) {
     return null
   }
-  return value > 1 ? value / 100 : value
+  return value / 100
 }
 
 function formatPercent(value: number | null | undefined): string {
@@ -961,14 +961,13 @@ function inputStringToPercent(value: string): number | null {
   if (!trimmed) return null
   // Accept values like "20", "20.00", "20%", "20.00 %"
   const compact = trimmed.replace(/\s+/g, "")
-  const hasPercent = compact.endsWith("%")
   const normalised = compact.replace(/%$/, "")
   if (!normalised) return null
   const parsed = Number(normalised)
   if (!Number.isFinite(parsed)) return null
   if (parsed === 0) return 0
-  // Standard: percent points (0-100). Compatibility: accept fraction (0-1) when no % sign.
-  return !hasPercent && Math.abs(parsed) <= 1 ? parsed * 100 : parsed
+  // Standard: percent points (0-100)
+  return parsed
 }
 
 function calculateHouseSplitPercent({
@@ -984,7 +983,7 @@ function calculateHouseSplitPercent({
     if (value === null || value === undefined || Number.isNaN(value)) return null
     const numeric = Number(value)
     if (!Number.isFinite(numeric)) return null
-    return Math.abs(numeric) <= 1 ? numeric * 100 : numeric
+    return numeric
   }
 
   const subagent = coercePoints(subagentPercent)
@@ -1131,8 +1130,26 @@ function validateOpportunityForm(form: OpportunityInlineForm): Record<string, st
     errors.leadSource = "Select a valid lead source."
   }
 
+  const subagentRaw = form.subagentPercent
+  const subagentTrimmed = subagentRaw.trim()
+  const subagentPoints = subagentTrimmed ? inputStringToPercent(subagentRaw) : null
+  const hasSubagent = form.subAgent.trim().length > 0
+
+  if (hasSubagent) {
+    if (subagentPoints === null) {
+      errors.subagentPercent = "Subagent % is required when Subagent is selected."
+    } else if (subagentPoints < 0.01 || subagentPoints > 99.99) {
+      errors.subagentPercent = "Subagent % must be between 0.01 and 99.99."
+    }
+  } else {
+    if (subagentTrimmed.length > 0 && subagentPoints === null) {
+      errors.subagentPercent = "Subagent % must be a number between 0 and 100."
+    } else if (subagentPoints !== null && subagentPoints > 0) {
+      errors.subagentPercent = "Select a subagent or set Subagent % to 0.00."
+    }
+  }
+
   const percentRules: Array<[keyof OpportunityInlineForm, string]> = [
-    ["subagentPercent", "Subagent % must be between 0 and 100."],
     ["houseRepPercent", "House Rep % must be between 0 and 100."],
     ["houseSplitPercent", "House Split % must be between 0 and 100."]
   ]
@@ -1379,6 +1396,21 @@ function EditableOpportunityHeader({
       editor.setField("houseSplitPercent", targetValue)
     }
   }, [editor, subagentPercentField.value, houseRepPercentField.value, houseSplitPercentField.value])
+
+  useEffect(() => {
+    if (!editor.draft) return
+
+    const subAgentValue = String(subAgentField.value ?? "").trim()
+    if (subAgentValue.length > 0) {
+      return
+    }
+
+    const currentValue = typeof subagentPercentField.value === "string" ? subagentPercentField.value : ""
+    const parsed = inputStringToPercent(currentValue)
+    if (parsed !== null && parsed > 0) {
+      editor.setField("subagentPercent", "0.00%")
+    }
+  }, [editor, subAgentField.value, subagentPercentField.value])
 
   void leadSourceField
 
@@ -1832,6 +1864,8 @@ function EditableOpportunityHeader({
                 type="text"
                 inputMode="decimal"
                 placeholder="0.00%"
+                disabled={!String(subAgentField.value ?? "").trim()}
+                title={!String(subAgentField.value ?? "").trim() ? "Select a subagent to enable Subagent %." : undefined}
                 value={(subagentPercentField.value as string) ?? ""}
                 onChange={subagentPercentField.onChange}
                 onBlur={(e: any) => {

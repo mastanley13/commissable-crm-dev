@@ -88,8 +88,8 @@ function parsePercentValue(value: unknown): number | null {
     return null
   }
 
-  // Standard: percent points (0-100). Compatibility: accept fraction (0-1) and convert.
-  const points = Math.abs(numeric) <= 1 ? numeric * 100 : numeric
+  // Standard: percent points (0-100)
+  const points = numeric
   if (points < 0 || points > 100) {
     return null
   }

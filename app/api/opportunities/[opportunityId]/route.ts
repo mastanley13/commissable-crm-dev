@@ -75,8 +75,15 @@ function extractSubAgent(description: string | null | undefined) {
     return ""
   }
 
-  const match = description.match(/^Subagent:\s*(.*)$/i)
-  return match?.[1]?.trim() ?? ""
+  const firstLine = description.split(/\r?\n/)[0] ?? ""
+  const match = firstLine.match(/^Subagent:\s*(.*)$/i)
+  if (match?.[1] !== undefined) {
+    return match[1].trim()
+  }
+
+  // Backwards-compatible fallback for records where the Subagent token isn't on the first line.
+  const legacyMatch = description.match(/Subagent:\s*(.*)/i)
+  return legacyMatch?.[1]?.trim() ?? ""
 }
 
 function formatSubAgentDescription(value: string | null | undefined) {
@@ -87,6 +94,9 @@ function formatSubAgentDescription(value: string | null | undefined) {
 
   return `Subagent: ${finalValue}`
 }
+
+const SUBAGENT_PERCENT_MIN = 0.01
+const SUBAGENT_PERCENT_MAX = 99.99
 
 const opportunityActivityInclude = {
   creator: { select: { firstName: true, lastName: true } },
@@ -578,11 +588,14 @@ export async function PATCH(request: NextRequest, { params }: { params: { opport
           if (raw === null) {
             ;(data as Record<string, unknown>)[key] = null
             hasChanges = true
+          } else if (raw === "") {
+            ;(data as Record<string, unknown>)[key] = null
+            hasChanges = true
           } else if (typeof raw === "number") {
             if (!Number.isFinite(raw)) {
               return NextResponse.json({ error: `${String(key)} must be a number` }, { status: 400 })
             }
-            const points = Math.abs(raw) <= 1 ? raw * 100 : raw
+            const points = raw
             if (points < 0 || points > 100) {
               return NextResponse.json({ error: `${String(key)} must be between 0 and 100` }, { status: 400 })
             }
@@ -593,12 +606,43 @@ export async function PATCH(request: NextRequest, { params }: { params: { opport
             if (!Number.isFinite(parsed)) {
               return NextResponse.json({ error: `${String(key)} must be a number` }, { status: 400 })
             }
-            const points = Math.abs(parsed) <= 1 ? parsed * 100 : parsed
+            const points = parsed
             if (points < 0 || points > 100) {
               return NextResponse.json({ error: `${String(key)} must be between 0 and 100` }, { status: 400 })
             }
             ;(data as Record<string, unknown>)[key] = points
             hasChanges = true
+          }
+        }
+      }
+
+      const shouldValidateSubagentRules = ("subAgent" in payload) || ("subagentPercent" in payload)
+      if (shouldValidateSubagentRules) {
+        const toNumberOrNull = (value: unknown): number | null => {
+          if (value === null || value === undefined) return null
+          const numeric = typeof value === "number" ? value : Number(value)
+          return Number.isFinite(numeric) ? numeric : null
+        }
+
+        const incomingSubAgentRaw = (payload as Record<string, unknown>).subAgent
+        const finalSubAgent = ("subAgent" in payload)
+          ? (typeof incomingSubAgentRaw === "string" ? incomingSubAgentRaw.trim() : "")
+          : extractSubAgent(existing.description)
+
+        const finalSubagentPercent = ("subagentPercent" in payload)
+          ? toNumberOrNull((data as Record<string, unknown>).subagentPercent)
+          : toNumberOrNull(existing.subagentPercent as unknown)
+
+        if (!finalSubAgent) {
+          if (finalSubagentPercent !== null && finalSubagentPercent > 0) {
+            return NextResponse.json({ error: "Subagent must be selected when Subagent % is greater than 0" }, { status: 400 })
+          }
+        } else {
+          if (finalSubagentPercent === null) {
+            return NextResponse.json({ error: "Subagent % is required when Subagent is selected" }, { status: 400 })
+          }
+          if (finalSubagentPercent < SUBAGENT_PERCENT_MIN || finalSubagentPercent > SUBAGENT_PERCENT_MAX) {
+            return NextResponse.json({ error: "Subagent % must be between 0.01 and 99.99" }, { status: 400 })
           }
         }
       }

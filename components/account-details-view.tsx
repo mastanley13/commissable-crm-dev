@@ -52,6 +52,7 @@ import { useAuth } from "@/lib/auth-context"
 import { VALIDATION_PATTERNS } from "@/lib/validation-shared"
 import { AuditHistoryTab } from "./audit-history-tab"
 import { TabDescription } from "@/components/section/TabDescription"
+import { isHouseAccountType } from "@/lib/account-type"
 
 export interface AccountAddress {
   line1: string
@@ -2814,6 +2815,10 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
   const handleCreateOpportunity = useCallback(() => {
     if (!account) {
       showError("Account not loaded", "Load an account before creating opportunities.")
+      return
+    }
+    if (isHouseAccountType(account.accountType)) {
+      showError("Not allowed", "Opportunities cannot be created for House accounts.")
       return
     }
     setOpportunityModalOpen(true)

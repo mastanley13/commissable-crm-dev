@@ -5,6 +5,7 @@ import { Loader2 } from "lucide-react"
 import { DropdownChevron } from "@/components/dropdown-chevron"
 import { useToasts } from "@/components/toast"
 import { getOpportunityStageOptions, type OpportunityStageOption } from "@/lib/opportunity-stage"
+import { isHouseAccountType } from "@/lib/account-type"
 
 interface SelectOption {
   value: string
@@ -67,6 +68,7 @@ const LEAD_SOURCE_OPTIONS: SelectOption[] = [
 export function ContactOpportunityCreateModal({ isOpen, contactName, accountId, accountName, onClose, onSuccess }: ContactOpportunityCreateModalProps) {
   const [form, setForm] = useState<ContactOpportunityFormState>(() => createInitialState(accountName))
   const [loading, setLoading] = useState(false)
+  const [accountIsHouse, setAccountIsHouse] = useState(false)
   const [ownerOptions, setOwnerOptions] = useState<SelectOption[]>([])
   const [ownerQuery, setOwnerQuery] = useState("")
   const [showOwnerDropdown, setShowOwnerDropdown] = useState(false)
@@ -87,10 +89,52 @@ export function ContactOpportunityCreateModal({ isOpen, contactName, accountId, 
     }
 
     setForm(createInitialState(accountName))
+    setAccountIsHouse(false)
     setContactQuery("None")
     setOwnerQuery("")
     setSubagentQuery("None")
   }, [isOpen, accountName])
+
+  useEffect(() => {
+    if (!isOpen || !accountId) {
+      setAccountIsHouse(false)
+      return
+    }
+
+    let cancelled = false
+
+    ;(async () => {
+      try {
+        const response = await fetch(`/api/accounts/${accountId}`, { cache: "no-store" })
+        if (!response.ok) {
+          return
+        }
+
+        const payload = await response.json().catch(() => null)
+        const accountTypeName = typeof payload?.data?.accountType === "string" ? payload.data.accountType : ""
+        const isHouse = isHouseAccountType(accountTypeName)
+
+        if (cancelled) {
+          return
+        }
+
+        setAccountIsHouse(isHouse)
+
+        if (isHouse) {
+          showError("Not allowed", "Opportunities cannot be created for House accounts.")
+          onClose()
+        }
+      } catch {
+        if (!cancelled) {
+          setAccountIsHouse(false)
+        }
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [isOpen, accountId, onClose, showError])
 
   useEffect(() => {
     if (!isOpen) {
@@ -269,6 +313,12 @@ export function ContactOpportunityCreateModal({ isOpen, contactName, accountId, 
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+
+    if (accountIsHouse) {
+      showError("Not allowed", "Opportunities cannot be created for House accounts.")
+      return
+    }
+
     if (!canSubmit || !accountId) {
       showError("Missing information", "Opportunity name, estimated close date, owner, and account are required.")
       return

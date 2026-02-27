@@ -419,8 +419,14 @@ function extractSubAgent(description: string | null | undefined) {
     return ""
   }
 
-  const match = description.match(/Subagent:\s*(.*)/i)
-  return match?.[1]?.trim() ?? ""
+  const firstLine = description.split(/\r?\n/)[0] ?? ""
+  const match = firstLine.match(/^Subagent:\s*(.*)$/i)
+  if (match?.[1] !== undefined) {
+    return match[1].trim()
+  }
+
+  const legacyMatch = description.match(/Subagent:\s*(.*)/i)
+  return legacyMatch?.[1]?.trim() ?? ""
 }
 
 function normalizeStatus(status?: OpportunityStatus | string | null): OpportunityStatus {

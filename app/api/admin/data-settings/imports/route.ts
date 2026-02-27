@@ -10,6 +10,7 @@ import { createErrorResponse, withPermissions } from "@/lib/api-auth"
 import { prisma } from "@/lib/db"
 import { formatPhoneNumber, normalizeEmail } from "@/lib/validation"
 import { getEnabledRevenueTypeOptions } from "@/lib/server-revenue-types"
+import { isHouseAccountType } from "@/lib/account-type"
 import {
   getDataImportEntityDefinition,
   isDataImportEntityType,
@@ -523,6 +524,17 @@ async function importContactRow(
         field: "accountName",
         errorType: "business_rule",
         message: `Account "${accountName}" was not found.`
+      }
+    }
+  }
+
+  if (isHouseAccountType(account.accountTypeName)) {
+    return {
+      status: "error",
+      failure: {
+        field: "accountName",
+        errorType: "business_rule",
+        message: `Account "${accountName}" is a House account. Opportunities are not allowed on House accounts.`
       }
     }
   }

@@ -7,6 +7,7 @@ import { getOpportunityStageOptions, type OpportunityStageOption } from "@/lib/o
 import { DropdownChevron } from "@/components/dropdown-chevron"
 import { useToasts } from "@/components/toast"
 import { formatDecimalToFixed, formatPercentDisplay, normalizeDecimalInput } from "@/lib/number-format"
+import { isHouseAccountType } from "@/lib/account-type"
 
 interface SelectOption {
   value: string
@@ -24,6 +25,7 @@ interface ContactOption extends SelectOption {
 interface AccountOption extends SelectOption {
   accountName: string
   accountLegalName: string
+  accountType: string
   shippingAddress?: string
   billingAddress?: string
 }
@@ -80,6 +82,23 @@ const leadSourceOptions: SelectOption[] = Object.values(LeadSource).map(source =
   value: source,
   label: source.replace(/([A-Z])/g, " $1").trim()
 }))
+
+const SUBAGENT_PERCENT_MIN = 0.01
+const SUBAGENT_PERCENT_MAX = 99.99
+
+const percentInputToPoints = (value: string): number | null => {
+  const trimmed = value.trim()
+  if (trimmed.length === 0) {
+    return null
+  }
+
+  const numeric = Number.parseFloat(trimmed.replace(/%$/, ""))
+  if (!Number.isFinite(numeric) || numeric < 0 || numeric > 100) {
+    return null
+  }
+
+  return numeric
+}
 
 const buildInitialForm = (defaultAccountId?: string): OpportunityFormState => ({
   accountId: defaultAccountId ?? "",
@@ -223,6 +242,7 @@ export function OpportunityCreateModal({
           label: formatAccountLabel(item),
           accountName: typeof item?.accountName === "string" ? item.accountName : "",
           accountLegalName: typeof item?.accountLegalName === "string" ? item.accountLegalName : "",
+          accountType: typeof item?.accountType === "string" ? item.accountType : "",
           shippingAddress: buildAddress(item, "shipping"),
           billingAddress: buildAddress(item, "billing")
         }))
@@ -231,6 +251,16 @@ export function OpportunityCreateModal({
         setForm(previous => {
           const existing = options.find(option => option.value === previous.accountId)
           if (existing) {
+            if (isHouseAccountType(existing.accountType)) {
+              return {
+                ...previous,
+                accountId: "",
+                accountName: "",
+                accountLegalName: "",
+                shippingAddress: "",
+                billingAddress: ""
+              }
+            }
             return {
               ...previous,
               accountName: existing.accountName,
@@ -244,8 +274,12 @@ export function OpportunityCreateModal({
             return previous
           }
 
-          const preferredId = defaultAccountId ?? options[0]?.value ?? ""
-          const fallback = options.find(option => option.value === preferredId) ?? options[0]
+          const preferredId = defaultAccountId ?? ""
+          const preferred =
+            preferredId.length > 0
+              ? options.find(option => option.value === preferredId && !isHouseAccountType(option.accountType)) ?? null
+              : null
+          const fallback = preferred ?? options.find(option => !isHouseAccountType(option.accountType)) ?? null
           if (!fallback) {
             return {
               ...previous,
@@ -339,6 +373,20 @@ export function OpportunityCreateModal({
     }
   }, [isOpen, showError])
 
+  const subagentPercentRequired = form.subAgent.trim().length > 0
+  const subagentPercentPoints = useMemo(() => percentInputToPoints(form.subagentPercent), [form.subagentPercent])
+  const subagentPercentValid = useMemo(() => {
+    if (!subagentPercentRequired) {
+      return true
+    }
+
+    return Boolean(
+      subagentPercentPoints !== null &&
+      subagentPercentPoints >= SUBAGENT_PERCENT_MIN &&
+      subagentPercentPoints <= SUBAGENT_PERCENT_MAX
+    )
+  }, [subagentPercentPoints, subagentPercentRequired])
+
   const canSubmit = useMemo(() => {
     return Boolean(
       form.accountId &&
@@ -346,7 +394,8 @@ export function OpportunityCreateModal({
       form.stage &&
       form.leadSource &&
       form.ownerId &&
-      form.estimatedCloseDate
+      form.estimatedCloseDate &&
+      subagentPercentValid
     )
   }, [
     form.accountId,
@@ -354,7 +403,8 @@ export function OpportunityCreateModal({
     form.leadSource,
     form.name,
     form.ownerId,
-    form.stage
+    form.stage,
+    subagentPercentValid
   ])
 
   const houseSplitPercentDisplay = useMemo(() => {
@@ -417,6 +467,12 @@ export function OpportunityCreateModal({
       return
     }
 
+    const selectedAccount = accounts.find(option => option.value === form.accountId) ?? null
+    if (selectedAccount && isHouseAccountType(selectedAccount.accountType)) {
+      showError("Not allowed", "Opportunities cannot be created for House accounts.")
+      return
+    }
+
     setSubmitting(true)
     try {
       const normalizeString = (value: string) => {
@@ -424,26 +480,28 @@ export function OpportunityCreateModal({
         return trimmed.length > 0 ? trimmed : null
       }
 
-      const percentToPoints = (value: string) => {
-        const trimmed = value.trim()
-        if (trimmed.length === 0) {
-          return null
-        }
-        const numeric = Number.parseFloat(trimmed)
-        if (!Number.isFinite(numeric) || numeric < 0 || numeric > 100) {
-          return null
-        }
-        return numeric
-      }
+      const subagentPercentPoints = percentInputToPoints(form.subagentPercent)
+      const houseRepPercentPoints = percentInputToPoints(form.houseRepPercent)
+      const houseSplitPercentPoints = percentInputToPoints(houseSplitPercentDisplay)
 
-      const subagentPercentPoints = percentToPoints(form.subagentPercent)
-      const houseRepPercentPoints = percentToPoints(form.houseRepPercent)
-      const houseSplitPercentPoints = percentToPoints(houseSplitPercentDisplay)
-
-      if (subagentPercentPoints === null && form.subagentPercent.trim().length > 0) {
-        showError("Invalid subagent percent", "Subagent % must be between 0 and 100.")
-        setSubmitting(false)
-        return
+      const hasSubagent = form.subAgent.trim().length > 0
+      if (hasSubagent) {
+        if (subagentPercentPoints === null) {
+          showError("Missing information", "Subagent % is required when Subagent is selected.")
+          setSubmitting(false)
+          return
+        }
+        if (subagentPercentPoints < SUBAGENT_PERCENT_MIN || subagentPercentPoints > SUBAGENT_PERCENT_MAX) {
+          showError("Invalid subagent percent", "Subagent % must be between 0.01 and 99.99.")
+          setSubmitting(false)
+          return
+        }
+      } else {
+        if (subagentPercentPoints !== null && subagentPercentPoints > 0) {
+          showError("Missing information", "Subagent must be selected when Subagent % is greater than 0.")
+          setSubmitting(false)
+          return
+        }
       }
 
       if (houseRepPercentPoints === null && form.houseRepPercent.trim().length > 0) {
@@ -514,7 +572,7 @@ export function OpportunityCreateModal({
     } finally {
       setSubmitting(false)
     }
-  }, [canSubmit, form, handleClose, houseSplitPercentDisplay, onCreated, showError, showSuccess])
+  }, [accounts, canSubmit, form, handleClose, houseSplitPercentDisplay, onCreated, showError, showSuccess])
 
   const selectedAccount = useMemo(
     () => accounts.find(option => option.value === form.accountId) ?? null,
@@ -855,11 +913,15 @@ export function OpportunityCreateModal({
                     disabled={accountLoading}
                   >
                     <option value="">{accountLoading ? "Loading accounts..." : "Select account"}</option>
-                    {accounts.map(option => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
+                    {accounts.map(option => {
+                      const disabled = isHouseAccountType(option.accountType)
+                      const label = disabled ? `${option.label} — House (not eligible)` : option.label
+                      return (
+                        <option key={option.value} value={option.value} disabled={disabled}>
+                          {label}
+                        </option>
+                      )
+                    })}
                   </select>
                 </div>
                 {selectedAccount && (
@@ -994,8 +1056,8 @@ export function OpportunityCreateModal({
                         }
                         setSubagentQuery(prev => {
                           const trimmed = prev.trim()
-                          if (trimmed.length === 0) {
-                            setForm(previous => ({ ...previous, subAgent: "" }))
+                           if (trimmed.length === 0) {
+                            setForm(previous => ({ ...previous, subAgent: "", subagentPercent: "0.00" }))
                             return "None"
                           }
                           return prev
@@ -1015,7 +1077,7 @@ export function OpportunityCreateModal({
                           skipSubagentBlurResetRef.current = true
                         }}
                         onClick={() => {
-                          setForm(prev => ({ ...prev, subAgent: "" }))
+                          setForm(prev => ({ ...prev, subAgent: "", subagentPercent: "0.00" }))
                           setSubagentQuery("None")
                           setShowSubagentDropdown(false)
                         }}
@@ -1049,7 +1111,9 @@ export function OpportunityCreateModal({
               </div>
 
               <div>
-                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Subagent %</label>
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                  Subagent %{subagentPercentRequired ? <span className="ml-1 text-red-500">*</span> : null}
+                </label>
                 <input
                   type="text"
                   inputMode="decimal"
@@ -1061,7 +1125,14 @@ export function OpportunityCreateModal({
                     handlePercentBlur("subagentPercent")()
                   }}
                   className={inputClass}
+                  placeholder="0.00%"
+                  disabled={!form.subAgent.trim()}
+                  title={!form.subAgent.trim() ? "Select a subagent to enable Subagent %." : undefined}
+                  required={subagentPercentRequired}
                 />
+                {subagentPercentRequired && !subagentPercentValid ? (
+                  <p className="mt-1 text-[10px] text-red-600">Subagent % must be between 0.01 and 99.99.</p>
+                ) : null}
               </div>
 
               <div>
