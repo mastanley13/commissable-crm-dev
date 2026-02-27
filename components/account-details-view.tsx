@@ -1184,6 +1184,8 @@ function EditableAccountHeader({
     if (event.target.checked) {
       const shipping = editor.draft?.shippingAddress ?? createEmptyAddress()
       editor.setField("billingAddress", { ...shipping })
+    } else {
+      editor.setField("billingAddress", createEmptyAddress())
     }
   }
 

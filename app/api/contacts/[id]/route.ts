@@ -257,7 +257,15 @@ export async function GET(
         ]
       }),
       prisma.opportunity.findMany({
-        where: { tenantId, accountId: contact.accountId },
+        where: {
+          tenantId,
+          roles: {
+            some: {
+              contactId: contact.id,
+              active: true
+            }
+          }
+        },
         include: { owner: { select: { firstName: true, lastName: true } } },
         orderBy: { createdAt: "desc" }
       }),

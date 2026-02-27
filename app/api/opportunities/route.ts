@@ -9,7 +9,7 @@ import { dedupeColumnFilters } from "@/lib/filter-utils"
 import type { ColumnFilter } from "@/components/list-header"
 import { logOpportunityAudit } from "@/lib/audit"
 import { canonicalizeMultiValueString } from "@/lib/multi-value"
-import { normalizeRoleDrafts, requireAtLeastOneRole } from "@/lib/opportunities/roles-validation"
+import { normalizeRoleDrafts } from "@/lib/opportunities/roles-validation"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -446,10 +446,10 @@ export async function POST(request: NextRequest) {
       }
 
       const normalizedRoles = normalizeRoleDrafts((payload as Record<string, unknown>).roles)
-      const roleRequirement = requireAtLeastOneRole(normalizedRoles.complete, normalizedRoles.hasIncomplete)
-      if (!roleRequirement.ok) {
+      if (normalizedRoles.hasIncomplete) {
+        const error = "Please complete or remove incomplete role rows."
         return NextResponse.json(
-          { error: roleRequirement.error, errors: { roles: roleRequirement.error } },
+          { error, errors: { roles: error } },
           { status: 400 }
         )
       }
@@ -575,18 +575,21 @@ export async function POST(request: NextRequest) {
 
       const tenantId = req.user.tenantId
       const roleContactIds = Array.from(new Set(normalizedRoles.complete.map(role => role.contactId)))
-      const roleContacts = await prisma.contact.findMany({
-        where: { tenantId, id: { in: roleContactIds } },
-        select: {
-          id: true,
-          fullName: true,
-          jobTitle: true,
-          emailAddress: true,
-          workPhone: true,
-          workPhoneExt: true,
-          mobilePhone: true
-        }
-      })
+      const roleContacts =
+        roleContactIds.length > 0
+          ? await prisma.contact.findMany({
+              where: { tenantId, id: { in: roleContactIds } },
+              select: {
+                id: true,
+                fullName: true,
+                jobTitle: true,
+                emailAddress: true,
+                workPhone: true,
+                workPhoneExt: true,
+                mobilePhone: true
+              }
+            })
+          : []
 
       const roleContactById = new Map(roleContacts.map(contact => [contact.id, contact]))
       for (const contactId of roleContactIds) {
@@ -653,12 +656,14 @@ export async function POST(request: NextRequest) {
           }
         })
 
-        await tx.opportunityRole.createMany({
-          data: (roleSnapshots as Array<NonNullable<(typeof roleSnapshots)[number]>>).map(snapshot => ({
-            ...snapshot,
-            opportunityId: created.id
-          }))
-        })
+        if (roleSnapshots.length > 0) {
+          await tx.opportunityRole.createMany({
+            data: (roleSnapshots as Array<NonNullable<(typeof roleSnapshots)[number]>>).map(snapshot => ({
+              ...snapshot,
+              opportunityId: created.id
+            }))
+          })
+        }
 
         return created
       })

@@ -5,7 +5,6 @@ import { Loader2 } from "lucide-react"
 import { DropdownChevron } from "@/components/dropdown-chevron"
 import { useToasts } from "@/components/toast"
 import { getOpportunityStageOptions, type OpportunityStageOption } from "@/lib/opportunity-stage"
-import { normalizeRoleDrafts, requireAtLeastOneRole } from "@/lib/opportunities/roles-validation"
 
 interface SelectOption {
   value: string
@@ -14,11 +13,6 @@ interface SelectOption {
 
 interface ContactOption extends SelectOption {
   accountName?: string
-}
-
-interface OpportunityRoleDraft {
-  contactId: string
-  role: string
 }
 
 interface ContactOpportunityFormState {
@@ -85,10 +79,6 @@ export function ContactOpportunityCreateModal({ isOpen, contactName, accountId, 
   const [subagentQuery, setSubagentQuery] = useState("None")
   const [showSubagentDropdown, setShowSubagentDropdown] = useState(false)
   const [subagentsLoading, setSubagentsLoading] = useState(false)
-  const [roleContacts, setRoleContacts] = useState<SelectOption[]>([])
-  const [roleContactsLoading, setRoleContactsLoading] = useState(false)
-  const [roleDrafts, setRoleDrafts] = useState<OpportunityRoleDraft[]>([{ contactId: "", role: "Decision Maker" }])
-  const [roleServerError, setRoleServerError] = useState<string | null>(null)
   const { showError, showSuccess } = useToasts()
 
   useEffect(() => {
@@ -100,102 +90,7 @@ export function ContactOpportunityCreateModal({ isOpen, contactName, accountId, 
     setContactQuery("None")
     setOwnerQuery("")
     setSubagentQuery("None")
-    setRoleDrafts([{ contactId: "", role: "Decision Maker" }])
-    setRoleServerError(null)
   }, [isOpen, accountName])
-
-  useEffect(() => {
-    if (!isOpen || !accountId) {
-      setRoleContacts([])
-      return
-    }
-
-    let cancelled = false
-    setRoleContactsLoading(true)
-
-    const loadRoleContacts = async () => {
-      try {
-        const response = await fetch(`/api/accounts/${accountId}`, { cache: "no-store" })
-        if (!response.ok) {
-          throw new Error("Failed to load account")
-        }
-
-        const payload = await response.json().catch(() => null)
-        const accountContacts: any[] = Array.isArray(payload?.data?.contacts) ? payload.data.contacts : []
-        const parentAccountId = typeof payload?.data?.parentAccountId === "string" ? payload.data.parentAccountId.trim() : ""
-
-        const baseOptions: SelectOption[] = accountContacts
-          .filter(item => item && item.active !== false)
-          .map(item => ({
-            value: String(item.id ?? ""),
-            label: String(item.fullName ?? "").trim() || "Unnamed contact"
-          }))
-          .filter(option => option.value.trim().length > 0)
-
-        const merged = new Map<string, SelectOption>()
-        for (const option of baseOptions) {
-          merged.set(option.value, option)
-        }
-
-        if (parentAccountId.length > 0) {
-          const parentResponse = await fetch(`/api/accounts/${parentAccountId}`, { cache: "no-store" })
-          if (parentResponse.ok) {
-            const parentPayload = await parentResponse.json().catch(() => null)
-            const parentAccountName =
-              typeof parentPayload?.data?.accountName === "string" ? parentPayload.data.accountName.trim() : ""
-            const parentContacts: any[] = Array.isArray(parentPayload?.data?.contacts) ? parentPayload.data.contacts : []
-
-            for (const item of parentContacts) {
-              if (!item || item.active === false) continue
-              const value = String(item.id ?? "").trim()
-              if (!value) continue
-              const fullName = String(item.fullName ?? "").trim() || "Unnamed contact"
-              const label = parentAccountName ? `${fullName} (${parentAccountName})` : fullName
-              if (!merged.has(value)) {
-                merged.set(value, { value, label })
-              }
-            }
-          }
-        }
-
-        if (!cancelled) {
-          setRoleContacts(Array.from(merged.values()).sort((a, b) => a.label.localeCompare(b.label)))
-        }
-      } catch (error) {
-        if (!cancelled) {
-          console.error("Unable to load role contacts", error)
-          setRoleContacts([])
-        }
-      } finally {
-        if (!cancelled) {
-          setRoleContactsLoading(false)
-        }
-      }
-    }
-
-    void loadRoleContacts()
-
-    return () => {
-      cancelled = true
-    }
-  }, [isOpen, accountId])
-
-  useEffect(() => {
-    if (!isOpen) return
-    const desiredName = (contactName ?? "").trim()
-    if (!desiredName) return
-    if (roleDrafts.length === 0) return
-    if (roleDrafts[0].contactId.trim().length > 0) return
-
-    const match = roleContacts.find(option => option.label.trim().toLowerCase() === desiredName.toLowerCase())
-    if (!match) return
-
-    setRoleDrafts(prev => {
-      if (prev.length === 0) return prev
-      if (prev[0].contactId.trim().length > 0) return prev
-      return [{ ...prev[0], contactId: match.value }, ...prev.slice(1)]
-    })
-  }, [isOpen, contactName, roleContacts, roleDrafts])
 
   useEffect(() => {
     if (!isOpen) {
@@ -358,29 +253,14 @@ export function ContactOpportunityCreateModal({ isOpen, contactName, accountId, 
     return ownerOptions.filter(owner => owner.label.toLowerCase().includes(query))
   }, [ownerOptions, ownerQuery])
 
-  const roleValidation = useMemo(() => {
-    const normalized = normalizeRoleDrafts(roleDrafts)
-    const incomplete = normalized.hasIncomplete
-    const hasValid = normalized.complete.length > 0
-    const requirement = requireAtLeastOneRole(normalized.complete, normalized.hasIncomplete)
-    return {
-      complete: normalized.complete,
-      hasValid,
-      hasIncomplete: incomplete,
-      requirement
-    }
-  }, [roleDrafts])
-
   const canSubmit = useMemo(() => {
     return Boolean(
       form.opportunityName.trim() &&
         form.owner &&
         accountId &&
-        form.estimatedCloseDate &&
-        roleValidation.hasValid &&
-        !roleValidation.hasIncomplete
+        form.estimatedCloseDate
     )
-  }, [form.opportunityName, form.owner, accountId, form.estimatedCloseDate, roleValidation.hasValid, roleValidation.hasIncomplete])
+  }, [form.opportunityName, form.owner, accountId, form.estimatedCloseDate])
 
   const handleClose = () => {
     setForm(createInitialState(accountName))
@@ -390,23 +270,11 @@ export function ContactOpportunityCreateModal({ isOpen, contactName, accountId, 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (!canSubmit || !accountId) {
-      if (!roleValidation.hasValid) {
-        showError("Missing information", "At least one role contact is required.")
-        return
-      }
-
-      if (roleValidation.hasIncomplete) {
-        showError("Missing information", "Please complete or remove incomplete role rows.")
-        return
-      }
-
       showError("Missing information", "Opportunity name, estimated close date, owner, and account are required.")
       return
     }
 
     const computedSubAgent = (form.subAgent?.trim() || (form.splitWithAgency ? "Partner agency" : "")) || null
-
-    const roleDraftsToCreate = roleValidation.complete
 
     const payload = {
       accountId,
@@ -419,12 +287,10 @@ export function ContactOpportunityCreateModal({ isOpen, contactName, accountId, 
       referredByContactId: form.referredByContactId || null,
       subAgent: computedSubAgent,
       subagentContactId: form.subagentContactId || null,
-      notes: form.notes.trim() || undefined,
-      roles: roleDraftsToCreate
+      notes: form.notes.trim() || undefined
     }
 
     setLoading(true)
-    setRoleServerError(null)
     try {
       const response = await fetch("/api/opportunities", {
         method: "POST",
@@ -436,10 +302,6 @@ export function ContactOpportunityCreateModal({ isOpen, contactName, accountId, 
 
       if (!response.ok) {
         const errorPayload = await response.json().catch(() => null)
-        const serverRoleError = typeof (errorPayload as any)?.errors?.roles === "string" ? (errorPayload as any).errors.roles : null
-        if (serverRoleError) {
-          setRoleServerError(serverRoleError)
-        }
         throw new Error(errorPayload?.error ?? "Unable to create opportunity")
       }
 
@@ -562,94 +424,6 @@ export function ContactOpportunityCreateModal({ isOpen, contactName, accountId, 
                     </button>
                   ))}
                 </div>
-              )}
-            </div>
-
-            <div className="md:col-span-2 rounded-lg border border-gray-100 bg-gray-50 p-4">
-              <div className="flex items-center justify-between gap-3">
-                <label className="block text-[11px] font-semibold uppercase tracking-wide text-gray-500">
-                  Role Contacts<span className="ml-1 text-red-500">*</span>
-                </label>
-                <button
-                  type="button"
-                  onClick={() => setRoleDrafts(prev => [...prev, { contactId: "", role: "" }])}
-                  className="rounded-full bg-white px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-primary-700 shadow-sm ring-1 ring-gray-200 hover:bg-gray-50"
-                  disabled={roleContactsLoading}
-                  title={roleContactsLoading ? "Loading contacts..." : "Add another role"}
-                >
-                  Add Role
-                </button>
-              </div>
-
-              {roleContactsLoading && <div className="mt-3 text-sm text-gray-500">Loading available contacts...</div>}
-
-              {!roleContactsLoading && roleContacts.length === 0 && (
-                <div className="mt-3 text-sm text-gray-500">
-                  No contacts found for this account (or its parent). Create a contact first.
-                </div>
-              )}
-
-              <div className="mt-3 space-y-2">
-                {roleDrafts.map((draft, index) => (
-                  <div key={`${index}`} className="grid grid-cols-1 gap-2 md:grid-cols-[2fr_2fr_auto] md:items-end">
-                    <div>
-                      <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Contact</label>
-                      <select
-                        value={draft.contactId}
-                        onChange={event => {
-                          const value = event.target.value
-                          setRoleDrafts(prev => prev.map((row, i) => (i === index ? { ...row, contactId: value } : row)))
-                        }}
-                        className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
-                        disabled={roleContactsLoading || roleContacts.length === 0}
-                      >
-                        <option value="">Select contact</option>
-                        {roleContacts.map(option => (
-                          <option key={option.value} value={option.value}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Role</label>
-                      <input
-                        type="text"
-                        value={draft.role}
-                        onChange={event => {
-                          const value = event.target.value
-                          setRoleDrafts(prev => prev.map((row, i) => (i === index ? { ...row, role: value } : row)))
-                        }}
-                        className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
-                        placeholder="e.g., Decision Maker, Buyer"
-                      />
-                    </div>
-
-                    <div className="flex justify-end">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setRoleDrafts(prev => (prev.length > 1 ? prev.filter((_, i) => i !== index) : [{ contactId: "", role: "Decision Maker" }]))
-                        }
-                        className="rounded-full bg-white px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-gray-500 shadow-sm ring-1 ring-gray-200 hover:bg-gray-50"
-                        title="Remove role"
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {roleServerError ? (
-                <p className="mt-3 text-xs text-red-600">{roleServerError}</p>
-              ) : roleValidation.hasIncomplete ? (
-                <p className="mt-3 text-xs text-red-600">Please complete or remove incomplete role rows.</p>
-              ) : !roleValidation.hasValid ? (
-                <p className="mt-3 text-xs text-red-600">At least one role contact is required to create an opportunity.</p>
-              ) : (
-                <p className="mt-3 text-xs text-gray-500">At least one role contact is required to create an opportunity.</p>
               )}
             </div>
 

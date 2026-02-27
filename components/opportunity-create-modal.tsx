@@ -7,7 +7,6 @@ import { getOpportunityStageOptions, type OpportunityStageOption } from "@/lib/o
 import { DropdownChevron } from "@/components/dropdown-chevron"
 import { useToasts } from "@/components/toast"
 import { formatDecimalToFixed, formatPercentDisplay, normalizeDecimalInput } from "@/lib/number-format"
-import { normalizeRoleDrafts, requireAtLeastOneRole } from "@/lib/opportunities/roles-validation"
 
 interface SelectOption {
   value: string
@@ -20,11 +19,6 @@ interface ReferredByOption extends SelectOption {
 
 interface ContactOption extends SelectOption {
   accountName?: string
-}
-
-interface OpportunityRoleDraft {
-  contactId: string
-  role: string
 }
 
 interface AccountOption extends SelectOption {
@@ -150,10 +144,6 @@ export function OpportunityCreateModal({
   const [submitting, setSubmitting] = useState(false)
   const [subagentPercentFocused, setSubagentPercentFocused] = useState(false)
   const [houseRepPercentFocused, setHouseRepPercentFocused] = useState(false)
-  const [roleContacts, setRoleContacts] = useState<SelectOption[]>([])
-  const [roleContactsLoading, setRoleContactsLoading] = useState(false)
-  const [roleDrafts, setRoleDrafts] = useState<OpportunityRoleDraft[]>([{ contactId: "", role: "" }])
-  const [roleServerError, setRoleServerError] = useState<string | null>(null)
   const skipReferredByBlurResetRef = useRef(false)
   const skipSubagentBlurResetRef = useRef(false)
 
@@ -169,93 +159,7 @@ export function OpportunityCreateModal({
 
     setForm(buildInitialForm(defaultAccountId))
     setAccountQuery("")
-    setRoleDrafts([{ contactId: "", role: "" }])
-    setRoleServerError(null)
   }, [isOpen, defaultAccountId])
-
-  useEffect(() => {
-    if (!isOpen) {
-      return
-    }
-
-    setRoleDrafts([{ contactId: "", role: "" }])
-    setRoleServerError(null)
-  }, [isOpen, form.accountId])
-
-  useEffect(() => {
-    if (!isOpen || !form.accountId) {
-      setRoleContacts([])
-      return
-    }
-
-    let cancelled = false
-    setRoleContactsLoading(true)
-
-    const loadRoleContacts = async () => {
-      try {
-        const response = await fetch(`/api/accounts/${form.accountId}`, { cache: "no-store" })
-        if (!response.ok) {
-          throw new Error("Failed to load account contacts")
-        }
-
-        const payload = await response.json().catch(() => null)
-        const accountContacts: any[] = Array.isArray(payload?.data?.contacts) ? payload.data.contacts : []
-        const parentAccountId = typeof payload?.data?.parentAccountId === "string" ? payload.data.parentAccountId.trim() : ""
-
-        const baseOptions: SelectOption[] = accountContacts
-          .filter(item => item && item.active !== false)
-          .map(item => ({
-            value: String(item.id ?? ""),
-            label: String(item.fullName ?? "").trim() || "Unnamed contact"
-          }))
-          .filter(option => option.value.trim().length > 0)
-
-        const merged = new Map<string, SelectOption>()
-        for (const option of baseOptions) {
-          merged.set(option.value, option)
-        }
-
-        if (parentAccountId.length > 0) {
-          const parentResponse = await fetch(`/api/accounts/${parentAccountId}`, { cache: "no-store" })
-          if (parentResponse.ok) {
-            const parentPayload = await parentResponse.json().catch(() => null)
-            const parentAccountName = typeof parentPayload?.data?.accountName === "string" ? parentPayload.data.accountName.trim() : ""
-            const parentContacts: any[] = Array.isArray(parentPayload?.data?.contacts) ? parentPayload.data.contacts : []
-
-            for (const item of parentContacts) {
-              if (!item || item.active === false) continue
-              const value = String(item.id ?? "").trim()
-              if (!value) continue
-              const fullName = String(item.fullName ?? "").trim() || "Unnamed contact"
-              const label = parentAccountName ? `${fullName} (${parentAccountName})` : fullName
-              if (!merged.has(value)) {
-                merged.set(value, { value, label })
-              }
-            }
-          }
-        }
-
-        if (!cancelled) {
-          setRoleContacts(Array.from(merged.values()).sort((a, b) => a.label.localeCompare(b.label)))
-        }
-      } catch (error) {
-        if (!cancelled) {
-          console.error("Unable to load role contacts", error)
-          setRoleContacts([])
-        }
-      } finally {
-        if (!cancelled) {
-          setRoleContactsLoading(false)
-        }
-      }
-    }
-
-    void loadRoleContacts()
-
-    return () => {
-      cancelled = true
-    }
-  }, [isOpen, form.accountId])
 
   useEffect(() => {
     if (!isOpen) {
@@ -435,19 +339,6 @@ export function OpportunityCreateModal({
     }
   }, [isOpen, showError])
 
-  const roleValidation = useMemo(() => {
-    const normalized = normalizeRoleDrafts(roleDrafts)
-    const incomplete = normalized.hasIncomplete
-    const hasValid = normalized.complete.length > 0
-    const requirement = requireAtLeastOneRole(normalized.complete, normalized.hasIncomplete)
-    return {
-      complete: normalized.complete,
-      hasValid,
-      hasIncomplete: incomplete,
-      requirement
-    }
-  }, [roleDrafts])
-
   const canSubmit = useMemo(() => {
     return Boolean(
       form.accountId &&
@@ -455,9 +346,7 @@ export function OpportunityCreateModal({
       form.stage &&
       form.leadSource &&
       form.ownerId &&
-      form.estimatedCloseDate &&
-      roleValidation.hasValid &&
-      !roleValidation.hasIncomplete
+      form.estimatedCloseDate
     )
   }, [
     form.accountId,
@@ -465,9 +354,7 @@ export function OpportunityCreateModal({
     form.leadSource,
     form.name,
     form.ownerId,
-    form.stage,
-    roleValidation.hasIncomplete,
-    roleValidation.hasValid
+    form.stage
   ])
 
   const houseSplitPercentDisplay = useMemo(() => {
@@ -519,22 +406,11 @@ export function OpportunityCreateModal({
   const handleClose = useCallback(() => {
     setForm(buildInitialForm(defaultAccountId))
     setAccountQuery("")
-    setRoleServerError(null)
     onClose()
   }, [defaultAccountId, onClose])
 
   const handleSubmit = useCallback(async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-
-    if (!roleValidation.hasValid) {
-      showError("Missing information", "At least one role contact is required.")
-      return
-    }
-
-    if (roleValidation.hasIncomplete) {
-      showError("Missing information", "Please complete or remove incomplete role rows.")
-      return
-    }
 
     if (!canSubmit) {
       showError("Missing information", "Please complete all required fields before creating the opportunity.")
@@ -542,7 +418,6 @@ export function OpportunityCreateModal({
     }
 
     setSubmitting(true)
-    setRoleServerError(null)
     try {
       const normalizeString = (value: string) => {
         const trimmed = value.trim()
@@ -583,8 +458,6 @@ export function OpportunityCreateModal({
         return
       }
 
-      const roleDraftsToCreate = roleValidation.complete
-
       const payload = {
         accountId: form.accountId,
         name: form.name.trim(),
@@ -610,8 +483,7 @@ export function OpportunityCreateModal({
         customerPurchaseOrder: normalizeString(form.customerPurchaseOrder),
         subagentPercent: subagentPercentPoints,
         houseRepPercent: houseRepPercentPoints,
-        houseSplitPercent: houseSplitPercentPoints,
-        roles: roleDraftsToCreate
+        houseSplitPercent: houseSplitPercentPoints
       }
 
       const response = await fetch("/api/opportunities", {
@@ -624,10 +496,6 @@ export function OpportunityCreateModal({
 
       if (!response.ok) {
         const errorPayload = (await response.json().catch(() => null)) as any
-        const serverRoleError = typeof errorPayload?.errors?.roles === "string" ? errorPayload.errors.roles : null
-        if (serverRoleError) {
-          setRoleServerError(serverRoleError)
-        }
         throw new Error(errorPayload?.error ?? "Failed to create opportunity")
       }
 
@@ -646,7 +514,7 @@ export function OpportunityCreateModal({
     } finally {
       setSubmitting(false)
     }
-  }, [canSubmit, form, handleClose, houseSplitPercentDisplay, onCreated, roleValidation.complete, roleValidation.hasIncomplete, roleValidation.hasValid, showError, showSuccess])
+  }, [canSubmit, form, handleClose, houseSplitPercentDisplay, onCreated, showError, showSuccess])
 
   const selectedAccount = useMemo(
     () => accounts.find(option => option.value === form.accountId) ?? null,
@@ -997,102 +865,6 @@ export function OpportunityCreateModal({
                 {selectedAccount && (
                   <p className="mt-1 text-xs text-gray-500">Selected: {selectedAccount.label}</p>
                 )}
-              </div>
-
-              <div className="xl:col-span-4">
-                <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <label className="block text-[11px] font-semibold uppercase tracking-wide text-gray-500">
-                      Role Contacts<span className="ml-1 text-red-500">*</span>
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => setRoleDrafts(prev => [...prev, { contactId: "", role: "" }])}
-                      className="rounded-full bg-white px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-primary-700 shadow-sm ring-1 ring-gray-200 hover:bg-gray-50"
-                      disabled={roleContactsLoading || !form.accountId}
-                      title={!form.accountId ? "Select an account first" : roleContactsLoading ? "Loading contacts..." : "Add another role"}
-                    >
-                      Add Role
-                    </button>
-                  </div>
-
-                  {!form.accountId && (
-                    <div className="mt-3 text-sm text-gray-500">Select an account to choose role contacts.</div>
-                  )}
-
-                  {form.accountId && roleContactsLoading && (
-                    <div className="mt-3 text-sm text-gray-500">Loading available contacts…</div>
-                  )}
-
-                  {form.accountId && !roleContactsLoading && roleContacts.length === 0 && (
-                    <div className="mt-3 text-sm text-gray-500">
-                      No contacts found for this account (or its parent). Create a contact first.
-                    </div>
-                  )}
-
-                  <div className="mt-3 space-y-2">
-                    {roleDrafts.map((draft, index) => (
-                      <div key={`${index}`} className="grid grid-cols-1 gap-2 md:grid-cols-[2fr_2fr_auto] md:items-end">
-                        <div>
-                          <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Contact</label>
-                          <select
-                            value={draft.contactId}
-                            onChange={event => {
-                              const value = event.target.value
-                              setRoleDrafts(prev => prev.map((row, i) => (i === index ? { ...row, contactId: value } : row)))
-                            }}
-                            className={inputClass}
-                            disabled={roleContactsLoading || roleContacts.length === 0 || !form.accountId}
-                          >
-                            <option value="">{!form.accountId ? "Select account first" : "Select contact"}</option>
-                            {roleContacts.map(option => (
-                              <option key={option.value} value={option.value}>
-                                {option.label}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-
-                        <div>
-                          <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Role</label>
-                          <input
-                            type="text"
-                            value={draft.role}
-                            onChange={event => {
-                              const value = event.target.value
-                              setRoleDrafts(prev => prev.map((row, i) => (i === index ? { ...row, role: value } : row)))
-                            }}
-                            className={inputClass}
-                            placeholder="e.g., Decision Maker, Buyer"
-                          />
-                        </div>
-
-                        <div className="flex justify-end">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setRoleDrafts(prev => (prev.length > 1 ? prev.filter((_, i) => i !== index) : [{ contactId: "", role: "" }]))
-                            }
-                            className="rounded-full bg-white px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-gray-500 shadow-sm ring-1 ring-gray-200 hover:bg-gray-50"
-                            title="Remove role"
-                          >
-                            Remove
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {roleServerError ? (
-                    <p className="mt-3 text-xs text-red-600">{roleServerError}</p>
-                  ) : roleValidation.hasIncomplete ? (
-                    <p className="mt-3 text-xs text-red-600">Please complete or remove incomplete role rows.</p>
-                  ) : !roleValidation.hasValid ? (
-                    <p className="mt-3 text-xs text-red-600">At least one role contact is required to create an opportunity.</p>
-                  ) : (
-                    <p className="mt-3 text-xs text-gray-500">At least one role contact is required to create an opportunity.</p>
-                  )}
-                </div>
               </div>
 
               <div>

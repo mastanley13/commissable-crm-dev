@@ -357,7 +357,9 @@ export async function GET(
       billingAddress: mapAddressForDetail(account.billingAddress),
       billingSameAsShipping:
         Boolean(account.shippingSyncBilling) ||
-        (!account.billingAddressId && Boolean(account.shippingAddressId)),
+        (Boolean(account.shippingAddressId) &&
+          Boolean(account.billingAddressId) &&
+          account.shippingAddressId === account.billingAddressId),
       contacts: contacts.map(mapAccountContactRow),
       opportunities: opportunityRows,
       groups: groupMembers.map(mapAccountGroupRow),
@@ -465,7 +467,18 @@ export async function PATCH(
     // Handle address updates
     let shippingAddressId = existingAccount.shippingAddressId
     let billingAddressId = existingAccount.billingAddressId
-    let shippingSyncBilling = existingAccount.shippingSyncBilling
+
+    const billingAndShippingShared =
+      Boolean(shippingAddressId) &&
+      Boolean(billingAddressId) &&
+      shippingAddressId === billingAddressId
+
+    const currentlyLinked = Boolean(existingAccount.shippingSyncBilling) || billingAndShippingShared
+
+    const nextLinked =
+      typeof payload?.billingSameAsShipping === "boolean"
+        ? payload.billingSameAsShipping
+        : currentlyLinked
 
     if (payload?.shippingAddress && typeof payload.shippingAddress === "object") {
       const shippingAddressInput = parseAddress(payload.shippingAddress)
@@ -478,26 +491,68 @@ export async function PATCH(
       }
     }
 
-    if (payload?.billingAddress && typeof payload.billingAddress === "object") {
-      const billingAddressInput = parseAddress(payload.billingAddress)
-      if (billingAddressInput) {
-        billingAddressId = await createOrUpdateAddressRecord(tenantId, billingAddressInput, existingAccount.billingAddressId)
-        if (billingAddressId) {
-          data.billingAddressId = billingAddressId
-          hasChanges = true
-        }
-      }
+    const didSpecifyBillingSameAsShipping = typeof payload?.billingSameAsShipping === "boolean"
+
+    // Persist the user's explicit choice.
+    if (didSpecifyBillingSameAsShipping) {
+      data.shippingSyncBilling = payload.billingSameAsShipping
+      hasChanges = true
     }
 
-    // Handle billing sync with shipping
-    if (typeof payload?.billingSameAsShipping === "boolean") {
-      shippingSyncBilling = payload.billingSameAsShipping
-      data.shippingSyncBilling = shippingSyncBilling
-      
-      if (shippingSyncBilling && shippingAddressId) {
+    if (nextLinked) {
+      // Ship To is the source-of-truth when linked.
+      if (shippingAddressId && billingAddressId !== shippingAddressId) {
+        billingAddressId = shippingAddressId
         data.billingAddressId = shippingAddressId
+        hasChanges = true
       }
-      hasChanges = true
+    } else {
+      const unlinking =
+        currentlyLinked &&
+        didSpecifyBillingSameAsShipping &&
+        payload.billingSameAsShipping === false
+
+      if (unlinking) {
+        // If Billing and Shipping shared the same Address record, never update it in-place.
+        // Create a new Billing address record so we don't overwrite Shipping.
+        const billingAddressInput = parseAddress(payload?.billingAddress)
+
+        if (!billingAddressInput) {
+          return NextResponse.json(
+            { error: "Billing address is required when 'Same as Ship To' is unchecked." },
+            { status: 400 }
+          )
+        }
+
+        const nextBillingAddressId = await createOrUpdateAddressRecord(tenantId, billingAddressInput, null)
+        if (nextBillingAddressId) {
+          billingAddressId = nextBillingAddressId
+          data.billingAddressId = nextBillingAddressId
+          hasChanges = true
+        }
+      } else if (payload?.billingAddress && typeof payload.billingAddress === "object") {
+        const billingAddressInput = parseAddress(payload.billingAddress)
+        if (billingAddressInput) {
+          const isShared =
+            Boolean(shippingAddressId) &&
+            Boolean(billingAddressId) &&
+            shippingAddressId === billingAddressId
+
+          const existingBillingAddressId = isShared ? null : existingAccount.billingAddressId
+
+          const nextBillingAddressId = await createOrUpdateAddressRecord(
+            tenantId,
+            billingAddressInput,
+            existingBillingAddressId
+          )
+
+          if (nextBillingAddressId) {
+            billingAddressId = nextBillingAddressId
+            data.billingAddressId = nextBillingAddressId
+            hasChanges = true
+          }
+        }
+      }
     }
 
     // Handle restore operation

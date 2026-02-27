@@ -112,6 +112,15 @@ const US_STATES: { code: string; name: string }[] = [
 
 const DEFAULT_COUNTRY = "United States"
 
+const EMPTY_ADDRESS: AddressFormValues = {
+  line1: "",
+  line2: "",
+  city: "",
+  state: "",
+  postalCode: "",
+  country: DEFAULT_COUNTRY
+}
+
 const createInitialForm = (account: AccountRow | null): AccountFormValues => {
   if (!account) {
     return {
@@ -133,12 +142,7 @@ const createInitialForm = (account: AccountRow | null): AccountFormValues => {
         country: DEFAULT_COUNTRY
       },
       billingAddress: {
-        line1: "",
-        line2: "",
-        city: "",
-        state: "",
-        postalCode: "",
-        country: DEFAULT_COUNTRY
+        ...EMPTY_ADDRESS
       }
     }
   }
@@ -162,12 +166,7 @@ const createInitialForm = (account: AccountRow | null): AccountFormValues => {
       country: DEFAULT_COUNTRY
     },
     billingAddress: {
-      line1: "",
-      line2: "",
-      city: "",
-      state: "",
-      postalCode: "",
-      country: DEFAULT_COUNTRY
+      ...EMPTY_ADDRESS
     }
   }
 }
@@ -334,7 +333,7 @@ export function AccountEditModal({ isOpen, onClose, onSuccess, account }: Accoun
     setForm(previous => ({
       ...previous,
       billingSameAsShipping: value,
-      billingAddress: value ? { ...previous.shippingAddress } : previous.billingAddress
+      billingAddress: value ? { ...previous.shippingAddress } : { ...EMPTY_ADDRESS }
     }))
   }
 
