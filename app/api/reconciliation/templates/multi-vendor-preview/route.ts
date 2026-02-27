@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { withPermissions, createErrorResponse } from "@/lib/api-auth"
 import { prisma } from "@/lib/db"
 import {
+  buildMultiVendorTemplateOptions,
   mergeMultiVendorTemplateConfigs,
   resolveMultiVendorTemplates,
 } from "@/lib/deposit-import/multi-vendor-template-resolver"
@@ -42,6 +43,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         data: {
           templatesUsed: [],
+          templateOptions: [],
           missingVendors: [],
           vendorsMissingTemplates: [],
           mergedTemplateConfig: {
@@ -76,10 +78,14 @@ export async function POST(request: NextRequest) {
     const mergedTemplateConfig = mergeMultiVendorTemplateConfigs(
       Array.from(resolved.byVendorKey.values()),
     )
+    const templateOptions = buildMultiVendorTemplateOptions(
+      Array.from(resolved.byVendorKey.values()),
+    )
 
     return NextResponse.json({
       data: {
         templatesUsed: resolved.templatesUsed,
+        templateOptions,
         missingVendors: resolved.missingVendors,
         vendorsMissingTemplates: resolved.vendorsMissingTemplates,
         mergedTemplateConfig,

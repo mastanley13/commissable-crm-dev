@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
         if (raw === null || raw === undefined) {
           updates.commissionPercent = null as any
         } else if (isFiniteNumber(raw)) {
-          if (raw < 0 || raw > 1) {
+          if (raw < 0 || raw > 100) {
             return NextResponse.json({ error: "Commission percent must be between 0 and 100" }, { status: 400 })
           }
           updates.commissionPercent = raw

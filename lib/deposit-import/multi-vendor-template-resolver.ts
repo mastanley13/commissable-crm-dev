@@ -41,6 +41,17 @@ export interface MultiVendorTemplatesUsedItem {
   templateUpdatedAt: string
 }
 
+export interface MultiVendorTemplateOption {
+  templateId: string
+  templateName: string
+  templateUpdatedAt: string
+  vendorAccountId: string
+  vendorAccountName: string
+  vendorNamesInFile: string[]
+  depositMappingV2: DepositMappingConfigV2 | null
+  telarusTemplateFields: TelarusTemplateFieldsV1 | null
+}
+
 export interface ResolveMultiVendorTemplatesResult {
   byVendorKey: Map<string, MultiVendorResolvedTemplate>
   templatesUsed: MultiVendorTemplatesUsedItem[]
@@ -89,15 +100,19 @@ export function groupRowsByVendor(params: {
 }): GroupRowsByVendorResult {
   const groups = new Map<string, MultiVendorRowGroup>()
   const missingVendorRows: number[] = []
+  const shouldFilterByAmounts = params.usageIndex !== undefined || params.commissionIndex !== undefined
 
   for (let rowIndex = 0; rowIndex < params.rows.length; rowIndex += 1) {
     const row = params.rows[rowIndex] ?? []
-    const usageValueRaw =
-      params.usageIndex !== undefined ? normalizeNumber(row[params.usageIndex]) : null
-    const commissionValue =
-      params.commissionIndex !== undefined ? normalizeNumber(row[params.commissionIndex]) : null
-    if (usageValueRaw === null && commissionValue === null) {
-      continue
+
+    if (shouldFilterByAmounts) {
+      const usageValueRaw =
+        params.usageIndex !== undefined ? normalizeNumber(row[params.usageIndex]) : null
+      const commissionValue =
+        params.commissionIndex !== undefined ? normalizeNumber(row[params.commissionIndex]) : null
+      if (usageValueRaw === null && commissionValue === null) {
+        continue
+      }
     }
 
     const vendorNameRaw = normalizeString(row[params.vendorNameIndex])
@@ -106,8 +121,10 @@ export function groupRowsByVendor(params: {
     }
 
     if (!vendorNameRaw) {
-      if (missingVendorRows.length < 25) {
-        missingVendorRows.push(rowIndex + 2)
+      if (shouldFilterByAmounts) {
+        if (missingVendorRows.length < 25) {
+          missingVendorRows.push(rowIndex + 2)
+        }
       }
       continue
     }
@@ -398,4 +415,57 @@ export function mergeMultiVendorTemplateConfigs(
     depositMappingV2: hasMergedMapping ? mergedMapping : null,
     telarusTemplateFields: mergedTelarusTemplateFields,
   }
+}
+
+export function buildMultiVendorTemplateOptions(
+  resolvedTemplates: MultiVendorResolvedTemplate[],
+): MultiVendorTemplateOption[] {
+  const byTemplateId = new Map<string, MultiVendorTemplateOption>()
+  const vendorNamesByTemplateId = new Map<string, Set<string>>()
+
+  for (const resolved of resolvedTemplates) {
+    if (!resolved.templateId) continue
+    if (!byTemplateId.has(resolved.templateId)) {
+      const extractedMapping = stripTelarusGeneratedCustomFieldsV2(
+        extractDepositMappingV2FromTemplateConfig(resolved.templateConfig),
+      )
+      const hasAnyMapping =
+        Object.keys(extractedMapping.targets ?? {}).length > 0 ||
+        Object.keys(extractedMapping.columns ?? {}).length > 0 ||
+        Object.keys(extractedMapping.customFields ?? {}).length > 0
+      const depositMappingV2 = hasAnyMapping ? extractedMapping : null
+      const telarusTemplateFields = extractTelarusTemplateFieldsFromTemplateConfig(resolved.templateConfig)
+
+      byTemplateId.set(resolved.templateId, {
+        templateId: resolved.templateId,
+        templateName: resolved.templateName,
+        templateUpdatedAt: resolved.templateUpdatedAt,
+        vendorAccountId: resolved.vendorAccountId,
+        vendorAccountName: resolved.vendorAccountName,
+        vendorNamesInFile: [],
+        depositMappingV2,
+        telarusTemplateFields,
+      })
+    }
+
+    const set = vendorNamesByTemplateId.get(resolved.templateId) ?? new Set<string>()
+    set.add(resolved.vendorNameInFile)
+    vendorNamesByTemplateId.set(resolved.templateId, set)
+  }
+
+  const options = Array.from(byTemplateId.values())
+  for (const option of options) {
+    const names = vendorNamesByTemplateId.get(option.templateId)
+    option.vendorNamesInFile = names ? Array.from(names).sort((a, b) => a.localeCompare(b)) : []
+  }
+
+  options.sort((a, b) => {
+    const vendorCompare = a.vendorAccountName.localeCompare(b.vendorAccountName)
+    if (vendorCompare !== 0) return vendorCompare
+    const templateCompare = a.templateName.localeCompare(b.templateName)
+    if (templateCompare !== 0) return templateCompare
+    return a.templateId.localeCompare(b.templateId)
+  })
+
+  return options
 }

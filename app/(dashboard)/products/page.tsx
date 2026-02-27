@@ -575,10 +575,6 @@ export default function ProductsPage() {
     })
   }, [products])
 
-  const handleRowClick = useCallback((product: ProductRow) => {
-    console.log('Product clicked:', product)
-    showWarning('Edit coming soon', `${product.productNameHouse || product.productNameVendor} cannot be edited yet.`)
-  }, [showWarning])
   const handleProductToggleActive = useCallback(async (row: ProductRow, nextValue: boolean) => {
     if (!canEditProducts) {
       requireAdminForEdit()
@@ -1758,7 +1754,6 @@ export default function ProductsPage() {
             columns={tableColumns}
             data={products}
             onSort={handleSort}
-            onRowClick={(row) => handleRowClick(row as ProductRow)}
             loading={tableLoading}
             emptyMessage="No products found"
             onColumnsChange={handleColumnsChange}

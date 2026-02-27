@@ -14,6 +14,7 @@ function makeImportRequest(params: {
   vendorAccountId: string
   file: File
   mapping: unknown
+  multiVendor?: boolean
   paymentDate?: string
   depositName?: string
   idempotencyKey?: string
@@ -25,6 +26,7 @@ function makeImportRequest(params: {
   form.set("file", params.file)
   form.set("distributorAccountId", params.distributorAccountId)
   form.set("vendorAccountId", params.vendorAccountId)
+  if (params.multiVendor) form.set("multiVendor", "true")
   form.set("mapping", JSON.stringify(params.mapping))
   if (params.paymentDate) form.set("paymentDate", params.paymentDate)
   if (params.depositName) form.set("depositName", params.depositName)
@@ -292,4 +294,149 @@ integrationTest("DU-AUTO-16: single-vendor import skips total/subtotal summary r
     lines.map(line => Number(line.commission ?? 0)),
     [10, 5],
   )
+})
+
+integrationTest("DU-AUTO-17: multi-vendor import applies per-template mapping + save flags", async ctx => {
+  const routeModule = await import("../app/api/reconciliation/deposits/import/route")
+  const POST = (routeModule as any).POST ?? (routeModule as any).default?.POST
+  assert.equal(typeof POST, "function")
+
+  const dbModule = await import("../lib/db")
+  const prisma = (dbModule as any).prisma ?? (dbModule as any).default?.prisma
+
+  const existingVendor = await prisma.account.findFirst({
+    where: { id: ctx.vendorAccountId, tenantId: ctx.tenantId },
+    select: { accountTypeId: true },
+  })
+  assert.ok(existingVendor?.accountTypeId)
+
+  const vendorTwo = await prisma.account.create({
+    data: {
+      tenantId: ctx.tenantId,
+      accountTypeId: existingVendor!.accountTypeId,
+      accountName: "Vendor Two",
+    },
+    select: { id: true },
+  })
+
+  const templateA = await prisma.reconciliationTemplate.create({
+    data: {
+      tenantId: ctx.tenantId,
+      name: "Multi Template A",
+      description: "Integration multi-vendor template A",
+      distributorAccountId: ctx.distributorAccountId,
+      vendorAccountId: ctx.vendorAccountId,
+      createdByUserId: ctx.userId,
+      config: null,
+    },
+    select: { id: true },
+  })
+
+  const templateB = await prisma.reconciliationTemplate.create({
+    data: {
+      tenantId: ctx.tenantId,
+      name: "Multi Template B",
+      description: "Integration multi-vendor template B",
+      distributorAccountId: ctx.distributorAccountId,
+      vendorAccountId: vendorTwo.id,
+      createdByUserId: ctx.userId,
+      config: null,
+    },
+    select: { id: true },
+  })
+
+  const file = makeCsvFile(
+    [
+      "Vendor Name,Usage A,Commission B",
+      "Test Vendor,100,999",
+      "Vendor Two,888,50",
+    ].join("\n"),
+  )
+
+  const mapping = {
+    version: "multiVendorV1",
+    mappingsByTemplateId: {
+      [templateA.id]: {
+        version: 2,
+        targets: {
+          "depositLineItem.vendorNameRaw": "Vendor Name",
+          "depositLineItem.usage": "Usage A",
+        },
+        columns: {},
+        customFields: {},
+      },
+      [templateB.id]: {
+        version: 2,
+        targets: {
+          "depositLineItem.vendorNameRaw": "Vendor Name",
+          "depositLineItem.commission": "Commission B",
+        },
+        columns: {},
+        customFields: {},
+      },
+    },
+    saveUpdatesByTemplateId: {
+      [templateA.id]: true,
+    },
+  }
+
+  const response = await POST(
+    makeImportRequest({
+      sessionToken: ctx.sessionToken,
+      distributorAccountId: ctx.distributorAccountId,
+      vendorAccountId: "",
+      multiVendor: true,
+      file,
+      mapping,
+      paymentDate: "2026-01-01",
+    }),
+  )
+
+  assertStatus(response, 200)
+  const payload = await readJson<{ data?: { depositIds?: string[] } }>(response)
+  assert.ok(payload.data?.depositIds)
+  assert.equal(payload.data?.depositIds?.length, 2)
+
+  const deposits = await prisma.deposit.findMany({
+    where: { tenantId: ctx.tenantId, id: { in: payload.data!.depositIds! } },
+    select: { id: true, vendorAccountId: true, reconciliationTemplateId: true },
+  })
+
+  const depositA = deposits.find((deposit: any) => deposit.vendorAccountId === ctx.vendorAccountId) ?? null
+  const depositB = deposits.find((deposit: any) => deposit.vendorAccountId === vendorTwo.id) ?? null
+  assert.ok(depositA)
+  assert.ok(depositB)
+  assert.equal(depositA!.reconciliationTemplateId, templateA.id)
+  assert.equal(depositB!.reconciliationTemplateId, templateB.id)
+
+  const linesA = await prisma.depositLineItem.findMany({
+    where: { tenantId: ctx.tenantId, depositId: depositA!.id },
+    select: { usage: true, commission: true, vendorAccountId: true },
+  })
+  assert.equal(linesA.length, 1)
+  assert.equal(linesA[0]!.vendorAccountId, ctx.vendorAccountId)
+  assert.equal(Number(linesA[0]!.usage ?? 0), 100)
+  assert.equal(Number(linesA[0]!.commission ?? 0), 0)
+
+  const linesB = await prisma.depositLineItem.findMany({
+    where: { tenantId: ctx.tenantId, depositId: depositB!.id },
+    select: { usage: true, commission: true, commissionRate: true, vendorAccountId: true },
+  })
+  assert.equal(linesB.length, 1)
+  assert.equal(linesB[0]!.vendorAccountId, vendorTwo.id)
+  assert.equal(Number(linesB[0]!.commission ?? 0), 50)
+  assert.equal(Number(linesB[0]!.usage ?? 0), 50)
+  assert.equal(Number(linesB[0]!.commissionRate ?? 0), 1)
+
+  const afterTemplateA = await prisma.reconciliationTemplate.findFirst({
+    where: { id: templateA.id, tenantId: ctx.tenantId },
+    select: { config: true },
+  })
+  const afterTemplateB = await prisma.reconciliationTemplate.findFirst({
+    where: { id: templateB.id, tenantId: ctx.tenantId },
+    select: { config: true },
+  })
+
+  assert.ok(afterTemplateA?.config)
+  assert.equal(afterTemplateB?.config, null)
 })

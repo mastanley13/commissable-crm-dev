@@ -2,10 +2,12 @@ import test from "node:test"
 import assert from "node:assert/strict"
 
 import {
+  buildMultiVendorTemplateOptions,
   groupRowsByVendor,
   mergeMultiVendorTemplateConfigs,
   resolveMultiVendorTemplates,
   type MultiVendorResolverDbClient,
+  type MultiVendorResolvedTemplate,
 } from "@/lib/deposit-import/multi-vendor-template-resolver"
 
 test("groupRowsByVendor groups usable rows and reports missing vendor rows", () => {
@@ -185,4 +187,92 @@ test("mergeMultiVendorTemplateConfigs merges mapping and telarus fields", () => 
   assert.equal(merged.depositMappingV2?.targets["depositLineItem.commission"], "Commission")
   assert.ok(merged.telarusTemplateFields)
   assert.equal(merged.telarusTemplateFields?.fields.length, 2)
+})
+
+test("buildMultiVendorTemplateOptions dedupes by templateId and aggregates vendor names", () => {
+  const resolvedTemplates: MultiVendorResolvedTemplate[] = [
+    {
+      vendorNameInFile: "Vendor A",
+      vendorKey: "vendor a",
+      vendorAccountId: "acct-a",
+      vendorAccountName: "Vendor A",
+      templateId: "tmpl-a",
+      templateName: "Template A",
+      templateUpdatedAt: "2026-02-08T00:00:00.000Z",
+      templateConfig: {
+        depositMapping: {
+          version: 2,
+          targets: {
+            "depositLineItem.usage": "Usage",
+          },
+          columns: {
+            Usage: { mode: "target", targetId: "depositLineItem.usage" },
+          },
+          customFields: {},
+        },
+        telarusTemplateFields: {
+          version: 1,
+          templateMapName: "Template A",
+          origin: "seed",
+          companyName: "Commissable",
+          templateId: "tmpl-a",
+          fields: [
+            {
+              telarusFieldName: "Usage",
+              commissableFieldLabel: "Actual Usage",
+            },
+          ],
+        },
+      },
+    },
+    {
+      vendorNameInFile: "Vendor A Secondary",
+      vendorKey: "vendor a secondary",
+      vendorAccountId: "acct-a",
+      vendorAccountName: "Vendor A",
+      templateId: "tmpl-a",
+      templateName: "Template A",
+      templateUpdatedAt: "2026-02-08T00:00:00.000Z",
+      templateConfig: {
+        depositMapping: {
+          version: 2,
+          targets: {
+            "depositLineItem.usage": "Usage",
+          },
+          columns: {
+            Usage: { mode: "target", targetId: "depositLineItem.usage" },
+          },
+          customFields: {},
+        },
+      },
+    },
+    {
+      vendorNameInFile: "Vendor B",
+      vendorKey: "vendor b",
+      vendorAccountId: "acct-b",
+      vendorAccountName: "Vendor B",
+      templateId: "tmpl-b",
+      templateName: "Template B",
+      templateUpdatedAt: "2026-02-08T00:00:00.000Z",
+      templateConfig: {},
+    },
+  ]
+
+  const options = buildMultiVendorTemplateOptions(resolvedTemplates)
+  assert.equal(options.length, 2)
+
+  const optionA = options.find(option => option.templateId === "tmpl-a") ?? null
+  assert.ok(optionA)
+  assert.equal(optionA!.vendorAccountName, "Vendor A")
+  assert.equal(optionA!.templateName, "Template A")
+  assert.deepEqual(optionA!.vendorNamesInFile, ["Vendor A", "Vendor A Secondary"])
+  assert.ok(optionA!.depositMappingV2)
+  assert.equal(optionA!.depositMappingV2?.targets["depositLineItem.usage"], "Usage")
+  assert.ok(optionA!.telarusTemplateFields)
+
+  const optionB = options.find(option => option.templateId === "tmpl-b") ?? null
+  assert.ok(optionB)
+  assert.equal(optionB!.vendorAccountName, "Vendor B")
+  assert.equal(optionB!.depositMappingV2, null)
+  assert.equal(optionB!.telarusTemplateFields, null)
 })

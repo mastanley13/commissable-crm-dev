@@ -1091,6 +1091,10 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
                                 commissionStartDate: firstDate,
                                 schedulePeriods: "1"
                               }))
+                              setCatalogFamilyInput(option.productFamilyHouse ?? "")
+                              setCatalogFamilyFilter(option.productFamilyHouse ?? "")
+                              setCatalogSubtypeInput(option.productSubtypeHouse ?? "")
+                              setCatalogSubtypeFilter(option.productSubtypeHouse ?? "")
                               setProductInput(option.name)
                               setShowProductDropdown(false)
                             }} className="w-full px-3 py-2 text-left text-sm hover:bg-primary-50">

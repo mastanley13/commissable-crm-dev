@@ -3343,11 +3343,7 @@ useEffect(() => {
   )
 
   const getEditableDisplayValue = useCallback(
-    (columnId: RevenueEditableColumnId, rowValue: unknown): number => {
-      if (columnId === "expectedCommissionRatePercent") {
-        const fraction = typeof rowValue === "number" ? rowValue : Number(rowValue) || 0
-        return fraction * 100 // display percent points
-      }
+    (_columnId: RevenueEditableColumnId, rowValue: unknown): number => {
       return typeof rowValue === "number" ? rowValue : Number(rowValue) || 0
     },
     []

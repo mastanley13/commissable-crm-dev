@@ -78,6 +78,23 @@ interface MapFieldsStepProps {
     templateName: string
     templateUpdatedAt: string
   }>
+  multiVendorTemplateOptions?: Array<{
+    templateId: string
+    templateName: string
+    templateUpdatedAt: string
+    vendorAccountId: string
+    vendorAccountName: string
+    vendorNamesInFile: string[]
+  }>
+  multiVendorSelectedTemplateId?: string
+  onMultiVendorSelectedTemplateIdChange?: (templateId: string) => void
+  multiVendorCompletionByTemplateId?: Record<
+    string,
+    {
+      complete: boolean
+      missingRequiredLabels: string[]
+    }
+  >
   previewWarnings?: string[]
   missingVendors?: string[]
   vendorsMissingTemplates?: string[]
@@ -102,6 +119,10 @@ export function MapFieldsStep({
   templateLabel,
   multiVendor = false,
   templatesUsed = [],
+  multiVendorTemplateOptions = [],
+  multiVendorSelectedTemplateId,
+  onMultiVendorSelectedTemplateIdChange,
+  multiVendorCompletionByTemplateId,
   previewWarnings = [],
   missingVendors = [],
   vendorsMissingTemplates = [],
@@ -849,22 +870,61 @@ export function MapFieldsStep({
             <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
               <div className="min-w-0">
                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  {multiVendor ? "Templates Used" : "Template"}
+                  {multiVendor ? "Active Template" : "Template"}
                 </p>
-                <p
-                  className="truncate text-sm font-semibold text-slate-900"
-                  title={
-                    multiVendor
+                {multiVendor &&
+                multiVendorTemplateOptions.length > 0 &&
+                onMultiVendorSelectedTemplateIdChange ? (
+                  <div className="space-y-1">
+                    <select
+                      className="w-full rounded border border-slate-300 bg-white px-2 py-1 text-sm font-semibold text-slate-900 focus:border-primary-500 focus:outline-none"
+                      value={multiVendorSelectedTemplateId ?? ""}
+                      onChange={event => onMultiVendorSelectedTemplateIdChange(event.target.value)}
+                      aria-label="Select template"
+                    >
+                      {multiVendorTemplateOptions.map(option => {
+                        const completion = multiVendorCompletionByTemplateId?.[option.templateId]
+                        const suffix = completion ? (completion.complete ? " (Complete)" : " (Missing required)") : ""
+                        return (
+                          <option key={option.templateId} value={option.templateId}>
+                            {option.vendorAccountName} — {option.templateName}
+                            {suffix}
+                          </option>
+                        )
+                      })}
+                    </select>
+                    {(() => {
+                      const completion = multiVendorSelectedTemplateId
+                        ? multiVendorCompletionByTemplateId?.[multiVendorSelectedTemplateId] ?? null
+                        : null
+                      if (!completion) return null
+                      if (completion.complete) {
+                        return <p className="text-xs leading-4 text-emerald-700">Required mapping: Complete</p>
+                      }
+                      return (
+                        <p className="text-xs leading-4 text-amber-800">
+                          Required mapping missing: {completion.missingRequiredLabels.join(", ")}
+                        </p>
+                      )
+                    })()}
+                  </div>
+                ) : (
+                  <p
+                    className="truncate text-sm font-semibold text-slate-900"
+                    title={
+                      multiVendor
+                        ? templateLabel || "Map Vendor Name to resolve templates"
+                        : templateLabel ?? "No template selected"
+                    }
+                  >
+                    {multiVendor
                       ? templateLabel || "Map Vendor Name to resolve templates"
-                      : templateLabel ?? "No template selected"
-                  }
-                >
-                  {multiVendor
-                    ? templateLabel || "Map Vendor Name to resolve templates"
-                    : templateLabel ?? "No template selected"}
-                </p>
+                      : templateLabel ?? "No template selected"}
+                  </p>
+                )}
               </div>
-              {!multiVendor && onSaveTemplateMappingChange ? (
+              {onSaveTemplateMappingChange &&
+              (!multiVendor || (multiVendorTemplateOptions.length > 0 && Boolean(multiVendorSelectedTemplateId))) ? (
                 <label className="inline-flex items-center gap-1.5 text-xs text-slate-700">
                   <input
                     type="checkbox"
@@ -872,7 +932,9 @@ export function MapFieldsStep({
                     checked={saveTemplateMapping}
                     onChange={event => onSaveTemplateMappingChange(event.target.checked)}
                   />
-                  <span className="leading-4">Save mapping updates to template</span>
+                  <span className="leading-4">
+                    {multiVendor ? "Save mapping updates to selected template" : "Save mapping updates to template"}
+                  </span>
                 </label>
               ) : null}
             </div>
