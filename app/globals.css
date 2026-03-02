@@ -292,9 +292,18 @@ html, body {
 }
 
 /* Underline field width standardization for modal forms. */
+.fixed.inset-0.z-50 {
+  --modal-underline-width: 300px;
+}
+
 .fixed.inset-0.z-50 :is(input, select, textarea)[class*="border-b-2"] {
-  width: 300px !important;
+  width: var(--modal-underline-width) !important;
   max-width: 100%;
+}
+
+/* Keep dropdown chevrons aligned to the underline width (not the full grid column width). */
+.fixed.inset-0.z-50 :is(input, select, textarea)[class*="border-b-2"] ~ [data-field-chevron] {
+  right: calc(0.5rem + max(100% - var(--modal-underline-width), 0px)) !important;
 }
 
 /* Date picker icon alignment when the indicator is positioned absolutely via Tailwind arbitrary variants. */

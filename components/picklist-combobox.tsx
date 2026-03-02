@@ -1,8 +1,8 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { ChevronDown } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { DropdownChevron } from "@/components/dropdown-chevron"
 
 export interface PicklistComboboxProps {
   value: string
@@ -89,13 +89,7 @@ export function PicklistCombobox({
         disabled={Boolean(disabled)}
         aria-autocomplete="list"
       />
-      <ChevronDown
-        aria-hidden="true"
-        className={cn(
-          "pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 transition-transform",
-          open ? "rotate-180" : null
-        )}
-      />
+      <DropdownChevron open={open} />
       {open && !disabled ? (
         <div className={dropdownClassName}>
           {filtered.length > 0 ? (

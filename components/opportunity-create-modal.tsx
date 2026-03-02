@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { LeadSource, OpportunityStage } from "@prisma/client"
-import { ChevronDown, Loader2 } from "lucide-react"
+import { Loader2 } from "lucide-react"
 import { getOpportunityStageOptions, type OpportunityStageOption } from "@/lib/opportunity-stage"
 import { DropdownChevron } from "@/components/dropdown-chevron"
 import { PicklistCombobox } from "@/components/picklist-combobox"
@@ -843,7 +843,7 @@ export function OpportunityCreateModal({
                 </select>
               </div>
 
-              <div className="relative">
+              <div className="relative w-[300px] max-w-full">
                 <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">
                   Referred By
                 </label>
@@ -887,9 +887,7 @@ export function OpportunityCreateModal({
                     placeholder="Type to search contacts..."
                     className={`${inputClass} pr-8`}
                   />
-                  <ChevronDown 
-                    className={`absolute right-0 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none transition-transform ${showReferredByDropdown ? 'rotate-180' : ''}`}
-                  />
+                  <DropdownChevron open={showReferredByDropdown} />
                 </div>
 
                 {showReferredByDropdown && referredByQueryForUi.length !== 1 && (
@@ -983,58 +981,60 @@ export function OpportunityCreateModal({
                   Roles<span className="ml-1 text-red-500">*</span>
                 </label>
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                  <div className="relative">
+                  <div className="w-[300px] max-w-full">
                     <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">
                       Contact<span className="ml-1 text-red-500">*</span>
                     </label>
-                    <input
-                      type="text"
-                      value={roleContactQuery}
-                      onChange={event => {
-                        setRoleContactQuery(event.target.value)
-                        setRoleContactId("")
-                        setShowRoleContactDropdown(true)
-                      }}
-                      onFocus={() => setShowRoleContactDropdown(true)}
-                      onBlur={() => setTimeout(() => setShowRoleContactDropdown(false), 200)}
-                      placeholder="Type to search contacts..."
-                      className={`${inputClass} pr-8 ${roleContactMissing ? "border-rose-400 focus:border-rose-500" : ""}`}
-                      disabled={roleContactsLoading}
-                    />
-                    <DropdownChevron open={showRoleContactDropdown} />
-                    {showRoleContactDropdown ? (
-                      <div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
-                        {roleContactsLoading ? (
-                          <div className="flex items-center gap-2 px-3 py-2 text-sm text-gray-500">
-                            <Loader2 className="h-3 w-3 animate-spin" />
-                            Searching...
-                          </div>
-                        ) : roleContacts.length === 0 ? (
-                          <div className="px-3 py-2 text-sm text-gray-500">No results found</div>
-                        ) : (
-                          roleContacts.map(option => (
-                            <button
-                              key={option.value}
-                              type="button"
-                              onClick={() => {
-                                setRoleContactId(option.value)
-                                setRoleContactQuery(option.label)
-                                setShowRoleContactDropdown(false)
-                              }}
-                              className="w-full px-3 py-2 text-left text-sm hover:bg-primary-50 focus:bg-primary-50 focus:outline-none"
-                            >
-                              <div className="font-medium text-gray-900">{option.label}</div>
-                              {option.accountName ? (
-                                <div className="text-xs text-gray-500">{option.accountName}</div>
-                              ) : null}
-                            </button>
-                          ))
-                        )}
-                      </div>
-                    ) : null}
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={roleContactQuery}
+                        onChange={event => {
+                          setRoleContactQuery(event.target.value)
+                          setRoleContactId("")
+                          setShowRoleContactDropdown(true)
+                        }}
+                        onFocus={() => setShowRoleContactDropdown(true)}
+                        onBlur={() => setTimeout(() => setShowRoleContactDropdown(false), 200)}
+                        placeholder="Type to search contacts..."
+                        className={`${inputClass} pr-8 ${roleContactMissing ? "border-rose-400 focus:border-rose-500" : ""}`}
+                        disabled={roleContactsLoading}
+                      />
+                      <DropdownChevron open={showRoleContactDropdown} />
+                      {showRoleContactDropdown ? (
+                        <div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
+                          {roleContactsLoading ? (
+                            <div className="flex items-center gap-2 px-3 py-2 text-sm text-gray-500">
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                              Searching...
+                            </div>
+                          ) : roleContacts.length === 0 ? (
+                            <div className="px-3 py-2 text-sm text-gray-500">No results found</div>
+                          ) : (
+                            roleContacts.map(option => (
+                              <button
+                                key={option.value}
+                                type="button"
+                                onClick={() => {
+                                  setRoleContactId(option.value)
+                                  setRoleContactQuery(option.label)
+                                  setShowRoleContactDropdown(false)
+                                }}
+                                className="w-full px-3 py-2 text-left text-sm hover:bg-primary-50 focus:bg-primary-50 focus:outline-none"
+                              >
+                                <div className="font-medium text-gray-900">{option.label}</div>
+                                {option.accountName ? (
+                                  <div className="text-xs text-gray-500">{option.accountName}</div>
+                                ) : null}
+                              </button>
+                            ))
+                          )}
+                        </div>
+                      ) : null}
+                    </div>
                   </div>
 
-                  <div className="relative">
+                  <div className="w-[300px] max-w-full">
                     <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">
                       Role<span className="ml-1 text-red-500">*</span>
                     </label>
@@ -1156,22 +1156,27 @@ export function OpportunityCreateModal({
                 <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">
                   Opportunity Stage<span className="ml-1 text-red-500">*</span>
                 </label>
-                <select
-                  value={form.stage}
-                  onChange={event => setForm(previous => ({ ...previous, stage: event.target.value as OpportunityStage }))}
-                  className={inputClass}
-                >
-                  {stageOptions.map(option => (
-                    <option
-                      key={option.value}
-                      value={option.value}
-                      disabled={option.disabled && option.value !== form.stage}
-                      title={option.disabledReason}
+                <div className="w-[300px] max-w-full">
+                  <div className="relative">
+                    <select
+                      value={form.stage}
+                      onChange={event => setForm(previous => ({ ...previous, stage: event.target.value as OpportunityStage }))}
+                      className={`${inputClass} appearance-none pr-8`}
                     >
-                      {formatStageLabel(option)}
-                    </option>
-                  ))}
-                </select>
+                      {stageOptions.map(option => (
+                        <option
+                          key={option.value}
+                          value={option.value}
+                          disabled={option.disabled && option.value !== form.stage}
+                          title={option.disabledReason}
+                        >
+                          {formatStageLabel(option)}
+                        </option>
+                      ))}
+                    </select>
+                    <DropdownChevron />
+                  </div>
+                </div>
               </div>
 
               <div className="relative">
@@ -1203,109 +1208,116 @@ export function OpportunityCreateModal({
                 <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">
                   Owner<span className="ml-1 text-red-500">*</span>
                 </label>
-                <select
-                  value={form.ownerId}
-                  onChange={event => setForm(previous => ({ ...previous, ownerId: event.target.value }))}
-                  className={inputClass}
-                  disabled={ownersLoading}
-                  required
-                >
-                  <option value="">{ownersLoading ? "Loading owners..." : "Select owner"}</option>
-                  {owners.map(option => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
+                <div className="w-[300px] max-w-full">
+                  <div className="relative">
+                    <select
+                      value={form.ownerId}
+                      onChange={event => setForm(previous => ({ ...previous, ownerId: event.target.value }))}
+                      className={`${inputClass} appearance-none pr-8`}
+                      disabled={ownersLoading}
+                      required
+                    >
+                      <option value="">{ownersLoading ? "Loading owners..." : "Select owner"}</option>
+                      {owners.map(option => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                    <DropdownChevron />
+                  </div>
+                </div>
               </div>
 
               <div>
                 <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Subagent</label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={subagentQuery}
-                    onChange={event => {
-                      setSubagentQuery(event.target.value)
-                      setForm(prev => ({ ...prev, subAgent: "" }))
-                      setShowSubagentDropdown(true)
-                    }}
-                    onFocus={() => {
-                      if (subagentQuery.trim().toLowerCase() === "none") {
-                        setSubagentQuery("")
+                <div className="w-[300px] max-w-full">
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={subagentQuery}
+                      onChange={event => {
+                        setSubagentQuery(event.target.value)
                         setForm(prev => ({ ...prev, subAgent: "" }))
-                      }
-                      setShowSubagentDropdown(true)
-                    }}
-                    onBlur={() => {
-                      setTimeout(() => setShowSubagentDropdown(false), 200)
-                      setTimeout(() => {
-                        if (skipSubagentBlurResetRef.current) {
-                          skipSubagentBlurResetRef.current = false
-                          return
+                        setShowSubagentDropdown(true)
+                      }}
+                      onFocus={() => {
+                        if (subagentQuery.trim().toLowerCase() === "none") {
+                          setSubagentQuery("")
+                          setForm(prev => ({ ...prev, subAgent: "" }))
                         }
-                        setSubagentQuery(prev => {
-                          const trimmed = prev.trim()
-                           if (trimmed.length === 0) {
-                            setForm(previous => ({ ...previous, subAgent: "", subagentPercent: "0.00" }))
-                            return "None"
+                        setShowSubagentDropdown(true)
+                      }}
+                      onBlur={() => {
+                        setTimeout(() => setShowSubagentDropdown(false), 200)
+                        setTimeout(() => {
+                          if (skipSubagentBlurResetRef.current) {
+                            skipSubagentBlurResetRef.current = false
+                            return
                           }
-                          return prev
-                        })
-                      }, 210)
-                    }}
-                    className={`${inputClass} pr-8`}
-                    placeholder="Type to search subagents..."
-                    disabled={subagentsLoading}
-                  />
-                  <DropdownChevron open={showSubagentDropdown} />
-                  {showSubagentDropdown && (
-                    <div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
-                      <button
-                        type="button"
-                        onMouseDown={() => {
-                          skipSubagentBlurResetRef.current = true
-                        }}
-                        onClick={() => {
-                          setForm(prev => ({ ...prev, subAgent: "", subagentPercent: "0.00" }))
-                          setSubagentQuery("None")
-                          setShowSubagentDropdown(false)
-                        }}
-                        className="w-full px-3 py-2 text-left text-sm hover:bg-primary-50 focus:bg-primary-50 focus:outline-none"
-                      >
-                        <div className="font-medium text-gray-900">None</div>
-                      </button>
-                      {subagentsLoading ? (
-                        <div className="flex items-center gap-2 px-3 py-2 text-sm text-gray-500">
-                          <Loader2 className="h-3 w-3 animate-spin" />
-                          Loading...
-                        </div>
-                      ) : subagents.length === 0 ? (
-                        <div className="px-3 py-2 text-sm text-gray-500">No results found</div>
-                      ) : (
-                        subagents.map(option => (
-                          <button
-                            key={option.value}
-                            type="button"
-                            onMouseDown={() => {
-                              skipSubagentBlurResetRef.current = true
-                            }}
-                            onClick={() => {
-                              setForm(prev => ({ ...prev, subAgent: option.label }))
-                              setSubagentQuery(option.label)
-                              setShowSubagentDropdown(false)
-                            }}
-                            className="w-full px-3 py-2 text-left text-sm hover:bg-primary-50 focus:bg-primary-50 focus:outline-none"
-                          >
-                            <div className="font-medium text-gray-900">{option.label}</div>
-                            {option.accountName && (
-                              <div className="text-xs text-gray-500">{option.accountName}</div>
-                            )}
-                          </button>
-                        ))
-                      )}
-                    </div>
-                  )}
+                          setSubagentQuery(prev => {
+                            const trimmed = prev.trim()
+                            if (trimmed.length === 0) {
+                              setForm(previous => ({ ...previous, subAgent: "", subagentPercent: "0.00" }))
+                              return "None"
+                            }
+                            return prev
+                          })
+                        }, 210)
+                      }}
+                      className={`${inputClass} pr-8`}
+                      placeholder="Type to search subagents..."
+                      disabled={subagentsLoading}
+                    />
+                    <DropdownChevron open={showSubagentDropdown} />
+                    {showSubagentDropdown && (
+                      <div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
+                        <button
+                          type="button"
+                          onMouseDown={() => {
+                            skipSubagentBlurResetRef.current = true
+                          }}
+                          onClick={() => {
+                            setForm(prev => ({ ...prev, subAgent: "", subagentPercent: "0.00" }))
+                            setSubagentQuery("None")
+                            setShowSubagentDropdown(false)
+                          }}
+                          className="w-full px-3 py-2 text-left text-sm hover:bg-primary-50 focus:bg-primary-50 focus:outline-none"
+                        >
+                          <div className="font-medium text-gray-900">None</div>
+                        </button>
+                        {subagentsLoading ? (
+                          <div className="flex items-center gap-2 px-3 py-2 text-sm text-gray-500">
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                            Loading...
+                          </div>
+                        ) : subagents.length === 0 ? (
+                          <div className="px-3 py-2 text-sm text-gray-500">No results found</div>
+                        ) : (
+                          subagents.map(option => (
+                            <button
+                              key={option.value}
+                              type="button"
+                              onMouseDown={() => {
+                                skipSubagentBlurResetRef.current = true
+                              }}
+                              onClick={() => {
+                                setForm(prev => ({ ...prev, subAgent: option.label }))
+                                setSubagentQuery(option.label)
+                                setShowSubagentDropdown(false)
+                              }}
+                              className="w-full px-3 py-2 text-left text-sm hover:bg-primary-50 focus:bg-primary-50 focus:outline-none"
+                            >
+                              <div className="font-medium text-gray-900">{option.label}</div>
+                              {option.accountName && (
+                                <div className="text-xs text-gray-500">{option.accountName}</div>
+                              )}
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 
