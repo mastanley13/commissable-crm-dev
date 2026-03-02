@@ -2873,9 +2873,9 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
     onRefresh?.()
   }
 
-  const handleCloseOpportunityModal = () => {
+  const handleCloseOpportunityModal = useCallback(() => {
     setOpportunityModalOpen(false)
-  }
+  }, [])
 
   const handleGroupCreated = () => {
     setGroupModalOpen(false)

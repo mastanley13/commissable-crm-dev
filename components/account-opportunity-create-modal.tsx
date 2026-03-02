@@ -82,6 +82,11 @@ export function OpportunityCreateModal({ isOpen, accountId, accountName, onClose
   const [subagentPercentFocused, setSubagentPercentFocused] = useState(false)
   const skipReferredByBlurResetRef = useRef(false)
   const skipSubagentBlurResetRef = useRef(false)
+  const onCloseRef = useRef(onClose)
+
+  useEffect(() => {
+    onCloseRef.current = onClose
+  }, [onClose])
 
   useEffect(() => {
     if (!isOpen) {
@@ -131,7 +136,7 @@ export function OpportunityCreateModal({ isOpen, accountId, accountName, onClose
             if (isHouse) {
               if (!cancelled) {
                 showError("Not allowed", "Opportunities cannot be created for House accounts.")
-                onClose()
+                onCloseRef.current()
               }
               return
             }
@@ -191,7 +196,7 @@ export function OpportunityCreateModal({ isOpen, accountId, accountName, onClose
     return () => {
       cancelled = true
     }
-  }, [isOpen, accountId, onClose, showError])
+  }, [isOpen, accountId, showError])
 
   useEffect(() => {
     if (!isOpen) {

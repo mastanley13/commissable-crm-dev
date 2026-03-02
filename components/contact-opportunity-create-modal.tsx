@@ -1,6 +1,6 @@
 ﻿"use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { Loader2 } from "lucide-react"
 import { DropdownChevron } from "@/components/dropdown-chevron"
 import { useToasts } from "@/components/toast"
@@ -82,6 +82,11 @@ export function ContactOpportunityCreateModal({ isOpen, contactName, accountId, 
   const [showSubagentDropdown, setShowSubagentDropdown] = useState(false)
   const [subagentsLoading, setSubagentsLoading] = useState(false)
   const { showError, showSuccess } = useToasts()
+  const onCloseRef = useRef(onClose)
+
+  useEffect(() => {
+    onCloseRef.current = onClose
+  }, [onClose])
 
   useEffect(() => {
     if (!isOpen) {
@@ -122,7 +127,7 @@ export function ContactOpportunityCreateModal({ isOpen, contactName, accountId, 
 
         if (isHouse) {
           showError("Not allowed", "Opportunities cannot be created for House accounts.")
-          onClose()
+          onCloseRef.current()
         }
       } catch {
         if (!cancelled) {
@@ -134,7 +139,7 @@ export function ContactOpportunityCreateModal({ isOpen, contactName, accountId, 
     return () => {
       cancelled = true
     }
-  }, [isOpen, accountId, onClose, showError])
+  }, [isOpen, accountId, showError])
 
   useEffect(() => {
     if (!isOpen) {

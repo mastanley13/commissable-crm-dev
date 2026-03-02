@@ -1420,6 +1420,10 @@ const [groupsPageSize, setGroupsPageSize] = useState(100)
     }
   }, [activeTab, contact, isDeleted])
 
+  const handleCloseOpportunityCreateModal = useCallback(() => {
+    setOpportunityModalOpen(false)
+  }, [])
+
   const handleDelete = () => {
     setShowDeleteDialog(true)
   }
@@ -4045,7 +4049,7 @@ useEffect(() => {
             contactName={contactDisplayName}
             accountId={contact.accountId}
             accountName={contact.accountName}
-            onClose={() => setOpportunityModalOpen(false)}
+            onClose={handleCloseOpportunityCreateModal}
             onSuccess={handlePostCreate}
           />
           <ContactGroupCreateModal
