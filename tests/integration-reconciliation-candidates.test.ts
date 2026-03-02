@@ -51,7 +51,7 @@ integrationTest("REC-AUTO-05/06: candidates endpoint honors engine mode + user c
   })
 
   // Candidate within month window.
-  await prisma.revenueSchedule.create({
+  const inWindow = await prisma.revenueSchedule.create({
     data: {
       tenantId: ctx.tenantId,
       accountId: ctx.distributorAccountId,
@@ -63,6 +63,23 @@ integrationTest("REC-AUTO-05/06: candidates endpoint honors engine mode + user c
       expectedUsage: 100,
       expectedCommission: 10,
     },
+    select: { id: true },
+  })
+
+  // Candidate well before the previous lower-bound window (now allowed).
+  const oldSchedule = await prisma.revenueSchedule.create({
+    data: {
+      tenantId: ctx.tenantId,
+      accountId: ctx.distributorAccountId,
+      distributorAccountId: ctx.distributorAccountId,
+      vendorAccountId: ctx.vendorAccountId,
+      scheduleNumber: "RS-CAND-OLD",
+      scheduleDate: new Date("2025-10-15T00:00:00Z"),
+      status: "Unreconciled",
+      expectedUsage: 100,
+      expectedCommission: 10,
+    },
+    select: { id: true },
   })
 
   // Candidate outside end-of-month (future), should only show when includeFutureSchedules=true.
@@ -132,6 +149,8 @@ integrationTest("REC-AUTO-05/06: candidates endpoint honors engine mode + user c
   assertStatus(legacyNoFuture, 200)
   const legacyNoFuturePayload = await readJson<{ data?: any[] }>(legacyNoFuture)
   assert.ok((legacyNoFuturePayload.data?.length ?? 0) >= 1)
+  assert.ok(legacyNoFuturePayload.data!.some(row => row.id === inWindow.id))
+  assert.ok(legacyNoFuturePayload.data!.some(row => row.id === oldSchedule.id))
   assert.ok(legacyNoFuturePayload.data!.every(row => row.matchType === "legacy"))
 
   const legacyWithFuture = await GET(

@@ -757,10 +757,10 @@ async function fetchCandidateSchedules(
 ) {
   const referenceDate = getReferenceDate(lineItem)
   const tenantId = lineItem.deposit?.tenantId ?? lineItem.tenantId
-  const fromDate = addMonths(referenceDate, -options.dateWindowMonths)
-  const toDate = options.includeFutureSchedules
-    ? addMonths(endOfMonth(referenceDate), options.dateWindowMonths)
-    : endOfMonth(referenceDate)
+  const currentPeriodEnd = endOfMonth(referenceDate)
+  const scheduleDateFilter: Prisma.DateTimeNullableFilter = options.includeFutureSchedules
+    ? { not: null }
+    : { not: null, lte: currentPeriodEnd }
 
   if (!lineItem.accountId) {
     const accountName = typeof lineItem.accountNameRaw === "string" ? lineItem.accountNameRaw.trim() : ""
@@ -784,7 +784,7 @@ async function fetchCandidateSchedules(
 
   const strictWhere: Prisma.RevenueScheduleWhereInput = {
     tenantId,
-    scheduleDate: { gte: fromDate, lte: toDate },
+    scheduleDate: scheduleDateFilter,
     status: {
       in: [
         RevenueScheduleStatus.Unreconciled,
@@ -805,8 +805,8 @@ async function fetchCandidateSchedules(
   }
 
   const orderBy: Prisma.RevenueScheduleOrderByWithRelationInput[] = [
-    { scheduleDate: "asc" },
-    { createdAt: "asc" },
+    { scheduleDate: "desc" },
+    { createdAt: "desc" },
   ]
 
   let schedules: RevenueScheduleWithRelations[] = await prisma.revenueSchedule.findMany({
@@ -821,7 +821,7 @@ async function fetchCandidateSchedules(
   if (schedules.length === 0 && options.allowCrossVendorFallback) {
     const fallbackWhere: Prisma.RevenueScheduleWhereInput = {
       tenantId,
-      scheduleDate: { gte: fromDate, lte: toDate },
+      scheduleDate: scheduleDateFilter,
       status: {
         in: [
           RevenueScheduleStatus.Unreconciled,
