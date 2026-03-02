@@ -9,7 +9,7 @@ import { dedupeColumnFilters } from "@/lib/filter-utils"
 import type { ColumnFilter } from "@/components/list-header"
 import { logOpportunityAudit } from "@/lib/audit"
 import { canonicalizeMultiValueString } from "@/lib/multi-value"
-import { normalizeRoleDrafts } from "@/lib/opportunities/roles-validation"
+import { normalizeRoleDrafts, requireAtLeastOneRole } from "@/lib/opportunities/roles-validation"
 import { isHouseAccountType } from "@/lib/account-type"
 
 export const runtime = "nodejs"
@@ -450,8 +450,9 @@ export async function POST(request: NextRequest) {
       }
 
       const normalizedRoles = normalizeRoleDrafts((payload as Record<string, unknown>).roles)
-      if (normalizedRoles.hasIncomplete) {
-        const error = "Please complete or remove incomplete role rows."
+      const roleRequirement = requireAtLeastOneRole(normalizedRoles.complete, normalizedRoles.hasIncomplete)
+      if (!roleRequirement.ok) {
+        const error = roleRequirement.error
         return NextResponse.json(
           { error, errors: { roles: error } },
           { status: 400 }

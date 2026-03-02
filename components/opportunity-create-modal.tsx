@@ -5,9 +5,12 @@ import { LeadSource, OpportunityStage } from "@prisma/client"
 import { ChevronDown, Loader2 } from "lucide-react"
 import { getOpportunityStageOptions, type OpportunityStageOption } from "@/lib/opportunity-stage"
 import { DropdownChevron } from "@/components/dropdown-chevron"
+import { PicklistCombobox } from "@/components/picklist-combobox"
 import { useToasts } from "@/components/toast"
 import { formatDecimalToFixed, formatPercentDisplay, normalizeDecimalInput } from "@/lib/number-format"
 import { isHouseAccountType } from "@/lib/account-type"
+import { OPPORTUNITY_ROLE_PICKLIST } from "@/lib/opportunities/opportunity-role-picklist"
+import { normalizeRoleDrafts, requireAtLeastOneRole } from "@/lib/opportunities/roles-validation"
 
 interface SelectOption {
   value: string
@@ -160,6 +163,13 @@ export function OpportunityCreateModal({
   const [referredByQuery, setReferredByQuery] = useState("None")
   const [showReferredByDropdown, setShowReferredByDropdown] = useState(false)
   const [referredByLoading, setReferredByLoading] = useState(false)
+  const [roleContacts, setRoleContacts] = useState<ContactOption[]>([])
+  const [roleContactQuery, setRoleContactQuery] = useState("")
+  const [roleContactId, setRoleContactId] = useState("")
+  const [roleContactsLoading, setRoleContactsLoading] = useState(false)
+  const [showRoleContactDropdown, setShowRoleContactDropdown] = useState(false)
+  const [roleValue, setRoleValue] = useState("")
+  const [showRoleErrors, setShowRoleErrors] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [subagentPercentFocused, setSubagentPercentFocused] = useState(false)
   const [houseRepPercentFocused, setHouseRepPercentFocused] = useState(false)
@@ -178,6 +188,11 @@ export function OpportunityCreateModal({
 
     setForm(buildInitialForm(defaultAccountId))
     setAccountQuery("")
+    setRoleContacts([])
+    setRoleContactQuery("")
+    setRoleContactId("")
+    setRoleValue("")
+    setShowRoleErrors(false)
   }, [isOpen, defaultAccountId])
 
   useEffect(() => {
@@ -387,6 +402,23 @@ export function OpportunityCreateModal({
     )
   }, [subagentPercentPoints, subagentPercentRequired])
 
+  const normalizedRoleDrafts = useMemo(() => {
+    return normalizeRoleDrafts([{ contactId: roleContactId, role: roleValue }])
+  }, [roleContactId, roleValue])
+
+  const roleRequirement = useMemo(() => {
+    return requireAtLeastOneRole(normalizedRoleDrafts.complete, normalizedRoleDrafts.hasIncomplete)
+  }, [normalizedRoleDrafts.complete, normalizedRoleDrafts.hasIncomplete])
+
+  const roleRequirementError = roleRequirement.ok ? "" : roleRequirement.error
+
+  const roleMeaningful = useMemo(() => {
+    return Boolean(roleContactId.trim() || roleContactQuery.trim() || roleValue.trim())
+  }, [roleContactId, roleContactQuery, roleValue])
+
+  const roleContactMissing = showRoleErrors && roleMeaningful && !roleContactId.trim()
+  const roleValueMissing = showRoleErrors && roleMeaningful && !roleValue.trim()
+
   const canSubmit = useMemo(() => {
     return Boolean(
       form.accountId &&
@@ -395,7 +427,8 @@ export function OpportunityCreateModal({
       form.leadSource &&
       form.ownerId &&
       form.estimatedCloseDate &&
-      subagentPercentValid
+      subagentPercentValid &&
+      roleRequirement.ok
     )
   }, [
     form.accountId,
@@ -404,8 +437,62 @@ export function OpportunityCreateModal({
     form.name,
     form.ownerId,
     form.stage,
-    subagentPercentValid
+    subagentPercentValid,
+    roleRequirement.ok
   ])
+
+  useEffect(() => {
+    if (!isOpen) {
+      return
+    }
+
+    const controller = new AbortController()
+    const run = async () => {
+      setRoleContactsLoading(true)
+      try {
+        const params = new URLSearchParams({ page: "1", pageSize: "50" })
+        params.set("sortBy", "fullName")
+        params.set("sortDir", "asc")
+
+        const trimmed = roleContactQuery.trim()
+        if (trimmed.length > 0) {
+          params.set("q", trimmed)
+        }
+
+        const response = await fetch(`/api/contacts?${params.toString()}`, {
+          cache: "no-store",
+          signal: controller.signal
+        })
+
+        if (!response.ok) {
+          throw new Error("Failed to load contacts")
+        }
+
+        const payload = await response.json().catch(() => null)
+        const items: any[] = Array.isArray(payload?.data) ? payload.data : []
+        const options: ContactOption[] = items.map(item => ({
+          value: item.id,
+          label: item.fullName?.trim() || "Unnamed contact",
+          accountName: item.accountName || undefined
+        }))
+
+        setRoleContacts(options)
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          return
+        }
+        setRoleContacts([])
+      } finally {
+        setRoleContactsLoading(false)
+      }
+    }
+
+    const debounce = setTimeout(() => void run(), 250)
+    return () => {
+      controller.abort()
+      clearTimeout(debounce)
+    }
+  }, [isOpen, roleContactQuery])
 
   const houseSplitPercentDisplay = useMemo(() => {
     const subagentValue = Number.parseFloat(form.subagentPercent)
@@ -456,11 +543,22 @@ export function OpportunityCreateModal({
   const handleClose = useCallback(() => {
     setForm(buildInitialForm(defaultAccountId))
     setAccountQuery("")
+    setRoleContacts([])
+    setRoleContactQuery("")
+    setRoleContactId("")
+    setRoleValue("")
+    setShowRoleErrors(false)
     onClose()
   }, [defaultAccountId, onClose])
 
   const handleSubmit = useCallback(async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+
+    if (!roleRequirement.ok) {
+      setShowRoleErrors(true)
+      showError("Missing role contact", roleRequirementError || "At least one role contact is required.")
+      return
+    }
 
     if (!canSubmit) {
       showError("Missing information", "Please complete all required fields before creating the opportunity.")
@@ -541,7 +639,8 @@ export function OpportunityCreateModal({
         customerPurchaseOrder: normalizeString(form.customerPurchaseOrder),
         subagentPercent: subagentPercentPoints,
         houseRepPercent: houseRepPercentPoints,
-        houseSplitPercent: houseSplitPercentPoints
+        houseSplitPercent: houseSplitPercentPoints,
+        roles: normalizedRoleDrafts.complete
       }
 
       const response = await fetch("/api/opportunities", {
@@ -572,7 +671,19 @@ export function OpportunityCreateModal({
     } finally {
       setSubmitting(false)
     }
-  }, [accounts, canSubmit, form, handleClose, houseSplitPercentDisplay, onCreated, showError, showSuccess])
+  }, [
+    accounts,
+    canSubmit,
+    form,
+    handleClose,
+    houseSplitPercentDisplay,
+    normalizedRoleDrafts.complete,
+    onCreated,
+    roleRequirement.ok,
+    roleRequirementError,
+    showError,
+    showSuccess
+  ])
 
   const selectedAccount = useMemo(
     () => accounts.find(option => option.value === form.accountId) ?? null,
@@ -866,6 +977,85 @@ export function OpportunityCreateModal({
                 )}
               </div>
 
+              {/* Opportunity Roles - Required */}
+              <div className="xl:col-span-4 md:col-span-2">
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                  Roles<span className="ml-1 text-red-500">*</span>
+                </label>
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <div className="relative">
+                    <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                      Contact<span className="ml-1 text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={roleContactQuery}
+                      onChange={event => {
+                        setRoleContactQuery(event.target.value)
+                        setRoleContactId("")
+                        setShowRoleContactDropdown(true)
+                      }}
+                      onFocus={() => setShowRoleContactDropdown(true)}
+                      onBlur={() => setTimeout(() => setShowRoleContactDropdown(false), 200)}
+                      placeholder="Type to search contacts..."
+                      className={`${inputClass} pr-8 ${roleContactMissing ? "border-rose-400 focus:border-rose-500" : ""}`}
+                      disabled={roleContactsLoading}
+                    />
+                    <DropdownChevron open={showRoleContactDropdown} />
+                    {showRoleContactDropdown ? (
+                      <div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
+                        {roleContactsLoading ? (
+                          <div className="flex items-center gap-2 px-3 py-2 text-sm text-gray-500">
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                            Searching...
+                          </div>
+                        ) : roleContacts.length === 0 ? (
+                          <div className="px-3 py-2 text-sm text-gray-500">No results found</div>
+                        ) : (
+                          roleContacts.map(option => (
+                            <button
+                              key={option.value}
+                              type="button"
+                              onClick={() => {
+                                setRoleContactId(option.value)
+                                setRoleContactQuery(option.label)
+                                setShowRoleContactDropdown(false)
+                              }}
+                              className="w-full px-3 py-2 text-left text-sm hover:bg-primary-50 focus:bg-primary-50 focus:outline-none"
+                            >
+                              <div className="font-medium text-gray-900">{option.label}</div>
+                              {option.accountName ? (
+                                <div className="text-xs text-gray-500">{option.accountName}</div>
+                              ) : null}
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    ) : null}
+                  </div>
+
+                  <div className="relative">
+                    <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                      Role<span className="ml-1 text-red-500">*</span>
+                    </label>
+                    <PicklistCombobox
+                      value={roleValue}
+                      options={OPPORTUNITY_ROLE_PICKLIST}
+                      placeholder="Search or pick a role"
+                      disabled={submitting}
+                      inputClassName={`${inputClass} ${roleValueMissing ? "border-rose-400 focus:border-rose-500" : ""}`}
+                      dropdownClassName="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg"
+                      optionClassName="w-full px-3 py-2 text-left text-sm hover:bg-primary-50 focus:bg-primary-50 focus:outline-none"
+                      onChange={nextRole => setRoleValue(nextRole)}
+                    />
+                  </div>
+                </div>
+
+                {showRoleErrors && !roleRequirement.ok ? (
+                  <p className="mt-2 text-[11px] text-rose-600">{roleRequirement.error}</p>
+                ) : null}
+              </div>
+
               <div>
                 <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Other - Order ID</label>
                 <input
@@ -1069,7 +1259,7 @@ export function OpportunityCreateModal({
                     disabled={subagentsLoading}
                   />
                   <DropdownChevron open={showSubagentDropdown} />
-                  {showSubagentDropdown && subagentQueryForUi.length > 0 && subagents.length > 0 && (
+                  {showSubagentDropdown && (
                     <div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
                       <button
                         type="button"
@@ -1085,26 +1275,35 @@ export function OpportunityCreateModal({
                       >
                         <div className="font-medium text-gray-900">None</div>
                       </button>
-                      {subagents.map(option => (
-                        <button
-                          key={option.value}
-                          type="button"
-                          onMouseDown={() => {
-                            skipSubagentBlurResetRef.current = true
-                          }}
-                          onClick={() => {
-                            setForm(prev => ({ ...prev, subAgent: option.label }))
-                            setSubagentQuery(option.label)
-                            setShowSubagentDropdown(false)
-                          }}
-                          className="w-full px-3 py-2 text-left text-sm hover:bg-primary-50 focus:bg-primary-50 focus:outline-none"
-                        >
-                          <div className="font-medium text-gray-900">{option.label}</div>
-                          {option.accountName && (
-                            <div className="text-xs text-gray-500">{option.accountName}</div>
-                          )}
-                        </button>
-                      ))}
+                      {subagentsLoading ? (
+                        <div className="flex items-center gap-2 px-3 py-2 text-sm text-gray-500">
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                          Loading...
+                        </div>
+                      ) : subagents.length === 0 ? (
+                        <div className="px-3 py-2 text-sm text-gray-500">No results found</div>
+                      ) : (
+                        subagents.map(option => (
+                          <button
+                            key={option.value}
+                            type="button"
+                            onMouseDown={() => {
+                              skipSubagentBlurResetRef.current = true
+                            }}
+                            onClick={() => {
+                              setForm(prev => ({ ...prev, subAgent: option.label }))
+                              setSubagentQuery(option.label)
+                              setShowSubagentDropdown(false)
+                            }}
+                            className="w-full px-3 py-2 text-left text-sm hover:bg-primary-50 focus:bg-primary-50 focus:outline-none"
+                          >
+                            <div className="font-medium text-gray-900">{option.label}</div>
+                            {option.accountName && (
+                              <div className="text-xs text-gray-500">{option.accountName}</div>
+                            )}
+                          </button>
+                        ))
+                      )}
                     </div>
                   )}
                 </div>
