@@ -29,6 +29,7 @@ interface OpportunityEditFormState {
   accountIdVendor: string
   customerIdVendor: string
   orderIdVendor: string
+  isSubjectMatterExpertDeal: boolean
 }
 
 const stageOptions: OpportunityStageOption[] = getOpportunityStageOptions()
@@ -95,6 +96,7 @@ export function OpportunityEditModal({ isOpen, opportunityId, onClose, onSuccess
           accountIdVendor: data.identifiers?.accountIdVendor ?? "",
           customerIdVendor: data.identifiers?.customerIdVendor ?? "",
           orderIdVendor: data.identifiers?.orderIdVendor ?? "",
+          isSubjectMatterExpertDeal: Boolean(data.isSubjectMatterExpertDeal),
         })
       })
       .catch(error => {
@@ -168,6 +170,7 @@ export function OpportunityEditModal({ isOpen, opportunityId, onClose, onSuccess
           estimatedCloseDate: form.estimatedCloseDate,
           leadSource: form.leadSource,
           subAgent: form.subAgent,
+          isSubjectMatterExpertDeal: form.isSubjectMatterExpertDeal,
           accountIdVendor: form.accountIdVendor,
           customerIdVendor: form.customerIdVendor,
           orderIdVendor: form.orderIdVendor,
@@ -255,6 +258,25 @@ export function OpportunityEditModal({ isOpen, opportunityId, onClose, onSuccess
                     Stage updates automatically based on product billing status.
                   </p>
                 )}
+              </div>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="md:col-span-2">
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500" htmlFor="opportunity-sme-deal">
+                  Subject Matter Expert Deal
+                </label>
+                <div className="flex items-center gap-3">
+                  <input
+                    id="opportunity-sme-deal"
+                    type="checkbox"
+                    checked={Boolean(form.isSubjectMatterExpertDeal)}
+                    onChange={event => setForm(current => current ? { ...current, isSubjectMatterExpertDeal: event.target.checked } : current)}
+                    disabled={loading}
+                    className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-gray-700">Enable SME % helper on opportunity products.</span>
+                </div>
               </div>
             </div>
 

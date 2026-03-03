@@ -27,6 +27,7 @@ export interface ProductListRow {
   productSubtypeVendor: string | null
   productNameVendor: string
   productNameOther?: string | null
+  partNumberHouse?: string | null
   partNumberVendor: string
   partNumberOther?: string | null
   productDescriptionHouse: string
@@ -106,6 +107,7 @@ export function mapProductToRow(product: ProductWithRelations): ProductListRow {
     productSubtypeVendor: product.productSubtypeVendor ?? null,
     productNameVendor: product.productNameVendor ?? "",
     productNameOther,
+    partNumberHouse: product.partNumberHouse ?? "",
     partNumberVendor: product.partNumberVendor ?? "",
     partNumberOther,
     productDescriptionHouse: product.description ?? "",

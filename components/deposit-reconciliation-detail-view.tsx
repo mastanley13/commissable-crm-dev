@@ -291,9 +291,12 @@ function getAllocationStatusLabel(status: string): string {
 }
 
 const TABLE_CONTAINER_PADDING = 1
+const TABLE_VIEWPORT_BOTTOM_GUTTER = 12
 const TABLE_BODY_MIN_HEIGHT = 200
 const TABLE_BODY_FOOTER_RESERVE = 1
 const DEFAULT_TABLE_BODY_HEIGHT = 260
+const LINE_ITEMS_TABLE_HEIGHT = 210
+const SUGGESTED_MATCHES_TABLE_HEIGHT = 360
 
 function useTableScrollMetrics() {
   const containerRef = useRef<HTMLDivElement | null>(null)
@@ -303,7 +306,14 @@ function useTableScrollMetrics() {
     const container = containerRef.current
     if (!container) return
     const rect = container.getBoundingClientRect()
-    const available = window.innerHeight - rect.top - TABLE_CONTAINER_PADDING
+    const mainBoundary = container.closest("main")
+    const boundaryRect = mainBoundary?.getBoundingClientRect()
+    const boundaryBottom =
+      typeof boundaryRect?.bottom === "number" && Number.isFinite(boundaryRect.bottom)
+        ? boundaryRect.bottom
+        : window.innerHeight
+    const available =
+      boundaryBottom - rect.top - TABLE_CONTAINER_PADDING - TABLE_VIEWPORT_BOTTOM_GUTTER
     // Ignore measurements that would collapse the table (e.g. when the container
     // is below the viewport and getBoundingClientRect().top is greater than
     // window.innerHeight). In those cases we keep the last known good height.
@@ -674,18 +684,14 @@ export function DepositReconciliationDetailView({
     requestScheduleTableMeasure()
   }, [requestScheduleTableMeasure, scheduleRows.length])
 
-  const sharedTableBodyHeight = useMemo(() => {
-    const heights: number[] = []
-    if (typeof lineTableBodyHeight === "number") heights.push(lineTableBodyHeight)
-    if (typeof scheduleTableBodyHeight === "number") heights.push(scheduleTableBodyHeight)
-    if (heights.length === 0) return undefined
-    return Math.min(Math.min(...heights), DEFAULT_TABLE_BODY_HEIGHT)
-  }, [lineTableBodyHeight, scheduleTableBodyHeight])
-
-  const normalizedLineTableHeight =
-    sharedTableBodyHeight ?? lineTableBodyHeight ?? DEFAULT_TABLE_BODY_HEIGHT
-  const normalizedScheduleTableHeight =
-    sharedTableBodyHeight ?? scheduleTableBodyHeight ?? DEFAULT_TABLE_BODY_HEIGHT
+  const normalizedLineTableHeight = Math.min(
+    lineTableBodyHeight ?? LINE_ITEMS_TABLE_HEIGHT,
+    LINE_ITEMS_TABLE_HEIGHT,
+  )
+  const normalizedScheduleTableHeight = Math.min(
+    scheduleTableBodyHeight ?? SUGGESTED_MATCHES_TABLE_HEIGHT,
+    SUGGESTED_MATCHES_TABLE_HEIGHT,
+  )
 
   const selectedLineForMatch = useMemo(() => {
     const lineId = selectedLineId ?? selectedLineItems[0]
@@ -1757,24 +1763,13 @@ export function DepositReconciliationDetailView({
         width: 240,
         minWidth: minTextWidth(depositFieldLabels.productName),
         sortable: true,
-        render: (value: string, row: DepositLineItemRow) => {
+        render: (value: string) => {
           const trimmedName = value?.trim()
-          const href = row.productId
-            ? `/products/${encodeURIComponent(row.productId)}`
-            : trimmedName
-              ? `/products?search=${encodeURIComponent(trimmedName)}`
-              : "/products"
-          const displayValue = trimmedName || "View product"
+          const displayValue = trimmedName || "--"
           return (
-            <Link
-              href={href}
-              className="inline-flex max-w-full items-center text-sm font-semibold text-primary-600 transition hover:text-primary-700"
-              title={displayValue}
-              onClick={event => event.stopPropagation()}
-              data-disable-row-click="true"
-            >
+            <span className="inline-flex max-w-full items-center text-sm font-semibold text-slate-900" title={displayValue}>
               <span className="truncate">{displayValue}</span>
-            </Link>
+            </span>
           )
         }
       },
@@ -3766,7 +3761,7 @@ export function DepositReconciliationDetailView({
       </div>
     ) : null}
 
-      <section className="flex min-h-0 flex-1 flex-col">
+      <section className="flex min-h-0 flex-col">
         <div className="border-b border-slate-100">
           <div className="px-0 py-2">
             <TabDescription className="my-0">
@@ -3825,8 +3820,8 @@ export function DepositReconciliationDetailView({
             }
           />
         </div>
-        <div className="flex min-h-0 flex-1 flex-col pt-1">
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden" ref={lineTableAreaRefCallback}>
+        <div className="flex min-h-0 flex-col pt-1">
+          <div className="flex min-h-0 flex-col overflow-hidden" ref={lineTableAreaRefCallback}>
             <DynamicTable
               className="flex flex-col"
               columns={lineTableColumns}

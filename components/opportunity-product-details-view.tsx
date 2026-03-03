@@ -51,9 +51,10 @@ export interface ProductAuditLogEntry {
 
 export interface OpportunityProductDetailRecord {
   id: string
-  opportunity?: { id: string; name: string }
+  opportunity?: { id: string; name: string; isSubjectMatterExpertDeal?: boolean }
   opportunityOwnerId?: string | null
   catalogProductId?: string
+  subjectMatterExpertPercent?: number | null
   productCode: string
   productNameHouse: string
   productNameVendor: string | null
@@ -125,6 +126,7 @@ interface ProductInlineForm {
   revenueType: string
   priceEach: string
   commissionPercent: string
+  subjectMatterExpertPercent: string
   description: string
   productFamilyHouse: string
   productSubtypeHouse: string
@@ -213,6 +215,7 @@ function createProductInlineForm(product: OpportunityProductDetailRecord | null 
     revenueType: product.revenueType ?? "",
     priceEach: numberToInputString(product.priceEach),
     commissionPercent: percentToInputString(product.commissionPercent),
+    subjectMatterExpertPercent: percentToInputString(product.subjectMatterExpertPercent),
     description: product.description ?? "",
     productFamilyHouse: product.productFamilyHouse ?? "",
     productSubtypeHouse: product.productSubtypeHouse ?? "",
@@ -285,6 +288,10 @@ function buildProductPayload(
     const percent = inputStringToPercent(draft.commissionPercent)
     payload.commissionPercent = percent
   }
+  if ("subjectMatterExpertPercent" in patch) {
+    const percent = inputStringToPercent(draft.subjectMatterExpertPercent)
+    payload.subjectMatterExpertPercent = percent
+  }
   if ("description" in patch) {
     const value = draft.description.trim()
     payload.description = value.length > 0 ? value : null
@@ -354,6 +361,14 @@ function validateProductForm(form: ProductInlineForm): Record<string, string> {
     }
   }
 
+  const smeValue = form.subjectMatterExpertPercent.trim()
+  if (smeValue) {
+    const parsed = Number(smeValue)
+    if (!Number.isFinite(parsed) || parsed < 0 || parsed > 100) {
+      errors.subjectMatterExpertPercent = "SME % must be between 0 and 100."
+    }
+  }
+
   return errors
 }
 
@@ -407,6 +422,8 @@ function ProductHeader({ product, onEdit, activeTab, onTabSelect }: ProductHeade
   const productName = product.productNameHouse || product.productNameVendor || "Product"
   const priceEach = formatCurrency(product.priceEach)
   const commissionRate = formatPercent(product.commissionPercent)
+  const isSmeDeal = Boolean(product.opportunity?.isSubjectMatterExpertDeal)
+  const subjectMatterExpertPercent = formatPercent(product.subjectMatterExpertPercent)
   const revenueTypeLabel = getRevenueTypeLabel(product.revenueType) ?? product.revenueType
   const productDescriptionHouse = product.productDescriptionHouse ?? product.description ?? null
   const statusBadge = (
@@ -532,10 +549,24 @@ function ProductHeader({ product, onEdit, activeTab, onTabSelect }: ProductHeade
               </div>
             </FieldRow>
             <FieldRow label="Commission %">
-              <div className={fieldBoxClass}>
-                {commissionRate || <span className="text-gray-500">--</span>}
+              <div className="space-y-1">
+                <div className={fieldBoxClass}>
+                  {commissionRate || <span className="text-gray-500">--</span>}
+                </div>
+                {isSmeDeal ? (
+                  <p className="text-[11px] text-amber-700">
+                    SME deal: update Commission % to reflect SME % (manual).
+                  </p>
+                ) : null}
               </div>
             </FieldRow>
+            {isSmeDeal ? (
+              <FieldRow label="SME %">
+                <div className={fieldBoxClass}>
+                  {subjectMatterExpertPercent || <span className="text-gray-500">--</span>}
+                </div>
+              </FieldRow>
+            ) : null}
             <FieldRow label="Revenue Type">
               <div className={fieldBoxClass}>
                 {revenueTypeLabel || <span className="text-gray-500">--</span>}
@@ -637,6 +668,7 @@ interface EditableProductHeaderProps {
   const revenueTypeField = editor.register("revenueType")
   const priceField = editor.register("priceEach")
   const commissionField = editor.register("commissionPercent")
+  const subjectMatterExpertPercentField = editor.register("subjectMatterExpertPercent")
   const descriptionField = editor.register("description")
     const partNumberVendorField = editor.register("partNumberVendor")
     const familyVendorField = editor.register("productFamilyVendor")
@@ -951,18 +983,42 @@ interface EditableProductHeaderProps {
 
             {renderRow(
               "Commission %",
-              <EditableField.Input
-                type="number"
-                step="0.01"
-                min="0"
-                max="100"
-                value={(commissionField.value as string) ?? ""}
-                onChange={commissionField.onChange}
-                onBlur={commissionField.onBlur}
-                placeholder="Enter %"
-              />,
+              <div className="space-y-1">
+                <EditableField.Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max="100"
+                  value={(commissionField.value as string) ?? ""}
+                  onChange={commissionField.onChange}
+                  onBlur={commissionField.onBlur}
+                  placeholder="Enter %"
+                />
+                {product.opportunity?.isSubjectMatterExpertDeal ? (
+                  <p className="text-[11px] text-amber-700">
+                    SME deal: update Commission % to reflect SME % (manual).
+                  </p>
+                ) : null}
+              </div>,
               editor.errors.commissionPercent
             )}
+
+            {product.opportunity?.isSubjectMatterExpertDeal ? (
+              renderRow(
+                "SME %",
+                <EditableField.Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max="100"
+                  value={(subjectMatterExpertPercentField.value as string) ?? ""}
+                  onChange={subjectMatterExpertPercentField.onChange}
+                  onBlur={subjectMatterExpertPercentField.onBlur}
+                  placeholder="Enter %"
+                />,
+                editor.errors.subjectMatterExpertPercent
+              )
+            ) : null}
 
             {renderRow(
               "Revenue Type",

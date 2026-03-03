@@ -53,6 +53,12 @@ function resolveSortOrder(sortColumn: string, direction: "asc" | "desc"): Prisma
   return fallbacks
 }
 
+function equalsIgnoreCase(left: string | null | undefined, right: string | null | undefined): boolean {
+  const normalizedLeft = (left ?? "").trim().toLowerCase()
+  const normalizedRight = (right ?? "").trim().toLowerCase()
+  return normalizedLeft.length > 0 && normalizedLeft === normalizedRight
+}
+
 export async function GET(request: NextRequest) {
   return withAuth(request, async (req) => {
     try {
@@ -285,6 +291,8 @@ export async function POST(request: NextRequest) {
       if (!productNameHouse) errors.productNameHouse = "Product name is required"
 
       const productCodeInput = getString((payload as any).productCode)
+      const canonicalProductNameVendor = canonicalizeMultiValueString(getOptionalString((payload as any).productNameVendor), { kind: "text" })
+      const canonicalPartNumberVendor = canonicalizeMultiValueString(getOptionalString((payload as any).partNumberVendor), { kind: "id" })
 
       const revenueTypeValue = getString((payload as any).revenueType)
       if (!revenueTypeValue) {
@@ -393,6 +401,70 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Validation failed", errors }, { status: 400 })
       }
 
+      const duplicateConditions: Prisma.ProductWhereInput[] = [
+        { productNameHouse: { equals: productNameHouse, mode: "insensitive" } },
+      ]
+      if (canonicalProductNameVendor) {
+        duplicateConditions.push({ productNameVendor: { equals: canonicalProductNameVendor, mode: "insensitive" } })
+      }
+      if (canonicalPartNumberVendor) {
+        duplicateConditions.push({ partNumberVendor: { equals: canonicalPartNumberVendor, mode: "insensitive" } })
+      }
+
+      const exactDuplicate = await prisma.product.findFirst({
+        where: {
+          tenantId: req.user.tenantId,
+          isActive: true,
+          OR: duplicateConditions,
+        },
+        select: {
+          id: true,
+          productCode: true,
+          productNameHouse: true,
+          productNameVendor: true,
+          partNumberVendor: true,
+          productFamilyVendor: true,
+          distributor: { select: { accountName: true } },
+          vendor: { select: { accountName: true } },
+        },
+      })
+
+      if (exactDuplicate) {
+        const matchReasons: string[] = []
+        if (
+          equalsIgnoreCase(exactDuplicate.productNameHouse, productNameHouse) ||
+          equalsIgnoreCase(exactDuplicate.productNameVendor, productNameHouse) ||
+          (canonicalProductNameVendor &&
+            (equalsIgnoreCase(exactDuplicate.productNameHouse, canonicalProductNameVendor) ||
+              equalsIgnoreCase(exactDuplicate.productNameVendor, canonicalProductNameVendor)))
+        ) {
+          matchReasons.push("Exact Product Name")
+        }
+        if (canonicalPartNumberVendor && equalsIgnoreCase(exactDuplicate.partNumberVendor, canonicalPartNumberVendor)) {
+          matchReasons.push("Exact Part Number")
+        }
+
+        return NextResponse.json(
+          {
+            error:
+              "A product with the same Product Name or Other - Part Number already exists. Use the existing product instead of creating a duplicate.",
+            code: "PRODUCT_EXACT_DUPLICATE",
+            matchReasons,
+            duplicate: {
+              id: exactDuplicate.id,
+              productCode: exactDuplicate.productCode,
+              productNameHouse: exactDuplicate.productNameHouse,
+              productNameVendor: exactDuplicate.productNameVendor,
+              partNumberVendor: exactDuplicate.partNumberVendor,
+              productFamilyVendor: exactDuplicate.productFamilyVendor,
+              distributorName: exactDuplicate.distributor?.accountName ?? null,
+              vendorName: exactDuplicate.vendor?.accountName ?? null,
+            },
+          },
+          { status: 409 }
+        )
+      }
+
       let distributorAccountId = getOptionalString((payload as any).distributorAccountId)
       const vendorAccountId = getOptionalString((payload as any).vendorAccountId)
 
@@ -418,13 +490,13 @@ export async function POST(request: NextRequest) {
             productNameDistributor: getOptionalString((payload as any).productNameDistributor),
             productFamilyHouse,
             productSubtypeHouse,
-            productNameVendor: canonicalizeMultiValueString(getOptionalString((payload as any).productNameVendor), { kind: "text" }),
+            productNameVendor: canonicalProductNameVendor,
             productFamilyVendor,
             productSubtypeVendor,
             distributorProductFamily,
             distributorProductSubtype,
             partNumberHouse: getOptionalString((payload as any).partNumberHouse),
-            partNumberVendor: canonicalizeMultiValueString(getOptionalString((payload as any).partNumberVendor), { kind: "id" }),
+            partNumberVendor: canonicalPartNumberVendor,
             productDescriptionVendor: getOptionalString((payload as any).productDescriptionVendor),
             description: getOptionalString((payload as any).description),
             revenueType: revenueTypeValue as any,

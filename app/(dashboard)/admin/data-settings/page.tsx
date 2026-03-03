@@ -7,10 +7,11 @@ import { useAuth } from "@/lib/auth-context"
 import { TwoStageDeleteDialog } from "@/components/two-stage-delete-dialog"
 import { DataSettingsImportsSection } from "@/components/data-settings-imports-section"
 import { DataSettingsMergesSection } from "@/components/data-settings-merges-section"
+import { DataSettingsTemplatesSection } from "@/components/data-settings-templates-section"
 import type { DeletionConstraint } from "@/lib/deletion"
 import { sortByPicklistName } from "@/lib/picklist-sort"
 
-type SectionId = "manage-fields" | "imports" | "merges"
+type SectionId = "manage-fields" | "imports" | "merges" | "templates"
 
 type Section = {
   id: SectionId
@@ -38,6 +39,12 @@ const SECTIONS: Section[] = [
     title: "Merges",
     icon: GitMerge,
     description: "Merge duplicate Accounts and Contacts into a single record."
+  },
+  {
+    id: "templates",
+    title: "Templates",
+    icon: Grid3X3,
+    description: "Review and manage deposit upload templates."
   }
 ]
 
@@ -227,6 +234,8 @@ export default function DataSettingsPage() {
             </p>
           </div>
         )
+      case "templates":
+        return <DataSettingsTemplatesSection />
       default:
         return null
     }

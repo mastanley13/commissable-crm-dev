@@ -45,6 +45,7 @@ interface LineItemFormState {
   revenueStartDate: string
   revenueEndDate: string
   commissionPercent: string
+  subjectMatterExpertPercent: string
   schedulePeriods: string
   commissionStartDate: string
 }
@@ -59,6 +60,7 @@ const INITIAL_FORM_STATE: LineItemFormState = {
   revenueStartDate: "",
   revenueEndDate: "",
   commissionPercent: "",
+  subjectMatterExpertPercent: "100",
   schedulePeriods: "",
   commissionStartDate: ""
 }
@@ -100,6 +102,7 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
   const [loading, setLoading] = useState(false)
   // Tab state to mirror Groups modal UX
   const [activeTab, setActiveTab] = useState<"create" | "add">("add")
+  const [isSubjectMatterExpertDeal, setIsSubjectMatterExpertDeal] = useState(false)
 
   // Typeahead state
   const [distributorInput, setDistributorInput] = useState("")
@@ -141,6 +144,7 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
   const [dedupeLikelyMatches, setDedupeLikelyMatches] = useState<ProductOption[]>([])
   const [unitPriceFocused, setUnitPriceFocused] = useState(false)
   const [commissionPercentFocused, setCommissionPercentFocused] = useState(false)
+  const [subjectMatterExpertPercentFocused, setSubjectMatterExpertPercentFocused] = useState(false)
   const [masterFamilies, setMasterFamilies] = useState<ProductFamilyOption[]>([])
   const [masterSubtypes, setMasterSubtypes] = useState<ProductSubtypeOption[]>([])
   const [masterDataError, setMasterDataError] = useState<string | null>(null)
@@ -479,6 +483,7 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
     setActiveTab("add")
     setUnitPriceFocused(false)
     setCommissionPercentFocused(false)
+    setSubjectMatterExpertPercentFocused(false)
   }, [isOpen])
 
   // Detect and lock vendor/distributor context when an opportunity already has line items.
@@ -744,6 +749,8 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
       const expectedUsageValue = Number(form.expectedUsage); if (Number.isFinite(expectedUsageValue)) liPayload.expectedUsage = expectedUsageValue
       const expectedRevenueValue = Number(form.expectedRevenue); if (Number.isFinite(expectedRevenueValue)) liPayload.expectedRevenue = expectedRevenueValue
       const expectedCommissionValue = Number(form.expectedCommission); if (Number.isFinite(expectedCommissionValue)) liPayload.expectedCommission = expectedCommissionValue
+      const smePercentValue = form.subjectMatterExpertPercent.trim() ? Number(form.subjectMatterExpertPercent) : NaN
+      if (isSubjectMatterExpertDeal && Number.isFinite(smePercentValue)) liPayload.subjectMatterExpertPercent = smePercentValue
       const schedulePeriodsValue = Number(form.schedulePeriods)
       liPayload.schedulePeriods = Number.isFinite(schedulePeriodsValue) && schedulePeriodsValue > 0 ? schedulePeriodsValue : 1
       liPayload.commissionStartDate = form.commissionStartDate || defaultStartDate()
@@ -776,7 +783,7 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
       } finally {
       setLoading(false)
     }
-  }, [revenueType, showError, runProductDedupe, productNameHouse, productNameVendor, productCode, form.unitPrice, form.commissionPercent, productActive, productFamilyHouseInput, productSubtypeHouse, selectedVendorId, selectedDistributorId, form.quantity, form.expectedUsage, form.expectedRevenue, form.expectedCommission, form.schedulePeriods, form.commissionStartDate, opportunityId, showSuccess, onSuccess, onClose, submitError])
+  }, [revenueType, showError, runProductDedupe, productNameHouse, productNameVendor, productCode, form.unitPrice, form.commissionPercent, form.subjectMatterExpertPercent, productActive, productFamilyHouseInput, productSubtypeHouse, selectedVendorId, selectedDistributorId, form.quantity, form.expectedUsage, form.expectedRevenue, form.expectedCommission, form.schedulePeriods, form.commissionStartDate, opportunityId, isSubjectMatterExpertDeal, showSuccess, onSuccess, onClose, submitError])
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -796,6 +803,8 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
     if (form.revenueEndDate) payload.revenueEndDate = form.revenueEndDate
     const commissionPercentValue = form.commissionPercent.trim() ? Number(form.commissionPercent) : NaN
     if (Number.isFinite(commissionPercentValue)) payload.commissionPercent = commissionPercentValue
+    const smePercentValue = form.subjectMatterExpertPercent.trim() ? Number(form.subjectMatterExpertPercent) : NaN
+    if (isSubjectMatterExpertDeal && Number.isFinite(smePercentValue)) payload.subjectMatterExpertPercent = smePercentValue
     const schedulePeriodsValue = Number(form.schedulePeriods); if (Number.isFinite(schedulePeriodsValue) && schedulePeriodsValue > 0) { payload.schedulePeriods = schedulePeriodsValue } else { payload.schedulePeriods = 1 }
     payload.commissionStartDate = form.commissionStartDate || defaultStartDate()
     setLoading(true)
@@ -863,6 +872,17 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
     // When not focused, show formatted percent
     return formatPercentDisplay(raw, { alwaysSymbol: true })
   }, [form.commissionPercent, commissionPercentFocused])
+
+  const displaySubjectMatterExpertPercent = useMemo(() => {
+    const raw = form.subjectMatterExpertPercent.trim()
+    if (!raw) return ""
+
+    if (subjectMatterExpertPercentFocused) {
+      return raw
+    }
+
+    return formatPercentDisplay(raw, { alwaysSymbol: true })
+  }, [form.subjectMatterExpertPercent, subjectMatterExpertPercentFocused])
 
   if (!isOpen) return null
 
@@ -1166,21 +1186,46 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
                     placeholder="$0.00"
                   />
                 </div>
-                <div>
-                  <label className={labelCls}>Expected Commission Rate %</label>
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    value={displayCommissionPercent}
-                    onChange={handleDecimalChange("commissionPercent")}
-                    onFocus={() => setCommissionPercentFocused(true)}
-                    onBlur={() => {
-                      setCommissionPercentFocused(false)
-                      handleDecimalBlur("commissionPercent")()
-                    }}
-                    className={inputCls}
-                    placeholder="e.g., 10.00%"
-                  />
+                <div className={isSubjectMatterExpertDeal ? "grid gap-3 md:grid-cols-2" : undefined}>
+                  <div>
+                    <label className={labelCls}>Expected Commission Rate %</label>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={displayCommissionPercent}
+                      onChange={handleDecimalChange("commissionPercent")}
+                      onFocus={() => setCommissionPercentFocused(true)}
+                      onBlur={() => {
+                        setCommissionPercentFocused(false)
+                        handleDecimalBlur("commissionPercent")()
+                      }}
+                      className={inputCls}
+                      placeholder="e.g., 10.00%"
+                    />
+                    {isSubjectMatterExpertDeal ? (
+                      <p className="mt-1 text-[11px] text-amber-700">
+                        SME deal: update Expected Commission Rate % to reflect SME % (manual).
+                      </p>
+                    ) : null}
+                  </div>
+                  {isSubjectMatterExpertDeal ? (
+                    <div>
+                      <label className={labelCls}>SME %</label>
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={displaySubjectMatterExpertPercent}
+                        onChange={handleDecimalChange("subjectMatterExpertPercent")}
+                        onFocus={() => setSubjectMatterExpertPercentFocused(true)}
+                        onBlur={() => {
+                          setSubjectMatterExpertPercentFocused(false)
+                          handleDecimalBlur("subjectMatterExpertPercent")()
+                        }}
+                        className={inputCls}
+                        placeholder="e.g., 50.00%"
+                      />
+                    </div>
+                  ) : null}
                 </div>
                 <div>
                   <label className={labelCls}>Expected Commission Start Date</label>
@@ -1509,21 +1554,46 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
                   />
                 </div>
 
-                <div>
-                  <label className={labelCls}>Expected Commission Rate %</label>
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    value={displayCommissionPercent}
-                    onChange={handleDecimalChange("commissionPercent")}
-                    onFocus={() => setCommissionPercentFocused(true)}
-                    onBlur={() => {
-                      setCommissionPercentFocused(false)
-                      handleDecimalBlur("commissionPercent")()
-                    }}
-                    className={inputCls}
-                    placeholder="e.g., 10.00%"
-                  />
+                <div className={isSubjectMatterExpertDeal ? "grid gap-3 md:grid-cols-2" : undefined}>
+                  <div>
+                    <label className={labelCls}>Expected Commission Rate %</label>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={displayCommissionPercent}
+                      onChange={handleDecimalChange("commissionPercent")}
+                      onFocus={() => setCommissionPercentFocused(true)}
+                      onBlur={() => {
+                        setCommissionPercentFocused(false)
+                        handleDecimalBlur("commissionPercent")()
+                      }}
+                      className={inputCls}
+                      placeholder="e.g., 10.00%"
+                    />
+                    {isSubjectMatterExpertDeal ? (
+                      <p className="mt-1 text-[11px] text-amber-700">
+                        SME deal: update Expected Commission Rate % to reflect SME % (manual).
+                      </p>
+                    ) : null}
+                  </div>
+                  {isSubjectMatterExpertDeal ? (
+                    <div>
+                      <label className={labelCls}>SME %</label>
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={displaySubjectMatterExpertPercent}
+                        onChange={handleDecimalChange("subjectMatterExpertPercent")}
+                        onFocus={() => setSubjectMatterExpertPercentFocused(true)}
+                        onBlur={() => {
+                          setSubjectMatterExpertPercentFocused(false)
+                          handleDecimalBlur("subjectMatterExpertPercent")()
+                        }}
+                        className={inputCls}
+                        placeholder="e.g., 50.00%"
+                      />
+                    </div>
+                  ) : null}
                 </div>
 
                 <div>
@@ -1558,3 +1628,25 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
     </div>
   )
 }
+  useEffect(() => {
+    if (!isOpen || !opportunityId) {
+      return
+    }
+
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await fetch(`/api/opportunities/${encodeURIComponent(opportunityId)}`, { cache: "no-store" })
+        const payload = await res.json().catch(() => null)
+        const data = payload?.data ?? null
+        if (cancelled) return
+        setIsSubjectMatterExpertDeal(Boolean((data as any)?.isSubjectMatterExpertDeal))
+      } catch {
+        if (!cancelled) setIsSubjectMatterExpertDeal(false)
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [isOpen, opportunityId])

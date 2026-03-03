@@ -18,6 +18,7 @@ export interface OpportunityLineItemRecord {
   distributorName?: string | null
   vendorId?: string | null
   vendorName?: string | null
+  subjectMatterExpertPercent?: number | null
   priceEach: number | null
   createdAt?: string | null
   updatedAt?: string | null
@@ -145,6 +146,7 @@ export interface OpportunityDetailRecord {
   status: string
   type: string
   leadSource: string | null
+  isSubjectMatterExpertDeal?: boolean
   amount: number
   probability: number
   expectedCommission: number

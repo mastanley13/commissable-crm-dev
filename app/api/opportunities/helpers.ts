@@ -109,6 +109,7 @@ type OpportunityWithRelations = {
   orderIdHouse?: string | null
   stage?: OpportunityStage | string | null
   type?: OpportunityType | string | null
+  isSubjectMatterExpertDeal?: boolean | null
   distributorName?: string | null
   vendorName?: string | null
   referredBy?: string | null
@@ -162,6 +163,7 @@ type OpportunityProductWithRelations = {
   revenueTypeSnapshot?: string | null
   priceEachSnapshot?: unknown
   commissionPercentSnapshot?: unknown
+  subjectMatterExpertPercent?: unknown
   distributorNameSnapshot?: string | null
   vendorNameSnapshot?: string | null
   quantity?: unknown
@@ -207,6 +209,7 @@ export type OpportunityLineItemDetail = {
   distributorName?: string | null
   vendorId?: string | null
   vendorName?: string | null
+  subjectMatterExpertPercent?: number | null
   priceEach: number | null
   createdAt?: string | null
   updatedAt?: string | null
@@ -244,6 +247,7 @@ export type OpportunityDetailSummary = {
   type: OpportunityType
   leadSource: string | null
   referredBy?: string | null
+  isSubjectMatterExpertDeal?: boolean
   amount: number
   probability: number
   expectedCommission: number
@@ -620,6 +624,7 @@ export function mapOpportunityProductToDetail(item: OpportunityProductWithRelati
   const revenueStartDate = formatDateValue(item.revenueStartDate)
   const revenueEndDate = formatDateValue(item.revenueEndDate)
   const priceEach = toNumber(item.priceEachSnapshot ?? (item.product ? item.product.priceEach : null))
+  const subjectMatterExpertPercent = toNumber(item.subjectMatterExpertPercent)
 
   const productNameHouseSnapshot = item.productNameHouseSnapshot
   const productNameVendorSnapshot = item.productNameVendorSnapshot
@@ -660,6 +665,7 @@ export function mapOpportunityProductToDetail(item: OpportunityProductWithRelati
     distributorName: distributorNameSnapshot ?? item.product?.distributor?.accountName ?? null,
     vendorId,
     vendorName: vendorNameSnapshot ?? item.product?.vendor?.accountName ?? null,
+    subjectMatterExpertPercent,
     priceEach,
     createdAt: formatDateValue(item.createdAt ?? null),
     updatedAt: formatDateValue(item.updatedAt ?? null),
@@ -996,6 +1002,7 @@ export function mapOpportunityToDetail(opportunity: OpportunityWithRelations): O
     type: (opportunity.type as OpportunityType) ?? OpportunityType.NewBusiness,
     leadSource: opportunity.leadSource ?? null,
     referredBy: opportunity.referredBy ?? null,
+    isSubjectMatterExpertDeal: Boolean(opportunity.isSubjectMatterExpertDeal),
     amount,
     probability,
     expectedCommission,

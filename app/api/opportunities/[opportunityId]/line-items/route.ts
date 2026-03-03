@@ -104,6 +104,32 @@ export async function POST(
       let expectedRevenueNumber = parseNumberInput(payload.expectedRevenue)
       const expectedCommissionNumber = parseNumberInput(payload.expectedCommission)
 
+      const subjectMatterExpertRaw = (payload as any).subjectMatterExpertPercent
+      const subjectMatterExpertProvided = Object.prototype.hasOwnProperty.call(payload, "subjectMatterExpertPercent")
+      const subjectMatterExpertPercentNumber = parseNumberInput(subjectMatterExpertRaw)
+
+      if (
+        subjectMatterExpertProvided &&
+        subjectMatterExpertRaw !== null &&
+        subjectMatterExpertRaw !== "" &&
+        subjectMatterExpertPercentNumber === null
+      ) {
+        return NextResponse.json(
+          { error: "SME % must be a valid number" },
+          { status: 400 }
+        )
+      }
+
+      if (
+        subjectMatterExpertPercentNumber !== null &&
+        (subjectMatterExpertPercentNumber < 0 || subjectMatterExpertPercentNumber > 100)
+      ) {
+        return NextResponse.json(
+          { error: "SME % must be between 0 and 100." },
+          { status: 400 }
+        )
+      }
+
       if (
         expectedRevenueNumber === null &&
         quantityNumber !== null &&
@@ -241,6 +267,7 @@ export async function POST(
             revenueTypeSnapshot: product.revenueType,
             priceEachSnapshot: product.priceEach,
             commissionPercentSnapshot: product.commissionPercent,
+            subjectMatterExpertPercent: decimalFromNumber(subjectMatterExpertPercentNumber),
             distributorNameSnapshot: resolvedDistributorName ?? null,
             vendorNameSnapshot: product.vendor?.accountName ?? null,
             distributorAccountIdSnapshot: resolvedDistributorAccountId ?? null,

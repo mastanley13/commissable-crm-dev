@@ -71,7 +71,7 @@ export async function GET(
       const lineItem = await prisma.opportunityProduct.findFirst({
         where: { id: lineItemId, tenantId },
         include: {
-          opportunity: { select: { id: true, name: true, ownerId: true } },
+          opportunity: { select: { id: true, name: true, ownerId: true, isSubjectMatterExpertDeal: true } },
           product: {
             select: {
               id: true,
@@ -155,10 +155,12 @@ export async function GET(
         id: lineItem.id,
         opportunity: {
           id: lineItem.opportunity?.id ?? "",
-          name: lineItem.opportunity?.name ?? ""
+          name: lineItem.opportunity?.name ?? "",
+          isSubjectMatterExpertDeal: Boolean((lineItem.opportunity as any)?.isSubjectMatterExpertDeal)
         },
         opportunityOwnerId: lineItem.opportunity?.ownerId ?? null,
         catalogProductId: lineItem.productId,
+        subjectMatterExpertPercent: toNumber((anyLineItem as any).subjectMatterExpertPercent),
         productCode: lineItem.productCodeSnapshot ?? product?.productCode ?? "",
         productNameHouse: lineItem.productNameHouseSnapshot ?? product?.productNameHouse ?? "",
         productNameVendor: lineItem.productNameVendorSnapshot ?? product?.productNameVendor ?? null,
@@ -514,6 +516,21 @@ export async function PATCH(
         updateData.commissionPercentSnapshot = decimalFromNumber(parseNumberInput(payload.commissionPercent))
       }
 
+      if ("subjectMatterExpertPercent" in payload) {
+        const raw = (payload as any).subjectMatterExpertPercent
+        const parsed = parseNumberInput(raw)
+
+        if (raw !== null && raw !== "" && parsed === null) {
+          return NextResponse.json({ error: "SME % must be a valid number" }, { status: 400 })
+        }
+
+        if (parsed !== null && (parsed < 0 || parsed > 100)) {
+          return NextResponse.json({ error: "SME % must be between 0 and 100." }, { status: 400 })
+        }
+
+        updateData.subjectMatterExpertPercent = decimalFromNumber(parsed)
+      }
+
       if ("vendorAccountId" in payload) {
         const value = typeof payload.vendorAccountId === "string" ? payload.vendorAccountId.trim() : ""
         const vendorId = value.length > 0 ? value : null
@@ -669,6 +686,7 @@ export async function PATCH(
         revenueType: existingLineItem.revenueTypeSnapshot,
         priceEach: existingLineItem.priceEachSnapshot ?? null,
         commissionPercent: existingLineItem.commissionPercentSnapshot ?? null,
+        subjectMatterExpertPercent: (existingLineItem as any).subjectMatterExpertPercent ?? null,
         distributorAccountId: (existingLineItem as any).distributorAccountIdSnapshot ?? null,
         vendorAccountId: (existingLineItem as any).vendorAccountIdSnapshot ?? null,
         distributorName: existingLineItem.distributorNameSnapshot ?? null,
@@ -714,6 +732,7 @@ export async function PATCH(
         revenueType: updatedLineItem.revenueTypeSnapshot,
         priceEach: updatedLineItem.priceEachSnapshot ?? null,
         commissionPercent: updatedLineItem.commissionPercentSnapshot ?? null,
+        subjectMatterExpertPercent: (updatedLineItem as any).subjectMatterExpertPercent ?? null,
         distributorAccountId: (updatedLineItem as any).distributorAccountIdSnapshot ?? null,
         vendorAccountId: (updatedLineItem as any).vendorAccountIdSnapshot ?? null,
         distributorName: updatedLineItem.distributorNameSnapshot ?? null,

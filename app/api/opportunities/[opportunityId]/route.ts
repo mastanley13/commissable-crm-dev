@@ -215,8 +215,9 @@ export async function GET(request: NextRequest, { params }: { params: { opportun
           subagentPercent: unknown
           houseRepPercent: unknown
           houseSplitPercent: unknown
+          isSubjectMatterExpertDeal: boolean | null
         }> = await prisma.$queryRawUnsafe(
-          `SELECT "referredBy", "shippingAddress", "billingAddress", "subagentPercent", "houseRepPercent", "houseSplitPercent"
+          `SELECT "referredBy", "shippingAddress", "billingAddress", "subagentPercent", "houseRepPercent", "houseSplitPercent", "isSubjectMatterExpertDeal"
            FROM "Opportunity"
            WHERE "id" = $1::uuid AND "tenantId" = $2::uuid
            LIMIT 1`,
@@ -276,6 +277,7 @@ export async function GET(request: NextRequest, { params }: { params: { opportun
           leadSource: opportunity.leadSource ?? null,
           ownerId: opportunity.ownerId ?? null,
           estimatedCloseDate: opportunity.estimatedCloseDate,
+          isSubjectMatterExpertDeal: Boolean((opportunity as any).isSubjectMatterExpertDeal),
           subAgent,
           detail: { ...detail, roles }
         }
@@ -318,6 +320,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { opport
           referredBy: true,
           shippingAddress: true,
           billingAddress: true,
+          isSubjectMatterExpertDeal: true,
           accountIdVendor: true,
           customerIdVendor: true,
           orderIdVendor: true,
@@ -428,6 +431,11 @@ export async function PATCH(request: NextRequest, { params }: { params: { opport
           data.estimatedCloseDate = closeDate
           hasChanges = true
         }
+      }
+
+      if (typeof (payload as any).isSubjectMatterExpertDeal === "boolean") {
+        data.isSubjectMatterExpertDeal = Boolean((payload as any).isSubjectMatterExpertDeal)
+        hasChanges = true
       }
 
       // Description (free text)
@@ -743,6 +751,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { opport
           referredBy: existing.referredBy,
           shippingAddress: existing.shippingAddress,
           billingAddress: existing.billingAddress,
+          isSubjectMatterExpertDeal: (existing as any).isSubjectMatterExpertDeal ?? false,
           accountIdVendor: (existing as any).accountIdVendor ?? null,
           customerIdVendor: (existing as any).customerIdVendor ?? null,
           orderIdVendor: (existing as any).orderIdVendor ?? null,
@@ -760,6 +769,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { opport
           referredBy: updated.referredBy,
           shippingAddress: updated.shippingAddress,
           billingAddress: updated.billingAddress,
+          isSubjectMatterExpertDeal: (updated as any).isSubjectMatterExpertDeal ?? false,
           accountIdVendor: (updated as any).accountIdVendor ?? null,
           customerIdVendor: (updated as any).customerIdVendor ?? null,
           orderIdVendor: (updated as any).orderIdVendor ?? null,

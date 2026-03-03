@@ -23,7 +23,9 @@ type CatalogProductOption = {
   distributorId?: string | null
   vendorId?: string | null
   productNameVendor?: string | null
+  partNumberHouse?: string | null
   partNumberVendor?: string | null
+  partNumberOther?: string | null
   productFamilyVendor?: string | null
   productSubtypeVendor?: string | null
   productFamilyHouse?: string | null
@@ -33,6 +35,10 @@ type CatalogProductOption = {
   revenueType?: string | null
   priceEach?: number | null
   commissionPercent?: number | null
+}
+
+type DedupeCatalogProductOption = CatalogProductOption & {
+  dedupeReasons: string[]
 }
 
 interface ProductOptionsPayload {
@@ -99,6 +105,16 @@ function getPrimaryPartNumber(raw: string): string {
     .filter(Boolean)[0] ?? ""
 }
 
+function normalizeForDedupe(value: string | null | undefined): string {
+  return (value ?? "").trim().toLowerCase()
+}
+
+function asNullableText(value: unknown): string | null {
+  if (typeof value !== "string") return null
+  const trimmed = value.trim()
+  return trimmed.length > 0 ? trimmed : null
+}
+
 const INITIAL_FORM: ProductFormState = {
   isActive: true,
   distributorAccountId: "",
@@ -145,8 +161,8 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
   const [houseFamilyOptions, setHouseFamilyOptions] = useState<string[]>([])
   const [houseProductNameOptions, setHouseProductNameOptions] = useState<string[]>([])
   const [showHouseProductDropdown, setShowHouseProductDropdown] = useState(false)
-  const [dedupeExactMatch, setDedupeExactMatch] = useState<CatalogProductOption | null>(null)
-  const [dedupeLikelyMatches, setDedupeLikelyMatches] = useState<CatalogProductOption[]>([])
+  const [dedupeExactMatch, setDedupeExactMatch] = useState<DedupeCatalogProductOption | null>(null)
+  const [dedupeLikelyMatches, setDedupeLikelyMatches] = useState<DedupeCatalogProductOption[]>([])
   const { showError, showSuccess } = useToasts()
   const [masterFamilies, setMasterFamilies] = useState<ProductFamilyOption[]>([])
   const [masterSubtypes, setMasterSubtypes] = useState<ProductSubtypeOption[]>([])
@@ -396,7 +412,9 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
       distributorId: it.distributorId ?? it.distributorAccountId ?? null,
       vendorId: it.vendorId ?? it.vendorAccountId ?? null,
       productNameVendor: it.productNameVendor ?? null,
-      partNumberVendor: it.partNumberVendor ?? null,
+      partNumberHouse: asNullableText(it.partNumberHouse),
+      partNumberVendor: asNullableText(it.partNumberVendor),
+      partNumberOther: asNullableText(it.partNumberOther),
       productFamilyVendor: it.productFamilyVendor ?? null,
       productSubtypeVendor: it.productSubtypeVendor ?? null,
       productFamilyHouse: it.productFamilyHouse ?? null,
@@ -410,7 +428,7 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
     setProductOptions(mapped)
   }, [form.distributorAccountId, form.vendorAccountId, form.productFamilyHouse, form.productSubtypeHouse, form.productNameHouse])
 
-  const runProductDedupe = useCallback(async (): Promise<{ exact: CatalogProductOption | null; likely: CatalogProductOption[] }> => {
+  const runProductDedupe = useCallback(async (): Promise<{ exact: DedupeCatalogProductOption | null; likely: DedupeCatalogProductOption[] }> => {
     const houseName = form.productNameHouse.trim()
     const vendorName = form.productNameVendor.trim()
     const code = getPrimaryPartNumber(form.partNumberVendor)
@@ -429,7 +447,7 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
       const q = query.trim()
       if (!q) return
 
-      const params = new URLSearchParams({ page: "1", pageSize: "25" })
+      const params = new URLSearchParams({ page: "1", pageSize: "50" })
       params.set("q", q)
 
       const res = await fetch(`/api/products?${params.toString()}`, { cache: "no-store" })
@@ -449,6 +467,9 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
           distributorId: it.distributorId ?? it.distributorAccountId ?? null,
           vendorId: it.vendorId ?? it.vendorAccountId ?? null,
           productNameVendor: it.productNameVendor ?? null,
+          partNumberHouse: asNullableText(it.partNumberHouse),
+          partNumberVendor: asNullableText(it.partNumberVendor),
+          partNumberOther: asNullableText(it.partNumberOther),
           productFamilyVendor: it.productFamilyVendor ?? null,
           productSubtypeVendor: it.productSubtypeVendor ?? null,
           productFamilyHouse: it.productFamilyHouse ?? null,
@@ -473,28 +494,55 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
       return { exact: null, likely: [] }
     }
 
-    const normalizedCode = code.toLowerCase()
-    const normalizedName = name.toLowerCase()
+    const normalizedCode = normalizeForDedupe(code)
+    const normalizedName = normalizeForDedupe(name)
 
-    let exact: CatalogProductOption | null = null
+    const candidates: DedupeCatalogProductOption[] = collected
+      .map((product) => {
+        const reasons: string[] = []
+        const candidateCode = normalizeForDedupe(product.productCode ?? product.partNumberVendor ?? "")
+        const candidateHouseName = normalizeForDedupe(product.productNameHouse)
+        const candidateVendorName = normalizeForDedupe(product.productNameVendor)
 
-    if (normalizedCode) {
-      exact =
-        collected.find(
-          (p) => p.productCode && p.productCode.toLowerCase() === normalizedCode
-        ) ?? null
+        const hasExactCode = Boolean(normalizedCode && candidateCode === normalizedCode)
+        const hasExactName = Boolean(
+          normalizedName && (candidateHouseName === normalizedName || candidateVendorName === normalizedName)
+        )
+        const hasSimilarName = Boolean(
+          normalizedName &&
+            !hasExactName &&
+            ((candidateHouseName && (candidateHouseName.includes(normalizedName) || normalizedName.includes(candidateHouseName))) ||
+              (candidateVendorName && (candidateVendorName.includes(normalizedName) || normalizedName.includes(candidateVendorName))))
+        )
+        const hasSimilarCode = Boolean(
+          normalizedCode &&
+            !hasExactCode &&
+            candidateCode &&
+            (candidateCode.includes(normalizedCode) || normalizedCode.includes(candidateCode))
+        )
+
+        if (hasExactName) reasons.push("Exact Product Name")
+        if (hasExactCode) reasons.push("Exact Part Number")
+        if (hasSimilarName) reasons.push("Similar Product Name")
+        if (hasSimilarCode) reasons.push("Similar Part Number")
+
+        return { ...product, dedupeReasons: reasons }
+      })
+      .filter((candidate) => candidate.dedupeReasons.length > 0)
+
+    if (candidates.length === 0) {
+      return { exact: null, likely: [] }
     }
 
-    if (!exact && normalizedName) {
-      exact =
-        collected.find((p) => {
-          const house = (p.productNameHouse ?? "").toLowerCase()
-          const vendor = (p.productNameVendor ?? "").toLowerCase()
-          return house === normalizedName || vendor === normalizedName
-        }) ?? null
-    }
+    const exact =
+      candidates.find((candidate) => candidate.dedupeReasons.includes("Exact Part Number")) ??
+      candidates.find((candidate) => candidate.dedupeReasons.includes("Exact Product Name")) ??
+      null
 
-    const likely = collected.filter((p) => p.id !== exact?.id)
+    const likely = candidates
+      .filter((candidate) => candidate.id !== exact?.id)
+      .sort((left, right) => right.dedupeReasons.length - left.dedupeReasons.length)
+
     return { exact, likely }
   }, [form.productNameHouse, form.productNameVendor, form.partNumberVendor])
 
@@ -530,6 +578,11 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
 
   const applyProductOption = useCallback(
     (option: CatalogProductOption) => {
+      const resolvedPartNumberVendor =
+        option.partNumberVendor?.trim() ||
+        option.partNumberOther?.trim() ||
+        option.productCode?.trim() ||
+        null
       setDistributorInput(option.distributorName || distributorInput)
       setVendorInput(option.vendorName || vendorInput)
       setForm((prev) => ({
@@ -539,7 +592,8 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
         productFamilyVendor: option.productFamilyVendor ?? prev.productFamilyVendor,
         productSubtypeVendor: option.productSubtypeVendor ?? prev.productSubtypeVendor,
         productNameVendor: option.productNameVendor ?? prev.productNameVendor,
-        partNumberVendor: option.partNumberVendor ?? option.productCode ?? prev.partNumberVendor,
+        partNumberVendor: resolvedPartNumberVendor ?? prev.partNumberVendor,
+        partNumberHouse: option.partNumberHouse ?? prev.partNumberHouse,
         productFamilyHouse: option.productFamilyHouse ?? prev.productFamilyHouse,
         productSubtypeHouse: option.productSubtypeHouse ?? prev.productSubtypeHouse,
         productNameHouse: option.name || prev.productNameHouse,
@@ -600,13 +654,39 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
     if (!response.ok) {
       const serverErrors = (body?.errors ?? {}) as Record<string, string>
       setErrors(serverErrors)
+      if (body?.code === "PRODUCT_EXACT_DUPLICATE") {
+        const duplicate = body?.duplicate
+        if (duplicate && typeof duplicate === "object") {
+          setDedupeExactMatch({
+            id: String((duplicate as any).id ?? ""),
+            name: String((duplicate as any).productNameHouse ?? (duplicate as any).productNameVendor ?? "Product"),
+            productNameHouse: (duplicate as any).productNameHouse ?? null,
+            productNameVendor: (duplicate as any).productNameVendor ?? null,
+            vendorName: (duplicate as any).vendorName ?? null,
+            distributorName: (duplicate as any).distributorName ?? null,
+            productFamilyVendor: (duplicate as any).productFamilyVendor ?? null,
+            partNumberVendor: (duplicate as any).partNumberVendor ?? null,
+            productCode: (duplicate as any).partNumberVendor ?? (duplicate as any).productCode ?? null,
+            dedupeReasons: Array.isArray(body?.matchReasons)
+              ? body.matchReasons.filter((value: unknown) => typeof value === "string")
+              : ["Exact duplicate"],
+          })
+          setDedupeLikelyMatches([])
+        }
+        showError(
+          "Existing product found",
+          body?.error ??
+            "We found a product with the same Product Name or Other - Part Number. Use the existing product from the catalog or cancel to avoid duplicates."
+        )
+        return
+      }
       throw new Error(body?.error ?? "Failed to create product")
     }
 
     showSuccess("Product created", "The product has been added.")
     onSuccess()
     onClose()
-  }, [form, onClose, onSuccess, showSuccess])
+  }, [form, onClose, onSuccess, showError, showSuccess])
 
   const submitWithDedupeCheck = useCallback(
     async (allowLikelyDuplicates: boolean) => {
@@ -733,7 +813,23 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
 
             {(dedupeExactMatch || dedupeLikelyMatches.length > 0) && (
               <div className="mb-3 rounded-md border border-yellow-200 bg-yellow-50 p-3 text-xs text-yellow-800">
-                <div className="font-semibold text-yellow-900">Duplicate check results</div>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="font-semibold text-yellow-900">
+                    Duplicate check results ({dedupeExactMatch ? 1 : 0} exact, {dedupeLikelyMatches.length} possible)
+                  </div>
+                  <div className="relative shrink-0 group">
+                    <button
+                      type="button"
+                      aria-label="How duplicate checks work"
+                      className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-yellow-300 bg-white font-semibold text-yellow-800 hover:bg-yellow-100 focus:outline-none focus:ring-2 focus:ring-yellow-400"
+                    >
+                      i
+                    </button>
+                    <div className="pointer-events-none absolute right-0 top-6 z-20 hidden w-72 rounded-md border border-yellow-300 bg-white p-2 text-[11px] leading-4 text-yellow-900 shadow-md group-hover:block group-focus-within:block">
+                      Save checks Product Name and Other - Part Number against existing active products. Exact matches are blocked. Similar matches are warnings, and Proceed anyway still creates the product.
+                    </div>
+                  </div>
+                </div>
 
                 {dedupeExactMatch ? (
                   <div className="mt-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-amber-800">
@@ -741,6 +837,18 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
                     <div className="mt-1">
                       A product with the same Product Name or Other - Part Number already exists. Review it in the catalog and use the existing product instead of creating a duplicate, or cancel.
                     </div>
+                    {dedupeExactMatch.dedupeReasons.length > 0 ? (
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {dedupeExactMatch.dedupeReasons.map((reason) => (
+                          <span
+                            key={`exact-reason-${reason}`}
+                            className="inline-flex items-center rounded-full border border-amber-300 bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-900"
+                          >
+                            {reason}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
                     <div className="mt-2">
                       <div className="font-medium text-gray-900">{dedupeExactMatch.name}</div>
                       <div className="text-gray-700">
@@ -762,8 +870,35 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
                       {dedupeLikelyMatches.map((match) => (
                         <div key={match.id} className="rounded-md border border-yellow-100 bg-white/70 px-3 py-2">
                           <div className="font-semibold text-gray-900">{match.name}</div>
+                          {match.dedupeReasons.length > 0 ? (
+                            <div className="mt-1 flex flex-wrap gap-1.5">
+                              {match.dedupeReasons.map((reason) => (
+                                <span
+                                  key={`${match.id}-${reason}`}
+                                  className="inline-flex items-center rounded-full border border-yellow-300 bg-yellow-100 px-2 py-0.5 text-[10px] font-semibold text-yellow-900"
+                                >
+                                  {reason}
+                                </span>
+                              ))}
+                            </div>
+                          ) : null}
                           <div className="text-gray-700">
                             {[match.productCode, match.vendorName, match.productFamilyVendor].filter(Boolean).join(" • ")}
+                          </div>
+                          <div className="mt-2">
+                            <button
+                              type="button"
+                              className="rounded-md border border-yellow-300 px-2.5 py-1 text-[11px] font-semibold text-yellow-800 hover:bg-yellow-100"
+                              onClick={() => {
+                                applyProductOption(match)
+                                setDedupeExactMatch(null)
+                                setDedupeLikelyMatches([])
+                                showSuccess("Existing product selected", "We applied the selected product details to this form.")
+                              }}
+                              disabled={loading}
+                            >
+                              Use this product
+                            </button>
                           </div>
                         </div>
                       ))}

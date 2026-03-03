@@ -510,6 +510,7 @@ model Opportunity {
   stage                 OpportunityStage     @default(Qualification)
   status                OpportunityStatus    @default(Open)
   active                Boolean              @default(true)
+  isSubjectMatterExpertDeal Boolean          @default(false)
   type                  OpportunityType      @default(NewBusiness)
   leadSource            LeadSource           @default(Referral)
   amount                Decimal?             @db.Decimal(16, 2)
@@ -573,6 +574,7 @@ model OpportunityProduct {
   revenueTypeSnapshot        String?
   priceEachSnapshot          Decimal?                 @db.Decimal(16, 2)
   commissionPercentSnapshot  Decimal?                 @db.Decimal(5, 2)
+  subjectMatterExpertPercent Decimal?                 @db.Decimal(5, 2)
   distributorNameSnapshot    String?
   vendorNameSnapshot         String?
   distributorAccountIdSnapshot String?                @db.Uuid
