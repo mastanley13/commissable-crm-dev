@@ -14,6 +14,7 @@ import { getClientIP, getUserAgent, logAudit } from "@/lib/audit"
 import { resolveSpreadsheetHeader } from "@/lib/deposit-import/resolve-header"
 import {
   extractDepositMappingV2FromTemplateConfig,
+  sanitizeDepositMappingForTemplateV2,
   serializeDepositMappingForTemplateV2,
   type DepositMappingConfigV2,
 } from "@/lib/deposit-import/template-mapping-v2"
@@ -183,7 +184,7 @@ export async function POST(request: NextRequest) {
 
     if (mappingPayload && isPlainObject(mappingPayload)) {
       const candidate = mappingPayload as Record<string, unknown>
-      if (candidate["version"] === "multiVendorV1") {
+	      if (candidate["version"] === "multiVendorV1") {
         if (!multiVendor) {
           return createErrorResponse("Multi-vendor mapping payload requires multi-vendor upload mode", 400)
         }
@@ -245,10 +246,10 @@ export async function POST(request: NextRequest) {
         }
 
         multiVendorVendorNameColumn = Array.from(vendorColumnNames.values())[0] ?? null
-      } else if (typeof candidate["version"] === "number" && (candidate["version"] === 1 || candidate["version"] === 2)) {
-        mappingConfig = extractDepositMappingV2FromTemplateConfig({ depositMapping: mappingPayload })
-        mappingConfigForTemplate = mappingConfig
-      } else {
+	      } else if (typeof candidate["version"] === "number" && (candidate["version"] === 1 || candidate["version"] === 2)) {
+	        mappingConfig = extractDepositMappingV2FromTemplateConfig({ depositMapping: mappingPayload })
+	        mappingConfigForTemplate = sanitizeDepositMappingForTemplateV2(mappingConfig)
+	      } else {
         const targets: Record<string, string> = {}
         for (const [fieldId, columnName] of Object.entries(candidate)) {
           if (typeof columnName !== "string" || !columnName.trim()) continue
@@ -256,17 +257,17 @@ export async function POST(request: NextRequest) {
           if (!targetId) continue
           targets[targetId] = columnName.trim()
         }
-        if (Object.keys(targets).length > 0) {
-          mappingConfig = {
-            version: 2,
-            targets,
-            columns: {},
-            customFields: {},
-          }
-          mappingConfigForTemplate = mappingConfig
-        }
-      }
-    }
+	        if (Object.keys(targets).length > 0) {
+	          mappingConfig = {
+	            version: 2,
+	            targets,
+	            columns: {},
+	            customFields: {},
+	          }
+	          mappingConfigForTemplate = sanitizeDepositMappingForTemplateV2(mappingConfig)
+	        }
+	      }
+	    }
 
     if (!mappingConfig && !multiVendorMappingsByTemplateId) {
       return createErrorResponse("Field mapping is required", 400)
@@ -573,13 +574,15 @@ export async function POST(request: NextRequest) {
               const customColumnIndexForTemplate =
                 Object.keys(customMapping).length > 0 ? buildColumnIndex(parsedFile.headers, customMapping) : {}
 
-              templateDataById.set(templateId, {
-                mappingConfig: normalizedConfig,
-                columnIndex: columnIndexForTemplate,
-                customColumnIndex: customColumnIndexForTemplate,
-                configToPersist: serializeDepositMappingForTemplateV2(normalizedConfig) as unknown as Prisma.InputJsonValue,
-              })
-            }
+	              templateDataById.set(templateId, {
+	                mappingConfig: normalizedConfig,
+	                columnIndex: columnIndexForTemplate,
+	                customColumnIndex: customColumnIndexForTemplate,
+	                configToPersist: serializeDepositMappingForTemplateV2(
+	                  sanitizeDepositMappingForTemplateV2(normalizedConfig),
+	                ) as unknown as Prisma.InputJsonValue,
+	              })
+	            }
 
             const vendorAccountIds = Array.from(
               new Set(templateResolution.templatesUsed.map(item => item.vendorAccountId)),

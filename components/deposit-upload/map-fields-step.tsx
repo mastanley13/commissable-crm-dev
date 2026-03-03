@@ -16,6 +16,10 @@ import {
   LEGACY_FIELD_ID_TO_TARGET_ID,
   type DepositImportFieldTarget,
 } from "@/lib/deposit-import/field-catalog"
+import {
+  classifyDepositColumnBucket,
+  resolveTemplateKnownHeaders,
+} from "@/lib/deposit-import/deposit-column-buckets"
 import { suggestDepositFieldMatches } from "@/lib/deposit-import/field-suggestions"
 import { normalizeKey } from "@/lib/deposit-import/normalize"
 import {
@@ -139,6 +143,7 @@ export function MapFieldsStep({
   const [newFieldsTablePage, setNewFieldsTablePage] = useState(0)
   const [excludeTablePage, setExcludeTablePage] = useState(0)
   const [activeColumnsTab, setActiveColumnsTab] = useState<"template" | "new" | "exclude">("template")
+  const [columnFilter, setColumnFilter] = useState("")
   const [customDrafts, setCustomDrafts] = useState<
     Record<string, { label: string; section: DepositCustomFieldSection }>
   >({})
@@ -182,6 +187,12 @@ export function MapFieldsStep({
     setNewFieldsTablePage(0)
     setExcludeTablePage(0)
   }, [csvHeaders.length, file?.name])
+
+  useEffect(() => {
+    setTemplateTablePage(0)
+    setNewFieldsTablePage(0)
+    setExcludeTablePage(0)
+  }, [columnFilter])
 
   useEffect(() => {
     setOpenDropdownKey(null)
@@ -271,14 +282,6 @@ export function MapFieldsStep({
     return { ...suggestion, targetId }
   })
 
-  const normalizedHeaderLookup = new Map<string, string>()
-  for (const header of csvHeaders) {
-    const key = normalizeKey(header)
-    if (key && !normalizedHeaderLookup.has(key)) {
-      normalizedHeaderLookup.set(key, header)
-    }
-  }
-
   const templateHintByNormalizedHeader = new Map<string, string>()
   if (templateFields?.fields?.length) {
     for (const field of templateFields.fields) {
@@ -288,50 +291,11 @@ export function MapFieldsStep({
     }
   }
 
-  const templateColumnCandidates = new Set<string>()
-  if (templateMapping) {
-    for (const columnName of Object.values(templateMapping.targets ?? {})) {
-      if (typeof columnName === "string" && columnName.trim()) {
-        templateColumnCandidates.add(columnName)
-      }
-    }
-    for (const columnName of Object.keys(templateMapping.columns ?? {})) {
-      if (columnName.trim()) templateColumnCandidates.add(columnName)
-    }
-  }
-
-  const CORE_TEMPLATE_TARGETS = [
-    LEGACY_FIELD_ID_TO_TARGET_ID.accountNameRaw,
-    DEPOSIT_IMPORT_TARGET_IDS.usage,
-    DEPOSIT_IMPORT_TARGET_IDS.commission,
-    LEGACY_FIELD_ID_TO_TARGET_ID.vendorNameRaw,
-  ].filter(Boolean)
-  for (const targetId of CORE_TEMPLATE_TARGETS) {
-    const columnName = mapping.targets?.[targetId]
-    if (typeof columnName === "string" && columnName.trim()) {
-      templateColumnCandidates.add(columnName)
-    }
-  }
-
-  if (templateFields?.fields?.length) {
-    for (const field of templateFields.fields) {
-      if (field.telarusFieldName?.trim()) templateColumnCandidates.add(field.telarusFieldName)
-    }
-  }
-
-  const templateColumnNames = new Set<string>()
-  for (const candidate of templateColumnCandidates) {
-    if (csvHeaders.includes(candidate)) {
-      templateColumnNames.add(candidate)
-      continue
-    }
-    const resolved = normalizedHeaderLookup.get(normalizeKey(candidate))
-    if (resolved) templateColumnNames.add(resolved)
-  }
-
-  const templateRows = columnRows.filter(({ header }) => templateColumnNames.has(header))
-  const templateIndexes = new Set(templateRows.map(row => row.index))
-  const nonTemplateRows = columnRows.filter(row => !templateIndexes.has(row.index))
+  const templateKnownHeaders = resolveTemplateKnownHeaders({
+    headers: csvHeaders,
+    templateMapping,
+    templateFields,
+  })
 
   const columnHasAnyValue = (columnIndex: number) => {
     const hasValues = columnHasValuesByIndex?.[columnIndex]
@@ -339,18 +303,31 @@ export function MapFieldsStep({
     return previewWindow.some(row => typeof row[columnIndex] === "string" && row[columnIndex]!.trim().length > 0)
   }
 
-  const excludeRows = nonTemplateRows.filter(row => {
+  const templateRows: Array<{ header: string; index: number }> = []
+  const newRows: Array<{ header: string; index: number }> = []
+  const excludeRows: Array<{ header: string; index: number }> = []
+  for (const row of columnRows) {
     const selection = getColumnSelectionV2(mapping, row.header)
-    const bestSuggestion = bestFieldSuggestionByIndex[row.index]
-    const hasSuggestion = Boolean(bestSuggestion)
+    const bucket = classifyDepositColumnBucket({
+      header: row.header,
+      selection,
+      hasAnyValue: columnHasAnyValue(row.index),
+      templateKnownHeaders,
+    }).bucket
+    if (bucket === "template") templateRows.push(row)
+    else if (bucket === "new") newRows.push(row)
+    else excludeRows.push(row)
+  }
 
-    if (selection.type === "ignore") return true
-    if (!columnHasAnyValue(row.index)) return true
-    if (selection.type === "additional" && !hasSuggestion) return true
-    return false
-  })
-  const excludeIndexes = new Set(excludeRows.map(row => row.index))
-  const newRows = nonTemplateRows.filter(row => !excludeIndexes.has(row.index))
+  const normalizedColumnFilter = columnFilter.trim().toLowerCase()
+  const applyColumnFilter = (rows: Array<{ header: string; index: number }>) => {
+    if (!normalizedColumnFilter) return rows
+    return rows.filter(row => (row.header ?? "").toLowerCase().includes(normalizedColumnFilter))
+  }
+
+  const filteredTemplateRows = applyColumnFilter(templateRows)
+  const filteredNewRows = applyColumnFilter(newRows)
+  const filteredExcludeRows = applyColumnFilter(excludeRows)
 
   const updateCustomDraft = (
     draftKey: string,
@@ -1031,11 +1008,11 @@ export function MapFieldsStep({
         <div className="flex flex-col overflow-hidden">
           <div className="flex flex-wrap items-center justify-between gap-2 border-x border-t border-gray-200 bg-gray-100 pt-2 px-3 pb-0">
             <div role="tablist" aria-label="Deposit upload column mapping sections" className="flex flex-wrap gap-1">
-              {[
-                { id: "template" as const, label: `Template Fields (${templateRows.length})` },
-                { id: "new" as const, label: `New Fields (${newRows.length})` },
-                { id: "exclude" as const, label: `Exclude (${excludeRows.length})` },
-              ].map(tab => {
+	              {[
+	                { id: "template" as const, label: `Template Fields (${filteredTemplateRows.length})` },
+	                { id: "new" as const, label: `New Fields (${filteredNewRows.length})` },
+	                { id: "exclude" as const, label: `Exclude (${filteredExcludeRows.length})` },
+	              ].map(tab => {
                 const isActive = tab.id === activeColumnsTab
                 return (
                   <button
@@ -1081,12 +1058,18 @@ export function MapFieldsStep({
                     <ChevronRight className="h-3 w-3" />
                   </button>
                 </div>
-              ) : null}
-              <p className="text-xs text-gray-500">Columns detected: {csvHeaders.length || "0"}</p>
-              <button
-                type="button"
-                title="Map required fields like Usage and Commission to columns from your uploaded file. Optional fields can be left unmapped. Template Fields shows columns from your template mapping. New Fields shows columns not in the template with values and suggested matches. Exclude shows columns with no values, columns set to Do Not Map, and columns without suggested matches."
-                aria-label="Map Fields help"
+	              ) : null}
+	              <p className="text-xs text-gray-500">Columns detected: {csvHeaders.length || "0"}</p>
+	              <input
+	                value={columnFilter}
+	                onChange={event => setColumnFilter(event.target.value)}
+	                placeholder="Filter columns…"
+	                className="h-7 w-[200px] rounded-md border border-gray-300 bg-white px-2 text-xs text-gray-900 placeholder:text-gray-400 focus:border-primary-500 focus:outline-none"
+	              />
+	              <button
+	                type="button"
+	                title="Map required fields like Usage and Commission to columns from your uploaded file. Template Fields shows columns that are already part of the saved template. New Fields shows columns not in the saved template that have values and are still unmapped. Exclude shows columns with no values, columns set to Do Not Map, and any mapped columns that are not yet saved into the template."
+	                aria-label="Map Fields help"
                 className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-gray-300 bg-white text-[11px] font-semibold text-gray-600 hover:bg-gray-50"
               >
                 ?
@@ -1102,11 +1085,13 @@ export function MapFieldsStep({
                   role="tabpanel"
                   aria-labelledby="deposit-map-fields-tab-template"
                 >
-                  {renderColumnTableContent({
-                    rows: templateRows,
-                    emptyLabel: "Select a Distributor and Vendor with a saved mapping to pre-fill this section.",
-                    pagination: { page: templateTablePage, setPage: setTemplateTablePage },
-                  })}
+	                  {renderColumnTableContent({
+	                    rows: filteredTemplateRows,
+	                    emptyLabel: normalizedColumnFilter
+	                      ? "No template fields match the filter."
+	                      : "Select a Distributor and Vendor with a saved mapping to pre-fill this section.",
+	                    pagination: { page: templateTablePage, setPage: setTemplateTablePage },
+	                  })}
                 </div>
               ) : activeColumnsTab === "new" ? (
                 <div
@@ -1114,11 +1099,11 @@ export function MapFieldsStep({
                   role="tabpanel"
                   aria-labelledby="deposit-map-fields-tab-new"
                 >
-                  {renderColumnTableContent({
-                    rows: newRows,
-                    emptyLabel: "No new fields found.",
-                    pagination: { page: newFieldsTablePage, setPage: setNewFieldsTablePage },
-                  })}
+	                  {renderColumnTableContent({
+	                    rows: filteredNewRows,
+	                    emptyLabel: normalizedColumnFilter ? "No new fields match the filter." : "No new fields found.",
+	                    pagination: { page: newFieldsTablePage, setPage: setNewFieldsTablePage },
+	                  })}
                 </div>
               ) : (
                 <div
@@ -1126,11 +1111,11 @@ export function MapFieldsStep({
                   role="tabpanel"
                   aria-labelledby="deposit-map-fields-tab-exclude"
                 >
-                  {renderColumnTableContent({
-                    rows: excludeRows,
-                    emptyLabel: "No excluded fields found.",
-                    pagination: { page: excludeTablePage, setPage: setExcludeTablePage },
-                  })}
+	                  {renderColumnTableContent({
+	                    rows: filteredExcludeRows,
+	                    emptyLabel: normalizedColumnFilter ? "No excluded fields match the filter." : "No excluded fields found.",
+	                    pagination: { page: excludeTablePage, setPage: setExcludeTablePage },
+	                  })}
                 </div>
               )}
             </div>

@@ -175,6 +175,52 @@ export function serializeDepositMappingForTemplateV2(mapping: DepositMappingConf
   }
 }
 
+export function sanitizeDepositMappingForTemplateV2(mapping: DepositMappingConfigV2): DepositMappingConfigV2 {
+  const targets: Record<string, string> = {}
+  for (const [targetId, raw] of Object.entries(mapping.targets ?? {})) {
+    if (!targetId.trim()) continue
+    const columnName = typeof raw === "string" ? raw.trim() : ""
+    if (!columnName) continue
+    targets[targetId.trim()] = columnName
+  }
+
+  const columns: Record<string, DepositMappingColumnConfigV2> = {}
+  for (const [targetId, columnName] of Object.entries(targets)) {
+    columns[columnName] = { mode: "target", targetId }
+  }
+
+  const referencedCustomKeys = new Set<string>()
+  for (const [columnNameRaw, config] of Object.entries(mapping.columns ?? {})) {
+    const columnName = columnNameRaw.trim()
+    if (!columnName || !config || config.mode !== "custom") continue
+    const key = typeof config.customKey === "string" ? config.customKey.trim() : ""
+    if (!key) continue
+    const definition = mapping.customFields?.[key]
+    if (!definition?.label?.trim()) continue
+    columns[columnName] = { mode: "custom", customKey: key }
+    referencedCustomKeys.add(key)
+  }
+
+  const customFields: Record<string, DepositCustomFieldDefinition> = {}
+  for (const key of referencedCustomKeys) {
+    const definition = mapping.customFields?.[key]
+    if (!definition?.label?.trim()) continue
+    customFields[key] = {
+      label: definition.label.trim(),
+      section: definition.section === "product" ? "product" : "additional",
+    }
+  }
+
+  return ensureColumnsForTargets({
+    version: 2,
+    targets,
+    columns,
+    customFields,
+    header: mapping.header,
+    options: mapping.options,
+  })
+}
+
 export function convertDepositMappingV1ToV2(mapping: DepositMappingConfigV1): DepositMappingConfigV2 {
   const targets: Record<string, string> = {}
   for (const [fieldId, columnName] of Object.entries(mapping.line ?? {})) {

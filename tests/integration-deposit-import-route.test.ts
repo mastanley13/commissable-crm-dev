@@ -224,15 +224,27 @@ integrationTest("DU-AUTO-15: template persistence toggle controls template confi
     select: { id: true },
   })
 
-  const baseParams = {
-    sessionToken: ctx.sessionToken,
-    distributorAccountId: ctx.distributorAccountId,
-    vendorAccountId: ctx.vendorAccountId,
-    reconciliationTemplateId: template.id,
-    file: makeCsvFile(["Commission", "10"].join("\n")),
-    mapping: { commission: "Commission" },
-    paymentDate: "2026-01-01",
-  }
+	  const baseParams = {
+	    sessionToken: ctx.sessionToken,
+	    distributorAccountId: ctx.distributorAccountId,
+	    vendorAccountId: ctx.vendorAccountId,
+	    reconciliationTemplateId: template.id,
+	    file: makeCsvFile(["Commission,Units,Ignore Me,Extra", "10,5,x,hello"].join("\n")),
+	    mapping: {
+	      version: 2,
+	      targets: { "depositLineItem.commission": "Commission" },
+	      columns: {
+	        Units: { mode: "custom", customKey: "cf_units" },
+	        "Ignore Me": { mode: "ignore" },
+	        Extra: { mode: "additional" },
+	      },
+	      customFields: {
+	        cf_units: { label: "Units", section: "additional" },
+	        cf_unused: { label: "Unused", section: "product" },
+	      },
+	    },
+	    paymentDate: "2026-01-01",
+	  }
 
   const noSaveResponse = await POST(makeImportRequest({ ...baseParams, saveTemplateMapping: false }))
   assertStatus(noSaveResponse, 200)
@@ -246,12 +258,20 @@ integrationTest("DU-AUTO-15: template persistence toggle controls template confi
   const saveResponse = await POST(makeImportRequest({ ...baseParams, saveTemplateMapping: true }))
   assertStatus(saveResponse, 200)
 
-  const afterSave = await prisma.reconciliationTemplate.findFirst({
-    where: { id: template.id, tenantId: ctx.tenantId },
-    select: { config: true },
-  })
-  assert.ok(afterSave?.config, "Expected template config to be persisted when saveTemplateMapping=true")
-})
+	  const afterSave = await prisma.reconciliationTemplate.findFirst({
+	    where: { id: template.id, tenantId: ctx.tenantId },
+	    select: { config: true },
+	  })
+	  assert.ok(afterSave?.config, "Expected template config to be persisted when saveTemplateMapping=true")
+
+	  const config = afterSave!.config as any
+	  assert.equal(config?.depositMapping?.version, 2)
+	  const columns = config?.depositMapping?.columns ?? {}
+	  assert.ok(!Object.values(columns).some((col: any) => col?.mode === "ignore"))
+	  assert.ok(!Object.values(columns).some((col: any) => col?.mode === "additional"))
+	  assert.ok(Object.values(columns).some((col: any) => col?.mode === "custom"))
+	  assert.deepEqual(config?.depositMapping?.customFields ?? {}, { cf_units: { label: "Units", section: "additional" } })
+	})
 
 integrationTest("DU-AUTO-16: single-vendor import skips total/subtotal summary rows", async ctx => {
   const routeModule = await import("../app/api/reconciliation/deposits/import/route")
