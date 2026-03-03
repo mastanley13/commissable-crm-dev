@@ -551,9 +551,65 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
     [distributorInput, vendorInput]
   )
 
-  const handleSubmit = useCallback(
-    async (event: React.FormEvent<HTMLFormElement>) => {
-      event.preventDefault()
+  const createProduct = useCallback(async () => {
+    const rawPriceEach = form.priceEach.trim()
+    const priceEachValue = rawPriceEach ? Number(rawPriceEach) : null
+
+    const rawCommission = form.commissionPercent.trim()
+    let commissionPercentValue: number | null = null
+    if (rawCommission) {
+      const compact = rawCommission.replace(/\s+/g, "")
+      const hasPercent = compact.endsWith("%")
+      const normalized = hasPercent ? compact.slice(0, -1).trim() : compact
+      const parsed = Number(normalized.replace(/[^0-9.-]/g, ""))
+      if (Number.isFinite(parsed)) {
+        commissionPercentValue =
+          parsed === 0 ? 0 : !hasPercent && Math.abs(parsed) <= 1 ? parsed * 100 : parsed
+      }
+    }
+
+    const derivedProductNameVendor = form.productNameVendor.trim() || form.productNameHouse.trim() || null
+    const derivedProductFamilyVendor = form.productFamilyVendor.trim() || form.productFamilyHouse.trim() || null
+    const derivedProductSubtypeVendor = form.productSubtypeVendor.trim() || form.productSubtypeHouse.trim() || null
+
+    const payload = {
+      isActive: Boolean(form.isActive),
+      distributorAccountId: form.distributorAccountId || null,
+      vendorAccountId: form.vendorAccountId || null,
+      productFamilyVendor: derivedProductFamilyVendor,
+      productSubtypeVendor: derivedProductSubtypeVendor,
+      productNameVendor: derivedProductNameVendor,
+      partNumberVendor: form.partNumberVendor.trim() || null,
+      productDescriptionVendor: form.productDescriptionVendor.trim() || null,
+      revenueType: form.revenueType,
+      priceEach: priceEachValue,
+      commissionPercent: commissionPercentValue,
+      productNameHouse: form.productNameHouse.trim(),
+      partNumberHouse: form.partNumberHouse.trim() || null,
+      productFamilyHouse: form.productFamilyHouse.trim() || null,
+      productSubtypeHouse: form.productSubtypeHouse.trim() || null,
+      description: form.description.trim() || null,
+    }
+
+    const response = await fetch("/api/products", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    })
+    const body = await response.json().catch(() => null)
+    if (!response.ok) {
+      const serverErrors = (body?.errors ?? {}) as Record<string, string>
+      setErrors(serverErrors)
+      throw new Error(body?.error ?? "Failed to create product")
+    }
+
+    showSuccess("Product created", "The product has been added.")
+    onSuccess()
+    onClose()
+  }, [form, onClose, onSuccess, showSuccess])
+
+  const submitWithDedupeCheck = useCallback(
+    async (allowLikelyDuplicates: boolean) => {
       if (!canSubmit) return
 
       setLoading(true)
@@ -569,74 +625,17 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
             "Existing product found",
             "We found a product with the same Product Name or Other - Part Number. Use the existing product from the catalog or cancel to avoid duplicates."
           )
-          setLoading(false)
           return
         }
-        if (likely.length > 0) {
+        if (!allowLikelyDuplicates && likely.length > 0) {
           showError(
             "Possible duplicates found",
             "We found similar products based on Product Name or Other - Part Number. Review the matches, choose one to use, or cancel."
           )
-          setLoading(false)
           return
         }
 
-        const rawPriceEach = form.priceEach.trim()
-        const priceEachValue = rawPriceEach ? Number(rawPriceEach) : null
-
-        const rawCommission = form.commissionPercent.trim()
-        let commissionPercentValue: number | null = null
-        if (rawCommission) {
-          const compact = rawCommission.replace(/\s+/g, "")
-          const hasPercent = compact.endsWith("%")
-          const normalized = hasPercent ? compact.slice(0, -1).trim() : compact
-          const parsed = Number(normalized.replace(/[^0-9.-]/g, ""))
-          if (Number.isFinite(parsed)) {
-            // Persist commission percent as percent points (e.g. 16.00 => 16.00%).
-            // Compatibility: accept fraction input (0.16) when no % sign is present.
-            commissionPercentValue =
-              parsed === 0 ? 0 : !hasPercent && Math.abs(parsed) <= 1 ? parsed * 100 : parsed
-          }
-        }
-
-        const derivedProductNameVendor = form.productNameVendor.trim() || form.productNameHouse.trim() || null
-        const derivedProductFamilyVendor = form.productFamilyVendor.trim() || form.productFamilyHouse.trim() || null
-        const derivedProductSubtypeVendor = form.productSubtypeVendor.trim() || form.productSubtypeHouse.trim() || null
-
-        const payload = {
-          isActive: Boolean(form.isActive),
-          distributorAccountId: form.distributorAccountId || null,
-          vendorAccountId: form.vendorAccountId || null,
-          productFamilyVendor: derivedProductFamilyVendor,
-          productSubtypeVendor: derivedProductSubtypeVendor,
-          productNameVendor: derivedProductNameVendor,
-          partNumberVendor: form.partNumberVendor.trim() || null,
-          productDescriptionVendor: form.productDescriptionVendor.trim() || null,
-          revenueType: form.revenueType,
-          priceEach: priceEachValue,
-          commissionPercent: commissionPercentValue,
-          productNameHouse: form.productNameHouse.trim(),
-          partNumberHouse: form.partNumberHouse.trim() || null,
-          productFamilyHouse: form.productFamilyHouse.trim() || null,
-          productSubtypeHouse: form.productSubtypeHouse.trim() || null,
-          description: form.description.trim() || null,
-        }
-
-        const response = await fetch("/api/products", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        })
-        const body = await response.json().catch(() => null)
-        if (!response.ok) {
-          const serverErrors = (body?.errors ?? {}) as Record<string, string>
-          setErrors(serverErrors)
-          throw new Error(body?.error ?? "Failed to create product")
-        }
-
-        showSuccess("Product created", "The product has been added.")
-        onSuccess()
-        onClose()
+        await createProduct()
       } catch (err) {
         const message = err instanceof Error ? err.message : "Failed to create product"
         showError("Unable to create product", message)
@@ -644,8 +643,20 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
         setLoading(false)
       }
     },
-    [canSubmit, form, onClose, onSuccess, runProductDedupe, showError, showSuccess]
+    [canSubmit, createProduct, runProductDedupe, showError]
   )
+
+  const handleSubmit = useCallback(
+    (event: React.FormEvent<HTMLFormElement>) => {
+      event.preventDefault()
+      void submitWithDedupeCheck(false)
+    },
+    [submitWithDedupeCheck]
+  )
+
+  const handleProceedAnyway = useCallback(() => {
+    void submitWithDedupeCheck(true)
+  }, [submitWithDedupeCheck])
 
   if (!isOpen) return null
 
@@ -656,7 +667,7 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
 
         <form id="product-create-form" onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-6 py-3">
           <div className="space-y-3">
-            {dedupeExactMatch && (
+            {false && dedupeExactMatch && (
               <div className="mb-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-xs text-amber-800">
                 <div className="font-semibold text-amber-900">Existing product found</div>
                 <div className="mt-1">
@@ -683,7 +694,7 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
               </div>
             )}
 
-            {dedupeLikelyMatches.length > 0 && (
+            {false && dedupeLikelyMatches.length > 0 && (
               <div className="mb-3 rounded-md border border-yellow-200 bg-yellow-50 p-3 text-xs text-yellow-800">
                 <div className="font-semibold text-yellow-900">Possible duplicates</div>
                 <div className="mt-1">
@@ -701,8 +712,9 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
                 </div>
                 <div className="mt-3 flex gap-2">
                   <button
-                    type="submit"
+                    type="button"
                     className="rounded-md bg-primary-600 px-3 py-1.5 font-semibold text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-primary-300"
+                    onClick={handleProceedAnyway}
                     disabled={loading}
                   >
                     Proceed anyway
@@ -714,6 +726,72 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
                     disabled={loading}
                   >
                     Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {(dedupeExactMatch || dedupeLikelyMatches.length > 0) && (
+              <div className="mb-3 rounded-md border border-yellow-200 bg-yellow-50 p-3 text-xs text-yellow-800">
+                <div className="font-semibold text-yellow-900">Duplicate check results</div>
+
+                {dedupeExactMatch ? (
+                  <div className="mt-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-amber-800">
+                    <div className="font-semibold text-amber-900">Existing product found</div>
+                    <div className="mt-1">
+                      A product with the same Product Name or Other - Part Number already exists. Review it in the catalog and use the existing product instead of creating a duplicate, or cancel.
+                    </div>
+                    <div className="mt-2">
+                      <div className="font-medium text-gray-900">{dedupeExactMatch.name}</div>
+                      <div className="text-gray-700">
+                        {[dedupeExactMatch.productCode, dedupeExactMatch.vendorName, dedupeExactMatch.productFamilyVendor]
+                          .filter(Boolean)
+                          .join(" • ")}
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+
+                {dedupeLikelyMatches.length > 0 ? (
+                  <div className={dedupeExactMatch ? "mt-3" : "mt-1"}>
+                    <div className="font-semibold text-yellow-900">Possible duplicates</div>
+                    <div className="mt-1">
+                      We found similar products based on Product Name or Other - Part Number. Review them before creating a new one, choose an existing product to use, or cancel.
+                    </div>
+                    <div className="mt-2 space-y-2">
+                      {dedupeLikelyMatches.map((match) => (
+                        <div key={match.id} className="rounded-md border border-yellow-100 bg-white/70 px-3 py-2">
+                          <div className="font-semibold text-gray-900">{match.name}</div>
+                          <div className="text-gray-700">
+                            {[match.productCode, match.vendorName, match.productFamilyVendor].filter(Boolean).join(" • ")}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+
+                <div className="mt-3 flex gap-2">
+                  {!dedupeExactMatch && dedupeLikelyMatches.length > 0 ? (
+                    <button
+                      type="button"
+                      className="rounded-md bg-primary-600 px-3 py-1.5 font-semibold text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-primary-300"
+                      onClick={handleProceedAnyway}
+                      disabled={loading}
+                    >
+                      Proceed anyway
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    className="rounded-md border border-yellow-300 px-3 py-1.5 font-semibold text-yellow-800 hover:bg-yellow-100"
+                    onClick={() => {
+                      setDedupeExactMatch(null)
+                      setDedupeLikelyMatches([])
+                    }}
+                    disabled={loading}
+                  >
+                    {dedupeExactMatch ? "Dismiss" : "Cancel"}
                   </button>
                 </div>
               </div>

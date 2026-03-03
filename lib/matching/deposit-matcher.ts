@@ -483,7 +483,7 @@ function getLinePaymentDate(lineItem: NonNullable<DepositLineWithRelations>) {
 }
 
 function getReferenceDate(lineItem: NonNullable<DepositLineWithRelations>) {
-  return getLinePaymentDate(lineItem) ?? new Date()
+  return lineItem.deposit?.paymentDate ?? lineItem.deposit?.month ?? lineItem.paymentDate ?? new Date()
 }
 
 function runLegacyScoring(
