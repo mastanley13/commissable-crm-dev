@@ -1,6 +1,7 @@
 ﻿"use client"
 
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react"
+import { useSearchParams } from "next/navigation"
 import { Settings2, Users, Layers, Grid3X3, DollarSign, Upload, GitMerge } from "lucide-react"
 import { Trash2 } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
@@ -185,10 +186,20 @@ const FIELD_TABLE_PAGE_SIZE = 10
 
 export default function DataSettingsPage() {
   const { user, isLoading, hasPermission } = useAuth()
+  const searchParams = useSearchParams()
   const [activeSection, setActiveSection] = useState<SectionId>("manage-fields")
 
   const canManage = hasPermission("admin.data_settings.manage")
   const canMerge = hasPermission("admin.data_settings.merge")
+
+  useEffect(() => {
+    const section = (searchParams?.get("section") ?? "").trim() as SectionId
+    if (!section) return
+    if (section !== "manage-fields" && section !== "imports" && section !== "merges" && section !== "templates") {
+      return
+    }
+    setActiveSection(section)
+  }, [searchParams])
 
   if (isLoading) {
     return (
@@ -280,7 +291,7 @@ export default function DataSettingsPage() {
         </aside>
 
         {/* Section content */}
-        <main className="flex-1 p-4">
+        <main className="flex-1 min-h-0 overflow-y-auto p-4">
           {renderSection()}
         </main>
       </div>

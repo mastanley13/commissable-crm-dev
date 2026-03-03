@@ -157,6 +157,29 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
   const vendorDistributorLocked = Boolean(vendorDistributorLock?.locked)
 
   useEffect(() => {
+    if (!isOpen || !opportunityId) {
+      return
+    }
+
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await fetch(`/api/opportunities/${encodeURIComponent(opportunityId)}`, { cache: "no-store" })
+        const payload = await res.json().catch(() => null)
+        const data = payload?.data ?? null
+        if (cancelled) return
+        setIsSubjectMatterExpertDeal(Boolean((data as any)?.isSubjectMatterExpertDeal))
+      } catch {
+        if (!cancelled) setIsSubjectMatterExpertDeal(false)
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [isOpen, opportunityId])
+
+  useEffect(() => {
     setCreateFamilyQuery(productFamilyHouseInput)
   }, [productFamilyHouseInput])
 
@@ -1628,25 +1651,3 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
     </div>
   )
 }
-  useEffect(() => {
-    if (!isOpen || !opportunityId) {
-      return
-    }
-
-    let cancelled = false
-    ;(async () => {
-      try {
-        const res = await fetch(`/api/opportunities/${encodeURIComponent(opportunityId)}`, { cache: "no-store" })
-        const payload = await res.json().catch(() => null)
-        const data = payload?.data ?? null
-        if (cancelled) return
-        setIsSubjectMatterExpertDeal(Boolean((data as any)?.isSubjectMatterExpertDeal))
-      } catch {
-        if (!cancelled) setIsSubjectMatterExpertDeal(false)
-      }
-    })()
-
-    return () => {
-      cancelled = true
-    }
-  }, [isOpen, opportunityId])

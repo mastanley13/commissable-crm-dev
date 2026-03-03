@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation"
 import { ArrowLeft, Save } from "lucide-react"
 import { ModalHeader } from "@/components/ui/modal-header"
 import { TemplateMappingEditor } from "@/components/template-manager/template-mapping-editor"
+import { useBreadcrumbs } from "@/lib/breadcrumb-context"
 import type { DepositImportFieldTarget } from "@/lib/deposit-import/field-catalog"
 import {
   createEmptyDepositMappingV2,
@@ -52,6 +53,7 @@ function formatDate(value: string) {
 
 export default function DataSettingsTemplateDetailPage() {
   const router = useRouter()
+  const { setBreadcrumbs } = useBreadcrumbs()
   const params = useParams<{ templateId: string }>()
   const templateId = (params?.templateId ?? "").toString()
 
@@ -121,6 +123,20 @@ export default function DataSettingsTemplateDetailPage() {
   }, [templateId])
 
   useEffect(() => {
+    const name = template?.name ?? "Template"
+    setBreadcrumbs([
+      { name: "Home", href: "/dashboard" },
+      { name: "Admin", href: "/admin" },
+      { name: "Data Settings", href: "/admin/data-settings" },
+      { name: "Templates", href: "/admin/data-settings?section=templates" },
+      { name, href: `/admin/data-settings/templates/${encodeURIComponent(templateId)}`, current: true },
+    ])
+    return () => {
+      setBreadcrumbs(null)
+    }
+  }, [setBreadcrumbs, template?.name, templateId])
+
+  useEffect(() => {
     if (!template) return
     if (activeTab !== "mapping") return
     const base = template.config ?? {}
@@ -181,7 +197,7 @@ export default function DataSettingsTemplateDetailPage() {
   }
 
   return (
-    <div className="h-full p-6">
+    <div className="h-full overflow-y-auto p-6">
       <div className="mb-4">
         <Link
           href="/admin/data-settings?section=templates"
@@ -316,4 +332,3 @@ export default function DataSettingsTemplateDetailPage() {
     </div>
   )
 }
-

@@ -296,7 +296,7 @@ const TABLE_BODY_MIN_HEIGHT = 200
 const TABLE_BODY_FOOTER_RESERVE = 1
 const DEFAULT_TABLE_BODY_HEIGHT = 260
 const LINE_ITEMS_TABLE_HEIGHT = 210
-const SUGGESTED_MATCHES_TABLE_HEIGHT = 360
+const SUGGESTED_MATCHES_TABLE_HEIGHT = 300
 
 function useTableScrollMetrics() {
   const containerRef = useRef<HTMLDivElement | null>(null)

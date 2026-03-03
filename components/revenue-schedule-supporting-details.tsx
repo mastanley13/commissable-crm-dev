@@ -846,29 +846,11 @@ export const RevenueScheduleSupportingDetails = forwardRef<
         serviceId: schedule?.revenueSchedule ?? null
       },
       {
-        id: "vendor",
-        label: "VENDOR",
-        accountId: schedule?.vendorId ?? null,
-        orderId: schedule?.orderIdVendor ?? null,
-        customerId: schedule?.customerIdVendor ?? null,
-        locationId: null,
-        serviceId: null
-      },
-      {
-        id: "distributor",
-        label: "DISTRIBUTOR",
-        accountId: schedule?.distributorId ?? null,
-        orderId: schedule?.orderIdDistributor ?? null,
-        customerId: schedule?.customerIdDistributor ?? null,
-        locationId: null,
-        serviceId: null
-      },
-      {
-        id: "customer",
-        label: "CUSTOMER",
-        accountId: null,
-        orderId: null,
-        customerId: null,
+        id: "other",
+        label: "Other",
+        accountId: schedule?.vendorId ?? schedule?.distributorId ?? null,
+        orderId: schedule?.orderIdVendor ?? schedule?.orderIdDistributor ?? null,
+        customerId: schedule?.customerIdVendor ?? schedule?.customerIdDistributor ?? null,
         locationId: null,
         serviceId: null
       }

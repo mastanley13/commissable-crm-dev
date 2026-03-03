@@ -1,22 +1,16 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { Plus, Search, Copy, Pencil, Upload } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { Plus, Search, Copy, Pencil } from "lucide-react"
 import { ModalHeader } from "@/components/ui/modal-header"
-import { MapFieldsStep } from "@/components/deposit-upload/map-fields-step"
-import { parseSpreadsheetFile } from "@/lib/deposit-import/parse-file"
+import { TemplateMappingEditor } from "@/components/template-manager/template-mapping-editor"
 import type { DepositImportFieldTarget } from "@/lib/deposit-import/field-catalog"
 import {
   createEmptyDepositMappingV2,
-  extractDepositMappingV2FromTemplateConfig,
-  seedDepositMappingV2,
-  setColumnSelectionV2,
-  createCustomFieldForColumnV2,
   serializeDepositMappingForTemplateV2,
   type DepositMappingConfigV2,
-  type DepositColumnSelectionV2,
 } from "@/lib/deposit-import/template-mapping-v2"
-import type { DepositCustomFieldSection } from "@/lib/deposit-import/template-mapping"
 
 type AccountOption = { value: string; label: string; detail?: string }
 
@@ -205,20 +199,16 @@ function AccountAutocomplete({
 
 function TemplateEditorModal({
   isOpen,
-  mode,
   distributorAccountId,
   vendorAccountId,
-  template,
   onClose,
-  onSaved,
+  onCreated,
 }: {
   isOpen: boolean
-  mode: "create" | "edit"
   distributorAccountId: string
   vendorAccountId: string
-  template: TemplateListRow | null
   onClose: () => void
-  onSaved: (templateId: string) => void
+  onCreated: (templateId: string) => void
 }) {
   const [activeTab, setActiveTab] = useState<"mapping" | "json">("mapping")
   const [name, setName] = useState("")
@@ -228,14 +218,6 @@ function TemplateEditorModal({
   const [error, setError] = useState<string | null>(null)
   const [fieldCatalog, setFieldCatalog] = useState<DepositImportFieldTarget[]>([])
   const [fieldCatalogError, setFieldCatalogError] = useState<string | null>(null)
-
-  const [file, setFile] = useState<File | null>(null)
-  const [csvHeaders, setCsvHeaders] = useState<string[]>([])
-  const [sampleRows, setSampleRows] = useState<string[][]>([])
-  const [columnHasValuesByIndex, setColumnHasValuesByIndex] = useState<boolean[]>([])
-  const [parsingError, setParsingError] = useState<string | null>(null)
-
-  const [templateMapping, setTemplateMapping] = useState<DepositMappingConfigV2 | null>(null)
   const [mapping, setMapping] = useState<DepositMappingConfigV2>(() => createEmptyDepositMappingV2())
 
   useEffect(() => {
@@ -243,18 +225,12 @@ function TemplateEditorModal({
     setError(null)
     setSaving(false)
     setActiveTab("mapping")
-    setName(template?.name ?? "")
-    setDescription(template?.description ?? "")
-    setConfigText(template ? safeJsonStringify(template.config) : "")
-    const extracted = template ? extractDepositMappingV2FromTemplateConfig(template.config) : createEmptyDepositMappingV2()
-    setTemplateMapping(extracted)
-    setMapping(extracted)
-    setFile(null)
-    setCsvHeaders([])
-    setSampleRows([])
-    setColumnHasValuesByIndex([])
-    setParsingError(null)
-  }, [isOpen, template?.id])
+    setName("")
+    setDescription("")
+    const empty = createEmptyDepositMappingV2()
+    setMapping(empty)
+    setConfigText(safeJsonStringify(serializeDepositMappingForTemplateV2(empty)))
+  }, [isOpen])
 
   useEffect(() => {
     if (!isOpen) return
@@ -278,64 +254,13 @@ function TemplateEditorModal({
     }
   }, [isOpen])
 
-  const canSubmit = name.trim().length > 0 && (mode === "edit" || (distributorAccountId && vendorAccountId))
+  const canSubmit = name.trim().length > 0 && distributorAccountId && vendorAccountId
 
-  const buildConfigFromMapping = useCallback(
-    (base: unknown) => {
-      const baseObject =
-        base && typeof base === "object" && !Array.isArray(base) ? (base as Record<string, unknown>) : {}
-      return {
-        ...baseObject,
-        ...serializeDepositMappingForTemplateV2(mapping),
-      }
-    },
-    [mapping],
-  )
-
-  const syncJsonFromMapping = () => {
-    try {
-      const base = configText.trim().length > 0 ? JSON.parse(configText) : (template?.config ?? {})
-      setConfigText(safeJsonStringify(buildConfigFromMapping(base)))
-      setError(null)
-    } catch {
-      setConfigText(safeJsonStringify(buildConfigFromMapping(template?.config ?? {})))
-      setError(null)
-    }
-  }
-
-  const handleFileChange = async (nextFile: File | null) => {
-    setFile(nextFile)
-    setCsvHeaders([])
-    setSampleRows([])
-    setColumnHasValuesByIndex([])
-    setParsingError(null)
-    if (!nextFile) return
-    try {
-      const parsed = await parseSpreadsheetFile(nextFile, nextFile.name, nextFile.type)
-      const headers = parsed.headers
-      setCsvHeaders(headers)
-      setSampleRows(parsed.rows.slice(0, 25))
-      const hasValues = new Array(headers.length).fill(false)
-      let remaining = headers.length
-      for (const row of parsed.rows) {
-        if (remaining === 0) break
-        for (let index = 0; index < headers.length; index++) {
-          if (hasValues[index]) continue
-          const cell = row[index]
-          if (typeof cell === "string" ? cell.trim().length > 0 : String(cell ?? "").trim().length > 0) {
-            hasValues[index] = true
-            remaining -= 1
-            if (remaining === 0) break
-          }
-        }
-      }
-      setColumnHasValuesByIndex(hasValues)
-      const seeded = seedDepositMappingV2({ headers, templateMapping })
-      setMapping(seeded)
-    } catch (e) {
-      setParsingError(e instanceof Error ? e.message : "Failed to parse file.")
-    }
-  }
+  useEffect(() => {
+    if (!isOpen) return
+    if (activeTab !== "mapping") return
+    setConfigText(safeJsonStringify(serializeDepositMappingForTemplateV2(mapping)))
+  }, [mapping, activeTab, isOpen])
 
   const handleSave = async () => {
     if (!canSubmit) return
@@ -344,16 +269,7 @@ function TemplateEditorModal({
     try {
       let config: any = undefined
       if (activeTab === "mapping") {
-        const base = (() => {
-          const trimmed = configText.trim()
-          if (trimmed.length === 0) return template?.config ?? {}
-          try {
-            return JSON.parse(trimmed)
-          } catch {
-            return template?.config ?? {}
-          }
-        })()
-        config = buildConfigFromMapping(base)
+        config = serializeDepositMappingForTemplateV2(mapping)
         setConfigText(safeJsonStringify(config))
       } else {
         const trimmed = configText.trim()
@@ -364,40 +280,20 @@ function TemplateEditorModal({
         }
       }
 
-      if (mode === "create") {
-        const payload = await fetchJson("/api/admin/data-settings/templates", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: name.trim(),
-            description: description.trim(),
-            distributorAccountId,
-            vendorAccountId,
-            config,
-          }),
-        })
-        const createdId = payload?.data?.id as string | undefined
-        if (!createdId) throw new Error("Template created but no id returned")
-        onSaved(createdId)
-        onClose()
-        return
-      }
-
-      if (!template?.id) {
-        throw new Error("Missing template id")
-      }
-
-      await fetchJson(`/api/admin/data-settings/templates/${encodeURIComponent(template.id)}`, {
-        method: "PATCH",
+      const payload = await fetchJson("/api/admin/data-settings/templates", {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: name.trim(),
           description: description.trim(),
+          distributorAccountId,
+          vendorAccountId,
           config,
         }),
       })
-
-      onSaved(template.id)
+      const createdId = payload?.data?.id as string | undefined
+      if (!createdId) throw new Error("Template created but no id returned")
+      onCreated(createdId)
       onClose()
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to save template")
@@ -412,8 +308,8 @@ function TemplateEditorModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50">
       <div className="w-full max-w-3xl overflow-hidden rounded-xl bg-white shadow-xl">
         <ModalHeader
-          kicker={mode === "create" ? "New" : "Edit"}
-          title={mode === "create" ? "Create Template" : "Edit Template"}
+          kicker="New"
+          title="Create Template"
           right={
             <button
               type="button"
@@ -430,7 +326,7 @@ function TemplateEditorModal({
             <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
           ) : null}
 
-          {mode === "create" && (!distributorAccountId || !vendorAccountId) ? (
+          {!distributorAccountId || !vendorAccountId ? (
             <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
               Select a Distributor and Vendor first.
             </div>
@@ -480,79 +376,12 @@ function TemplateEditorModal({
 
           {activeTab === "mapping" ? (
             <div className="space-y-3">
-              <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
-                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                  <div>
-                    <div className="text-sm font-semibold text-gray-900">Mapping editor</div>
-                    <div className="text-xs text-gray-600">
-                      Upload a sample file to edit mappings using the same UI as Deposit Upload.
-                    </div>
-                  </div>
-                  <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
-                    <Upload className="h-4 w-4" />
-                    <span>{file ? "Change file" : "Upload sample file"}</span>
-                    <input
-                      type="file"
-                      className="hidden"
-                      accept=".csv,.xls,.xlsx"
-                      onChange={event => void handleFileChange(event.target.files?.[0] ?? null)}
-                    />
-                  </label>
+              {fieldCatalogError ? (
+                <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                  {fieldCatalogError}
                 </div>
-                {file ? (
-                  <div className="mt-2 text-xs text-gray-600">
-                    Using file: <span className="font-medium">{file.name}</span>
-                  </div>
-                ) : null}
-                {parsingError ? (
-                  <div className="mt-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-                    {parsingError}
-                  </div>
-                ) : null}
-                {fieldCatalogError ? (
-                  <div className="mt-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-                    {fieldCatalogError}
-                  </div>
-                ) : null}
-              </div>
-
-              {file && csvHeaders.length > 0 ? (
-                <div className="rounded-lg border border-gray-200 bg-white p-3">
-                  <MapFieldsStep
-                    file={file}
-                    csvHeaders={csvHeaders}
-                    sampleRows={sampleRows}
-                    columnHasValuesByIndex={columnHasValuesByIndex}
-                    fieldCatalog={fieldCatalog}
-                    fieldCatalogError={fieldCatalogError}
-                    mapping={mapping}
-                    templateMapping={templateMapping}
-                    templateFields={null}
-                    templateLabel={name.trim() || template?.name || undefined}
-                    parsingError={parsingError}
-                    onColumnSelectionChange={(columnName: string, selection: DepositColumnSelectionV2) => {
-                      setMapping(previous => setColumnSelectionV2(previous, columnName, selection))
-                    }}
-                    onCreateCustomField={(columnName: string, input: { label: string; section: DepositCustomFieldSection }) => {
-                      setMapping(previous => createCustomFieldForColumnV2(previous, columnName, input).nextMapping)
-                    }}
-                  />
-                </div>
-              ) : (
-                <div className="rounded-md border border-gray-200 bg-white px-3 py-3 text-sm text-gray-600">
-                  Upload a sample file to edit mappings.
-                </div>
-              )}
-
-              <div className="flex items-center justify-end">
-                <button
-                  type="button"
-                  onClick={syncJsonFromMapping}
-                  className="rounded-md border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-                >
-                  Sync Raw JSON from mapping
-                </button>
-              </div>
+              ) : null}
+              <TemplateMappingEditor fieldCatalog={fieldCatalog} mapping={mapping} onChange={setMapping} />
             </div>
           ) : (
             <div>
@@ -593,6 +422,7 @@ function TemplateEditorModal({
 }
 
 export function DataSettingsTemplatesSection() {
+  const router = useRouter()
   const [page, setPage] = useState(1)
   const [pageSize] = useState(25)
   const [query, setQuery] = useState("")
@@ -605,9 +435,7 @@ export function DataSettingsTemplatesSection() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const [editorOpen, setEditorOpen] = useState(false)
-  const [editorMode, setEditorMode] = useState<"create" | "edit">("create")
-  const [selectedTemplate, setSelectedTemplate] = useState<TemplateListRow | null>(null)
+  const [createOpen, setCreateOpen] = useState(false)
   const [cloneLoadingId, setCloneLoadingId] = useState<string | null>(null)
 
   const canCreate = Boolean(distributor?.id && vendor?.id)
@@ -656,15 +484,7 @@ export function DataSettingsTemplatesSection() {
   const totalPages = useMemo(() => Math.max(1, Math.ceil((pagination.total ?? 0) / pageSize)), [pagination.total, pageSize])
 
   const openCreate = () => {
-    setEditorMode("create")
-    setSelectedTemplate(null)
-    setEditorOpen(true)
-  }
-
-  const openEdit = (template: TemplateListRow) => {
-    setEditorMode("edit")
-    setSelectedTemplate(template)
-    setEditorOpen(true)
+    setCreateOpen(true)
   }
 
   const handleClone = async (templateId: string) => {
@@ -677,9 +497,7 @@ export function DataSettingsTemplatesSection() {
       const created: TemplateListRow | null = payload?.data ?? null
       await loadTemplates()
       if (created?.id) {
-        setSelectedTemplate(created)
-        setEditorMode("edit")
-        setEditorOpen(true)
+        router.push(`/admin/data-settings/templates/${encodeURIComponent(created.id)}`)
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to clone template")
@@ -813,7 +631,7 @@ export function DataSettingsTemplatesSection() {
                       <button
                         type="button"
                         className="inline-flex items-center gap-1 rounded-md border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
-                        onClick={() => openEdit(row)}
+                        onClick={() => router.push(`/admin/data-settings/templates/${encodeURIComponent(row.id)}`)}
                       >
                         <Pencil className="h-3.5 w-3.5" />
                         Edit
@@ -837,16 +655,12 @@ export function DataSettingsTemplatesSection() {
       </div>
 
       <TemplateEditorModal
-        isOpen={editorOpen}
-        mode={editorMode}
+        isOpen={createOpen}
         distributorAccountId={distributor?.id ?? ""}
         vendorAccountId={vendor?.id ?? ""}
-        template={selectedTemplate}
-        onClose={() => setEditorOpen(false)}
-        onSaved={async (templateId) => {
-          await loadTemplates()
-          const updated = templates.find(t => t.id === templateId) ?? null
-          if (updated) setSelectedTemplate(updated)
+        onClose={() => setCreateOpen(false)}
+        onCreated={(templateId) => {
+          router.push(`/admin/data-settings/templates/${encodeURIComponent(templateId)}`)
         }}
       />
     </div>

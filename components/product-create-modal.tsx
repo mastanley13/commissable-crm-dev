@@ -1141,6 +1141,21 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
                   {errors.productNameHouse ? <p className="text-[11px] text-rose-600">{errors.productNameHouse}</p> : null}
                 </div>
 
+                <div className="space-y-1">
+                  <label className={labelCls}>House - Part Number</label>
+                  <input className={inputCls} value={form.partNumberHouse} onChange={handleChange("partNumberHouse")} placeholder="Enter house part #" />
+                </div>
+
+                <div className="space-y-1">
+                  <label className={labelCls}>House - Description</label>
+                  <AutosizeTextarea
+                    maxHeight={180}
+                    className={textAreaCls}
+                    value={form.description}
+                    onChange={handleChange("description")}
+                    placeholder="Add description"
+                  />
+                </div>
               </div>
 
               {/* Right Column (Financial + Status) */}
@@ -1204,68 +1219,39 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
                   </div>
                 </div>
 
-                {/* Combined field spanning two rows to align with Product Family + Product Subtype */}
                 <div className="space-y-1">
-                  <label className={labelCls}>House - Description</label>
+                  <label className={labelCls}>Other - Product Name</label>
+                  <input
+                    className={inputCls}
+                    value={form.productNameVendor}
+                    onChange={handleChange("productNameVendor")}
+                    placeholder="Enter other product name"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className={labelCls}>Other - Part Number</label>
+                  <input
+                    className={inputCls}
+                    value={form.partNumberVendor}
+                    onChange={handleChange("partNumberVendor")}
+                    placeholder="Enter other part number(s)"
+                  />
+                  {errors.partNumberVendor || errors.productCode ? (
+                    <p className="text-[11px] text-rose-600">{errors.partNumberVendor ?? errors.productCode}</p>
+                  ) : null}
+                  <p className="text-[11px] text-gray-500">Comma/newline separated aliases used by vendors.</p>
+                </div>
+
+                <div className="space-y-1">
+                  <label className={labelCls}>Other - Product Description</label>
                   <AutosizeTextarea
                     maxHeight={180}
                     className={textAreaCls}
-                    value={form.description}
-                    onChange={handleChange("description")}
-                    placeholder="Add description"
+                    value={form.productDescriptionVendor}
+                    onChange={handleChange("productDescriptionVendor")}
+                    placeholder="Add other description"
                   />
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-6 border-t border-gray-300 pt-6">
-              <div className="grid gap-3 lg:grid-cols-2">
-                <div className={columnCls}>
-                  <div className="space-y-1">
-                    <label className={labelCls}>House - Part Number</label>
-                    <input className={inputCls} value={form.partNumberHouse} onChange={handleChange("partNumberHouse")} placeholder="Enter house part #" />
-                  </div>
-                </div>
-
-                <div className={columnCls}>
-                  <div className="space-y-1">
-                    <label className={labelCls}>Other - Product Name</label>
-                    <input
-                      className={inputCls}
-                      value={form.productNameVendor}
-                      onChange={handleChange("productNameVendor")}
-                      placeholder="Enter other product name"
-                    />
-                  </div>
-                </div>
-
-                <div className={columnCls}>
-                  <div className="space-y-1">
-                    <label className={labelCls}>Other - Part Number</label>
-                    <input
-                      className={inputCls}
-                      value={form.partNumberVendor}
-                      onChange={handleChange("partNumberVendor")}
-                      placeholder="Enter other part number(s)"
-                    />
-                    {errors.partNumberVendor || errors.productCode ? (
-                      <p className="text-[11px] text-rose-600">{errors.partNumberVendor ?? errors.productCode}</p>
-                    ) : null}
-                    <p className="text-[11px] text-gray-500">Comma/newline separated aliases used by vendors.</p>
-                  </div>
-                </div>
-
-                <div className={columnCls}>
-                  <div className="space-y-1">
-                    <label className={labelCls}>Other - Product Description</label>
-                    <AutosizeTextarea
-                      maxHeight={180}
-                      className={textAreaCls}
-                      value={form.productDescriptionVendor}
-                      onChange={handleChange("productDescriptionVendor")}
-                      placeholder="Add other description"
-                    />
-                  </div>
                 </div>
               </div>
             </div>

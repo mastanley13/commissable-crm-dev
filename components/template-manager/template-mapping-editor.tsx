@@ -83,8 +83,11 @@ function setTargetColumn(mapping: DepositMappingConfigV2, targetId: string, colu
   return normalizeColumnsForTargets(next)
 }
 
-function getCustomKeyColumn(mapping: DepositMappingConfigV2, customKey: string) {
-  for (const [columnName, config] of Object.entries(mapping.columns ?? {})) {
+function getCustomKeyColumn(
+  columns: Record<string, DepositMappingColumnConfigV2>,
+  customKey: string,
+) {
+  for (const [columnName, config] of Object.entries(columns ?? {})) {
     if (config.mode === "custom" && config.customKey === customKey) {
       return columnName
     }
@@ -161,11 +164,12 @@ export function TemplateMappingEditor({
   }, [fieldCatalog, mapping.targets])
 
   const customFields = useMemo(() => {
+    const columns = mapping.columns ?? {}
     const items = Object.entries(mapping.customFields ?? {}).map(([customKey, def]) => ({
       customKey,
       label: def.label,
       section: def.section,
-      columnName: getCustomKeyColumn(mapping, customKey),
+      columnName: getCustomKeyColumn(columns, customKey),
     }))
     items.sort((a, b) => a.label.localeCompare(b.label))
     return items
@@ -393,4 +397,3 @@ export function TemplateMappingEditor({
     </div>
   )
 }
-
