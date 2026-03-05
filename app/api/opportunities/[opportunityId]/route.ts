@@ -320,7 +320,6 @@ export async function PATCH(request: NextRequest, { params }: { params: { opport
           referredBy: true,
           shippingAddress: true,
           billingAddress: true,
-          isSubjectMatterExpertDeal: true,
           accountIdVendor: true,
           customerIdVendor: true,
           orderIdVendor: true,
@@ -332,6 +331,21 @@ export async function PATCH(request: NextRequest, { params }: { params: { opport
 
       if (!existing) {
         return NextResponse.json({ error: "Opportunity not found" }, { status: 404 })
+      }
+
+      let existingSubjectMatterExpertDeal = false
+      try {
+        const extra: Array<{ isSubjectMatterExpertDeal: boolean | null }> = await prisma.$queryRawUnsafe(
+          `SELECT "isSubjectMatterExpertDeal"
+           FROM "Opportunity"
+           WHERE "id" = $1::uuid AND "tenantId" = $2::uuid
+           LIMIT 1`,
+          existing.id,
+          tenantId
+        )
+        existingSubjectMatterExpertDeal = Boolean(extra?.[0]?.isSubjectMatterExpertDeal)
+      } catch {
+        existingSubjectMatterExpertDeal = Boolean((existing as any).isSubjectMatterExpertDeal)
       }
 
       const canEditAny = hasAnyPermission(req.user, OPPORTUNITY_EDIT_ANY_PERMISSIONS)
@@ -350,9 +364,15 @@ export async function PATCH(request: NextRequest, { params }: { params: { opport
       if (activeRoleCount === 0) {
         const payloadKeys = Object.keys(payload as Record<string, unknown>)
         const isDeactivating = (payload as any).active === false
-        const onlyAllowedKeys = payloadKeys.every(key => key === "active" || key === "lossReason")
+        const isSmeToggleOnly =
+          payloadKeys.length === 1 &&
+          payloadKeys[0] === "isSubjectMatterExpertDeal" &&
+          typeof (payload as any).isSubjectMatterExpertDeal === "boolean"
+        const onlyAllowedKeys = payloadKeys.every(
+          key => key === "active" || key === "lossReason" || key === "isSubjectMatterExpertDeal"
+        )
 
-        if (!(isDeactivating && onlyAllowedKeys)) {
+        if (!(isDeactivating && onlyAllowedKeys) && !isSmeToggleOnly) {
           return NextResponse.json(
             {
               error: "At least one role contact is required to save this opportunity.",
@@ -734,6 +754,21 @@ export async function PATCH(request: NextRequest, { params }: { params: { opport
         return NextResponse.json({ error: "Failed to update opportunity" }, { status: 500 })
       }
 
+      let updatedSubjectMatterExpertDeal = false
+      try {
+        const extra: Array<{ isSubjectMatterExpertDeal: boolean | null }> = await prisma.$queryRawUnsafe(
+          `SELECT "isSubjectMatterExpertDeal"
+           FROM "Opportunity"
+           WHERE "id" = $1::uuid AND "tenantId" = $2::uuid
+           LIMIT 1`,
+          existing.id,
+          tenantId
+        )
+        updatedSubjectMatterExpertDeal = Boolean(extra?.[0]?.isSubjectMatterExpertDeal)
+      } catch {
+        updatedSubjectMatterExpertDeal = Boolean((updated as any).isSubjectMatterExpertDeal)
+      }
+
       // Log audit trail for opportunity update
       await logOpportunityAudit(
         AuditAction.Update,
@@ -751,7 +786,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { opport
           referredBy: existing.referredBy,
           shippingAddress: existing.shippingAddress,
           billingAddress: existing.billingAddress,
-          isSubjectMatterExpertDeal: (existing as any).isSubjectMatterExpertDeal ?? false,
+          isSubjectMatterExpertDeal: existingSubjectMatterExpertDeal,
           accountIdVendor: (existing as any).accountIdVendor ?? null,
           customerIdVendor: (existing as any).customerIdVendor ?? null,
           orderIdVendor: (existing as any).orderIdVendor ?? null,
@@ -769,7 +804,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { opport
           referredBy: updated.referredBy,
           shippingAddress: updated.shippingAddress,
           billingAddress: updated.billingAddress,
-          isSubjectMatterExpertDeal: (updated as any).isSubjectMatterExpertDeal ?? false,
+          isSubjectMatterExpertDeal: updatedSubjectMatterExpertDeal,
           accountIdVendor: (updated as any).accountIdVendor ?? null,
           customerIdVendor: (updated as any).customerIdVendor ?? null,
           orderIdVendor: (updated as any).orderIdVendor ?? null,

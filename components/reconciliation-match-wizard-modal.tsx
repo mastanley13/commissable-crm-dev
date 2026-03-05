@@ -7,8 +7,6 @@ import type { DepositLineItemRow, SuggestedMatchScheduleRow } from "@/lib/mock-d
 import type { MatchSelectionType } from "@/lib/matching/match-selection"
 import { isSelectionCompatibleWithType } from "@/lib/matching/match-selection"
 
-type MatchWizardStep = 0 | 1 | 2 | 3
-
 const currencyFormatter = new Intl.NumberFormat("en-US", {
   style: "currency",
   currency: "USD",
@@ -215,10 +213,11 @@ export function ReconciliationMatchWizardModal(props: {
   detectedType: MatchSelectionType
   onApplied?: () => void
 }) {
-  const [step, setStep] = useState<MatchWizardStep>(0)
   const [overrideType, setOverrideType] = useState<MatchSelectionType | null>(null)
   const [allocations, setAllocations] = useState<Record<string, AllocationDraft>>({})
   const [preview, setPreview] = useState<PreviewResponse | null>(null)
+  const [allocationsVersion, setAllocationsVersion] = useState(0)
+  const [previewVersion, setPreviewVersion] = useState<number | null>(null)
   const [previewLoading, setPreviewLoading] = useState(false)
   const [previewError, setPreviewError] = useState<string | null>(null)
   const [applyLoading, setApplyLoading] = useState(false)
@@ -241,6 +240,16 @@ export function ReconciliationMatchWizardModal(props: {
 
   const skipAllocationResetRef = useRef(false)
 
+  const selectionSectionId = "match-wizard-selection"
+  const allocationSectionId = "match-wizard-allocation"
+  const previewSectionId = "match-wizard-preview"
+  const applySectionId = "match-wizard-apply"
+
+  const scrollToSection = (id: string) => {
+    const el = document.getElementById(id)
+    el?.scrollIntoView({ behavior: "smooth", block: "start" })
+  }
+
   const selectedLines = props.selectedLines
   const selectedSchedules = wizardSchedules
 
@@ -250,9 +259,10 @@ export function ReconciliationMatchWizardModal(props: {
 
   useEffect(() => {
     if (!props.open) return
-    setStep(0)
     setOverrideType(null)
     setPreview(null)
+    setPreviewVersion(null)
+    setAllocationsVersion(0)
     setPreviewLoading(false)
     setPreviewError(null)
     setApplyLoading(false)
@@ -284,6 +294,7 @@ export function ReconciliationMatchWizardModal(props: {
   useEffect(() => {
     if (!props.open) return
     setPreview(null)
+    setPreviewVersion(null)
     setPreviewError(null)
     setAppliedMatchGroupId(null)
     setApplyError(null)
@@ -303,6 +314,16 @@ export function ReconciliationMatchWizardModal(props: {
       }),
     )
   }, [effectiveType, props.open, selectedLines, selectedSchedules])
+
+  const lineIdsKey = useMemo(() => selectedLines.map(line => line.id).join(","), [selectedLines])
+  const scheduleIdsKey = useMemo(() => selectedSchedules.map(schedule => schedule.id).join(","), [selectedSchedules])
+  const previewInputsKey = `${effectiveType}|${manyToOneMode}|${lineIdsKey}|${scheduleIdsKey}`
+
+  useEffect(() => {
+    if (!props.open) return
+    setAllocationsVersion(prev => prev + 1)
+    setPreviewVersion(null)
+  }, [allocations, previewInputsKey, props.open])
 
   const selectionCompatible = useMemo(
     () => isSelectionCompatibleWithType({ type: effectiveType, lineCount, scheduleCount }),
@@ -327,16 +348,6 @@ export function ReconciliationMatchWizardModal(props: {
       scheduleExpectedCommission,
     }
   }, [selectedLines, selectedSchedules])
-
-  const stepMeta = useMemo(
-    () => [
-      { label: "Selection", description: "Review selection + detected match type" },
-      { label: "Allocation", description: "Enter allocations (partial allocations allowed)" },
-      { label: "Preview", description: "Validate + show deltas (tolerance warnings allowed)" },
-      { label: "Apply", description: "Apply as one atomic action (match group)" },
-    ],
-    [],
-  )
 
   const selectionBlockedReason = useMemo(() => {
     if (!selectionCompatible) return "Selection does not match match type."
@@ -445,14 +456,34 @@ export function ReconciliationMatchWizardModal(props: {
     return preview.issues.some(issue => issue.level === "error")
   }, [preview])
 
+  const previewUpToDate = Boolean(preview && previewVersion !== null && previewVersion === allocationsVersion)
+
   const canConfirmApply = useMemo(() => {
-    return Boolean(preview && preview.ok && !hasPreviewErrors && !applyLoading && !appliedMatchGroupId)
-  }, [appliedMatchGroupId, applyLoading, hasPreviewErrors, preview])
+    return Boolean(
+      previewUpToDate && preview && preview.ok && !hasPreviewErrors && !applyLoading && !appliedMatchGroupId,
+    )
+  }, [appliedMatchGroupId, applyLoading, hasPreviewErrors, preview, previewUpToDate])
+
+  const previewBlockedReason = useMemo(() => {
+    if (!canProceedToAllocation) return selectionBlockedReason ?? "Fix selection first."
+    if (bundleBlocking) return "Create bundle schedules first."
+    if (allocationRows.length === 0) return "No allocation rows available."
+    return null
+  }, [allocationRows.length, bundleBlocking, canProceedToAllocation, selectionBlockedReason])
+
+  const applyBlockedReason = useMemo(() => {
+    if (!preview) return "Run preview first."
+    if (!previewUpToDate) return "Preview is out of date. Run preview again."
+    if (hasPreviewErrors) return "Fix preview errors before applying."
+    return null
+  }, [hasPreviewErrors, preview, previewUpToDate])
 
   const runPreview = async () => {
+    const runVersion = allocationsVersion
     setPreviewLoading(true)
     setPreviewError(null)
     setPreview(null)
+    setPreviewVersion(null)
     try {
       const response = await fetch(
         `/api/reconciliation/deposits/${encodeURIComponent(props.depositId)}/matches/preview`,
@@ -473,6 +504,7 @@ export function ReconciliationMatchWizardModal(props: {
         throw new Error(payload?.error || "Failed to preview match")
       }
       setPreview(data)
+      setPreviewVersion(runVersion)
       if (!data.ok) {
         setPreviewError("Preview blocked by validation errors.")
       }
@@ -605,9 +637,9 @@ export function ReconciliationMatchWizardModal(props: {
       setManyToOneMode("allocation")
       setAllocations(nextAllocations)
       setPreview(null)
+      setPreviewVersion(null)
       setPreviewError(null)
       setAppliedMatchGroupId(null)
-      setStep(0)
       props.onApplied?.()
     } catch (err) {
       setBundleError(err instanceof Error ? err.message : "Unknown error")
@@ -650,9 +682,9 @@ export function ReconciliationMatchWizardModal(props: {
         }),
       )
       setPreview(null)
+      setPreviewVersion(null)
       setPreviewError(null)
       setAppliedMatchGroupId(null)
-      setStep(0)
       props.onApplied?.()
     } catch (err) {
       setBundleUndoError(err instanceof Error ? err.message : "Unknown error")
@@ -673,31 +705,96 @@ export function ReconciliationMatchWizardModal(props: {
 
         <div className="border-b border-slate-200 px-6 py-3">
           <div className="flex flex-wrap items-center gap-2">
-            {stepMeta.map((item, index) => {
-              const isActive = index === step
-              const isDone = index < step
-              return (
-                <div
-                  key={item.label}
-                  className={cn(
-                    "flex items-center gap-2 rounded-full border px-3 py-1 text-xs",
-                    isActive
-                      ? "border-primary-300 bg-primary-50 text-primary-800"
-                      : isDone
-                        ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-                        : "border-slate-200 bg-white text-slate-600",
-                  )}
-                >
-                  <span className="font-semibold">{item.label}</span>
-                </div>
-              )
-            })}
+            <button
+              type="button"
+              className={cn(
+                "flex items-center gap-2 rounded-full border px-3 py-1 text-xs",
+                selectionCompatible
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                  : "border-amber-200 bg-amber-50 text-amber-900",
+              )}
+              onClick={() => scrollToSection(selectionSectionId)}
+              title={selectionCompatible ? "Selection ready" : selectionBlockedReason ?? "Selection blocked"}
+            >
+              <span className="font-semibold">Selection</span>
+            </button>
+            <button
+              type="button"
+              className={cn(
+                "flex items-center gap-2 rounded-full border px-3 py-1 text-xs",
+                canProceedToAllocation
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                  : "border-slate-200 bg-white text-slate-600",
+              )}
+              onClick={() => scrollToSection(allocationSectionId)}
+              title={canProceedToAllocation ? "Allocation ready" : "Complete selection first"}
+            >
+              <span className="font-semibold">Allocation</span>
+            </button>
+            <button
+              type="button"
+              className={cn(
+                "flex items-center gap-2 rounded-full border px-3 py-1 text-xs",
+                previewUpToDate && !hasPreviewErrors
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                  : preview && hasPreviewErrors
+                    ? "border-red-200 bg-red-50 text-red-700"
+                    : preview
+                      ? "border-amber-200 bg-amber-50 text-amber-900"
+                      : "border-slate-200 bg-white text-slate-600",
+              )}
+              onClick={() => scrollToSection(previewSectionId)}
+              title={
+                previewBlockedReason
+                  ? previewBlockedReason
+                  : !preview
+                    ? "Preview not run yet"
+                    : previewUpToDate
+                      ? "Preview up to date"
+                      : "Preview out of date"
+              }
+            >
+              <span className="font-semibold">Preview</span>
+            </button>
+            <button
+              type="button"
+              className={cn(
+                "flex items-center gap-2 rounded-full border px-3 py-1 text-xs",
+                appliedMatchGroupId
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                  : canConfirmApply
+                    ? "border-primary-300 bg-primary-50 text-primary-800"
+                    : "border-slate-200 bg-white text-slate-600",
+              )}
+              onClick={() => scrollToSection(applySectionId)}
+              title={
+                appliedMatchGroupId
+                  ? "Applied"
+                  : canConfirmApply
+                    ? "Ready to apply"
+                    : applyBlockedReason ?? "Apply blocked"
+              }
+            >
+              <span className="font-semibold">Apply</span>
+            </button>
           </div>
-          <p className="mt-2 text-xs text-slate-600">{stepMeta[step].description}</p>
+          <p className="mt-2 text-xs text-slate-600">
+            All steps are shown in one view. Run preview whenever allocations change.
+          </p>
         </div>
 
-        <div className="space-y-4 p-6 text-sm text-slate-700">
-          {step === 0 ? (
+        <div className="max-h-[70vh] space-y-6 overflow-y-auto p-6 text-sm text-slate-700">
+          <div id={selectionSectionId} className="scroll-mt-4 space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <p className="font-semibold text-slate-900">Selection</p>
+              <button
+                type="button"
+                className="text-xs font-semibold text-primary-700 hover:underline"
+                onClick={() => scrollToSection(allocationSectionId)}
+              >
+                Jump to allocation
+              </button>
+            </div>
             <div className="space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="space-y-1">
@@ -769,10 +866,28 @@ export function ReconciliationMatchWizardModal(props: {
                 </div>
               </div>
             </div>
-          ) : null}
+          </div>
 
-          {step === 1 ? (
-            <div className="space-y-3">
+          <div id={allocationSectionId} className="scroll-mt-4 space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <p className="font-semibold text-slate-900">Allocation</p>
+              <button
+                type="button"
+                className="text-xs font-semibold text-primary-700 hover:underline"
+                onClick={() => scrollToSection(previewSectionId)}
+              >
+                Jump to preview
+              </button>
+            </div>
+
+            {!canProceedToAllocation ? (
+              <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-amber-900">
+                <p className="font-semibold">Allocation is blocked</p>
+                <p className="mt-1 text-xs">{selectionBlockedReason ?? "Fix selection above to continue."}</p>
+              </div>
+            ) : null}
+
+            <div className={cn("space-y-3", !canProceedToAllocation && "pointer-events-none opacity-50")}>
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="space-y-1">
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Allocation mode</p>
@@ -963,10 +1078,9 @@ export function ReconciliationMatchWizardModal(props: {
                 </div>
               )}
             </div>
-          ) : null}
+          </div>
 
-          {step === 2 ? (
-            <div className="space-y-3">
+          <div id={previewSectionId} className="scroll-mt-4 space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <p className="font-semibold text-slate-900">Preview</p>
@@ -978,11 +1092,19 @@ export function ReconciliationMatchWizardModal(props: {
                   type="button"
                   className="rounded bg-primary-600 px-3 py-2 text-sm font-semibold text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-slate-300"
                   onClick={() => void runPreview()}
-                  disabled={previewLoading}
+                  disabled={!canProceedToPreview || previewLoading}
+                  title={previewBlockedReason ?? undefined}
                 >
                   {previewLoading ? "Previewing..." : "Run Preview"}
                 </button>
               </div>
+
+              {preview && !previewUpToDate ? (
+                <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-amber-900">
+                  <p className="font-semibold">Preview is out of date</p>
+                  <p className="mt-1 text-xs">Allocations changed since the last preview. Run preview again.</p>
+                </div>
+              ) : null}
 
               {previewError ? <p className="text-sm font-semibold text-red-600">{previewError}</p> : null}
 
@@ -1058,16 +1180,31 @@ export function ReconciliationMatchWizardModal(props: {
                 <p className="text-sm text-slate-600">Run preview to validate before applying.</p>
               )}
             </div>
-          ) : null}
 
-          {step === 3 ? (
-            <div className="space-y-3">
+          <div id={applySectionId} className="scroll-mt-4 space-y-3">
               <p className="font-semibold text-slate-900">Apply</p>
               <p className="text-sm text-slate-600">
                 Confirm will create a match group and write allocations as Applied matches. Undo reverts the whole group.
               </p>
 
               {applyError ? <p className="text-sm font-semibold text-red-600">{applyError}</p> : null}
+
+              {!preview ? (
+                <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-slate-800">
+                  <p className="font-semibold">Apply is blocked</p>
+                  <p className="mt-1 text-xs">Run preview first.</p>
+                </div>
+              ) : !previewUpToDate ? (
+                <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-amber-900">
+                  <p className="font-semibold">Apply is blocked</p>
+                  <p className="mt-1 text-xs">Preview is out of date. Run preview again.</p>
+                </div>
+              ) : hasPreviewErrors ? (
+                <div className="rounded-md border border-red-200 bg-red-50 p-3 text-red-700">
+                  <p className="font-semibold">Apply is blocked</p>
+                  <p className="mt-1 text-xs">Fix preview errors before applying.</p>
+                </div>
+              ) : null}
 
               {appliedMatchGroupId ? (
                 <div className="space-y-3 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-emerald-900">
@@ -1102,19 +1239,12 @@ export function ReconciliationMatchWizardModal(props: {
                   className="rounded bg-primary-600 px-3 py-2 text-sm font-semibold text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-slate-300"
                   onClick={() => void applyMatchGroup()}
                   disabled={!canConfirmApply}
-                  title={
-                    !preview
-                      ? "Run preview first"
-                      : hasPreviewErrors
-                        ? "Fix preview errors before applying"
-                        : undefined
-                  }
+                  title={applyBlockedReason ?? undefined}
                 >
                   {applyLoading ? "Applying..." : "Confirm Apply"}
                 </button>
               )}
             </div>
-          ) : null}
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 px-6 py-4">
@@ -1129,37 +1259,28 @@ export function ReconciliationMatchWizardModal(props: {
             <button
               type="button"
               className="rounded border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-              onClick={() => setStep(prev => (prev <= 0 ? prev : ((prev - 1) as MatchWizardStep)))}
-              disabled={step === 0}
+              onClick={() => scrollToSection(previewSectionId)}
             >
-              Back
+              Preview
             </button>
-            {step < 3 ? (
-              <button
-                type="button"
-                className="rounded bg-primary-600 px-3 py-2 text-sm font-semibold text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-slate-300"
-                onClick={() => setStep(prev => (prev >= 3 ? prev : ((prev + 1) as MatchWizardStep)))}
-                disabled={step === 0 ? !canProceedToAllocation : step === 1 ? !canProceedToPreview : false}
-                title={
-                  step === 0 && selectionBlockedReason
-                    ? selectionBlockedReason
-                    : step === 1 && allocationRows.length === 0
-                      ? "No allocation rows available"
-                      : undefined
-                }
-              >
-                Next
-              </button>
-            ) : (
-              <button
-                type="button"
-                className="rounded bg-primary-600 px-3 py-2 text-sm font-semibold text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-slate-300"
-                disabled={true}
-                title="Use the Confirm Apply button in the Apply step."
-              >
-                Confirm
-              </button>
-            )}
+            <button
+              type="button"
+              className="rounded bg-primary-600 px-3 py-2 text-sm font-semibold text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+              onClick={() => void runPreview()}
+              disabled={!canProceedToPreview || previewLoading}
+              title={previewBlockedReason ?? undefined}
+            >
+              {previewLoading ? "Previewing..." : "Run Preview"}
+            </button>
+            <button
+              type="button"
+              className="rounded bg-primary-600 px-3 py-2 text-sm font-semibold text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+              onClick={() => void applyMatchGroup()}
+              disabled={!canConfirmApply}
+              title={applyBlockedReason ?? undefined}
+            >
+              {applyLoading ? "Applying..." : appliedMatchGroupId ? "Applied" : "Confirm Apply"}
+            </button>
           </div>
         </div>
       </div>

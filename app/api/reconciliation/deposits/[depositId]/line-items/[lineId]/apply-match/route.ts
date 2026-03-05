@@ -4,7 +4,6 @@ import {
   DepositLineMatchSource,
   DepositLineMatchStatus,
   AuditAction,
-  RevenueScheduleFlexReasonCode,
 } from "@prisma/client"
 import { withPermissions, createErrorResponse } from "@/lib/api-auth"
 import { prisma } from "@/lib/db"
@@ -16,11 +15,12 @@ import { getClientIP, getUserAgent, logAudit, logRevenueScheduleAudit } from "@/
 import { evaluateFlexDecision } from "@/lib/flex/revenue-schedule-flex-decision"
 import { recomputeDepositLineItemAllocations } from "@/lib/matching/deposit-line-allocations"
 import { autoFillFromDepositMatch } from "@/lib/matching/auto-fill"
-import {
-  createFlexChargebackForNegativeLine,
-  executeFlexAdjustmentSplit,
-} from "@/lib/flex/revenue-schedule-flex-actions"
+import { createFlexChargebackForNegativeLine } from "@/lib/flex/revenue-schedule-flex-actions"
 import { isBonusLikeProduct } from "@/lib/flex/bonus-detection"
+import {
+  findFutureSchedulesInScope,
+  resolveScheduleScopeKey,
+} from "@/lib/reconciliation/future-schedules"
 
 interface ApplyMatchRequestBody {
   revenueScheduleId: string
@@ -228,32 +228,142 @@ export async function POST(
       })
 
       let flexExecution = null as any
+      let withinToleranceAdjustment = null as any
 
       if (flexDecision.action === "auto_adjust") {
         const usageOverage = flexDecision.usageOverage
-        const commissionOverage = revenueSchedule.commissionDifference < 0 ? Math.abs(revenueSchedule.commissionDifference) : 0
+        const commissionOverage =
+          revenueSchedule.commissionDifference < 0 ? Math.abs(revenueSchedule.commissionDifference) : 0
 
-        flexExecution = await executeFlexAdjustmentSplit(tx, {
-          tenantId,
-          userId: req.user.id,
-          depositId,
-          lineItemId: lineItem.id,
-          baseScheduleId: revenueScheduleId,
-          splitUsage: usageOverage,
-          splitCommission: commissionOverage,
-          varianceTolerance,
-          request,
-          reasonCode: RevenueScheduleFlexReasonCode.OverageWithinTolerance,
-        })
+        if (usageOverage > EPSILON || commissionOverage > EPSILON) {
+          const baseSchedule = await tx.revenueSchedule.findFirst({
+            where: { tenantId, id: revenueScheduleId, deletedAt: null },
+            // `as any` keeps this query resilient if Prisma types haven't been regenerated yet.
+            select: ({
+              id: true,
+              scheduleNumber: true,
+              scheduleDate: true,
+              accountId: true,
+              opportunityProductId: true,
+              productId: true,
+              vendorAccountId: true,
+              distributorAccountId: true,
+              vendor: { select: { accountName: true } },
+              distributor: { select: { accountName: true } },
+              product: {
+                select: {
+                  productCode: true,
+                  partNumberVendor: true,
+                  partNumberDistributor: true,
+                  partNumberHouse: true,
+                },
+              },
+              usageAdjustment: true,
+              expectedCommissionAdjustment: true,
+            } as any),
+          })
+          if (!baseSchedule) {
+            throw new Error("Revenue schedule not found")
+          }
 
-        revenueSchedule = await recomputeRevenueScheduleFromMatches(tx, revenueScheduleId, tenantId, {
-          varianceTolerance,
-        })
+          const previousUsageAdjustment = toNumber(baseSchedule.usageAdjustment)
+          const previousExpectedCommissionAdjustment = toNumber(baseSchedule.expectedCommissionAdjustment)
+
+          const nextUsageAdjustment =
+            usageOverage > EPSILON ? Number((previousUsageAdjustment + usageOverage).toFixed(2)) : previousUsageAdjustment
+          const nextExpectedCommissionAdjustment =
+            commissionOverage > EPSILON
+              ? Number((previousExpectedCommissionAdjustment + commissionOverage).toFixed(2))
+              : previousExpectedCommissionAdjustment
+
+          if (
+            Math.abs(nextUsageAdjustment - previousUsageAdjustment) > EPSILON ||
+            Math.abs(nextExpectedCommissionAdjustment - previousExpectedCommissionAdjustment) > EPSILON
+          ) {
+            await tx.revenueSchedule.update({
+              where: { id: revenueScheduleId },
+              data: {
+                usageAdjustment: nextUsageAdjustment,
+                expectedCommissionAdjustment: nextExpectedCommissionAdjustment,
+              },
+            })
+
+            await logRevenueScheduleAudit(
+              AuditAction.Update,
+              revenueScheduleId,
+              req.user.id,
+              tenantId,
+              request,
+              {
+                usageAdjustment: baseSchedule.usageAdjustment ?? null,
+                expectedCommissionAdjustment: baseSchedule.expectedCommissionAdjustment ?? null,
+              },
+              {
+                action: "WithinToleranceVarianceAutoAdjustment",
+                depositId,
+                depositLineItemId: lineItem.id,
+                usageDelta: usageOverage,
+                commissionDelta: commissionOverage,
+                usageAdjustment: nextUsageAdjustment,
+                expectedCommissionAdjustment: nextExpectedCommissionAdjustment,
+              },
+            )
+          }
+
+          revenueSchedule = await recomputeRevenueScheduleFromMatches(tx, revenueScheduleId, tenantId, {
+            varianceTolerance,
+          })
+
+          let future = { count: 0, schedules: [] as Array<{ id: string; scheduleNumber: string | null; scheduleDate: string | null }> }
+          let scope = null as any
+          if (baseSchedule.scheduleDate) {
+            try {
+              scope = resolveScheduleScopeKey(baseSchedule)
+              const futureSchedules = await findFutureSchedulesInScope(tx, {
+                tenantId,
+                baseScheduleId: baseSchedule.id,
+                baseScheduleDate: baseSchedule.scheduleDate,
+                scope,
+                excludeAllocated: true,
+              })
+
+              future = {
+                count: futureSchedules.length,
+                schedules: futureSchedules.slice(0, 5).map(row => ({
+                  id: row.id,
+                  scheduleNumber: row.scheduleNumber ?? null,
+                  scheduleDate: row.scheduleDate ? row.scheduleDate.toISOString() : null,
+                })),
+              }
+            } catch (error) {
+              console.warn("Failed to compute future schedule scope for within-tolerance adjustment prompt", error)
+            }
+          }
+
+          withinToleranceAdjustment = {
+            applied: true,
+            revenueScheduleId,
+            scheduleNumber: (baseSchedule.scheduleNumber ?? baseSchedule.id ?? "").trim() || baseSchedule.id,
+            scheduleDate: baseSchedule.scheduleDate ? baseSchedule.scheduleDate.toISOString() : null,
+            usageDelta: usageOverage,
+            commissionDelta: commissionOverage,
+            future,
+            scope,
+          }
+        }
       }
 
       const deposit = await recomputeDepositAggregates(tx, depositId, tenantId)
 
-      return { match, updatedLine: updatedLine.line, deposit, revenueSchedule, flexDecision, flexExecution }
+      return {
+        match,
+        updatedLine: updatedLine.line,
+        deposit,
+        revenueSchedule,
+        flexDecision,
+        flexExecution,
+        withinToleranceAdjustment,
+      }
     })
 
     await logMatchingMetric({

@@ -311,6 +311,56 @@ integrationTest("REC-AUTO-BUNDLE-03: bundle apply blocks if any selected line al
   assert.match(payload?.error ?? "", /already have applied allocations/i)
 })
 
+integrationTest("REC-AUTO-BUNDLE-05: bundle apply blocks when selected lines have different commission rates", async ctx => {
+  const dbModule = await import("../lib/db")
+  const prisma = (dbModule as any).prisma ?? (dbModule as any).default?.prisma
+
+  const { opportunity, opportunityProduct, baseSchedule, deposit, line1, line2 } = await seedBundleScenario(prisma, ctx)
+
+  await prisma.depositLineItem.update({
+    where: { id: line2.id },
+    data: { commission: 15, commissionUnallocated: 15 },
+    select: { id: true },
+  })
+
+  const routeModule = await import("../app/api/reconciliation/deposits/[depositId]/bundle-rip-replace/apply/route")
+  const POST = (routeModule as any).POST ?? (routeModule as any).default?.POST
+  assert.equal(typeof POST, "function")
+
+  const url = `http://localhost/api/reconciliation/deposits/${deposit.id}/bundle-rip-replace/apply`
+  const response = await POST(
+    authedJson(ctx.sessionToken, url, {
+      lineIds: [line1.id, line2.id],
+      revenueScheduleId: baseSchedule.id,
+      mode: "keep_old",
+      reason: "test",
+    }),
+    { params: { depositId: deposit.id } },
+  )
+
+  assertStatus(response, 409)
+  const payload = await readJson<any>(response)
+  assert.match(payload?.error ?? "", /commission rates.*same/i)
+
+  const operationCount = await prisma.bundleOperation.count({ where: { tenantId: ctx.tenantId, depositId: deposit.id } })
+  assert.equal(operationCount, 0)
+
+  const bundleProductCount = await prisma.product.count({
+    where: { tenantId: ctx.tenantId, productCode: { startsWith: "BUNDLE_" } },
+  })
+  assert.equal(bundleProductCount, 0)
+
+  const createdScheduleCount = await prisma.revenueSchedule.count({
+    where: {
+      tenantId: ctx.tenantId,
+      opportunityId: opportunity.id,
+      opportunityProductId: { not: opportunityProduct.id },
+      deletedAt: null,
+    },
+  })
+  assert.equal(createdScheduleCount, 0)
+})
+
 integrationTest("REC-AUTO-BUNDLE-04: undo blocks when created schedules have applied allocations", async ctx => {
   const dbModule = await import("../lib/db")
   const prisma = (dbModule as any).prisma ?? (dbModule as any).default?.prisma
@@ -365,4 +415,3 @@ integrationTest("REC-AUTO-BUNDLE-04: undo blocks when created schedules have app
   const undoPayload = await readJson<any>(undoResponse)
   assert.match(undoPayload?.error ?? "", /cannot be undone safely/i)
 })
-

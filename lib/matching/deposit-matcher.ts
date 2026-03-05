@@ -131,6 +131,7 @@ const DEFAULT_DATE_WINDOW_MONTHS = 1
 const DEFAULT_VARIANCE_TOLERANCE = 0
 const CROSS_VENDOR_CONFIDENCE_CAP = 0.6
 const PASS_B_MIN_CONFIDENCE = 0.5
+const PASS_B_STRONG_ID_BOOST_CAP = 0.22
 const STRONG_ID_CONFLICT_CAP = 0.7
 
 const thresholds = {
@@ -1041,6 +1042,18 @@ function scoreCandidatePassB(
   const dateSignal = dateProximity(getLinePaymentDate(lineItem), schedule.scheduleDate ?? null)
   signals.push(buildSimilaritySignal("date_proximity", dateSignal, 0.1, "Date proximity"))
 
+  const strongIdEvidence = computePassBStrongIdEvidence(lineItem, schedule)
+  if (strongIdEvidence > 0) {
+    signals.push(
+      buildSimilaritySignal(
+        "strong_id_evidence",
+        strongIdEvidence,
+        PASS_B_STRONG_ID_BOOST_CAP,
+        "Strong ID evidence (account/customer/order/location/PO/external schedule ID)",
+      ),
+    )
+  }
+
   const weightedScore = signals.reduce((acc, signal) => acc + signal.contribution, 0)
   let matchConfidence = Number(Math.min(weightedScore, 1).toFixed(4))
   const reasons = signals
@@ -1062,6 +1075,31 @@ function scoreCandidatePassB(
     signals,
     reasons,
   }
+}
+
+function computePassBStrongIdEvidence(
+  lineItem: NonNullable<DepositLineWithRelations>,
+  schedule: RevenueScheduleWithRelations,
+) {
+  let evidence = 0
+
+  if (checkAccountIdExact(lineItem, schedule)) {
+    evidence += 0.35
+  }
+  if (checkCustomerIdExact(lineItem, schedule)) {
+    evidence += 0.45
+  }
+  if (hasOrderIdMatch(lineItem.orderIdVendor, schedule)) {
+    evidence += 0.55
+  }
+  if (checkLocationOrPoExact(lineItem, schedule)) {
+    evidence += 0.35
+  }
+  if (checkExternalScheduleIdExact(lineItem, schedule)) {
+    evidence = Math.max(evidence, 0.9)
+  }
+
+  return Math.max(0, Math.min(evidence, 1))
 }
 
 function hasOrderIdMatch(orderId: string | null | undefined, schedule: RevenueScheduleWithRelations) {

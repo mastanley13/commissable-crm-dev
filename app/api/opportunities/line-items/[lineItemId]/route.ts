@@ -71,7 +71,7 @@ export async function GET(
       const lineItem = await prisma.opportunityProduct.findFirst({
         where: { id: lineItemId, tenantId },
         include: {
-          opportunity: { select: { id: true, name: true, ownerId: true, isSubjectMatterExpertDeal: true } },
+          opportunity: { select: { id: true, name: true, ownerId: true } },
           product: {
             select: {
               id: true,
@@ -151,12 +151,30 @@ export async function GET(
           : Promise.resolve(null)
       ])
 
+      let isSubjectMatterExpertDeal = false
+      try {
+        const opportunityId = lineItem.opportunity?.id ?? null
+        if (opportunityId) {
+          const extra: Array<{ isSubjectMatterExpertDeal: boolean | null }> = await prisma.$queryRawUnsafe(
+            `SELECT "isSubjectMatterExpertDeal"
+             FROM "Opportunity"
+             WHERE "id" = $1::uuid AND "tenantId" = $2::uuid
+             LIMIT 1`,
+            opportunityId,
+            tenantId
+          )
+          isSubjectMatterExpertDeal = Boolean(extra?.[0]?.isSubjectMatterExpertDeal)
+        }
+      } catch {
+        isSubjectMatterExpertDeal = Boolean((lineItem.opportunity as any)?.isSubjectMatterExpertDeal)
+      }
+
       const data = {
         id: lineItem.id,
         opportunity: {
           id: lineItem.opportunity?.id ?? "",
           name: lineItem.opportunity?.name ?? "",
-          isSubjectMatterExpertDeal: Boolean((lineItem.opportunity as any)?.isSubjectMatterExpertDeal)
+          isSubjectMatterExpertDeal
         },
         opportunityOwnerId: lineItem.opportunity?.ownerId ?? null,
         catalogProductId: lineItem.productId,

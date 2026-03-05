@@ -941,6 +941,7 @@ interface OpportunityInlineForm {
   estimatedCloseDate: string
   leadSource: LeadSource | ""
   subAgent: string
+  isSubjectMatterExpertDeal: boolean
   referredBy: string
   shippingAddress: string
   billingAddress: string
@@ -1063,6 +1064,7 @@ function createOpportunityInlineForm(detail: OpportunityDetailRecord | null | un
     estimatedCloseDate: formatDateForInput(detail.estimatedCloseDate),
     leadSource: normaliseLeadSource(detail.leadSource),
     subAgent: detail.subAgent ?? "",
+    isSubjectMatterExpertDeal: Boolean(detail.isSubjectMatterExpertDeal),
     referredBy: detail.referredBy ?? "",
     shippingAddress: detail.shippingAddress ?? "",
     billingAddress: detail.billingAddress ?? "",
@@ -1086,6 +1088,7 @@ function buildOpportunityPayload(patch: Partial<OpportunityInlineForm>, draft: O
   }
   if ("leadSource" in patch) payload.leadSource = draft.leadSource || null
   if ("subAgent" in patch) payload.subAgent = draft.subAgent.trim()
+  if ("isSubjectMatterExpertDeal" in patch) payload.isSubjectMatterExpertDeal = Boolean(draft.isSubjectMatterExpertDeal)
   if ("referredBy" in patch) payload.referredBy = draft.referredBy.trim()
   if ("shippingAddress" in patch) payload.shippingAddress = draft.shippingAddress.trim()
   if ("billingAddress" in patch) payload.billingAddress = draft.billingAddress.trim()
@@ -1287,6 +1290,11 @@ function OpportunityHeader({
                 )}
             </div>
           </FieldRow>
+          <FieldRow label="Subject Matter Expert Deal">
+            <div className={fieldBoxClass}>
+              {opportunity.isSubjectMatterExpertDeal ? "Yes" : "No"}
+            </div>
+          </FieldRow>
           <FieldRow label="Estimated Close Date">
             <div className={fieldBoxClass}>{formatDate(opportunity.estimatedCloseDate)}</div>
           </FieldRow>
@@ -1360,6 +1368,7 @@ function EditableOpportunityHeader({
   const closeDateField = editor.register("estimatedCloseDate")
   const leadSourceField = editor.register("leadSource")
   const subAgentField = editor.register("subAgent")
+  const subjectMatterExpertDealField = editor.register("isSubjectMatterExpertDeal")
   const referredField = editor.register("referredBy")
   const shippingField = editor.register("shippingAddress")
   const billingField = editor.register("billingAddress")
@@ -1736,6 +1745,20 @@ function EditableOpportunityHeader({
               )}
             </div>,
             editor.errors.stage
+          )}
+
+          {renderRow(
+            "Subject Matter Expert Deal",
+            <div className="flex min-h-[28px] items-center gap-3">
+              <EditableField.Switch
+                checked={Boolean(subjectMatterExpertDealField.value)}
+                onChange={subjectMatterExpertDealField.onChange}
+                onBlur={subjectMatterExpertDealField.onBlur}
+              />
+              <span className="text-xs font-semibold text-gray-700">
+                {Boolean(subjectMatterExpertDealField.value) ? "Enabled" : "Disabled"}
+              </span>
+            </div>
           )}
 
           {renderRow(

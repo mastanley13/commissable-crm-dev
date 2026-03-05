@@ -152,6 +152,7 @@ async function createFlexSchedule(
     flexReasonCode,
     flexSourceDepositId,
     flexSourceDepositLineItemId,
+    scheduleNumberOverride,
   }: {
     tenantId: string
     accountId: string
@@ -168,12 +169,16 @@ async function createFlexSchedule(
     flexReasonCode: RevenueScheduleFlexReasonCode
     flexSourceDepositId: string | null
     flexSourceDepositLineItemId: string | null
+    scheduleNumberOverride?: string | null
   },
 ) {
+  const scheduleNumberOverrideTrimmed = typeof scheduleNumberOverride === "string" ? scheduleNumberOverride.trim() : ""
   const scheduleNumber =
-    typeof parentRevenueScheduleId === "string" && parentRevenueScheduleId.trim().length > 0
-      ? await generateChildRevenueScheduleName(tx as any, parentRevenueScheduleId.trim())
-      : await generateRevenueScheduleName(tx as any)
+    scheduleNumberOverrideTrimmed.length > 0
+      ? scheduleNumberOverrideTrimmed
+      : typeof parentRevenueScheduleId === "string" && parentRevenueScheduleId.trim().length > 0
+        ? await generateChildRevenueScheduleName(tx as any, parentRevenueScheduleId.trim())
+        : await generateRevenueScheduleName(tx as any)
 
   const billingStatus =
     flexClassification === RevenueScheduleFlexClassification.FlexProduct ||
@@ -286,8 +291,7 @@ async function applySplitMatchToNewSchedule(
       })
     : null
 
-  const scheduleDate =
-    sourcedMonth?.deposit?.month ?? scheduleData.scheduleDate ?? null
+  const scheduleDate = scheduleData.scheduleDate ?? sourcedMonth?.deposit?.month ?? null
 
   const created = await createFlexSchedule(tx, {
     tenantId,
@@ -521,6 +525,7 @@ export async function executeFlexProductSplit(
       distributorAccountId: true,
       vendorAccountId: true,
       scheduleDate: true,
+      scheduleNumber: true,
       product: { select: { revenueType: true, productNameVendor: true, productNameHouse: true } },
     },
   })
@@ -570,6 +575,7 @@ export async function executeFlexProductSplit(
     vendorAccountId: baseSchedule.vendorAccountId ?? null,
     productId: product.id,
     scheduleDate: baseSchedule.scheduleDate ?? null,
+    scheduleNumberOverride: `${(baseSchedule.scheduleNumber ?? baseSchedule.id).trim()}-flex`,
     flexClassification: RevenueScheduleFlexClassification.FlexProduct,
     flexReasonCode: reasonCode,
     flexSourceDepositId: depositId,

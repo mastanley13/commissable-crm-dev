@@ -1623,8 +1623,8 @@ export function DepositReconciliationDetailView({
       {
         id: "select",
         label: "Select All",
-        width: 100,
-        minWidth: 95,
+        width: 56,
+        minWidth: 48,
         type: "checkbox",
         sortable: false
       },
@@ -1868,8 +1868,8 @@ export function DepositReconciliationDetailView({
       {
         id: "select",
         label: "Select All",
-        width: 100,
-        minWidth: 95,
+        width: 56,
+        minWidth: 48,
         type: "checkbox",
         sortable: false
       },
@@ -3835,7 +3835,7 @@ export function DepositReconciliationDetailView({
               selectedItems={selectedLineItems}
               onItemSelect={(itemId, selected) => handleLineItemSelect(String(itemId), selected)}
               onSelectAll={handleLineItemSelectAll}
-              selectHeaderLabel="Select"
+              hideSelectAllLabel
               onColumnsChange={handleLineColumnsChange}
             />
           </div>
@@ -3979,7 +3979,7 @@ export function DepositReconciliationDetailView({
               selectedItems={selectedSchedules}
               onItemSelect={(itemId, selected) => handleScheduleSelect(String(itemId), selected)}
               onSelectAll={handleScheduleSelectAll}
-              selectHeaderLabel="Select"
+              hideSelectAllLabel
               onColumnsChange={handleScheduleColumnsChange}
             />
           </div>

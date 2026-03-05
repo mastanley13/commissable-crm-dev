@@ -82,6 +82,34 @@ function toNumber(value: unknown): number {
   return Number.isFinite(numeric) ? numeric : 0
 }
 
+function toNullableNumber(value: unknown): number | null {
+  if (value === null || value === undefined) return null
+  const numeric = Number(value)
+  return Number.isFinite(numeric) ? numeric : null
+}
+
+function normalizeRateFraction(value: number): number {
+  // DepositLineItem.commissionRate is stored as Decimal(7,4); normalize for safe comparisons.
+  return Math.round(value * 10000) / 10000
+}
+
+function getLineCommissionRateFraction(line: {
+  usage?: unknown
+  usageUnallocated?: unknown
+  commission?: unknown
+  commissionUnallocated?: unknown
+  commissionRate?: unknown
+}): number | null {
+  const storedRate = toNullableNumber((line as any).commissionRate)
+  if (storedRate !== null) return storedRate
+
+  const usage = toNullableNumber((line as any).usageUnallocated ?? (line as any).usage)
+  const commission = toNullableNumber((line as any).commissionUnallocated ?? (line as any).commission)
+  if (usage === null || commission === null) return null
+  if (Math.abs(usage) < 1e-9) return Math.abs(commission) < 1e-9 ? 0 : null
+  return commission / usage
+}
+
 function roundMoney(value: number): number {
   return Math.round((Number.isFinite(value) ? value : 0) * 100) / 100
 }
@@ -267,25 +295,26 @@ export async function POST(request: NextRequest, { params }: { params: { deposit
          throw new BundleApplyError("Deposit not found", 404)
        }
 
-      const lines = await tx.depositLineItem.findMany({
-        where: { tenantId, depositId, id: { in: lineIds } },
-        select: {
-          id: true,
-          lineNumber: true,
-          status: true,
-          reconciled: true,
-          productNameRaw: true,
-          partNumberRaw: true,
-          usage: true,
-          commission: true,
-          usageUnallocated: true,
-          commissionUnallocated: true,
-        },
-      })
+       const lines = await tx.depositLineItem.findMany({
+         where: { tenantId, depositId, id: { in: lineIds } },
+         select: {
+           id: true,
+           lineNumber: true,
+           status: true,
+           reconciled: true,
+           productNameRaw: true,
+           partNumberRaw: true,
+           usage: true,
+           commission: true,
+           usageUnallocated: true,
+           commissionUnallocated: true,
+           commissionRate: true,
+         },
+       })
 
-       if (lines.length !== lineIds.length) {
-         throw new BundleApplyError("One or more deposit line items could not be found for this deposit.", 400)
-       }
+        if (lines.length !== lineIds.length) {
+          throw new BundleApplyError("One or more deposit line items could not be found for this deposit.", 400)
+        }
 
        const appliedMatches = await tx.depositLineMatch.findMany({
          where: {
@@ -310,17 +339,40 @@ export async function POST(request: NextRequest, { params }: { params: { deposit
          if (line.status === DepositLineItemStatus.Ignored) {
           throw new BundleApplyError(`Line ${line.id} is ignored and cannot be used for bundle.`, 409)
          }
-         const usage = toNumber(line.usageUnallocated ?? line.usage)
-         const commission = toNumber(line.commissionUnallocated ?? line.commission)
-         if (usage < -0.005 || commission < -0.005) {
-          throw new BundleApplyError("Bundle flow does not support negative line items yet.", 409)
-         }
-       }
+          const usage = toNumber(line.usageUnallocated ?? line.usage)
+          const commission = toNumber(line.commissionUnallocated ?? line.commission)
+          if (usage < -0.005 || commission < -0.005) {
+           throw new BundleApplyError("Bundle flow does not support negative line items yet.", 409)
+          }
+        }
 
-       const remainingSchedules = await tx.revenueSchedule.findMany({
-         where: {
-           tenantId,
-           opportunityProductId: baseSchedule.opportunityProductId,
+        const rateRows = lines.map(line => {
+          const rateFraction = getLineCommissionRateFraction(line as any)
+          return { lineId: line.id, rateFraction: rateFraction !== null ? normalizeRateFraction(rateFraction) : null }
+        })
+
+        const unknownRateLineIds = rateRows.filter(row => row.rateFraction === null).map(row => row.lineId)
+        if (unknownRateLineIds.length > 0) {
+          throw new BundleApplyError(
+            "Unable to determine commission rate for one or more selected lines. Split the schedule into individual schedules per product with correct rates/timeframes.",
+            409,
+            { code: "BUNDLE_RATE_UNKNOWN", lineIds: unknownRateLineIds },
+          )
+        }
+
+        const uniqueRates = Array.from(new Set(rateRows.map(row => row.rateFraction!)))
+        if (uniqueRates.length > 1) {
+          throw new BundleApplyError(
+            "Bundle can only proceed when commission rates are the same. Split the schedule into individual schedules per product with correct rates/timeframes.",
+            409,
+            { code: "BUNDLE_RATE_MISMATCH", rates: rateRows },
+          )
+        }
+
+        const remainingSchedules = await tx.revenueSchedule.findMany({
+          where: {
+            tenantId,
+            opportunityProductId: baseSchedule.opportunityProductId,
            deletedAt: null,
            scheduleDate: { gte: baseSchedule.scheduleDate },
          } as any,
