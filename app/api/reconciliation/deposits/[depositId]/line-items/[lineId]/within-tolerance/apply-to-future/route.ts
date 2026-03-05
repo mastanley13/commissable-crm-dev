@@ -65,8 +65,7 @@ export async function POST(
     const result = await prisma.$transaction(async tx => {
       const baseSchedule = await tx.revenueSchedule.findFirst({
         where: { id: revenueScheduleId, tenantId, deletedAt: null },
-        // `as any` keeps this query resilient if Prisma types haven't been regenerated yet.
-        select: ({
+        select: {
           id: true,
           accountId: true,
           scheduleDate: true,
@@ -84,7 +83,7 @@ export async function POST(
               partNumberHouse: true,
             },
           },
-        } as any),
+        },
       })
 
       if (!baseSchedule) {
@@ -141,4 +140,3 @@ export async function POST(
     return NextResponse.json({ data: result })
   })
 }
-

@@ -1159,6 +1159,7 @@ function validateOpportunityForm(form: OpportunityInlineForm): Record<string, st
 
   for (const [field, message] of percentRules) {
     const raw = form[field]
+    if (typeof raw !== "string") continue
     if (!raw.trim()) continue
     const parsedPoints = inputStringToPercent(raw)
     if (parsedPoints === null || parsedPoints < 0 || parsedPoints > 100) {

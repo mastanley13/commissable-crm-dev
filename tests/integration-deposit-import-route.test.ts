@@ -311,7 +311,7 @@ integrationTest("DU-AUTO-16: single-vendor import skips total/subtotal summary r
 
   assert.equal(lines.length, 2)
   assert.deepEqual(
-    lines.map(line => Number(line.commission ?? 0)),
+    lines.map((line: { commission: unknown }) => Number(line.commission ?? 0)),
     [10, 5],
   )
 })

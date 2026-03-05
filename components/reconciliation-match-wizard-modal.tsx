@@ -239,6 +239,7 @@ export function ReconciliationMatchWizardModal(props: {
   const [bundleUndoError, setBundleUndoError] = useState<string | null>(null)
 
   const skipAllocationResetRef = useRef(false)
+  const [allocationExpanded, setAllocationExpanded] = useState(false)
 
   const selectionSectionId = "match-wizard-selection"
   const allocationSectionId = "match-wizard-allocation"
@@ -263,6 +264,7 @@ export function ReconciliationMatchWizardModal(props: {
     setPreview(null)
     setPreviewVersion(null)
     setAllocationsVersion(0)
+    setAllocationExpanded(false)
     setPreviewLoading(false)
     setPreviewError(null)
     setApplyLoading(false)
@@ -790,9 +792,9 @@ export function ReconciliationMatchWizardModal(props: {
               <button
                 type="button"
                 className="text-xs font-semibold text-primary-700 hover:underline"
-                onClick={() => scrollToSection(allocationSectionId)}
+                onClick={() => scrollToSection(previewSectionId)}
               >
-                Jump to allocation
+                Jump to preview
               </button>
             </div>
             <div className="space-y-3">
@@ -869,25 +871,36 @@ export function ReconciliationMatchWizardModal(props: {
           </div>
 
           <div id={allocationSectionId} className="scroll-mt-4 space-y-3">
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <p className="font-semibold text-slate-900">Allocation</p>
-              <button
-                type="button"
-                className="text-xs font-semibold text-primary-700 hover:underline"
-                onClick={() => scrollToSection(previewSectionId)}
-              >
-                Jump to preview
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  className="rounded border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                  onClick={() => setAllocationExpanded(prev => !prev)}
+                >
+                  {allocationExpanded ? "Hide allocations" : "Edit allocations"}
+                </button>
+                <button
+                  type="button"
+                  className="text-xs font-semibold text-primary-700 hover:underline"
+                  onClick={() => scrollToSection(previewSectionId)}
+                >
+                  Jump to preview
+                </button>
+              </div>
             </div>
 
-            {!canProceedToAllocation ? (
-              <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-amber-900">
-                <p className="font-semibold">Allocation is blocked</p>
-                <p className="mt-1 text-xs">{selectionBlockedReason ?? "Fix selection above to continue."}</p>
-              </div>
-            ) : null}
+            {allocationExpanded ? (
+              <>
+                {!canProceedToAllocation ? (
+                  <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-amber-900">
+                    <p className="font-semibold">Allocation is blocked</p>
+                    <p className="mt-1 text-xs">{selectionBlockedReason ?? "Fix selection above to continue."}</p>
+                  </div>
+                ) : null}
 
-            <div className={cn("space-y-3", !canProceedToAllocation && "pointer-events-none opacity-50")}>
+                <div className={cn("space-y-3", !canProceedToAllocation && "pointer-events-none opacity-50")}>
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="space-y-1">
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Allocation mode</p>
@@ -1078,6 +1091,8 @@ export function ReconciliationMatchWizardModal(props: {
                 </div>
               )}
             </div>
+              </>
+            ) : null}
           </div>
 
           <div id={previewSectionId} className="scroll-mt-4 space-y-3">

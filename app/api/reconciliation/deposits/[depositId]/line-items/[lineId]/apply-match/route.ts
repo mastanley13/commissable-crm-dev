@@ -238,8 +238,7 @@ export async function POST(
         if (usageOverage > EPSILON || commissionOverage > EPSILON) {
           const baseSchedule = await tx.revenueSchedule.findFirst({
             where: { tenantId, id: revenueScheduleId, deletedAt: null },
-            // `as any` keeps this query resilient if Prisma types haven't been regenerated yet.
-            select: ({
+            select: {
               id: true,
               scheduleNumber: true,
               scheduleDate: true,
@@ -260,7 +259,7 @@ export async function POST(
               },
               usageAdjustment: true,
               expectedCommissionAdjustment: true,
-            } as any),
+            },
           })
           if (!baseSchedule) {
             throw new Error("Revenue schedule not found")

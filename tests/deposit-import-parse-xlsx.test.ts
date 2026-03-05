@@ -10,7 +10,7 @@ function xlsxBlobFromAoa(aoa: unknown[][]) {
   const sheet = XLSX.utils.aoa_to_sheet(aoa)
   XLSX.utils.book_append_sheet(workbook, sheet, "Sheet1")
   const buffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" }) as Buffer
-  return new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" })
+  return new Blob([new Uint8Array(buffer)], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" })
 }
 
 test("DU-AUTO-08: Excel parsing rejects missing header row", async () => {
@@ -33,4 +33,3 @@ test("DU-AUTO-08: Excel parsing returns headers + normalized rows and skips empt
   assert.deepEqual(parsed.rows[0], ["100", "25", "ok"])
   assert.deepEqual(parsed.rows[1], ["200", "50", "spaced"])
 })
-

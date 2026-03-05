@@ -487,6 +487,7 @@ export function DepositReconciliationDetailView({
   const [selectedSchedules, setSelectedSchedules] = useState<string[]>([])
   const [matchingLineId, setMatchingLineId] = useState<string | null>(null)
   const [undoingLineId, setUndoingLineId] = useState<string | null>(null)
+  const [bulkUnmatchLoading, setBulkUnmatchLoading] = useState(false)
   const [lineColumnFilters, setLineColumnFilters] = useState<LineColumnFilter[]>([])
   const [scheduleColumnFilters, setScheduleColumnFilters] = useState<ScheduleColumnFilter[]>([])
   const [showLineColumnSettings, setShowLineColumnSettings] = useState(false)
@@ -700,10 +701,13 @@ export function DepositReconciliationDetailView({
   }, [lineItemRows, selectedLineId, selectedLineItems])
 
   const isUnmatchSelection = useMemo(() => {
-    if (!selectedLineForMatch) return false
-    if (selectedSchedules.length !== 1) return false
-    return selectedScheduleForMatch?.status === "Matched"
-  }, [selectedLineForMatch, selectedSchedules.length, selectedScheduleForMatch?.status])
+    if (selectedLineItems.length === 0) return false
+    if (selectedSchedules.length === 0) return false
+    const selectedScheduleSet = new Set(selectedSchedules)
+    const selectedScheduleRows = scheduleRows.filter(row => selectedScheduleSet.has(row.id))
+    if (selectedScheduleRows.length !== selectedSchedules.length) return false
+    return selectedScheduleRows.every(row => row.status === "Matched")
+  }, [scheduleRows, selectedLineItems.length, selectedSchedules])
 
   useEffect(() => {
     if (!selectedLineForMatch) {
@@ -741,7 +745,7 @@ export function DepositReconciliationDetailView({
   ])
 
   const matchButtonDisabledReason = useMemo(() => {
-    if (matchingLineId || undoingLineId) return "Update in progress"
+    if (matchingLineId || undoingLineId || bulkUnmatchLoading) return "Update in progress"
     if (!selectedLineForMatch) return "Select a deposit line item above"
     if (selectedLineForMatch.reconciled) return "Reconciled line items cannot be changed"
     if (selectedLineForMatch.status === "Ignored") return "Ignored line items cannot be allocated"
@@ -793,6 +797,7 @@ export function DepositReconciliationDetailView({
 
     return null
   }, [
+    bulkUnmatchLoading,
     matchingLineId,
     undoingLineId,
     selectedLineForMatch,
@@ -1195,18 +1200,68 @@ export function DepositReconciliationDetailView({
     [metadata.id, onUnmatchApplied, showError, showSuccess]
   )
 
-  const handleMatchSelected = useCallback(() => {
-    const lineId = selectedLineIdRef.current ?? selectedLineItemsRef.current[0]
-    if (!lineId) {
-      showError("No line selected", "Select a deposit line item to match.")
-      return
+  const unmatchAllocationsBySelection = useCallback(async () => {
+    if (!canManageReconciliation) {
+      showError("Unmatch failed", "Insufficient permissions.")
+      return false
     }
+
+    const lineIds = selectedLineItemsRef.current
+    const scheduleIds = selectedSchedulesRef.current
+
+    if (lineIds.length === 0) {
+      showError("No lines selected", "Select at least one deposit line item to unmatch.")
+      return false
+    }
+    if (scheduleIds.length === 0) {
+      showError("No schedules selected", "Select at least one schedule to unmatch from.")
+      return false
+    }
+
+    try {
+      setBulkUnmatchLoading(true)
+      const response = await fetch(
+        `/api/reconciliation/deposits/${encodeURIComponent(metadata.id)}/bulk/unmatch-allocations`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ lineItemIds: lineIds, revenueScheduleIds: scheduleIds }),
+        },
+      )
+      const payload = await response.json().catch(() => null)
+      if (!response.ok) {
+        throw new Error(payload?.error || "Failed to remove allocations")
+      }
+
+      const deletedMatchCount = Number(payload?.data?.deletedMatchCount ?? 0)
+      if (!Number.isFinite(deletedMatchCount) || deletedMatchCount <= 0) {
+        showError("No allocations removed", "No applied allocations were found for the current selection.")
+        return false
+      }
+
+      setSelectedSchedules([])
+      onUnmatchApplied?.()
+      showSuccess(
+        "Allocations removed",
+        `Removed ${deletedMatchCount} allocation${deletedMatchCount === 1 ? "" : "s"} for the current selection.`,
+      )
+      return true
+    } catch (err) {
+      console.error("Failed to unmatch allocations", err)
+      showError("Unable to remove allocations", err instanceof Error ? err.message : "Unknown error")
+      return false
+    } finally {
+      setBulkUnmatchLoading(false)
+    }
+  }, [canManageReconciliation, metadata.id, onUnmatchApplied, showError, showSuccess])
+
+  const handleMatchSelected = useCallback(() => {
     if (isUnmatchSelection) {
-      void unmatchLineById(lineId)
+      void unmatchAllocationsBySelection()
       return
     }
     openMatchWizardFromSelection()
-  }, [isUnmatchSelection, openMatchWizardFromSelection, showError, unmatchLineById])
+  }, [isUnmatchSelection, openMatchWizardFromSelection, unmatchAllocationsBySelection])
 
   const handleVendorSummaryClick = useCallback((vendorName: string) => {
     if (!vendorName) {
@@ -3884,16 +3939,25 @@ export function DepositReconciliationDetailView({
                   title={
                     matchButtonDisabledReason ??
                     (isUnmatchSelection
-                      ? "Unmatch the selected line item from the selected schedule"
+                      ? "Unmatch allocations for the selected lines and schedules"
                       : "Match the selected line item to the selected schedule")
                   }
                   className={cn(
-                    "inline-flex h-7 items-center justify-center gap-1 rounded bg-primary-600 px-2.5 text-xs font-semibold text-white shadow-sm transition hover:bg-primary-700",
-                    matchButtonDisabledReason ? "cursor-not-allowed opacity-60 hover:bg-primary-600" : ""
+                    "inline-flex h-7 items-center justify-center gap-1 rounded px-2.5 text-xs font-semibold text-white shadow-sm transition",
+                    isUnmatchSelection ? "bg-rose-600 hover:bg-rose-700" : "bg-primary-600 hover:bg-primary-700",
+                    matchButtonDisabledReason
+                      ? isUnmatchSelection
+                        ? "cursor-not-allowed opacity-60 hover:bg-rose-600"
+                        : "cursor-not-allowed opacity-60 hover:bg-primary-600"
+                      : ""
                   )}
                 >
-                  <ClipboardCheck className="h-3.5 w-3.5" />
-                  {isUnmatchSelection ? "Unmatched" : "Match"}
+                  {isUnmatchSelection ? (
+                    <Trash2 className="h-3.5 w-3.5" />
+                  ) : (
+                    <ClipboardCheck className="h-3.5 w-3.5" />
+                  )}
+                  {isUnmatchSelection ? "Unmatch" : "Match"}
                 </button>
               </div>
             }

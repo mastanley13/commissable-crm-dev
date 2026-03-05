@@ -72,9 +72,8 @@ export async function POST(
     }
 
     const schedules = await prisma.revenueSchedule.findMany({
-      // Cast to any to allow recently added nullable metadata fields.
-      where: { tenantId, id: { in: revenueScheduleIds }, deletedAt: null } as any,
-      select: { id: true } as any,
+      where: { tenantId, id: { in: revenueScheduleIds }, deletedAt: null },
+      select: { id: true },
     })
     const foundScheduleIds = new Set(schedules.map(item => item.id))
     const missingScheduleIds = revenueScheduleIds.filter(id => !foundScheduleIds.has(id))
@@ -109,8 +108,12 @@ export async function POST(
       })
     }
 
-    const affectedLineItemIds = Array.from(new Set(matches.map(match => match.depositLineItemId).filter(Boolean)))
-    const affectedScheduleIds = Array.from(new Set(matches.map(match => match.revenueScheduleId).filter(Boolean)))
+    const affectedLineItemIds = Array.from(
+      new Set(matches.map(match => match.depositLineItemId).filter((id): id is string => Boolean(id))),
+    )
+    const affectedScheduleIds = Array.from(
+      new Set(matches.map(match => match.revenueScheduleId).filter((id): id is string => Boolean(id))),
+    )
 
     const varianceTolerance = await getTenantVarianceTolerance(tenantId)
 
@@ -123,10 +126,10 @@ export async function POST(
                 id: true,
                 status: true,
                 actualUsage: true,
-                actualCommission: true,
-                flexSourceDepositLineItemId: true,
-                deletedAt: true,
-              } as any,
+               actualCommission: true,
+               flexSourceDepositLineItemId: true,
+               deletedAt: true,
+              },
             })
           : []
 
@@ -235,4 +238,3 @@ export async function POST(
     })
   })
 }
-
