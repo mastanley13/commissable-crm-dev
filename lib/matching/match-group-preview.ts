@@ -1,19 +1,11 @@
 import { DepositLineItemStatus, DepositLineMatchStatus, Prisma, PrismaClient } from "@prisma/client"
 import { getTenantVarianceTolerance } from "@/lib/matching/settings"
 import type { MatchSelectionType } from "@/lib/matching/match-selection"
+import { analyzeBundleLineRates, formatRatePercentFromFraction, roundMoney, toNumber } from "@/lib/matching/bundle-replacement"
 
 type PrismaClientOrTx = PrismaClient | Prisma.TransactionClient
 
 const EPSILON = 0.005
-
-function toNumber(value: unknown): number {
-  const numeric = Number(value ?? 0)
-  return Number.isFinite(numeric) ? numeric : 0
-}
-
-function roundMoney(value: number): number {
-  return Math.round((Number.isFinite(value) ? value : 0) * 100) / 100
-}
 
 function isEffectivelyZero(value: number): boolean {
   return Math.abs(value) <= EPSILON
@@ -311,6 +303,7 @@ export async function buildMatchGroupPreview(
         usageUnallocated: true,
         commissionAllocated: true,
         commissionUnallocated: true,
+        commissionRate: true,
       },
     }),
     client.revenueSchedule.findMany({
@@ -374,6 +367,25 @@ export async function buildMatchGroupPreview(
         level: "error",
         code: "negative_line_not_supported",
         message: `Line ${line.id} appears to be a chargeback/negative line. Use the Flex/chargeback flow instead of the multi-match wizard.`,
+      })
+    }
+  }
+
+  if (params.matchType === "ManyToOne") {
+    const rateAnalysis = analyzeBundleLineRates(lines)
+    if (rateAnalysis.unknownRateLineIds.length > 0) {
+      issues.push({
+        level: "error",
+        code: "many_to_one_rate_unknown",
+        message:
+          "We can't validate this bundle yet because one or more selected lines are missing a commission rate. Replace the bundle after fixing the line rates.",
+      })
+    } else if (rateAnalysis.hasMixedRates) {
+      const rateSummary = rateAnalysis.uniqueRates.map(rate => formatRatePercentFromFraction(rate)).join(", ")
+      issues.push({
+        level: "error",
+        code: "many_to_one_mixed_rate_requires_replacement",
+        message: `You can't match this directly because the selected lines use different commission rates (${rateSummary}). Replace the bundle with individual schedules instead.`,
       })
     }
   }

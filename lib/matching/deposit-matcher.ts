@@ -212,7 +212,11 @@ export async function matchDepositLine(
   for (const scheduleId of appliedScheduleIds) {
     if (scoredIds.has(scheduleId)) continue
     const appliedSchedule = await prisma.revenueSchedule.findFirst({
-      where: { id: scheduleId, tenantId: lineItem.deposit?.tenantId ?? lineItem.tenantId },
+      where: {
+        id: scheduleId,
+        tenantId: lineItem.deposit?.tenantId ?? lineItem.tenantId,
+        deletedAt: null,
+      },
       include: candidateScheduleInclude,
     })
     if (!appliedSchedule) continue
@@ -785,6 +789,7 @@ async function fetchCandidateSchedules(
 
   const strictWhere: Prisma.RevenueScheduleWhereInput = {
     tenantId,
+    deletedAt: null,
     scheduleDate: scheduleDateFilter,
     status: {
       in: [
@@ -822,6 +827,7 @@ async function fetchCandidateSchedules(
   if (schedules.length === 0 && options.allowCrossVendorFallback) {
     const fallbackWhere: Prisma.RevenueScheduleWhereInput = {
       tenantId,
+      deletedAt: null,
       scheduleDate: scheduleDateFilter,
       status: {
         in: [

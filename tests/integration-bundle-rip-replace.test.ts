@@ -315,7 +315,52 @@ integrationTest("REC-AUTO-BUNDLE-05: bundle apply blocks when selected lines hav
   const dbModule = await import("../lib/db")
   const prisma = (dbModule as any).prisma ?? (dbModule as any).default?.prisma
 
-  const { opportunity, opportunityProduct, baseSchedule, deposit, line1, line2 } = await seedBundleScenario(prisma, ctx)
+  const { baseSchedule, deposit, line1, line2 } = await seedBundleScenario(prisma, ctx)
+
+  await prisma.depositLineItem.update({
+    where: { id: line2.id },
+    data: { commission: 15, commissionUnallocated: 15 },
+    select: { id: true },
+  })
+
+  const previewModule = await import("../app/api/reconciliation/deposits/[depositId]/matches/preview/route")
+  const previewPOST = (previewModule as any).POST ?? (previewModule as any).default?.POST
+  assert.equal(typeof previewPOST, "function")
+
+  const url = `http://localhost/api/reconciliation/deposits/${deposit.id}/matches/preview`
+  const response = await previewPOST(
+    authedJson(ctx.sessionToken, url, {
+      matchType: "ManyToOne",
+      lineIds: [line1.id, line2.id],
+      scheduleIds: [baseSchedule.id],
+      allocations: [
+        { lineId: line1.id, scheduleId: baseSchedule.id, usageAmount: 100, commissionAmount: 10 },
+        { lineId: line2.id, scheduleId: baseSchedule.id, usageAmount: 100, commissionAmount: 15 },
+      ],
+    }),
+    { params: { depositId: deposit.id } },
+  )
+
+  assertStatus(response, 200)
+  const payload = await readJson<any>(response)
+  assert.equal(payload?.data?.ok, false)
+  assert.equal(payload?.data?.matchType, "ManyToOne")
+  assert.ok(
+    Array.isArray(payload?.data?.issues) &&
+      payload.data.issues.some((issue: any) => issue.code === "many_to_one_mixed_rate_requires_replacement"),
+  )
+  const mixedRateIssue = Array.isArray(payload?.data?.issues)
+    ? payload.data.issues.find((issue: any) => issue.code === "many_to_one_mixed_rate_requires_replacement")
+    : null
+  assert.match(mixedRateIssue?.message ?? "", /\(10\.00%, 15\.00%\)/)
+})
+
+integrationTest("REC-AUTO-BUNDLE-06: mixed-rate replacement succeeds and retires original bundle records", async ctx => {
+  const dbModule = await import("../lib/db")
+  const prisma = (dbModule as any).prisma ?? (dbModule as any).default?.prisma
+
+  const { opportunity, opportunityProduct, baseSchedule, futureSchedule, deposit, line1, line2 } =
+    await seedBundleScenario(prisma, ctx)
 
   await prisma.depositLineItem.update({
     where: { id: line2.id },
@@ -332,33 +377,139 @@ integrationTest("REC-AUTO-BUNDLE-05: bundle apply blocks when selected lines hav
     authedJson(ctx.sessionToken, url, {
       lineIds: [line1.id, line2.id],
       revenueScheduleId: baseSchedule.id,
-      mode: "keep_old",
-      reason: "test",
+      mode: "soft_delete_old",
+      reason: "Replace mixed-rate bundle",
     }),
     { params: { depositId: deposit.id } },
   )
 
-  assertStatus(response, 409)
+  assertStatus(response, 200)
   const payload = await readJson<any>(response)
-  assert.match(payload?.error ?? "", /commission rates.*same/i)
+  assert.equal(payload?.data?.mixedRateReplacement, true)
+  assert.equal(payload?.data?.replacementMode, "soft_delete_old")
+  assert.equal(payload?.data?.createdRevenueScheduleIds?.length, 4)
+  assert.equal(payload?.data?.lineToScheduleMap?.length, 2)
 
-  const operationCount = await prisma.bundleOperation.count({ where: { tenantId: ctx.tenantId, depositId: deposit.id } })
-  assert.equal(operationCount, 0)
-
-  const bundleProductCount = await prisma.product.count({
-    where: { tenantId: ctx.tenantId, productCode: { startsWith: "BUNDLE_" } },
+  const originalSchedules = await prisma.revenueSchedule.findMany({
+    where: { tenantId: ctx.tenantId, id: { in: [baseSchedule.id, futureSchedule.id] } },
+    select: { id: true, deletedAt: true },
+    orderBy: { id: "asc" },
   })
-  assert.equal(bundleProductCount, 0)
+  assert.ok(originalSchedules.every((schedule: any) => schedule.deletedAt))
 
-  const createdScheduleCount = await prisma.revenueSchedule.count({
+  const originalOpportunityProduct = await prisma.opportunityProduct.findFirst({
+    where: { id: opportunityProduct.id, tenantId: ctx.tenantId },
+    select: { active: true, status: true },
+  })
+  assert.equal(originalOpportunityProduct?.active, false)
+  assert.equal(originalOpportunityProduct?.status, "BillingEnded")
+
+  const replacementProducts = await prisma.product.findMany({
+    where: { tenantId: ctx.tenantId, productCode: { startsWith: "BUNDLE_" } },
+    select: { productNameVendor: true, commissionPercent: true },
+    orderBy: { productNameVendor: "asc" },
+  })
+  assert.equal(replacementProducts.length, 2)
+  assert.deepEqual(
+    replacementProducts
+      .map((product: { commissionPercent: unknown }) => Number(product.commissionPercent ?? 0))
+      .sort((a: number, b: number) => a - b),
+    [10, 15],
+  )
+
+  const replacementSchedules = await prisma.revenueSchedule.findMany({
     where: {
       tenantId: ctx.tenantId,
       opportunityId: opportunity.id,
       opportunityProductId: { not: opportunityProduct.id },
       deletedAt: null,
     },
+    select: {
+      id: true,
+      parentRevenueScheduleId: true,
+      expectedCommissionRatePercent: true,
+      notes: true,
+      comments: true,
+    },
+    orderBy: [{ scheduleDate: "asc" }, { createdAt: "asc" }],
   })
-  assert.equal(createdScheduleCount, 0)
+  assert.equal(replacementSchedules.length, 4)
+  assert.ok(replacementSchedules.every((schedule: { parentRevenueScheduleId: string | null }) => schedule.parentRevenueScheduleId))
+  assert.deepEqual(
+    replacementSchedules
+      .map((schedule: { expectedCommissionRatePercent: unknown }) => Number(schedule.expectedCommissionRatePercent ?? 0))
+      .sort((a: number, b: number) => a - b),
+    [10, 10, 15, 15],
+  )
+  assert.ok(replacementSchedules.some((schedule: { notes: string | null }) => (schedule.notes ?? "").includes("Replacement from deposit line")))
+  assert.ok(replacementSchedules.some((schedule: { comments: string | null }) => (schedule.comments ?? "").includes("Order ID")))
+
+  const linkedLines = await prisma.depositLineItem.findMany({
+    where: { tenantId: ctx.tenantId, id: { in: [line1.id, line2.id] } },
+    select: { id: true, productId: true },
+    orderBy: { id: "asc" },
+  })
+  assert.ok(linkedLines.every((line: { productId: string | null }) => line.productId))
+})
+
+integrationTest("REC-AUTO-BUNDLE-07: replacement rollback leaves no partial records behind", async ctx => {
+  const dbModule = await import("../lib/db")
+  const prisma = (dbModule as any).prisma ?? (dbModule as any).default?.prisma
+
+  const { baseSchedule, futureSchedule, deposit, line1, line2, opportunityProduct } = await seedBundleScenario(prisma, ctx)
+
+  await prisma.depositLineItem.update({
+    where: { id: line2.id },
+    data: { commission: 15, commissionUnallocated: 15 },
+    select: { id: true },
+  })
+
+  const routeModule = await import("../app/api/reconciliation/deposits/[depositId]/bundle-rip-replace/apply/route")
+  const POST = (routeModule as any).POST ?? (routeModule as any).default?.POST
+  assert.equal(typeof POST, "function")
+
+  const url = `http://localhost/api/reconciliation/deposits/${deposit.id}/bundle-rip-replace/apply`
+  const response = await POST(
+    authedJson(ctx.sessionToken, url, {
+      lineIds: [line1.id, line2.id],
+      revenueScheduleId: baseSchedule.id,
+      mode: "soft_delete_old",
+      reason: "Trigger rollback test",
+      simulateFailureStep: "after_first_replacement_product",
+    }),
+    { params: { depositId: deposit.id } },
+  )
+
+  assertStatus(response, 500)
+
+  const bundleProductCount = await prisma.product.count({
+    where: { tenantId: ctx.tenantId, productCode: { startsWith: "BUNDLE_" } },
+  })
+  assert.equal(bundleProductCount, 0)
+
+  const replacementScheduleCount = await prisma.revenueSchedule.count({
+    where: {
+      tenantId: ctx.tenantId,
+      parentRevenueScheduleId: { in: [baseSchedule.id, futureSchedule.id] },
+    },
+  })
+  assert.equal(replacementScheduleCount, 0)
+
+  const originalSchedules = await prisma.revenueSchedule.findMany({
+    where: { tenantId: ctx.tenantId, id: { in: [baseSchedule.id, futureSchedule.id] } },
+    select: { deletedAt: true },
+  })
+  assert.ok(originalSchedules.every((schedule: { deletedAt: Date | null }) => schedule.deletedAt === null))
+
+  const originalBundle = await prisma.opportunityProduct.findFirst({
+    where: { tenantId: ctx.tenantId, id: opportunityProduct.id },
+    select: { active: true, status: true },
+  })
+  assert.equal(originalBundle?.active, true)
+  assert.notEqual(originalBundle?.status, "BillingEnded")
+
+  const operationCount = await prisma.bundleOperation.count({ where: { tenantId: ctx.tenantId, depositId: deposit.id } })
+  assert.equal(operationCount, 0)
 })
 
 integrationTest("REC-AUTO-BUNDLE-04: undo blocks when created schedules have applied allocations", async ctx => {

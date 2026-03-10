@@ -13,6 +13,12 @@ import { prisma } from "@/lib/db"
 import { withPermissions, createErrorResponse } from "@/lib/api-auth"
 import { generateRevenueScheduleName } from "@/lib/revenue-schedule-number"
 import { getClientIP, getUserAgent } from "@/lib/audit"
+import {
+  analyzeBundleLineRates,
+  formatRatePercentFromFraction,
+  roundMoney,
+  toNumber,
+} from "@/lib/matching/bundle-replacement"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -38,6 +44,7 @@ type BundleApplyBody = {
   revenueScheduleId: string
   mode?: BundleApplyMode
   reason?: string | null
+  simulateFailureStep?: "after_first_replacement_product" | null
 }
 
 function computeBundleIdempotencyKey(params: {
@@ -75,43 +82,6 @@ function parseLineToScheduleMap(value: unknown): LineToScheduleMapRow[] {
     mapped.push({ lineId, scheduleId })
   }
   return mapped
-}
-
-function toNumber(value: unknown): number {
-  const numeric = Number(value ?? 0)
-  return Number.isFinite(numeric) ? numeric : 0
-}
-
-function toNullableNumber(value: unknown): number | null {
-  if (value === null || value === undefined) return null
-  const numeric = Number(value)
-  return Number.isFinite(numeric) ? numeric : null
-}
-
-function normalizeRateFraction(value: number): number {
-  // DepositLineItem.commissionRate is stored as Decimal(7,4); normalize for safe comparisons.
-  return Math.round(value * 10000) / 10000
-}
-
-function getLineCommissionRateFraction(line: {
-  usage?: unknown
-  usageUnallocated?: unknown
-  commission?: unknown
-  commissionUnallocated?: unknown
-  commissionRate?: unknown
-}): number | null {
-  const storedRate = toNullableNumber((line as any).commissionRate)
-  if (storedRate !== null) return storedRate
-
-  const usage = toNullableNumber((line as any).usageUnallocated ?? (line as any).usage)
-  const commission = toNullableNumber((line as any).commissionUnallocated ?? (line as any).commission)
-  if (usage === null || commission === null) return null
-  if (Math.abs(usage) < 1e-9) return Math.abs(commission) < 1e-9 ? 0 : null
-  return commission / usage
-}
-
-function roundMoney(value: number): number {
-  return Math.round((Number.isFinite(value) ? value : 0) * 100) / 100
 }
 
 function formatDateOnly(value: Date | null | undefined): string {
@@ -205,6 +175,7 @@ async function buildBundleApplyResponseFromOperation(client: any, params: { tena
     lineToScheduleMap,
     createdRevenueScheduleIds,
     replacedScheduleIds: replacedRevenueScheduleIds,
+    replacementMode: params.operation.mode ?? "keep_old",
   }
 }
 
@@ -231,6 +202,8 @@ export async function POST(request: NextRequest, { params }: { params: { deposit
     const revenueScheduleId = typeof body.revenueScheduleId === "string" ? body.revenueScheduleId.trim() : ""
     const mode = body.mode === "soft_delete_old" ? "soft_delete_old" : "keep_old"
     const reason = typeof body.reason === "string" ? body.reason.trim() : null
+    const simulateFailureStep =
+      body.simulateFailureStep === "after_first_replacement_product" ? body.simulateFailureStep : null
 
     if (lineIds.length < 2) {
       return createErrorResponse("Bundle requires at least two deposit line items", 400)
@@ -252,6 +225,7 @@ export async function POST(request: NextRequest, { params }: { params: { deposit
             createdRevenueScheduleIds: true,
             replacedRevenueScheduleIds: true,
             lineToScheduleMap: true,
+            mode: true,
           },
         })
 
@@ -298,17 +272,24 @@ export async function POST(request: NextRequest, { params }: { params: { deposit
        const lines = await tx.depositLineItem.findMany({
          where: { tenantId, depositId, id: { in: lineIds } },
          select: {
-           id: true,
-           lineNumber: true,
-           status: true,
-           reconciled: true,
-           productNameRaw: true,
-           partNumberRaw: true,
-           usage: true,
-           commission: true,
-           usageUnallocated: true,
-           commissionUnallocated: true,
-           commissionRate: true,
+            id: true,
+            lineNumber: true,
+            status: true,
+            reconciled: true,
+            accountIdVendor: true,
+            customerIdVendor: true,
+            orderIdVendor: true,
+            accountNameRaw: true,
+            productNameRaw: true,
+            partNumberRaw: true,
+            locationId: true,
+            customerPurchaseOrder: true,
+            metadata: true,
+            usage: true,
+            commission: true,
+            usageUnallocated: true,
+            commissionUnallocated: true,
+            commissionRate: true,
          },
        })
 
@@ -346,26 +327,21 @@ export async function POST(request: NextRequest, { params }: { params: { deposit
           }
         }
 
-        const rateRows = lines.map(line => {
-          const rateFraction = getLineCommissionRateFraction(line as any)
-          return { lineId: line.id, rateFraction: rateFraction !== null ? normalizeRateFraction(rateFraction) : null }
-        })
-
-        const unknownRateLineIds = rateRows.filter(row => row.rateFraction === null).map(row => row.lineId)
+        const rateAnalysis = analyzeBundleLineRates(lines)
+        const unknownRateLineIds = rateAnalysis.unknownRateLineIds
         if (unknownRateLineIds.length > 0) {
           throw new BundleApplyError(
-            "Unable to determine commission rate for one or more selected lines. Split the schedule into individual schedules per product with correct rates/timeframes.",
+            "We can't replace this bundle yet because one or more selected lines are missing a commission rate.",
             409,
             { code: "BUNDLE_RATE_UNKNOWN", lineIds: unknownRateLineIds },
           )
         }
 
-        const uniqueRates = Array.from(new Set(rateRows.map(row => row.rateFraction!)))
-        if (uniqueRates.length > 1) {
+        if (rateAnalysis.hasMixedRates && mode !== "soft_delete_old") {
           throw new BundleApplyError(
-            "Bundle can only proceed when commission rates are the same. Split the schedule into individual schedules per product with correct rates/timeframes.",
+            "This mixed-rate bundle must be replaced with individual schedules, which retires the original bundle schedules.",
             409,
-            { code: "BUNDLE_RATE_MISMATCH", rates: rateRows },
+            { code: "BUNDLE_MIXED_RATE_REQUIRES_REPLACEMENT", rates: rateAnalysis.rateRows },
           )
         }
 
@@ -477,7 +453,17 @@ export async function POST(request: NextRequest, { params }: { params: { deposit
       const createdRevenueScheduleIds: string[] = []
 
       const matchScheduleIds: string[] = []
-      const lineToScheduleMap: Array<{ lineId: string; scheduleId: string }> = []
+      const lineToScheduleMap: Array<Record<string, unknown>> = []
+      const sourceScheduleByDateKey = new Map(
+        remainingSchedules
+          .filter(row => row.scheduleDate)
+          .map(row => [row.scheduleDate!.toISOString(), row.id]),
+      )
+      const rateByLineId = new Map(
+        rateAnalysis.rateRows
+          .filter((row): row is { lineId: string; rateFraction: number } => row.rateFraction !== null)
+          .map(row => [row.lineId, row.rateFraction]),
+      )
 
       const sortedLines = [...lines].sort((a, b) => (a.lineNumber ?? 0) - (b.lineNumber ?? 0))
 
@@ -485,9 +471,30 @@ export async function POST(request: NextRequest, { params }: { params: { deposit
         const line = sortedLines[index]!
         const usagePerSchedule = Math.max(0, roundMoney(toNumber(line.usageUnallocated ?? line.usage)))
         const commissionPerSchedule = Math.max(0, roundMoney(toNumber(line.commissionUnallocated ?? line.commission)))
+        const commissionRateFraction = rateByLineId.get(line.id)
+
+        if (commissionRateFraction == null) {
+          throw new BundleApplyError("Missing commission rate for replacement line.", 409, {
+            code: "BUNDLE_RATE_UNKNOWN",
+            lineId: line.id,
+          })
+        }
 
         const productNameVendor = (line.productNameRaw ?? "").trim() || `Bundle Item ${index + 1}`
         const partNumberVendor = (line.partNumberRaw ?? "").trim() || null
+        const commissionPercent = roundMoney(commissionRateFraction * 100)
+        const metadataSummary = [
+          line.accountIdVendor ? `Account ID: ${line.accountIdVendor}` : null,
+          line.customerIdVendor ? `Customer ID: ${line.customerIdVendor}` : null,
+          line.orderIdVendor ? `Order ID: ${line.orderIdVendor}` : null,
+          line.locationId ? `Location ID: ${line.locationId}` : null,
+          line.customerPurchaseOrder ? `PO: ${line.customerPurchaseOrder}` : null,
+        ]
+          .filter(Boolean)
+          .join(" | ")
+        const replacementDescription = metadataSummary
+          ? `Replacement from deposit line ${line.lineNumber ?? index + 1}. ${metadataSummary}`
+          : `Replacement from deposit line ${line.lineNumber ?? index + 1}.`
 
         const productCode = buildBundleProductCode({ depositId, lineId: line.id, suffix: index + 1 })
 
@@ -497,8 +504,10 @@ export async function POST(request: NextRequest, { params }: { params: { deposit
             productCode,
             productNameHouse: productNameVendor,
             productNameVendor,
+            description: replacementDescription,
             revenueType: baseProduct.revenueType,
-            commissionPercent: baseProduct.commissionPercent,
+            commissionPercent: new Prisma.Decimal(commissionPercent),
+            priceEach: new Prisma.Decimal(usagePerSchedule),
             vendorAccountId: baseSchedule.vendorAccountId ?? baseProduct.vendorAccountId ?? null,
             distributorAccountId: baseSchedule.distributorAccountId ?? baseProduct.distributorAccountId ?? null,
             productFamilyHouse: baseProduct.productFamilyHouse ?? null,
@@ -523,9 +532,10 @@ export async function POST(request: NextRequest, { params }: { params: { deposit
             productNameVendorSnapshot: createdProduct.productNameVendor ?? productNameVendor,
             revenueTypeSnapshot: baseProduct.revenueType,
             priceEachSnapshot: new Prisma.Decimal(usagePerSchedule),
-            commissionPercentSnapshot: baseProduct.commissionPercent ?? null,
+            commissionPercentSnapshot: new Prisma.Decimal(commissionPercent),
             vendorAccountIdSnapshot: baseSchedule.vendorAccountId ?? baseProduct.vendorAccountId ?? null,
             distributorAccountIdSnapshot: baseSchedule.distributorAccountId ?? baseProduct.distributorAccountId ?? null,
+            descriptionSnapshot: replacementDescription,
             partNumberVendorSnapshot: createdProduct.partNumberVendor ?? null,
             quantity: new Prisma.Decimal(1),
             unitPrice: new Prisma.Decimal(usagePerSchedule),
@@ -539,8 +549,18 @@ export async function POST(request: NextRequest, { params }: { params: { deposit
         })
         createdOpportunityProductIds.push(createdOpportunityProduct.id)
 
+        await tx.depositLineItem.update({
+          where: { id: line.id },
+          data: { productId: createdProduct.id },
+        })
+
+        if (simulateFailureStep === "after_first_replacement_product" && index === 0) {
+          throw new Error("Simulated replacement failure after first product creation")
+        }
+
         for (const date of effectiveDates) {
           const scheduleNumber = await generateRevenueScheduleName(tx)
+          const sourceScheduleId = sourceScheduleByDateKey.get(date.toISOString()) ?? null
           const createdSchedule = await tx.revenueSchedule.create({
             data: {
               tenantId,
@@ -548,6 +568,7 @@ export async function POST(request: NextRequest, { params }: { params: { deposit
               opportunityId: baseSchedule.opportunityId,
               opportunityProductId: createdOpportunityProduct.id,
               productId: createdProduct.id,
+              parentRevenueScheduleId: sourceScheduleId,
               distributorAccountId: baseSchedule.distributorAccountId,
               vendorAccountId: baseSchedule.vendorAccountId,
               scheduleNumber,
@@ -556,8 +577,11 @@ export async function POST(request: NextRequest, { params }: { params: { deposit
               expectedUsage: usagePerSchedule,
               usageAdjustment: 0,
               expectedCommission: commissionPerSchedule,
+              expectedCommissionRatePercent: new Prisma.Decimal(commissionPercent),
               status: RevenueScheduleStatus.Unreconciled,
               isSelected: false,
+              notes: replacementDescription,
+              comments: metadataSummary || null,
               createdById: req.user.id,
               updatedById: req.user.id,
               actualUsage: null,
@@ -571,10 +595,34 @@ export async function POST(request: NextRequest, { params }: { params: { deposit
 
           if (createdSchedule.scheduleDate?.getTime() === baseSchedule.scheduleDate.getTime()) {
             matchScheduleIds.push(createdSchedule.id)
-            lineToScheduleMap.push({ lineId: line.id, scheduleId: createdSchedule.id })
+            lineToScheduleMap.push({
+              lineId: line.id,
+              scheduleId: createdSchedule.id,
+              replacedScheduleId: sourceScheduleId,
+              createdProductId: createdProduct.id,
+              createdOpportunityProductId: createdOpportunityProduct.id,
+              commissionRateFraction,
+              commissionRatePercent: commissionPercent,
+              accountIdVendor: line.accountIdVendor ?? null,
+              customerIdVendor: line.customerIdVendor ?? null,
+              orderIdVendor: line.orderIdVendor ?? null,
+              locationId: line.locationId ?? null,
+              customerPurchaseOrder: line.customerPurchaseOrder ?? null,
+              metadata: line.metadata ?? null,
+            })
           }
         }
       }
+
+        if (mode === "soft_delete_old") {
+          await (tx.opportunityProduct as any).update({
+            where: { id: baseSchedule.opportunityProductId },
+            data: {
+              active: false,
+              status: "BillingEnded",
+            },
+          })
+        }
 
         const bundleAudit = await tx.auditLog.create({
           data: {
@@ -593,12 +641,18 @@ export async function POST(request: NextRequest, { params }: { params: { deposit
               mode,
               reason,
               idempotencyKey,
+              mixedRateReplacement: rateAnalysis.hasMixedRates,
+              lineRateSummary: rateAnalysis.rateRows.map(row => ({
+                lineId: row.lineId,
+                commissionRate: formatRatePercentFromFraction(row.rateFraction),
+              })),
               bundleOperationId: bundleOperation.id,
+              baseOpportunityProductId: baseSchedule.opportunityProductId,
               createdProductIds,
               createdOpportunityProductIds,
               createdRevenueScheduleIds,
               replacedScheduleIds,
-              lineToScheduleMap,
+              lineToScheduleMap: lineToScheduleMap as Prisma.InputJsonValue,
             },
           },
           select: { id: true },
@@ -612,7 +666,7 @@ export async function POST(request: NextRequest, { params }: { params: { deposit
             createdOpportunityProductIds,
             createdRevenueScheduleIds,
             replacedRevenueScheduleIds: replacedScheduleIds,
-            lineToScheduleMap,
+            lineToScheduleMap: lineToScheduleMap as Prisma.InputJsonValue,
           },
         })
 
@@ -636,6 +690,8 @@ export async function POST(request: NextRequest, { params }: { params: { deposit
         lineToScheduleMap,
         createdRevenueScheduleIds,
         replacedScheduleIds,
+        replacementMode: mode,
+        mixedRateReplacement: rateAnalysis.hasMixedRates,
       }
       })
 
@@ -655,6 +711,7 @@ export async function POST(request: NextRequest, { params }: { params: { deposit
               createdRevenueScheduleIds: true,
               replacedRevenueScheduleIds: true,
               lineToScheduleMap: true,
+              mode: true,
             },
           })
           if (existingOperation) {

@@ -239,6 +239,7 @@ export function ReconciliationMatchWizardModal(props: {
   const [bundleUndoError, setBundleUndoError] = useState<string | null>(null)
 
   const skipAllocationResetRef = useRef(false)
+  const autoPreviewRequestKeyRef = useRef<string | null>(null)
   const [allocationExpanded, setAllocationExpanded] = useState(false)
 
   const selectionSectionId = "match-wizard-selection"
@@ -284,6 +285,7 @@ export function ReconciliationMatchWizardModal(props: {
     setBundleUndoLoading(false)
     setBundleUndoError(null)
     skipAllocationResetRef.current = false
+    autoPreviewRequestKeyRef.current = null
     setAllocations(
       buildDefaultAllocations({
         matchType: props.detectedType,
@@ -355,6 +357,20 @@ export function ReconciliationMatchWizardModal(props: {
     if (!selectionCompatible) return "Selection does not match match type."
     return null
   }, [selectionCompatible])
+
+  const replacementRequiredIssue = useMemo(() => {
+    const issues = preview?.issues ?? []
+    return issues.find(issue => issue.code === "many_to_one_mixed_rate_requires_replacement") ?? null
+  }, [preview])
+
+  const replacementBlockedIssue = useMemo(() => {
+    const issues = preview?.issues ?? []
+    return issues.find(issue => issue.code === "many_to_one_rate_unknown") ?? null
+  }, [preview])
+
+  const replacementRequired = Boolean(
+    effectiveType === "ManyToOne" && replacementRequiredIssue && !bundleAuditLogId,
+  )
 
   const allocationRows = useMemo(() => {
     if (effectiveType === "OneToMany") {
@@ -440,7 +456,9 @@ export function ReconciliationMatchWizardModal(props: {
 
   const canProceedToAllocation = selectionCompatible
   const bundleBlocking =
-    effectiveType === "ManyToOne" && manyToOneMode === "bundle" && !bundleAuditLogId
+    effectiveType === "ManyToOne" &&
+    !bundleAuditLogId &&
+    (manyToOneMode === "bundle" || replacementRequired)
   const canProceedToPreview = canProceedToAllocation && allocationRows.length > 0 && !bundleBlocking
 
   const allocationsPayload = useMemo(() => {
@@ -468,17 +486,19 @@ export function ReconciliationMatchWizardModal(props: {
 
   const previewBlockedReason = useMemo(() => {
     if (!canProceedToAllocation) return selectionBlockedReason ?? "Fix selection first."
+    if (replacementRequired) return "Replace the bundle first."
     if (bundleBlocking) return "Create bundle schedules first."
     if (allocationRows.length === 0) return "No allocation rows available."
     return null
-  }, [allocationRows.length, bundleBlocking, canProceedToAllocation, selectionBlockedReason])
+  }, [allocationRows.length, bundleBlocking, canProceedToAllocation, replacementRequired, selectionBlockedReason])
 
   const applyBlockedReason = useMemo(() => {
     if (!preview) return "Run preview first."
+    if (replacementRequired) return "Replace the bundle first."
     if (!previewUpToDate) return "Preview is out of date. Run preview again."
     if (hasPreviewErrors) return "Fix preview errors before applying."
     return null
-  }, [hasPreviewErrors, preview, previewUpToDate])
+  }, [hasPreviewErrors, preview, previewUpToDate, replacementRequired])
 
   const runPreview = async () => {
     const runVersion = allocationsVersion
@@ -508,7 +528,7 @@ export function ReconciliationMatchWizardModal(props: {
       setPreview(data)
       setPreviewVersion(runVersion)
       if (!data.ok) {
-        setPreviewError("Preview blocked by validation errors.")
+        setPreviewError(data.issues[0]?.message ?? "Validation blocked this match.")
       }
     } catch (err) {
       setPreviewError(err instanceof Error ? err.message : "Unknown error")
@@ -516,6 +536,25 @@ export function ReconciliationMatchWizardModal(props: {
       setPreviewLoading(false)
     }
   }
+
+  useEffect(() => {
+    if (!props.open) return
+    if (effectiveType !== "ManyToOne") return
+    if (bundleAuditLogId) return
+    if (previewLoading) return
+
+    const requestKey = `${previewInputsKey}|${allocationsVersion}`
+    if (autoPreviewRequestKeyRef.current === requestKey) return
+    autoPreviewRequestKeyRef.current = requestKey
+    void runPreview()
+  }, [allocationsVersion, bundleAuditLogId, effectiveType, previewInputsKey, previewLoading, props.open])
+
+  useEffect(() => {
+    if (!props.open) return
+    if (!replacementRequiredIssue || bundleAuditLogId) return
+    setManyToOneMode("bundle")
+    setBundleApplyMode("soft_delete_old")
+  }, [bundleAuditLogId, props.open, replacementRequiredIssue])
 
   const applyMatchGroup = async () => {
     setApplyLoading(true)
@@ -600,7 +639,7 @@ export function ReconciliationMatchWizardModal(props: {
           body: JSON.stringify({
             lineIds: selectedLines.map(line => line.id),
             revenueScheduleId: selectedSchedules[0]!.id,
-            mode: bundleApplyMode,
+            mode: replacementRequired ? "soft_delete_old" : bundleApplyMode,
             reason: bundleApplyReason.trim() || null,
           }),
         },
@@ -700,7 +739,7 @@ export function ReconciliationMatchWizardModal(props: {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/40 px-4" onClick={props.onClose}>
       <div
-        className="w-full max-w-2xl rounded-xl bg-white shadow-xl"
+        className="flex h-[900px] w-full max-w-5xl flex-col rounded-xl bg-white shadow-xl"
         onClick={e => e.stopPropagation()}
       >
         <ModalHeader kicker="Match Wizard" title={`Match ${lineCount} line${lineCount === 1 ? "" : "s"} to ${scheduleCount} schedule${scheduleCount === 1 ? "" : "s"}`} />
@@ -785,18 +824,9 @@ export function ReconciliationMatchWizardModal(props: {
           </p>
         </div>
 
-        <div className="max-h-[70vh] space-y-6 overflow-y-auto p-6 text-sm text-slate-700">
+        <div className="flex-1 space-y-6 overflow-y-auto p-6 text-sm text-slate-700">
           <div id={selectionSectionId} className="scroll-mt-4 space-y-3">
-            <div className="flex items-center justify-between gap-3">
-              <p className="font-semibold text-slate-900">Selection</p>
-              <button
-                type="button"
-                className="text-xs font-semibold text-primary-700 hover:underline"
-                onClick={() => scrollToSection(previewSectionId)}
-              >
-                Jump to preview
-              </button>
-            </div>
+            <p className="font-semibold text-slate-900">Selection</p>
             <div className="space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="space-y-1">
@@ -873,22 +903,13 @@ export function ReconciliationMatchWizardModal(props: {
           <div id={allocationSectionId} className="scroll-mt-4 space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <p className="font-semibold text-slate-900">Allocation</p>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  className="rounded border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-                  onClick={() => setAllocationExpanded(prev => !prev)}
-                >
-                  {allocationExpanded ? "Hide allocations" : "Edit allocations"}
-                </button>
-                <button
-                  type="button"
-                  className="text-xs font-semibold text-primary-700 hover:underline"
-                  onClick={() => scrollToSection(previewSectionId)}
-                >
-                  Jump to preview
-                </button>
-              </div>
+              <button
+                type="button"
+                className="rounded border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                onClick={() => setAllocationExpanded(prev => !prev)}
+              >
+                {allocationExpanded ? "Hide allocations" : "Edit allocations"}
+              </button>
             </div>
 
             {allocationExpanded ? (
@@ -956,7 +977,7 @@ export function ReconciliationMatchWizardModal(props: {
                         name="m1-mode"
                         checked={manyToOneMode === "allocation"}
                         onChange={() => setManyToOneMode("allocation")}
-                        disabled={bundleLoading}
+                        disabled={bundleLoading || replacementRequired}
                       />
                       <span>
                         <span className="font-semibold">Allocate</span>{" "}
@@ -980,34 +1001,68 @@ export function ReconciliationMatchWizardModal(props: {
                 </div>
               ) : null}
 
+              {replacementRequired ? (
+                <div className="rounded-md border border-amber-300 bg-amber-50 p-4 text-amber-950">
+                  <p className="font-semibold">Direct match blocked</p>
+                  <p className="mt-1 text-sm">
+                    {replacementRequiredIssue?.message ??
+                      "You can't match this directly because the selected lines use different commission rates. Replace the bundle with individual schedules instead."}
+                  </p>
+                  <p className="mt-2 text-xs text-amber-900/80">
+                    Confirming replacement creates one product and schedule series per deposit line, then retires the original bundled schedules and opportunity product.
+                  </p>
+                </div>
+              ) : null}
+
+              {replacementBlockedIssue ? (
+                <div className="rounded-md border border-red-200 bg-red-50 p-4 text-red-700">
+                  <p className="font-semibold">Replacement blocked</p>
+                  <p className="mt-1 text-sm">{replacementBlockedIssue.message}</p>
+                </div>
+              ) : null}
+
               {effectiveType === "ManyToOne" && manyToOneMode === "bundle" && !bundleAuditLogId ? (
                 <div className="rounded-md border border-slate-200 p-3">
-                  <p className="font-semibold text-slate-900">Rip &amp; Replace bundle</p>
+                  <p className="font-semibold text-slate-900">
+                    {replacementRequired ? "Replace bundled setup" : "Rip &amp; Replace bundle"}
+                  </p>
                   <p className="mt-1 text-xs text-slate-600">
-                    Creates new products + schedules starting from the selected schedule date, then switches this wizard
-                    into an M:M allocation against the newly created schedules.
+                    {replacementRequired
+                      ? "Creates individual products and schedule series from the selected deposit lines, then switches this wizard into a line-to-schedule allocation against the new replacement schedules."
+                      : "Creates new products + schedules starting from the selected schedule date, then switches this wizard into an M:M allocation against the newly created schedules."}
                   </p>
 
                   <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    {replacementRequired ? (
+                      <div className="space-y-1">
+                        <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                          Cleanup
+                        </label>
+                        <div className="rounded border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                          Retire original bundle schedules and deactivate the bundled opportunity product.
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-1">
+                        <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                          Replace mode
+                        </label>
+                        <select
+                          className="w-full rounded border border-slate-200 bg-white px-2 py-1 text-sm text-slate-800"
+                          value={bundleApplyMode}
+                          onChange={e =>
+                            setBundleApplyMode(e.target.value === "soft_delete_old" ? "soft_delete_old" : "keep_old")
+                          }
+                          disabled={bundleLoading}
+                        >
+                          <option value="keep_old">Keep old schedules (no deletion)</option>
+                          <option value="soft_delete_old">Soft-delete unreconciled old schedules</option>
+                        </select>
+                      </div>
+                    )}
                     <div className="space-y-1">
                       <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                        Replace mode
-                      </label>
-                      <select
-                        className="w-full rounded border border-slate-200 bg-white px-2 py-1 text-sm text-slate-800"
-                        value={bundleApplyMode}
-                        onChange={e =>
-                          setBundleApplyMode(e.target.value === "soft_delete_old" ? "soft_delete_old" : "keep_old")
-                        }
-                        disabled={bundleLoading}
-                      >
-                        <option value="keep_old">Keep old schedules (no deletion)</option>
-                        <option value="soft_delete_old">Soft-delete unreconciled old schedules</option>
-                      </select>
-                    </div>
-                    <div className="space-y-1">
-                      <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                        Reason (optional)
+                        Reason {replacementRequired ? "(required for audit)" : "(optional)"}
                       </label>
                       <input
                         className="w-full rounded border border-slate-200 bg-white px-2 py-1 text-sm text-slate-800"
@@ -1025,9 +1080,13 @@ export function ReconciliationMatchWizardModal(props: {
                     type="button"
                     className="mt-3 rounded bg-primary-600 px-3 py-2 text-sm font-semibold text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-slate-300"
                     onClick={() => void applyBundleRipReplace()}
-                    disabled={bundleLoading}
+                    disabled={bundleLoading || (replacementRequired && bundleApplyReason.trim().length === 0)}
                   >
-                    {bundleLoading ? "Creating bundle..." : "Create bundle schedules"}
+                    {bundleLoading
+                      ? "Creating replacement..."
+                      : replacementRequired
+                        ? "Confirm replacement"
+                        : "Create bundle schedules"}
                   </button>
                 </div>
               ) : (
@@ -1100,7 +1159,9 @@ export function ReconciliationMatchWizardModal(props: {
                 <div>
                   <p className="font-semibold text-slate-900">Preview</p>
                   <p className="text-xs text-slate-600">
-                    Shows validation issues and what will change. Underpaid/overpaid warnings are allowed.
+                    {effectiveType === "ManyToOne" && !bundleAuditLogId
+                      ? "Validation runs automatically for many-to-one selections. Underpaid and overpaid warnings are still allowed after the bundle check passes."
+                      : "Shows validation issues and what will change. Underpaid/overpaid warnings are allowed."}
                   </p>
                 </div>
                 <button
@@ -1110,7 +1171,7 @@ export function ReconciliationMatchWizardModal(props: {
                   disabled={!canProceedToPreview || previewLoading}
                   title={previewBlockedReason ?? undefined}
                 >
-                  {previewLoading ? "Previewing..." : "Run Preview"}
+                  {previewLoading ? "Validating..." : effectiveType === "ManyToOne" ? "Run Validation Again" : "Run Preview"}
                 </button>
               </div>
 
@@ -1192,7 +1253,11 @@ export function ReconciliationMatchWizardModal(props: {
                   ) : null}
                 </div>
               ) : (
-                <p className="text-sm text-slate-600">Run preview to validate before applying.</p>
+                <p className="text-sm text-slate-600">
+                  {effectiveType === "ManyToOne"
+                    ? "Validation will run automatically for this selection."
+                    : "Run preview to validate before applying."}
+                </p>
               )}
             </div>
 

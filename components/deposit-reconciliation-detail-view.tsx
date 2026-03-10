@@ -108,6 +108,28 @@ type AiAdjustmentModalState = {
   preview: AiAdjustmentPreviewPayload | null
 }
 
+type RateDiscrepancyPayload = {
+  revenueScheduleId: string
+  scheduleNumber: string
+  scheduleDate: string | null
+  expectedRatePercent: number
+  receivedRatePercent: number
+  differencePercent: number
+  tolerancePercent: number
+  future: {
+    count: number
+    schedules: Array<{ id: string; scheduleNumber: string | null; scheduleDate: string | null }>
+  }
+}
+
+type RateDiscrepancyModalState = {
+  lineId: string
+  scheduleId: string
+  applying: boolean
+  error: string | null
+  discrepancy: RateDiscrepancyPayload
+}
+
 type AllocationDraft = {
   usage: string
   commission: string
@@ -119,6 +141,16 @@ type ScheduleTabKey = ReconciliationScheduleFilterValue
 function formatPercent(fraction: number) {
   if (!Number.isFinite(fraction) || fraction <= 0) return "0%"
   return `${Math.round(fraction * 100)}%`
+}
+
+const ratePercentFormatter = new Intl.NumberFormat("en-US", {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+})
+
+function formatRatePercent(value: number) {
+  if (!Number.isFinite(value)) return "0.00%"
+  return `${ratePercentFormatter.format(value)}%`
 }
 
 const depositFieldLabels = {
@@ -505,6 +537,7 @@ export function DepositReconciliationDetailView({
   const [manualFlexUsageAmount, setManualFlexUsageAmount] = useState("")
   const [manualFlexError, setManualFlexError] = useState<string | null>(null)
   const [aiAdjustmentModal, setAiAdjustmentModal] = useState<AiAdjustmentModalState | null>(null)
+  const [rateDiscrepancyModal, setRateDiscrepancyModal] = useState<RateDiscrepancyModalState | null>(null)
   const [allocationDraft, setAllocationDraft] = useState<AllocationDraft>({ usage: "", commission: "" })
   const [matchWizard, setMatchWizard] = useState<{
     detectedType: MatchSelectionType
@@ -1009,6 +1042,7 @@ export function DepositReconciliationDetailView({
 
         const flexDecision = payload?.data?.flexDecision as FlexDecisionPayload | undefined
         const flexExecution = payload?.data?.flexExecution as any
+        const rateDiscrepancy = payload?.data?.rateDiscrepancy as RateDiscrepancyPayload | undefined
 
         setSelectedLineItems([lineId])
         onLineSelectionChange?.(lineId)
@@ -1017,6 +1051,21 @@ export function DepositReconciliationDetailView({
 
         if (flexExecution?.action === "ChargebackPending") {
           showSuccess("Chargeback pending", "A Flex Chargeback entry was created and is awaiting approval.")
+          return
+        }
+
+        if (rateDiscrepancy) {
+          setRateDiscrepancyModal({
+            lineId,
+            scheduleId,
+            applying: false,
+            error: null,
+            discrepancy: rateDiscrepancy,
+          })
+          showSuccess(
+            "Allocation saved",
+            "Received commission rate differs from expected. Review whether future schedules should use the new rate.",
+          )
           return
         }
 
@@ -2571,6 +2620,48 @@ export function DepositReconciliationDetailView({
     }
   }, [flexPrompt, metadata.id])
 
+  const handleApplyRateDiscrepancyToFuture = useCallback(async () => {
+    if (!rateDiscrepancyModal) return
+    const { lineId, scheduleId, discrepancy } = rateDiscrepancyModal
+
+    try {
+      setRateDiscrepancyModal(previous => (previous ? { ...previous, applying: true, error: null } : null))
+      const response = await fetch(
+        `/api/reconciliation/deposits/${encodeURIComponent(metadata.id)}/line-items/${encodeURIComponent(lineId)}/rate-discrepancy/apply-to-future`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ revenueScheduleId: scheduleId }),
+        },
+      )
+      const payload = await response.json().catch(() => null)
+      if (!response.ok) {
+        throw new Error(payload?.error || "Failed to update future schedule rates")
+      }
+
+      const updatedCount = Number(payload?.data?.futureUpdate?.updatedScheduleIds?.length ?? 0)
+      const nextRate = Number(payload?.data?.rateDiscrepancy?.receivedRatePercent ?? discrepancy.receivedRatePercent)
+
+      setRateDiscrepancyModal(null)
+      onMatchApplied?.()
+      showSuccess(
+        "Future schedule rates updated",
+        updatedCount > 0
+          ? `Updated ${updatedCount} future schedules to ${formatRatePercent(nextRate)}.`
+          : "No future unreconciled schedules needed a rate update.",
+      )
+    } catch (err) {
+      console.error("Failed to apply commission rate discrepancy update", err)
+      const message = err instanceof Error ? err.message : "Unknown error"
+      setRateDiscrepancyModal(previous =>
+        previous ? { ...previous, applying: false, error: message } : null,
+      )
+      showError("Unable to update future schedule rates", message)
+    } finally {
+      setRateDiscrepancyModal(previous => (previous ? { ...previous, applying: false } : null))
+    }
+  }, [metadata.id, onMatchApplied, rateDiscrepancyModal, showError, showSuccess])
+
   const handleApplyAiAdjustment = useCallback(async () => {
     if (!aiAdjustmentModal) return
     const { lineId, scheduleId, applyToFuture } = aiAdjustmentModal
@@ -3019,6 +3110,83 @@ export function DepositReconciliationDetailView({
         selectedVendor={vendorSummarySelectedVendor}
         filterContext={{ activeTab: lineTab, totalLineItems: lineItemRows.length }}
       />
+      {rateDiscrepancyModal ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/40 px-4"
+          onClick={() => (rateDiscrepancyModal.applying ? null : setRateDiscrepancyModal(null))}
+        >
+          <div
+            className="w-full max-w-xl rounded-xl bg-white shadow-xl"
+            onClick={e => e.stopPropagation()}
+          >
+            <ModalHeader kicker="Rate Discrepancy" title="Received rate differs from expected" />
+            <div className="space-y-4 p-6 text-sm text-slate-700">
+              <p>
+                The received commission rate for this match does not match the expected schedule rate. Continuing
+                without review can hide incorrect schedule data or missed revenue.
+              </p>
+              <div className="grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4 sm:grid-cols-2">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Expected rate</p>
+                  <p className="mt-1 text-lg font-semibold text-slate-900">
+                    {formatRatePercent(rateDiscrepancyModal.discrepancy.expectedRatePercent)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Received rate</p>
+                  <p className="mt-1 text-lg font-semibold text-slate-900">
+                    {formatRatePercent(rateDiscrepancyModal.discrepancy.receivedRatePercent)}
+                  </p>
+                </div>
+              </div>
+              <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                Difference: {formatRatePercent(rateDiscrepancyModal.discrepancy.differencePercent)}. Rounding
+                tolerance: {formatRatePercent(rateDiscrepancyModal.discrepancy.tolerancePercent)}.
+              </div>
+              {rateDiscrepancyModal.discrepancy.future.count > 0 ? (
+                <details className="rounded-md border border-slate-200 bg-slate-50 p-3">
+                  <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wide text-slate-700">
+                    Future unreconciled schedules ({rateDiscrepancyModal.discrepancy.future.count})
+                  </summary>
+                  <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-slate-700">
+                    {rateDiscrepancyModal.discrepancy.future.schedules.map(schedule => (
+                      <li key={schedule.id} className="break-all">
+                        {schedule.scheduleNumber ?? schedule.id}{" "}
+                        {schedule.scheduleDate ? `(${schedule.scheduleDate.slice(0, 10)})` : ""}
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              ) : (
+                <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
+                  No future unreconciled schedules are currently eligible for a rate update.
+                </div>
+              )}
+              {rateDiscrepancyModal.error ? (
+                <p className="text-sm text-red-600">{rateDiscrepancyModal.error}</p>
+              ) : null}
+              <div className="flex flex-wrap items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  className="rounded border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                  onClick={() => setRateDiscrepancyModal(null)}
+                  disabled={rateDiscrepancyModal.applying}
+                >
+                  Keep current rate
+                </button>
+                <button
+                  type="button"
+                  className="rounded bg-primary-600 px-3 py-2 text-sm font-semibold text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  onClick={() => void handleApplyRateDiscrepancyToFuture()}
+                  disabled={rateDiscrepancyModal.applying || rateDiscrepancyModal.discrepancy.future.count === 0}
+                >
+                  {rateDiscrepancyModal.applying ? "Updating..." : "Update future schedules"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
       {aiAdjustmentModal ? (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/40 px-4"

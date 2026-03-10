@@ -9,7 +9,10 @@ import { withPermissions, createErrorResponse } from "@/lib/api-auth"
 import { prisma } from "@/lib/db"
 import { recomputeDepositAggregates } from "@/lib/matching/deposit-aggregates"
 import { recomputeRevenueScheduleFromMatches } from "@/lib/matching/revenue-schedule-status"
-import { getTenantVarianceTolerance } from "@/lib/matching/settings"
+import {
+  getTenantRateDiscrepancyTolerancePercent,
+  getTenantVarianceTolerance,
+} from "@/lib/matching/settings"
 import { logMatchingMetric } from "@/lib/matching/metrics"
 import { getClientIP, getUserAgent, logAudit, logRevenueScheduleAudit } from "@/lib/audit"
 import { evaluateFlexDecision } from "@/lib/flex/revenue-schedule-flex-decision"
@@ -21,6 +24,13 @@ import {
   findFutureSchedulesInScope,
   resolveScheduleScopeKey,
 } from "@/lib/reconciliation/future-schedules"
+import { recordFieldUndoLog } from "@/lib/reconciliation/undo-log"
+import {
+  buildRateDiscrepancySummary,
+  deriveReceivedRatePercent,
+  isUsageWithinTolerance,
+  normalizeRatePercent,
+} from "@/lib/reconciliation/rate-discrepancy"
 
 interface ApplyMatchRequestBody {
   revenueScheduleId: string
@@ -87,6 +97,7 @@ export async function POST(
     const allocationCommission = commissionAmount ?? Number(lineItem.commission ?? 0)
 
     const varianceTolerance = await getTenantVarianceTolerance(tenantId)
+    const rateDiscrepancyTolerancePercent = await getTenantRateDiscrepancyTolerancePercent(tenantId)
     const ipAddress = getClientIP(request)
     const userAgent = getUserAgent(request)
 
@@ -199,11 +210,29 @@ export async function POST(
         varianceTolerance,
       })
 
-      const scheduleMeta = await tx.revenueSchedule.findFirst({
-        where: { tenantId, id: revenueScheduleId },
+      const scheduleContext = await tx.revenueSchedule.findFirst({
+        where: { tenantId, id: revenueScheduleId, deletedAt: null },
         select: {
+          id: true,
+          scheduleNumber: true,
+          scheduleDate: true,
+          accountId: true,
+          opportunityProductId: true,
+          productId: true,
+          vendorAccountId: true,
+          distributorAccountId: true,
+          vendor: { select: { accountName: true } },
+          distributor: { select: { accountName: true } },
+          usageAdjustment: true,
+          expectedCommissionAdjustment: true,
+          expectedCommissionRatePercent: true,
           product: {
             select: {
+              commissionPercent: true,
+              productCode: true,
+              partNumberVendor: true,
+              partNumberDistributor: true,
+              partNumberHouse: true,
               revenueType: true,
               productFamilyHouse: true,
               productNameHouse: true,
@@ -211,11 +240,89 @@ export async function POST(
           },
         },
       })
+      if (!scheduleContext) {
+        throw new Error("Revenue schedule not found")
+      }
+
       const isBonusLike = isBonusLikeProduct({
-        revenueType: scheduleMeta?.product?.revenueType ?? null,
-        productFamilyHouse: scheduleMeta?.product?.productFamilyHouse ?? null,
-        productNameHouse: scheduleMeta?.product?.productNameHouse ?? null,
+        revenueType: scheduleContext.product?.revenueType ?? null,
+        productFamilyHouse: scheduleContext.product?.productFamilyHouse ?? null,
+        productNameHouse: scheduleContext.product?.productNameHouse ?? null,
       })
+
+      const expectedRatePercent = normalizeRatePercent(
+        (scheduleContext as any).expectedCommissionRatePercent ?? scheduleContext.product?.commissionPercent ?? null,
+      )
+      const receivedRatePercent = deriveReceivedRatePercent({
+        usageAmount: revenueSchedule.schedule.actualUsage,
+        commissionAmount: revenueSchedule.schedule.actualCommission,
+      })
+      const rateDiscrepancySummary = buildRateDiscrepancySummary({
+        expectedRatePercent,
+        receivedRatePercent,
+        tolerancePercent: rateDiscrepancyTolerancePercent,
+      })
+      const usageAligned = isUsageWithinTolerance({
+        expectedUsageNet: revenueSchedule.expectedUsageNet,
+        usageBalance: revenueSchedule.usageBalance,
+        varianceTolerance,
+      })
+
+      let rateDiscrepancy = null as null | {
+        revenueScheduleId: string
+        scheduleNumber: string
+        scheduleDate: string | null
+        expectedRatePercent: number
+        receivedRatePercent: number
+        differencePercent: number
+        tolerancePercent: number
+        future: {
+          count: number
+          schedules: Array<{ id: string; scheduleNumber: string | null; scheduleDate: string | null }>
+        }
+      }
+
+      if (rateDiscrepancySummary?.isMaterial && usageAligned) {
+        let future = {
+          count: 0,
+          schedules: [] as Array<{ id: string; scheduleNumber: string | null; scheduleDate: string | null }>,
+        }
+
+        if (scheduleContext.scheduleDate) {
+          try {
+            const scope = resolveScheduleScopeKey(scheduleContext)
+            const futureSchedules = await findFutureSchedulesInScope(tx, {
+              tenantId,
+              baseScheduleId: scheduleContext.id,
+              baseScheduleDate: scheduleContext.scheduleDate,
+              scope,
+              excludeAllocated: true,
+            })
+
+            future = {
+              count: futureSchedules.length,
+              schedules: futureSchedules.slice(0, 5).map(row => ({
+                id: row.id,
+                scheduleNumber: row.scheduleNumber ?? null,
+                scheduleDate: row.scheduleDate ? row.scheduleDate.toISOString() : null,
+              })),
+            }
+          } catch (error) {
+            console.warn("Failed to compute future schedule scope for commission rate discrepancy prompt", error)
+          }
+        }
+
+        rateDiscrepancy = {
+          revenueScheduleId,
+          scheduleNumber: (scheduleContext.scheduleNumber ?? scheduleContext.id ?? "").trim() || scheduleContext.id,
+          scheduleDate: scheduleContext.scheduleDate ? scheduleContext.scheduleDate.toISOString() : null,
+          expectedRatePercent: rateDiscrepancySummary.expectedRatePercent,
+          receivedRatePercent: rateDiscrepancySummary.receivedRatePercent,
+          differencePercent: rateDiscrepancySummary.differencePercent,
+          tolerancePercent: rateDiscrepancySummary.tolerancePercent,
+          future,
+        }
+      }
 
       const flexDecision = evaluateFlexDecision({
         expectedUsageNet: revenueSchedule.expectedUsageNet,
@@ -224,7 +331,7 @@ export async function POST(
         hasNegativeLine: false,
         isBonusLike,
         expectedCommissionNet: revenueSchedule.expectedCommissionNet,
-        commissionDifference: revenueSchedule.commissionDifference,
+        commissionDifference: rateDiscrepancy ? 0 : revenueSchedule.commissionDifference,
       })
 
       let flexExecution = null as any
@@ -233,40 +340,15 @@ export async function POST(
       if (flexDecision.action === "auto_adjust") {
         const usageOverage = flexDecision.usageOverage
         const commissionOverage =
-          revenueSchedule.commissionDifference < 0 ? Math.abs(revenueSchedule.commissionDifference) : 0
+          rateDiscrepancy
+            ? 0
+            : revenueSchedule.commissionDifference < 0
+              ? Math.abs(revenueSchedule.commissionDifference)
+              : 0
 
         if (usageOverage > EPSILON || commissionOverage > EPSILON) {
-          const baseSchedule = await tx.revenueSchedule.findFirst({
-            where: { tenantId, id: revenueScheduleId, deletedAt: null },
-            select: {
-              id: true,
-              scheduleNumber: true,
-              scheduleDate: true,
-              accountId: true,
-              opportunityProductId: true,
-              productId: true,
-              vendorAccountId: true,
-              distributorAccountId: true,
-              vendor: { select: { accountName: true } },
-              distributor: { select: { accountName: true } },
-              product: {
-                select: {
-                  productCode: true,
-                  partNumberVendor: true,
-                  partNumberDistributor: true,
-                  partNumberHouse: true,
-                },
-              },
-              usageAdjustment: true,
-              expectedCommissionAdjustment: true,
-            },
-          })
-          if (!baseSchedule) {
-            throw new Error("Revenue schedule not found")
-          }
-
-          const previousUsageAdjustment = toNumber(baseSchedule.usageAdjustment)
-          const previousExpectedCommissionAdjustment = toNumber(baseSchedule.expectedCommissionAdjustment)
+          const previousUsageAdjustment = toNumber(scheduleContext.usageAdjustment)
+          const previousExpectedCommissionAdjustment = toNumber(scheduleContext.expectedCommissionAdjustment)
 
           const nextUsageAdjustment =
             usageOverage > EPSILON ? Number((previousUsageAdjustment + usageOverage).toFixed(2)) : previousUsageAdjustment
@@ -287,6 +369,26 @@ export async function POST(
               },
             })
 
+            await recordFieldUndoLog(tx, {
+              tenantId,
+              depositId,
+              depositLineItemId: lineItem.id,
+              targetEntityName: "RevenueSchedule",
+              targetEntityId: revenueScheduleId,
+              relatedRevenueScheduleIds: [revenueScheduleId],
+              createdById: req.user.id,
+              fields: {
+                usageAdjustment: {
+                  previousValue: scheduleContext.usageAdjustment ?? null,
+                  nextValue: nextUsageAdjustment,
+                },
+                expectedCommissionAdjustment: {
+                  previousValue: scheduleContext.expectedCommissionAdjustment ?? null,
+                  nextValue: nextExpectedCommissionAdjustment,
+                },
+              },
+            })
+
             await logRevenueScheduleAudit(
               AuditAction.Update,
               revenueScheduleId,
@@ -294,8 +396,8 @@ export async function POST(
               tenantId,
               request,
               {
-                usageAdjustment: baseSchedule.usageAdjustment ?? null,
-                expectedCommissionAdjustment: baseSchedule.expectedCommissionAdjustment ?? null,
+                usageAdjustment: scheduleContext.usageAdjustment ?? null,
+                expectedCommissionAdjustment: scheduleContext.expectedCommissionAdjustment ?? null,
               },
               {
                 action: "WithinToleranceVarianceAutoAdjustment",
@@ -315,13 +417,13 @@ export async function POST(
 
           let future = { count: 0, schedules: [] as Array<{ id: string; scheduleNumber: string | null; scheduleDate: string | null }> }
           let scope = null as any
-          if (baseSchedule.scheduleDate) {
+          if (scheduleContext.scheduleDate) {
             try {
-              scope = resolveScheduleScopeKey(baseSchedule)
+              scope = resolveScheduleScopeKey(scheduleContext)
               const futureSchedules = await findFutureSchedulesInScope(tx, {
                 tenantId,
-                baseScheduleId: baseSchedule.id,
-                baseScheduleDate: baseSchedule.scheduleDate,
+                baseScheduleId: scheduleContext.id,
+                baseScheduleDate: scheduleContext.scheduleDate,
                 scope,
                 excludeAllocated: true,
               })
@@ -342,8 +444,8 @@ export async function POST(
           withinToleranceAdjustment = {
             applied: true,
             revenueScheduleId,
-            scheduleNumber: (baseSchedule.scheduleNumber ?? baseSchedule.id ?? "").trim() || baseSchedule.id,
-            scheduleDate: baseSchedule.scheduleDate ? baseSchedule.scheduleDate.toISOString() : null,
+            scheduleNumber: (scheduleContext.scheduleNumber ?? scheduleContext.id ?? "").trim() || scheduleContext.id,
+            scheduleDate: scheduleContext.scheduleDate ? scheduleContext.scheduleDate.toISOString() : null,
             usageDelta: usageOverage,
             commissionDelta: commissionOverage,
             future,
@@ -362,6 +464,7 @@ export async function POST(
         flexDecision,
         flexExecution,
         withinToleranceAdjustment,
+        rateDiscrepancy,
       }
     })
 
@@ -402,6 +505,7 @@ export async function POST(
           usageBalance: result.revenueSchedule.usageBalance,
           commissionDifference: result.revenueSchedule.commissionDifference,
           matchCount: result.revenueSchedule.matchCount,
+          rateDiscrepancy: result?.rateDiscrepancy ? JSON.parse(JSON.stringify(result.rateDiscrepancy)) : null,
         },
       )
     }
@@ -425,6 +529,7 @@ export async function POST(
         source: DepositLineMatchSource.Manual,
         flexDecision: result?.flexDecision ? JSON.parse(JSON.stringify(result.flexDecision)) : null,
         flexExecution: result?.flexExecution ? JSON.parse(JSON.stringify(result.flexExecution)) : null,
+        rateDiscrepancy: result?.rateDiscrepancy ? JSON.parse(JSON.stringify(result.rateDiscrepancy)) : null,
       },
     })
 

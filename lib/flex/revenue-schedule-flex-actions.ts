@@ -20,6 +20,7 @@ import { logRevenueScheduleAudit } from "@/lib/audit"
 import { isBonusLikeProduct } from "@/lib/flex/bonus-detection"
 import { enqueueFlexReviewItem } from "@/lib/flex/flex-review-queue"
 import { isBillingStatusAutomationEnabled } from "@/lib/feature-flags"
+import { recordCreatedEntityUndoLog, recordFieldUndoLog } from "@/lib/reconciliation/undo-log"
 
 type PrismaClientOrTx = PrismaClient | Prisma.TransactionClient
 
@@ -481,6 +482,18 @@ export async function executeFlexAdjustmentSplit(
     request,
   })
 
+  if (createdScheduleId) {
+    await recordCreatedEntityUndoLog(tx, {
+      tenantId,
+      depositId,
+      depositLineItemId: lineItemId,
+      targetEntityName: "RevenueSchedule",
+      targetEntityId: createdScheduleId,
+      relatedRevenueScheduleIds: [baseScheduleId, createdScheduleId],
+      createdById: userId,
+    })
+  }
+
   return {
     applied: Boolean(createdScheduleId),
     action: "Adjust",
@@ -596,14 +609,33 @@ export async function executeFlexProductSplit(
   })
 
   if (createdScheduleId) {
+    await recordCreatedEntityUndoLog(tx, {
+      tenantId,
+      depositId,
+      depositLineItemId: lineItemId,
+      targetEntityName: "RevenueSchedule",
+      targetEntityId: createdScheduleId,
+      relatedRevenueScheduleIds: [baseScheduleId, createdScheduleId],
+      relatedOpportunityProductIds: flexOpportunityProductId ? [flexOpportunityProductId] : [],
+      resolveFlexReviewItem: true,
+      createdById: userId,
+    })
+
     const baseBefore = await tx.revenueSchedule.findFirst({
       where: { tenantId, id: baseScheduleId, deletedAt: null },
-      select: { billingStatus: true, billingStatusSource: true },
+      select: {
+        billingStatus: true,
+        billingStatusSource: true,
+        billingStatusUpdatedById: true,
+        billingStatusUpdatedAt: true,
+        billingStatusReason: true,
+      },
     })
 
     const shouldAutoUpdateBaseBillingStatus =
       isBillingStatusAutomationEnabled() && baseBefore?.billingStatusSource === RevenueScheduleBillingStatusSource.Auto
 
+    const billingStatusUpdatedAt = new Date()
     const baseAfter = shouldAutoUpdateBaseBillingStatus
       ? await tx.revenueSchedule.update({
           where: { id: baseScheduleId },
@@ -611,14 +643,46 @@ export async function executeFlexProductSplit(
             billingStatus: RevenueScheduleBillingStatus.InDispute,
             billingStatusSource: RevenueScheduleBillingStatusSource.Auto,
             billingStatusUpdatedById: userId,
-            billingStatusUpdatedAt: new Date(),
+            billingStatusUpdatedAt,
             billingStatusReason: "AutoFlexProductParentDispute",
           },
-          select: { id: true, billingStatus: true },
+          select: { id: true, billingStatus: true, billingStatusSource: true, billingStatusUpdatedById: true, billingStatusUpdatedAt: true, billingStatusReason: true },
         })
       : null
 
     if (baseBefore && baseAfter && baseBefore.billingStatus !== baseAfter.billingStatus) {
+      await recordFieldUndoLog(tx, {
+        tenantId,
+        depositId,
+        depositLineItemId: lineItemId,
+        targetEntityName: "RevenueSchedule",
+        targetEntityId: baseScheduleId,
+        relatedRevenueScheduleIds: [baseScheduleId, createdScheduleId],
+        createdById: userId,
+        fields: {
+          billingStatus: {
+            previousValue: baseBefore.billingStatus,
+            nextValue: baseAfter.billingStatus,
+          },
+          billingStatusSource: {
+            previousValue: baseBefore.billingStatusSource,
+            nextValue: baseAfter.billingStatusSource,
+          },
+          billingStatusUpdatedById: {
+            previousValue: baseBefore.billingStatusUpdatedById ?? null,
+            nextValue: baseAfter.billingStatusUpdatedById ?? null,
+          },
+          billingStatusUpdatedAt: {
+            previousValue: baseBefore.billingStatusUpdatedAt ?? null,
+            nextValue: baseAfter.billingStatusUpdatedAt ?? null,
+          },
+          billingStatusReason: {
+            previousValue: baseBefore.billingStatusReason ?? null,
+            nextValue: baseAfter.billingStatusReason ?? null,
+          },
+        },
+      })
+
       await logRevenueScheduleAudit(
         AuditAction.Update,
         baseScheduleId,
@@ -779,6 +843,18 @@ export async function createFlexProductForUnknownLine(
   await recomputeDepositLineItemAllocations(tx, lineItemId, tenantId)
   await recomputeDepositAggregates(tx, depositId, tenantId)
 
+  await recordCreatedEntityUndoLog(tx, {
+    tenantId,
+    depositId,
+    depositLineItemId: lineItemId,
+    targetEntityName: "RevenueSchedule",
+    targetEntityId: schedule.id,
+    relatedRevenueScheduleIds: [schedule.id],
+    relatedOpportunityProductIds: flexOpportunityProductId ? [flexOpportunityProductId] : [],
+    resolveFlexReviewItem: true,
+    createdById: userId,
+  })
+
   await logRevenueScheduleAudit(
     AuditAction.Create,
     schedule.id,
@@ -875,6 +951,26 @@ export async function createFlexChargebackForNegativeLine(
         commissionRate: 1,
       },
     })
+
+    await recordFieldUndoLog(tx, {
+      tenantId,
+      depositId,
+      depositLineItemId: lineItemId,
+      targetEntityName: "DepositLineItem",
+      targetEntityId: lineItemId,
+      relatedRevenueScheduleIds: [],
+      createdById: userId,
+      fields: {
+        usage: {
+          previousValue: rawUsage,
+          nextValue: usage,
+        },
+        commissionRate: {
+          previousValue: line.commissionRate ?? null,
+          nextValue: 1,
+        },
+      },
+    })
   }
 
   // Remove existing matches on this line to make the automation reversible via Unmatch.
@@ -946,6 +1042,17 @@ export async function createFlexChargebackForNegativeLine(
     },
   })
   await recomputeDepositAggregates(tx, depositId, tenantId)
+
+  await recordCreatedEntityUndoLog(tx, {
+    tenantId,
+    depositId,
+    depositLineItemId: lineItemId,
+    targetEntityName: "RevenueSchedule",
+    targetEntityId: schedule.id,
+    relatedRevenueScheduleIds: [schedule.id],
+    resolveFlexReviewItem: true,
+    createdById: userId,
+  })
 
   await logRevenueScheduleAudit(
     AuditAction.Create,
@@ -1118,6 +1225,17 @@ export async function createFlexChargebackReversalForPositiveLine(
   })
 
   await recomputeDepositAggregates(tx, depositId, tenantId)
+
+  await recordCreatedEntityUndoLog(tx, {
+    tenantId,
+    depositId,
+    depositLineItemId: lineItemId,
+    targetEntityName: "RevenueSchedule",
+    targetEntityId: schedule.id,
+    relatedRevenueScheduleIds: [schedule.id],
+    resolveFlexReviewItem: true,
+    createdById: userId,
+  })
 
   await logRevenueScheduleAudit(
     AuditAction.Create,

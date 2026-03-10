@@ -20,6 +20,7 @@ export async function GET(request: NextRequest) {
 
 interface UpdateSettingsBody {
   varianceTolerance?: number
+  rateDiscrepancyTolerancePercent?: number
   includeFutureSchedulesDefault?: boolean
   engineMode?: MatchingEngineMode
   finalizeDisputedDepositsPolicy?: FinalizeDisputedDepositsPolicy
@@ -42,6 +43,14 @@ export async function POST(request: NextRequest) {
         return createErrorResponse("varianceTolerance must be between 0 and 1", 400)
       }
       updates.varianceTolerance = normalized
+    }
+
+    if (body.rateDiscrepancyTolerancePercent != null) {
+      const normalized = Number(body.rateDiscrepancyTolerancePercent)
+      if (!Number.isFinite(normalized) || normalized < 0 || normalized > 100) {
+        return createErrorResponse("rateDiscrepancyTolerancePercent must be between 0 and 100", 400)
+      }
+      updates.rateDiscrepancyTolerancePercent = normalized
     }
 
     if (typeof body.includeFutureSchedulesDefault === "boolean") {
@@ -69,6 +78,7 @@ export async function POST(request: NextRequest) {
 
     if (
       updates.varianceTolerance == null &&
+      updates.rateDiscrepancyTolerancePercent == null &&
       updates.includeFutureSchedulesDefault == null &&
       updates.engineMode == null &&
       updates.finalizeDisputedDepositsPolicy == null

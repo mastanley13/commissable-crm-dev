@@ -6,6 +6,8 @@ import {
   RevenueScheduleStatus,
 } from "@prisma/client"
 import { logRevenueScheduleAudit } from "@/lib/audit"
+import { recordFieldUndoLog } from "@/lib/reconciliation/undo-log"
+import { roundCurrency } from "@/lib/revenue-schedule-calculations"
 
 type PrismaClientOrTx = PrismaClient | Prisma.TransactionClient
 
@@ -14,6 +16,12 @@ const EPSILON = 0.005
 function toNumber(value: unknown): number {
   const numeric = Number(value ?? 0)
   return Number.isFinite(numeric) ? numeric : 0
+}
+
+function toNullableNumber(value: unknown): number | null {
+  if (value === null || value === undefined) return null
+  const numeric = Number(value)
+  return Number.isFinite(numeric) ? numeric : null
 }
 
 function normalizeKeyPart(value: unknown): string {
@@ -436,6 +444,26 @@ export async function applyExpectedDeltasToFutureSchedules(
       },
     })
 
+    await recordFieldUndoLog(client, {
+      tenantId,
+      depositId,
+      depositLineItemId,
+      targetEntityName: "RevenueSchedule",
+      targetEntityId: schedule.id,
+      relatedRevenueScheduleIds: [sourceScheduleId, schedule.id],
+      createdById: userId,
+      fields: {
+        usageAdjustment: {
+          previousValue: schedule.usageAdjustment ?? null,
+          nextValue: nextUsageAdjustment,
+        },
+        expectedCommissionAdjustment: {
+          previousValue: schedule.expectedCommissionAdjustment ?? null,
+          nextValue: nextExpectedCommissionAdjustment,
+        },
+      },
+    })
+
     updatedScheduleIds.push(schedule.id)
 
     await logRevenueScheduleAudit(
@@ -457,6 +485,135 @@ export async function applyExpectedDeltasToFutureSchedules(
         commissionDelta,
         usageAdjustment: nextUsageAdjustment,
         expectedCommissionAdjustment: nextExpectedCommissionAdjustment,
+      },
+    )
+  }
+
+  return { updatedScheduleIds }
+}
+
+export async function applyReceivedRateToFutureSchedules(
+  client: PrismaClientOrTx,
+  {
+    tenantId,
+    userId,
+    request,
+    schedules,
+    receivedRatePercent,
+    sourceScheduleId,
+    depositId,
+    depositLineItemId,
+  }: {
+    tenantId: string
+    userId: string
+    request?: Request
+    schedules: ScopedSchedule[]
+    receivedRatePercent: number
+    sourceScheduleId: string
+    depositId: string
+    depositLineItemId: string
+  },
+) {
+  const updatedScheduleIds: string[] = []
+
+  for (const scheduleRef of schedules) {
+    const schedule = await client.revenueSchedule.findFirst({
+      where: {
+        id: scheduleRef.id,
+        tenantId,
+        deletedAt: null,
+        status: { not: RevenueScheduleStatus.Reconciled },
+      },
+      select: {
+        id: true,
+        expectedUsage: true,
+        expectedCommission: true,
+        expectedCommissionRatePercent: true,
+        opportunityProduct: {
+          select: {
+            quantity: true,
+            unitPrice: true,
+            expectedUsage: true,
+          },
+        },
+        product: {
+          select: {
+            priceEach: true,
+          },
+        },
+      },
+    })
+
+    if (!schedule) {
+      continue
+    }
+
+    const previousRatePercent = toNullableNumber((schedule as any).expectedCommissionRatePercent)
+    const previousExpectedCommission = toNullableNumber((schedule as any).expectedCommission)
+
+    const fallbackQuantity = toNullableNumber((schedule.opportunityProduct as any)?.quantity)
+    const fallbackUnitPrice =
+      toNullableNumber((schedule.opportunityProduct as any)?.unitPrice) ??
+      toNullableNumber((schedule.product as any)?.priceEach)
+
+    const existingUsage = toNullableNumber((schedule as any).expectedUsage)
+    const fallbackExpectedUsage = toNullableNumber((schedule.opportunityProduct as any)?.expectedUsage)
+    const derivedUsage =
+      existingUsage ??
+      fallbackExpectedUsage ??
+      (fallbackQuantity !== null &&
+      fallbackUnitPrice !== null &&
+      Number.isFinite(fallbackQuantity) &&
+      Number.isFinite(fallbackUnitPrice)
+        ? roundCurrency(fallbackQuantity * fallbackUnitPrice)
+        : null)
+
+    if (derivedUsage === null) {
+      throw new Error(`Unable to recompute expected commission for schedule ${schedule.id}: missing expected usage`)
+    }
+
+    const nextExpectedCommission = roundCurrency(derivedUsage * (receivedRatePercent / 100))
+
+    if (
+      previousRatePercent !== null &&
+      Math.abs(previousRatePercent - receivedRatePercent) <= EPSILON &&
+      previousExpectedCommission !== null &&
+      Math.abs(previousExpectedCommission - nextExpectedCommission) <= EPSILON
+    ) {
+      continue
+    }
+
+    await client.revenueSchedule.update({
+      where: { id: schedule.id },
+      data: {
+        expectedCommissionRatePercent: receivedRatePercent,
+        expectedCommission: nextExpectedCommission,
+        ...(existingUsage == null ? { expectedUsage: derivedUsage } : {}),
+      } as any,
+    })
+
+    updatedScheduleIds.push(schedule.id)
+
+    await logRevenueScheduleAudit(
+      AuditAction.Update,
+      schedule.id,
+      userId,
+      tenantId,
+      request,
+      {
+        expectedCommissionRatePercent: previousRatePercent,
+        expectedCommission: previousExpectedCommission,
+        expectedUsage: existingUsage,
+      },
+      {
+        action: "ApplyReceivedCommissionRateToFutureSchedule",
+        sourceScheduleId,
+        depositId,
+        depositLineItemId,
+        receivedRatePercent,
+        expectedCommissionRatePercent: receivedRatePercent,
+        expectedCommission: nextExpectedCommission,
+        ...(existingUsage == null ? { expectedUsage: derivedUsage } : {}),
       },
     )
   }

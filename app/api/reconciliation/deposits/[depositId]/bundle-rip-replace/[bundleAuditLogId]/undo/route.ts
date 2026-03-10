@@ -71,6 +71,7 @@ export async function POST(
       where: { tenantId, depositId, applyAuditLogId: auditLogId },
       select: {
         id: true,
+        baseOpportunityProductId: true,
         undoneAt: true,
         undoAuditLogId: true,
         createdRevenueScheduleIds: true,
@@ -127,6 +128,16 @@ export async function POST(
           await tx.revenueSchedule.updateMany({
             where: { tenantId, id: { in: replacedScheduleIds } },
             data: { deletedAt: null, updatedById: req.user.id },
+          })
+        }
+
+        if (bundleOperation?.baseOpportunityProductId) {
+          await (tx.opportunityProduct as any).update({
+            where: { id: bundleOperation.baseOpportunityProductId },
+            data: {
+              active: true,
+              status: "ActiveBilling",
+            },
           })
         }
 

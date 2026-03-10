@@ -3,11 +3,9 @@ import { AuditAction, DepositLineMatchStatus } from "@prisma/client"
 
 import { withPermissions, createErrorResponse } from "@/lib/api-auth"
 import { prisma } from "@/lib/db"
-import { recomputeDepositAggregates } from "@/lib/matching/deposit-aggregates"
-import { recomputeDepositLineItemAllocations } from "@/lib/matching/deposit-line-allocations"
-import { recomputeRevenueSchedules } from "@/lib/matching/revenue-schedule-status"
 import { getTenantVarianceTolerance } from "@/lib/matching/settings"
 import { getClientIP, getUserAgent, logAudit, logRevenueScheduleAudit } from "@/lib/audit"
+import { executeUnmatchReversal } from "@/lib/reconciliation/unmatch-reversal"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -71,25 +69,12 @@ export async function POST(
       )
     }
 
-    const schedules = await prisma.revenueSchedule.findMany({
-      where: { tenantId, id: { in: revenueScheduleIds }, deletedAt: null },
-      select: { id: true },
-    })
-    const foundScheduleIds = new Set(schedules.map(item => item.id))
-    const missingScheduleIds = revenueScheduleIds.filter(id => !foundScheduleIds.has(id))
-    if (missingScheduleIds.length > 0) {
-      return NextResponse.json(
-        { error: `Unknown revenue schedule id(s): ${missingScheduleIds.join(", ")}` },
-        { status: 404 },
-      )
-    }
-
     const matches = await prisma.depositLineMatch.findMany({
       where: {
         tenantId,
         depositLineItemId: { in: lineItemIds },
         revenueScheduleId: { in: revenueScheduleIds },
-        status: DepositLineMatchStatus.Applied,
+        status: { in: [DepositLineMatchStatus.Applied, DepositLineMatchStatus.Suggested] },
       },
       select: {
         id: true,
@@ -97,6 +82,30 @@ export async function POST(
         revenueScheduleId: true,
       },
     })
+
+    const matchedScheduleIds = new Set(
+      matches.map(match => match.revenueScheduleId).filter((id): id is string => typeof id === "string" && id.length > 0),
+    )
+    const missingScheduleIds = revenueScheduleIds.filter(id => !matchedScheduleIds.has(id))
+    if (missingScheduleIds.length > 0) {
+      const activeSchedules = await prisma.revenueSchedule.findMany({
+        where: { tenantId, id: { in: missingScheduleIds }, deletedAt: null },
+        select: { id: true },
+      })
+      const activeScheduleIds = new Set(activeSchedules.map(item => item.id))
+      const unknownScheduleIds = missingScheduleIds.filter(id => !activeScheduleIds.has(id))
+      const unmatchedScheduleIds = missingScheduleIds.filter(id => activeScheduleIds.has(id))
+
+      const messages: string[] = []
+      if (unknownScheduleIds.length > 0) {
+        messages.push(`Unknown revenue schedule id(s): ${unknownScheduleIds.join(", ")}`)
+      }
+      if (unmatchedScheduleIds.length > 0) {
+        messages.push(`Selected schedules are not matched to the selected line items: ${unmatchedScheduleIds.join(", ")}`)
+      }
+
+      return NextResponse.json({ error: messages.join(". ") }, { status: 404 })
+    }
 
     if (matches.length === 0) {
       return NextResponse.json({
@@ -117,69 +126,21 @@ export async function POST(
 
     const varianceTolerance = await getTenantVarianceTolerance(tenantId)
 
-    const result = await prisma.$transaction(async tx => {
-      const schedulesBefore =
-        affectedScheduleIds.length > 0
-          ? await tx.revenueSchedule.findMany({
-              where: { tenantId, id: { in: affectedScheduleIds } },
-              select: {
-                id: true,
-                status: true,
-                actualUsage: true,
-               actualCommission: true,
-               flexSourceDepositLineItemId: true,
-               deletedAt: true,
-              },
-            })
-          : []
-
-      const deleteResult = await tx.depositLineMatch.deleteMany({
-        where: {
+    let result
+    try {
+      result = await prisma.$transaction(async tx => {
+        return executeUnmatchReversal(tx, {
           tenantId,
-          depositLineItemId: { in: affectedLineItemIds },
-          revenueScheduleId: { in: affectedScheduleIds },
-          status: DepositLineMatchStatus.Applied,
-        },
+          depositId,
+          lineItemIds: affectedLineItemIds,
+          revenueScheduleIds: affectedScheduleIds,
+          userId: req.user.id,
+          varianceTolerance,
+        })
       })
-
-      const updatedLines = []
-      for (const lineId of affectedLineItemIds) {
-        const { line } = await recomputeDepositLineItemAllocations(tx, lineId, tenantId)
-        updatedLines.push(line)
-      }
-
-      const deposit = await recomputeDepositAggregates(tx, depositId, tenantId)
-
-      const revenueSchedules =
-        affectedScheduleIds.length > 0
-          ? await recomputeRevenueSchedules(tx, affectedScheduleIds, tenantId, { varianceTolerance })
-          : []
-
-      // Soft-delete auto-created flex schedules that were sourced from an affected line and now have no matches.
-      const candidateFlexIds = (schedulesBefore ?? [])
-        .filter(
-          schedule =>
-            schedule.deletedAt == null &&
-            schedule.flexSourceDepositLineItemId &&
-            affectedLineItemIds.includes(String(schedule.flexSourceDepositLineItemId)),
-        )
-        .map(schedule => schedule.id)
-
-      for (const flexId of candidateFlexIds) {
-        const stillUsed = await tx.depositLineMatch.findFirst({
-          where: { tenantId, revenueScheduleId: flexId },
-          select: { id: true },
-        })
-        if (stillUsed) continue
-        await tx.revenueSchedule.update({
-          where: { id: flexId },
-          data: { deletedAt: new Date() },
-          select: { id: true },
-        })
-      }
-
-      return { deleteResult, updatedLines, deposit, revenueSchedules, schedulesBefore }
-    })
+    } catch (error) {
+      return createErrorResponse(error instanceof Error ? error.message : "Unable to unmatch allocations", 400)
+    }
 
     for (const scheduleResult of result.revenueSchedules ?? []) {
       const before = (result.schedulesBefore ?? []).find(row => row.id === scheduleResult.schedule.id)
@@ -222,7 +183,8 @@ export async function POST(
         depositId,
         depositLineItemIds: affectedLineItemIds,
         revenueScheduleIds: affectedScheduleIds,
-        deletedMatchCount: result.deleteResult.count,
+        deletedMatchCount: result.deletedMatchCount,
+        reversedUndoLogCount: result.reversedUndoLogCount ?? 0,
       },
     })
 
@@ -230,9 +192,9 @@ export async function POST(
 
     return NextResponse.json({
       data: {
-        deletedMatchCount: result.deleteResult.count,
-        affectedLineItemIds,
-        affectedScheduleIds,
+        deletedMatchCount: result.deletedMatchCount,
+        affectedLineItemIds: result.affectedLineItemIds ?? affectedLineItemIds,
+        affectedScheduleIds: result.affectedScheduleIds ?? affectedScheduleIds,
         ...responseData,
       },
     })

@@ -1,10 +1,14 @@
 import { prisma } from "@/lib/db"
 
 const VARIANCE_SETTING_KEY = "reconciliation.varianceTolerance"
+const RATE_DISCREPANCY_TOLERANCE_SETTING_KEY = "reconciliation.rateDiscrepancyTolerancePercent"
 const FUTURE_SCHEDULE_SETTING_KEY = "reconciliation.includeFutureSchedulesDefault"
 const ENGINE_MODE_SETTING_KEY = "reconciliation.engineMode"
 const FINALIZE_DISPUTED_DEPOSITS_SETTING_KEY = "reconciliation.finalizeDisputedDepositsPolicy"
 const DEFAULT_VARIANCE_TOLERANCE = Number(process.env.DEFAULT_VARIANCE_TOLERANCE ?? 0) / 100
+const DEFAULT_RATE_DISCREPANCY_TOLERANCE_PERCENT = Number(
+  process.env.DEFAULT_RATE_DISCREPANCY_TOLERANCE_PERCENT ?? 0.05,
+)
 
 export type MatchingEngineMode = "env" | "legacy" | "hierarchical"
 export type FinalizeDisputedDepositsPolicy = "block_all" | "allow_manager_admin" | "allow_all"
@@ -23,7 +27,7 @@ function deserializeSettingValue(raw: unknown): unknown {
   }
 }
 
-function normalizeTolerance(raw: unknown): number {
+function normalizeTolerance(raw: unknown, fallback = DEFAULT_VARIANCE_TOLERANCE): number {
   const value = deserializeSettingValue(raw)
   if (typeof value === "number" && Number.isFinite(value)) return value
   if (typeof value === "string") {
@@ -32,9 +36,9 @@ function normalizeTolerance(raw: unknown): number {
   }
   if (value && typeof value === "object" && "value" in (value as Record<string, unknown>)) {
     const nested = (value as Record<string, unknown>).value
-    return normalizeTolerance(nested)
+    return normalizeTolerance(nested, fallback)
   }
-  return DEFAULT_VARIANCE_TOLERANCE
+  return fallback
 }
 
 function normalizeBoolean(raw: unknown, fallback = false): boolean {
@@ -80,12 +84,18 @@ export async function getTenantVarianceTolerance(tenantId: string): Promise<numb
   return prefs.varianceTolerance
 }
 
+export async function getTenantRateDiscrepancyTolerancePercent(tenantId: string): Promise<number> {
+  const prefs = await getTenantMatchingPreferences(tenantId)
+  return prefs.rateDiscrepancyTolerancePercent
+}
+
 export function getDefaultVarianceTolerance() {
   return DEFAULT_VARIANCE_TOLERANCE
 }
 
 export async function getTenantMatchingPreferences(tenantId: string): Promise<{
   varianceTolerance: number
+  rateDiscrepancyTolerancePercent: number
   includeFutureSchedulesDefault: boolean
   engineMode: MatchingEngineMode
   finalizeDisputedDepositsPolicy: FinalizeDisputedDepositsPolicy
@@ -93,6 +103,7 @@ export async function getTenantMatchingPreferences(tenantId: string): Promise<{
   if (!tenantId) {
     return {
       varianceTolerance: DEFAULT_VARIANCE_TOLERANCE,
+      rateDiscrepancyTolerancePercent: DEFAULT_RATE_DISCREPANCY_TOLERANCE_PERCENT,
       includeFutureSchedulesDefault: false,
       engineMode: DEFAULT_ENGINE_MODE,
       finalizeDisputedDepositsPolicy: DEFAULT_FINALIZE_DISPUTED_POLICY,
@@ -106,6 +117,7 @@ export async function getTenantMatchingPreferences(tenantId: string): Promise<{
         key: {
           in: [
             VARIANCE_SETTING_KEY,
+            RATE_DISCREPANCY_TOLERANCE_SETTING_KEY,
             FUTURE_SCHEDULE_SETTING_KEY,
             ENGINE_MODE_SETTING_KEY,
             FINALIZE_DISPUTED_DEPOSITS_SETTING_KEY,
@@ -116,7 +128,11 @@ export async function getTenantMatchingPreferences(tenantId: string): Promise<{
     })
     const map = new Map(settings.map(setting => [setting.key, setting.value]))
 
-    const varianceTolerance = normalizeTolerance(map.get(VARIANCE_SETTING_KEY))
+    const varianceTolerance = normalizeTolerance(map.get(VARIANCE_SETTING_KEY), DEFAULT_VARIANCE_TOLERANCE)
+    const rateDiscrepancyTolerancePercent = normalizeTolerance(
+      map.get(RATE_DISCREPANCY_TOLERANCE_SETTING_KEY),
+      DEFAULT_RATE_DISCREPANCY_TOLERANCE_PERCENT,
+    )
     const includeFutureSchedulesDefault = normalizeBoolean(map.get(FUTURE_SCHEDULE_SETTING_KEY), false)
     const engineMode = normalizeEngineMode(map.get(ENGINE_MODE_SETTING_KEY))
     const finalizeDisputedDepositsPolicy = normalizeFinalizeDisputedPolicy(
@@ -125,6 +141,7 @@ export async function getTenantMatchingPreferences(tenantId: string): Promise<{
 
     return {
       varianceTolerance: Math.max(0, Math.min(1, varianceTolerance)),
+      rateDiscrepancyTolerancePercent: Math.max(0, Math.min(100, rateDiscrepancyTolerancePercent)),
       includeFutureSchedulesDefault,
       engineMode,
       finalizeDisputedDepositsPolicy,
@@ -133,6 +150,7 @@ export async function getTenantMatchingPreferences(tenantId: string): Promise<{
     console.error("Failed to load reconciliation settings", error)
     return {
       varianceTolerance: DEFAULT_VARIANCE_TOLERANCE,
+      rateDiscrepancyTolerancePercent: DEFAULT_RATE_DISCREPANCY_TOLERANCE_PERCENT,
       includeFutureSchedulesDefault: false,
       engineMode: DEFAULT_ENGINE_MODE,
       finalizeDisputedDepositsPolicy: DEFAULT_FINALIZE_DISPUTED_POLICY,
@@ -144,6 +162,7 @@ export async function saveTenantMatchingPreferences(
   tenantId: string,
   prefs: Partial<{
     varianceTolerance: number
+    rateDiscrepancyTolerancePercent: number
     includeFutureSchedulesDefault: boolean
     engineMode: MatchingEngineMode
     finalizeDisputedDepositsPolicy: FinalizeDisputedDepositsPolicy
@@ -156,6 +175,12 @@ export async function saveTenantMatchingPreferences(
   const payload: Array<{ key: string; value: unknown }> = []
   if (prefs.varianceTolerance != null) {
     payload.push({ key: VARIANCE_SETTING_KEY, value: prefs.varianceTolerance })
+  }
+  if (prefs.rateDiscrepancyTolerancePercent != null) {
+    payload.push({
+      key: RATE_DISCREPANCY_TOLERANCE_SETTING_KEY,
+      value: prefs.rateDiscrepancyTolerancePercent,
+    })
   }
   if (prefs.includeFutureSchedulesDefault != null) {
     payload.push({ key: FUTURE_SCHEDULE_SETTING_KEY, value: prefs.includeFutureSchedulesDefault })

@@ -1,6 +1,7 @@
 import { AuditAction, Prisma } from "@prisma/client"
 import { canonicalizeMultiValueString, isMultiValueEmpty } from "@/lib/multi-value"
 import { getChangedFields } from "@/lib/audit"
+import { recordFieldUndoLog } from "@/lib/reconciliation/undo-log"
 
 type Tx = Prisma.TransactionClient
 
@@ -90,6 +91,24 @@ export async function autoFillFromDepositMatch(tx: Tx, params: AutoFillFromMatch
         }
 
         const changedFields = getChangedFields(previousValues, newValues)
+        await recordFieldUndoLog(tx, {
+          tenantId: params.tenantId,
+          depositId: params.depositId,
+          depositLineItemId: params.depositLineItemId,
+          targetEntityName: "Opportunity",
+          targetEntityId: existing.id,
+          relatedRevenueScheduleIds: [params.revenueScheduleId],
+          createdById: params.userId,
+          fields: Object.fromEntries(
+            Object.keys(update).map(key => [
+              key,
+              {
+                previousValue: previousValues[key] ?? null,
+                nextValue: newValues[key] ?? null,
+              },
+            ]),
+          ),
+        })
         const audit = await tx.auditLog.create({
           data: {
             tenantId: params.tenantId,
@@ -159,6 +178,24 @@ export async function autoFillFromDepositMatch(tx: Tx, params: AutoFillFromMatch
         }
 
         const changedFields = getChangedFields(previousValues, newValues)
+        await recordFieldUndoLog(tx, {
+          tenantId: params.tenantId,
+          depositId: params.depositId,
+          depositLineItemId: params.depositLineItemId,
+          targetEntityName: "Product",
+          targetEntityId: schedule.productId,
+          relatedRevenueScheduleIds: [params.revenueScheduleId],
+          createdById: params.userId,
+          fields: Object.fromEntries(
+            Object.keys(update).map(key => [
+              key,
+              {
+                previousValue: previousValues[key] ?? null,
+                nextValue: newValues[key] ?? null,
+              },
+            ]),
+          ),
+        })
         const audit = await tx.auditLog.create({
           data: {
             tenantId: params.tenantId,

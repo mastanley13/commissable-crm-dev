@@ -28,11 +28,13 @@ integrationTest("REC-AUTO-02: reconciliation settings persist and re-load via AP
   assertStatus(getInitial, 200)
   const initialPayload = await readJson<{ data?: any }>(getInitial)
   assert.equal(typeof initialPayload.data?.varianceTolerance, "number")
+  assert.equal(typeof initialPayload.data?.rateDiscrepancyTolerancePercent, "number")
   assert.equal(typeof initialPayload.data?.includeFutureSchedulesDefault, "boolean")
 
   const update = await POST(
     authedJsonRequest(ctx.sessionToken, "http://localhost/api/reconciliation/settings", {
       varianceTolerance: 0.15,
+      rateDiscrepancyTolerancePercent: 0.05,
       includeFutureSchedulesDefault: true,
       engineMode: "legacy",
     }),
@@ -40,6 +42,7 @@ integrationTest("REC-AUTO-02: reconciliation settings persist and re-load via AP
   assertStatus(update, 200)
   const updatePayload = await readJson<{ data?: any }>(update)
   assert.equal(updatePayload.data?.varianceTolerance, 0.15)
+  assert.equal(updatePayload.data?.rateDiscrepancyTolerancePercent, 0.05)
   assert.equal(updatePayload.data?.includeFutureSchedulesDefault, true)
   assert.equal(updatePayload.data?.engineMode, "legacy")
 
@@ -49,7 +52,7 @@ integrationTest("REC-AUTO-02: reconciliation settings persist and re-load via AP
   assertStatus(getAfter, 200)
   const afterPayload = await readJson<{ data?: any }>(getAfter)
   assert.equal(afterPayload.data?.varianceTolerance, 0.15)
+  assert.equal(afterPayload.data?.rateDiscrepancyTolerancePercent, 0.05)
   assert.equal(afterPayload.data?.includeFutureSchedulesDefault, true)
   assert.equal(afterPayload.data?.engineMode, "legacy")
 })
-

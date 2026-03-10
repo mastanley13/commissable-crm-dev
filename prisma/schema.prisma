@@ -933,6 +933,26 @@ model DepositMatchGroup {
   @@index([tenantId, createdAt])
 }
 
+model ReconciliationUndoLog {
+  id                String   @id @default(uuid()) @db.Uuid
+  tenantId          String   @db.Uuid
+  depositId         String   @db.Uuid
+  depositLineItemId String   @db.Uuid
+  entryType         String
+  targetEntityName  String
+  targetEntityId    String
+  payload           Json
+  createdById       String?  @db.Uuid
+  reversedAt        DateTime?
+  reversedByUserId  String?  @db.Uuid
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([tenantId, depositLineItemId, reversedAt])
+  @@index([tenantId, depositId, createdAt])
+  @@index([tenantId, targetEntityName, targetEntityId])
+}
+
 model BundleOperation {
   id                       String   @id @default(uuid()) @db.Uuid
   tenantId                 String   @db.Uuid

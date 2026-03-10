@@ -379,3 +379,104 @@ integrationTest("REC-AUTO-17: hierarchical candidate ordering keeps FIFO for con
   const newerIndex = payload.data!.findIndex(row => row.id === newerSchedule.id)
   assert.ok(olderIndex < newerIndex, "Expected FIFO ordering to prefer older schedule on confidence tie")
 })
+
+integrationTest("REC-AUTO-18: candidates endpoint hides soft-deleted applied schedules", async ctx => {
+  const dbModule = await import("../lib/db")
+  const prisma = (dbModule as any).prisma ?? (dbModule as any).default?.prisma
+
+  const deposit = await prisma.deposit.create({
+    data: {
+      tenantId: ctx.tenantId,
+      accountId: ctx.distributorAccountId,
+      month: new Date("2026-01-01T00:00:00Z"),
+      status: "InReview",
+      depositName: "Deleted Schedule Candidate Deposit",
+      paymentDate: new Date("2026-01-02T00:00:00Z"),
+      distributorAccountId: ctx.distributorAccountId,
+      vendorAccountId: ctx.vendorAccountId,
+      createdByUserId: ctx.userId,
+    },
+    select: { id: true },
+  })
+
+  const line = await prisma.depositLineItem.create({
+    data: {
+      tenantId: ctx.tenantId,
+      depositId: deposit.id,
+      lineNumber: 1,
+      status: "Matched",
+      paymentDate: new Date("2026-01-02T00:00:00Z"),
+      usage: 100,
+      usageAllocated: 100,
+      usageUnallocated: 0,
+      commission: 10,
+      commissionAllocated: 10,
+      commissionUnallocated: 0,
+      accountId: ctx.distributorAccountId,
+      vendorAccountId: ctx.vendorAccountId,
+      accountNameRaw: "Test Distributor",
+      vendorNameRaw: "Test Vendor",
+      distributorNameRaw: "Test Distributor",
+      productNameRaw: "Internet",
+    },
+    select: { id: true },
+  })
+
+  const deletedSchedule = await prisma.revenueSchedule.create({
+    data: {
+      tenantId: ctx.tenantId,
+      accountId: ctx.distributorAccountId,
+      distributorAccountId: ctx.distributorAccountId,
+      vendorAccountId: ctx.vendorAccountId,
+      scheduleNumber: "RS-DELETED-MATCHED",
+      scheduleDate: new Date("2026-01-05T00:00:00Z"),
+      status: "Unreconciled",
+      expectedUsage: 100,
+      expectedCommission: 10,
+      deletedAt: new Date("2026-03-09T00:00:00Z"),
+    },
+    select: { id: true },
+  })
+
+  await prisma.depositLineMatch.create({
+    data: {
+      tenantId: ctx.tenantId,
+      depositId: deposit.id,
+      depositLineItemId: line.id,
+      revenueScheduleId: deletedSchedule.id,
+      status: "Applied",
+      usageAmount: 100,
+      commissionAmount: 10,
+      source: "Manual",
+    },
+  })
+
+  await prisma.userSetting.upsert({
+    where: { userId_key: { userId: ctx.userId, key: "reconciliation.suggestedMatchesMinConfidence" } },
+    update: { tenantId: ctx.tenantId, value: 0 },
+    create: {
+      tenantId: ctx.tenantId,
+      userId: ctx.userId,
+      key: "reconciliation.suggestedMatchesMinConfidence",
+      value: 0,
+      description: "Integration test",
+    },
+  })
+
+  const candidatesModule = await import("../app/api/reconciliation/deposits/[depositId]/line-items/[lineId]/candidates/route")
+  const GET = (candidatesModule as any).GET ?? (candidatesModule as any).default?.GET
+  assert.equal(typeof GET, "function")
+
+  const response = await GET(
+    authedGet(
+      ctx.sessionToken,
+      `http://localhost/api/reconciliation/deposits/${deposit.id}/line-items/${line.id}/candidates?useHierarchicalMatching=false&includeFutureSchedules=false`,
+    ),
+    { params: { depositId: deposit.id, lineId: line.id } },
+  )
+  assertStatus(response, 200)
+
+  const payload = await readJson<{ data?: Array<{ id: string }> }>(response)
+  assert.ok(Array.isArray(payload.data))
+  assert.ok(payload.data!.every(row => row.id !== deletedSchedule.id))
+})
