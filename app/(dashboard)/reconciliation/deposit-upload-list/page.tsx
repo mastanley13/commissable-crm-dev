@@ -10,6 +10,7 @@ import type { DepositUploadFormState } from '@/components/deposit-upload/types'
 import { parseSpreadsheetFile } from '@/lib/deposit-import/parse-file'
 import { DEPOSIT_IMPORT_TARGET_IDS, type DepositImportFieldTarget } from '@/lib/deposit-import/field-catalog'
 import { shouldSkipMultiVendorRow } from '@/lib/deposit-import/multi-vendor'
+import { filterMultiVendorPreviewRows } from '@/lib/deposit-import/multi-vendor-template-resolver'
 import {
   createEmptyDepositMappingV2,
   seedDepositMappingV2,
@@ -129,6 +130,13 @@ export default function DepositUploadListPage() {
   const mappedVendorColumnName = (mapping.targets?.["depositLineItem.vendorNameRaw"] ?? '').trim()
   const mappedUsageColumnName = (mapping.targets?.[DEPOSIT_IMPORT_TARGET_IDS.usage] ?? '').trim()
   const mappedCommissionColumnName = (mapping.targets?.[DEPOSIT_IMPORT_TARGET_IDS.commission] ?? '').trim()
+  const resolveHeader = useCallback((candidate: string) => {
+    if (!candidate) return null
+    if (csvHeaders.includes(candidate)) return candidate
+    const lower = candidate.toLowerCase()
+    const caseInsensitive = csvHeaders.find(header => header.toLowerCase() === lower)
+    return caseInsensitive ?? null
+  }, [csvHeaders])
 
   useEffect(() => {
     setBreadcrumbs([
@@ -591,14 +599,6 @@ export default function DepositUploadListPage() {
       return multiVendorTemplateOptions[0]?.templateId ?? ''
     })
 
-    const resolveHeader = (candidate: string) => {
-      if (!candidate) return null
-      if (csvHeaders.includes(candidate)) return candidate
-      const lower = candidate.toLowerCase()
-      const caseInsensitive = csvHeaders.find(header => header.toLowerCase() === lower)
-      return caseInsensitive ?? null
-    }
-
     const vendorNameHeader = resolveHeader(mappedVendorColumnName)
     const vendorTargetId = "depositLineItem.vendorNameRaw"
 
@@ -630,6 +630,7 @@ export default function DepositUploadListPage() {
     multiVendorTemplateOptions,
     csvHeaders,
     mappedVendorColumnName,
+    resolveHeader,
   ])
 
   useEffect(() => {
@@ -894,6 +895,69 @@ export default function DepositUploadListPage() {
     formState.multiVendor && multiVendorSelectedTemplateId
       ? multiVendorTemplateOptions.find(option => option.templateId === multiVendorSelectedTemplateId) ?? null
       : null
+
+  const multiVendorPreviewRowsByTemplateId = useMemo(() => {
+    if (!formState.multiVendor || multiVendorTemplateOptions.length === 0 || csvHeaders.length === 0) {
+      return {} as Record<string, string[][]>
+    }
+
+    const rowsByTemplateId: Record<string, string[][]> = {}
+
+    for (const option of multiVendorTemplateOptions) {
+      const templateMapping =
+        multiVendorMappingByTemplateId[option.templateId] ??
+        seedDepositMappingV2({ headers: csvHeaders, templateMapping: option.depositMappingV2 })
+
+      const vendorHeader = resolveHeader(
+        (templateMapping.targets?.["depositLineItem.vendorNameRaw"] ?? mappedVendorColumnName).trim(),
+      )
+      const usageHeader = resolveHeader((templateMapping.targets?.[DEPOSIT_IMPORT_TARGET_IDS.usage] ?? '').trim())
+      const commissionHeader = resolveHeader(
+        (templateMapping.targets?.[DEPOSIT_IMPORT_TARGET_IDS.commission] ?? '').trim(),
+      )
+
+      const vendorNameIndex = vendorHeader ? csvHeaders.findIndex(header => header === vendorHeader) : -1
+      const usageIndex = usageHeader ? csvHeaders.findIndex(header => header === usageHeader) : -1
+      const commissionIndex = commissionHeader ? csvHeaders.findIndex(header => header === commissionHeader) : -1
+
+      rowsByTemplateId[option.templateId] =
+        vendorNameIndex >= 0
+          ? filterMultiVendorPreviewRows({
+              rows: parsedRowsRef.current,
+              vendorNameIndex,
+              vendorNamesInFile: option.vendorNamesInFile,
+              usageIndex: usageIndex >= 0 ? usageIndex : undefined,
+              commissionIndex: commissionIndex >= 0 ? commissionIndex : undefined,
+              maxRows: 25,
+            })
+          : []
+    }
+
+    return rowsByTemplateId
+  }, [
+    formState.multiVendor,
+    multiVendorTemplateOptions,
+    multiVendorMappingByTemplateId,
+    csvHeaders,
+    mappedVendorColumnName,
+    resolveHeader,
+  ])
+
+  const mapFieldsSampleRows = useMemo(() => {
+    if (!formState.multiVendor) {
+      return sampleRows
+    }
+    if (!multiVendorSelectedTemplateId || multiVendorTemplateOptions.length === 0) {
+      return sampleRows
+    }
+    return multiVendorPreviewRowsByTemplateId[multiVendorSelectedTemplateId] ?? []
+  }, [
+    formState.multiVendor,
+    sampleRows,
+    multiVendorSelectedTemplateId,
+    multiVendorTemplateOptions.length,
+    multiVendorPreviewRowsByTemplateId,
+  ])
 
   const multiVendorActiveTemplateLabel = formState.multiVendor
     ? selectedMultiVendorTemplateOption
@@ -1184,7 +1248,7 @@ export default function DepositUploadListPage() {
               <MapFieldsStep
                 file={selectedFile}
                 csvHeaders={csvHeaders}
-                sampleRows={sampleRows}
+                sampleRows={mapFieldsSampleRows}
                 columnHasValuesByIndex={columnHasValuesByIndex}
                 fieldCatalog={fieldCatalog}
                 fieldCatalogError={fieldCatalogError}

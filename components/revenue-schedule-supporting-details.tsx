@@ -769,41 +769,58 @@ export const RevenueScheduleSupportingDetails = forwardRef<
   const RS_OPPORTUNITY_DETAILS_BASE_COLUMNS: Column[] = useMemo(
     () => [
       {
-        id: "label",
-        label: "Type",
-        width: 120,
-        minWidth: 90,
-        maxWidth: 180,
-        sortable: true,
-        accessor: "label",
-        hideable: false
-      },
-      {
-        id: "accountId",
-        label: "Account ID",
-        width: 240,
-        minWidth: 160,
+        id: "houseAccountId",
+        label: "House - Account ID",
+        width: 220,
+        minWidth: 170,
         maxWidth: 520,
         sortable: true,
-        accessor: "accountId"
+        accessor: "houseAccountId"
       },
       {
-        id: "orderId",
-        label: "Order ID",
+        id: "otherAccountId",
+        label: "Other - Account ID",
         width: 220,
+        minWidth: 170,
+        maxWidth: 520,
+        sortable: true,
+        accessor: "otherAccountId"
+      },
+      {
+        id: "houseOrderId",
+        label: "House - Order ID",
+        width: 200,
         minWidth: 150,
         maxWidth: 520,
         sortable: true,
-        accessor: "orderId"
+        accessor: "houseOrderId"
       },
       {
-        id: "customerId",
-        label: "Customer ID",
-        width: 240,
+        id: "otherOrderId",
+        label: "Other - Order ID",
+        width: 200,
+        minWidth: 150,
+        maxWidth: 520,
+        sortable: true,
+        accessor: "otherOrderId"
+      },
+      {
+        id: "houseCustomerId",
+        label: "House - Customer ID",
+        width: 220,
         minWidth: 160,
         maxWidth: 520,
         sortable: true,
-        accessor: "customerId"
+        accessor: "houseCustomerId"
+      },
+      {
+        id: "otherCustomerId",
+        label: "Other - Customer ID",
+        width: 220,
+        minWidth: 160,
+        maxWidth: 520,
+        sortable: true,
+        accessor: "otherCustomerId"
       },
       {
         id: "locationId",
@@ -832,27 +849,20 @@ export const RevenueScheduleSupportingDetails = forwardRef<
     handleColumnsChange: handleOpportunityDetailsColumnsChange,
     pageSize: opportunityDetailsPageSize,
     handlePageSizeChange: handleOpportunityDetailsPageSizeChange
-  } = useTablePreferences("revenue-schedule:opportunity-details", RS_OPPORTUNITY_DETAILS_BASE_COLUMNS, { defaultPageSize: 10 })
+  } = useTablePreferences("revenue-schedule:opportunity-details:house-other-columns", RS_OPPORTUNITY_DETAILS_BASE_COLUMNS, { defaultPageSize: 10 })
 
   const opportunityDetailsRows = useMemo(() => {
     return [
       {
-        id: "house",
-        label: "HOUSE",
-        accountId: schedule?.accountIdHouse ?? null,
-        orderId: schedule?.orderIdHouse ?? null,
-        customerId: schedule?.customerIdHouse ?? null,
+        id: "identifiers",
+        houseAccountId: schedule?.accountIdHouse ?? null,
+        otherAccountId: schedule?.accountIdOther ?? null,
+        houseOrderId: schedule?.orderIdHouse ?? null,
+        otherOrderId: schedule?.orderIdVendor ?? schedule?.orderIdDistributor ?? null,
+        houseCustomerId: schedule?.customerIdHouse ?? null,
+        otherCustomerId: schedule?.customerIdVendor ?? schedule?.customerIdDistributor ?? null,
         locationId: schedule?.locationId ?? null,
         serviceId: schedule?.revenueSchedule ?? null
-      },
-      {
-        id: "other",
-        label: "Other",
-        accountId: schedule?.accountIdOther ?? null,
-        orderId: schedule?.orderIdVendor ?? schedule?.orderIdDistributor ?? null,
-        customerId: schedule?.customerIdVendor ?? schedule?.customerIdDistributor ?? null,
-        locationId: null,
-        serviceId: null
       }
     ]
   }, [schedule])
@@ -917,7 +927,7 @@ export const RevenueScheduleSupportingDetails = forwardRef<
 
   const opportunityDetailsFilterColumns = useMemo(
     () =>
-      RS_OPPORTUNITY_DETAILS_BASE_COLUMNS.filter(col => col.id !== "label").map(col => ({
+      RS_OPPORTUNITY_DETAILS_BASE_COLUMNS.map(col => ({
         id: col.id,
         label: col.label
       })),
@@ -926,12 +936,6 @@ export const RevenueScheduleSupportingDetails = forwardRef<
 
   const opportunityDetailsColumnsWithRender = useMemo<Column[]>(() => {
     return opportunityDetailsPreferenceColumns.map(column => {
-      if (column.id === "label") {
-        return {
-          ...column,
-          render: (value: unknown) => <span className="text-xs font-medium text-gray-600">{String(value ?? "")}</span>
-        }
-      }
       return {
         ...column,
         render: (value: unknown) => <span className="text-xs text-gray-900">{renderValue(value as any)}</span>

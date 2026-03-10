@@ -8,6 +8,7 @@ import { revalidateOpportunityPaths } from "../../revalidate"
 import { recalculateOpportunityStage } from "@/lib/opportunities/stage"
 import { assertVendorDistributorConsistentForOpportunity } from "@/lib/opportunities/vendor-distributor"
 import { logOpportunityProductAudit } from "@/lib/audit"
+import { isSubjectMatterExpertCommissionRole, resolveCommissionRole } from "@/lib/commission-roles"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -151,22 +152,25 @@ export async function GET(
           : Promise.resolve(null)
       ])
 
-      let isSubjectMatterExpertDeal = false
+      let commissionRole: string | null = null
       try {
         const opportunityId = lineItem.opportunity?.id ?? null
         if (opportunityId) {
-          const extra: Array<{ isSubjectMatterExpertDeal: boolean | null }> = await prisma.$queryRawUnsafe(
-            `SELECT "isSubjectMatterExpertDeal"
+          const extra: Array<{ commissionRole: string | null; isSubjectMatterExpertDeal: boolean | null }> = await prisma.$queryRawUnsafe(
+            `SELECT "commissionRole", "isSubjectMatterExpertDeal"
              FROM "Opportunity"
              WHERE "id" = $1::uuid AND "tenantId" = $2::uuid
              LIMIT 1`,
             opportunityId,
             tenantId
           )
-          isSubjectMatterExpertDeal = Boolean(extra?.[0]?.isSubjectMatterExpertDeal)
+          commissionRole = resolveCommissionRole(extra?.[0]?.commissionRole, extra?.[0]?.isSubjectMatterExpertDeal)
         }
       } catch {
-        isSubjectMatterExpertDeal = Boolean((lineItem.opportunity as any)?.isSubjectMatterExpertDeal)
+        commissionRole = resolveCommissionRole(
+          (lineItem.opportunity as any)?.commissionRole,
+          (lineItem.opportunity as any)?.isSubjectMatterExpertDeal
+        )
       }
 
       const data = {
@@ -174,7 +178,8 @@ export async function GET(
         opportunity: {
           id: lineItem.opportunity?.id ?? "",
           name: lineItem.opportunity?.name ?? "",
-          isSubjectMatterExpertDeal
+          commissionRole,
+          isSubjectMatterExpertDeal: isSubjectMatterExpertCommissionRole(commissionRole)
         },
         opportunityOwnerId: lineItem.opportunity?.ownerId ?? null,
         catalogProductId: lineItem.productId,

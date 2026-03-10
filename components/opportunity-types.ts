@@ -146,6 +146,7 @@ export interface OpportunityDetailRecord {
   status: string
   type: string
   leadSource: string | null
+  commissionRole?: string | null
   isSubjectMatterExpertDeal?: boolean
   amount: number
   probability: number

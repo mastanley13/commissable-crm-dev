@@ -5,6 +5,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react"
 import { useToasts } from "@/components/toast"
 import { ModalHeader } from "@/components/ui/modal-header"
 import { DropdownChevron } from "@/components/dropdown-chevron"
+import { isSubjectMatterExpertCommissionRole, resolveCommissionRole } from "@/lib/commission-roles"
 import { formatCurrencyDisplay, formatDecimalToFixed, formatPercentDisplay, normalizeDecimalInput } from "@/lib/number-format"
 import { sortByPicklistName } from "@/lib/picklist-sort"
 
@@ -102,7 +103,7 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
   const [loading, setLoading] = useState(false)
   // Tab state to mirror Groups modal UX
   const [activeTab, setActiveTab] = useState<"create" | "add">("add")
-  const [isSubjectMatterExpertDeal, setIsSubjectMatterExpertDeal] = useState(false)
+  const [commissionRole, setCommissionRole] = useState<string | null>(null)
 
   // Typeahead state
   const [distributorInput, setDistributorInput] = useState("")
@@ -168,9 +169,9 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
         const payload = await res.json().catch(() => null)
         const data = payload?.data ?? null
         if (cancelled) return
-        setIsSubjectMatterExpertDeal(Boolean((data as any)?.isSubjectMatterExpertDeal))
+        setCommissionRole(resolveCommissionRole((data as any)?.commissionRole, (data as any)?.isSubjectMatterExpertDeal))
       } catch {
-        if (!cancelled) setIsSubjectMatterExpertDeal(false)
+        if (!cancelled) setCommissionRole(null)
       }
     })()
 
@@ -1651,3 +1652,4 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
     </div>
   )
 }
+  const isSubjectMatterExpertDeal = isSubjectMatterExpertCommissionRole(commissionRole)

@@ -8,6 +8,7 @@ import {
   RevenueScheduleStatus,
 } from "@prisma/client"
 import { isActivityOpen } from "@/lib/activity-status"
+import { isSubjectMatterExpertCommissionRole, resolveCommissionRole } from "@/lib/commission-roles"
 import { resolveOtherSource, resolveOtherValue } from "@/lib/other-field"
 
 type RelatedAccount = {
@@ -110,6 +111,7 @@ type OpportunityWithRelations = {
   stage?: OpportunityStage | string | null
   type?: OpportunityType | string | null
   isSubjectMatterExpertDeal?: boolean | null
+  commissionRole?: string | null
   distributorName?: string | null
   vendorName?: string | null
   referredBy?: string | null
@@ -247,6 +249,7 @@ export type OpportunityDetailSummary = {
   type: OpportunityType
   leadSource: string | null
   referredBy?: string | null
+  commissionRole?: string | null
   isSubjectMatterExpertDeal?: boolean
   amount: number
   probability: number
@@ -1002,7 +1005,10 @@ export function mapOpportunityToDetail(opportunity: OpportunityWithRelations): O
     type: (opportunity.type as OpportunityType) ?? OpportunityType.NewBusiness,
     leadSource: opportunity.leadSource ?? null,
     referredBy: opportunity.referredBy ?? null,
-    isSubjectMatterExpertDeal: Boolean(opportunity.isSubjectMatterExpertDeal),
+    commissionRole: resolveCommissionRole(opportunity.commissionRole, opportunity.isSubjectMatterExpertDeal),
+    isSubjectMatterExpertDeal: isSubjectMatterExpertCommissionRole(
+      resolveCommissionRole(opportunity.commissionRole, opportunity.isSubjectMatterExpertDeal)
+    ),
     amount,
     probability,
     expectedCommission,

@@ -14,6 +14,11 @@ import {
 } from "@/lib/opportunities/stage"
 import type { OpportunityStageValue } from "@/lib/opportunity-stage"
 import { logOpportunityAudit } from "@/lib/audit"
+import {
+  isSubjectMatterExpertCommissionRole,
+  normalizeCommissionRole,
+  resolveCommissionRole,
+} from "@/lib/commission-roles"
 import { canonicalizeMultiValueString } from "@/lib/multi-value"
 
 export const runtime = "nodejs"
@@ -215,9 +220,10 @@ export async function GET(request: NextRequest, { params }: { params: { opportun
           subagentPercent: unknown
           houseRepPercent: unknown
           houseSplitPercent: unknown
+          commissionRole: string | null
           isSubjectMatterExpertDeal: boolean | null
         }> = await prisma.$queryRawUnsafe(
-          `SELECT "referredBy", "shippingAddress", "billingAddress", "subagentPercent", "houseRepPercent", "houseSplitPercent", "isSubjectMatterExpertDeal"
+          `SELECT "referredBy", "shippingAddress", "billingAddress", "subagentPercent", "houseRepPercent", "houseSplitPercent", "commissionRole", "isSubjectMatterExpertDeal"
            FROM "Opportunity"
            WHERE "id" = $1::uuid AND "tenantId" = $2::uuid
            LIMIT 1`,
@@ -233,6 +239,10 @@ export async function GET(request: NextRequest, { params }: { params: { opportun
 
       const baseRow = mapOpportunityToRow(opportunity)
       const detail = mapOpportunityToDetail(opportunity)
+      const commissionRole = resolveCommissionRole(
+        (opportunity as any).commissionRole,
+        (opportunity as any).isSubjectMatterExpertDeal
+      )
 
       // Load roles linked to this opportunity
       let roles: Array<{
@@ -277,7 +287,8 @@ export async function GET(request: NextRequest, { params }: { params: { opportun
           leadSource: opportunity.leadSource ?? null,
           ownerId: opportunity.ownerId ?? null,
           estimatedCloseDate: opportunity.estimatedCloseDate,
-          isSubjectMatterExpertDeal: Boolean((opportunity as any).isSubjectMatterExpertDeal),
+          commissionRole,
+          isSubjectMatterExpertDeal: isSubjectMatterExpertCommissionRole(commissionRole),
           subAgent,
           detail: { ...detail, roles }
         }
@@ -333,19 +344,19 @@ export async function PATCH(request: NextRequest, { params }: { params: { opport
         return NextResponse.json({ error: "Opportunity not found" }, { status: 404 })
       }
 
-      let existingSubjectMatterExpertDeal = false
+      let existingCommissionRole: string | null = null
       try {
-        const extra: Array<{ isSubjectMatterExpertDeal: boolean | null }> = await prisma.$queryRawUnsafe(
-          `SELECT "isSubjectMatterExpertDeal"
+        const extra: Array<{ commissionRole: string | null; isSubjectMatterExpertDeal: boolean | null }> = await prisma.$queryRawUnsafe(
+          `SELECT "commissionRole", "isSubjectMatterExpertDeal"
            FROM "Opportunity"
            WHERE "id" = $1::uuid AND "tenantId" = $2::uuid
            LIMIT 1`,
           existing.id,
           tenantId
         )
-        existingSubjectMatterExpertDeal = Boolean(extra?.[0]?.isSubjectMatterExpertDeal)
+        existingCommissionRole = resolveCommissionRole(extra?.[0]?.commissionRole, extra?.[0]?.isSubjectMatterExpertDeal)
       } catch {
-        existingSubjectMatterExpertDeal = Boolean((existing as any).isSubjectMatterExpertDeal)
+        existingCommissionRole = resolveCommissionRole((existing as any).commissionRole, (existing as any).isSubjectMatterExpertDeal)
       }
 
       const canEditAny = hasAnyPermission(req.user, OPPORTUNITY_EDIT_ANY_PERMISSIONS)
@@ -364,15 +375,15 @@ export async function PATCH(request: NextRequest, { params }: { params: { opport
       if (activeRoleCount === 0) {
         const payloadKeys = Object.keys(payload as Record<string, unknown>)
         const isDeactivating = (payload as any).active === false
-        const isSmeToggleOnly =
+        const isCommissionRoleOnly =
           payloadKeys.length === 1 &&
-          payloadKeys[0] === "isSubjectMatterExpertDeal" &&
-          typeof (payload as any).isSubjectMatterExpertDeal === "boolean"
+          payloadKeys[0] === "commissionRole" &&
+          (((payload as any).commissionRole === null) || typeof (payload as any).commissionRole === "string")
         const onlyAllowedKeys = payloadKeys.every(
-          key => key === "active" || key === "lossReason" || key === "isSubjectMatterExpertDeal"
+          key => key === "active" || key === "lossReason" || key === "commissionRole" || key === "isSubjectMatterExpertDeal"
         )
 
-        if (!(isDeactivating && onlyAllowedKeys) && !isSmeToggleOnly) {
+        if (!(isDeactivating && onlyAllowedKeys) && !isCommissionRoleOnly) {
           return NextResponse.json(
             {
               error: "At least one role contact is required to save this opportunity.",
@@ -453,7 +464,22 @@ export async function PATCH(request: NextRequest, { params }: { params: { opport
         }
       }
 
-      if (typeof (payload as any).isSubjectMatterExpertDeal === "boolean") {
+      if ("commissionRole" in payload) {
+        const normalizedCommissionRole =
+          (payload as any).commissionRole === null || (payload as any).commissionRole === ""
+            ? null
+            : normalizeCommissionRole((payload as any).commissionRole)
+
+        if ((payload as any).commissionRole !== null && (payload as any).commissionRole !== "" && !normalizedCommissionRole) {
+          return NextResponse.json({ error: "Invalid commission role" }, { status: 400 })
+        }
+
+        data.commissionRole = normalizedCommissionRole
+        data.isSubjectMatterExpertDeal = isSubjectMatterExpertCommissionRole(normalizedCommissionRole)
+        hasChanges = true
+      } else if (typeof (payload as any).isSubjectMatterExpertDeal === "boolean") {
+        const normalizedCommissionRole = (payload as any).isSubjectMatterExpertDeal ? "Subject Matter Expert" : null
+        data.commissionRole = normalizedCommissionRole
         data.isSubjectMatterExpertDeal = Boolean((payload as any).isSubjectMatterExpertDeal)
         hasChanges = true
       }
@@ -706,6 +732,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { opport
         if ("stage" in data) pushSet("stage", data.stage, '"OpportunityStage"')
         if ("status" in data) pushSet("status", data.status, '"OpportunityStatus"')
         if ("active" in data) pushSet("active", data.active)
+        if ("commissionRole" in data) pushSet("commissionRole", data.commissionRole)
         if ("leadSource" in data) pushSet("leadSource", data.leadSource, '"LeadSource"')
         if ("ownerId" in data) pushSet("ownerId", data.ownerId, "uuid")
         if ("estimatedCloseDate" in data) pushSet("estimatedCloseDate", data.estimatedCloseDate, "timestamptz")
@@ -719,6 +746,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { opport
         if ("subagentPercent" in data) pushSet("subagentPercent", data.subagentPercent)
         if ("houseRepPercent" in data) pushSet("houseRepPercent", data.houseRepPercent)
         if ("houseSplitPercent" in data) pushSet("houseSplitPercent", data.houseSplitPercent)
+        if ("isSubjectMatterExpertDeal" in data) pushSet("isSubjectMatterExpertDeal", data.isSubjectMatterExpertDeal)
         // Always set updatedById
         pushSet("updatedById", req.user.id, "uuid")
         // And updatedAt
@@ -754,19 +782,19 @@ export async function PATCH(request: NextRequest, { params }: { params: { opport
         return NextResponse.json({ error: "Failed to update opportunity" }, { status: 500 })
       }
 
-      let updatedSubjectMatterExpertDeal = false
+      let updatedCommissionRole: string | null = null
       try {
-        const extra: Array<{ isSubjectMatterExpertDeal: boolean | null }> = await prisma.$queryRawUnsafe(
-          `SELECT "isSubjectMatterExpertDeal"
+        const extra: Array<{ commissionRole: string | null; isSubjectMatterExpertDeal: boolean | null }> = await prisma.$queryRawUnsafe(
+          `SELECT "commissionRole", "isSubjectMatterExpertDeal"
            FROM "Opportunity"
            WHERE "id" = $1::uuid AND "tenantId" = $2::uuid
            LIMIT 1`,
           existing.id,
           tenantId
         )
-        updatedSubjectMatterExpertDeal = Boolean(extra?.[0]?.isSubjectMatterExpertDeal)
+        updatedCommissionRole = resolveCommissionRole(extra?.[0]?.commissionRole, extra?.[0]?.isSubjectMatterExpertDeal)
       } catch {
-        updatedSubjectMatterExpertDeal = Boolean((updated as any).isSubjectMatterExpertDeal)
+        updatedCommissionRole = resolveCommissionRole((updated as any).commissionRole, (updated as any).isSubjectMatterExpertDeal)
       }
 
       // Log audit trail for opportunity update
@@ -786,7 +814,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { opport
           referredBy: existing.referredBy,
           shippingAddress: existing.shippingAddress,
           billingAddress: existing.billingAddress,
-          isSubjectMatterExpertDeal: existingSubjectMatterExpertDeal,
+          commissionRole: existingCommissionRole,
           accountIdVendor: (existing as any).accountIdVendor ?? null,
           customerIdVendor: (existing as any).customerIdVendor ?? null,
           orderIdVendor: (existing as any).orderIdVendor ?? null,
@@ -804,7 +832,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { opport
           referredBy: updated.referredBy,
           shippingAddress: updated.shippingAddress,
           billingAddress: updated.billingAddress,
-          isSubjectMatterExpertDeal: updatedSubjectMatterExpertDeal,
+          commissionRole: updatedCommissionRole,
           accountIdVendor: (updated as any).accountIdVendor ?? null,
           customerIdVendor: (updated as any).customerIdVendor ?? null,
           orderIdVendor: (updated as any).orderIdVendor ?? null,

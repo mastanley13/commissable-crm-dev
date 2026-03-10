@@ -14,6 +14,8 @@ import type { DepositCustomFieldSection } from "@/lib/deposit-import/template-ma
 const inputClass =
   "w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
 
+const tableHeaderCellClass = "px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-white"
+
 function cloneMapping(mapping: DepositMappingConfigV2): DepositMappingConfigV2 {
   return {
     ...mapping,
@@ -180,16 +182,16 @@ export function TemplateMappingEditor({
       <div>
         <h3 className="text-sm font-semibold text-gray-900">Mapped Fields</h3>
         <p className="mt-1 text-xs text-gray-600">
-          These are the saved target → column mappings used during Deposit Upload (future uploads only).
+          These are the saved field mappings used during Deposit Upload for future uploads.
         </p>
 
         <div className="mt-3 overflow-hidden rounded-lg border border-gray-200 bg-white">
           <table className="w-full table-auto">
-            <thead className="bg-gray-50">
-              <tr className="text-left text-xs font-semibold uppercase tracking-wide text-gray-600">
-                <th className="px-4 py-3">Field</th>
-                <th className="px-4 py-3">Mapped Column Name</th>
-                <th className="px-4 py-3 text-right">Actions</th>
+            <thead className="bg-blue-600">
+              <tr>
+                <th className={tableHeaderCellClass}>Import Field</th>
+                <th className={tableHeaderCellClass}>Mapped Column Name</th>
+                <th className={`${tableHeaderCellClass} text-right`}>Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -241,7 +243,7 @@ export function TemplateMappingEditor({
           </table>
         </div>
 
-        <div className="mt-3 grid grid-cols-1 gap-3 rounded-lg border border-gray-200 bg-gray-50 p-3 md:grid-cols-3">
+        <div className="mt-3 grid grid-cols-1 gap-3 rounded-lg border border-blue-100 bg-blue-50/40 p-3 md:grid-cols-3">
           <div className="md:col-span-1">
             <label className="mb-1 block text-xs font-semibold text-gray-700">Add field</label>
             <select
@@ -249,7 +251,7 @@ export function TemplateMappingEditor({
               value={addTargetId}
               onChange={event => setAddTargetId(event.target.value)}
             >
-              <option value="">Select a field…</option>
+              <option value="">Select a field...</option>
               {availableTargets.map(field => (
                 <option key={field.id} value={field.id}>
                   {field.label}
@@ -292,12 +294,12 @@ export function TemplateMappingEditor({
 
         <div className="mt-3 overflow-hidden rounded-lg border border-gray-200 bg-white">
           <table className="w-full table-auto">
-            <thead className="bg-gray-50">
-              <tr className="text-left text-xs font-semibold uppercase tracking-wide text-gray-600">
-                <th className="px-4 py-3">Label</th>
-                <th className="px-4 py-3">Section</th>
-                <th className="px-4 py-3">Mapped Column Name</th>
-                <th className="px-4 py-3 text-right">Actions</th>
+            <thead className="bg-blue-600">
+              <tr>
+                <th className={tableHeaderCellClass}>Label</th>
+                <th className={tableHeaderCellClass}>Section</th>
+                <th className={tableHeaderCellClass}>Mapped Column Name</th>
+                <th className={`${tableHeaderCellClass} text-right`}>Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -351,7 +353,7 @@ export function TemplateMappingEditor({
           </table>
         </div>
 
-        <div className="mt-3 grid grid-cols-1 gap-3 rounded-lg border border-gray-200 bg-gray-50 p-3 md:grid-cols-3">
+        <div className="mt-3 grid grid-cols-1 gap-3 rounded-lg border border-blue-100 bg-blue-50/40 p-3 md:grid-cols-3">
           <div className="md:col-span-1">
             <label className="mb-1 block text-xs font-semibold text-gray-700">New custom label</label>
             <input

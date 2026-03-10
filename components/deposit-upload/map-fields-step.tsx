@@ -167,7 +167,7 @@ export function MapFieldsStep({
 
   useEffect(() => {
     setPreviewRowIndex(0)
-  }, [sampleRows.length])
+  }, [sampleRows, multiVendorSelectedTemplateId])
 
   useEffect(() => {
     const element = columnTableContainerRef.current

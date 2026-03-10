@@ -21,6 +21,15 @@ export interface GroupRowsByVendorResult {
   missingVendorRows: number[]
 }
 
+export interface FilterMultiVendorPreviewRowsParams {
+  rows: string[][]
+  vendorNameIndex: number
+  vendorNamesInFile: string[]
+  usageIndex?: number
+  commissionIndex?: number
+  maxRows?: number
+}
+
 export interface MultiVendorResolvedTemplate {
   vendorNameInFile: string
   vendorKey: string
@@ -146,6 +155,56 @@ export function groupRowsByVendor(params: {
     groups: Array.from(groups.values()),
     missingVendorRows,
   }
+}
+
+export function filterMultiVendorPreviewRows(params: FilterMultiVendorPreviewRowsParams): string[][] {
+  const vendorKeys = new Set(
+    params.vendorNamesInFile
+      .map(normalizeString)
+      .filter((value): value is string => Boolean(value))
+      .map(normalizeVendorKey),
+  )
+
+  if (vendorKeys.size === 0 || params.vendorNameIndex < 0) {
+    return []
+  }
+
+  const rows: string[][] = []
+  const shouldFilterByAmounts = params.usageIndex !== undefined || params.commissionIndex !== undefined
+  const maxRows = params.maxRows ?? Number.POSITIVE_INFINITY
+
+  for (let rowIndex = 0; rowIndex < params.rows.length; rowIndex += 1) {
+    if (rows.length >= maxRows) {
+      break
+    }
+
+    const row = params.rows[rowIndex] ?? []
+
+    if (shouldFilterByAmounts) {
+      const usageValue =
+        params.usageIndex !== undefined ? normalizeNumber(row[params.usageIndex]) : null
+      const commissionValue =
+        params.commissionIndex !== undefined ? normalizeNumber(row[params.commissionIndex]) : null
+      if (usageValue === null && commissionValue === null) {
+        continue
+      }
+    }
+
+    const vendorNameRaw = normalizeString(row[params.vendorNameIndex])
+    if (shouldSkipMultiVendorRow(row, vendorNameRaw)) {
+      continue
+    }
+    if (!vendorNameRaw) {
+      continue
+    }
+    if (!vendorKeys.has(normalizeVendorKey(vendorNameRaw))) {
+      continue
+    }
+
+    rows.push(row)
+  }
+
+  return rows
 }
 
 export async function resolveMultiVendorTemplates(params: {

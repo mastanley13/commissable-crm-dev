@@ -3,6 +3,7 @@ import assert from "node:assert/strict"
 
 import {
   buildMultiVendorTemplateOptions,
+  filterMultiVendorPreviewRows,
   groupRowsByVendor,
   mergeMultiVendorTemplateConfigs,
   resolveMultiVendorTemplates,
@@ -32,6 +33,48 @@ test("groupRowsByVendor groups usable rows and reports missing vendor rows", () 
   assert.equal(result.groups[0]?.rows.length, 2)
   assert.equal(result.groups[1]?.vendorName, "Vendor B")
   assert.deepEqual(result.missingVendorRows, [5])
+})
+
+test("filterMultiVendorPreviewRows returns only rows for the selected template vendors", () => {
+  const rows = [
+    ["ACC Business", "155.00", "21.70", "Edge Business"],
+    ["ACC Business", "29.90", "4.78", "Edge Business"],
+    ["ACC Business Total", "184.90", "26.48", ""],
+    ["Advantix", "640.00", "102.40", "Walton Communities Inc"],
+    ["Grand Total", "824.90", "128.88", ""],
+  ]
+
+  const result = filterMultiVendorPreviewRows({
+    rows,
+    vendorNameIndex: 0,
+    vendorNamesInFile: ["Advantix"],
+    usageIndex: 1,
+    commissionIndex: 2,
+  })
+
+  assert.deepEqual(result, [["Advantix", "640.00", "102.40", "Walton Communities Inc"]])
+})
+
+test("filterMultiVendorPreviewRows preserves file order and skips rows without usable amounts", () => {
+  const rows = [
+    ["Vendor A", "", "", "ignore"],
+    ["Vendor B", "50", "", "first"],
+    ["Vendor A", "25", "", "second"],
+    ["Vendor B", "", "10", "third"],
+  ]
+
+  const result = filterMultiVendorPreviewRows({
+    rows,
+    vendorNameIndex: 0,
+    vendorNamesInFile: ["Vendor B"],
+    usageIndex: 1,
+    commissionIndex: 2,
+  })
+
+  assert.deepEqual(result, [
+    ["Vendor B", "50", "", "first"],
+    ["Vendor B", "", "10", "third"],
+  ])
 })
 
 test("resolveMultiVendorTemplates selects most-recent template per vendor deterministically", async () => {

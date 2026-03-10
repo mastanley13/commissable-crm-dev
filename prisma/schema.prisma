@@ -511,6 +511,7 @@ model Opportunity {
   status                OpportunityStatus    @default(Open)
   active                Boolean              @default(true)
   isSubjectMatterExpertDeal Boolean          @default(false)
+  commissionRole        String?
   type                  OpportunityType      @default(NewBusiness)
   leadSource            LeadSource           @default(Referral)
   amount                Decimal?             @db.Decimal(16, 2)

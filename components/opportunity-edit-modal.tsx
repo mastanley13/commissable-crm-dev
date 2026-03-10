@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { LeadSource, OpportunityStage } from "@prisma/client"
+import { COMMISSION_ROLE_OPTIONS, resolveCommissionRole } from "@/lib/commission-roles"
 import { getOpportunityStageOptions, isOpportunityStageAutoManaged, isOpportunityStageValue, type OpportunityStageOption } from "@/lib/opportunity-stage"
 import { Loader2, X } from "lucide-react"
 import { useToasts } from "@/components/toast"
@@ -29,7 +30,7 @@ interface OpportunityEditFormState {
   accountIdVendor: string
   customerIdVendor: string
   orderIdVendor: string
-  isSubjectMatterExpertDeal: boolean
+  commissionRole: string
 }
 
 const stageOptions: OpportunityStageOption[] = getOpportunityStageOptions()
@@ -96,7 +97,7 @@ export function OpportunityEditModal({ isOpen, opportunityId, onClose, onSuccess
           accountIdVendor: data.identifiers?.accountIdVendor ?? "",
           customerIdVendor: data.identifiers?.customerIdVendor ?? "",
           orderIdVendor: data.identifiers?.orderIdVendor ?? "",
-          isSubjectMatterExpertDeal: Boolean(data.isSubjectMatterExpertDeal),
+          commissionRole: resolveCommissionRole(data.commissionRole, data.isSubjectMatterExpertDeal) ?? "",
         })
       })
       .catch(error => {
@@ -170,7 +171,7 @@ export function OpportunityEditModal({ isOpen, opportunityId, onClose, onSuccess
           estimatedCloseDate: form.estimatedCloseDate,
           leadSource: form.leadSource,
           subAgent: form.subAgent,
-          isSubjectMatterExpertDeal: form.isSubjectMatterExpertDeal,
+          commissionRole: form.commissionRole || null,
           accountIdVendor: form.accountIdVendor,
           customerIdVendor: form.customerIdVendor,
           orderIdVendor: form.orderIdVendor,
@@ -263,20 +264,23 @@ export function OpportunityEditModal({ isOpen, opportunityId, onClose, onSuccess
 
             <div className="grid gap-4 md:grid-cols-2">
               <div className="md:col-span-2">
-                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500" htmlFor="opportunity-sme-deal">
-                  Subject Matter Expert Deal
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500" htmlFor="opportunity-commission-role">
+                  Commission Role
                 </label>
-                <div className="flex items-center gap-3">
-                  <input
-                    id="opportunity-sme-deal"
-                    type="checkbox"
-                    checked={Boolean(form.isSubjectMatterExpertDeal)}
-                    onChange={event => setForm(current => current ? { ...current, isSubjectMatterExpertDeal: event.target.checked } : current)}
-                    disabled={loading}
-                    className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                  />
-                  <span className="text-sm text-gray-700">Enable SME % helper on opportunity products.</span>
-                </div>
+                <select
+                  id="opportunity-commission-role"
+                  value={form.commissionRole}
+                  onChange={event => setForm(current => current ? { ...current, commissionRole: event.target.value } : current)}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  disabled={loading}
+                >
+                  <option value="">None</option>
+                  {COMMISSION_ROLE_OPTIONS.map(option => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
 
