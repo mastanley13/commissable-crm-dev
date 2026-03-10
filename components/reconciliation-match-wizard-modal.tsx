@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { ModalHeader } from "./ui/modal-header"
 import { cn } from "@/lib/utils"
 import type { DepositLineItemRow, SuggestedMatchScheduleRow } from "@/lib/mock-data"
@@ -578,7 +578,7 @@ export function ReconciliationMatchWizardModal(props: {
     }
   }, [previewBlockedReason, validationState])
 
-  const runPreview = async () => {
+  const runPreview = useCallback(async () => {
     const runVersion = allocationsVersion
     setPreviewLoading(true)
     setPreviewError(null)
@@ -609,7 +609,7 @@ export function ReconciliationMatchWizardModal(props: {
     } finally {
       setPreviewLoading(false)
     }
-  }
+  }, [allocationsPayload, allocationsVersion, effectiveType, props.depositId, selectedLines, selectedSchedules])
 
   useEffect(() => {
     if (!props.open) return
@@ -634,7 +634,7 @@ export function ReconciliationMatchWizardModal(props: {
         autoValidationTimeoutRef.current = null
       }
     }
-  }, [allocationsVersion, canProceedToPreview, previewInputsKey, props.open])
+  }, [allocationsVersion, canProceedToPreview, previewInputsKey, props.open, runPreview])
 
   useEffect(() => {
     if (replacementRequired) setAllocationExpanded(true)

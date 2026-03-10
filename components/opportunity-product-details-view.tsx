@@ -9,6 +9,7 @@ import { EditableField } from "./editable-field"
 import { useToasts } from "./toast"
 import { useEntityEditor, type EntityEditor } from "@/hooks/useEntityEditor"
 import { useAuth } from "@/lib/auth-context"
+import { isSubjectMatterExpertCommissionRole } from "@/lib/commission-roles"
 import { getRevenueTypeLabel, REVENUE_TYPE_OPTIONS } from "@/lib/revenue-types"
 import { AuditHistoryTab } from "./audit-history-tab"
 import { PicklistCombobox } from "./picklist-combobox"
@@ -51,7 +52,7 @@ export interface ProductAuditLogEntry {
 
 export interface OpportunityProductDetailRecord {
   id: string
-  opportunity?: { id: string; name: string; isSubjectMatterExpertDeal?: boolean }
+  opportunity?: { id: string; name: string; commissionRole?: string | null; isSubjectMatterExpertDeal?: boolean }
   opportunityOwnerId?: string | null
   catalogProductId?: string
   subjectMatterExpertPercent?: number | null
@@ -422,7 +423,7 @@ function ProductHeader({ product, onEdit, activeTab, onTabSelect }: ProductHeade
   const productName = product.productNameHouse || product.productNameVendor || "Product"
   const priceEach = formatCurrency(product.priceEach)
   const commissionRate = formatPercent(product.commissionPercent)
-  const isSmeDeal = Boolean(product.opportunity?.isSubjectMatterExpertDeal)
+  const isSmeDeal = isSubjectMatterExpertCommissionRole(product.opportunity?.commissionRole)
   const subjectMatterExpertPercent = formatPercent(product.subjectMatterExpertPercent)
   const revenueTypeLabel = getRevenueTypeLabel(product.revenueType) ?? product.revenueType
   const productDescriptionHouse = product.productDescriptionHouse ?? product.description ?? null
@@ -994,7 +995,7 @@ interface EditableProductHeaderProps {
                   onBlur={commissionField.onBlur}
                   placeholder="Enter %"
                 />
-                {product.opportunity?.isSubjectMatterExpertDeal ? (
+                {isSubjectMatterExpertCommissionRole(product.opportunity?.commissionRole) ? (
                   <p className="text-[11px] text-amber-700">
                     SME deal: update Commission % to reflect SME % (manual).
                   </p>
@@ -1003,7 +1004,7 @@ interface EditableProductHeaderProps {
               editor.errors.commissionPercent
             )}
 
-            {product.opportunity?.isSubjectMatterExpertDeal ? (
+            {isSubjectMatterExpertCommissionRole(product.opportunity?.commissionRole) ? (
               renderRow(
                 "SME %",
                 <EditableField.Input

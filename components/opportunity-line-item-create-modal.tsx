@@ -156,6 +156,7 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
   const { showError, showSuccess } = useToasts()
 
   const vendorDistributorLocked = Boolean(vendorDistributorLock?.locked)
+  const isSubjectMatterExpertDeal = isSubjectMatterExpertCommissionRole(commissionRole)
 
   useEffect(() => {
     if (!isOpen || !opportunityId) {
@@ -1652,4 +1653,3 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
     </div>
   )
 }
-  const isSubjectMatterExpertDeal = isSubjectMatterExpertCommissionRole(commissionRole)

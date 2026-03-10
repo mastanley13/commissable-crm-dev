@@ -571,6 +571,8 @@ export default function DepositUploadListPage() {
   }, [
     formState.multiVendor,
     formState.distributorAccountId,
+    mappedCommissionColumnName,
+    mappedUsageColumnName,
     mappedVendorColumnName,
     csvHeaders,
     selectedFile,

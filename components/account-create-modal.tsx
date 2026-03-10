@@ -46,6 +46,23 @@ interface AccountCreateModalProps {
   onSubmit: (values: AccountFormValues) => Promise<void> | void
 }
 
+function normalizeAccountTypeCode(value: string): string {
+  return value.replace(/[^a-z0-9]/gi, "").toUpperCase()
+}
+
+function isHouseAccountType(accountTypes: AccountTypeOptionItem[], accountTypeId: string): boolean {
+  if (!accountTypeId) return false
+  const selected = accountTypes.find(type => type.id === accountTypeId)
+  if (!selected) return false
+
+  const candidate =
+    typeof selected.code === "string" && selected.code.trim().length > 0
+      ? selected.code
+      : selected.name
+
+  return normalizeAccountTypeCode(candidate) === "HOUSE_REP"
+}
+
 const US_STATES: { code: string; name: string }[] = [
   { code: "AL", name: "Alabama" },
   { code: "AK", name: "Alaska" },
@@ -234,23 +251,6 @@ export function AccountCreateModal({ isOpen, onClose, onSubmit }: AccountCreateM
     fetchOptions()
   }, [isOpen, optionsLoaded])
 
-  function normalizeAccountTypeCode(value: string): string {
-    return value.replace(/[^a-z0-9]/gi, "").toUpperCase()
-  }
-
-  function isHouseAccountType(accountTypeId: string): boolean {
-    if (!accountTypeId) return false
-    const selected = accountTypes.find(type => type.id === accountTypeId)
-    if (!selected) return false
-
-    const candidate =
-      typeof selected.code === "string" && selected.code.trim().length > 0
-        ? selected.code
-        : selected.name
-
-    return normalizeAccountTypeCode(candidate) === "HOUSE_REP"
-  }
-
   // Default the Account Owner:
   // - House: any active ADMIN user (fallback to current user if needed)
   // - Otherwise: current user
@@ -261,7 +261,7 @@ export function AccountCreateModal({ isOpen, onClose, onSubmit }: AccountCreateM
     if (ownerTouched) return
 
     const hasCurrentUser = Boolean(userId) && owners.some(o => o.id === userId)
-    const wantsHouseDefault = isHouseAccountType(form.accountTypeId)
+    const wantsHouseDefault = isHouseAccountType(accountTypes, form.accountTypeId)
     const desiredOwnerId = wantsHouseDefault
       ? (defaultHouseOwnerId || (hasCurrentUser ? String(userId) : ""))
       : (hasCurrentUser ? String(userId) : "")
