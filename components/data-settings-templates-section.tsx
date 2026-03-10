@@ -772,9 +772,9 @@ export function DataSettingsTemplatesSection() {
         <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
       ) : null}
 
-      <div className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700">
-        <div className="grid gap-3 lg:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)] lg:items-start">
-          <div className="min-w-0 space-y-1.5 lg:border-r lg:border-gray-200 lg:pr-4">
+      <div className="bg-white text-sm text-gray-700">
+        <div className="grid gap-2 lg:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)] lg:items-start">
+          <div className="min-w-0 space-y-1">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Active Template</p>
               <p className="text-xs text-slate-500">
@@ -801,11 +801,6 @@ export function DataSettingsTemplatesSection() {
               <>
                 <p className="text-xs leading-4 text-emerald-700">
                   Editing the saved template changes future uploads that use this mapping.
-                </p>
-                <p className="text-xs leading-4 text-slate-500">
-                  {selectedTemplate.description?.trim()
-                    ? selectedTemplate.description
-                    : "Select a saved template above and update its field mapping directly below."}
                 </p>
               </>
             ) : (
