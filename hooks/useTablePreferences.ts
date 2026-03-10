@@ -9,6 +9,7 @@ interface TablePreferencePayload {
   columnWidths?: Record<string, number>
   hiddenColumns?: string[]
   lockedColumns?: string[]
+  syncHorizontalScroll?: boolean | null
   sortState?: unknown
   filters?: unknown
   pageSize?: number | null
@@ -16,6 +17,7 @@ interface TablePreferencePayload {
 
 interface UseTablePreferencesOptions {
   defaultPageSize?: number
+  defaultSyncHorizontalScroll?: boolean
 }
 
 function cloneColumns(columns: Column[]): Column[] {
@@ -111,6 +113,8 @@ export interface UseTablePreferencesResult {
   handleColumnsChange: (columns: Column[]) => void
   handleHiddenColumnsChange: (hiddenColumns: string[]) => void
   handlePageSizeChange: (pageSize: number) => Promise<void>
+  syncHorizontalScroll: boolean
+  handleSyncHorizontalScrollChange: (value: boolean, updatedColumns?: Column[]) => Promise<void>
   saveChanges: () => Promise<void>
   saveChangesOnModalClose: () => Promise<void>
   refresh: () => Promise<void>
@@ -122,6 +126,7 @@ export function useTablePreferences(
   options?: UseTablePreferencesOptions
 ): UseTablePreferencesResult {
   const normalizedDefaultPageSize = normalizePageSize(options?.defaultPageSize ?? 100, 100)
+  const normalizedDefaultSyncHorizontalScroll = Boolean(options?.defaultSyncHorizontalScroll)
   const [columns, setColumns] = useState<Column[]>(() => cloneColumns(baseColumns))
   const [loading, setLoading] = useState<boolean>(true)
   const [saving, setSaving] = useState<boolean>(false)
@@ -131,11 +136,13 @@ export function useTablePreferences(
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
   const [savedColumns, setSavedColumns] = useState<Column[]>(() => cloneColumns(baseColumns))
   const [pageSize, setPageSize] = useState<number>(normalizedDefaultPageSize)
+  const [syncHorizontalScroll, setSyncHorizontalScroll] = useState<boolean>(normalizedDefaultSyncHorizontalScroll)
 
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const baseColumnsKey = useMemo(() => JSON.stringify(baseColumns), [baseColumns])
   const baseColumnsRef = useRef(baseColumns)
   const pageSizeRef = useRef<number>(normalizedDefaultPageSize)
+  const syncHorizontalScrollRef = useRef<boolean>(normalizedDefaultSyncHorizontalScroll)
 
   useEffect(() => {
     baseColumnsRef.current = baseColumns
@@ -186,8 +193,14 @@ export function useTablePreferences(
       setColumns(newColumns)
       setSavedColumns(newColumns.map(col => ({ ...col })))
       const nextPageSize = normalizePageSize(payload?.pageSize ?? normalizedDefaultPageSize, normalizedDefaultPageSize)
+      const nextSyncHorizontalScroll =
+        typeof payload?.syncHorizontalScroll === "boolean"
+          ? payload.syncHorizontalScroll
+          : normalizedDefaultSyncHorizontalScroll
       setPageSize(nextPageSize)
       pageSizeRef.current = nextPageSize
+      setSyncHorizontalScroll(nextSyncHorizontalScroll)
+      syncHorizontalScrollRef.current = nextSyncHorizontalScroll
       setHasUnsavedChanges(false)
       setError(null)
     } catch (err) {
@@ -199,11 +212,13 @@ export function useTablePreferences(
       setHasServerPreferences(false)
       setPageSize(normalizedDefaultPageSize)
       pageSizeRef.current = normalizedDefaultPageSize
+      setSyncHorizontalScroll(normalizedDefaultSyncHorizontalScroll)
+      syncHorizontalScrollRef.current = normalizedDefaultSyncHorizontalScroll
       setError(err instanceof Error ? err.message : "Unable to load table preferences")
     } finally {
       setLoading(false)
     }
-  }, [pageKey, baseColumnsKey, normalizedDefaultPageSize])
+  }, [pageKey, baseColumnsKey, normalizedDefaultPageSize, normalizedDefaultSyncHorizontalScroll])
 
   useEffect(() => {
     fetchPreferences()
@@ -215,9 +230,12 @@ export function useTablePreferences(
     }
   }, [fetchPreferences])
 
-  const persistPreferences = useCallback(async (updatedColumns: Column[], nextPageSize?: number) => {
+  const persistPreferences = useCallback(async (updatedColumns: Column[], nextPageSize?: number, nextSyncHorizontalScroll?: boolean) => {
     const finalPageSize = normalizePageSize(nextPageSize ?? pageSizeRef.current, normalizedDefaultPageSize)
+    const finalSyncHorizontalScroll =
+      typeof nextSyncHorizontalScroll === "boolean" ? nextSyncHorizontalScroll : syncHorizontalScrollRef.current
     pageSizeRef.current = finalPageSize
+    syncHorizontalScrollRef.current = finalSyncHorizontalScroll
     try {
       setSaving(true)
       const response = await fetch(`/api/table-preferences/${encodeURIComponent(pageKey)}` , {
@@ -239,7 +257,8 @@ export function useTablePreferences(
           }, {}),
           hiddenColumns: updatedColumns.filter(column => column.hidden).map(column => column.id),
           lockedColumns: updatedColumns.filter(column => column.locked && !column.hidden).map(column => column.id),
-          pageSize: finalPageSize
+          pageSize: finalPageSize,
+          syncHorizontalScroll: finalSyncHorizontalScroll,
         })
       })
 
@@ -250,6 +269,7 @@ export function useTablePreferences(
       // Update saved state after successful save
       setSavedColumns(updatedColumns.map(col => ({ ...col })))
       setPageSize(finalPageSize)
+      setSyncHorizontalScroll(finalSyncHorizontalScroll)
       setHasUnsavedChanges(false)
       setLastSaved(new Date())
     } catch (err) {
@@ -265,7 +285,7 @@ export function useTablePreferences(
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current)
     }
-    await persistPreferences(columns, pageSizeRef.current)
+    await persistPreferences(columns, pageSizeRef.current, syncHorizontalScrollRef.current)
   }, [columns, persistPreferences])
 
   // Auto-save when modal closes (if there are changes)
@@ -287,7 +307,7 @@ export function useTablePreferences(
     // Auto-save with debounce (150ms delay)
     if (hasChanges) {
       saveTimeoutRef.current = setTimeout(() => {
-        persistPreferences(updated, pageSizeRef.current)
+        persistPreferences(updated, pageSizeRef.current, syncHorizontalScrollRef.current)
       }, 150)
     }
   }, [columnsHaveChanged, savedColumns, persistPreferences])
@@ -315,9 +335,20 @@ export function useTablePreferences(
       const normalized = normalizePageSize(next, normalizedDefaultPageSize)
       setPageSize(normalized)
       pageSizeRef.current = normalized
-      await persistPreferences(columns, normalized)
+      await persistPreferences(columns, normalized, syncHorizontalScrollRef.current)
     },
     [columns, normalizedDefaultPageSize, persistPreferences]
+  )
+
+  const handleSyncHorizontalScrollChange = useCallback(
+    async (value: boolean, updatedColumns?: Column[]) => {
+      const nextColumns = (updatedColumns ?? columns).map(column => ({ ...column }))
+      setColumns(nextColumns)
+      setSyncHorizontalScroll(value)
+      syncHorizontalScrollRef.current = value
+      await persistPreferences(nextColumns, pageSizeRef.current, value)
+    },
+    [columns, persistPreferences]
   )
 
   const refresh = useCallback(async () => {
@@ -336,6 +367,8 @@ export function useTablePreferences(
     handleColumnsChange,
     handleHiddenColumnsChange,
     handlePageSizeChange,
+    syncHorizontalScroll,
+    handleSyncHorizontalScrollChange,
     saveChanges,
     saveChangesOnModalClose,
     refresh

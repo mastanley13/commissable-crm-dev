@@ -59,6 +59,10 @@ export interface RevenueScheduleDetailRecord {
   customerIdHouse?: string | null
   customerIdVendor?: string | null
   customerIdDistributor?: string | null
+  accountIdHouse?: string | null
+  accountIdVendor?: string | null
+  accountIdDistributor?: string | null
+  accountIdOther?: string | null
   locationId?: string | null
   distributorName?: string | null
   distributorId?: string | null

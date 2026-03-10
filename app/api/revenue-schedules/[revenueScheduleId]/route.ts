@@ -136,7 +136,10 @@ export async function GET(request: NextRequest, { params }: { params: { revenueS
             select: {
               id: true,
               name: true,
-              // orderIdHouse intentionally omitted; use schedule.orderIdHouse instead
+              accountIdHouse: true,
+              accountIdVendor: true,
+              accountIdDistributor: true,
+              orderIdHouse: true,
               orderIdVendor: true,
               orderIdDistributor: true,
               customerIdHouse: true,
@@ -613,7 +616,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { revenu
           vendor: { select: { id: true, accountName: true, accountNumber: true } },
           product: { select: { id: true, productNameHouse: true, productNameVendor: true, productDescriptionVendor: true, revenueType: true, commissionPercent: true, priceEach: true } },
           opportunityProduct: { select: { id: true, productNameHouseSnapshot: true, revenueTypeSnapshot: true, product: { select: { revenueType: true } }, quantity: true, unitPrice: true, expectedUsage: true, expectedCommission: true, revenueStartDate: true } },
-          opportunity: { select: { id: true, name: true, orderIdHouse: true, orderIdVendor: true, orderIdDistributor: true, customerIdHouse: true, customerIdVendor: true, customerIdDistributor: true, locationId: true, houseSplitPercent: true, houseRepPercent: true, subagentPercent: true, distributorName: true, vendorName: true, billingAddress: true, shippingAddress: true, description: true, owner: { select: { fullName: true } } } }
+          opportunity: { select: { id: true, name: true, accountIdHouse: true, accountIdVendor: true, accountIdDistributor: true, orderIdHouse: true, orderIdVendor: true, orderIdDistributor: true, customerIdHouse: true, customerIdVendor: true, customerIdDistributor: true, locationId: true, houseSplitPercent: true, houseRepPercent: true, subagentPercent: true, distributorName: true, vendorName: true, billingAddress: true, shippingAddress: true, description: true, owner: { select: { fullName: true } } } }
         }
       })
 

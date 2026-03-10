@@ -514,7 +514,7 @@ export function DepositReconciliationDetailView({
   const { hasPermission } = useAuth()
   const { showSuccess, showError, ToastContainer } = useToasts()
   const canManageReconciliation = hasPermission("reconciliation.manage")
-  const canCreateTickets = hasPermission("tickets.create")
+  const canCreateTickets = canManageReconciliation || hasPermission("tickets.create")
   const [confidencePrefs, setConfidencePrefs] = useState({
     suggestedMatchesMinConfidence: 0.7,
     autoMatchMinConfidence: 0.95,
@@ -2391,18 +2391,42 @@ export function DepositReconciliationDetailView({
     columns: lineTableColumns,
     loading: linePreferenceLoading,
     handleColumnsChange: handleLineColumnsChange,
+    syncHorizontalScroll: lineSyncHorizontalScroll,
+    handleSyncHorizontalScrollChange: handleLineSyncHorizontalScrollChange,
     saveChangesOnModalClose: saveLineChangesOnModalClose
-  } = useTablePreferences('reconciliation:deposit-line-items', baseLineColumns)
+  } = useTablePreferences('reconciliation:deposit-line-items', baseLineColumns, { defaultSyncHorizontalScroll: true })
 
   // Revenue schedules table with persistence
   const {
     columns: scheduleTableColumns,
     loading: schedulePreferenceLoading,
     handleColumnsChange: handleScheduleColumnsChange,
+    syncHorizontalScroll: scheduleSyncHorizontalScroll,
+    handleSyncHorizontalScrollChange: handleScheduleSyncHorizontalScrollChange,
     saveChangesOnModalClose: saveScheduleChangesOnModalClose
-  } = useTablePreferences('reconciliation:revenue-schedules', baseScheduleColumns)
+  } = useTablePreferences('reconciliation:revenue-schedules', baseScheduleColumns, { defaultSyncHorizontalScroll: true })
+
+  const [syncHorizontalScrollEnabled, setSyncHorizontalScrollEnabled] = useState(true)
 
   useEffect(() => {
+    if (!linePreferenceLoading) {
+      setSyncHorizontalScrollEnabled(lineSyncHorizontalScroll)
+      return
+    }
+
+    if (!schedulePreferenceLoading) {
+      setSyncHorizontalScrollEnabled(scheduleSyncHorizontalScroll)
+    }
+  }, [
+    linePreferenceLoading,
+    lineSyncHorizontalScroll,
+    schedulePreferenceLoading,
+    scheduleSyncHorizontalScroll,
+  ])
+
+  useEffect(() => {
+    if (!syncHorizontalScrollEnabled) return
+
     const lineContainer = lineTableScrollContainerRef.current
     const scheduleContainer = scheduleTableScrollContainerRef.current
 
@@ -2430,19 +2454,52 @@ export function DepositReconciliationDetailView({
       lineContainer.removeEventListener("scroll", handleLineScroll)
       scheduleContainer.removeEventListener("scroll", handleScheduleScroll)
     }
-  }, [lineTableColumns, scheduleTableColumns])
+  }, [lineTableColumns, scheduleTableColumns, syncHorizontalScrollEnabled])
 
-  const handleLineColumnModalApply = useCallback((columns: Column[]) => {
-    handleLineColumnsChange(columns)
-    saveLineChangesOnModalClose()
+  const updateSharedSyncHorizontalScroll = useCallback(
+    async (value: boolean, updatedLineColumns?: Column[], updatedScheduleColumns?: Column[]) => {
+      setSyncHorizontalScrollEnabled(value)
+      await Promise.all([
+        handleLineSyncHorizontalScrollChange(value, updatedLineColumns),
+        handleScheduleSyncHorizontalScrollChange(value, updatedScheduleColumns),
+      ])
+    },
+    [handleLineSyncHorizontalScrollChange, handleScheduleSyncHorizontalScrollChange]
+  )
+
+  const handleLineColumnModalApply = useCallback(async (columns: Column[], options?: { syncHorizontalScroll?: boolean }) => {
+    const nextSyncHorizontalScroll = options?.syncHorizontalScroll ?? syncHorizontalScrollEnabled
+
+    if (nextSyncHorizontalScroll !== syncHorizontalScrollEnabled) {
+      await updateSharedSyncHorizontalScroll(nextSyncHorizontalScroll, columns, scheduleTableColumns)
+    } else {
+      await handleLineSyncHorizontalScrollChange(nextSyncHorizontalScroll, columns)
+    }
+
     setShowLineColumnSettings(false)
-  }, [handleLineColumnsChange, saveLineChangesOnModalClose])
+  }, [
+    handleLineSyncHorizontalScrollChange,
+    scheduleTableColumns,
+    syncHorizontalScrollEnabled,
+    updateSharedSyncHorizontalScroll,
+  ])
 
-  const handleScheduleColumnModalApply = useCallback((columns: Column[]) => {
-    handleScheduleColumnsChange(columns)
-    saveScheduleChangesOnModalClose()
+  const handleScheduleColumnModalApply = useCallback(async (columns: Column[], options?: { syncHorizontalScroll?: boolean }) => {
+    const nextSyncHorizontalScroll = options?.syncHorizontalScroll ?? syncHorizontalScrollEnabled
+
+    if (nextSyncHorizontalScroll !== syncHorizontalScrollEnabled) {
+      await updateSharedSyncHorizontalScroll(nextSyncHorizontalScroll, lineTableColumns, columns)
+    } else {
+      await handleScheduleSyncHorizontalScrollChange(nextSyncHorizontalScroll, columns)
+    }
+
     setShowScheduleColumnSettings(false)
-  }, [handleScheduleColumnsChange, saveScheduleChangesOnModalClose])
+  }, [
+    handleScheduleSyncHorizontalScrollChange,
+    lineTableColumns,
+    syncHorizontalScrollEnabled,
+    updateSharedSyncHorizontalScroll,
+  ])
 
   const handleLineColumnModalClose = useCallback(() => {
     setShowLineColumnSettings(false)
@@ -3273,8 +3330,7 @@ export function DepositReconciliationDetailView({
                 </div>
               </div>
               <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-                Difference: {formatRatePercent(rateDiscrepancyModal.discrepancy.differencePercent)}. Rounding
-                tolerance: {formatRatePercent(rateDiscrepancyModal.discrepancy.tolerancePercent)}.
+                Difference: {formatRatePercent(rateDiscrepancyModal.discrepancy.differencePercent)}.
               </div>
               {rateDiscrepancyModal.discrepancy.future.count > 0 ? (
                 <details className="rounded-md border border-slate-200 bg-slate-50 p-3">
@@ -4369,12 +4425,16 @@ export function DepositReconciliationDetailView({
         columns={lineTableColumns}
         onApply={handleLineColumnModalApply}
         onClose={handleLineColumnModalClose}
+        showSyncHorizontalScrollOption
+        syncHorizontalScroll={syncHorizontalScrollEnabled}
       />
       <ColumnChooserModal
         isOpen={showScheduleColumnSettings}
         columns={scheduleTableColumns}
         onApply={handleScheduleColumnModalApply}
         onClose={handleScheduleColumnModalClose}
+        showSyncHorizontalScrollOption
+        syncHorizontalScroll={syncHorizontalScrollEnabled}
       />
       <TwoStageDeleteDialog
         isOpen={showDeleteDepositDialog}

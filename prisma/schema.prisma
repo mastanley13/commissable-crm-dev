@@ -1203,6 +1203,7 @@ model TablePreference {
   columnWidths  Json?
   hiddenColumns Json?
   lockedColumns Json?
+  syncHorizontalScroll Boolean?
   sortState     Json?
   filters       Json?
   pageSize      Int?

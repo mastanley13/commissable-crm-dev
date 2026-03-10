@@ -9,8 +9,10 @@ import { ModalHeader } from "./ui/modal-header"
 interface ColumnChooserModalProps {
   isOpen: boolean
   columns: Column[]
-  onApply: (columns: Column[]) => void
+  onApply: (columns: Column[], options?: { syncHorizontalScroll?: boolean }) => void | Promise<void>
   onClose: () => void
+  showSyncHorizontalScrollOption?: boolean
+  syncHorizontalScroll?: boolean
 }
 
 interface ColumnItem {
@@ -24,11 +26,20 @@ interface ColumnItem {
 
 const MIN_VISIBLE_COLUMNS = 1
 
-export function ColumnChooserModal({ isOpen, columns, onApply, onClose }: ColumnChooserModalProps) {
+export function ColumnChooserModal({
+  isOpen,
+  columns,
+  onApply,
+  onClose,
+  showSyncHorizontalScrollOption = false,
+  syncHorizontalScroll = true,
+}: ColumnChooserModalProps) {
   const [availableColumns, setAvailableColumns] = useState<ColumnItem[]>([])
   const [selectedColumns, setSelectedColumns] = useState<ColumnItem[]>([])
   const [draggedItem, setDraggedItem] = useState<ColumnItem | null>(null)
   const [initialized, setInitialized] = useState(false)
+  const [syncHorizontalScrollDraft, setSyncHorizontalScrollDraft] = useState(syncHorizontalScroll)
+  const [applying, setApplying] = useState(false)
 
   useEffect(() => {
     if (isOpen && !initialized) {
@@ -46,11 +57,14 @@ export function ColumnChooserModal({ isOpen, columns, onApply, onClose }: Column
 
       setAvailableColumns(available)
       setSelectedColumns(selected)
+      setSyncHorizontalScrollDraft(syncHorizontalScroll)
+      setApplying(false)
       setInitialized(true)
     } else if (!isOpen && initialized) {
       setInitialized(false)
+      setApplying(false)
     }
-  }, [isOpen, columns, initialized])
+  }, [isOpen, columns, initialized, syncHorizontalScroll])
 
   const moveToSelected = (columnItem: ColumnItem) => {
     if (!columnItem.hideable) return
@@ -192,7 +206,9 @@ export function ColumnChooserModal({ isOpen, columns, onApply, onClose }: Column
     setDraggedItem(null)
   }
 
-  const handleApply = () => {
+  const handleApply = async () => {
+    if (applying) return
+
     const updatedColumns = columns.map(column => {
       const selectedItem = selectedColumns.find(item => item.id === column.id)
       const availableItem = availableColumns.find(item => item.id === column.id)
@@ -209,8 +225,13 @@ export function ColumnChooserModal({ isOpen, columns, onApply, onClose }: Column
       ...availableColumns.map(item => updatedColumns.find(col => col.id === item.id)!),
     ].filter(Boolean)
 
-    onApply(reorderedColumns)
-    onClose()
+    try {
+      setApplying(true)
+      await onApply(reorderedColumns, { syncHorizontalScroll: syncHorizontalScrollDraft })
+      onClose()
+    } finally {
+      setApplying(false)
+    }
   }
 
   if (!isOpen) {
@@ -386,6 +407,19 @@ export function ColumnChooserModal({ isOpen, columns, onApply, onClose }: Column
               Click available columns to add them. Required columns cannot be removed.
             </p>
           </div>
+          {showSyncHorizontalScrollOption ? (
+            <label className="mt-4 flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-800">
+              <input
+                type="checkbox"
+                className="h-4 w-4 rounded border-slate-300 text-primary-600 accent-primary-600"
+                checked={syncHorizontalScrollDraft}
+                onChange={event => setSyncHorizontalScrollDraft(event.target.checked)}
+              />
+              <span>
+                Sync horizontal scroll with the linked reconciliation table.
+              </span>
+            </label>
+          ) : null}
         </div>
 
         <div className="flex items-center justify-between border-t border-gray-200 bg-gray-50 px-6 py-4">
@@ -396,17 +430,18 @@ export function ColumnChooserModal({ isOpen, columns, onApply, onClose }: Column
             <button
               type="button"
               onClick={onClose}
+              disabled={applying}
               className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
             >
               Cancel
             </button>
             <button
               type="button"
-              onClick={handleApply}
+              onClick={() => void handleApply()}
               className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:bg-blue-300"
-              disabled={selectedColumns.length < MIN_VISIBLE_COLUMNS}
+              disabled={selectedColumns.length < MIN_VISIBLE_COLUMNS || applying}
             >
-              Confirm
+              {applying ? "Saving..." : "Confirm"}
             </button>
           </div>
         </div>

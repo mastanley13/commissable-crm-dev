@@ -354,7 +354,10 @@ export async function GET(request: NextRequest) {
             select: {
               id: true,
               name: true,
-              // orderIdHouse intentionally omitted to avoid client/schema drift; use schedule.orderIdHouse instead
+              accountIdHouse: true,
+              accountIdVendor: true,
+              accountIdDistributor: true,
+              orderIdHouse: true,
               orderIdVendor: true,
               orderIdDistributor: true,
               customerIdHouse: true,

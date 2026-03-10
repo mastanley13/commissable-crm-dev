@@ -43,6 +43,7 @@ export async function GET(
         columnWidths: preference.columnWidths ?? null,
         hiddenColumns: preference.hiddenColumns ?? null,
         lockedColumns: preference.lockedColumns ?? null,
+        syncHorizontalScroll: preference.syncHorizontalScroll ?? null,
         sortState: preference.sortState ?? null,
         filters: preference.filters ?? null,
         pageSize: preference.pageSize ?? null,
@@ -101,6 +102,11 @@ export async function POST(
 
       const hasPageSize = Object.prototype.hasOwnProperty.call(body, "pageSize")
       const pageSize = hasPageSize ? normalizePageSize(body.pageSize) : undefined
+      const hasSyncHorizontalScroll = Object.prototype.hasOwnProperty.call(body, "syncHorizontalScroll")
+      const syncHorizontalScroll =
+        hasSyncHorizontalScroll && typeof body.syncHorizontalScroll === "boolean"
+          ? body.syncHorizontalScroll
+          : undefined
 
       const migrated = migrateTablePreferencePayload({
         sortState: body.sortState ?? null,
@@ -129,6 +135,7 @@ export async function POST(
           columnWidths: columnWidthsJson,
           hiddenColumns: hiddenColumnsJson,
           lockedColumns: lockedColumnsJson,
+          ...(hasSyncHorizontalScroll ? { syncHorizontalScroll } : {}),
           sortState: sortStateJson,
           filters: filtersJson,
           ...(hasPageSize ? { pageSize } : {})
@@ -141,6 +148,7 @@ export async function POST(
           columnWidths: columnWidthsJson,
           hiddenColumns: hiddenColumnsJson,
           lockedColumns: lockedColumnsJson,
+          ...(hasSyncHorizontalScroll ? { syncHorizontalScroll } : {}),
           sortState: sortStateJson,
           filters: filtersJson,
           ...(hasPageSize ? { pageSize } : {})

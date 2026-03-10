@@ -76,6 +76,9 @@ const revenueScheduleDetailInclude = {
     select: {
       id: true,
       name: true,
+      accountIdHouse: true,
+      accountIdVendor: true,
+      accountIdDistributor: true,
       orderIdHouse: true,
       orderIdVendor: true,
       orderIdDistributor: true,

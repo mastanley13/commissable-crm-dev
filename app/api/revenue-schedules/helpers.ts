@@ -80,6 +80,9 @@ export type RevenueScheduleWithRelations = Prisma.RevenueScheduleGetPayload<{
       select: {
         id: true
         name: true
+        accountIdHouse: true
+        accountIdVendor: true
+        accountIdDistributor: true
         orderIdHouse: true
         orderIdVendor: true
         orderIdDistributor: true
@@ -150,6 +153,10 @@ export interface RevenueScheduleListItem {
   customerIdDistributor: string | null
   customerIdOther?: string | null
   customerIdHouse?: string | null
+  accountIdHouse?: string | null
+  accountIdVendor?: string | null
+  accountIdDistributor?: string | null
+  accountIdOther?: string | null
   distributorId?: string | null
   vendorId?: string | null
   accountId?: string | null
@@ -407,6 +414,11 @@ export function mapRevenueScheduleToListItem(schedule: RevenueScheduleWithRelati
   const opportunityOwnerName = schedule.opportunity?.owner?.fullName ?? null
   const houseRepName = opportunityOwnerName
 
+  const accountIdHouse = schedule.opportunity?.accountIdHouse ?? null
+  const accountIdVendor = schedule.opportunity?.accountIdVendor ?? null
+  const accountIdDistributor = schedule.opportunity?.accountIdDistributor ?? null
+  const accountIdOther = resolveOtherValue(accountIdVendor, accountIdDistributor).value
+
   const customerIdVendor = schedule.opportunity?.customerIdVendor ?? schedule.vendor?.accountNumber ?? null
   const customerIdDistributor = schedule.opportunity?.customerIdDistributor ?? schedule.distributor?.accountNumber ?? null
   const customerIdOther = resolveOtherValue(customerIdVendor, customerIdDistributor).value
@@ -416,6 +428,7 @@ export function mapRevenueScheduleToListItem(schedule: RevenueScheduleWithRelati
   const orderIdOther = resolveOtherValue(orderIdVendor, orderIdDistributor).value
 
   const otherSource = resolveOtherSource([
+    [accountIdVendor, accountIdDistributor],
     [customerIdVendor, customerIdDistributor],
     [orderIdVendor, orderIdDistributor],
   ])
@@ -473,6 +486,10 @@ export function mapRevenueScheduleToListItem(schedule: RevenueScheduleWithRelati
     customerIdDistributor,
     customerIdOther,
     customerIdHouse: schedule.opportunity?.customerIdHouse ?? null,
+    accountIdHouse,
+    accountIdVendor,
+    accountIdDistributor,
+    accountIdOther,
     distributorId: schedule.distributor?.id ?? null,
     vendorId: schedule.vendor?.id ?? null,
     accountId: schedule.account?.id ?? null,

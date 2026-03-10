@@ -839,7 +839,7 @@ export const RevenueScheduleSupportingDetails = forwardRef<
       {
         id: "house",
         label: "HOUSE",
-        accountId: schedule?.accountId ?? null,
+        accountId: schedule?.accountIdHouse ?? null,
         orderId: schedule?.orderIdHouse ?? null,
         customerId: schedule?.customerIdHouse ?? null,
         locationId: schedule?.locationId ?? null,
@@ -848,7 +848,7 @@ export const RevenueScheduleSupportingDetails = forwardRef<
       {
         id: "other",
         label: "Other",
-        accountId: schedule?.vendorId ?? schedule?.distributorId ?? null,
+        accountId: schedule?.accountIdOther ?? null,
         orderId: schedule?.orderIdVendor ?? schedule?.orderIdDistributor ?? null,
         customerId: schedule?.customerIdVendor ?? schedule?.customerIdDistributor ?? null,
         locationId: null,
@@ -1641,8 +1641,8 @@ export const RevenueScheduleSupportingDetails = forwardRef<
 
   const opportunityColumns = useMemo<DetailLineProps[][]>(() => {
     const columnA: DetailLineProps[] = [
-      { label: "House - Account ID", value: schedule?.accountId ?? undefined },
-      { label: "Other - Account ID", value: schedule?.vendorId ?? schedule?.distributorId ?? undefined },
+      { label: "House - Account ID", value: schedule?.accountIdHouse ?? undefined },
+      { label: "Other - Account ID", value: schedule?.accountIdOther ?? undefined },
       { label: "House - Customer ID", value: schedule?.customerIdHouse ?? undefined },
       {
         label: "Other - Customer ID",
