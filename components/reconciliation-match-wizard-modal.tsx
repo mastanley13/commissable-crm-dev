@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils"
 import type { DepositLineItemRow, SuggestedMatchScheduleRow } from "@/lib/mock-data"
 import type { MatchSelectionType } from "@/lib/matching/match-selection"
 import { isSelectionCompatibleWithType } from "@/lib/matching/match-selection"
+import { deriveMatchWizardValidationState } from "@/lib/matching/match-wizard-validation"
 
 const currencyFormatter = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -48,6 +49,8 @@ type PreviewResponse =
         withinToleranceAfter: boolean
       }>
     }
+
+const AUTO_VALIDATION_DEBOUNCE_MS = 300
 
 function formatMatchType(type: MatchSelectionType) {
   switch (type) {
@@ -240,11 +243,12 @@ export function ReconciliationMatchWizardModal(props: {
 
   const skipAllocationResetRef = useRef(false)
   const autoPreviewRequestKeyRef = useRef<string | null>(null)
+  const autoValidationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [allocationExpanded, setAllocationExpanded] = useState(false)
 
   const selectionSectionId = "match-wizard-selection"
   const allocationSectionId = "match-wizard-allocation"
-  const previewSectionId = "match-wizard-preview"
+  const validationSectionId = "match-wizard-validation"
   const applySectionId = "match-wizard-apply"
 
   const scrollToSection = (id: string) => {
@@ -286,6 +290,10 @@ export function ReconciliationMatchWizardModal(props: {
     setBundleUndoError(null)
     skipAllocationResetRef.current = false
     autoPreviewRequestKeyRef.current = null
+    if (autoValidationTimeoutRef.current) {
+      clearTimeout(autoValidationTimeoutRef.current)
+      autoValidationTimeoutRef.current = null
+    }
     setAllocations(
       buildDefaultAllocations({
         matchType: props.detectedType,
@@ -493,18 +501,87 @@ export function ReconciliationMatchWizardModal(props: {
   }, [allocationRows.length, bundleBlocking, canProceedToAllocation, replacementRequired, selectionBlockedReason])
 
   const applyBlockedReason = useMemo(() => {
-    if (!preview) return "Run preview first."
-    if (replacementRequired) return "Replace the bundle first."
-    if (!previewUpToDate) return "Preview is out of date. Run preview again."
-    if (hasPreviewErrors) return "Fix preview errors before applying."
+    if (!canProceedToPreview) return previewBlockedReason ?? "Validation has not completed yet."
+    if (previewError) return "Validation could not be completed. Retry validation."
+    if (!preview) return "Validation has not completed yet."
+    if (!previewUpToDate) return "Validation is updating after your latest changes."
+    if (hasPreviewErrors) return "Fix validation issues before applying."
     return null
-  }, [hasPreviewErrors, preview, previewUpToDate, replacementRequired])
+  }, [canProceedToPreview, hasPreviewErrors, preview, previewBlockedReason, previewError, previewUpToDate])
+
+  const validationIssues = useMemo(() => preview?.issues ?? [], [preview])
+
+  const validationState = useMemo(
+    () =>
+      deriveMatchWizardValidationState({
+        canValidate: canProceedToPreview,
+        validationLoading: previewLoading,
+        validationUpToDate: previewUpToDate,
+        validationError: previewError,
+        preview,
+      }),
+    [canProceedToPreview, preview, previewError, previewLoading, previewUpToDate],
+  )
+
+  const validationStatus = useMemo(() => {
+    switch (validationState) {
+      case "valid":
+        return {
+          className: "border-emerald-200 bg-emerald-50 text-emerald-900",
+          title: "No validation issues found",
+          message: "Ready to apply.",
+          summary: "Validation complete. No issues found.",
+        }
+      case "warning":
+        return {
+          className: "border-amber-200 bg-amber-50 text-amber-900",
+          title: "Validation found warnings",
+          message: "Apply is still allowed.",
+          summary: "Validation complete with warnings. Apply is still allowed.",
+        }
+      case "error":
+        return {
+          className: "border-red-200 bg-red-50 text-red-700",
+          title: "Validation found blocking issues",
+          message: "Fix them before applying.",
+          summary: "Validation found blocking issues.",
+        }
+      case "stale":
+        return {
+          className: "border-amber-200 bg-amber-50 text-amber-900",
+          title: "Validation is updating",
+          message: "Running again after your latest changes.",
+          summary: "Validation is updating after your latest changes.",
+        }
+      case "system_error":
+        return {
+          className: "border-red-200 bg-red-50 text-red-700",
+          title: "Validation could not be completed",
+          message: "Try again.",
+          summary: "Validation failed. Retry to continue.",
+        }
+      case "running":
+        return {
+          className: "border-primary-200 bg-primary-50 text-primary-900",
+          title: "Running validation",
+          message: "Checking the current selection and allocations.",
+          summary: "Validation is running.",
+        }
+      case "idle":
+      default:
+        return {
+          className: "border-slate-200 bg-slate-50 text-slate-800",
+          title: "Validation is waiting",
+          message: previewBlockedReason ?? "It will start when selection and allocations are ready.",
+          summary: previewBlockedReason ?? "Complete selection and allocation to start validation.",
+        }
+    }
+  }, [previewBlockedReason, validationState])
 
   const runPreview = async () => {
     const runVersion = allocationsVersion
     setPreviewLoading(true)
     setPreviewError(null)
-    setPreview(null)
     setPreviewVersion(null)
     try {
       const response = await fetch(
@@ -527,9 +604,6 @@ export function ReconciliationMatchWizardModal(props: {
       }
       setPreview(data)
       setPreviewVersion(runVersion)
-      if (!data.ok) {
-        setPreviewError(data.issues[0]?.message ?? "Validation blocked this match.")
-      }
     } catch (err) {
       setPreviewError(err instanceof Error ? err.message : "Unknown error")
     } finally {
@@ -539,15 +613,32 @@ export function ReconciliationMatchWizardModal(props: {
 
   useEffect(() => {
     if (!props.open) return
-    if (effectiveType !== "ManyToOne") return
-    if (bundleAuditLogId) return
-    if (previewLoading) return
+    if (!canProceedToPreview) return
 
     const requestKey = `${previewInputsKey}|${allocationsVersion}`
     if (autoPreviewRequestKeyRef.current === requestKey) return
-    autoPreviewRequestKeyRef.current = requestKey
-    void runPreview()
-  }, [allocationsVersion, bundleAuditLogId, effectiveType, previewInputsKey, previewLoading, props.open])
+
+    if (autoValidationTimeoutRef.current) {
+      clearTimeout(autoValidationTimeoutRef.current)
+    }
+
+    autoValidationTimeoutRef.current = setTimeout(() => {
+      autoPreviewRequestKeyRef.current = requestKey
+      void runPreview()
+      autoValidationTimeoutRef.current = null
+    }, AUTO_VALIDATION_DEBOUNCE_MS)
+
+    return () => {
+      if (autoValidationTimeoutRef.current) {
+        clearTimeout(autoValidationTimeoutRef.current)
+        autoValidationTimeoutRef.current = null
+      }
+    }
+  }, [allocationsVersion, canProceedToPreview, previewInputsKey, props.open])
+
+  useEffect(() => {
+    if (replacementRequired) setAllocationExpanded(true)
+  }, [replacementRequired])
 
   useEffect(() => {
     if (!props.open) return
@@ -776,26 +867,32 @@ export function ReconciliationMatchWizardModal(props: {
               type="button"
               className={cn(
                 "flex items-center gap-2 rounded-full border px-3 py-1 text-xs",
-                previewUpToDate && !hasPreviewErrors
+                validationState === "valid"
                   ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-                  : preview && hasPreviewErrors
+                  : validationState === "error" || validationState === "system_error"
                     ? "border-red-200 bg-red-50 text-red-700"
-                    : preview
+                    : validationState === "warning" || validationState === "stale" || validationState === "running"
                       ? "border-amber-200 bg-amber-50 text-amber-900"
                       : "border-slate-200 bg-white text-slate-600",
               )}
-              onClick={() => scrollToSection(previewSectionId)}
+              onClick={() => scrollToSection(validationSectionId)}
               title={
-                previewBlockedReason
-                  ? previewBlockedReason
-                  : !preview
-                    ? "Preview not run yet"
-                    : previewUpToDate
-                      ? "Preview up to date"
-                      : "Preview out of date"
+                validationState === "valid"
+                  ? "Validation ready"
+                  : validationState === "warning"
+                    ? "Validation has warnings"
+                    : validationState === "error"
+                      ? "Validation has blocking issues"
+                      : validationState === "system_error"
+                        ? "Validation failed"
+                        : validationState === "running"
+                          ? "Validation in progress"
+                          : validationState === "stale"
+                            ? "Validation updating"
+                            : previewBlockedReason ?? "Validation waiting"
               }
             >
-              <span className="font-semibold">Preview</span>
+              <span className="font-semibold">Validation</span>
             </button>
             <button
               type="button"
@@ -820,7 +917,7 @@ export function ReconciliationMatchWizardModal(props: {
             </button>
           </div>
           <p className="mt-2 text-xs text-slate-600">
-            All steps are shown in one view. Run preview whenever allocations change.
+            {validationStatus.summary}
           </p>
         </div>
 
@@ -865,7 +962,7 @@ export function ReconciliationMatchWizardModal(props: {
                 <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-slate-800">
                   <p className="font-semibold">M:M is detected</p>
                   <p className="mt-1 text-xs text-slate-600">
-                    Review allocations carefully. Preview will warn on over/under tolerance before you apply.
+                    Review allocations carefully. Validation will warn on over/under tolerance before you apply.
                   </p>
                 </div>
               ) : null}
@@ -1154,111 +1251,90 @@ export function ReconciliationMatchWizardModal(props: {
             ) : null}
           </div>
 
-          <div id={previewSectionId} className="scroll-mt-4 space-y-3">
+          <div id={validationSectionId} className="scroll-mt-4 space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
-                  <p className="font-semibold text-slate-900">Preview</p>
+                  <p className="font-semibold text-slate-900">Validation</p>
                   <p className="text-xs text-slate-600">
-                    {effectiveType === "ManyToOne" && !bundleAuditLogId
-                      ? "Validation runs automatically for many-to-one selections. Underpaid and overpaid warnings are still allowed after the bundle check passes."
-                      : "Shows validation issues and what will change. Underpaid/overpaid warnings are allowed."}
+                    Validation runs automatically when allocations change. Underpaid and overpaid warnings are allowed.
                   </p>
                 </div>
-                <button
-                  type="button"
-                  className="rounded bg-primary-600 px-3 py-2 text-sm font-semibold text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-slate-300"
-                  onClick={() => void runPreview()}
-                  disabled={!canProceedToPreview || previewLoading}
-                  title={previewBlockedReason ?? undefined}
-                >
-                  {previewLoading ? "Validating..." : effectiveType === "ManyToOne" ? "Run Validation Again" : "Run Preview"}
-                </button>
               </div>
 
-              {preview && !previewUpToDate ? (
-                <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-amber-900">
-                  <p className="font-semibold">Preview is out of date</p>
-                  <p className="mt-1 text-xs">Allocations changed since the last preview. Run preview again.</p>
+              <div className={cn("rounded-md border p-3", validationStatus.className)}>
+                <p className="font-semibold">{validationStatus.title}</p>
+                <p className="mt-1 text-sm">{validationStatus.message}</p>
+                {validationState === "system_error" && previewError ? <p className="mt-2 text-xs">{previewError}</p> : null}
+              </div>
+
+              {previewUpToDate && (validationState === "warning" || validationState === "error") && validationIssues.length ? (
+                <div className="rounded-md border border-slate-200 p-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Issues</p>
+                  <ul className="mt-2 list-disc space-y-1 pl-5 text-sm">
+                    {validationIssues.map((issue, idx) => (
+                      <li
+                        key={`${issue.code}-${idx}`}
+                        className={issue.level === "error" ? "text-red-700" : "text-amber-800"}
+                      >
+                        {issue.message}
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               ) : null}
 
-              {previewError ? <p className="text-sm font-semibold text-red-600">{previewError}</p> : null}
-
-              {preview ? (
-                <div className="space-y-3">
-                  {"issues" in preview && preview.issues?.length ? (
+              {preview && preview.ok && previewUpToDate ? (
+                <details className="rounded-md border border-slate-200 p-3">
+                  <summary className="cursor-pointer text-sm font-semibold text-slate-900">Impact details</summary>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
                     <div className="rounded-md border border-slate-200 p-3">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Issues</p>
-                      <ul className="mt-2 list-disc space-y-1 pl-5 text-sm">
-                        {preview.issues.map((issue, idx) => (
-                          <li
-                            key={`${issue.code}-${idx}`}
-                            className={issue.level === "error" ? "text-red-700" : "text-amber-800"}
-                          >
-                            {issue.message}
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Lines after apply</p>
+                      <ul className="mt-2 space-y-1 text-sm">
+                        {preview.lines.map(line => (
+                          <li key={line.lineId} className="flex items-center justify-between gap-2">
+                            <span className="truncate">{line.lineId}</span>
+                            <span className="tabular-nums">
+                              {currencyFormatter.format(line.usageAllocatedAfter)} / {currencyFormatter.format(line.usage)}
+                            </span>
                           </li>
                         ))}
                       </ul>
                     </div>
-                  ) : null}
-
-                  {preview.ok ? (
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <div className="rounded-md border border-slate-200 p-3">
-                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Lines after apply</p>
-                        <ul className="mt-2 space-y-1 text-sm">
-                          {preview.lines.map(line => (
-                            <li key={line.lineId} className="flex items-center justify-between gap-2">
-                              <span className="truncate">{line.lineId}</span>
-                              <span className="tabular-nums">
-                                {currencyFormatter.format(line.usageAllocatedAfter)} / {currencyFormatter.format(line.usage)}
+                    <div className="rounded-md border border-slate-200 p-3">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Schedules after apply
+                      </p>
+                      <ul className="mt-2 space-y-2 text-sm">
+                        {preview.schedules.map(schedule => (
+                          <li key={schedule.scheduleId} className="space-y-1">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="truncate">{schedule.scheduleId}</span>
+                              <span
+                                className={cn(
+                                  "text-xs font-semibold",
+                                  schedule.withinToleranceAfter ? "text-emerald-700" : "text-amber-800",
+                                )}
+                              >
+                                {schedule.withinToleranceAfter ? "Within tolerance" : "Outside tolerance"}
                               </span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                      <div className="rounded-md border border-slate-200 p-3">
-                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                          Schedules after apply
-                        </p>
-                        <ul className="mt-2 space-y-2 text-sm">
-                          {preview.schedules.map(schedule => (
-                            <li key={schedule.scheduleId} className="space-y-1">
-                              <div className="flex items-center justify-between gap-2">
-                                <span className="truncate">{schedule.scheduleId}</span>
-                                <span
-                                  className={cn(
-                                    "text-xs font-semibold",
-                                    schedule.withinToleranceAfter ? "text-emerald-700" : "text-amber-800",
-                                  )}
-                                >
-                                  {schedule.withinToleranceAfter ? "Within tolerance" : "Outside tolerance"}
-                                </span>
-                              </div>
-                              <div className="flex items-center justify-between gap-2 text-xs text-slate-600">
-                                <span>
-                                  Balance: {currencyFormatter.format(schedule.usageBalanceAfter)} usage /{" "}
-                                  {currencyFormatter.format(schedule.commissionDifferenceAfter)} comm
-                                </span>
-                                <span>
-                                  Actual: {currencyFormatter.format(schedule.actualUsageNetAfter)} usage /{" "}
-                                  {currencyFormatter.format(schedule.actualCommissionNetAfter)} comm
-                                </span>
-                              </div>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
+                            </div>
+                            <div className="flex items-center justify-between gap-2 text-xs text-slate-600">
+                              <span>
+                                Balance: {currencyFormatter.format(schedule.usageBalanceAfter)} usage /{" "}
+                                {currencyFormatter.format(schedule.commissionDifferenceAfter)} comm
+                              </span>
+                              <span>
+                                Actual: {currencyFormatter.format(schedule.actualUsageNetAfter)} usage /{" "}
+                                {currencyFormatter.format(schedule.actualCommissionNetAfter)} comm
+                              </span>
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
                     </div>
-                  ) : null}
-                </div>
-              ) : (
-                <p className="text-sm text-slate-600">
-                  {effectiveType === "ManyToOne"
-                    ? "Validation will run automatically for this selection."
-                    : "Run preview to validate before applying."}
-                </p>
-              )}
+                  </div>
+                </details>
+              ) : null}
             </div>
 
           <div id={applySectionId} className="scroll-mt-4 space-y-3">
@@ -1269,20 +1345,19 @@ export function ReconciliationMatchWizardModal(props: {
 
               {applyError ? <p className="text-sm font-semibold text-red-600">{applyError}</p> : null}
 
-              {!preview ? (
-                <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-slate-800">
+              {!canConfirmApply && !appliedMatchGroupId ? (
+                <div
+                  className={cn(
+                    "rounded-md border p-3",
+                    validationState === "error" || validationState === "system_error"
+                      ? "border-red-200 bg-red-50 text-red-700"
+                      : validationState === "idle"
+                        ? "border-slate-200 bg-slate-50 text-slate-800"
+                        : "border-amber-200 bg-amber-50 text-amber-900",
+                  )}
+                >
                   <p className="font-semibold">Apply is blocked</p>
-                  <p className="mt-1 text-xs">Run preview first.</p>
-                </div>
-              ) : !previewUpToDate ? (
-                <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-amber-900">
-                  <p className="font-semibold">Apply is blocked</p>
-                  <p className="mt-1 text-xs">Preview is out of date. Run preview again.</p>
-                </div>
-              ) : hasPreviewErrors ? (
-                <div className="rounded-md border border-red-200 bg-red-50 p-3 text-red-700">
-                  <p className="font-semibold">Apply is blocked</p>
-                  <p className="mt-1 text-xs">Fix preview errors before applying.</p>
+                  <p className="mt-1 text-xs">{applyBlockedReason ?? "Validation has not completed yet."}</p>
                 </div>
               ) : null}
 
@@ -1339,18 +1414,9 @@ export function ReconciliationMatchWizardModal(props: {
             <button
               type="button"
               className="rounded border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-              onClick={() => scrollToSection(previewSectionId)}
+              onClick={() => scrollToSection(validationSectionId)}
             >
-              Preview
-            </button>
-            <button
-              type="button"
-              className="rounded bg-primary-600 px-3 py-2 text-sm font-semibold text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-slate-300"
-              onClick={() => void runPreview()}
-              disabled={!canProceedToPreview || previewLoading}
-              title={previewBlockedReason ?? undefined}
-            >
-              {previewLoading ? "Previewing..." : "Run Preview"}
+              Validation
             </button>
             <button
               type="button"

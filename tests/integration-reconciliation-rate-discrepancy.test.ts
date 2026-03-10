@@ -289,7 +289,7 @@ integrationTest("REC-RATE-03: material rate discrepancy returns prompt data and 
   assert.equal(Number(futureAfter?.expectedCommission ?? 0), 10)
 })
 
-integrationTest("REC-RATE-04/05: updating future schedules applies received rate only to future unreconciled schedules and audits it", async ctx => {
+integrationTest("REC-RATE-04/05: updating current and future schedules applies the received rate atomically and audits it", async ctx => {
   const dbModule = await import("../lib/db")
   const prisma = (dbModule as any).prisma ?? (dbModule as any).default?.prisma
 
@@ -331,11 +331,16 @@ integrationTest("REC-RATE-04/05: updating future schedules applies received rate
   )
   assertStatus(rateResponse, 200)
   const ratePayload = await readJson<any>(rateResponse)
+  assert.equal(ratePayload?.data?.currentUpdate?.updatedScheduleId, scenario.baseScheduleId)
   assert.ok(Array.isArray(ratePayload?.data?.futureUpdate?.updatedScheduleIds))
   assert.ok(ratePayload.data.futureUpdate.updatedScheduleIds.includes(scenario.futureScheduleId))
   assert.ok(!ratePayload.data.futureUpdate.updatedScheduleIds.includes(scenario.reconciledFutureScheduleId))
   assert.ok(!ratePayload.data.futureUpdate.updatedScheduleIds.includes(scenario.unrelatedFutureScheduleId))
 
+  const updatedCurrent = await prisma.revenueSchedule.findFirst({
+    where: { id: scenario.baseScheduleId, tenantId: ctx.tenantId },
+    select: { expectedCommissionRatePercent: true, expectedCommission: true },
+  })
   const updatedFuture = await prisma.revenueSchedule.findFirst({
     where: { id: scenario.futureScheduleId, tenantId: ctx.tenantId },
     select: { expectedCommissionRatePercent: true, expectedCommission: true },
@@ -349,6 +354,8 @@ integrationTest("REC-RATE-04/05: updating future schedules applies received rate
     select: { expectedCommissionRatePercent: true, expectedCommission: true },
   })
 
+  assert.equal(Number(updatedCurrent?.expectedCommissionRatePercent ?? 0), 12)
+  assert.equal(Number(updatedCurrent?.expectedCommission ?? 0), 12)
   assert.equal(Number(updatedFuture?.expectedCommissionRatePercent ?? 0), 12)
   assert.equal(Number(updatedFuture?.expectedCommission ?? 0), 12)
   assert.equal(Number(reconciledFuture?.expectedCommissionRatePercent ?? 0), 10)
@@ -367,4 +374,65 @@ integrationTest("REC-RATE-04/05: updating future schedules applies received rate
   assert.ok(
     auditLogs.some((entry: any) => entry?.metadata?.action === "ApplyReceivedCommissionRateToFutureSchedule"),
   )
+})
+
+integrationTest("REC-RATE-06: apply-to-future rolls back current schedule changes when a future update fails", async ctx => {
+  const dbModule = await import("../lib/db")
+  const prisma = (dbModule as any).prisma ?? (dbModule as any).default?.prisma
+
+  await upsertReconciliationSettings(prisma, ctx.tenantId, {
+    varianceTolerance: 0.01,
+    rateDiscrepancyTolerancePercent: 0.05,
+  })
+
+  const scenario = await seedRateDiscrepancyScenario(prisma, ctx, {
+    lineUsage: 100,
+    lineCommission: 12,
+  })
+
+  await prisma.revenueSchedule.update({
+    where: { id: scenario.futureScheduleId },
+    data: { expectedUsage: null, expectedCommission: 10, expectedCommissionRatePercent: 10 },
+  })
+
+  const applyModule = await import("../app/api/reconciliation/deposits/[depositId]/line-items/[lineId]/apply-match/route")
+  const applyPOST = (applyModule as any).POST ?? (applyModule as any).default?.POST
+  const applyResponse = await applyPOST(
+    authedPost(
+      ctx.sessionToken,
+      `http://localhost/api/reconciliation/deposits/${scenario.depositId}/line-items/${scenario.lineId}/apply-match`,
+      { revenueScheduleId: scenario.baseScheduleId, usageAmount: 100, commissionAmount: 12 },
+    ),
+    { params: { depositId: scenario.depositId, lineId: scenario.lineId } },
+  )
+  assertStatus(applyResponse, 200)
+
+  const rateRouteModule = await import(
+    "../app/api/reconciliation/deposits/[depositId]/line-items/[lineId]/rate-discrepancy/apply-to-future/route"
+  )
+  const ratePOST = (rateRouteModule as any).POST ?? (rateRouteModule as any).default?.POST
+
+  const rateResponse = await ratePOST(
+    authedPost(
+      ctx.sessionToken,
+      `http://localhost/api/reconciliation/deposits/${scenario.depositId}/line-items/${scenario.lineId}/rate-discrepancy/apply-to-future`,
+      { revenueScheduleId: scenario.baseScheduleId },
+    ),
+    { params: { depositId: scenario.depositId, lineId: scenario.lineId } },
+  )
+  assertStatus(rateResponse, 500)
+
+  const currentAfterFailure = await prisma.revenueSchedule.findFirst({
+    where: { id: scenario.baseScheduleId, tenantId: ctx.tenantId },
+    select: { expectedCommissionRatePercent: true, expectedCommission: true },
+  })
+  const futureAfterFailure = await prisma.revenueSchedule.findFirst({
+    where: { id: scenario.futureScheduleId, tenantId: ctx.tenantId },
+    select: { expectedCommissionRatePercent: true, expectedCommission: true },
+  })
+
+  assert.equal(Number(currentAfterFailure?.expectedCommissionRatePercent ?? 0), 10)
+  assert.equal(Number(currentAfterFailure?.expectedCommission ?? 0), 10)
+  assert.equal(Number(futureAfterFailure?.expectedCommissionRatePercent ?? 0), 10)
+  assert.equal(Number(futureAfterFailure?.expectedCommission ?? 0), 10)
 })

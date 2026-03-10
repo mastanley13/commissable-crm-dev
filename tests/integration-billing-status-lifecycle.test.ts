@@ -208,10 +208,11 @@ integrationTest("BILL-STATUS-02: resolve-flex (FlexProduct) sets base+flex sched
 
   const flexAfter = await prisma.revenueSchedule.findFirst({
     where: { tenantId: ctx.tenantId, parentRevenueScheduleId: schedule.id, deletedAt: null },
-    select: { billingStatus: true },
+    select: { billingStatus: true, scheduleNumber: true },
   })
   assert.ok(flexAfter)
   assert.equal(flexAfter!.billingStatus, "InDispute")
+  assert.equal(flexAfter!.scheduleNumber, "FLEX-RS-BS-2")
 })
 
 integrationTest("BILL-STATUS-03: chargeback approve keeps billingStatus InDispute", async ctx => {
@@ -295,4 +296,3 @@ integrationTest("BILL-STATUS-03: chargeback approve keeps billingStatus InDisput
   assert.ok(scheduleAfter)
   assert.equal(scheduleAfter!.billingStatus, "InDispute")
 })
-

@@ -8,6 +8,7 @@ interface TablePreferencePayload {
   columnOrder?: string[]
   columnWidths?: Record<string, number>
   hiddenColumns?: string[]
+  lockedColumns?: string[]
   sortState?: unknown
   filters?: unknown
   pageSize?: number | null
@@ -68,6 +69,19 @@ function applyPreferences(columns: Column[], preference: TablePreferencePayload 
     orderedColumns = orderedColumns.map(column => ({
       ...column,
       hidden: column.hideable !== false ? hiddenSet.has(column.id) : false
+    }))
+  }
+
+  if (Array.isArray(normalized.lockedColumns)) {
+    const lockedSet = new Set(normalized.lockedColumns)
+    orderedColumns = orderedColumns.map(column => ({
+      ...column,
+      locked: !column.hidden && lockedSet.has(column.id)
+    }))
+  } else {
+    orderedColumns = orderedColumns.map(column => ({
+      ...column,
+      locked: false
     }))
   }
 
@@ -144,7 +158,8 @@ export function useTablePreferences(
       
       if (currentCol.id !== savedCol.id || 
           currentCol.width !== savedCol.width || 
-          currentCol.hidden !== savedCol.hidden) {
+          currentCol.hidden !== savedCol.hidden ||
+          currentCol.locked !== savedCol.locked) {
         return true
       }
     }
@@ -223,6 +238,7 @@ export function useTablePreferences(
             return acc
           }, {}),
           hiddenColumns: updatedColumns.filter(column => column.hidden).map(column => column.id),
+          lockedColumns: updatedColumns.filter(column => column.locked && !column.hidden).map(column => column.id),
           pageSize: finalPageSize
         })
       })
@@ -286,7 +302,8 @@ export function useTablePreferences(
     setColumns(previous => {
       const next = previous.map(column => ({
         ...column,
-        hidden: hiddenColumns.includes(column.id)
+        hidden: hiddenColumns.includes(column.id),
+        locked: hiddenColumns.includes(column.id) ? false : column.locked
       }))
       schedulePersist(next)
       return next

@@ -42,6 +42,7 @@ export async function GET(
         columnOrder: preference.columnOrder ?? null,
         columnWidths: preference.columnWidths ?? null,
         hiddenColumns: preference.hiddenColumns ?? null,
+        lockedColumns: preference.lockedColumns ?? null,
         sortState: preference.sortState ?? null,
         filters: preference.filters ?? null,
         pageSize: preference.pageSize ?? null,
@@ -82,6 +83,9 @@ export async function POST(
       const hiddenColumns = Array.isArray(body.hiddenColumns)
         ? body.hiddenColumns.map((id: unknown) => (typeof id === "string" ? aliasColumnId(id) : "")).filter(Boolean)
         : null
+      const lockedColumns = Array.isArray(body.lockedColumns)
+        ? body.lockedColumns.map((id: unknown) => (typeof id === "string" ? aliasColumnId(id) : "")).filter(Boolean)
+        : null
 
       const columnWidths: Record<string, number> | null =
         body.columnWidths && typeof body.columnWidths === "object" && !Array.isArray(body.columnWidths)
@@ -106,6 +110,7 @@ export async function POST(
       const columnOrderJson: Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput = columnOrder ?? Prisma.DbNull
       const columnWidthsJson: Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput = columnWidths ?? Prisma.DbNull
       const hiddenColumnsJson: Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput = hiddenColumns ?? Prisma.DbNull
+      const lockedColumnsJson: Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput = lockedColumns ?? Prisma.DbNull
       const sortStateJson: Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput =
         ((migrated?.sortState ?? body.sortState) as Prisma.InputJsonValue | null | undefined) ?? Prisma.DbNull
       const filtersJson: Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput =
@@ -123,6 +128,7 @@ export async function POST(
           columnOrder: columnOrderJson,
           columnWidths: columnWidthsJson,
           hiddenColumns: hiddenColumnsJson,
+          lockedColumns: lockedColumnsJson,
           sortState: sortStateJson,
           filters: filtersJson,
           ...(hasPageSize ? { pageSize } : {})
@@ -134,6 +140,7 @@ export async function POST(
           columnOrder: columnOrderJson,
           columnWidths: columnWidthsJson,
           hiddenColumns: hiddenColumnsJson,
+          lockedColumns: lockedColumnsJson,
           sortState: sortStateJson,
           filters: filtersJson,
           ...(hasPageSize ? { pageSize } : {})

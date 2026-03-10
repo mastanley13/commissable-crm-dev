@@ -82,10 +82,12 @@ export function migrateTablePreferencePayload(payload: unknown): unknown {
   const migrated: UnknownRecord = { ...record }
   const columnOrder = mapColumnIdArray(record.columnOrder)
   const hiddenColumns = mapColumnIdArray(record.hiddenColumns)
+  const lockedColumns = mapColumnIdArray(record.lockedColumns)
   const columnWidths = mapColumnWidths(record.columnWidths)
 
   if (columnOrder) migrated.columnOrder = columnOrder
   if (hiddenColumns) migrated.hiddenColumns = hiddenColumns
+  if (lockedColumns) migrated.lockedColumns = lockedColumns
   if (columnWidths) migrated.columnWidths = columnWidths
 
   if (record.sortState !== undefined) migrated.sortState = mapColumnIdInUnknownObject(record.sortState)
@@ -120,6 +122,13 @@ export function normalizeTablePreferencePayloadForColumns<T extends { id: string
     normalized.hiddenColumns = dedupePreserveOrder(filtered)
   }
 
+  if (Array.isArray(record.lockedColumns)) {
+    const filtered = (record.lockedColumns as unknown[])
+      .map((id) => (typeof id === "string" ? id : ""))
+      .filter((id) => id.length > 0 && validIds.has(id))
+    normalized.lockedColumns = dedupePreserveOrder(filtered)
+  }
+
   if (record.columnWidths && typeof record.columnWidths === "object" && !Array.isArray(record.columnWidths)) {
     const widths = record.columnWidths as Record<string, unknown>
     const next: Record<string, number> = {}
@@ -133,4 +142,3 @@ export function normalizeTablePreferencePayloadForColumns<T extends { id: string
 
   return normalized
 }
-

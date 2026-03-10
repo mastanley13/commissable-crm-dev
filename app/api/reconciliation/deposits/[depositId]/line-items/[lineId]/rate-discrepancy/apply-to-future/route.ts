@@ -9,6 +9,7 @@ import {
 import { recomputeRevenueScheduleFromMatches } from "@/lib/matching/revenue-schedule-status"
 import { getClientIP, getUserAgent, logAudit } from "@/lib/audit"
 import {
+  applyReceivedRateToSchedule,
   applyReceivedRateToFutureSchedules,
   findFutureSchedulesInScope,
   resolveScheduleScopeKey,
@@ -131,6 +132,18 @@ export async function POST(
         excludeAllocated: true,
       })
 
+      const currentUpdate = await applyReceivedRateToSchedule(tx, {
+        tenantId,
+        userId: req.user.id,
+        request,
+        scheduleId: baseSchedule.id,
+        receivedRatePercent: rateDiscrepancy.receivedRatePercent,
+        sourceScheduleId: baseSchedule.id,
+        depositId,
+        depositLineItemId: lineId,
+        auditAction: "ApplyReceivedCommissionRateToCurrentSchedule",
+      })
+
       const futureUpdate = await applyReceivedRateToFutureSchedules(tx, {
         tenantId,
         userId: req.user.id,
@@ -143,6 +156,7 @@ export async function POST(
       })
 
       return {
+        currentUpdate,
         futureUpdate,
         rateDiscrepancy: {
           expectedRatePercent: rateDiscrepancy.expectedRatePercent,
@@ -167,6 +181,7 @@ export async function POST(
         depositLineItemId: lineId,
         revenueScheduleId,
         rateDiscrepancy: result.rateDiscrepancy,
+        currentUpdatedScheduleId: result.currentUpdate?.updatedScheduleId ?? null,
         futureUpdatedCount: result.futureUpdate?.updatedScheduleIds?.length ?? 0,
         futureUpdatedScheduleIds: result.futureUpdate?.updatedScheduleIds ?? [],
       },

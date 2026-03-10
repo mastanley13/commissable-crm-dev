@@ -1202,6 +1202,7 @@ model TablePreference {
   columnOrder   Json?
   columnWidths  Json?
   hiddenColumns Json?
+  lockedColumns Json?
   sortState     Json?
   filters       Json?
   pageSize      Int?

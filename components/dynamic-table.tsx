@@ -4,6 +4,7 @@ import React, { useState, useRef, useCallback, useMemo, useEffect } from "react"
 import { ChevronUp, ChevronDown, Trash2, Check, Edit } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { isRowInactive } from "@/lib/row-state"
+import { getLockedColumnLayout } from "@/lib/table-column-locking"
 
 const getRowId = (row: any): string | undefined => row?.id ?? row?.uuid ?? row?.key
 
@@ -21,6 +22,7 @@ export interface Column {
   truncate?: boolean
   hidden?: boolean
   hideable?: boolean
+  locked?: boolean
 }
 
 export interface PaginationInfo {
@@ -56,6 +58,7 @@ export interface TableProps {
   preferOverflowHorizontalScroll?: boolean // Prefer horizontal scroll over shrink-to-fit when table is wider than container
   hasLoadedPreferences?: boolean // Indicates columns include loaded user preferences
   footerAbovePagination?: React.ReactNode // Optional footer content rendered above pagination controls
+  onScrollContainerReady?: (node: HTMLDivElement | null) => void // Exposes the real horizontal scroll container when needed by parent views
 }
 
 export function DynamicTable({
@@ -83,7 +86,8 @@ export function DynamicTable({
   maxBodyHeight,
   preferOverflowHorizontalScroll = false,
   hasLoadedPreferences = false,
-  footerAbovePagination
+  footerAbovePagination,
+  onScrollContainerReady
 }: TableProps) {
   const SortTriangles = useCallback(({ direction }: { direction: "asc" | "desc" | null }) => {
     const activeSize = "w-3.5 h-3.5"
@@ -132,6 +136,7 @@ export function DynamicTable({
   const [measuredContainerWidth, setMeasuredContainerWidth] = useState<number | null>(null)
 
   const tableRef = useRef<HTMLDivElement>(null)
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null)
   const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const selectAllRef = useRef<HTMLInputElement | null>(null)
   const selectedCountOnPage = useMemo(() => {
@@ -341,9 +346,13 @@ export function DynamicTable({
     debouncedUpdate(() => optimizedColumns)
   }, [columns, data, calculateOptimalWidth, debouncedUpdate])
 
-
-
-  const visibleColumns = useMemo(() => columns.filter(column => !column.hidden), [columns])
+  const lockedColumnLayout = useMemo(() => getLockedColumnLayout(columns), [columns])
+  const visibleColumns = lockedColumnLayout.renderColumns
+  const lockedColumnCount = lockedColumnLayout.lockedColumns.length
+  const lockedColumnSet = useMemo(
+    () => new Set(lockedColumnLayout.lockedColumns.map(column => column.id)),
+    [lockedColumnLayout.lockedColumns]
+  )
   const columnCount = Math.max(visibleColumns.length, 1)
 
   // Calculate optimal widths and distribute/shrink to fit container width
@@ -660,6 +669,27 @@ export function DynamicTable({
     width: shouldUseFullWidth ? "100%" : `${totalTableWidth}px`,
     minWidth: shouldUseFullWidth ? "100%" : `${totalTableWidth}px`
   }), [gridTemplate, shouldUseFullWidth, totalTableWidth])
+
+  const setScrollContainerNode = useCallback((node: HTMLDivElement | null) => {
+    scrollContainerRef.current = node
+    onScrollContainerReady?.(node)
+  }, [onScrollContainerReady])
+
+  const getLockedCellStyles = useCallback((column: Column, options?: { header?: boolean; backgroundColor?: string }) => {
+    if (!lockedColumnSet.has(column.id)) return undefined
+
+    const left = lockedColumnLayout.lockedLeftOffsets[column.id] ?? 0
+    const isBoundary = lockedColumnLayout.lastLockedColumnId === column.id
+    const zIndexBase = options?.header ? 60 : 30
+
+    return {
+      position: "sticky" as const,
+      left: `${left}px`,
+      zIndex: zIndexBase + Math.max(lockedColumnCount, 1),
+      backgroundColor: options?.backgroundColor,
+      boxShadow: isBoundary ? "8px 0 10px -10px rgba(15, 23, 42, 0.45)" : undefined,
+    }
+  }, [lockedColumnCount, lockedColumnLayout.lastLockedColumnId, lockedColumnLayout.lockedLeftOffsets, lockedColumnSet])
 
   const isRowSelected = useCallback((row: any) => {
     const rowId = getRowId(row)
@@ -1002,6 +1032,7 @@ export function DynamicTable({
         style={maxBodyHeight ? { flex: "0 1 auto", minHeight: 0 } : { flex: "1 1 0%", minHeight: 0 }}
       >
         <div
+          ref={setScrollContainerNode}
           className="table-scroll-container overflow-x-auto overflow-y-auto min-w-0"
           // Let the scroll container grow with content up to maxBodyHeight,
           // but avoid forcing an exact height. This prevents the grid from
@@ -1025,8 +1056,10 @@ export function DynamicTable({
                   <div
                     key={column.id}
                     className={cn(
-                      "table-cell bg-blue-500 font-semibold text-white text-[11px] relative select-none border-b-2 border-blue-700 border-r-2 border-blue-700 last:border-r-0"
+                      "table-cell bg-blue-500 font-semibold text-white text-[11px] relative select-none border-b-2 border-blue-700 border-r-2 border-blue-700 last:border-r-0",
+                      lockedColumnSet.has(column.id) && "sticky"
                     )}
+                    style={getLockedCellStyles(column, { header: true, backgroundColor: "#3b82f6" })}
                     draggable
                     onDragStart={event => handleDragStart(event, column.id)}
                     onDragOver={handleDragOver}
@@ -1163,6 +1196,13 @@ export function DynamicTable({
                 data-row-selected={rowSelected ? "true" : undefined}
               >
                 {visibleColumns.map((column, columnIndex) => (
+                  (() => {
+                    const backgroundColor = rowSelected
+                      ? "#eff6ff"
+                      : rowIndex % 2 === 1
+                        ? "#F7FCFE"
+                        : "#ffffff"
+                    return (
                   <div
                     key={`${rowIndex}-${column.id}`}
                     className={cn(
@@ -1174,6 +1214,7 @@ export function DynamicTable({
                       rowSelected && columnIndex === 0 && "border-l-4 border-primary-400",
                       rowSelected && columnIndex === visibleColumns.length - 1 && "border-r-4 border-primary-100"
                     )}
+                    style={getLockedCellStyles(column, { backgroundColor })}
                     data-selected={rowSelected ? "true" : undefined}
                     data-selected-first={rowSelected && columnIndex === 0 ? "true" : undefined}
                     data-selected-last={rowSelected && columnIndex === visibleColumns.length - 1 ? "true" : undefined}
@@ -1188,6 +1229,8 @@ export function DynamicTable({
                   >
                     {renderCell(column, row[column.accessor || column.id], row, rowIndex)}
                   </div>
+                    )
+                  })()
                 ))}
                 {useSpacerMode && (
                   <div className="table-cell table-spacer" aria-hidden="true" />

@@ -18,6 +18,7 @@ import { ColumnChooserModal } from "./column-chooser-modal"
 import { TwoStageDeleteDialog } from "./two-stage-delete-dialog"
 import { ModalHeader } from "./ui/modal-header"
 import { ReconciliationMatchWizardModal } from "./reconciliation-match-wizard-modal"
+import { TicketCreateModal } from "./ticket-create-modal"
 import { useTablePreferences } from "@/hooks/useTablePreferences"
 import { classifyMatchSelection, type MatchSelectionType } from "@/lib/matching/match-selection"
 import { formatDateOnlyUtc, parseDateSortValue } from "@/lib/date-only"
@@ -125,9 +126,18 @@ type RateDiscrepancyPayload = {
 type RateDiscrepancyModalState = {
   lineId: string
   scheduleId: string
-  applying: boolean
+  applyingAction: "acceptCurrent" | "applyToFuture" | null
   error: string | null
   discrepancy: RateDiscrepancyPayload
+}
+
+type RateDiscrepancyTicketState = {
+  revenueScheduleId: string
+  revenueScheduleName: string
+  opportunityName?: string
+  distributorName?: string
+  vendorName?: string
+  productNameVendor?: string
 }
 
 type AllocationDraft = {
@@ -504,6 +514,7 @@ export function DepositReconciliationDetailView({
   const { hasPermission } = useAuth()
   const { showSuccess, showError, ToastContainer } = useToasts()
   const canManageReconciliation = hasPermission("reconciliation.manage")
+  const canCreateTickets = hasPermission("tickets.create")
   const [confidencePrefs, setConfidencePrefs] = useState({
     suggestedMatchesMinConfidence: 0.7,
     autoMatchMinConfidence: 0.95,
@@ -538,6 +549,7 @@ export function DepositReconciliationDetailView({
   const [manualFlexError, setManualFlexError] = useState<string | null>(null)
   const [aiAdjustmentModal, setAiAdjustmentModal] = useState<AiAdjustmentModalState | null>(null)
   const [rateDiscrepancyModal, setRateDiscrepancyModal] = useState<RateDiscrepancyModalState | null>(null)
+  const [rateDiscrepancyTicketModal, setRateDiscrepancyTicketModal] = useState<RateDiscrepancyTicketState | null>(null)
   const [allocationDraft, setAllocationDraft] = useState<AllocationDraft>({ usage: "", commission: "" })
   const [matchWizard, setMatchWizard] = useState<{
     detectedType: MatchSelectionType
@@ -562,6 +574,8 @@ export function DepositReconciliationDetailView({
   const undoingLineIdRef = useRef<string | null>(null)
   const confidenceSaveTimerRef = useRef<number | null>(null)
   const allocationDraftRef = useRef<AllocationDraft>(allocationDraft)
+  const lineTableScrollContainerRef = useRef<HTMLDivElement | null>(null)
+  const scheduleTableScrollContainerRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     if (lineTab === "unmatched") {
@@ -691,6 +705,14 @@ export function DepositReconciliationDetailView({
   selectedSchedulesRef.current = selectedSchedules
   matchingLineIdRef.current = matchingLineId
   undoingLineIdRef.current = undoingLineId
+
+  const handleLineTableScrollContainerReady = useCallback((node: HTMLDivElement | null) => {
+    lineTableScrollContainerRef.current = node
+  }, [])
+
+  const handleScheduleTableScrollContainerReady = useCallback((node: HTMLDivElement | null) => {
+    scheduleTableScrollContainerRef.current = node
+  }, [])
 
   useEffect(() => {
     setLineItemRows(lineItems)
@@ -1058,7 +1080,7 @@ export function DepositReconciliationDetailView({
           setRateDiscrepancyModal({
             lineId,
             scheduleId,
-            applying: false,
+            applyingAction: null,
             error: null,
             discrepancy: rateDiscrepancy,
           })
@@ -2380,6 +2402,36 @@ export function DepositReconciliationDetailView({
     saveChangesOnModalClose: saveScheduleChangesOnModalClose
   } = useTablePreferences('reconciliation:revenue-schedules', baseScheduleColumns)
 
+  useEffect(() => {
+    const lineContainer = lineTableScrollContainerRef.current
+    const scheduleContainer = scheduleTableScrollContainerRef.current
+
+    if (!lineContainer || !scheduleContainer) return
+
+    let syncing = false
+
+    const syncScroll = (source: HTMLDivElement, target: HTMLDivElement) => {
+      if (syncing) return
+      syncing = true
+      target.scrollLeft = source.scrollLeft
+      window.requestAnimationFrame(() => {
+        syncing = false
+      })
+    }
+
+    const handleLineScroll = () => syncScroll(lineContainer, scheduleContainer)
+    const handleScheduleScroll = () => syncScroll(scheduleContainer, lineContainer)
+
+    lineContainer.addEventListener("scroll", handleLineScroll, { passive: true })
+    scheduleContainer.addEventListener("scroll", handleScheduleScroll, { passive: true })
+    scheduleContainer.scrollLeft = lineContainer.scrollLeft
+
+    return () => {
+      lineContainer.removeEventListener("scroll", handleLineScroll)
+      scheduleContainer.removeEventListener("scroll", handleScheduleScroll)
+    }
+  }, [lineTableColumns, scheduleTableColumns])
+
   const handleLineColumnModalApply = useCallback((columns: Column[]) => {
     handleLineColumnsChange(columns)
     saveLineChangesOnModalClose()
@@ -2620,12 +2672,78 @@ export function DepositReconciliationDetailView({
     }
   }, [flexPrompt, metadata.id])
 
+  const updateCurrentScheduleRate = useCallback(async (scheduleId: string, receivedRatePercent: number) => {
+    const response = await fetch(`/api/revenue-schedules/${encodeURIComponent(scheduleId)}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ expectedCommissionRatePercent: receivedRatePercent }),
+    })
+    const payload = await response.json().catch(() => null)
+    if (!response.ok) {
+      const fieldError =
+        payload?.errors && typeof payload.errors === "object"
+          ? Object.values(payload.errors).find(value => typeof value === "string")
+          : null
+      throw new Error(
+        (typeof fieldError === "string" ? fieldError : null) ||
+          payload?.error ||
+          "Failed to update the current schedule rate",
+      )
+    }
+  }, [])
+
+  const handleOpenRateDiscrepancyTicket = useCallback(() => {
+    if (!rateDiscrepancyModal) return
+    const schedule = scheduleRows.find(row => row.id === rateDiscrepancyModal.scheduleId)
+    setRateDiscrepancyTicketModal({
+      revenueScheduleId: rateDiscrepancyModal.scheduleId,
+      revenueScheduleName:
+        schedule?.revenueScheduleName ?? rateDiscrepancyModal.discrepancy.scheduleNumber ?? rateDiscrepancyModal.scheduleId,
+      opportunityName: schedule?.opportunityName ?? undefined,
+      distributorName: schedule?.distributorName ?? undefined,
+      vendorName: schedule?.vendorName ?? undefined,
+      productNameVendor: schedule?.productNameVendor ?? undefined,
+    })
+    setRateDiscrepancyModal(null)
+  }, [rateDiscrepancyModal, scheduleRows])
+
+  const handleAcceptRateDiscrepancyCurrent = useCallback(async () => {
+    if (!rateDiscrepancyModal) return
+    const { scheduleId, discrepancy } = rateDiscrepancyModal
+
+    try {
+      setRateDiscrepancyModal(previous =>
+        previous ? { ...previous, applyingAction: "acceptCurrent", error: null } : null,
+      )
+      await updateCurrentScheduleRate(scheduleId, discrepancy.receivedRatePercent)
+      setRateDiscrepancyModal(null)
+      onMatchApplied?.()
+      showSuccess(
+        "Current schedule rate updated",
+        `Updated this schedule to ${formatRatePercent(discrepancy.receivedRatePercent)}.`,
+      )
+    } catch (err) {
+      console.error("Failed to accept current commission rate discrepancy", err)
+      const message = err instanceof Error ? err.message : "Unknown error"
+      setRateDiscrepancyModal(previous =>
+        previous ? { ...previous, applyingAction: null, error: message } : null,
+      )
+      showError("Unable to update current schedule rate", message)
+    } finally {
+      setRateDiscrepancyModal(previous =>
+        previous ? { ...previous, applyingAction: null } : null,
+      )
+    }
+  }, [onMatchApplied, rateDiscrepancyModal, showError, showSuccess, updateCurrentScheduleRate])
+
   const handleApplyRateDiscrepancyToFuture = useCallback(async () => {
     if (!rateDiscrepancyModal) return
     const { lineId, scheduleId, discrepancy } = rateDiscrepancyModal
 
     try {
-      setRateDiscrepancyModal(previous => (previous ? { ...previous, applying: true, error: null } : null))
+      setRateDiscrepancyModal(previous =>
+        previous ? { ...previous, applyingAction: "applyToFuture", error: null } : null,
+      )
       const response = await fetch(
         `/api/reconciliation/deposits/${encodeURIComponent(metadata.id)}/line-items/${encodeURIComponent(lineId)}/rate-discrepancy/apply-to-future`,
         {
@@ -2645,20 +2763,22 @@ export function DepositReconciliationDetailView({
       setRateDiscrepancyModal(null)
       onMatchApplied?.()
       showSuccess(
-        "Future schedule rates updated",
+        "Rate update applied",
         updatedCount > 0
-          ? `Updated ${updatedCount} future schedules to ${formatRatePercent(nextRate)}.`
-          : "No future unreconciled schedules needed a rate update.",
+          ? `Updated this schedule and ${updatedCount} future schedules to ${formatRatePercent(nextRate)}.`
+          : `Updated this schedule to ${formatRatePercent(nextRate)}. No future unreconciled schedules needed a rate update.`,
       )
     } catch (err) {
       console.error("Failed to apply commission rate discrepancy update", err)
       const message = err instanceof Error ? err.message : "Unknown error"
       setRateDiscrepancyModal(previous =>
-        previous ? { ...previous, applying: false, error: message } : null,
+        previous ? { ...previous, applyingAction: null, error: message } : null,
       )
-      showError("Unable to update future schedule rates", message)
+      showError("Unable to apply rate update", message)
     } finally {
-      setRateDiscrepancyModal(previous => (previous ? { ...previous, applying: false } : null))
+      setRateDiscrepancyModal(previous =>
+        previous ? { ...previous, applyingAction: null } : null,
+      )
     }
   }, [metadata.id, onMatchApplied, rateDiscrepancyModal, showError, showSuccess])
 
@@ -3110,17 +3230,30 @@ export function DepositReconciliationDetailView({
         selectedVendor={vendorSummarySelectedVendor}
         filterContext={{ activeTab: lineTab, totalLineItems: lineItemRows.length }}
       />
+      {rateDiscrepancyTicketModal ? (
+        <TicketCreateModal
+          isOpen
+          onClose={() => setRateDiscrepancyTicketModal(null)}
+          onSuccess={() => setRateDiscrepancyTicketModal(null)}
+          defaultRevenueScheduleId={rateDiscrepancyTicketModal.revenueScheduleId}
+          defaultRevenueScheduleName={rateDiscrepancyTicketModal.revenueScheduleName}
+          defaultOpportunityName={rateDiscrepancyTicketModal.opportunityName ?? ""}
+          defaultDistributorName={rateDiscrepancyTicketModal.distributorName ?? ""}
+          defaultVendorName={rateDiscrepancyTicketModal.vendorName ?? ""}
+          defaultProductNameVendor={rateDiscrepancyTicketModal.productNameVendor ?? ""}
+        />
+      ) : null}
       {rateDiscrepancyModal ? (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/40 px-4"
-          onClick={() => (rateDiscrepancyModal.applying ? null : setRateDiscrepancyModal(null))}
+          onClick={() => (rateDiscrepancyModal.applyingAction ? null : setRateDiscrepancyModal(null))}
         >
           <div
-            className="w-full max-w-xl rounded-xl bg-white shadow-xl"
+            className="flex h-[900px] w-full max-w-5xl flex-col rounded-xl bg-white shadow-xl"
             onClick={e => e.stopPropagation()}
           >
             <ModalHeader kicker="Rate Discrepancy" title="Received rate differs from expected" />
-            <div className="space-y-4 p-6 text-sm text-slate-700">
+            <div className="flex flex-1 flex-col space-y-4 overflow-y-auto p-6 text-sm text-slate-700">
               <p>
                 The received commission rate for this match does not match the expected schedule rate. Continuing
                 without review can hide incorrect schedule data or missed revenue.
@@ -3165,22 +3298,33 @@ export function DepositReconciliationDetailView({
               {rateDiscrepancyModal.error ? (
                 <p className="text-sm text-red-600">{rateDiscrepancyModal.error}</p>
               ) : null}
-              <div className="flex flex-wrap items-center justify-end gap-2 pt-2">
+              <div className="mt-auto flex flex-wrap items-center justify-end gap-2 pt-2">
                 <button
                   type="button"
-                  className="rounded border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-                  onClick={() => setRateDiscrepancyModal(null)}
-                  disabled={rateDiscrepancyModal.applying}
+                  className="rounded border border-orange-200 bg-orange-50 px-3 py-2 text-sm font-semibold text-orange-800 hover:bg-orange-100 disabled:cursor-not-allowed disabled:opacity-60"
+                  onClick={handleOpenRateDiscrepancyTicket}
+                  disabled={Boolean(rateDiscrepancyModal.applyingAction) || !canCreateTickets}
+                  title={!canCreateTickets ? "Insufficient permissions to create tickets" : undefined}
                 >
-                  Keep current rate
+                  Create Ticket
+                </button>
+                <button
+                  type="button"
+                  className="rounded border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                  onClick={() => void handleAcceptRateDiscrepancyCurrent()}
+                  disabled={Boolean(rateDiscrepancyModal.applyingAction)}
+                >
+                  {rateDiscrepancyModal.applyingAction === "acceptCurrent" ? "Updating..." : "Accept New Rate %"}
                 </button>
                 <button
                   type="button"
                   className="rounded bg-primary-600 px-3 py-2 text-sm font-semibold text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-60"
                   onClick={() => void handleApplyRateDiscrepancyToFuture()}
-                  disabled={rateDiscrepancyModal.applying || rateDiscrepancyModal.discrepancy.future.count === 0}
+                  disabled={Boolean(rateDiscrepancyModal.applyingAction) || rateDiscrepancyModal.discrepancy.future.count === 0}
                 >
-                  {rateDiscrepancyModal.applying ? "Updating..." : "Update future schedules"}
+                  {rateDiscrepancyModal.applyingAction === "applyToFuture"
+                    ? "Updating..."
+                    : "Apply New Rate % to All Future Schedules"}
                 </button>
               </div>
             </div>
@@ -3316,11 +3460,11 @@ export function DepositReconciliationDetailView({
           onClick={() => (flexResolving ? null : setFlexPrompt(null))}
         >
           <div
-            className="w-full max-w-xl rounded-xl bg-white shadow-xl"
+            className="flex h-[900px] w-full max-w-5xl flex-col rounded-xl bg-white shadow-xl"
             onClick={e => e.stopPropagation()}
           >
             <ModalHeader kicker="Flex Resolution" title="Overage exceeds tolerance" />
-            <div className="space-y-3 p-6 text-sm text-slate-700">
+            <div className="flex flex-1 flex-col space-y-3 overflow-y-auto p-6 text-sm text-slate-700">
               <p>
                 This allocation overpays the schedule by{" "}
                 <span className="font-semibold">${flexPrompt.decision.usageOverage.toFixed(2)}</span>, which is above the
@@ -3351,7 +3495,7 @@ export function DepositReconciliationDetailView({
                       <p className="text-xs font-semibold text-red-600">{manualFlexError}</p>
                     ) : null}
                   </div>
-                  <div className="flex flex-wrap items-center justify-end gap-2 pt-2">
+                  <div className="mt-auto flex flex-wrap items-center justify-end gap-2 pt-2">
                     <button
                       type="button"
                       className="rounded border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
@@ -4052,7 +4196,8 @@ export function DepositReconciliationDetailView({
               onSort={(column, direction) => setLineSortConfig({ key: column, direction })}
               loading={loading || linePreferenceLoading}
               emptyMessage="No deposit line items found"
-              fillContainerWidth={false}
+              fillContainerWidth
+              preferOverflowHorizontalScroll
               hasLoadedPreferences={!linePreferenceLoading && lineTableColumns.length > 0}
               maxBodyHeight={normalizedLineTableHeight}
               selectedItems={selectedLineItems}
@@ -4060,6 +4205,7 @@ export function DepositReconciliationDetailView({
               onSelectAll={handleLineItemSelectAll}
               hideSelectAllLabel
               onColumnsChange={handleLineColumnsChange}
+              onScrollContainerReady={handleLineTableScrollContainerReady}
             />
           </div>
         </div>
@@ -4213,6 +4359,7 @@ export function DepositReconciliationDetailView({
               onSelectAll={handleScheduleSelectAll}
               hideSelectAllLabel
               onColumnsChange={handleScheduleColumnsChange}
+              onScrollContainerReady={handleScheduleTableScrollContainerReady}
             />
           </div>
         </div>

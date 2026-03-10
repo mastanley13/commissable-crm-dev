@@ -18,6 +18,7 @@ interface ColumnItem {
   label: string
   hideable: boolean
   hidden: boolean
+  locked: boolean
   originalIndex: number
 }
 
@@ -29,7 +30,6 @@ export function ColumnChooserModal({ isOpen, columns, onApply, onClose }: Column
   const [draggedItem, setDraggedItem] = useState<ColumnItem | null>(null)
   const [initialized, setInitialized] = useState(false)
 
-  // Only initialize modal state when it opens, not when columns change
   useEffect(() => {
     if (isOpen && !initialized) {
       const columnItems: ColumnItem[] = columns.map((column, index) => ({
@@ -37,6 +37,7 @@ export function ColumnChooserModal({ isOpen, columns, onApply, onClose }: Column
         label: column.label,
         hideable: column.hideable !== false,
         hidden: column.hidden || false,
+        locked: Boolean(column.locked) && !column.hidden,
         originalIndex: index
       }))
 
@@ -47,7 +48,6 @@ export function ColumnChooserModal({ isOpen, columns, onApply, onClose }: Column
       setSelectedColumns(selected)
       setInitialized(true)
     } else if (!isOpen && initialized) {
-      // Reset initialized flag when modal closes
       setInitialized(false)
     }
   }, [isOpen, columns, initialized])
@@ -56,7 +56,7 @@ export function ColumnChooserModal({ isOpen, columns, onApply, onClose }: Column
     if (!columnItem.hideable) return
 
     setAvailableColumns(prev => prev.filter(col => col.id !== columnItem.id))
-    setSelectedColumns(prev => [...prev, { ...columnItem, hidden: false }])
+    setSelectedColumns(prev => [...prev, { ...columnItem, hidden: false, locked: false }])
   }
 
   const moveToAvailable = (columnItem: ColumnItem) => {
@@ -64,60 +64,69 @@ export function ColumnChooserModal({ isOpen, columns, onApply, onClose }: Column
     if (selectedColumns.length <= MIN_VISIBLE_COLUMNS) return
 
     setSelectedColumns(prev => prev.filter(col => col.id !== columnItem.id))
-    setAvailableColumns(prev => [...prev, { ...columnItem, hidden: true }])
+    setAvailableColumns(prev => [...prev, { ...columnItem, hidden: true, locked: false }])
   }
 
   const moveSelectedUp = (index: number) => {
     if (index === 0) return
     setSelectedColumns(prev => {
-      const newSelected = [...prev]
-      const [moved] = newSelected.splice(index, 1)
-      newSelected.splice(index - 1, 0, moved)
-      return newSelected
+      const next = [...prev]
+      const [moved] = next.splice(index, 1)
+      next.splice(index - 1, 0, moved)
+      return next
     })
   }
 
   const moveSelectedDown = (index: number) => {
     if (index === selectedColumns.length - 1) return
     setSelectedColumns(prev => {
-      const newSelected = [...prev]
-      const [moved] = newSelected.splice(index, 1)
-      newSelected.splice(index + 1, 0, moved)
-      return newSelected
+      const next = [...prev]
+      const [moved] = next.splice(index, 1)
+      next.splice(index + 1, 0, moved)
+      return next
     })
   }
 
-  const handleDragStart = (e: React.DragEvent, item: ColumnItem, source: 'available' | 'selected', index?: number) => {
+  const toggleLocked = (columnId: string) => {
+    setSelectedColumns(prev =>
+      prev.map(column =>
+        column.id === columnId
+          ? { ...column, locked: !column.locked }
+          : column
+      )
+    )
+  }
+
+  const handleDragStart = (e: React.DragEvent, item: ColumnItem, source: "available" | "selected", index?: number) => {
     if (!item.hideable) {
       e.preventDefault()
       return
     }
     setDraggedItem(item)
-    e.dataTransfer.effectAllowed = 'move'
-    e.dataTransfer.setData('text/plain', JSON.stringify({ item, source, index }))
+    e.dataTransfer.effectAllowed = "move"
+    e.dataTransfer.setData("text/plain", JSON.stringify({ item, source, index }))
   }
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault()
-    e.dataTransfer.dropEffect = 'move'
+    e.dataTransfer.dropEffect = "move"
   }
 
   const handleDropOnAvailable = (e: React.DragEvent) => {
     e.preventDefault()
 
     try {
-      const data = JSON.parse(e.dataTransfer.getData('text/plain'))
-
+      const data = JSON.parse(e.dataTransfer.getData("text/plain"))
       if (!data || !data.item || !data.source) {
         setDraggedItem(null)
         return
       }
 
-      if (data.source === 'selected') {
+      if (data.source === "selected") {
         moveToAvailable(data.item)
       }
     } catch (error) {
-      console.error('Failed to parse drag data:', error)
+      console.error("Failed to parse drag data:", error)
     }
 
     setDraggedItem(null)
@@ -127,58 +136,53 @@ export function ColumnChooserModal({ isOpen, columns, onApply, onClose }: Column
     e.preventDefault()
 
     try {
-      const data = JSON.parse(e.dataTransfer.getData('text/plain'))
-
+      const data = JSON.parse(e.dataTransfer.getData("text/plain"))
       if (!data || !data.item || !data.source) {
         setDraggedItem(null)
         return
       }
 
-      if (data.source === 'available') {
+      if (data.source === "available") {
         moveToSelected(data.item)
       }
     } catch (error) {
-      console.error('Failed to parse drag data:', error)
+      console.error("Failed to parse drag data:", error)
     }
 
     setDraggedItem(null)
   }
 
-  const handleDropOnSelectedItem = (e: React.DragEvent, targetItem: ColumnItem, targetIndex: number) => {
+  const handleDropOnSelectedItem = (e: React.DragEvent, targetIndex: number) => {
     e.preventDefault()
     e.stopPropagation()
 
     try {
-      const data = JSON.parse(e.dataTransfer.getData('text/plain'))
-
+      const data = JSON.parse(e.dataTransfer.getData("text/plain"))
       if (!data || !data.item || !data.source) {
         setDraggedItem(null)
         return
       }
 
-      // If dragging from available to selected, add it at the target position
-      if (data.source === 'available') {
+      if (data.source === "available") {
         setAvailableColumns(prev => prev.filter(col => col.id !== data.item.id))
         setSelectedColumns(prev => {
-          const newSelected = [...prev]
-          newSelected.splice(targetIndex, 0, { ...data.item, hidden: false })
-          return newSelected
+          const next = [...prev]
+          next.splice(targetIndex, 0, { ...data.item, hidden: false, locked: false })
+          return next
         })
-      }
-      // If dragging within selected, reorder
-      else if (data.source === 'selected') {
+      } else if (data.source === "selected") {
         const sourceIndex = data.index
         if (sourceIndex !== undefined && sourceIndex !== targetIndex) {
           setSelectedColumns(prev => {
-            const newSelected = [...prev]
-            const [movedItem] = newSelected.splice(sourceIndex, 1)
-            newSelected.splice(targetIndex, 0, movedItem)
-            return newSelected
+            const next = [...prev]
+            const [moved] = next.splice(sourceIndex, 1)
+            next.splice(targetIndex, 0, moved)
+            return next
           })
         }
       }
     } catch (error) {
-      console.error('Failed to parse drag data:', error)
+      console.error("Failed to parse drag data:", error)
     }
 
     setDraggedItem(null)
@@ -195,17 +199,16 @@ export function ColumnChooserModal({ isOpen, columns, onApply, onClose }: Column
 
       return {
         ...column,
-        hidden: availableItem ? true : false
+        hidden: Boolean(availableItem),
+        locked: selectedItem ? selectedItem.locked : false,
       }
     })
 
-    // Reorder based on selected columns order
     const reorderedColumns = [
       ...selectedColumns.map(item => updatedColumns.find(col => col.id === item.id)!),
-      ...availableColumns.map(item => updatedColumns.find(col => col.id === item.id)!)
+      ...availableColumns.map(item => updatedColumns.find(col => col.id === item.id)!),
     ].filter(Boolean)
 
-    // Apply changes (will trigger auto-save via useTablePreferences)
     onApply(reorderedColumns)
     onClose()
   }
@@ -222,21 +225,19 @@ export function ColumnChooserModal({ isOpen, columns, onApply, onClose }: Column
       >
         <ModalHeader kicker="Column Settings" title="Choose Columns" />
 
-        {/* Content */}
         <div className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Available Columns */}
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
             <div className="space-y-3">
-              <h3 className="text-sm font-medium text-gray-900 border-b border-gray-200 pb-2">
+              <h3 className="border-b border-gray-200 pb-2 text-sm font-medium text-gray-900">
                 Available Columns
               </h3>
               <div
-                className="min-h-[300px] max-h-[400px] overflow-y-auto border border-gray-200 rounded-lg p-3 bg-gray-50"
+                className="min-h-[300px] max-h-[400px] overflow-y-auto rounded-lg border border-gray-200 bg-gray-50 p-3"
                 onDragOver={handleDragOver}
                 onDrop={handleDropOnAvailable}
               >
                 {availableColumns.length === 0 ? (
-                  <div className="flex items-center justify-center h-32 text-gray-500 text-sm">
+                  <div className="flex h-32 items-center justify-center text-sm text-gray-500">
                     All columns are selected
                   </div>
                 ) : (
@@ -245,12 +246,12 @@ export function ColumnChooserModal({ isOpen, columns, onApply, onClose }: Column
                       <div
                         key={column.id}
                         draggable={column.hideable}
-                        onDragStart={(e) => handleDragStart(e, column, 'available', index)}
+                        onDragStart={event => handleDragStart(event, column, "available", index)}
                         onDragEnd={handleDragEnd}
                         className={cn(
-                          "flex items-center justify-between p-3 bg-white rounded border border-gray-200 hover:bg-gray-50 transition-all",
+                          "flex items-center justify-between rounded border border-gray-200 bg-white p-3 transition-all hover:bg-gray-50",
                           column.hideable ? "cursor-grab active:cursor-grabbing" : "cursor-not-allowed opacity-50",
-                          draggedItem?.id === column.id && "opacity-50 scale-95"
+                          draggedItem?.id === column.id && "scale-95 opacity-50"
                         )}
                         onClick={() => column.hideable && moveToSelected(column)}
                       >
@@ -258,17 +259,18 @@ export function ColumnChooserModal({ isOpen, columns, onApply, onClose }: Column
                           {column.hideable && <GripVertical className="h-4 w-4 text-gray-400" />}
                           <span className="text-sm">{column.label}</span>
                         </div>
-                        {column.hideable && (
+                        {column.hideable ? (
                           <button
-                            onClick={(e) => {
-                              e.stopPropagation()
+                            type="button"
+                            onClick={event => {
+                              event.stopPropagation()
                               moveToSelected(column)
                             }}
-                            className="p-1 text-blue-600 hover:bg-blue-50 rounded"
+                            className="rounded p-1 text-blue-600 hover:bg-blue-50"
                           >
                             <ArrowRight className="h-4 w-4" />
                           </button>
-                        )}
+                        ) : null}
                       </div>
                     ))}
                   </div>
@@ -276,18 +278,17 @@ export function ColumnChooserModal({ isOpen, columns, onApply, onClose }: Column
               </div>
             </div>
 
-            {/* Selected Columns */}
             <div className="space-y-3">
-              <h3 className="text-sm font-medium text-gray-900 border-b border-gray-200 pb-2">
+              <h3 className="border-b border-gray-200 pb-2 text-sm font-medium text-gray-900">
                 Selected Columns
               </h3>
               <div
-                className="min-h-[300px] max-h-[400px] overflow-y-auto border border-gray-200 rounded-lg p-3 bg-gray-50"
+                className="min-h-[300px] max-h-[400px] overflow-y-auto rounded-lg border border-gray-200 bg-gray-50 p-3"
                 onDragOver={handleDragOver}
                 onDrop={handleDropOnSelected}
               >
                 {selectedColumns.length === 0 ? (
-                  <div className="flex items-center justify-center h-32 text-gray-500 text-sm">
+                  <div className="flex h-32 items-center justify-center text-sm text-gray-500">
                     No columns selected
                   </div>
                 ) : (
@@ -296,57 +297,79 @@ export function ColumnChooserModal({ isOpen, columns, onApply, onClose }: Column
                       <div
                         key={column.id}
                         draggable={column.hideable}
-                        onDragStart={(e) => handleDragStart(e, column, 'selected', index)}
+                        onDragStart={event => handleDragStart(event, column, "selected", index)}
                         onDragOver={column.hideable ? handleDragOver : undefined}
-                        onDrop={(e) => handleDropOnSelectedItem(e, column, index)}
+                        onDrop={event => handleDropOnSelectedItem(event, index)}
                         onDragEnd={handleDragEnd}
                         className={cn(
-                          "flex items-center justify-between p-3 bg-white rounded border border-gray-200 transition-all",
+                          "flex items-center justify-between rounded border border-gray-200 bg-white p-3 transition-all",
                           column.hideable ? "cursor-grab active:cursor-grabbing hover:border-blue-400" : "cursor-not-allowed opacity-75",
-                          draggedItem?.id === column.id && "opacity-50 scale-95"
+                          draggedItem?.id === column.id && "scale-95 opacity-50"
                         )}
                       >
                         <div className="flex items-center gap-2">
                           {column.hideable && <GripVertical className="h-4 w-4 text-gray-400" />}
                           <span className="text-sm font-medium">{column.label}</span>
-                          {!column.hideable && (
-                            <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">Required</span>
-                          )}
+                          {column.locked ? (
+                            <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-700">
+                              Locked
+                            </span>
+                          ) : null}
+                          {!column.hideable ? (
+                            <span className="rounded bg-gray-100 px-2 py-1 text-xs text-gray-500">Required</span>
+                          ) : null}
                         </div>
                         <div className="flex items-center gap-1">
-                          {/* Move Up/Down buttons */}
                           <button
+                            type="button"
+                            onClick={event => {
+                              event.stopPropagation()
+                              toggleLocked(column.id)
+                            }}
+                            className={cn(
+                              "rounded border px-2 py-1 text-[11px] font-semibold transition",
+                              column.locked
+                                ? "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
+                                : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
+                            )}
+                            title={column.locked ? "Unlock column" : "Lock column to the left side of the table"}
+                          >
+                            {column.locked ? "Locked" : "Lock"}
+                          </button>
+                          <button
+                            type="button"
                             onClick={() => moveSelectedUp(index)}
                             disabled={index === 0}
                             className={cn(
-                              "p-1 text-gray-600 hover:bg-gray-100 rounded text-xs",
-                              index === 0 && "opacity-40 cursor-not-allowed"
+                              "rounded p-1 text-xs text-gray-600 hover:bg-gray-100",
+                              index === 0 && "cursor-not-allowed opacity-40"
                             )}
                             title="Move up"
                           >
-                            ↑
+                            Up
                           </button>
                           <button
+                            type="button"
                             onClick={() => moveSelectedDown(index)}
                             disabled={index === selectedColumns.length - 1}
                             className={cn(
-                              "p-1 text-gray-600 hover:bg-gray-100 rounded text-xs",
-                              index === selectedColumns.length - 1 && "opacity-40 cursor-not-allowed"
+                              "rounded p-1 text-xs text-gray-600 hover:bg-gray-100",
+                              index === selectedColumns.length - 1 && "cursor-not-allowed opacity-40"
                             )}
                             title="Move down"
                           >
-                            ↓
+                            Down
                           </button>
-                          {/* Remove button */}
-                          {column.hideable && selectedColumns.length > MIN_VISIBLE_COLUMNS && (
+                          {column.hideable && selectedColumns.length > MIN_VISIBLE_COLUMNS ? (
                             <button
+                              type="button"
                               onClick={() => moveToAvailable(column)}
-                              className="p-1 text-red-600 hover:bg-red-50 rounded"
+                              className="rounded p-1 text-red-600 hover:bg-red-50"
                               title="Remove column"
                             >
                               <ArrowLeft className="h-4 w-4" />
                             </button>
-                          )}
+                          ) : null}
                         </div>
                       </div>
                     ))}
@@ -356,17 +379,16 @@ export function ColumnChooserModal({ isOpen, columns, onApply, onClose }: Column
             </div>
           </div>
 
-          {/* Instructions */}
-          <div className="mt-4 p-3 bg-blue-50 rounded-lg">
+          <div className="mt-4 rounded-lg bg-blue-50 p-3">
             <p className="text-sm text-blue-800">
               <strong>Tips:</strong> Drag columns between lists or drag within Selected Columns to reorder.
-              Use arrow buttons for fine control. Click available columns to add them. Required columns cannot be removed.
+              Use the Lock button on selected columns to keep them pinned on the left during horizontal scroll.
+              Click available columns to add them. Required columns cannot be removed.
             </p>
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="flex items-center justify-between border-t border-gray-200 px-6 py-4 bg-gray-50">
+        <div className="flex items-center justify-between border-t border-gray-200 bg-gray-50 px-6 py-4">
           <div className="text-sm text-gray-600">
             Selected: <span className="font-medium">{selectedColumns.length}</span> columns
           </div>
@@ -374,7 +396,7 @@ export function ColumnChooserModal({ isOpen, columns, onApply, onClose }: Column
             <button
               type="button"
               onClick={onClose}
-              className="rounded-md bg-white border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
             >
               Cancel
             </button>

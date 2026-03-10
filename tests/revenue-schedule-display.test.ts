@@ -2,13 +2,13 @@ import test from "node:test"
 import assert from "node:assert/strict"
 import { formatRevenueScheduleDisplayName } from "../lib/flex/revenue-schedule-display"
 
-test("formatRevenueScheduleDisplayName keeps -flex suffix for FlexProduct", () => {
+test("formatRevenueScheduleDisplayName keeps FLEX- prefix for FlexProduct", () => {
   const result = formatRevenueScheduleDisplayName({
-    scheduleNumber: "12582-flex",
+    scheduleNumber: "FLEX-12582",
     fallbackId: "fallback",
     flexClassification: "FlexProduct",
   })
-  assert.equal(result, "12582-flex")
+  assert.equal(result, "FLEX-12582")
 })
 
 test("formatRevenueScheduleDisplayName appends -F when FlexProduct has no suffix", () => {
@@ -28,4 +28,3 @@ test("formatRevenueScheduleDisplayName preserves child-number style FlexProduct 
   })
   assert.equal(result, "12582.1")
 })
-
