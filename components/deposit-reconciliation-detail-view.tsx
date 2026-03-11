@@ -16,7 +16,15 @@ import { DepositReconciliationTopSection } from "./deposit-reconciliation-top-se
 import { DepositVendorSummaryFloatingWidget } from "./deposit-vendor-summary-floating-widget"
 import { ColumnChooserModal } from "./column-chooser-modal"
 import { TwoStageDeleteDialog } from "./two-stage-delete-dialog"
-import { ModalHeader } from "./ui/modal-header"
+import {
+  ReconciliationAlertModal,
+  type AiAdjustmentPreviewPayload,
+  type AiAdjustmentModalState,
+  type FlexDecisionPayload,
+  type FlexPromptState,
+  type RateDiscrepancyModalState,
+  type RateDiscrepancyPayload,
+} from "./reconciliation-alert-modal"
 import { ReconciliationMatchWizardModal } from "./reconciliation-match-wizard-modal"
 import { TicketCreateModal } from "./ticket-create-modal"
 import { useTablePreferences } from "@/hooks/useTablePreferences"
@@ -57,80 +65,6 @@ export interface AutoMatchSummary {
   errors: number
 }
 
-type FlexDecisionAction = "none" | "auto_adjust" | "prompt" | "auto_chargeback"
-
-type FlexDecisionPayload = {
-  action: FlexDecisionAction
-  usageOverage: number
-  usageUnderpayment: number
-  usageToleranceAmount: number
-  overageAboveTolerance: boolean
-  allowedPromptOptions: Array<"Adjust" | "Manual" | "FlexProduct">
-}
-
-type FlexPromptState = {
-  lineId: string
-  scheduleId: string
-  decision: FlexDecisionPayload
-}
-
-type AiAdjustmentPreviewPayload = {
-  suggestion: {
-    type: "allocate" | "adjust"
-    reason: string
-    priorOpenScheduleIds: string[]
-  }
-  base: {
-    scheduleId: string
-    scheduleDate: string
-    expectedUsageNet: number
-    actualUsageNet: number
-    usageOverage: number
-    expectedCommissionNet: number
-    actualCommissionNet: number
-    commissionOverage: number
-  }
-  scope: {
-    kind: string
-  }
-  future: {
-    count: number
-    schedules: Array<{ id: string; scheduleNumber: string | null; scheduleDate: string | null }>
-  }
-}
-
-type AiAdjustmentModalState = {
-  lineId: string
-  scheduleId: string
-  applyToFuture: boolean
-  loading: boolean
-  applying: boolean
-  error: string | null
-  preview: AiAdjustmentPreviewPayload | null
-}
-
-type RateDiscrepancyPayload = {
-  revenueScheduleId: string
-  scheduleNumber: string
-  scheduleDate: string | null
-  expectedRatePercent: number
-  receivedRatePercent: number
-  differencePercent: number
-  tolerancePercent: number
-  future: {
-    count: number
-    schedules: Array<{ id: string; scheduleNumber: string | null; scheduleDate: string | null }>
-  }
-}
-
-type RateDiscrepancyModalState = {
-  lineId: string
-  scheduleId: string
-  applyingAction: "acceptCurrent" | "applyToFuture" | null
-  error: string | null
-  discrepancy: RateDiscrepancyPayload
-}
-
 type RateDiscrepancyTicketState = {
   revenueScheduleId: string
   revenueScheduleName: string
@@ -138,6 +72,22 @@ type RateDiscrepancyTicketState = {
   distributorName?: string
   vendorName?: string
   productNameVendor?: string
+}
+
+type ReconciliationAlertContextState = {
+  lineId: string
+  scheduleId: string
+  line: DepositLineItemRow | null
+  schedule: SuggestedMatchScheduleRow | null
+  matchedUsageAmount: number
+  matchedCommissionAmount: number
+}
+
+type PendingMatchActionState = {
+  lineId: string
+  scheduleId: string
+  usageAmount: number
+  commissionAmount: number
 }
 
 type AllocationDraft = {
@@ -550,6 +500,8 @@ export function DepositReconciliationDetailView({
   const [aiAdjustmentModal, setAiAdjustmentModal] = useState<AiAdjustmentModalState | null>(null)
   const [rateDiscrepancyModal, setRateDiscrepancyModal] = useState<RateDiscrepancyModalState | null>(null)
   const [rateDiscrepancyTicketModal, setRateDiscrepancyTicketModal] = useState<RateDiscrepancyTicketState | null>(null)
+  const [reconciliationAlertContext, setReconciliationAlertContext] = useState<ReconciliationAlertContextState | null>(null)
+  const [pendingMatchAction, setPendingMatchAction] = useState<PendingMatchActionState | null>(null)
   const [allocationDraft, setAllocationDraft] = useState<AllocationDraft>({ usage: "", commission: "" })
   const [matchWizard, setMatchWizard] = useState<{
     detectedType: MatchSelectionType
@@ -609,6 +561,125 @@ export function DepositReconciliationDetailView({
     return parsed
   }, [])
 
+  const dismissReconciliationAlert = useCallback(() => {
+    setAiAdjustmentModal(null)
+    setFlexPrompt(null)
+    setRateDiscrepancyModal(null)
+    setReconciliationAlertContext(null)
+    setPendingMatchAction(null)
+  }, [])
+
+  const openReconciliationAlert = useCallback((params: {
+    lineId: string
+    scheduleId: string
+    line: DepositLineItemRow | null
+    schedule: SuggestedMatchScheduleRow | null
+    matchedUsageAmount: number
+    matchedCommissionAmount: number
+    flexPrompt: FlexPromptState | null
+    rateDiscrepancy: RateDiscrepancyModalState | null
+  }) => {
+    setAiAdjustmentModal(null)
+    setFlexPrompt(params.flexPrompt)
+    setRateDiscrepancyModal(params.rateDiscrepancy)
+    setReconciliationAlertContext({
+      lineId: params.lineId,
+      scheduleId: params.scheduleId,
+      line: params.line,
+      schedule: params.schedule,
+      matchedUsageAmount: params.matchedUsageAmount,
+      matchedCommissionAmount: params.matchedCommissionAmount,
+    })
+  }, [])
+
+  const applyMatchAllocation = useCallback(
+    async (params: {
+      lineId: string
+      scheduleId: string
+      usageAmount: number
+      commissionAmount: number
+      skipIssueAlert?: boolean
+    }) => {
+      const response = await fetch(
+        `/api/reconciliation/deposits/${encodeURIComponent(metadata.id)}/line-items/${encodeURIComponent(params.lineId)}/apply-match`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            revenueScheduleId: params.scheduleId,
+            usageAmount: params.usageAmount,
+            commissionAmount: params.commissionAmount,
+          }),
+        },
+      )
+      const payload = await response.json().catch(() => null)
+      if (!response.ok) {
+        throw new Error(payload?.error || "Failed to apply match")
+      }
+
+      const flexDecision = payload?.data?.flexDecision as FlexDecisionPayload | undefined
+      const flexExecution = payload?.data?.flexExecution as { action?: string } | undefined
+      const rateDiscrepancy = payload?.data?.rateDiscrepancy as RateDiscrepancyPayload | undefined
+      const nextFlexPrompt =
+        !params.skipIssueAlert && flexDecision?.action === "prompt"
+          ? ({
+              lineId: params.lineId,
+              scheduleId: params.scheduleId,
+              decision: flexDecision,
+            } satisfies FlexPromptState)
+          : null
+      const nextRateDiscrepancy =
+        !params.skipIssueAlert && rateDiscrepancy
+          ? ({
+              lineId: params.lineId,
+              scheduleId: params.scheduleId,
+              applyingAction: null,
+              error: null,
+              discrepancy: rateDiscrepancy,
+            } satisfies RateDiscrepancyModalState)
+          : null
+
+      setSelectedLineItems([params.lineId])
+      onLineSelectionChange?.(params.lineId)
+      setSelectedSchedules([])
+      onMatchApplied?.()
+
+      if (flexExecution?.action === "ChargebackPending") {
+        return {
+          nextFlexPrompt,
+          nextRateDiscrepancy,
+          chargebackPending: true,
+          autoAdjusted: false,
+        }
+      }
+
+      return {
+        nextFlexPrompt,
+        nextRateDiscrepancy,
+        chargebackPending: false,
+        autoAdjusted: flexDecision?.action === "auto_adjust",
+      }
+    },
+    [metadata.id, onLineSelectionChange, onMatchApplied],
+  )
+
+  const commitPendingMatchIfNeeded = useCallback(async () => {
+    if (!pendingMatchAction) {
+      return null
+    }
+
+    const result = await applyMatchAllocation({
+      lineId: pendingMatchAction.lineId,
+      scheduleId: pendingMatchAction.scheduleId,
+      usageAmount: pendingMatchAction.usageAmount,
+      commissionAmount: pendingMatchAction.commissionAmount,
+      skipIssueAlert: true,
+    })
+
+    setPendingMatchAction(null)
+    return result
+  }, [applyMatchAllocation, pendingMatchAction])
+
   useEffect(() => {
     if (!flexPrompt) {
       setManualFlexEntryOpen(false)
@@ -621,6 +692,12 @@ export function DepositReconciliationDetailView({
     setManualFlexUsageAmount(flexPrompt.decision.usageOverage.toFixed(2))
     setManualFlexError(null)
   }, [flexPrompt])
+
+  useEffect(() => {
+    if (flexPrompt || rateDiscrepancyModal) return
+    setAiAdjustmentModal(null)
+    setReconciliationAlertContext(null)
+  }, [flexPrompt, rateDiscrepancyModal])
 
   useEffect(() => {
     let cancelled = false
@@ -1045,60 +1122,112 @@ export function DepositReconciliationDetailView({
         setMatchingLineId(lineId)
         const usageAmount = parseAllocationInput(allocationDraftRef.current.usage)
         const commissionAmount = parseAllocationInput(allocationDraftRef.current.commission)
-        const response = await fetch(
-          `/api/reconciliation/deposits/${encodeURIComponent(metadata.id)}/line-items/${encodeURIComponent(lineId)}/apply-match`,
+        const normalizedUsageAmount = usageAmount ?? 0
+        const normalizedCommissionAmount = commissionAmount ?? 0
+        const previewResponse = await fetch(
+          `/api/reconciliation/deposits/${encodeURIComponent(metadata.id)}/line-items/${encodeURIComponent(lineId)}/match-issues-preview`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               revenueScheduleId: scheduleId,
-              usageAmount: usageAmount ?? undefined,
-              commissionAmount: commissionAmount ?? undefined,
-            })
-          }
+              usageAmount: normalizedUsageAmount,
+              commissionAmount: normalizedCommissionAmount,
+            }),
+          },
         )
-        const payload = await response.json().catch(() => null)
-        if (!response.ok) {
-          throw new Error(payload?.error || "Failed to apply match")
+        const previewPayload = await previewResponse.json().catch(() => null)
+        if (!previewResponse.ok) {
+          throw new Error(previewPayload?.error || "Failed to review match issues")
         }
 
-        const flexDecision = payload?.data?.flexDecision as FlexDecisionPayload | undefined
-        const flexExecution = payload?.data?.flexExecution as any
-        const rateDiscrepancy = payload?.data?.rateDiscrepancy as RateDiscrepancyPayload | undefined
+        const flexDecision = previewPayload?.data?.flexDecision as FlexDecisionPayload | undefined
+        const rateDiscrepancy = previewPayload?.data?.rateDiscrepancy as RateDiscrepancyPayload | undefined
+        const requiresConfirmation = Boolean(previewPayload?.data?.requiresConfirmation)
+        const selectedLineSnapshot = lineItemRows.find(row => row.id === lineId) ?? null
+        const selectedScheduleSnapshot = scheduleRows.find(row => row.id === scheduleId) ?? null
+        const nextFlexPrompt =
+          flexDecision?.action === "prompt"
+            ? ({
+                lineId,
+                scheduleId,
+                decision: flexDecision,
+              } satisfies FlexPromptState)
+            : null
+        const nextRateDiscrepancy = rateDiscrepancy
+          ? ({
+              lineId,
+              scheduleId,
+              applyingAction: null,
+              error: null,
+              discrepancy: rateDiscrepancy,
+            } satisfies RateDiscrepancyModalState)
+          : null
 
-        setSelectedLineItems([lineId])
-        onLineSelectionChange?.(lineId)
-        setSelectedSchedules([])
-        onMatchApplied?.()
-
-        if (flexExecution?.action === "ChargebackPending") {
-          showSuccess("Chargeback pending", "A Flex Chargeback entry was created and is awaiting approval.")
-          return
-        }
-
-        if (rateDiscrepancy) {
-          setRateDiscrepancyModal({
+        if (requiresConfirmation && (nextFlexPrompt || nextRateDiscrepancy)) {
+          setPendingMatchAction({
             lineId,
             scheduleId,
-            applyingAction: null,
-            error: null,
-            discrepancy: rateDiscrepancy,
+            usageAmount: normalizedUsageAmount,
+            commissionAmount: normalizedCommissionAmount,
+          })
+          openReconciliationAlert({
+            lineId,
+            scheduleId,
+            line: selectedLineSnapshot,
+            schedule: selectedScheduleSnapshot,
+            matchedUsageAmount: Number(previewPayload?.data?.usageDelta ?? normalizedUsageAmount),
+            matchedCommissionAmount: Number(previewPayload?.data?.commissionDelta ?? normalizedCommissionAmount),
+            flexPrompt: nextFlexPrompt,
+            rateDiscrepancy: nextRateDiscrepancy,
           })
           showSuccess(
-            "Allocation saved",
-            "Received commission rate differs from expected. Review whether future schedules should use the new rate.",
+            "Review required",
+            nextFlexPrompt && nextRateDiscrepancy
+              ? "Review both the usage overage and the commission rate discrepancy before saving the match."
+              : nextFlexPrompt
+                ? "Overage exceeds tolerance. Choose how to resolve the variance before saving the match."
+                : "Received commission rate differs from expected. Review whether future schedules should use the new rate before saving the match.",
           )
           return
         }
 
-        if (flexDecision?.action === "auto_adjust") {
-          showSuccess("Auto-adjustment created", "A one-time adjustment was created and matched automatically.")
+        const applyResult = await applyMatchAllocation({
+          lineId,
+          scheduleId,
+          usageAmount: normalizedUsageAmount,
+          commissionAmount: normalizedCommissionAmount,
+        })
+
+        if (applyResult.chargebackPending) {
+          showSuccess("Chargeback pending", "A Flex Chargeback entry was created and is awaiting approval.")
           return
         }
 
-        if (flexDecision?.action === "prompt") {
-          setFlexPrompt({ lineId, scheduleId, decision: flexDecision })
-          showSuccess("Allocation saved", "Overage exceeds tolerance. Choose how to resolve the variance.")
+        if (applyResult.nextFlexPrompt || applyResult.nextRateDiscrepancy) {
+          openReconciliationAlert({
+            lineId,
+            scheduleId,
+            line: selectedLineSnapshot,
+            schedule: selectedScheduleSnapshot,
+            matchedUsageAmount: normalizedUsageAmount,
+            matchedCommissionAmount: normalizedCommissionAmount,
+            flexPrompt: applyResult.nextFlexPrompt,
+            rateDiscrepancy: applyResult.nextRateDiscrepancy,
+          })
+          showSuccess(
+            "Allocation saved",
+            applyResult.nextFlexPrompt && applyResult.nextRateDiscrepancy
+              ? "Review both the usage overage and the commission rate discrepancy in the reconciliation alert."
+              : applyResult.nextFlexPrompt
+                ? "Overage exceeds tolerance. Choose how to resolve the variance."
+                : "Received commission rate differs from expected. Review whether future schedules should use the new rate.",
+          )
+          return
+        }
+
+        if (applyResult.autoAdjusted) {
+          showSuccess("Auto-adjustment created", "A one-time adjustment was created and matched automatically.")
           return
         }
 
@@ -1112,8 +1241,10 @@ export function DepositReconciliationDetailView({
       }
     },
     [
+      applyMatchAllocation,
       lineItemRows,
       metadata.id,
+      openReconciliationAlert,
       onLineSelectionChange,
       onMatchApplied,
       parseAllocationInput,
@@ -2598,6 +2729,7 @@ export function DepositReconciliationDetailView({
 
       try {
         setFlexResolving(true)
+        await commitPendingMatchIfNeeded()
         const response = await fetch(
           `/api/reconciliation/deposits/${encodeURIComponent(metadata.id)}/line-items/${encodeURIComponent(flexPrompt.lineId)}/resolve-flex`,
           {
@@ -2626,7 +2758,7 @@ export function DepositReconciliationDetailView({
         setFlexResolving(false)
       }
     },
-    [flexPrompt, metadata.id, onMatchApplied, showError, showSuccess],
+    [commitPendingMatchIfNeeded, flexPrompt, metadata.id, onMatchApplied, showError, showSuccess],
   )
 
   const handleApplyManualFlex = useCallback(async () => {
@@ -2645,6 +2777,7 @@ export function DepositReconciliationDetailView({
     try {
       setManualFlexError(null)
       setFlexResolving(true)
+      await commitPendingMatchIfNeeded()
       const response = await fetch(
         `/api/reconciliation/deposits/${encodeURIComponent(metadata.id)}/line-items/${encodeURIComponent(flexPrompt.lineId)}/resolve-flex`,
         {
@@ -2674,7 +2807,7 @@ export function DepositReconciliationDetailView({
     } finally {
       setFlexResolving(false)
     }
-  }, [flexPrompt, manualFlexUsageAmount, metadata.id, onMatchApplied, parseAllocationInput, showError, showSuccess])
+  }, [commitPendingMatchIfNeeded, flexPrompt, manualFlexUsageAmount, metadata.id, onMatchApplied, parseAllocationInput, showError, showSuccess])
 
   const handleOpenAiAdjustment = useCallback(async () => {
     if (!flexPrompt) return
@@ -2752,17 +2885,25 @@ export function DepositReconciliationDetailView({
   const handleOpenRateDiscrepancyTicket = useCallback(() => {
     if (!rateDiscrepancyModal) return
     const schedule = scheduleRows.find(row => row.id === rateDiscrepancyModal.scheduleId)
-    setRateDiscrepancyTicketModal({
-      revenueScheduleId: rateDiscrepancyModal.scheduleId,
-      revenueScheduleName:
-        schedule?.revenueScheduleName ?? rateDiscrepancyModal.discrepancy.scheduleNumber ?? rateDiscrepancyModal.scheduleId,
-      opportunityName: schedule?.opportunityName ?? undefined,
-      distributorName: schedule?.distributorName ?? undefined,
-      vendorName: schedule?.vendorName ?? undefined,
-      productNameVendor: schedule?.productNameVendor ?? undefined,
-    })
-    setRateDiscrepancyModal(null)
-  }, [rateDiscrepancyModal, scheduleRows])
+    void (async () => {
+      try {
+        await commitPendingMatchIfNeeded()
+        setRateDiscrepancyTicketModal({
+          revenueScheduleId: rateDiscrepancyModal.scheduleId,
+          revenueScheduleName:
+            schedule?.revenueScheduleName ?? rateDiscrepancyModal.discrepancy.scheduleNumber ?? rateDiscrepancyModal.scheduleId,
+          opportunityName: schedule?.opportunityName ?? undefined,
+          distributorName: schedule?.distributorName ?? undefined,
+          vendorName: schedule?.vendorName ?? undefined,
+          productNameVendor: schedule?.productNameVendor ?? undefined,
+        })
+        dismissReconciliationAlert()
+      } catch (err) {
+        console.error("Failed to confirm match before opening commission ticket", err)
+        showError("Unable to continue", err instanceof Error ? err.message : "Unknown error")
+      }
+    })()
+  }, [commitPendingMatchIfNeeded, dismissReconciliationAlert, rateDiscrepancyModal, scheduleRows, showError])
 
   const handleAcceptRateDiscrepancyCurrent = useCallback(async () => {
     if (!rateDiscrepancyModal) return
@@ -2772,6 +2913,7 @@ export function DepositReconciliationDetailView({
       setRateDiscrepancyModal(previous =>
         previous ? { ...previous, applyingAction: "acceptCurrent", error: null } : null,
       )
+      await commitPendingMatchIfNeeded()
       await updateCurrentScheduleRate(scheduleId, discrepancy.receivedRatePercent)
       setRateDiscrepancyModal(null)
       onMatchApplied?.()
@@ -2791,7 +2933,7 @@ export function DepositReconciliationDetailView({
         previous ? { ...previous, applyingAction: null } : null,
       )
     }
-  }, [onMatchApplied, rateDiscrepancyModal, showError, showSuccess, updateCurrentScheduleRate])
+  }, [commitPendingMatchIfNeeded, onMatchApplied, rateDiscrepancyModal, showError, showSuccess, updateCurrentScheduleRate])
 
   const handleApplyRateDiscrepancyToFuture = useCallback(async () => {
     if (!rateDiscrepancyModal) return
@@ -2801,6 +2943,7 @@ export function DepositReconciliationDetailView({
       setRateDiscrepancyModal(previous =>
         previous ? { ...previous, applyingAction: "applyToFuture", error: null } : null,
       )
+      await commitPendingMatchIfNeeded()
       const response = await fetch(
         `/api/reconciliation/deposits/${encodeURIComponent(metadata.id)}/line-items/${encodeURIComponent(lineId)}/rate-discrepancy/apply-to-future`,
         {
@@ -2837,15 +2980,16 @@ export function DepositReconciliationDetailView({
         previous ? { ...previous, applyingAction: null } : null,
       )
     }
-  }, [metadata.id, onMatchApplied, rateDiscrepancyModal, showError, showSuccess])
+  }, [commitPendingMatchIfNeeded, metadata.id, onMatchApplied, rateDiscrepancyModal, showError, showSuccess])
 
   const handleApplyAiAdjustment = useCallback(async () => {
     if (!aiAdjustmentModal) return
     const { lineId, scheduleId, applyToFuture } = aiAdjustmentModal
     try {
       setAiAdjustmentModal(previous => (previous ? { ...previous, applying: true } : null))
+      await commitPendingMatchIfNeeded()
       const response = await fetch(
-        `/api/reconciliation/deposits/${encodeURIComponent(metadata.id)}/line-items/${encodeURIComponent(lineId)}/ai-adjustment/apply`,
+        `/api/reconciliation/deposits/${encodeURIComponent(metadata.id)}/line-items/${encodeURIComponent(lineId)}/absorb-overage/apply`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -2854,35 +2998,36 @@ export function DepositReconciliationDetailView({
       )
       const payload = await response.json().catch(() => null)
       if (!response.ok) {
-        throw new Error(payload?.error || "Failed to apply AI adjustment")
+        throw new Error(payload?.error || "Failed to apply absorb adjustment")
       }
 
-      const updatedCount = Number(payload?.data?.futureUpdate?.updatedScheduleIds?.length ?? 0)
+      const updatedCount = Number(payload?.data?.updatedScheduleIds?.length ?? 0)
+      const futureUpdatedCount = applyToFuture ? Math.max(updatedCount - 1, 0) : 0
       setAiAdjustmentModal(null)
       setFlexPrompt(null)
       onMatchApplied?.()
       showSuccess(
-        "AI adjustment applied",
-        applyToFuture && updatedCount > 0
-          ? `Applied adjustment and updated ${updatedCount} future schedules.`
-          : "Applied adjustment for this period.",
+        "Absorb adjustment applied",
+        applyToFuture && futureUpdatedCount > 0
+          ? `Updated the matched schedule and ${futureUpdatedCount} future schedules.`
+          : "Updated the matched schedule.",
       )
     } catch (err) {
-      console.error("Failed to apply AI adjustment", err)
+      console.error("Failed to apply absorb adjustment", err)
       setAiAdjustmentModal(previous =>
         previous
           ? {
               ...previous,
               applying: false,
-              error: err instanceof Error ? err.message : "Failed to apply AI adjustment",
+              error: err instanceof Error ? err.message : "Failed to apply absorb adjustment",
             }
           : null,
       )
-      showError("Unable to apply AI adjustment", err instanceof Error ? err.message : "Unknown error")
+      showError("Unable to apply absorb adjustment", err instanceof Error ? err.message : "Unknown error")
     } finally {
       setAiAdjustmentModal(previous => (previous ? { ...previous, applying: false } : null))
     }
-  }, [aiAdjustmentModal, metadata.id, onMatchApplied, showError, showSuccess])
+  }, [aiAdjustmentModal, commitPendingMatchIfNeeded, metadata.id, onMatchApplied, showError, showSuccess])
 
   const handleBulkLineExport = useCallback(() => {
     if (selectedLineItems.length === 0) {
@@ -3300,331 +3445,32 @@ export function DepositReconciliationDetailView({
           defaultProductNameVendor={rateDiscrepancyTicketModal.productNameVendor ?? ""}
         />
       ) : null}
-      {rateDiscrepancyModal ? (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/40 px-4"
-          onClick={() => (rateDiscrepancyModal.applyingAction ? null : setRateDiscrepancyModal(null))}
-        >
-          <div
-            className="flex h-[900px] w-full max-w-5xl flex-col rounded-xl bg-white shadow-xl"
-            onClick={e => e.stopPropagation()}
-          >
-            <ModalHeader kicker="Rate Discrepancy" title="Received rate differs from expected" />
-            <div className="flex flex-1 flex-col space-y-4 overflow-y-auto p-6 text-sm text-slate-700">
-              <p>
-                The received commission rate for this match does not match the expected schedule rate. Continuing
-                without review can hide incorrect schedule data or missed revenue.
-              </p>
-              <div className="grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4 sm:grid-cols-2">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Expected rate</p>
-                  <p className="mt-1 text-lg font-semibold text-slate-900">
-                    {formatRatePercent(rateDiscrepancyModal.discrepancy.expectedRatePercent)}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Received rate</p>
-                  <p className="mt-1 text-lg font-semibold text-slate-900">
-                    {formatRatePercent(rateDiscrepancyModal.discrepancy.receivedRatePercent)}
-                  </p>
-                </div>
-              </div>
-              <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-                Difference: {formatRatePercent(rateDiscrepancyModal.discrepancy.differencePercent)}.
-              </div>
-              {rateDiscrepancyModal.discrepancy.future.count > 0 ? (
-                <details className="rounded-md border border-slate-200 bg-slate-50 p-3">
-                  <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wide text-slate-700">
-                    Future unreconciled schedules ({rateDiscrepancyModal.discrepancy.future.count})
-                  </summary>
-                  <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-slate-700">
-                    {rateDiscrepancyModal.discrepancy.future.schedules.map(schedule => (
-                      <li key={schedule.id} className="break-all">
-                        {schedule.scheduleNumber ?? schedule.id}{" "}
-                        {schedule.scheduleDate ? `(${schedule.scheduleDate.slice(0, 10)})` : ""}
-                      </li>
-                    ))}
-                  </ul>
-                </details>
-              ) : (
-                <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
-                  No future unreconciled schedules are currently eligible for a rate update.
-                </div>
-              )}
-              {rateDiscrepancyModal.error ? (
-                <p className="text-sm text-red-600">{rateDiscrepancyModal.error}</p>
-              ) : null}
-              <div className="mt-auto flex flex-wrap items-center justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  className="rounded border border-orange-200 bg-orange-50 px-3 py-2 text-sm font-semibold text-orange-800 hover:bg-orange-100 disabled:cursor-not-allowed disabled:opacity-60"
-                  onClick={handleOpenRateDiscrepancyTicket}
-                  disabled={Boolean(rateDiscrepancyModal.applyingAction) || !canCreateTickets}
-                  title={!canCreateTickets ? "Insufficient permissions to create tickets" : undefined}
-                >
-                  Create Ticket
-                </button>
-                <button
-                  type="button"
-                  className="rounded border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-                  onClick={() => void handleAcceptRateDiscrepancyCurrent()}
-                  disabled={Boolean(rateDiscrepancyModal.applyingAction)}
-                >
-                  {rateDiscrepancyModal.applyingAction === "acceptCurrent" ? "Updating..." : "Accept New Rate %"}
-                </button>
-                <button
-                  type="button"
-                  className="rounded bg-primary-600 px-3 py-2 text-sm font-semibold text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-60"
-                  onClick={() => void handleApplyRateDiscrepancyToFuture()}
-                  disabled={Boolean(rateDiscrepancyModal.applyingAction) || rateDiscrepancyModal.discrepancy.future.count === 0}
-                >
-                  {rateDiscrepancyModal.applyingAction === "applyToFuture"
-                    ? "Updating..."
-                    : "Apply New Rate % to All Future Schedules"}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      ) : null}
-      {aiAdjustmentModal ? (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/40 px-4"
-          onClick={() => (aiAdjustmentModal.applying ? null : setAiAdjustmentModal(null))}
-        >
-          <div
-            className="w-full max-w-xl rounded-xl bg-white shadow-xl"
-            onClick={e => e.stopPropagation()}
-          >
-            <ModalHeader kicker="AI Adjustment" title="Preview adjustment" />
-            <div className="space-y-3 p-6 text-sm text-slate-700">
-              {aiAdjustmentModal.loading ? (
-                <p className="text-sm text-slate-600">Loading preview...</p>
-              ) : aiAdjustmentModal.error ? (
-                <p className="text-sm text-red-600">{aiAdjustmentModal.error}</p>
-              ) : aiAdjustmentModal.preview ? (
-                <>
-                  <p>{aiAdjustmentModal.preview.suggestion.reason}</p>
-                  {aiAdjustmentModal.preview.suggestion.type === "allocate" ? (
-                    <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-                      <p className="font-semibold">Suggested next step</p>
-                      <p className="mt-1">
-                        Allocate this payment across the open schedules below instead of adjusting expected.
-                      </p>
-                      {aiAdjustmentModal.preview.suggestion.priorOpenScheduleIds.length ? (
-                        <details className="mt-2">
-                          <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wide text-amber-800">
-                            View open schedules ({aiAdjustmentModal.preview.suggestion.priorOpenScheduleIds.length})
-                          </summary>
-                          <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-amber-900">
-                            {aiAdjustmentModal.preview.suggestion.priorOpenScheduleIds.map(id => (
-                              <li key={id} className="break-all">
-                                {id}
-                              </li>
-                            ))}
-                          </ul>
-                        </details>
-                      ) : null}
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      <p>
-                        This will adjust expected net from{" "}
-                        <span className="font-semibold">
-                          ${aiAdjustmentModal.preview.base.expectedUsageNet.toFixed(2)}
-                        </span>{" "}
-                        to{" "}
-                        <span className="font-semibold">
-                          ${(aiAdjustmentModal.preview.base.expectedUsageNet + aiAdjustmentModal.preview.base.usageOverage).toFixed(2)}
-                        </span>{" "}
-                        for this period.
-                      </p>
-                      <p>
-                        Commission expected net from{" "}
-                        <span className="font-semibold">
-                          ${aiAdjustmentModal.preview.base.expectedCommissionNet.toFixed(2)}
-                        </span>{" "}
-                        to{" "}
-                        <span className="font-semibold">
-                          ${(aiAdjustmentModal.preview.base.expectedCommissionNet + aiAdjustmentModal.preview.base.commissionOverage).toFixed(2)}
-                        </span>
-                        .
-                      </p>
-                      <label className="flex cursor-pointer items-center gap-2 pt-1 text-sm font-medium text-slate-700">
-                        <input
-                          type="checkbox"
-                          className="h-4 w-4 rounded border-slate-400 text-primary-600 accent-primary-600"
-                          checked={aiAdjustmentModal.applyToFuture}
-                          onChange={event =>
-                            setAiAdjustmentModal(previous =>
-                              previous ? { ...previous, applyToFuture: event.target.checked } : null,
-                            )
-                          }
-                          disabled={aiAdjustmentModal.applying}
-                        />
-                        <span>
-                          Apply to future schedules ({aiAdjustmentModal.preview.future.count})
-                        </span>
-                      </label>
-                      {aiAdjustmentModal.applyToFuture && aiAdjustmentModal.preview.future.count > 0 ? (
-                        <details className="rounded-md border border-slate-200 bg-slate-50 p-3">
-                          <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wide text-slate-700">
-                            View impacted schedules
-                          </summary>
-                          <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-slate-700">
-                            {aiAdjustmentModal.preview.future.schedules.map(schedule => (
-                              <li key={schedule.id} className="break-all">
-                                {schedule.scheduleNumber ?? schedule.id}{" "}
-                                {schedule.scheduleDate ? `(${schedule.scheduleDate.slice(0, 10)})` : ""}
-                              </li>
-                            ))}
-                          </ul>
-                        </details>
-                      ) : null}
-                    </div>
-                  )}
-                </>
-              ) : null}
-
-              <div className="flex flex-wrap items-center justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  className="rounded border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-                  onClick={() => setAiAdjustmentModal(null)}
-                  disabled={aiAdjustmentModal.applying}
-                >
-                  Back
-                </button>
-                {aiAdjustmentModal.preview?.suggestion.type === "adjust" ? (
-                  <button
-                    type="button"
-                    className="rounded bg-primary-600 px-3 py-2 text-sm font-semibold text-white hover:bg-primary-700"
-                    onClick={() => void handleApplyAiAdjustment()}
-                    disabled={aiAdjustmentModal.applying || aiAdjustmentModal.loading}
-                  >
-                    {aiAdjustmentModal.applying ? "Working..." : "Apply Adjustment"}
-                  </button>
-                ) : null}
-              </div>
-            </div>
-          </div>
-        </div>
-      ) : null}
-      {flexPrompt && !aiAdjustmentModal ? (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/40 px-4"
-          onClick={() => (flexResolving ? null : setFlexPrompt(null))}
-        >
-          <div
-            className="flex h-[900px] w-full max-w-5xl flex-col rounded-xl bg-white shadow-xl"
-            onClick={e => e.stopPropagation()}
-          >
-            <ModalHeader kicker="Flex Resolution" title="Overage exceeds tolerance" />
-            <div className="flex flex-1 flex-col space-y-3 overflow-y-auto p-6 text-sm text-slate-700">
-              <p>
-                This allocation overpays the schedule by{" "}
-                <span className="font-semibold">${flexPrompt.decision.usageOverage.toFixed(2)}</span>, which is above the
-                tolerance amount of{" "}
-                <span className="font-semibold">${flexPrompt.decision.usageToleranceAmount.toFixed(2)}</span>.
-              </p>
-
-              {manualFlexEntryOpen ? (
-                <div className="space-y-3">
-                  <p>
-                    Enter the adjustment amount to split into a one-time adjustment schedule.
-                  </p>
-                  <div className="space-y-1">
-                    <label className="text-xs font-semibold text-slate-700">Manual adjustment amount (usage)</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      className="w-full rounded border border-slate-200 px-3 py-2 text-sm text-slate-800"
-                      value={manualFlexUsageAmount}
-                      onChange={e => setManualFlexUsageAmount(e.target.value)}
-                      disabled={flexResolving}
-                    />
-                    <p className="text-xs text-slate-500">
-                      Max: ${flexPrompt.decision.usageOverage.toFixed(2)}
-                    </p>
-                    {manualFlexError ? (
-                      <p className="text-xs font-semibold text-red-600">{manualFlexError}</p>
-                    ) : null}
-                  </div>
-                  <div className="mt-auto flex flex-wrap items-center justify-end gap-2 pt-2">
-                    <button
-                      type="button"
-                      className="rounded border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-                      onClick={() => setManualFlexEntryOpen(false)}
-                      disabled={flexResolving}
-                    >
-                      Back
-                    </button>
-                    <button
-                      type="button"
-                      className="rounded bg-primary-600 px-3 py-2 text-sm font-semibold text-white hover:bg-primary-700"
-                      onClick={() => void handleApplyManualFlex()}
-                      disabled={flexResolving}
-                    >
-                      {flexResolving ? "Working..." : "Apply Manual Adjustment"}
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <>
-                  <p>Select how to handle the variance:</p>
-                  <div className="flex flex-wrap items-center justify-end gap-2 pt-2">
-                    <button
-                      type="button"
-                      className="rounded border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-                      onClick={() => setFlexPrompt(null)}
-                      disabled={flexResolving}
-                    >
-                      Defer
-                    </button>
-                    <button
-                      type="button"
-                      className="rounded border border-primary-200 bg-primary-50 px-3 py-2 text-sm font-semibold text-primary-800 hover:bg-primary-100"
-                      onClick={() => void handleOpenAiAdjustment()}
-                      disabled={flexResolving}
-                    >
-                      AI Adjustment
-                    </button>
-                    <button
-                      type="button"
-                      className="rounded border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-                      onClick={() => void handleResolveFlex("Adjust")}
-                      disabled={flexResolving}
-                    >
-                      {flexResolving ? "Working..." : "Adjust Full Overage"}
-                    </button>
-                    {flexPrompt.decision.allowedPromptOptions.includes("Manual") ? (
-                      <button
-                        type="button"
-                        className="rounded border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-                        onClick={() => void handleResolveFlex("Manual")}
-                        disabled={flexResolving}
-                      >
-                        Manual Amount
-                      </button>
-                    ) : null}
-                    {flexPrompt.decision.allowedPromptOptions.includes("FlexProduct") ? (
-                      <button
-                        type="button"
-                        className="rounded bg-primary-600 px-3 py-2 text-sm font-semibold text-white hover:bg-primary-700"
-                        onClick={() => void handleResolveFlex("FlexProduct")}
-                        disabled={flexResolving}
-                      >
-                        {flexResolving ? "Working..." : "Flex Product"}
-                      </button>
-                    ) : null}
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-      ) : null}
+      <ReconciliationAlertModal
+        isOpen={Boolean(reconciliationAlertContext && (flexPrompt || rateDiscrepancyModal))}
+        depositName={metadata.depositName}
+        line={reconciliationAlertContext?.line ?? null}
+        schedule={reconciliationAlertContext?.schedule ?? null}
+        matchedUsageAmount={reconciliationAlertContext?.matchedUsageAmount ?? 0}
+        matchedCommissionAmount={reconciliationAlertContext?.matchedCommissionAmount ?? 0}
+        flexPrompt={flexPrompt}
+        flexResolving={flexResolving}
+        aiAdjustmentState={aiAdjustmentModal}
+        rateDiscrepancy={rateDiscrepancyModal}
+        canCreateTickets={canCreateTickets}
+        onClose={dismissReconciliationAlert}
+        onOpenAiAdjustment={() => void handleOpenAiAdjustment()}
+        onClearAiAdjustment={() => setAiAdjustmentModal(null)}
+        onToggleAiApplyToFuture={checked =>
+          setAiAdjustmentModal(previous =>
+            previous ? { ...previous, applyToFuture: checked } : null,
+          )
+        }
+        onApplyAiAdjustment={() => void handleApplyAiAdjustment()}
+        onCreateFlexProduct={() => void handleResolveFlex("FlexProduct")}
+        onOpenRateTicket={handleOpenRateDiscrepancyTicket}
+        onAcceptRateCurrent={() => void handleAcceptRateDiscrepancyCurrent()}
+        onApplyRateToFuture={() => void handleApplyRateDiscrepancyToFuture()}
+      />
       {showDevControls ? renderDevMatchingControls() : null}
       <DepositReconciliationTopSection
         metadata={metadata}

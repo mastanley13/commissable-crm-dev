@@ -1,8 +1,14 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { ArrowLeft, ArrowRight, GripVertical } from "lucide-react"
+import { ArrowLeft, ArrowRight, ChevronDown, ChevronUp, GripVertical, Lock, LockOpen } from "lucide-react"
 import type { Column } from "@/components/dynamic-table"
+import {
+  canMoveItemWithinLockGroup,
+  moveItemWithinLockGroup,
+  normalizeLockedColumnGroup,
+  setItemLocked,
+} from "@/lib/column-chooser-ordering"
 import { cn } from "@/lib/utils"
 import { ModalHeader } from "./ui/modal-header"
 
@@ -53,7 +59,7 @@ export function ColumnChooserModal({
       }))
 
       const available = columnItems.filter(col => col.hidden && col.hideable)
-      const selected = columnItems.filter(col => !col.hidden)
+      const selected = normalizeLockedColumnGroup(columnItems.filter(col => !col.hidden))
 
       setAvailableColumns(available)
       setSelectedColumns(selected)
@@ -70,7 +76,9 @@ export function ColumnChooserModal({
     if (!columnItem.hideable) return
 
     setAvailableColumns(prev => prev.filter(col => col.id !== columnItem.id))
-    setSelectedColumns(prev => [...prev, { ...columnItem, hidden: false, locked: false }])
+    setSelectedColumns(prev =>
+      normalizeLockedColumnGroup([...prev, { ...columnItem, hidden: false, locked: false }])
+    )
   }
 
   const moveToAvailable = (columnItem: ColumnItem) => {
@@ -81,34 +89,20 @@ export function ColumnChooserModal({
     setAvailableColumns(prev => [...prev, { ...columnItem, hidden: true, locked: false }])
   }
 
-  const moveSelectedUp = (index: number) => {
-    if (index === 0) return
-    setSelectedColumns(prev => {
-      const next = [...prev]
-      const [moved] = next.splice(index, 1)
-      next.splice(index - 1, 0, moved)
-      return next
-    })
+  const moveSelectedUp = (columnId: string) => {
+    setSelectedColumns(prev => moveItemWithinLockGroup(prev, columnId, -1))
   }
 
-  const moveSelectedDown = (index: number) => {
-    if (index === selectedColumns.length - 1) return
-    setSelectedColumns(prev => {
-      const next = [...prev]
-      const [moved] = next.splice(index, 1)
-      next.splice(index + 1, 0, moved)
-      return next
-    })
+  const moveSelectedDown = (columnId: string) => {
+    setSelectedColumns(prev => moveItemWithinLockGroup(prev, columnId, 1))
   }
 
   const toggleLocked = (columnId: string) => {
-    setSelectedColumns(prev =>
-      prev.map(column =>
-        column.id === columnId
-          ? { ...column, locked: !column.locked }
-          : column
-      )
-    )
+    setSelectedColumns(prev => {
+      const target = prev.find(column => column.id === columnId)
+      if (!target) return prev
+      return setItemLocked(prev, columnId, !target.locked)
+    })
   }
 
   const handleDragStart = (e: React.DragEvent, item: ColumnItem, source: "available" | "selected", index?: number) => {
@@ -182,7 +176,7 @@ export function ColumnChooserModal({
         setSelectedColumns(prev => {
           const next = [...prev]
           next.splice(targetIndex, 0, { ...data.item, hidden: false, locked: false })
-          return next
+          return normalizeLockedColumnGroup(next)
         })
       } else if (data.source === "selected") {
         const sourceIndex = data.index
@@ -191,7 +185,7 @@ export function ColumnChooserModal({
             const next = [...prev]
             const [moved] = next.splice(sourceIndex, 1)
             next.splice(targetIndex, 0, moved)
-            return next
+            return normalizeLockedColumnGroup(next)
           })
         }
       }
@@ -314,86 +308,92 @@ export function ColumnChooserModal({
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    {selectedColumns.map((column, index) => (
-                      <div
-                        key={column.id}
-                        draggable={column.hideable}
-                        onDragStart={event => handleDragStart(event, column, "selected", index)}
-                        onDragOver={column.hideable ? handleDragOver : undefined}
-                        onDrop={event => handleDropOnSelectedItem(event, index)}
-                        onDragEnd={handleDragEnd}
-                        className={cn(
-                          "flex items-center justify-between rounded border border-gray-200 bg-white p-3 transition-all",
-                          column.hideable ? "cursor-grab active:cursor-grabbing hover:border-blue-400" : "cursor-not-allowed opacity-75",
-                          draggedItem?.id === column.id && "scale-95 opacity-50"
-                        )}
-                      >
-                        <div className="flex items-center gap-2">
-                          {column.hideable && <GripVertical className="h-4 w-4 text-gray-400" />}
-                          <span className="text-sm font-medium">{column.label}</span>
-                          {column.locked ? (
-                            <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-700">
-                              Locked
-                            </span>
-                          ) : null}
-                          {!column.hideable ? (
-                            <span className="rounded bg-gray-100 px-2 py-1 text-xs text-gray-500">Required</span>
-                          ) : null}
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={event => {
-                              event.stopPropagation()
-                              toggleLocked(column.id)
-                            }}
-                            className={cn(
-                              "rounded border px-2 py-1 text-[11px] font-semibold transition",
-                              column.locked
-                                ? "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
-                                : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
-                            )}
-                            title={column.locked ? "Unlock column" : "Lock column to the left side of the table"}
-                          >
-                            {column.locked ? "Locked" : "Lock"}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => moveSelectedUp(index)}
-                            disabled={index === 0}
-                            className={cn(
-                              "rounded p-1 text-xs text-gray-600 hover:bg-gray-100",
-                              index === 0 && "cursor-not-allowed opacity-40"
-                            )}
-                            title="Move up"
-                          >
-                            Up
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => moveSelectedDown(index)}
-                            disabled={index === selectedColumns.length - 1}
-                            className={cn(
-                              "rounded p-1 text-xs text-gray-600 hover:bg-gray-100",
-                              index === selectedColumns.length - 1 && "cursor-not-allowed opacity-40"
-                            )}
-                            title="Move down"
-                          >
-                            Down
-                          </button>
-                          {column.hideable && selectedColumns.length > MIN_VISIBLE_COLUMNS ? (
+                    <div className="grid grid-cols-[minmax(0,1fr)_72px_88px] gap-3 rounded border border-gray-200 bg-gray-100 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-gray-600">
+                      <span>Field Name</span>
+                      <span className="text-center">Locked</span>
+                      <span className="text-center">Reorder</span>
+                    </div>
+                    {selectedColumns.map((column, index) => {
+                      const canMoveUp = canMoveItemWithinLockGroup(selectedColumns, column.id, -1)
+                      const canMoveDown = canMoveItemWithinLockGroup(selectedColumns, column.id, 1)
+
+                      return (
+                        <div
+                          key={column.id}
+                          draggable={column.hideable}
+                          onDragStart={event => handleDragStart(event, column, "selected", index)}
+                          onDragOver={column.hideable ? handleDragOver : undefined}
+                          onDrop={event => handleDropOnSelectedItem(event, index)}
+                          onDragEnd={handleDragEnd}
+                          className={cn(
+                            "grid grid-cols-[minmax(0,1fr)_72px_88px] items-center gap-3 rounded border border-gray-200 bg-white p-3 transition-all",
+                            column.hideable ? "cursor-grab active:cursor-grabbing hover:border-blue-400" : "cursor-not-allowed opacity-75",
+                            draggedItem?.id === column.id && "scale-95 opacity-50"
+                          )}
+                        >
+                          <div className="flex min-w-0 items-center gap-2">
+                            {column.hideable && <GripVertical className="h-4 w-4 shrink-0 text-gray-400" />}
+                            <span className="truncate text-sm font-medium">{column.label}</span>
+                            {!column.hideable ? (
+                              <span className="rounded bg-gray-100 px-2 py-1 text-xs text-gray-500">Required</span>
+                            ) : null}
+                            {column.hideable && selectedColumns.length > MIN_VISIBLE_COLUMNS ? (
+                              <button
+                                type="button"
+                                onClick={() => moveToAvailable(column)}
+                                className="ml-auto rounded p-1 text-red-600 hover:bg-red-50"
+                                title="Remove column"
+                              >
+                                <ArrowLeft className="h-4 w-4" />
+                              </button>
+                            ) : null}
+                          </div>
+                          <div className="flex justify-center">
                             <button
                               type="button"
-                              onClick={() => moveToAvailable(column)}
-                              className="rounded p-1 text-red-600 hover:bg-red-50"
-                              title="Remove column"
+                              onClick={() => toggleLocked(column.id)}
+                              aria-label={column.locked ? `Unlock ${column.label}` : `Lock ${column.label}`}
+                              aria-pressed={column.locked}
+                              className={cn(
+                                "rounded p-1 transition",
+                                column.locked
+                                  ? "text-primary-600 hover:bg-primary-50"
+                                  : "text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+                              )}
+                              title={column.locked ? "Locked" : "Unlocked"}
                             >
-                              <ArrowLeft className="h-4 w-4" />
+                              {column.locked ? <Lock className="h-4 w-4" /> : <LockOpen className="h-4 w-4" />}
                             </button>
-                          ) : null}
+                          </div>
+                          <div className="flex items-center justify-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => moveSelectedUp(column.id)}
+                              disabled={!canMoveUp}
+                              className={cn(
+                                "rounded p-1 text-gray-600 hover:bg-gray-100",
+                                !canMoveUp && "cursor-not-allowed opacity-40"
+                              )}
+                              title={column.locked ? "Move locked column up" : "Move column up"}
+                            >
+                              <ChevronUp className="h-4 w-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => moveSelectedDown(column.id)}
+                              disabled={!canMoveDown}
+                              className={cn(
+                                "rounded p-1 text-gray-600 hover:bg-gray-100",
+                                !canMoveDown && "cursor-not-allowed opacity-40"
+                              )}
+                              title={column.locked ? "Move locked column down" : "Move column down"}
+                            >
+                              <ChevronDown className="h-4 w-4" />
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 )}
               </div>
@@ -403,7 +403,7 @@ export function ColumnChooserModal({
           <div className="mt-4 rounded-lg bg-blue-50 p-3">
             <p className="text-sm text-blue-800">
               <strong>Tips:</strong> Drag columns between lists or drag within Selected Columns to reorder.
-              Use the Lock button on selected columns to keep them pinned on the left during horizontal scroll.
+              Locked columns stay grouped at the top and remain pinned on the left during horizontal scroll.
               Click available columns to add them. Required columns cannot be removed.
             </p>
           </div>
