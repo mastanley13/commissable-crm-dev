@@ -25,6 +25,8 @@ import {
   findFutureSchedulesInScope,
   resolveScheduleScopeKey,
 } from "@/lib/reconciliation/future-schedules"
+import { buildCommissionAmountReview } from "@/lib/reconciliation/commission-amount-review"
+import { getLowRateExceptionState, LOW_RATE_EXCEPTION_QUEUE_PATH } from "@/lib/reconciliation/low-rate-exceptions"
 import { recordFieldUndoLog } from "@/lib/reconciliation/undo-log"
 import {
   buildRateDiscrepancySummary,
@@ -301,6 +303,7 @@ export async function POST(
         receivedRatePercent: number
         differencePercent: number
         tolerancePercent: number
+        direction: "higher" | "lower"
         future: {
           count: number
           schedules: Array<{ id: string; scheduleNumber: string | null; scheduleDate: string | null }>
@@ -345,6 +348,7 @@ export async function POST(
           receivedRatePercent: rateDiscrepancySummary.receivedRatePercent,
           differencePercent: rateDiscrepancySummary.differencePercent,
           tolerancePercent: rateDiscrepancySummary.tolerancePercent,
+          direction: rateDiscrepancySummary.direction!,
           future,
         }
       }
@@ -479,6 +483,21 @@ export async function POST(
         }
       }
 
+      const lowRateState = await getLowRateExceptionState(tx, {
+        tenantId,
+        revenueScheduleId,
+      })
+      const commissionAmountReview = buildCommissionAmountReview({
+        revenueScheduleId,
+        scheduleNumber: (scheduleContext.scheduleNumber ?? scheduleContext.id ?? "").trim() || scheduleContext.id,
+        scheduleDate: scheduleContext.scheduleDate ? scheduleContext.scheduleDate.toISOString() : null,
+        remainingCommissionDifference: revenueSchedule.commissionDifference,
+        hasPendingRateResolution: Boolean(rateDiscrepancySummary?.isMaterial && !lowRateState.routed),
+        lowRateExceptionRouted: lowRateState.routed,
+        queuePath: lowRateState.routed ? LOW_RATE_EXCEPTION_QUEUE_PATH : null,
+        ticketId: lowRateState.ticket?.id ?? null,
+      })
+
       const deposit = await recomputeDepositAggregates(tx, depositId, tenantId)
 
       return {
@@ -490,6 +509,7 @@ export async function POST(
         flexExecution,
         withinToleranceAdjustment,
         rateDiscrepancy,
+        commissionAmountReview,
       }
     })
 

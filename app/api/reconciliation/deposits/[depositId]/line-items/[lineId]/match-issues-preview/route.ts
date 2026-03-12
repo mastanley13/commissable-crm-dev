@@ -15,6 +15,8 @@ import {
   findFutureSchedulesInScope,
   resolveScheduleScopeKey,
 } from "@/lib/reconciliation/future-schedules"
+import { buildCommissionAmountReview } from "@/lib/reconciliation/commission-amount-review"
+import { getLowRateExceptionState, LOW_RATE_EXCEPTION_QUEUE_PATH } from "@/lib/reconciliation/low-rate-exceptions"
 import {
   buildRateDiscrepancySummary,
   deriveReceivedRatePercent,
@@ -235,6 +237,7 @@ export async function POST(
       receivedRatePercent: number
       differencePercent: number
       tolerancePercent: number
+      direction: "higher" | "lower"
       future: {
         count: number
         schedules: Array<{ id: string; scheduleNumber: string | null; scheduleDate: string | null }>
@@ -279,9 +282,25 @@ export async function POST(
         receivedRatePercent: rateDiscrepancySummary.receivedRatePercent,
         differencePercent: rateDiscrepancySummary.differencePercent,
         tolerancePercent: rateDiscrepancySummary.tolerancePercent,
+        direction: rateDiscrepancySummary.direction!,
         future,
       }
     }
+
+    const lowRateState = await getLowRateExceptionState(prisma, {
+      tenantId,
+      revenueScheduleId,
+    })
+    const commissionAmountReview = buildCommissionAmountReview({
+      revenueScheduleId,
+      scheduleNumber: (scheduleContext.scheduleNumber ?? scheduleContext.id ?? "").trim() || scheduleContext.id,
+      scheduleDate: scheduleContext.scheduleDate ? scheduleContext.scheduleDate.toISOString() : null,
+      remainingCommissionDifference: projectedCommissionDifference,
+      hasPendingRateResolution: Boolean(rateDiscrepancySummary?.isMaterial && !lowRateState.routed),
+      lowRateExceptionRouted: lowRateState.routed,
+      queuePath: lowRateState.routed ? LOW_RATE_EXCEPTION_QUEUE_PATH : null,
+      ticketId: lowRateState.ticket?.id ?? null,
+    })
 
     const isBonusLike = isBonusLikeProduct({
       revenueType: scheduleContext.product?.revenueType ?? null,
@@ -301,7 +320,8 @@ export async function POST(
 
     return NextResponse.json({
       data: {
-        requiresConfirmation: Boolean(rateDiscrepancy) || flexDecision.action === "prompt",
+        requiresConfirmation:
+          Boolean(rateDiscrepancy) || flexDecision.action === "prompt" || commissionAmountReview.requiresAction,
         allocationUsage,
         allocationCommission,
         usageDelta,
@@ -314,6 +334,7 @@ export async function POST(
         },
         flexDecision,
         rateDiscrepancy,
+        commissionAmountReview,
       },
     })
   })

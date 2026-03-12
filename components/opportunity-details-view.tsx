@@ -2085,10 +2085,15 @@ export function OpportunityDetailsView({
     () => (shouldEnableInline && opportunity ? createOpportunityInlineForm(opportunity) : null),
     [shouldEnableInline, opportunity]
   )
+  const opportunityId = opportunity?.id ?? null
+  const opportunityHasActiveRole = useMemo(() => {
+    const roles = (opportunity as any)?.roles
+    return Array.isArray(roles) ? roles.some(role => role && role.active !== false) : false
+  }, [opportunity])
 
   const submitOpportunity = useCallback(
     async (patch: Partial<OpportunityInlineForm>, draft: OpportunityInlineForm) => {
-      if (!opportunity?.id) {
+      if (!opportunityId) {
         throw new Error("Opportunity ID is required")
       }
 
@@ -2097,11 +2102,7 @@ export function OpportunityDetailsView({
         return draft
       }
 
-      const hasActiveRole = Array.isArray((opportunity as any).roles)
-        ? ((opportunity as any).roles as any[]).some(role => role && role.active !== false)
-        : false
-
-      if (!hasActiveRole) {
+      if (!opportunityHasActiveRole) {
         const keys = Object.keys(payload as Record<string, unknown>)
         const isDeactivating = (payload as any).active === false
         const onlyAllowedKeys = keys.every(key => key === "active" || key === "lossReason")
@@ -2117,7 +2118,7 @@ export function OpportunityDetailsView({
       }
 
       try {
-        const response = await fetch(`/api/opportunities/${opportunity.id}`, {
+        const response = await fetch(`/api/opportunities/${opportunityId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload)
@@ -2150,7 +2151,7 @@ export function OpportunityDetailsView({
         throw error
       }
     },
-    [opportunity?.id, onRefresh, showError, showSuccess]
+    [onRefresh, opportunityHasActiveRole, opportunityId, showError, showSuccess]
   )
 
   const editor = useEntityEditor<OpportunityInlineForm>({

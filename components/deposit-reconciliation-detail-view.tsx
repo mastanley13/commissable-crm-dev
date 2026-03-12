@@ -20,6 +20,8 @@ import {
   ReconciliationAlertModal,
   type AiAdjustmentPreviewPayload,
   type AiAdjustmentModalState,
+  type CommissionAmountReviewPayload,
+  type CommissionAmountReviewState,
   type FlexDecisionPayload,
   type FlexPromptState,
   type RateDiscrepancyModalState,
@@ -118,8 +120,7 @@ function formatRatePercent(value: number) {
 }
 
 const PREVIEW_EPSILON = 0.005
-const previewHighlightClass =
-  "inline-flex w-full items-center justify-end rounded-md bg-amber-200 px-2 py-1 font-semibold text-slate-900 ring-1 ring-amber-300"
+const previewHighlightClass = "recon-preview-cell"
 
 function roundPreviewValue(value: number) {
   return Math.round(value * 100) / 100
@@ -638,6 +639,7 @@ export function DepositReconciliationDetailView({
   const [manualFlexError, setManualFlexError] = useState<string | null>(null)
   const [aiAdjustmentModal, setAiAdjustmentModal] = useState<AiAdjustmentModalState | null>(null)
   const [rateDiscrepancyModal, setRateDiscrepancyModal] = useState<RateDiscrepancyModalState | null>(null)
+  const [commissionAmountReview, setCommissionAmountReview] = useState<CommissionAmountReviewState | null>(null)
   const [rateDiscrepancyTicketModal, setRateDiscrepancyTicketModal] = useState<RateDiscrepancyTicketState | null>(null)
   const [reconciliationAlertContext, setReconciliationAlertContext] = useState<ReconciliationAlertContextState | null>(null)
   const [pendingMatchAction, setPendingMatchAction] = useState<PendingMatchActionState | null>(null)
@@ -719,6 +721,7 @@ export function DepositReconciliationDetailView({
     setAiAdjustmentModal(null)
     setFlexPrompt(null)
     setRateDiscrepancyModal(null)
+    setCommissionAmountReview(null)
     setReconciliationAlertContext(null)
     setPendingMatchAction(null)
   }, [])
@@ -732,10 +735,12 @@ export function DepositReconciliationDetailView({
     matchedCommissionAmount: number
     flexPrompt: FlexPromptState | null
     rateDiscrepancy: RateDiscrepancyModalState | null
+    commissionAmountReview: CommissionAmountReviewState | null
   }) => {
     setAiAdjustmentModal(null)
     setFlexPrompt(params.flexPrompt)
     setRateDiscrepancyModal(params.rateDiscrepancy)
+    setCommissionAmountReview(params.commissionAmountReview)
     setReconciliationAlertContext({
       lineId: params.lineId,
       scheduleId: params.scheduleId,
@@ -745,6 +750,45 @@ export function DepositReconciliationDetailView({
       matchedCommissionAmount: params.matchedCommissionAmount,
     })
   }, [])
+
+  const loadCommissionAmountReview = useCallback(
+    async (lineId: string, scheduleId: string) => {
+      const response = await fetch(
+        `/api/reconciliation/deposits/${encodeURIComponent(metadata.id)}/line-items/${encodeURIComponent(lineId)}/commission-amount-review`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ revenueScheduleId: scheduleId }),
+        },
+      )
+      const payload = await response.json().catch(() => null)
+      if (!response.ok) {
+        throw new Error(payload?.error || "Failed to load commission amount review")
+      }
+
+      const review = payload?.data?.review as CommissionAmountReviewPayload | undefined
+      return review
+        ? ({
+            lineId,
+            scheduleId,
+            loading: false,
+            applyingAction: null,
+            error: null,
+            review,
+          } satisfies CommissionAmountReviewState)
+        : null
+    },
+    [metadata.id],
+  )
+
+  const refreshCommissionAmountStage = useCallback(
+    async (lineId: string, scheduleId: string) => {
+      const nextReview = await loadCommissionAmountReview(lineId, scheduleId)
+      setCommissionAmountReview(nextReview)
+      return nextReview
+    },
+    [loadCommissionAmountReview],
+  )
 
   const applyMatchAllocation = useCallback(
     async (params: {
@@ -774,6 +818,7 @@ export function DepositReconciliationDetailView({
       const flexDecision = payload?.data?.flexDecision as FlexDecisionPayload | undefined
       const flexExecution = payload?.data?.flexExecution as { action?: string } | undefined
       const rateDiscrepancy = payload?.data?.rateDiscrepancy as RateDiscrepancyPayload | undefined
+      const commissionAmountReviewPayload = payload?.data?.commissionAmountReview as CommissionAmountReviewPayload | undefined
       const nextFlexPrompt =
         !params.skipIssueAlert && flexDecision?.action === "prompt"
           ? ({
@@ -792,6 +837,17 @@ export function DepositReconciliationDetailView({
               discrepancy: rateDiscrepancy,
             } satisfies RateDiscrepancyModalState)
           : null
+      const nextCommissionAmountReview =
+        !params.skipIssueAlert && commissionAmountReviewPayload
+          ? ({
+              lineId: params.lineId,
+              scheduleId: params.scheduleId,
+              loading: false,
+              applyingAction: null,
+              error: null,
+              review: commissionAmountReviewPayload,
+            } satisfies CommissionAmountReviewState)
+          : null
 
       handleSuccessfulMatchMutation()
 
@@ -799,6 +855,7 @@ export function DepositReconciliationDetailView({
         return {
           nextFlexPrompt,
           nextRateDiscrepancy,
+          nextCommissionAmountReview,
           chargebackPending: true,
           autoAdjusted: false,
         }
@@ -807,6 +864,7 @@ export function DepositReconciliationDetailView({
       return {
         nextFlexPrompt,
         nextRateDiscrepancy,
+        nextCommissionAmountReview,
         chargebackPending: false,
         autoAdjusted: flexDecision?.action === "auto_adjust",
       }
@@ -845,10 +903,10 @@ export function DepositReconciliationDetailView({
   }, [flexPrompt])
 
   useEffect(() => {
-    if (flexPrompt || rateDiscrepancyModal) return
+    if (flexPrompt || rateDiscrepancyModal || commissionAmountReview) return
     setAiAdjustmentModal(null)
     setReconciliationAlertContext(null)
-  }, [flexPrompt, rateDiscrepancyModal])
+  }, [commissionAmountReview, flexPrompt, rateDiscrepancyModal])
 
   useEffect(() => {
     let cancelled = false
@@ -1399,6 +1457,8 @@ export function DepositReconciliationDetailView({
 
         const flexDecision = previewPayload?.data?.flexDecision as FlexDecisionPayload | undefined
         const rateDiscrepancy = previewPayload?.data?.rateDiscrepancy as RateDiscrepancyPayload | undefined
+        const commissionAmountReviewPayload =
+          previewPayload?.data?.commissionAmountReview as CommissionAmountReviewPayload | undefined
         const requiresConfirmation = Boolean(previewPayload?.data?.requiresConfirmation)
         const selectedLineSnapshot = lineItemRows.find(row => row.id === lineId) ?? null
         const selectedScheduleSnapshot = scheduleRows.find(row => row.id === scheduleId) ?? null
@@ -1419,8 +1479,18 @@ export function DepositReconciliationDetailView({
               discrepancy: rateDiscrepancy,
             } satisfies RateDiscrepancyModalState)
           : null
+        const nextCommissionAmountReview = commissionAmountReviewPayload
+          ? ({
+              lineId,
+              scheduleId,
+              loading: false,
+              applyingAction: null,
+              error: null,
+              review: commissionAmountReviewPayload,
+            } satisfies CommissionAmountReviewState)
+          : null
 
-        if (requiresConfirmation && (nextFlexPrompt || nextRateDiscrepancy)) {
+        if (requiresConfirmation && (nextFlexPrompt || nextRateDiscrepancy || nextCommissionAmountReview?.review?.requiresAction)) {
           setPendingMatchAction({
             lineId,
             scheduleId,
@@ -1436,6 +1506,7 @@ export function DepositReconciliationDetailView({
             matchedCommissionAmount: Number(previewPayload?.data?.commissionDelta ?? normalizedCommissionAmount),
             flexPrompt: nextFlexPrompt,
             rateDiscrepancy: nextRateDiscrepancy,
+            commissionAmountReview: nextCommissionAmountReview,
           })
           showSuccess(
             "Review required",
@@ -1443,7 +1514,9 @@ export function DepositReconciliationDetailView({
               ? "Review both the usage overage and the commission rate discrepancy before saving the match."
               : nextFlexPrompt
                 ? "Overage exceeds tolerance. Choose how to resolve the variance before saving the match."
-                : "Received commission rate differs from expected. Review whether future schedules should use the new rate before saving the match.",
+                : nextRateDiscrepancy
+                  ? "Received commission rate differs from expected. Review Step 2 before saving the match."
+                  : "A remaining commission amount exception needs review before saving the match.",
           )
           return
         }
@@ -1460,7 +1533,7 @@ export function DepositReconciliationDetailView({
           return
         }
 
-        if (applyResult.nextFlexPrompt || applyResult.nextRateDiscrepancy) {
+        if (applyResult.nextFlexPrompt || applyResult.nextRateDiscrepancy || applyResult.nextCommissionAmountReview) {
           openReconciliationAlert({
             lineId,
             scheduleId,
@@ -1470,6 +1543,7 @@ export function DepositReconciliationDetailView({
             matchedCommissionAmount: normalizedCommissionAmount,
             flexPrompt: applyResult.nextFlexPrompt,
             rateDiscrepancy: applyResult.nextRateDiscrepancy,
+            commissionAmountReview: applyResult.nextCommissionAmountReview,
           })
           showSuccess(
             "Allocation saved",
@@ -1477,7 +1551,9 @@ export function DepositReconciliationDetailView({
               ? "Review both the usage overage and the commission rate discrepancy in the reconciliation alert."
               : applyResult.nextFlexPrompt
                 ? "Overage exceeds tolerance. Choose how to resolve the variance."
-                : "Received commission rate differs from expected. Review whether future schedules should use the new rate.",
+                : applyResult.nextRateDiscrepancy
+                  ? "Received commission rate differs from expected. Review Step 2 before closing the reconciliation alert."
+                  : "Review the commission amount result in Step 3 before closing the reconciliation alert.",
           )
           return
         }
@@ -1501,8 +1577,6 @@ export function DepositReconciliationDetailView({
       lineItemRows,
       metadata.id,
       openReconciliationAlert,
-      onLineSelectionChange,
-      onMatchApplied,
       parseAllocationInput,
       scheduleRows,
       showError,
@@ -2830,6 +2904,20 @@ export function DepositReconciliationDetailView({
     saveChangesOnModalClose: saveScheduleChangesOnModalClose
   } = useTablePreferences('reconciliation:revenue-schedules', baseScheduleColumns, { defaultSyncHorizontalScroll: true })
 
+  const resolvedScheduleTableColumns = useMemo(() => {
+    const baseById = new Map(baseScheduleColumns.map(column => [column.id, column]))
+    return scheduleTableColumns.map(column => {
+      const base = baseById.get(column.id)
+      if (!base) return { ...column }
+      return {
+        ...column,
+        render: base.render ?? column.render,
+        accessor: base.accessor ?? column.accessor,
+        type: base.type ?? column.type,
+      }
+    })
+  }, [baseScheduleColumns, scheduleTableColumns])
+
   const [syncHorizontalScrollEnabled, setSyncHorizontalScrollEnabled] = useState(true)
 
   useEffect(() => {
@@ -2878,7 +2966,7 @@ export function DepositReconciliationDetailView({
       lineContainer.removeEventListener("scroll", handleLineScroll)
       scheduleContainer.removeEventListener("scroll", handleScheduleScroll)
     }
-  }, [lineTableColumns, scheduleTableColumns, syncHorizontalScrollEnabled])
+  }, [lineTableColumns, resolvedScheduleTableColumns, syncHorizontalScrollEnabled])
 
   const updateSharedSyncHorizontalScroll = useCallback(
     async (value: boolean, updatedLineColumns?: Column[], updatedScheduleColumns?: Column[]) => {
@@ -2895,7 +2983,7 @@ export function DepositReconciliationDetailView({
     const nextSyncHorizontalScroll = options?.syncHorizontalScroll ?? syncHorizontalScrollEnabled
 
     if (nextSyncHorizontalScroll !== syncHorizontalScrollEnabled) {
-      await updateSharedSyncHorizontalScroll(nextSyncHorizontalScroll, columns, scheduleTableColumns)
+      await updateSharedSyncHorizontalScroll(nextSyncHorizontalScroll, columns, resolvedScheduleTableColumns)
     } else {
       await handleLineSyncHorizontalScrollChange(nextSyncHorizontalScroll, columns)
     }
@@ -2903,7 +2991,7 @@ export function DepositReconciliationDetailView({
     setShowLineColumnSettings(false)
   }, [
     handleLineSyncHorizontalScrollChange,
-    scheduleTableColumns,
+    resolvedScheduleTableColumns,
     syncHorizontalScrollEnabled,
     updateSharedSyncHorizontalScroll,
   ])
@@ -3036,6 +3124,7 @@ export function DepositReconciliationDetailView({
           throw new Error(payload?.error || "Failed to resolve flex variance")
         }
 
+        await refreshCommissionAmountStage(flexPrompt.lineId, flexPrompt.scheduleId)
         setFlexPrompt(null)
         handleSuccessfulMatchMutation()
 
@@ -3051,7 +3140,15 @@ export function DepositReconciliationDetailView({
         setFlexResolving(false)
       }
     },
-    [commitPendingMatchIfNeeded, flexPrompt, handleSuccessfulMatchMutation, metadata.id, showError, showSuccess],
+    [
+      commitPendingMatchIfNeeded,
+      flexPrompt,
+      handleSuccessfulMatchMutation,
+      metadata.id,
+      refreshCommissionAmountStage,
+      showError,
+      showSuccess,
+    ],
   )
 
   const handleApplyManualFlex = useCallback(async () => {
@@ -3088,6 +3185,7 @@ export function DepositReconciliationDetailView({
         throw new Error(payload?.error || "Failed to apply manual adjustment")
       }
 
+      await refreshCommissionAmountStage(flexPrompt.lineId, flexPrompt.scheduleId)
       setFlexPrompt(null)
       setManualFlexEntryOpen(false)
       handleSuccessfulMatchMutation()
@@ -3100,7 +3198,17 @@ export function DepositReconciliationDetailView({
     } finally {
       setFlexResolving(false)
     }
-  }, [commitPendingMatchIfNeeded, flexPrompt, handleSuccessfulMatchMutation, manualFlexUsageAmount, metadata.id, parseAllocationInput, showError, showSuccess])
+  }, [
+    commitPendingMatchIfNeeded,
+    flexPrompt,
+    handleSuccessfulMatchMutation,
+    manualFlexUsageAmount,
+    metadata.id,
+    parseAllocationInput,
+    refreshCommissionAmountStage,
+    showError,
+    showSuccess,
+  ])
 
   const handleOpenAiAdjustment = useCallback(async () => {
     if (!flexPrompt) return
@@ -3200,15 +3308,16 @@ export function DepositReconciliationDetailView({
 
   const handleAcceptRateDiscrepancyCurrent = useCallback(async () => {
     if (!rateDiscrepancyModal) return
-    const { scheduleId, discrepancy } = rateDiscrepancyModal
+    const { lineId, scheduleId, discrepancy } = rateDiscrepancyModal
 
     try {
       setRateDiscrepancyModal(previous =>
-        previous ? { ...previous, applyingAction: "acceptCurrent", error: null } : null,
+        previous ? { ...previous, applyingAction: "routeLowRate", error: null } : null,
       )
       await commitPendingMatchIfNeeded()
       await updateCurrentScheduleRate(scheduleId, discrepancy.receivedRatePercent)
       setRateDiscrepancyModal(null)
+      await refreshCommissionAmountStage(lineId, scheduleId)
       handleSuccessfulMatchMutation()
       showSuccess(
         "Current schedule rate updated",
@@ -3226,7 +3335,15 @@ export function DepositReconciliationDetailView({
         previous ? { ...previous, applyingAction: null } : null,
       )
     }
-  }, [commitPendingMatchIfNeeded, handleSuccessfulMatchMutation, rateDiscrepancyModal, showError, showSuccess, updateCurrentScheduleRate])
+  }, [
+    commitPendingMatchIfNeeded,
+    handleSuccessfulMatchMutation,
+    rateDiscrepancyModal,
+    refreshCommissionAmountStage,
+    showError,
+    showSuccess,
+    updateCurrentScheduleRate,
+  ])
 
   const handleApplyRateDiscrepancyToFuture = useCallback(async () => {
     if (!rateDiscrepancyModal) return
@@ -3254,6 +3371,7 @@ export function DepositReconciliationDetailView({
       const nextRate = Number(payload?.data?.rateDiscrepancy?.receivedRatePercent ?? discrepancy.receivedRatePercent)
 
       setRateDiscrepancyModal(null)
+      await refreshCommissionAmountStage(lineId, scheduleId)
       handleSuccessfulMatchMutation()
       showSuccess(
         "Rate update applied",
@@ -3273,7 +3391,123 @@ export function DepositReconciliationDetailView({
         previous ? { ...previous, applyingAction: null } : null,
       )
     }
+  }, [
+    commitPendingMatchIfNeeded,
+    handleSuccessfulMatchMutation,
+    metadata.id,
+    rateDiscrepancyModal,
+    refreshCommissionAmountStage,
+    showError,
+    showSuccess,
+  ])
+
+  const handleCreateLowRateException = useCallback(async () => {
+    if (!rateDiscrepancyModal) return
+    const { lineId, scheduleId } = rateDiscrepancyModal
+
+    try {
+      setRateDiscrepancyModal(previous =>
+        previous ? { ...previous, applyingAction: "acceptCurrent", error: null } : null,
+      )
+      await commitPendingMatchIfNeeded()
+      const response = await fetch(
+        `/api/reconciliation/deposits/${encodeURIComponent(metadata.id)}/line-items/${encodeURIComponent(lineId)}/rate-discrepancy/create-low-rate-exception`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ revenueScheduleId: scheduleId }),
+        },
+      )
+      const payload = await response.json().catch(() => null)
+      if (!response.ok) {
+        throw new Error(payload?.error || "Failed to route low-rate exception")
+      }
+
+      const review = payload?.data?.commissionAmountReview as CommissionAmountReviewPayload | undefined
+      setCommissionAmountReview(
+        review
+          ? {
+              lineId,
+              scheduleId,
+              loading: false,
+              applyingAction: null,
+              error: null,
+              review,
+            }
+          : null,
+      )
+      setRateDiscrepancyModal(null)
+      handleSuccessfulMatchMutation()
+      showSuccess(
+        "Low-rate exception routed",
+        "The schedule was flagged, a ticket was created, and the item is now visible in the low-rate review queue.",
+      )
+    } catch (err) {
+      console.error("Failed to route low-rate exception", err)
+      const message = err instanceof Error ? err.message : "Unknown error"
+      setRateDiscrepancyModal(previous =>
+        previous ? { ...previous, applyingAction: null, error: message } : null,
+      )
+      showError("Unable to route low-rate exception", message)
+    } finally {
+      setRateDiscrepancyModal(previous =>
+        previous ? { ...previous, applyingAction: null } : null,
+      )
+    }
   }, [commitPendingMatchIfNeeded, handleSuccessfulMatchMutation, metadata.id, rateDiscrepancyModal, showError, showSuccess])
+
+  const handleResolveCommissionAmountAction = useCallback(
+    async (action: "Adjust" | "FlexProduct") => {
+      if (!commissionAmountReview?.review) return
+      const { lineId, scheduleId } = commissionAmountReview
+
+      try {
+        setCommissionAmountReview(previous =>
+          previous
+            ? {
+                ...previous,
+                applyingAction: action === "Adjust" ? "adjust" : "flex-product",
+                error: null,
+              }
+            : null,
+        )
+        await commitPendingMatchIfNeeded()
+        const response = await fetch(
+          `/api/reconciliation/deposits/${encodeURIComponent(metadata.id)}/line-items/${encodeURIComponent(lineId)}/resolve-flex`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ revenueScheduleId: scheduleId, action }),
+          },
+        )
+        const payload = await response.json().catch(() => null)
+        if (!response.ok) {
+          throw new Error(payload?.error || "Failed to resolve commission amount review")
+        }
+
+        await refreshCommissionAmountStage(lineId, scheduleId)
+        handleSuccessfulMatchMutation()
+        showSuccess(
+          action === "Adjust" ? "Commission adjustment created" : "Commission flex product created",
+          action === "Adjust"
+            ? "The remaining commission amount was resolved through the adjustment path."
+            : "The remaining commission amount was split into a flex schedule.",
+        )
+      } catch (err) {
+        console.error("Failed to resolve commission amount review", err)
+        const message = err instanceof Error ? err.message : "Unknown error"
+        setCommissionAmountReview(previous =>
+          previous ? { ...previous, applyingAction: null, error: message } : null,
+        )
+        showError("Unable to resolve commission amount review", message)
+      } finally {
+        setCommissionAmountReview(previous =>
+          previous ? { ...previous, applyingAction: null } : null,
+        )
+      }
+    },
+    [commissionAmountReview, commitPendingMatchIfNeeded, handleSuccessfulMatchMutation, metadata.id, refreshCommissionAmountStage, showError, showSuccess],
+  )
 
   const handleApplyAiAdjustment = useCallback(async () => {
     if (!aiAdjustmentModal) return
@@ -3296,6 +3530,7 @@ export function DepositReconciliationDetailView({
 
       const updatedCount = Number(payload?.data?.updatedScheduleIds?.length ?? 0)
       const futureUpdatedCount = applyToFuture ? Math.max(updatedCount - 1, 0) : 0
+      await refreshCommissionAmountStage(lineId, scheduleId)
       setAiAdjustmentModal(null)
       setFlexPrompt(null)
       handleSuccessfulMatchMutation()
@@ -3320,7 +3555,15 @@ export function DepositReconciliationDetailView({
     } finally {
       setAiAdjustmentModal(previous => (previous ? { ...previous, applying: false } : null))
     }
-  }, [aiAdjustmentModal, commitPendingMatchIfNeeded, handleSuccessfulMatchMutation, metadata.id, showError, showSuccess])
+  }, [
+    aiAdjustmentModal,
+    commitPendingMatchIfNeeded,
+    handleSuccessfulMatchMutation,
+    metadata.id,
+    refreshCommissionAmountStage,
+    showError,
+    showSuccess,
+  ])
 
   const handleBulkLineExport = useCallback(() => {
     if (selectedLineItems.length === 0) {
@@ -3739,7 +3982,7 @@ export function DepositReconciliationDetailView({
         />
       ) : null}
       <ReconciliationAlertModal
-        isOpen={Boolean(reconciliationAlertContext && (flexPrompt || rateDiscrepancyModal))}
+        isOpen={Boolean(reconciliationAlertContext && (flexPrompt || rateDiscrepancyModal || commissionAmountReview))}
         depositName={metadata.depositName}
         line={reconciliationAlertContext?.line ?? null}
         schedule={reconciliationAlertContext?.schedule ?? null}
@@ -3749,6 +3992,7 @@ export function DepositReconciliationDetailView({
         flexResolving={flexResolving}
         aiAdjustmentState={aiAdjustmentModal}
         rateDiscrepancy={rateDiscrepancyModal}
+        commissionAmountReview={commissionAmountReview}
         canCreateTickets={canCreateTickets}
         onClose={dismissReconciliationAlert}
         onOpenAiAdjustment={() => void handleOpenAiAdjustment()}
@@ -3763,6 +4007,9 @@ export function DepositReconciliationDetailView({
         onOpenRateTicket={handleOpenRateDiscrepancyTicket}
         onAcceptRateCurrent={() => void handleAcceptRateDiscrepancyCurrent()}
         onApplyRateToFuture={() => void handleApplyRateDiscrepancyToFuture()}
+        onCreateLowRateException={() => void handleCreateLowRateException()}
+        onResolveCommissionAmountAdjust={() => void handleResolveCommissionAmountAction("Adjust")}
+        onResolveCommissionAmountFlexProduct={() => void handleResolveCommissionAmountAction("FlexProduct")}
       />
       {showDevControls ? renderDevMatchingControls() : null}
       <DepositReconciliationTopSection
@@ -4540,14 +4787,14 @@ export function DepositReconciliationDetailView({
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden" ref={scheduleTableAreaRefCallback}>
             <DynamicTable
               className="flex flex-col"
-              columns={scheduleTableColumns}
+              columns={resolvedScheduleTableColumns}
               data={sortedSchedules}
               onSort={(column, direction) => setScheduleSortConfig({ key: column, direction })}
               loading={scheduleLoading || loading || schedulePreferenceLoading}
               emptyMessage="No suggested matches found"
               fillContainerWidth
               preferOverflowHorizontalScroll
-              hasLoadedPreferences={!schedulePreferenceLoading && scheduleTableColumns.length > 0}
+              hasLoadedPreferences={!schedulePreferenceLoading && resolvedScheduleTableColumns.length > 0}
               maxBodyHeight={normalizedScheduleTableHeight}
               selectedItems={selectedSchedules}
               onItemSelect={(itemId, selected) => handleScheduleSelect(String(itemId), selected)}

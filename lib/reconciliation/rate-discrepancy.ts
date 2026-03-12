@@ -61,6 +61,12 @@ export function buildRateDiscrepancySummary({
     absoluteDifferencePercent: Number(absoluteDifferencePercent.toFixed(4)),
     tolerancePercent: normalizedTolerance,
     isMaterial: absoluteDifferencePercent > normalizedTolerance + EPSILON,
+    direction:
+      differencePercent > normalizedTolerance + EPSILON
+        ? ("higher" as const)
+        : differencePercent < -(normalizedTolerance + EPSILON)
+          ? ("lower" as const)
+          : null,
   }
 }
 

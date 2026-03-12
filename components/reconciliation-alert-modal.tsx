@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react"
 
 import type { DepositLineItemRow, SuggestedMatchScheduleRow } from "@/lib/mock-data"
+import { cn } from "@/lib/utils"
 
 export type FlexDecisionAction = "none" | "auto_adjust" | "prompt" | "auto_chargeback"
 
@@ -64,6 +65,7 @@ export type RateDiscrepancyPayload = {
   receivedRatePercent: number
   differencePercent: number
   tolerancePercent: number
+  direction: "higher" | "lower"
   future: {
     count: number
     schedules: Array<{ id: string; scheduleNumber: string | null; scheduleDate: string | null }>
@@ -73,12 +75,34 @@ export type RateDiscrepancyPayload = {
 export type RateDiscrepancyModalState = {
   lineId: string
   scheduleId: string
-  applyingAction: "acceptCurrent" | "applyToFuture" | null
+  applyingAction: "acceptCurrent" | "applyToFuture" | "routeLowRate" | null
   error: string | null
   discrepancy: RateDiscrepancyPayload
 }
 
-type AlertTabId = "usage-overage" | "commission-rate"
+export type CommissionAmountReviewPayload = {
+  revenueScheduleId: string
+  scheduleNumber: string
+  scheduleDate: string | null
+  status: "clear" | "action_required" | "routed_low_rate" | "pending_rate_resolution"
+  requiresAction: boolean
+  remainingCommissionDifference: number
+  message: string
+  recommendedAction: "none" | "adjust" | "flex-product"
+  queuePath: string | null
+  ticketId: string | null
+}
+
+export type CommissionAmountReviewState = {
+  lineId: string
+  scheduleId: string
+  loading: boolean
+  applyingAction: "adjust" | "flex-product" | null
+  error: string | null
+  review: CommissionAmountReviewPayload | null
+}
+
+type AlertTabId = "usage-overage" | "commission-rate" | "commission-amount"
 
 const currencyFormatter = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -175,30 +199,57 @@ function SectionTable(props: {
 
 function ProjectTabs(props: {
   activeId: AlertTabId
+  tabs: Array<{
+    id: AlertTabId
+    label: string
+    status: "complete" | "action_required" | "locked"
+  }>
   onChange: (id: AlertTabId) => void
 }) {
-  const tabs: Array<{ id: AlertTabId; label: string }> = [
-    { id: "usage-overage", label: "Usage Overage" },
-    { id: "commission-rate", label: "Commission Rate" },
-  ]
+  const statusLabelMap = {
+    complete: "Complete",
+    action_required: "Action required",
+    locked: "Locked",
+  } satisfies Record<string, string>
 
   return (
     <div className="border-b-2 border-[#2f6fe4]">
       <div className="flex gap-1">
-        {tabs.map(tab => {
+        {props.tabs.map((tab, index) => {
           const isActive = props.activeId === tab.id
+          const isLocked = tab.status === "locked"
           return (
             <button
               key={tab.id}
               type="button"
-              onClick={() => props.onChange(tab.id)}
+              onClick={() => (isLocked ? null : props.onChange(tab.id))}
+              disabled={isLocked}
               className={
                 isActive
                   ? "rounded-t-md border border-[#94b8ff] border-b-transparent bg-[#2f6fe4] px-4 py-2 text-sm font-semibold text-white"
-                  : "rounded-t-md border border-slate-300 bg-[#d7e7ff] px-4 py-2 text-sm font-semibold text-[#1f4db9] hover:bg-[#c8ddff]"
+                  : isLocked
+                    ? "rounded-t-md border border-slate-200 bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-400"
+                    : "rounded-t-md border border-slate-300 bg-[#d7e7ff] px-4 py-2 text-sm font-semibold text-[#1f4db9] hover:bg-[#c8ddff]"
               }
             >
-              {tab.label}
+              <span className="block text-left">
+                <span className="text-[11px] uppercase tracking-wide">{index + 1}</span>
+                <span className="mt-0.5 block">{tab.label}</span>
+                <span
+                  className={cn(
+                    "mt-1 block text-[10px] font-semibold uppercase tracking-wide",
+                    isActive
+                      ? "text-blue-100"
+                      : tab.status === "complete"
+                        ? "text-emerald-700"
+                        : tab.status === "action_required"
+                          ? "text-amber-700"
+                          : "text-slate-400",
+                  )}
+                >
+                  {statusLabelMap[tab.status]}
+                </span>
+              </span>
             </button>
           )
         })}
@@ -254,8 +305,8 @@ function HighlightedValue(props: { value: string; tone?: "green" | "red"; subtle
     <span
       className={
         props.subtle
-          ? "rounded bg-amber-100 px-1.5 py-0.5 font-semibold text-slate-900"
-          : "rounded-md bg-amber-200 px-2 py-1 font-semibold text-slate-900 ring-1 ring-amber-300"
+          ? "recon-preview-chip-subtle"
+          : "recon-preview-chip"
       }
     >
       {props.value}
@@ -294,7 +345,7 @@ function PreviewComparisonTable(props: {
                   <span
                     className={
                       row.changed
-                        ? "inline-flex rounded-md bg-amber-200 px-2 py-1 font-semibold text-slate-900 ring-1 ring-amber-300"
+                        ? "recon-preview-chip"
                         : "text-slate-900"
                     }
                   >
@@ -347,6 +398,7 @@ export function ReconciliationAlertModal(props: {
   flexResolving: boolean
   aiAdjustmentState: AiAdjustmentModalState | null
   rateDiscrepancy: RateDiscrepancyModalState | null
+  commissionAmountReview: CommissionAmountReviewState | null
   canCreateTickets: boolean
   onClose: () => void
   onOpenAiAdjustment: () => void
@@ -357,10 +409,16 @@ export function ReconciliationAlertModal(props: {
   onOpenRateTicket: () => void
   onAcceptRateCurrent: () => void
   onApplyRateToFuture: () => void
+  onCreateLowRateException: () => void
+  onResolveCommissionAmountAdjust: () => void
+  onResolveCommissionAmountFlexProduct: () => void
 }) {
   const [activeTab, setActiveTab] = useState<AlertTabId>("usage-overage")
   const [selectedUsageAction, setSelectedUsageAction] = useState<"absorb" | "flex-product" | null>(null)
   const [selectedRateAction, setSelectedRateAction] = useState<"acceptCurrent" | "applyToFuture" | null>(null)
+  const [selectedCommissionAmountAction, setSelectedCommissionAmountAction] = useState<"adjust" | "flex-product" | null>(
+    null,
+  )
 
   useEffect(() => {
     if (!props.isOpen) return
@@ -372,19 +430,25 @@ export function ReconciliationAlertModal(props: {
       setActiveTab("commission-rate")
       return
     }
+    if (props.commissionAmountReview?.review) {
+      setActiveTab("commission-amount")
+      return
+    }
     setActiveTab("usage-overage")
-  }, [props.isOpen, props.flexPrompt, props.rateDiscrepancy])
+  }, [props.commissionAmountReview?.review, props.flexPrompt, props.isOpen, props.rateDiscrepancy])
 
   useEffect(() => {
     if (!props.isOpen) return
     setSelectedUsageAction(props.aiAdjustmentState ? "absorb" : null)
     setSelectedRateAction(null)
-  }, [props.aiAdjustmentState, props.isOpen])
+    setSelectedCommissionAmountAction(props.commissionAmountReview?.review?.recommendedAction === "adjust" ? "adjust" : null)
+  }, [props.aiAdjustmentState, props.commissionAmountReview?.review?.recommendedAction, props.isOpen])
 
   const closeDisabled =
     props.flexResolving ||
     Boolean(props.rateDiscrepancy?.applyingAction) ||
-    Boolean(props.aiAdjustmentState?.applying)
+    Boolean(props.aiAdjustmentState?.applying) ||
+    Boolean(props.commissionAmountReview?.applyingAction)
 
   const selectionAdjustedSchedule = useMemo(() => {
     if (!props.schedule) return null
@@ -650,6 +714,7 @@ export function ReconciliationAlertModal(props: {
     : []
 
   const rateDiscrepancy = props.rateDiscrepancy?.discrepancy ?? null
+  const commissionAmountReview = props.commissionAmountReview?.review ?? null
   const usageOverage = props.flexPrompt?.decision.usageOverage ?? 0
   const usageToleranceAmount = props.flexPrompt?.decision.usageToleranceAmount ?? 0
   const absorbSelected = selectedUsageAction === "absorb"
@@ -664,7 +729,28 @@ export function ReconciliationAlertModal(props: {
     { label: "Tolerance", value: formatCurrency(usageToleranceAmount) },
     { label: "Exp. Comm %", value: formatRowRate(props.schedule?.expectedCommissionRatePercent ?? 0) },
     { label: "Act. Comm %", value: formatRowRate(actualCommissionPercent) },
+    {
+      label: "Comm Amount Review",
+      value: commissionAmountReview ? formatCurrency(commissionAmountReview.remainingCommissionDifference) : "Pending",
+    },
   ]
+
+  const usageStepStatus: "complete" | "action_required" | "locked" = props.flexPrompt ? "action_required" : "complete"
+  const rateStepStatus: "complete" | "action_required" | "locked" = props.flexPrompt
+    ? "locked"
+    : rateDiscrepancy
+      ? "action_required"
+      : "complete"
+  const commissionAmountStepStatus: "complete" | "action_required" | "locked" = props.flexPrompt || rateDiscrepancy
+    ? "locked"
+    : commissionAmountReview?.requiresAction
+      ? "action_required"
+      : "complete"
+  const workflowTabs = [
+    { id: "usage-overage", label: "Usage", status: usageStepStatus },
+    { id: "commission-rate", label: "Commission Rate", status: rateStepStatus },
+    { id: "commission-amount", label: "Commission Amount", status: commissionAmountStepStatus },
+  ] satisfies Array<{ id: AlertTabId; label: string; status: "complete" | "action_required" | "locked" }>
 
   const handleClose = () => {
     if (props.aiAdjustmentState) {
@@ -672,6 +758,7 @@ export function ReconciliationAlertModal(props: {
     }
     setSelectedUsageAction(null)
     setSelectedRateAction(null)
+    setSelectedCommissionAmountAction(null)
     props.onClose()
   }
 
@@ -706,6 +793,16 @@ export function ReconciliationAlertModal(props: {
     }
   }
 
+  const handleCommissionAmountSubmit = () => {
+    if (selectedCommissionAmountAction === "adjust") {
+      props.onResolveCommissionAmountAdjust()
+      return
+    }
+    if (selectedCommissionAmountAction === "flex-product") {
+      props.onResolveCommissionAmountFlexProduct()
+    }
+  }
+
   const usageSubmitDisabled =
     !selectedUsageAction ||
     props.flexResolving ||
@@ -716,6 +813,11 @@ export function ReconciliationAlertModal(props: {
     !selectedRateAction ||
     Boolean(props.rateDiscrepancy?.applyingAction) ||
     (selectedRateAction === "applyToFuture" && (rateDiscrepancy?.future.count ?? 0) === 0)
+
+  const commissionAmountSubmitDisabled =
+    !selectedCommissionAmountAction ||
+    Boolean(props.commissionAmountReview?.applyingAction) ||
+    !commissionAmountReview?.requiresAction
 
   return (
     <div
@@ -792,7 +894,7 @@ export function ReconciliationAlertModal(props: {
             </div>
 
             <div>
-              <ProjectTabs activeId={activeTab} onChange={setActiveTab} />
+              <ProjectTabs activeId={activeTab} tabs={workflowTabs} onChange={setActiveTab} />
 
               <div className="mt-3">
                 {activeTab === "usage-overage" ? (
@@ -935,113 +1037,215 @@ export function ReconciliationAlertModal(props: {
                       description="This match did not raise a promptable usage variance. The tab stays visible to preserve the unified shell layout."
                     />
                   )
-                ) : rateDiscrepancy ? (
-                  <div className="space-y-4">
-                    <p className="text-sm text-slate-700">
-                      The received commission rate for this match does not match the expected schedule rate.
-                      Continuing without review can hide incorrect schedule data or missed revenue.
-                    </p>
-                    <div className="flex flex-wrap items-center gap-x-5 gap-y-1 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
-                      <span className="whitespace-nowrap text-slate-600">
-                        <span className="mr-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                          Expected
+                ) : activeTab === "commission-rate" ? (
+                  rateDiscrepancy ? (
+                    <div className="space-y-4">
+                      <p className="text-sm text-slate-700">
+                        The received commission rate for this match does not match the expected schedule rate.
+                        Step 2 must be completed before the commission-amount review unlocks.
+                      </p>
+                      <div className="flex flex-wrap items-center gap-x-5 gap-y-1 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+                        <span className="whitespace-nowrap text-slate-600">
+                          <span className="mr-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                            Expected
+                          </span>
+                          <span className="font-semibold text-slate-900">
+                            {formatPercent(rateDiscrepancy.expectedRatePercent)}
+                          </span>
                         </span>
-                        <span className="font-semibold text-slate-900">
-                          {formatPercent(rateDiscrepancy.expectedRatePercent)}
+                        <span className="whitespace-nowrap text-slate-600">
+                          <span className="mr-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                            Received
+                          </span>
+                          <span className="font-semibold text-slate-900">
+                            {formatPercent(rateDiscrepancy.receivedRatePercent)}
+                          </span>
                         </span>
-                      </span>
-                      <span className="whitespace-nowrap text-slate-600">
-                        <span className="mr-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                          Received
+                        <span className="whitespace-nowrap text-slate-600">
+                          <span className="mr-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                            Tolerance
+                          </span>
+                          <span className="font-semibold text-slate-900">
+                            {formatPercent(rateDiscrepancy.tolerancePercent)}
+                          </span>
                         </span>
-                        <span className="font-semibold text-slate-900">
-                          {formatPercent(rateDiscrepancy.receivedRatePercent)}
+                        <span className="whitespace-nowrap text-amber-900">
+                          <span className="mr-1 text-[11px] font-semibold uppercase tracking-wide text-amber-700">
+                            Difference
+                          </span>
+                          <span className="font-semibold">
+                            {formatPercent(rateDiscrepancy.differencePercent)}
+                          </span>
                         </span>
-                      </span>
-                      <span className="whitespace-nowrap text-slate-600">
-                        <span className="mr-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                          Tolerance
-                        </span>
-                        <span className="font-semibold text-slate-900">
-                          {formatPercent(rateDiscrepancy.tolerancePercent)}
-                        </span>
-                      </span>
-                      <span className="whitespace-nowrap text-amber-900">
-                        <span className="mr-1 text-[11px] font-semibold uppercase tracking-wide text-amber-700">
-                          Difference
-                        </span>
-                        <span className="font-semibold">
-                          {formatPercent(rateDiscrepancy.differencePercent)}
-                        </span>
-                      </span>
+                      </div>
+
+                      {rateDiscrepancy.direction === "higher" ? (
+                        <>
+                          <div className="grid gap-4 lg:grid-cols-2">
+                            <OptionCard
+                              title="Accept Higher Rate Once"
+                              description="Update only the current schedule to the higher received commission rate."
+                              active={selectedRateAction === "acceptCurrent"}
+                              onClick={() => setSelectedRateAction("acceptCurrent")}
+                              disabled={Boolean(props.rateDiscrepancy?.applyingAction)}
+                              actionLabel="Select to preview"
+                            />
+                            <OptionCard
+                              title="Apply Higher Rate to Future"
+                              description="Update the current schedule and all eligible future schedules to the higher received rate."
+                              active={selectedRateAction === "applyToFuture"}
+                              onClick={() => setSelectedRateAction("applyToFuture")}
+                              disabled={Boolean(props.rateDiscrepancy?.applyingAction) || rateDiscrepancy.future.count === 0}
+                              actionLabel="Select to preview"
+                            />
+                          </div>
+                          {selectedRateAction ? (
+                            <PreviewComparisonTable
+                              title="Commission Rate Preview"
+                              description={
+                                selectedRateAction === "applyToFuture"
+                                  ? `${rateDiscrepancy.future.count} future schedule${rateDiscrepancy.future.count === 1 ? "" : "s"} will also adopt the previewed expected rate after submit.`
+                                  : "Only the current schedule will adopt the previewed expected rate after submit."
+                              }
+                              rows={ratePreviewRows}
+                            />
+                          ) : null}
+                          <FutureScheduleList
+                            title="Future unreconciled schedules"
+                            schedules={rateDiscrepancy.future.schedules}
+                            count={rateDiscrepancy.future.count}
+                          />
+                          {props.rateDiscrepancy?.error ? (
+                            <p className="text-sm text-red-600">{props.rateDiscrepancy.error}</p>
+                          ) : null}
+                          <div className="flex flex-wrap items-center justify-end gap-2">
+                            <button
+                              type="button"
+                              className="rounded-md border border-[#efb071] bg-white px-4 py-2.5 text-sm font-semibold text-[#c46a1f] shadow-sm hover:bg-[#fff7ef] disabled:cursor-not-allowed disabled:opacity-60"
+                              onClick={props.onOpenRateTicket}
+                              disabled={Boolean(props.rateDiscrepancy?.applyingAction) || !props.canCreateTickets}
+                              title={!props.canCreateTickets ? "Insufficient permissions to create tickets" : undefined}
+                            >
+                              Create Ticket
+                            </button>
+                            {selectedRateAction ? (
+                              <button
+                                type="button"
+                                className="rounded-md bg-[#2f6fe4] px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[#245dd1] disabled:cursor-not-allowed disabled:opacity-60"
+                                onClick={handleRateSubmit}
+                                disabled={rateSubmitDisabled}
+                              >
+                                {props.rateDiscrepancy?.applyingAction
+                                  ? "Submitting..."
+                                  : selectedRateAction === "acceptCurrent"
+                                    ? "Submit Accept Higher Rate Once"
+                                    : "Submit Apply Higher Rate to Future"}
+                              </button>
+                            ) : null}
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
+                            This is a lower-than-expected rate. It cannot be normalized silently or pushed to future schedules.
+                            Submitting this step will flag the schedule, create the investigation ticket, and route it to the low-rate review queue.
+                          </div>
+                          {props.rateDiscrepancy?.error ? (
+                            <p className="text-sm text-red-600">{props.rateDiscrepancy.error}</p>
+                          ) : null}
+                          <div className="flex flex-wrap items-center justify-end gap-2">
+                            <button
+                              type="button"
+                              className="rounded-md bg-[#2f6fe4] px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[#245dd1] disabled:cursor-not-allowed disabled:opacity-60"
+                              onClick={props.onCreateLowRateException}
+                              disabled={Boolean(props.rateDiscrepancy?.applyingAction)}
+                            >
+                              {props.rateDiscrepancy?.applyingAction ? "Submitting..." : "Route Low-Rate Exception"}
+                            </button>
+                          </div>
+                        </>
+                      )}
                     </div>
-                    <div className="grid gap-4 lg:grid-cols-2">
-                      <OptionCard
-                        title="Accept New Rate %"
-                        description="Update only the current schedule to the received commission rate."
-                        active={selectedRateAction === "acceptCurrent"}
-                        onClick={() => setSelectedRateAction("acceptCurrent")}
-                        disabled={Boolean(props.rateDiscrepancy?.applyingAction)}
-                        actionLabel="Select to preview"
-                      />
-                      <OptionCard
-                        title="Apply New Rate % to Future Schedules"
-                        description="Update the current schedule and all eligible future schedules to the received rate."
-                        active={selectedRateAction === "applyToFuture"}
-                        onClick={() => setSelectedRateAction("applyToFuture")}
-                        disabled={Boolean(props.rateDiscrepancy?.applyingAction) || rateDiscrepancy.future.count === 0}
-                        actionLabel="Select to preview"
-                      />
-                    </div>
-                    {selectedRateAction ? (
-                      <PreviewComparisonTable
-                        title="Commission Rate Preview"
-                        description={
-                          selectedRateAction === "applyToFuture"
-                            ? `${rateDiscrepancy.future.count} future schedule${rateDiscrepancy.future.count === 1 ? "" : "s"} will also adopt the previewed expected rate after submit.`
-                            : "Only the current schedule will adopt the previewed expected rate after submit."
-                        }
-                        rows={ratePreviewRows}
-                      />
-                    ) : null}
-                    <FutureScheduleList
-                      title="Future unreconciled schedules"
-                      schedules={rateDiscrepancy.future.schedules}
-                      count={rateDiscrepancy.future.count}
+                  ) : (
+                    <EmptyTabState
+                      title="No commission-rate action required"
+                      description="This match did not trigger a material commission-rate discrepancy. The tab stays visible so the modal layout matches the rest of the project."
                     />
-                    {props.rateDiscrepancy?.error ? (
-                      <p className="text-sm text-red-600">{props.rateDiscrepancy.error}</p>
-                    ) : null}
-                    <div className="flex flex-wrap items-center justify-end gap-2">
-                      <button
-                        type="button"
-                        className="rounded-md border border-[#efb071] bg-white px-4 py-2.5 text-sm font-semibold text-[#c46a1f] shadow-sm hover:bg-[#fff7ef] disabled:cursor-not-allowed disabled:opacity-60"
-                        onClick={props.onOpenRateTicket}
-                        disabled={Boolean(props.rateDiscrepancy?.applyingAction) || !props.canCreateTickets}
-                        title={!props.canCreateTickets ? "Insufficient permissions to create tickets" : undefined}
-                      >
-                        Create Ticket
-                      </button>
-                      {selectedRateAction ? (
-                        <button
-                          type="button"
-                          className="rounded-md bg-[#2f6fe4] px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[#245dd1] disabled:cursor-not-allowed disabled:opacity-60"
-                          onClick={handleRateSubmit}
-                          disabled={rateSubmitDisabled}
-                        >
-                          {props.rateDiscrepancy?.applyingAction
-                            ? "Submitting..."
-                            : selectedRateAction === "acceptCurrent"
-                              ? "Submit Accept New Rate %"
-                              : "Submit Apply New Rate % to Future Schedules"}
-                        </button>
+                  )
+                ) : commissionAmountReview ? (
+                  <div className="space-y-4">
+                    <div className="rounded-xl border border-slate-200 bg-white p-4">
+                      <p className="text-sm font-semibold text-slate-900">Server-backed commission amount review</p>
+                      <p className="mt-1 text-sm text-slate-600">{commissionAmountReview.message}</p>
+                      <div className="mt-3 flex flex-wrap items-center gap-4 text-sm">
+                        <span className="text-slate-600">
+                          Remaining Difference{" "}
+                          <span className="font-semibold text-slate-900">
+                            {formatCurrency(commissionAmountReview.remainingCommissionDifference)}
+                          </span>
+                        </span>
+                        <span className="text-slate-600">
+                          Status <span className="font-semibold text-slate-900">{commissionAmountReview.status}</span>
+                        </span>
+                      </div>
+                      {commissionAmountReview.queuePath ? (
+                        <p className="mt-3 text-sm">
+                          <a href={commissionAmountReview.queuePath} className="font-semibold text-[#2f6fe4] hover:underline">
+                            Open low-rate review queue
+                          </a>
+                        </p>
                       ) : null}
                     </div>
+
+                    {commissionAmountReview.requiresAction ? (
+                      <>
+                        <div className="grid gap-4 lg:grid-cols-2">
+                          <OptionCard
+                            title="Create Adjustment Entry"
+                            description="Resolve the remaining commission amount on the current schedule through the flex-adjustment path."
+                            active={selectedCommissionAmountAction === "adjust"}
+                            onClick={() => setSelectedCommissionAmountAction("adjust")}
+                            disabled={Boolean(props.commissionAmountReview?.applyingAction)}
+                            actionLabel="Recommended"
+                          />
+                          <OptionCard
+                            title="Create Flex Product"
+                            description="Split the remaining commission amount to a separate flex schedule when the overage should stay separate."
+                            active={selectedCommissionAmountAction === "flex-product"}
+                            onClick={() => setSelectedCommissionAmountAction("flex-product")}
+                            disabled={Boolean(props.commissionAmountReview?.applyingAction)}
+                            actionLabel="Select to submit"
+                          />
+                        </div>
+                        {props.commissionAmountReview?.error ? (
+                          <p className="text-sm text-red-600">{props.commissionAmountReview.error}</p>
+                        ) : null}
+                        <div className="flex flex-wrap items-center justify-end gap-2">
+                          <button
+                            type="button"
+                            className="rounded-md bg-[#2f6fe4] px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[#245dd1] disabled:cursor-not-allowed disabled:opacity-60"
+                            onClick={handleCommissionAmountSubmit}
+                            disabled={commissionAmountSubmitDisabled}
+                          >
+                            {props.commissionAmountReview?.applyingAction
+                              ? "Submitting..."
+                              : selectedCommissionAmountAction === "flex-product"
+                                ? "Submit Create Flex Product"
+                                : "Submit Create Adjustment Entry"}
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <EmptyTabState
+                        title="No commission-amount action required"
+                        description="The remaining commission amount has already cleared or been routed through the approved exception flow."
+                      />
+                    )}
                   </div>
                 ) : (
                   <EmptyTabState
-                    title="No commission-rate action required"
-                    description="This match did not trigger a material commission-rate discrepancy. The tab stays visible so the modal layout matches the rest of the project."
+                    title="Commission amount review pending"
+                    description="The server-backed commission amount validation will appear here once Steps 1 and 2 are complete."
                   />
                 )}
               </div>

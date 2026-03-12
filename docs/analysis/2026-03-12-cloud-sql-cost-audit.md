@@ -76,6 +76,40 @@ From `gcloud sql databases list --instance commissable-sql`:
 - I found **no repo references** to the 3 extra instance names (`commissable-sql-clone`, `commissable-sql-clone-2`, `commissable-sql-pitr-20260311-200030`).
 - That does not prove they are unused, but it strongly suggests they are not first-class app dependencies defined in this codebase.
 
+## Instance comparison for removal decisions
+
+This combines instance configuration, Cloud SQL operation history, and observed backend usage as of 2026-03-12. "Likely role" is an inference from naming, create history, and traffic patterns; it is not proof that no external workflow depends on an instance.
+
+### Side-by-side comparison
+
+| Instance | Likely role | Created / origin | What is different from the primary | 24h backend usage | Removal view |
+| --- | --- | --- | --- | --- | --- |
+| `commissable-sql` | Primary application database | Created 2025-09-10. Had a `RESTORE_VOLUME` operation on 2026-03-11. | Lives in `us-central1-c`; PostgreSQL `15.15`; this is the only instance with sustained app traffic. | Mean `7.51`, max `57` | Keep. Do not treat this as a cleanup candidate unless there is a separate production cutover plan. |
+| `commissable-sql-clone` | Older full clone | Created by `CLONE` on 2025-12-08. | Same size, disk, PITR, Insights, public IP, DB names, and users as primary. Runs in `us-central1-b`. Same PostgreSQL `15.15` patch family as primary. | Mean `0.02`, max `1` | Highest-priority review candidate. Strongest case for removal if no human workflow still depends on it. |
+| `commissable-sql-clone-2` | Newer temporary clone | Created by `CLONE` on 2026-03-11. | Same shape and settings as primary. Runs in `us-central1-b`. Newer PostgreSQL `15.16` patch family. | Mean `0.07`, max `1` | High-priority review candidate. Likely temporary unless it is still being used for validation after the 2026-03-11 recovery work. |
+| `commissable-sql-pitr-20260311-200030` | Recovery copy | Name suggests PITR, but the instance was actually created by `CLONE` on 2026-03-11. | Same shape and settings as primary. Runs in `us-central1-b`. Newer PostgreSQL `15.16` patch family. | Mean `0.02`, max `1` | High-priority review candidate once the 2026-03-11 recovery or inspection activity is confirmed complete. |
+
+### What is actually different?
+
+- **Age:** the primary dates to 2025-09-10, the oldest extra clone to 2025-12-08, and the two newest copies to 2026-03-11.
+- **Zone:** the primary is in `us-central1-c`; all 3 extra instances are in `us-central1-b`.
+- **Patch level:** the primary and old clone are on PostgreSQL `15.15`; the two 2026-03-11 copies are on PostgreSQL `15.16`.
+- **Operational origin:** `commissable-sql-clone`, `commissable-sql-clone-2`, and `commissable-sql-pitr-20260311-200030` were all created via `CLONE`; the primary shows a `RESTORE_VOLUME` event on 2026-03-11.
+- **Observed usage:** only `commissable-sql` shows sustained application backend usage. All 3 extra instances are effectively idle from an app-connection perspective.
+
+### What is not different?
+
+- All 4 instances are `db-custom-1-3840`, `ZONAL`, `ALWAYS` on, and backed by `10 GB` of `PD_SSD`.
+- All 4 have PITR enabled, Query Insights enabled, public IPv4 enabled, and SSL mode `ALLOW_UNENCRYPTED_AND_ENCRYPTED`.
+- All 4 expose the same visible databases (`postgres`, `crm`, `commissable_crm`) and the same visible users (`app`, `commissable_admin_app_user`, `postgres`).
+
+### Practical review order
+
+1. Review `commissable-sql-clone` first. It is the oldest non-primary copy and the clearest "idle but billable" candidate.
+2. Review `commissable-sql-clone-2` second. It looks like a same-day temporary clone from the 2026-03-11 activity.
+3. Review `commissable-sql-pitr-20260311-200030` third. It also looks temporary, but its name implies recovery intent, so validate that nobody is still inspecting it.
+4. Keep `commissable-sql` out of the cleanup list unless you are deliberately replacing production.
+
 ## Utilization snapshot
 
 ### Monitoring summary

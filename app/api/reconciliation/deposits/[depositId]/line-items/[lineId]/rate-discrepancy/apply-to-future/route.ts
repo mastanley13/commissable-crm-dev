@@ -113,6 +113,9 @@ export async function POST(
       if (!rateDiscrepancy?.isMaterial) {
         throw new Error("No material commission rate discrepancy found")
       }
+      if (rateDiscrepancy.direction !== "higher") {
+        throw new Error("Future schedule rate updates are only allowed for higher-than-expected commission rates")
+      }
 
       const usageAligned = isUsageWithinTolerance({
         expectedUsageNet: recompute.expectedUsageNet,
@@ -163,6 +166,7 @@ export async function POST(
           receivedRatePercent: rateDiscrepancy.receivedRatePercent,
           differencePercent: rateDiscrepancy.differencePercent,
           tolerancePercent: rateDiscrepancy.tolerancePercent,
+          direction: rateDiscrepancy.direction,
         },
       }
     })
