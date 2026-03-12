@@ -206,15 +206,9 @@ function ProjectTabs(props: {
   }>
   onChange: (id: AlertTabId) => void
 }) {
-  const statusLabelMap = {
-    complete: "Complete",
-    action_required: "Action required",
-    locked: "Locked",
-  } satisfies Record<string, string>
-
   return (
     <div className="border-b-2 border-[#2f6fe4]">
-      <div className="flex gap-1">
+      <div className="flex flex-wrap gap-1">
         {props.tabs.map((tab, index) => {
           const isActive = props.activeId === tab.id
           const isLocked = tab.status === "locked"
@@ -224,31 +218,25 @@ function ProjectTabs(props: {
               type="button"
               onClick={() => (isLocked ? null : props.onChange(tab.id))}
               disabled={isLocked}
-              className={
+              className={cn(
+                "rounded-t-md border px-3 py-1.5 text-sm font-semibold shadow-sm transition",
                 isActive
-                  ? "rounded-t-md border border-[#94b8ff] border-b-transparent bg-[#2f6fe4] px-4 py-2 text-sm font-semibold text-white"
+                  ? "relative -mb-[1px] z-10 border-primary-700 border-b-transparent bg-primary-700 text-white hover:bg-primary-800"
                   : isLocked
-                    ? "rounded-t-md border border-slate-200 bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-400"
-                    : "rounded-t-md border border-slate-300 bg-[#d7e7ff] px-4 py-2 text-sm font-semibold text-[#1f4db9] hover:bg-[#c8ddff]"
-              }
+                    ? "cursor-not-allowed border-slate-300 bg-slate-100 text-slate-400 shadow-none"
+                    : "border-blue-300 bg-gradient-to-b from-blue-100 to-blue-200 text-primary-800 hover:border-blue-400 hover:from-blue-200 hover:to-blue-300",
+              )}
             >
-              <span className="block text-left">
-                <span className="text-[11px] uppercase tracking-wide">{index + 1}</span>
-                <span className="mt-0.5 block">{tab.label}</span>
+              <span className="flex items-center gap-1.5">
                 <span
                   className={cn(
-                    "mt-1 block text-[10px] font-semibold uppercase tracking-wide",
-                    isActive
-                      ? "text-blue-100"
-                      : tab.status === "complete"
-                        ? "text-emerald-700"
-                        : tab.status === "action_required"
-                          ? "text-amber-700"
-                          : "text-slate-400",
+                    "text-[11px] font-bold uppercase tracking-[0.14em]",
+                    isActive ? "text-blue-100" : isLocked ? "text-slate-400" : "text-primary-700",
                   )}
                 >
-                  {statusLabelMap[tab.status]}
+                  {index + 1}
                 </span>
+                <span>{tab.label}</span>
               </span>
             </button>
           )
@@ -828,7 +816,7 @@ export function ReconciliationAlertModal(props: {
         role="dialog"
         aria-modal="true"
         aria-labelledby="reconciliation-alert-title"
-        className="flex h-[900px] w-full max-w-5xl min-h-0 flex-col overflow-hidden rounded-2xl bg-slate-100 shadow-2xl"
+        className="flex h-[900px] w-full max-w-[1360px] min-h-0 flex-col overflow-hidden rounded-2xl bg-slate-100 shadow-2xl"
         onClick={event => event.stopPropagation()}
       >
         <div className="border-b border-blue-700 bg-gradient-to-r from-blue-950 via-blue-800 to-blue-700 px-6 py-5 text-white">
@@ -907,7 +895,7 @@ export function ReconciliationAlertModal(props: {
                         <span className="font-semibold">{formatCurrency(props.flexPrompt.decision.usageToleranceAmount)}</span>.
                       </div>
 
-                      <div className="grid gap-4 lg:grid-cols-2">
+                      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] lg:items-stretch">
                         <OptionCard
                           title="Absorb into Price Each"
                           description="Adjust Exp. Usage Gross and recalculate Price Each on the matched schedule."
@@ -918,6 +906,15 @@ export function ReconciliationAlertModal(props: {
                             props.aiAdjustmentState?.loading ? "Loading preview..." : "Select to preview"
                           }
                         />
+                        <div className="flex items-center justify-center" aria-hidden="true">
+                          <div className="flex w-full items-center gap-3 lg:w-auto lg:flex-col lg:gap-2">
+                            <div className="h-px flex-1 bg-slate-300 lg:h-full lg:w-px lg:flex-none" />
+                            <span className="rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                              or
+                            </span>
+                            <div className="h-px flex-1 bg-slate-300 lg:h-full lg:w-px lg:flex-none" />
+                          </div>
+                        </div>
                         <OptionCard
                           title="Create Flex Product"
                           description="Create a new flex schedule to capture the overage separately."

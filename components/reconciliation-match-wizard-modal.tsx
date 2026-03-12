@@ -109,7 +109,7 @@ function MatchWizardSelectionTable(props: {
             <thead className="bg-[#2f6fe4] text-white">
               <tr>
                 {props.headers.map(header => (
-                  <th key={header} className="whitespace-nowrap px-4 py-2 font-semibold uppercase tracking-wide">
+                  <th key={header} className="whitespace-nowrap px-4 py-1.5 font-semibold uppercase tracking-wide">
                     {header}
                   </th>
                 ))}
@@ -123,7 +123,7 @@ function MatchWizardSelectionTable(props: {
                     className="border-b border-slate-200 bg-white text-slate-700 last:border-b-0"
                   >
                     {row.map((value, cellIndex) => (
-                      <td key={`${props.title}-${rowIndex}-${cellIndex}`} className="whitespace-nowrap px-4 py-3">
+                      <td key={`${props.title}-${rowIndex}-${cellIndex}`} className="whitespace-nowrap px-4 py-2">
                         {value}
                       </td>
                     ))}
@@ -131,7 +131,7 @@ function MatchWizardSelectionTable(props: {
                 ))
               ) : (
                 <tr className="bg-white text-slate-700">
-                  <td className="px-4 py-4 text-slate-500" colSpan={props.headers.length}>
+                  <td className="px-4 py-3 text-slate-500" colSpan={props.headers.length}>
                     {props.emptyLabel}
                   </td>
                 </tr>
@@ -760,6 +760,20 @@ export function ReconciliationMatchWizardModal(props: {
     }
   }, [allocationsPayload, allocationsVersion, effectiveType, props.depositId, selectedLines, selectedSchedules])
 
+  const openAllocationEditor = useCallback(() => {
+    if (effectiveType === "ManyToOne" && !bundleAuditLogId) {
+      setManyToOneMode("allocation")
+      setAllocationExpanded(current => (manyToOneMode === "allocation" ? !current : true))
+      return
+    }
+    setAllocationExpanded(prev => !prev)
+  }, [bundleAuditLogId, effectiveType, manyToOneMode])
+
+  const openBundleEditor = useCallback(() => {
+    setManyToOneMode("bundle")
+    setAllocationExpanded(current => (manyToOneMode === "bundle" ? !current : true))
+  }, [manyToOneMode])
+
   useEffect(() => {
     if (!props.open) return
     if (!canProceedToPreview) return
@@ -990,67 +1004,18 @@ export function ReconciliationMatchWizardModal(props: {
 
         <div className="flex-1 space-y-6 overflow-y-auto p-6 text-sm text-slate-700">
           <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-              <div className="grid gap-3 sm:grid-cols-3">
-                <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Match Type</p>
-                  <p className="mt-1 text-base font-semibold text-slate-900">{formatMatchType(effectiveType)}</p>
-                </div>
-                <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Deposit Lines</p>
-                  <p className="mt-1 text-base font-semibold text-slate-900">{lineCount}</p>
-                </div>
-                <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Schedules</p>
-                  <p className="mt-1 text-base font-semibold text-slate-900">{scheduleCount}</p>
-                </div>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Match Type</p>
+                <p className="mt-1 text-base font-semibold text-slate-900">{formatMatchType(effectiveType)}</p>
               </div>
-              <div className="flex flex-wrap items-center gap-2">
-                {effectiveType === "ManyToOne" && !bundleAuditLogId ? (
-                  <>
-                    <button
-                      type="button"
-                      className={cn(
-                        "rounded border px-2.5 py-1.5 text-xs font-semibold transition",
-                        manyToOneMode === "allocation"
-                          ? "border-primary-300 bg-primary-50 text-primary-800 hover:bg-primary-100"
-                          : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
-                      )}
-                      onClick={() => {
-                        setManyToOneMode("allocation")
-                        setAllocationExpanded(current => (manyToOneMode === "allocation" ? !current : true))
-                      }}
-                      disabled={replacementRequired}
-                    >
-                      Edit Allocation
-                    </button>
-                    <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">or</span>
-                    <button
-                      type="button"
-                      className={cn(
-                        "rounded border px-2.5 py-1.5 text-xs font-semibold transition",
-                        manyToOneMode === "bundle"
-                          ? "border-primary-300 bg-primary-50 text-primary-800 hover:bg-primary-100"
-                          : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
-                      )}
-                      onClick={() => {
-                        setManyToOneMode("bundle")
-                        setAllocationExpanded(current => (manyToOneMode === "bundle" ? !current : true))
-                      }}
-                      disabled={bundleLoading}
-                    >
-                      Bundle
-                    </button>
-                  </>
-                ) : (
-                  <button
-                    type="button"
-                    className="rounded border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                    onClick={() => setAllocationExpanded(prev => !prev)}
-                  >
-                    {allocationExpanded ? "Hide Allocation Editor" : "Edit Allocation"}
-                  </button>
-                )}
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Deposit Lines</p>
+                <p className="mt-1 text-base font-semibold text-slate-900">{lineCount}</p>
+              </div>
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Schedules</p>
+                <p className="mt-1 text-base font-semibold text-slate-900">{scheduleCount}</p>
               </div>
             </div>
           </div>
@@ -1179,26 +1144,23 @@ export function ReconciliationMatchWizardModal(props: {
                       {validationState === "system_error" && previewError ? (
                         <p className="mt-1 text-xs">{previewError}</p>
                       ) : null}
-                    </div>
-                  ) : null}
-                  {canProceedToPreview || previewUpToDate || previewLoading ? (
-                    <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
-                      Live preview updates are highlighted in yellow. Nothing is written until you submit.
-                    </div>
-                  ) : null}
-                  {previewUpToDate && (validationState === "warning" || validationState === "error") && validationIssues.length ? (
-                    <div className="rounded-md border border-slate-200 bg-white p-3">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Issues</p>
-                      <ul className="mt-2 list-disc space-y-1 pl-5 text-sm">
-                        {validationIssues.map((issue, idx) => (
-                          <li
-                            key={`${issue.code}-${idx}`}
-                            className={issue.level === "error" ? "text-red-700" : "text-amber-800"}
-                          >
-                            {issue.message}
-                          </li>
-                        ))}
-                      </ul>
+                      {previewUpToDate &&
+                      (validationState === "warning" || validationState === "error") &&
+                      validationIssues.length ? (
+                        <>
+                          <p className="mt-3 text-xs font-semibold uppercase tracking-wide">Issues</p>
+                          <ul className="mt-2 list-disc space-y-1 pl-5 text-sm">
+                            {validationIssues.map((issue, idx) => (
+                              <li
+                                key={`${issue.code}-${idx}`}
+                                className={issue.level === "error" ? "text-red-700" : "text-amber-800"}
+                              >
+                                {issue.message}
+                              </li>
+                            ))}
+                          </ul>
+                        </>
+                      ) : null}
                     </div>
                   ) : null}
                 </div>
@@ -1210,7 +1172,51 @@ export function ReconciliationMatchWizardModal(props: {
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p className="font-semibold text-slate-900">Edit Allocation</p>
-                <p className="text-xs text-slate-600">Use the action buttons above to adjust allocations or switch to bundle.</p>
+                <p className="text-xs text-slate-600">
+                  {effectiveType === "ManyToOne" && !bundleAuditLogId
+                    ? "Adjust allocations here or switch to bundle."
+                    : "Adjust allocations here before submitting the match."}
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                {effectiveType === "ManyToOne" && !bundleAuditLogId ? (
+                  <>
+                    <button
+                      type="button"
+                      className={cn(
+                        "rounded border px-2.5 py-1.5 text-xs font-semibold transition",
+                        manyToOneMode === "allocation"
+                          ? "border-primary-300 bg-primary-50 text-primary-800 hover:bg-primary-100"
+                          : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
+                      )}
+                      onClick={openAllocationEditor}
+                      disabled={replacementRequired}
+                    >
+                      Edit Allocation
+                    </button>
+                    <button
+                      type="button"
+                      className={cn(
+                        "rounded border px-2.5 py-1.5 text-xs font-semibold transition",
+                        manyToOneMode === "bundle"
+                          ? "border-primary-300 bg-primary-50 text-primary-800 hover:bg-primary-100"
+                          : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
+                      )}
+                      onClick={openBundleEditor}
+                      disabled={bundleLoading}
+                    >
+                      Bundle
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    className="rounded border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                    onClick={openAllocationEditor}
+                  >
+                    {allocationExpanded ? "Hide Allocation Editor" : "Edit Allocation"}
+                  </button>
+                )}
               </div>
             </div>
 

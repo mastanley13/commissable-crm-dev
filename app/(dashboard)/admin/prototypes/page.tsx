@@ -19,6 +19,13 @@ const prototypePages = [
     tag: 'Matching'
   },
   {
+    title: 'Reconciliation: Live Preview Variants',
+    description:
+      'Sandbox with two selectable tables and a preview-style switch to compare cleaner changed-cell treatments before updating the production reconciliation UI.',
+    href: '/admin/prototypes/reconciliation-live-preview',
+    tag: 'Matching'
+  },
+  {
     title: 'Comma-Separated Values (Other Fields)',
     description:
       'Detail-style prototype to add/remove multi-values and preview how they render as comma-separated strings.',
