@@ -539,7 +539,7 @@ export default function RevenueSchedulesPage() {
       }
 
       const payload = await response.json().catch(() => ({ data: [] }))
-      const data = Array.isArray(payload?.data) ? payload.data : []
+      const data: Array<{ id: string }> = Array.isArray(payload?.data) ? payload.data : []
       setRevenueSchedules(data)
       setFilteredRevenueSchedules(data)
       setSelectedSchedules(previous => previous.filter(id => data.some(row => row.id === id)))
