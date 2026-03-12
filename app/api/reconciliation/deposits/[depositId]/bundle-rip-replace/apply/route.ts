@@ -19,6 +19,7 @@ import {
   roundMoney,
   toNumber,
 } from "@/lib/matching/bundle-replacement"
+import { findCrossDealGuardIssues } from "@/lib/matching/cross-deal-guard"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -245,6 +246,18 @@ export async function POST(request: NextRequest, { params }: { params: { deposit
           scheduleType: true,
           distributorAccountId: true,
           vendorAccountId: true,
+          account: {
+            select: {
+              accountName: true,
+              accountLegalName: true,
+            },
+          },
+          opportunity: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
         },
       })
 
@@ -276,6 +289,7 @@ export async function POST(request: NextRequest, { params }: { params: { deposit
             lineNumber: true,
             status: true,
             reconciled: true,
+            accountId: true,
             accountIdVendor: true,
             customerIdVendor: true,
             orderIdVendor: true,
@@ -290,12 +304,29 @@ export async function POST(request: NextRequest, { params }: { params: { deposit
             usageUnallocated: true,
             commissionUnallocated: true,
             commissionRate: true,
+            account: {
+              select: {
+                accountName: true,
+                accountLegalName: true,
+              },
+            },
          },
        })
 
         if (lines.length !== lineIds.length) {
           throw new BundleApplyError("One or more deposit line items could not be found for this deposit.", 400)
         }
+
+       const crossDealIssues = await findCrossDealGuardIssues(tx, {
+         tenantId,
+         lines,
+         schedules: [baseSchedule],
+       })
+       if (crossDealIssues.length > 0) {
+         throw new BundleApplyError(crossDealIssues[0]!.message, 400, {
+           code: "BUNDLE_CROSS_DEAL_MISMATCH",
+         })
+       }
 
        const appliedMatches = await tx.depositLineMatch.findMany({
          where: {

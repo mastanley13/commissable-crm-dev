@@ -217,11 +217,11 @@ export function GroupEditModal({ isOpen, group, onClose, onSuccess }: GroupEditM
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-      <div className="w-full max-w-2xl rounded-xl bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
+      <div className="w-full max-w-2xl rounded-t-xl rounded-b-none bg-white shadow-xl">
+        <div className="flex items-center justify-between border-b border-blue-700 bg-gradient-to-r from-blue-950 via-blue-800 to-blue-700 px-6 py-4 text-white">
           <div>
-            <p className="text-xs font-semibold uppercase text-primary-600">Edit Group</p>
-            <h2 className="text-lg font-semibold text-gray-900">Update Group Details</h2>
+            <p className="text-xs font-semibold uppercase text-blue-100">Edit Group</p>
+            <h2 className="text-lg font-semibold text-white">Update Group Details</h2>
           </div>
         </div>
         <form onSubmit={handleSubmit} className="max-h-[80vh] overflow-y-auto px-6 py-5">
@@ -355,18 +355,18 @@ export function GroupEditModal({ isOpen, group, onClose, onSuccess }: GroupEditM
             </div>
           )}
 
-          <div className="mt-6 flex flex-wrap items-center justify-end gap-3">
+          <div className="mt-6 flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 pt-4">
             <button
               type="button"
               onClick={onClose}
-              className="rounded-full bg-gray-200 px-5 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-300"
+              className="inline-flex min-w-[88px] items-center justify-center rounded border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={loading || !canSubmit || detailsLoading}
-              className="flex items-center gap-2 rounded-full bg-primary-600 px-6 py-2 text-sm font-semibold text-white transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-primary-400"
+              className="inline-flex min-w-[96px] items-center justify-center gap-2 rounded bg-primary-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-primary-400"
             >
               {loading && <Loader2 className="h-4 w-4 animate-spin" />}
               {loading ? "Updating..." : "Update"}

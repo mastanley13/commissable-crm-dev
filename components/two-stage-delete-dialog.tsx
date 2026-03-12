@@ -676,17 +676,17 @@ export function TwoStageDeleteDialog({
           ) : null}
 
           {!isRevenueSchedulesSize ? (
-            <div className="flex justify-end gap-3">
+            <div className="flex items-center justify-between gap-3">
               <button
                 onClick={onClose}
-                className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                className="inline-flex min-w-[88px] items-center justify-center rounded border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
               >
                 Cancel
               </button>
               <button
                 onClick={() => setStage(isDeleted ? 'confirm-permanent' : initialDeleteStage)}
                 disabled={initialFooterDisabled}
-                className={`px-4 py-2 rounded-lg transition-colors ${initialFooterDisabled
+                className={`inline-flex min-w-[96px] items-center justify-center rounded px-4 py-2 text-sm font-semibold transition-colors ${initialFooterDisabled
                   ? 'bg-red-400 text-white opacity-60 cursor-not-allowed'
                   : 'bg-red-600 text-white hover:bg-red-700'}`}
                 title={initialFooterEffectiveTitle}
@@ -858,17 +858,17 @@ export function TwoStageDeleteDialog({
         ) : null}
 
         {!isRevenueSchedulesSize ? (
-          <div className="flex justify-end gap-3">
+          <div className="flex items-center justify-between gap-3">
             <button
               onClick={onClose}
-              className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              className="inline-flex min-w-[88px] items-center justify-center rounded border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
             >
               Cancel
             </button>
             <button
               onClick={() => setStage(initialDeleteStage)}
               disabled={initialFooterDisabled}
-              className={`px-4 py-2 rounded-lg transition-colors ${initialFooterDisabled
+              className={`inline-flex min-w-[96px] items-center justify-center rounded px-4 py-2 text-sm font-semibold transition-colors ${initialFooterDisabled
                 ? 'bg-red-400 text-white opacity-60 cursor-not-allowed'
                 : 'bg-red-600 text-white hover:bg-red-700'}`}
               title={initialFooterEffectiveTitle}
@@ -1023,16 +1023,16 @@ export function TwoStageDeleteDialog({
           </div>
 
           {!isRevenueSchedulesSize && (
-            <div className="flex justify-end gap-3">
+            <div className="flex items-center justify-between gap-3">
               <button
                 onClick={() => setStage('initial')}
-                className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                className="inline-flex min-w-[88px] items-center justify-center rounded border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
               >
                 Cancel
               </button>
               <button
                 onClick={config.onConfirm}
-                className={`px-4 py-2 text-white rounded-lg transition-colors ${config.actionClass}`}
+                className={`inline-flex min-w-[96px] items-center justify-center rounded px-4 py-2 text-sm font-semibold text-white transition-colors ${config.actionClass}`}
               >
                 {config.action}
               </button>
@@ -1128,16 +1128,16 @@ export function TwoStageDeleteDialog({
         )}
 
         {!isRevenueSchedulesSize && (
-          <div className="flex justify-end gap-3">
+          <div className="flex items-center justify-between gap-3">
             <button
               onClick={() => setStage('initial')}
-              className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              className="inline-flex min-w-[88px] items-center justify-center rounded border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
             >
               Cancel
             </button>
             <button
               onClick={config.onConfirm}
-              className={`px-4 py-2 text-white rounded-lg transition-colors ${config.actionClass}`}
+              className={`inline-flex min-w-[96px] items-center justify-center rounded px-4 py-2 text-sm font-semibold text-white transition-colors ${config.actionClass}`}
             >
               {config.action}
             </button>
@@ -1197,14 +1197,14 @@ export function TwoStageDeleteDialog({
       : 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50'
     }>
       <div className={isRevenueSchedulesSize
-        ? 'flex h-[900px] w-full max-w-[1024px] flex-col overflow-hidden rounded-2xl bg-white shadow-xl'
-        : 'bg-white rounded-lg shadow-xl max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto'
+        ? 'flex h-[900px] w-full max-w-[1024px] flex-col overflow-hidden rounded-t-2xl rounded-b-none bg-white shadow-xl'
+        : 'bg-white rounded-t-lg rounded-b-none shadow-xl max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto'
       }>
         <div className={isRevenueSchedulesSize
-          ? 'flex items-center justify-between border-b border-gray-200 px-6 py-4'
-          : 'flex items-center justify-between p-4 border-b border-gray-200'
+          ? 'flex items-center justify-between border-b border-blue-700 bg-gradient-to-r from-blue-950 via-blue-800 to-blue-700 px-6 py-4 text-white'
+          : 'flex items-center justify-between border-b border-blue-700 bg-gradient-to-r from-blue-950 via-blue-800 to-blue-700 p-4 text-white'
         }>
-          <h2 className="text-lg font-semibold text-gray-900">
+          <h2 className="text-lg font-semibold text-white">
             {stage === 'constraints' ? 'Deletion Constraints' : 
              stage === 'confirm-permanent' ? 'Permanent Deletion' :
              stage === 'confirm-restore' ? 'Restore Record' :
@@ -1234,11 +1234,11 @@ export function TwoStageDeleteDialog({
         ) : null}
 
         {isRevenueSchedulesSize && stage === 'initial' && (hasMultipleEntities || !isDeleted) ? (
-          <div className="flex items-center justify-end gap-3 border-t border-gray-200 px-6 py-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 px-6 py-4">
             <button
               type="button"
               onClick={onClose}
-              className="rounded-md border border-gray-300 bg-white px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-gray-600 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex min-w-[88px] items-center justify-center rounded border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
             >
               Cancel
             </button>
@@ -1246,7 +1246,7 @@ export function TwoStageDeleteDialog({
               type="button"
               onClick={() => setStage(isDeleted ? 'confirm-permanent' : 'confirm-soft')}
               disabled={initialFooterDisabled}
-              className="inline-flex items-center gap-2 rounded-md bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-red-300"
+              className="inline-flex min-w-[96px] items-center justify-center gap-2 rounded bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-red-300"
               title={initialFooterEffectiveTitle}
             >
               {initialFooterEffectiveLabel}
@@ -1255,11 +1255,11 @@ export function TwoStageDeleteDialog({
         ) : null}
 
         {isRevenueSchedulesSize && (stage === 'confirm-soft' || stage === 'confirm-permanent' || stage === 'confirm-restore') ? (
-          <div className="flex items-center justify-end gap-3 border-t border-gray-200 px-6 py-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 px-6 py-4">
             <button
               type="button"
               onClick={() => setStage('initial')}
-              className="rounded-md border border-gray-300 bg-white px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-gray-600 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex min-w-[88px] items-center justify-center rounded border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
             >
               Cancel
             </button>
@@ -1269,7 +1269,7 @@ export function TwoStageDeleteDialog({
                 onClick={primaryAction === 'deactivate'
                   ? (hasMultipleEntities ? handleBulkDeactivate : handleDeactivate)
                   : handleSoftDelete}
-                className="inline-flex items-center gap-2 rounded-md bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-red-300"
+                className="inline-flex min-w-[96px] items-center justify-center gap-2 rounded bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-red-300"
               >
                 {primaryAction === 'deactivate' ? 'Deactivate' : 'Delete'}
               </button>
@@ -1278,7 +1278,7 @@ export function TwoStageDeleteDialog({
               <button
                 type="button"
                 onClick={hasMultipleEntities ? handleBulkPermanentDelete : handlePermanentDelete}
-                className="inline-flex items-center gap-2 rounded-md bg-red-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-800 disabled:cursor-not-allowed disabled:bg-red-300"
+                className="inline-flex min-w-[96px] items-center justify-center gap-2 rounded bg-red-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-800 disabled:cursor-not-allowed disabled:bg-red-300"
               >
                 Delete Permanently
               </button>
@@ -1287,7 +1287,7 @@ export function TwoStageDeleteDialog({
               <button
                 type="button"
                 onClick={hasMultipleEntities ? handleBulkRestore : handleRestore}
-                className="inline-flex items-center gap-2 rounded-md bg-green-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:bg-green-300"
+                className="inline-flex min-w-[96px] items-center justify-center gap-2 rounded bg-green-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:bg-green-300"
               >
                 Restore
               </button>

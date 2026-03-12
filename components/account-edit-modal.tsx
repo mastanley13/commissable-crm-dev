@@ -460,10 +460,10 @@ export function AccountEditModal({ isOpen, onClose, onSuccess, account }: Accoun
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 backdrop-blur-sm">
       <div
-        className="w-full max-w-5xl rounded-xl bg-white shadow-xl"
+        className="w-full max-w-5xl rounded-t-xl rounded-b-none bg-white shadow-xl"
         onClick={event => event.stopPropagation()}
       >
-        <ModalHeader kicker="Edit Account" title="Update Account Details" />
+        <ModalHeader kicker="Edit Account" title="Update Account Details" variant="gradient" />
 
         <form onSubmit={handleSubmit} className="px-6 py-6">
           {formError && (
@@ -782,18 +782,18 @@ export function AccountEditModal({ isOpen, onClose, onSuccess, account }: Accoun
             </div>
           </div>
 
-          <div className="mt-8 flex justify-end gap-3">
+          <div className="mt-8 flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 pt-4">
             <button
               type="button"
               onClick={onClose}
-              className="rounded-full bg-gray-200 px-5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-300"
+              className="inline-flex min-w-[88px] items-center justify-center rounded border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={isSubmitting || optionsLoading}
-              className="rounded-full bg-primary-600 px-6 py-2 text-sm font-semibold text-white transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-primary-400"
+              className="inline-flex min-w-[96px] items-center justify-center rounded bg-primary-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-primary-400"
             >
               {isSubmitting ? "Updating..." : "Update"}
             </button>

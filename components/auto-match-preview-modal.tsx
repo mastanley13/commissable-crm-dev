@@ -49,10 +49,10 @@ export function AutoMatchPreviewModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50">
       <div
-        className="w-full max-w-2xl rounded-2xl bg-white shadow-xl"
+        className="w-full max-w-2xl rounded-t-2xl rounded-b-none bg-white shadow-xl"
         onClick={event => event.stopPropagation()}
       >
-        <ModalHeader kicker="AI Matching" title="Use AI Matching" />
+        <ModalHeader kicker="AI Matching" title="Use AI Matching" variant="gradient" />
 
         <div className="px-6 py-5">
           <ol className="list-decimal space-y-1 pl-5 text-sm text-slate-700">
@@ -119,11 +119,11 @@ export function AutoMatchPreviewModal({
             </>
           ) : null}
         </div>
-        <div className="flex items-center justify-end gap-3 border-t border-slate-200 px-6 py-4">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 px-6 py-4">
           <button
             type="button"
             onClick={onCancel}
-            className="rounded-full border border-slate-200 px-5 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed"
+            className="inline-flex min-w-[88px] items-center justify-center rounded border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
             disabled={loading || confirmLoading}
           >
             Cancel
@@ -133,7 +133,7 @@ export function AutoMatchPreviewModal({
             onClick={onConfirm}
             disabled={loading || confirmLoading || !preview || !preview.autoMatchCandidates.length}
             className={cn(
-              "rounded-full px-6 py-2 text-sm font-semibold text-white transition",
+              "inline-flex min-w-[96px] items-center justify-center rounded px-4 py-2 text-sm font-semibold text-white transition",
               loading || confirmLoading || !preview?.autoMatchCandidates.length
                 ? "cursor-not-allowed bg-primary-200"
                 : "bg-primary-600 hover:bg-primary-700",

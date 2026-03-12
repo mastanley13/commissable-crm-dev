@@ -264,12 +264,13 @@ export function ImportModal({ entityType, isOpen, onClose, onSuccess }: ImportMo
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 backdrop-blur-sm">
       <div
-        className="w-full max-w-4xl rounded-xl bg-white shadow-xl"
+        className="w-full max-w-4xl rounded-t-xl rounded-b-none bg-white shadow-xl"
         onClick={e => e.stopPropagation()}
       >
         <ModalHeader
           kicker="Import"
           title={`Import ${entityType.charAt(0).toUpperCase() + entityType.slice(1)}`}
+          variant="gradient"
           right={
             <button
               onClick={downloadTemplate}

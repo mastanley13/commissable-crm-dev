@@ -10,6 +10,7 @@ import {
 } from "@/lib/matching/settings"
 import { evaluateFlexDecision } from "@/lib/flex/revenue-schedule-flex-decision"
 import { isBonusLikeProduct } from "@/lib/flex/bonus-detection"
+import { findCrossDealGuardIssues } from "@/lib/matching/cross-deal-guard"
 import {
   findFutureSchedulesInScope,
   resolveScheduleScopeKey,
@@ -17,7 +18,6 @@ import {
 import {
   buildRateDiscrepancySummary,
   deriveReceivedRatePercent,
-  isUsageWithinTolerance,
   normalizeRatePercent,
 } from "@/lib/reconciliation/rate-discrepancy"
 
@@ -62,10 +62,23 @@ export async function POST(
       where: { id: lineId, depositId, tenantId },
       select: {
         id: true,
+        accountId: true,
+        accountIdVendor: true,
+        accountNameRaw: true,
+        customerIdVendor: true,
+        orderIdVendor: true,
+        locationId: true,
+        customerPurchaseOrder: true,
         usage: true,
         commission: true,
         reconciled: true,
         status: true,
+        account: {
+          select: {
+            accountName: true,
+            accountLegalName: true,
+          },
+        },
       },
     })
     if (!lineItem) {
@@ -80,10 +93,35 @@ export async function POST(
 
     const schedule = await prisma.revenueSchedule.findFirst({
       where: { id: revenueScheduleId, tenantId },
-      select: { id: true },
+      select: {
+        id: true,
+        accountId: true,
+        opportunityId: true,
+        account: {
+          select: {
+            accountName: true,
+            accountLegalName: true,
+          },
+        },
+        opportunity: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
     })
     if (!schedule) {
       return createErrorResponse("Revenue schedule not found", 404)
+    }
+
+    const crossDealIssues = await findCrossDealGuardIssues(prisma, {
+      tenantId,
+      lines: [lineItem],
+      schedules: [schedule],
+    })
+    if (crossDealIssues.length > 0) {
+      return createErrorResponse(crossDealIssues[0]!.message, 400)
     }
 
     const allocationUsage = Number.isFinite(body.usageAmount) ? Number(body.usageAmount) : Number(lineItem.usage ?? 0)
@@ -189,12 +227,6 @@ export async function POST(
       tolerancePercent: rateDiscrepancyTolerancePercent,
     })
 
-    const usageAligned = isUsageWithinTolerance({
-      expectedUsageNet: scheduleProjection.expectedUsageNet,
-      usageBalance: projectedUsageBalance,
-      varianceTolerance,
-    })
-
     let rateDiscrepancy = null as null | {
       revenueScheduleId: string
       scheduleNumber: string
@@ -209,7 +241,7 @@ export async function POST(
       }
     }
 
-    if (rateDiscrepancySummary?.isMaterial && usageAligned) {
+    if (rateDiscrepancySummary?.isMaterial) {
       let future = {
         count: 0,
         schedules: [] as Array<{ id: string; scheduleNumber: string | null; scheduleDate: string | null }>,

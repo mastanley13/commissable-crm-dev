@@ -330,8 +330,8 @@ export function OpportunityLineItemEditModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 px-4">
-      <div className="w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-xl">
-        <ModalHeader kicker="Edit Line Item" title="Update Opportunity Product" />
+      <div className="w-full max-w-2xl overflow-hidden rounded-t-2xl rounded-b-none bg-white shadow-xl">
+        <ModalHeader kicker="Edit Line Item" title="Update Opportunity Product" variant="gradient" />
 
         <form className="max-h-[80vh] overflow-y-auto px-6 py-6" onSubmit={handleSubmit}>
           <div className="space-y-6">
@@ -532,11 +532,11 @@ export function OpportunityLineItemEditModal({
             </div>
           </div>
 
-          <div className="mt-6 flex items-center justify-end gap-3 border-t border-gray-200 pt-4">
+          <div className="mt-6 flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 pt-4">
             <button
               type="button"
               onClick={onClose}
-              className="rounded-md border border-gray-300 bg-white px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex min-w-[88px] items-center justify-center rounded border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
               disabled={loading}
             >
               Cancel
@@ -544,10 +544,10 @@ export function OpportunityLineItemEditModal({
             <button
               type="submit"
               disabled={loading}
-              className="inline-flex items-center gap-2 rounded-md bg-primary-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-primary-300"
+              className="inline-flex min-w-[96px] items-center justify-center gap-2 rounded bg-primary-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-primary-300"
             >
               {loading ? (
-                <>
+                  <>
                   <Loader2 className="h-4 w-4 animate-spin" />
                   <span>Saving...</span>
                 </>

@@ -235,10 +235,10 @@ export function ColumnChooserModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/40">
       <div
-        className="w-full max-w-4xl rounded-xl bg-white shadow-xl"
+        className="w-full max-w-4xl rounded-t-xl rounded-b-none bg-white shadow-xl"
         onClick={e => e.stopPropagation()}
       >
-        <ModalHeader kicker="Column Settings" title="Choose Columns" />
+        <ModalHeader kicker="Column Settings" title="Choose Columns" variant="gradient" />
 
         <div className="p-6">
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
@@ -422,23 +422,23 @@ export function ColumnChooserModal({
           ) : null}
         </div>
 
-        <div className="flex items-center justify-between border-t border-gray-200 bg-gray-50 px-6 py-4">
-          <div className="text-sm text-gray-600">
-            Selected: <span className="font-medium">{selectedColumns.length}</span> columns
-          </div>
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={applying}
-              className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-            >
-              Cancel
-            </button>
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 bg-gray-50 px-6 py-4">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={applying}
+            className="inline-flex min-w-[88px] items-center justify-center rounded border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+          >
+            Cancel
+          </button>
+          <div className="flex flex-wrap items-center justify-end gap-3">
+            <div className="text-sm text-gray-600">
+              Selected: <span className="font-medium">{selectedColumns.length}</span> columns
+            </div>
             <button
               type="button"
               onClick={() => void handleApply()}
-              className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:bg-blue-300"
+              className="inline-flex min-w-[96px] items-center justify-center rounded bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:bg-blue-300"
               disabled={selectedColumns.length < MIN_VISIBLE_COLUMNS || applying}
             >
               {applying ? "Saving..." : "Confirm"}

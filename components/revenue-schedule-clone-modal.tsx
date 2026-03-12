@@ -109,8 +109,8 @@ export function RevenueScheduleCloneModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-      <div className="w-full max-w-2xl rounded-lg bg-white shadow-2xl">
-        <ModalHeader kicker="Revenue Schedule" title="Copy/Extend Revenue Schedule" />
+      <div className="w-full max-w-2xl rounded-t-lg rounded-b-none bg-white shadow-2xl">
+        <ModalHeader kicker="Revenue Schedule" title="Copy/Extend Revenue Schedule" variant="gradient" />
 
         <div className="space-y-4 px-6 py-4">
           {sourceSchedule && (
@@ -281,10 +281,10 @@ export function RevenueScheduleCloneModal({
           </div>
         </div>
 
-        <div className="mt-6 flex items-center justify-end gap-3 px-6 pb-6">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 px-6 py-4">
           <button
             type="button"
-            className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-70"
+            className="inline-flex min-w-[88px] items-center justify-center rounded border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-70"
             onClick={onCancel}
             disabled={submitting}
           >
@@ -292,7 +292,7 @@ export function RevenueScheduleCloneModal({
           </button>
           <button
             type="button"
-            className="rounded-md bg-primary-600 px-4 py-2 text-sm font-semibold text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-70"
+            className="inline-flex min-w-[96px] items-center justify-center rounded bg-primary-600 px-4 py-2 text-sm font-semibold text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-70"
             onClick={handleConfirm}
             disabled={disabled}
           >

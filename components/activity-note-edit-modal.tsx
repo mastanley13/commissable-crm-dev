@@ -184,8 +184,8 @@ export function ActivityNoteEditModal({ isOpen, activityId, accountId, contactId
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-3xl overflow-hidden rounded-xl bg-white shadow-xl">
-        <ModalHeader kicker="Edit Activity" title="Update Activity & Note" />
+      <div className="w-full max-w-3xl overflow-hidden rounded-t-xl rounded-b-none bg-white shadow-xl">
+        <ModalHeader kicker="Edit Activity" title="Update Activity & Note" variant="gradient" />
 
         {fetching ? (
           <div className="flex flex-col items-center justify-center gap-3 px-6 py-16">
@@ -290,11 +290,11 @@ export function ActivityNoteEditModal({ isOpen, activityId, accountId, contactId
               />
             </div>
 
-            <div className="flex items-center justify-end gap-3 border-t border-gray-200 pt-4">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 pt-4">
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-60"
+                className="inline-flex min-w-[88px] items-center justify-center rounded border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
                 disabled={loading}
               >
                 Cancel
@@ -302,7 +302,7 @@ export function ActivityNoteEditModal({ isOpen, activityId, accountId, contactId
               <button
                 type="submit"
                 disabled={loading || !canSubmit}
-                className="inline-flex items-center gap-2 rounded-md bg-primary-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-primary-300"
+                className="inline-flex min-w-[96px] items-center justify-center gap-2 rounded bg-primary-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-primary-300"
               >
                 {loading ? (
                   <>

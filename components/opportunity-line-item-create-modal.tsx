@@ -913,10 +913,11 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 px-4">
-      <div className="w-full max-w-5xl h-[900px] overflow-hidden rounded-2xl bg-white shadow-xl">
+      <div className="w-full max-w-5xl h-[900px] overflow-hidden rounded-t-2xl rounded-b-none bg-white shadow-xl">
         <ModalHeader
           kicker={activeTab === "add" ? "Add Line Item" : "Create Product"}
           title={activeTab === "add" ? "Add Existing Product" : "Create New Product"}
+          variant="gradient"
         />
 
           {/* Tab Switch */}
@@ -1281,9 +1282,9 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
                 </div>
               </div>
             </div>
-            <div className="mt-6 flex items-center justify-end gap-3 border-t border-gray-200 pt-4">
-              <button type="button" onClick={onClose} className="rounded-md border border-gray-300 bg-white px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60" disabled={loading}>Cancel</button>
-              <button type="submit" disabled={loading || !form.productId} className="inline-flex items-center gap-2 rounded-md bg-primary-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-primary-300">Add</button>
+            <div className="mt-6 flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 pt-4">
+              <button type="button" onClick={onClose} className="inline-flex min-w-[88px] items-center justify-center rounded border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60" disabled={loading}>Cancel</button>
+              <button type="submit" disabled={loading || !form.productId} className="inline-flex min-w-[96px] items-center justify-center gap-2 rounded bg-primary-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-primary-300">Add</button>
             </div>
           </form>
         )}
@@ -1643,9 +1644,9 @@ export function OpportunityLineItemCreateModal({ isOpen, opportunityId, orderIdH
                 </div>
               </div>
             </div>
-            <div className="mt-6 flex items-center justify-end gap-3 border-t border-gray-200 pt-4">
-              <button type="button" onClick={onClose} className="rounded-md border border-gray-300 bg-white px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500 transition hover:bg-gray-100">Cancel</button>
-              <button type="submit" disabled={loading} className="inline-flex items-center gap-2 rounded-md bg-primary-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-primary-300">Add</button>
+            <div className="mt-6 flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 pt-4">
+              <button type="button" onClick={onClose} className="inline-flex min-w-[88px] items-center justify-center rounded border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">Cancel</button>
+              <button type="submit" disabled={loading} className="inline-flex min-w-[96px] items-center justify-center gap-2 rounded bg-primary-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-primary-300">Add</button>
             </div>
           </form>
         )}

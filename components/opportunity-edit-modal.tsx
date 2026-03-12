@@ -205,8 +205,8 @@ export function OpportunityEditModal({ isOpen, opportunityId, onClose, onSuccess
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-2xl overflow-hidden rounded-lg bg-white shadow-xl">
-        <ModalHeader kicker="Edit Opportunity" title="Update Opportunity Details" />
+      <div className="w-full max-w-2xl overflow-hidden rounded-t-lg rounded-b-none bg-white shadow-xl">
+        <ModalHeader kicker="Edit Opportunity" title="Update Opportunity Details" variant="gradient" />
 
         {fetching ? (
           <div className="flex flex-col items-center justify-center gap-3 px-6 py-20">
@@ -433,11 +433,11 @@ export function OpportunityEditModal({ isOpen, opportunityId, onClose, onSuccess
               </div>
             )}
 
-            <div className="flex items-center justify-end gap-3 border-t border-gray-200 pt-4">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 pt-4">
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-md border border-gray-300 bg-white px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex min-w-[88px] items-center justify-center rounded border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
                 disabled={loading}
               >
                 Cancel
@@ -445,7 +445,7 @@ export function OpportunityEditModal({ isOpen, opportunityId, onClose, onSuccess
               <button
                 type="submit"
                 disabled={loading || !canSubmit}
-                className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300"
+                className="inline-flex min-w-[96px] items-center justify-center gap-2 rounded bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300"
               >
                 {loading ? (
                   <>

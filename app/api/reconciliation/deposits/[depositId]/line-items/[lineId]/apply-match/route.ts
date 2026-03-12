@@ -18,6 +18,7 @@ import { getClientIP, getUserAgent, logAudit, logRevenueScheduleAudit } from "@/
 import { evaluateFlexDecision } from "@/lib/flex/revenue-schedule-flex-decision"
 import { recomputeDepositLineItemAllocations } from "@/lib/matching/deposit-line-allocations"
 import { autoFillFromDepositMatch } from "@/lib/matching/auto-fill"
+import { findCrossDealGuardIssues } from "@/lib/matching/cross-deal-guard"
 import { createFlexChargebackForNegativeLine } from "@/lib/flex/revenue-schedule-flex-actions"
 import { isBonusLikeProduct } from "@/lib/flex/bonus-detection"
 import {
@@ -28,7 +29,6 @@ import { recordFieldUndoLog } from "@/lib/reconciliation/undo-log"
 import {
   buildRateDiscrepancySummary,
   deriveReceivedRatePercent,
-  isUsageWithinTolerance,
   normalizeRatePercent,
 } from "@/lib/reconciliation/rate-discrepancy"
 
@@ -74,7 +74,15 @@ export async function POST(
 
     const lineItem = await prisma.depositLineItem.findFirst({
       where: { id: lineId, depositId, tenantId },
-      include: { deposit: true },
+      include: {
+        deposit: true,
+        account: {
+          select: {
+            accountName: true,
+            accountLegalName: true,
+          },
+        },
+      },
     })
     if (!lineItem) {
       return createErrorResponse("Deposit line item not found", 404)
@@ -88,9 +96,32 @@ export async function POST(
 
     const schedule = await prisma.revenueSchedule.findFirst({
       where: { id: revenueScheduleId, tenantId },
+      include: {
+        account: {
+          select: {
+            accountName: true,
+            accountLegalName: true,
+          },
+        },
+        opportunity: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
     })
     if (!schedule) {
       return createErrorResponse("Revenue schedule not found", 404)
+    }
+
+    const crossDealIssues = await findCrossDealGuardIssues(prisma, {
+      tenantId,
+      lines: [lineItem],
+      schedules: [schedule],
+    })
+    if (crossDealIssues.length > 0) {
+      return createErrorResponse(crossDealIssues[0]!.message, 400)
     }
 
     const allocationUsage = usageAmount ?? Number(lineItem.usage ?? 0)
@@ -262,12 +293,6 @@ export async function POST(
         receivedRatePercent,
         tolerancePercent: rateDiscrepancyTolerancePercent,
       })
-      const usageAligned = isUsageWithinTolerance({
-        expectedUsageNet: revenueSchedule.expectedUsageNet,
-        usageBalance: revenueSchedule.usageBalance,
-        varianceTolerance,
-      })
-
       let rateDiscrepancy = null as null | {
         revenueScheduleId: string
         scheduleNumber: string
@@ -282,7 +307,7 @@ export async function POST(
         }
       }
 
-      if (rateDiscrepancySummary?.isMaterial && usageAligned) {
+      if (rateDiscrepancySummary?.isMaterial) {
         let future = {
           count: 0,
           schedules: [] as Array<{ id: string; scheduleNumber: string | null; scheduleDate: string | null }>,

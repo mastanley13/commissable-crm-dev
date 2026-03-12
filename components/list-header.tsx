@@ -33,6 +33,7 @@ interface ListHeaderProps {
   title?: string;
   pageTitle?: string;
   searchPlaceholder?: string;
+  searchQuery?: string;
   onSearch?: (query: string) => void;
   onFilterChange?: (filter: string) => void;
   showStatusFilter?: boolean; // new: allow hiding default Active/Inactive toggle
@@ -85,6 +86,7 @@ export function ListHeader({
   title,
   pageTitle,
   searchPlaceholder = "Search Here",
+  searchQuery: controlledSearchQuery,
   onSearch,
   onFilterChange,
   showStatusFilter = true,
@@ -139,6 +141,12 @@ export function ListHeader({
     // Backwards-compatible default: 2-state Active / Show Inactive
     return ["active", "inactive"];
   }, [statusFilterOptions]);
+
+  useEffect(() => {
+    if (typeof controlledSearchQuery === "string" && controlledSearchQuery !== searchQuery) {
+      setSearchQuery(controlledSearchQuery);
+    }
+  }, [controlledSearchQuery, searchQuery]);
 
   const columnOptions = useMemo(() => {
     if (!showColumnFilters) return [] as FilterColumnOption[];

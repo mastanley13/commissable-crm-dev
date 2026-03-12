@@ -476,12 +476,12 @@ export function ContactOpportunityCreateModal({ isOpen, contactName, accountId, 
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-      <div className="w-full max-w-3xl rounded-2xl bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
+      <div className="w-full max-w-3xl rounded-t-2xl rounded-b-none bg-white shadow-xl">
+        <div className="flex items-center justify-between border-b border-blue-700 bg-gradient-to-r from-blue-950 via-blue-800 to-blue-700 px-6 py-4 text-white">
           <div>
-            <p className="text-xs font-semibold uppercase text-primary-600">Create Opportunity</p>
-            <h2 className="text-lg font-semibold text-gray-900">New Opportunity for {contactName ?? "this contact"}</h2>
-            <p className="text-sm text-gray-500">Capture potential revenue tied to this relationship.</p>
+            <p className="text-xs font-semibold uppercase text-blue-100">Create Opportunity</p>
+            <h2 className="text-lg font-semibold text-white">New Opportunity for {contactName ?? "this contact"}</h2>
+            <p className="text-sm text-blue-100/90">Capture potential revenue tied to this relationship.</p>
           </div>
         </div>
 
@@ -840,18 +840,18 @@ export function ContactOpportunityCreateModal({ isOpen, contactName, accountId, 
             </div>
           </div>
 
-          <div className="mt-6 flex items-center justify-end gap-3 border-t border-gray-200 pt-4">
+          <div className="mt-6 flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 pt-4">
             <button
               type="button"
               onClick={handleClose}
-              className="rounded-full border border-gray-300 px-5 py-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500 transition hover:bg-gray-50"
+              className="inline-flex min-w-[88px] items-center justify-center rounded border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
               disabled={loading}
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="flex items-center gap-2 rounded-full bg-primary-600 px-6 py-2 text-sm font-semibold text-white transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-primary-400"
+              className="inline-flex min-w-[96px] items-center justify-center gap-2 rounded bg-primary-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-primary-400"
               disabled={loading || !canSubmit}
             >
               {loading && <Loader2 className="h-4 w-4 animate-spin" />}

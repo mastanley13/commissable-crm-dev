@@ -463,9 +463,9 @@ export function ContactCreateModal({ isOpen, onClose, onSuccess, options, defaul
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 backdrop-blur-sm">
       <div
-        className="w-full max-w-5xl h-[900px] flex flex-col rounded-xl bg-white shadow-xl"
+        className="w-full max-w-5xl h-[900px] flex flex-col rounded-t-xl rounded-b-none bg-white shadow-xl"
       >
-        <ModalHeader kicker="Create Contact" title="Create New Contact" />
+        <ModalHeader kicker="Create Contact" title="Create New Contact" variant="gradient" />
 
         <form onSubmit={handleSubmit} className="px-6 py-6">
           {error && (
@@ -631,11 +631,11 @@ export function ContactCreateModal({ isOpen, onClose, onSuccess, options, defaul
             </div>
           </div>
 
-          <div className="mt-8 flex justify-end gap-3">
+          <div className="mt-8 flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 pt-4">
             <button
               type="button"
               onClick={handleClose}
-              className="rounded-full bg-gray-200 px-5 py-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500 hover:bg-gray-300"
+              className="inline-flex min-w-[88px] items-center justify-center rounded border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
               disabled={loading}
             >
               Cancel
@@ -643,7 +643,7 @@ export function ContactCreateModal({ isOpen, onClose, onSuccess, options, defaul
             <button
               type="submit"
               disabled={loading}
-              className="flex items-center gap-2 rounded-full bg-primary-600 px-6 py-2 text-sm font-semibold text-white transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-primary-400"
+              className="inline-flex min-w-[96px] items-center justify-center gap-2 rounded bg-primary-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-primary-400"
             >
               {loading && <Loader2 className="h-4 w-4 animate-spin" />}
               {loading ? "Creating..." : "Add"}

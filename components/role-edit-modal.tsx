@@ -342,12 +342,12 @@ export function RoleEditModal({ isOpen, role, loading = false, error, onClose, o
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm">
       <div className="w-full max-w-6xl">
-        <div className="flex h-[90vh] flex-col overflow-hidden rounded-3xl bg-white shadow-2xl">
+        <div className="flex h-[90vh] flex-col overflow-hidden rounded-t-3xl rounded-b-none bg-white shadow-2xl">
           {/* Header */}
-          <div className="flex items-start justify-between gap-4 border-b border-gray-100 px-6 py-5">
+          <div className="flex items-start justify-between gap-4 border-b border-blue-700 bg-gradient-to-r from-blue-950 via-blue-800 to-blue-700 px-6 py-5 text-white">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-primary-600">Role Management</p>
-              <h2 className="mt-1 text-2xl font-semibold text-gray-900">
+              <p className="text-xs font-semibold uppercase tracking-wide text-blue-100">Role Management</p>
+              <h2 className="mt-1 text-2xl font-semibold text-white">
                 {role ? `Edit Role: ${role.name}` : 'Edit Role'}
               </h2>
               {templateApplied && (

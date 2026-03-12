@@ -250,16 +250,64 @@ function HighlightedValue(props: { value: string; tone?: "green" | "red"; subtle
     return <span>{props.value}</span>
   }
 
-  const toneClass =
-    props.tone === "green"
-      ? props.subtle
-        ? "font-semibold text-[#0c8f49]"
-        : "font-extrabold text-[#0c8f49]"
-      : props.subtle
-        ? "font-semibold text-[#c43d35]"
-        : "font-extrabold text-[#c43d35]"
+  return (
+    <span
+      className={
+        props.subtle
+          ? "rounded bg-amber-100 px-1.5 py-0.5 font-semibold text-slate-900"
+          : "rounded-md bg-amber-200 px-2 py-1 font-semibold text-slate-900 ring-1 ring-amber-300"
+      }
+    >
+      {props.value}
+    </span>
+  )
+}
 
-  return <span className={toneClass}>{props.value}</span>
+function PreviewComparisonTable(props: {
+  title: string
+  description?: string
+  rows: Array<{ label: string; current: string; preview: string; changed?: boolean }>
+}) {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-4">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <p className="text-sm font-semibold text-slate-900">{props.title}</p>
+          {props.description ? <p className="mt-1 text-sm text-slate-600">{props.description}</p> : null}
+        </div>
+      </div>
+      <div className="mt-4 overflow-x-auto">
+        <table className="min-w-full text-left text-sm">
+          <thead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <tr>
+              <th className="px-3 py-2">Field</th>
+              <th className="px-3 py-2">Current</th>
+              <th className="px-3 py-2">Preview</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {props.rows.map(row => (
+              <tr key={row.label}>
+                <td className="px-3 py-2 font-semibold text-slate-800">{row.label}</td>
+                <td className="px-3 py-2 text-slate-600">{row.current}</td>
+                <td className="px-3 py-2">
+                  <span
+                    className={
+                      row.changed
+                        ? "inline-flex rounded-md bg-amber-200 px-2 py-1 font-semibold text-slate-900 ring-1 ring-amber-300"
+                        : "text-slate-900"
+                    }
+                  >
+                    {row.preview}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
 }
 
 function OptionCard(props: {
@@ -277,8 +325,8 @@ function OptionCard(props: {
       disabled={props.disabled}
       className={
         props.active
-          ? "flex min-h-[112px] w-full flex-col rounded-xl border-2 border-emerald-500 bg-white px-4 py-4 text-left shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
-          : "flex min-h-[112px] w-full flex-col rounded-xl border border-slate-300 bg-white px-4 py-4 text-left shadow-sm hover:border-[#2f6fe4] disabled:cursor-not-allowed disabled:opacity-60"
+          ? "flex min-h-[92px] w-full flex-col rounded-xl border-2 border-[#2f6fe4] bg-[#eef5ff] px-4 py-4 text-left shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
+          : "flex min-h-[92px] w-full flex-col rounded-xl border border-slate-300 bg-white px-4 py-4 text-left shadow-sm hover:border-[#2f6fe4] disabled:cursor-not-allowed disabled:opacity-60"
       }
     >
       <p className="text-lg font-semibold text-slate-900">{props.title}</p>
@@ -311,6 +359,8 @@ export function ReconciliationAlertModal(props: {
   onApplyRateToFuture: () => void
 }) {
   const [activeTab, setActiveTab] = useState<AlertTabId>("usage-overage")
+  const [selectedUsageAction, setSelectedUsageAction] = useState<"absorb" | "flex-product" | null>(null)
+  const [selectedRateAction, setSelectedRateAction] = useState<"acceptCurrent" | "applyToFuture" | null>(null)
 
   useEffect(() => {
     if (!props.isOpen) return
@@ -324,6 +374,12 @@ export function ReconciliationAlertModal(props: {
     }
     setActiveTab("usage-overage")
   }, [props.isOpen, props.flexPrompt, props.rateDiscrepancy])
+
+  useEffect(() => {
+    if (!props.isOpen) return
+    setSelectedUsageAction(props.aiAdjustmentState ? "absorb" : null)
+    setSelectedRateAction(null)
+  }, [props.aiAdjustmentState, props.isOpen])
 
   const closeDisabled =
     props.flexResolving ||
@@ -359,6 +415,149 @@ export function ReconciliationAlertModal(props: {
       expectedCommissionNet: nextExpectedCommissionNet,
     }
   }, [props.aiAdjustmentState, props.schedule])
+
+  const selectionAdjustedActualRate = useMemo(() => {
+    if (!selectionAdjustedSchedule) return props.schedule?.actualCommissionRatePercent ?? 0
+    if (Math.abs(selectionAdjustedSchedule.actualUsage) <= 0.005) {
+      return props.schedule?.actualCommissionRatePercent ?? 0
+    }
+    return selectionAdjustedSchedule.actualCommission / selectionAdjustedSchedule.actualUsage
+  }, [props.schedule?.actualCommissionRatePercent, selectionAdjustedSchedule])
+
+  const flexActionPreview = useMemo(() => {
+    if (!props.flexPrompt || !props.schedule || !selectionAdjustedSchedule) return null
+
+    const usageOverage = Math.max(props.flexPrompt.decision.usageOverage, 0)
+    const commissionOverage = Math.max(-selectionAdjustedSchedule.commissionDifference, 0)
+    const nextActualUsage = Math.max(selectionAdjustedSchedule.actualUsage - usageOverage, 0)
+    const nextActualCommission = Math.max(selectionAdjustedSchedule.actualCommission - commissionOverage, 0)
+    const nextUsageBalance = selectionAdjustedSchedule.usageBalance + usageOverage
+    const nextCommissionDifference = selectionAdjustedSchedule.commissionDifference + commissionOverage
+    const nextActualRate = nextActualUsage > 0.005 ? nextActualCommission / nextActualUsage : 0
+
+    return {
+      actualUsage: nextActualUsage,
+      actualCommission: nextActualCommission,
+      actualCommissionRatePercent: nextActualRate,
+      usageBalance: nextUsageBalance,
+      commissionDifference: nextCommissionDifference,
+      usageOverage,
+      commissionOverage,
+    }
+  }, [props.flexPrompt, props.schedule, selectionAdjustedSchedule])
+
+  const absorbPreviewRows = useMemo(() => {
+    if (!props.schedule || !selectionAdjustedSchedule) return []
+
+    return [
+      {
+        label: "Price Each",
+        current: formatCurrency(props.schedule.priceEach),
+        preview: formatCurrency(absorbPreview?.priceEach ?? props.schedule.priceEach),
+        changed: Boolean(absorbPreview),
+      },
+      {
+        label: "Expected Usage",
+        current: formatCurrency(props.schedule.expectedUsageNet),
+        preview: formatCurrency(absorbPreview?.expectedUsageNet ?? props.schedule.expectedUsageNet),
+        changed: Boolean(absorbPreview),
+      },
+      {
+        label: "Actual Usage",
+        current: formatCurrency(props.schedule.actualUsage),
+        preview: formatCurrency(selectionAdjustedSchedule.actualUsage),
+        changed: Math.abs(selectionAdjustedSchedule.actualUsage - props.schedule.actualUsage) > 0.005,
+      },
+      {
+        label: "Expected Commission",
+        current: formatCurrency(props.schedule.expectedCommissionNet),
+        preview: formatCurrency(absorbPreview?.expectedCommissionNet ?? props.schedule.expectedCommissionNet),
+        changed: Boolean(absorbPreview),
+      },
+      {
+        label: "Actual Commission",
+        current: formatCurrency(props.schedule.actualCommission),
+        preview: formatCurrency(selectionAdjustedSchedule.actualCommission),
+        changed: Math.abs(selectionAdjustedSchedule.actualCommission - props.schedule.actualCommission) > 0.005,
+      },
+      {
+        label: "Expected Comm Rate",
+        current: formatRowRate(props.schedule.expectedCommissionRatePercent),
+        preview: formatRowRate(props.schedule.expectedCommissionRatePercent),
+        changed: false,
+      },
+      {
+        label: "Actual Comm Rate",
+        current: formatRowRate(props.schedule.actualCommissionRatePercent),
+        preview: formatRowRate(selectionAdjustedActualRate),
+        changed: Math.abs(selectionAdjustedActualRate - (props.schedule.actualCommissionRatePercent ?? 0)) > 0.005,
+      },
+    ]
+  }, [absorbPreview, props.schedule, selectionAdjustedActualRate, selectionAdjustedSchedule])
+
+  const flexPreviewRows = useMemo(() => {
+    if (!props.schedule || !flexActionPreview) return []
+
+    return [
+      {
+        label: "Actual Usage",
+        current: formatCurrency(props.schedule.actualUsage),
+        preview: formatCurrency(flexActionPreview.actualUsage),
+        changed: Math.abs(flexActionPreview.actualUsage - props.schedule.actualUsage) > 0.005,
+      },
+      {
+        label: "Usage Balance",
+        current: formatCurrency(props.schedule.usageBalance),
+        preview: formatCurrency(flexActionPreview.usageBalance),
+        changed: Math.abs(flexActionPreview.usageBalance - props.schedule.usageBalance) > 0.005,
+      },
+      {
+        label: "Actual Commission",
+        current: formatCurrency(props.schedule.actualCommission),
+        preview: formatCurrency(flexActionPreview.actualCommission),
+        changed: Math.abs(flexActionPreview.actualCommission - props.schedule.actualCommission) > 0.005,
+      },
+      {
+        label: "Commission Difference",
+        current: formatCurrency(props.schedule.commissionDifference),
+        preview: formatCurrency(flexActionPreview.commissionDifference),
+        changed: Math.abs(flexActionPreview.commissionDifference - props.schedule.commissionDifference) > 0.005,
+      },
+      {
+        label: "Actual Comm Rate",
+        current: formatRowRate(props.schedule.actualCommissionRatePercent),
+        preview: formatRowRate(flexActionPreview.actualCommissionRatePercent),
+        changed:
+          Math.abs(flexActionPreview.actualCommissionRatePercent - (props.schedule.actualCommissionRatePercent ?? 0)) >
+          0.005,
+      },
+    ]
+  }, [flexActionPreview, props.schedule])
+
+  const ratePreviewRows = useMemo(() => {
+    const discrepancy = props.rateDiscrepancy?.discrepancy
+    if (!discrepancy || !props.schedule) return []
+
+    const nextExpectedRate =
+      selectedRateAction === "acceptCurrent" || selectedRateAction === "applyToFuture"
+        ? discrepancy.receivedRatePercent
+        : discrepancy.expectedRatePercent
+
+    return [
+      {
+        label: "Expected Comm Rate",
+        current: formatPercent(discrepancy.expectedRatePercent),
+        preview: formatPercent(nextExpectedRate),
+        changed: nextExpectedRate !== discrepancy.expectedRatePercent,
+      },
+      {
+        label: "Actual Comm Rate",
+        current: formatRowRate(props.schedule.actualCommissionRatePercent),
+        preview: formatPercent(discrepancy.receivedRatePercent),
+        changed: Math.abs(discrepancy.receivedRatePercent - (props.schedule.actualCommissionRatePercent ?? 0)) > 0.005,
+      },
+    ]
+  }, [props.rateDiscrepancy, props.schedule, selectedRateAction])
 
   if (!props.isOpen) return null
 
@@ -453,7 +652,7 @@ export function ReconciliationAlertModal(props: {
   const rateDiscrepancy = props.rateDiscrepancy?.discrepancy ?? null
   const usageOverage = props.flexPrompt?.decision.usageOverage ?? 0
   const usageToleranceAmount = props.flexPrompt?.decision.usageToleranceAmount ?? 0
-  const absorbSelected = Boolean(props.aiAdjustmentState)
+  const absorbSelected = selectedUsageAction === "absorb"
   const futureCount = props.aiAdjustmentState?.preview?.future.count ?? 0
   const projectedAllocatedAmount = props.line ? props.line.usageAllocated + props.matchedUsageAmount : 0
   const projectedRemainingAmount = props.line ? props.line.usage - projectedAllocatedAmount : 0
@@ -467,16 +666,67 @@ export function ReconciliationAlertModal(props: {
     { label: "Act. Comm %", value: formatRowRate(actualCommissionPercent) },
   ]
 
+  const handleClose = () => {
+    if (props.aiAdjustmentState) {
+      props.onClearAiAdjustment()
+    }
+    setSelectedUsageAction(null)
+    setSelectedRateAction(null)
+    props.onClose()
+  }
+
+  const handleUsageActionSelect = (action: "absorb" | "flex-product") => {
+    setSelectedUsageAction(action)
+    if (action === "absorb") {
+      props.onOpenAiAdjustment()
+      return
+    }
+    if (props.aiAdjustmentState) {
+      props.onClearAiAdjustment()
+    }
+  }
+
+  const handleUsageSubmit = () => {
+    if (selectedUsageAction === "absorb") {
+      props.onApplyAiAdjustment()
+      return
+    }
+    if (selectedUsageAction === "flex-product") {
+      props.onCreateFlexProduct()
+    }
+  }
+
+  const handleRateSubmit = () => {
+    if (selectedRateAction === "acceptCurrent") {
+      props.onAcceptRateCurrent()
+      return
+    }
+    if (selectedRateAction === "applyToFuture") {
+      props.onApplyRateToFuture()
+    }
+  }
+
+  const usageSubmitDisabled =
+    !selectedUsageAction ||
+    props.flexResolving ||
+    (selectedUsageAction === "absorb" &&
+      (Boolean(props.aiAdjustmentState?.loading) || props.aiAdjustmentState?.preview?.suggestion.type !== "adjust"))
+
+  const rateSubmitDisabled =
+    !selectedRateAction ||
+    Boolean(props.rateDiscrepancy?.applyingAction) ||
+    (selectedRateAction === "applyToFuture" && (rateDiscrepancy?.future.count ?? 0) === 0)
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 py-6"
-      onClick={() => (closeDisabled ? null : props.onClose())}
+      onClick={() => (closeDisabled ? null : handleClose())}
     >
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="reconciliation-alert-title"
-        className="flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl bg-slate-100 shadow-2xl"
+        className="flex h-[900px] w-full max-w-5xl min-h-0 flex-col overflow-hidden rounded-2xl bg-slate-100 shadow-2xl"
         onClick={event => event.stopPropagation()}
       >
         <div className="border-b border-blue-700 bg-gradient-to-r from-blue-950 via-blue-800 to-blue-700 px-6 py-5 text-white">
@@ -535,7 +785,7 @@ export function ReconciliationAlertModal(props: {
               ) : null}
               {(props.matchedUsageAmount > 0 || absorbPreview) && props.schedule ? (
                 <p className="text-xs text-slate-600">
-                  <HighlightedValue value="Bold green" tone="green" subtle /> values reflect changes from the selected
+                  <HighlightedValue value="Yellow highlight" tone="green" subtle /> values reflect changes from the selected
                   deposit match and absorb-preview path.
                 </p>
               ) : null}
@@ -559,19 +809,20 @@ export function ReconciliationAlertModal(props: {
                         <OptionCard
                           title="Absorb into Price Each"
                           description="Adjust Exp. Usage Gross and recalculate Price Each on the matched schedule."
-                          active={absorbSelected}
-                          onClick={props.onOpenAiAdjustment}
+                          active={selectedUsageAction === "absorb"}
+                          onClick={() => handleUsageActionSelect("absorb")}
                           disabled={props.flexResolving || Boolean(props.aiAdjustmentState?.loading)}
                           actionLabel={
-                            props.aiAdjustmentState?.loading ? "Loading preview..." : "Preview and apply adjustment"
+                            props.aiAdjustmentState?.loading ? "Loading preview..." : "Select to preview"
                           }
                         />
                         <OptionCard
                           title="Create Flex Product"
                           description="Create a new flex schedule to capture the overage separately."
-                          onClick={props.onCreateFlexProduct}
+                          active={selectedUsageAction === "flex-product"}
+                          onClick={() => handleUsageActionSelect("flex-product")}
                           disabled={props.flexResolving}
-                          actionLabel={props.flexResolving ? "Working..." : "Create flex entry"}
+                          actionLabel={props.flexResolving ? "Working..." : "Select to preview"}
                         />
                       </div>
 
@@ -597,70 +848,42 @@ export function ReconciliationAlertModal(props: {
                         </label>
                       </div>
 
-                      {props.aiAdjustmentState ? (
+                      {selectedUsageAction === "absorb" ? (
                         <div className="space-y-3 rounded-xl border border-primary-200 bg-primary-50/60 p-4">
                           <div className="flex flex-wrap items-center justify-between gap-2">
                             <div>
                               <p className="text-sm font-semibold text-slate-900">Absorb preview</p>
                               <p className="mt-1 text-sm text-slate-600">
-                                Review the matched schedule changes before applying.
+                                Review the schedule changes before submitting the adjustment.
                               </p>
                             </div>
                             <button
                               type="button"
                               className="rounded border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-                              onClick={props.onClearAiAdjustment}
-                              disabled={props.aiAdjustmentState.applying}
+                              onClick={() => {
+                                setSelectedUsageAction(null)
+                                props.onClearAiAdjustment()
+                              }}
+                              disabled={props.aiAdjustmentState?.applying}
                             >
-                              Clear Preview
+                              Clear Selection
                             </button>
                           </div>
 
-                          {props.aiAdjustmentState.loading ? (
+                          {props.aiAdjustmentState?.loading ? (
                             <p className="text-sm text-slate-600">Loading preview...</p>
-                          ) : props.aiAdjustmentState.error ? (
+                          ) : props.aiAdjustmentState?.error ? (
                             <p className="text-sm text-red-600">{props.aiAdjustmentState.error}</p>
-                          ) : props.aiAdjustmentState.preview ? (
+                          ) : props.aiAdjustmentState?.preview ? (
                             <>
                               <p className="text-sm text-slate-700">{props.aiAdjustmentState.preview.suggestion.reason}</p>
                               {props.aiAdjustmentState.preview.suggestion.type === "adjust" ? (
                                 <>
-                                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                                    <div className="rounded-lg border border-emerald-200 bg-white p-3">
-                                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                                        New Price Each
-                                      </p>
-                                      <p className="mt-1 text-lg font-semibold text-emerald-700">
-                                        {formatCurrency(absorbPreview?.priceEach ?? props.schedule?.priceEach ?? 0)}
-                                      </p>
-                                    </div>
-                                    <div className="rounded-lg border border-emerald-200 bg-white p-3">
-                                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                                        New Exp. Gross
-                                      </p>
-                                      <p className="mt-1 text-lg font-semibold text-emerald-700">
-                                        {formatCurrency(absorbPreview?.expectedUsageGross ?? props.schedule?.expectedUsageGross ?? 0)}
-                                      </p>
-                                    </div>
-                                    <div className="rounded-lg border border-emerald-200 bg-white p-3">
-                                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                                        New Exp. Net
-                                      </p>
-                                      <p className="mt-1 text-lg font-semibold text-emerald-700">
-                                        {formatCurrency(absorbPreview?.expectedUsageNet ?? props.schedule?.expectedUsageNet ?? 0)}
-                                      </p>
-                                    </div>
-                                    <div className="rounded-lg border border-emerald-200 bg-white p-3">
-                                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                                        New Exp. Comm
-                                      </p>
-                                      <p className="mt-1 text-lg font-semibold text-emerald-700">
-                                        {formatCurrency(
-                                          absorbPreview?.expectedCommissionNet ?? props.schedule?.expectedCommissionNet ?? 0,
-                                        )}
-                                      </p>
-                                    </div>
-                                  </div>
+                                  <PreviewComparisonTable
+                                    title="Absorb Into Price Each Preview"
+                                    description="Changed values are shown in-place with the pending result in the preview column."
+                                    rows={absorbPreviewRows}
+                                  />
                                   {props.aiAdjustmentState.applyToFuture ? (
                                     <FutureScheduleList
                                       title="Future schedules affected"
@@ -679,18 +902,32 @@ export function ReconciliationAlertModal(props: {
                         </div>
                       ) : null}
 
-                      <div className="flex flex-wrap items-center justify-end gap-2">
-                        {props.aiAdjustmentState?.preview?.suggestion.type === "adjust" ? (
+                      {selectedUsageAction === "flex-product" && flexActionPreview ? (
+                        <PreviewComparisonTable
+                          title="Create Flex Product Preview"
+                          description={`The overage will be split out to a new flex entry before submit. Usage moved: ${formatCurrency(flexActionPreview.usageOverage)}. Commission moved: ${formatCurrency(flexActionPreview.commissionOverage)}.`}
+                          rows={flexPreviewRows}
+                        />
+                      ) : null}
+
+                      {selectedUsageAction ? (
+                        <div className="flex flex-wrap items-center justify-end gap-2">
                           <button
                             type="button"
                             className="rounded bg-[#2f6fe4] px-4 py-2 text-sm font-semibold text-white hover:bg-[#245dd1] disabled:cursor-not-allowed disabled:opacity-60"
-                            onClick={props.onApplyAiAdjustment}
-                            disabled={props.aiAdjustmentState.applying || props.aiAdjustmentState.loading}
+                            onClick={handleUsageSubmit}
+                            disabled={usageSubmitDisabled}
                           >
-                            {props.aiAdjustmentState.applying ? "Applying..." : "Apply Absorb into Price Each"}
+                            {selectedUsageAction === "absorb"
+                              ? props.aiAdjustmentState?.applying
+                                ? "Submitting..."
+                                : "Submit Absorb into Price Each"
+                              : props.flexResolving
+                                ? "Submitting..."
+                                : "Submit Create Flex Product"}
                           </button>
-                        ) : null}
-                      </div>
+                        </div>
+                      ) : null}
                     </div>
                   ) : (
                     <EmptyTabState
@@ -738,6 +975,35 @@ export function ReconciliationAlertModal(props: {
                         </span>
                       </span>
                     </div>
+                    <div className="grid gap-4 lg:grid-cols-2">
+                      <OptionCard
+                        title="Accept New Rate %"
+                        description="Update only the current schedule to the received commission rate."
+                        active={selectedRateAction === "acceptCurrent"}
+                        onClick={() => setSelectedRateAction("acceptCurrent")}
+                        disabled={Boolean(props.rateDiscrepancy?.applyingAction)}
+                        actionLabel="Select to preview"
+                      />
+                      <OptionCard
+                        title="Apply New Rate % to Future Schedules"
+                        description="Update the current schedule and all eligible future schedules to the received rate."
+                        active={selectedRateAction === "applyToFuture"}
+                        onClick={() => setSelectedRateAction("applyToFuture")}
+                        disabled={Boolean(props.rateDiscrepancy?.applyingAction) || rateDiscrepancy.future.count === 0}
+                        actionLabel="Select to preview"
+                      />
+                    </div>
+                    {selectedRateAction ? (
+                      <PreviewComparisonTable
+                        title="Commission Rate Preview"
+                        description={
+                          selectedRateAction === "applyToFuture"
+                            ? `${rateDiscrepancy.future.count} future schedule${rateDiscrepancy.future.count === 1 ? "" : "s"} will also adopt the previewed expected rate after submit.`
+                            : "Only the current schedule will adopt the previewed expected rate after submit."
+                        }
+                        rows={ratePreviewRows}
+                      />
+                    ) : null}
                     <FutureScheduleList
                       title="Future unreconciled schedules"
                       schedules={rateDiscrepancy.future.schedules}
@@ -756,26 +1022,20 @@ export function ReconciliationAlertModal(props: {
                       >
                         Create Ticket
                       </button>
-                      <button
-                        type="button"
-                        className="rounded-md border border-[#c8d6f0] bg-white px-4 py-2.5 text-sm font-semibold text-[#3256a5] shadow-sm hover:bg-[#f5f9ff] disabled:cursor-not-allowed disabled:opacity-60"
-                        onClick={props.onAcceptRateCurrent}
-                        disabled={Boolean(props.rateDiscrepancy?.applyingAction)}
-                      >
-                        {props.rateDiscrepancy?.applyingAction === "acceptCurrent" ? "Updating..." : "Accept New Rate %"}
-                      </button>
-                      <button
-                        type="button"
-                        className="rounded-md bg-[#2f6fe4] px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[#245dd1] disabled:cursor-not-allowed disabled:opacity-60"
-                        onClick={props.onApplyRateToFuture}
-                        disabled={
-                          Boolean(props.rateDiscrepancy?.applyingAction) || rateDiscrepancy.future.count === 0
-                        }
-                      >
-                        {props.rateDiscrepancy?.applyingAction === "applyToFuture"
-                          ? "Updating..."
-                          : "Apply New Rate % to All Future Schedules"}
-                      </button>
+                      {selectedRateAction ? (
+                        <button
+                          type="button"
+                          className="rounded-md bg-[#2f6fe4] px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[#245dd1] disabled:cursor-not-allowed disabled:opacity-60"
+                          onClick={handleRateSubmit}
+                          disabled={rateSubmitDisabled}
+                        >
+                          {props.rateDiscrepancy?.applyingAction
+                            ? "Submitting..."
+                            : selectedRateAction === "acceptCurrent"
+                              ? "Submit Accept New Rate %"
+                              : "Submit Apply New Rate % to Future Schedules"}
+                        </button>
+                      ) : null}
                     </div>
                   </div>
                 ) : (
@@ -791,12 +1051,12 @@ export function ReconciliationAlertModal(props: {
 
         <div className="flex items-center justify-between border-t border-slate-200 bg-white px-6 py-4">
           <p className="text-sm text-slate-500">
-            Close the alert to return to reconciliation after reviewing the active tab(s).
+            Review the highlighted preview, then submit the selected action when ready.
           </p>
           <button
             type="button"
             className="rounded border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-            onClick={props.onClose}
+            onClick={handleClose}
             disabled={closeDisabled}
           >
             Close

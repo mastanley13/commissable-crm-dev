@@ -87,8 +87,8 @@ export function CommissionPayoutCreateModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 p-4">
-      <div className="w-full max-w-lg rounded-2xl bg-white shadow-xl">
-        <ModalHeader kicker="Record Payment" title="Record Payment" />
+      <div className="w-full max-w-lg rounded-t-2xl rounded-b-none bg-white shadow-xl">
+        <ModalHeader kicker="Record Payment" title="Record Payment" variant="gradient" />
 
         <form onSubmit={handleSubmit} className="space-y-4 px-6 py-4">
           <div>
@@ -143,18 +143,18 @@ export function CommissionPayoutCreateModal({
             />
           </div>
 
-          <div className="flex items-center justify-end gap-2 pt-2">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 pt-4">
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+              className="inline-flex min-w-[88px] items-center justify-center rounded border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
               disabled={saving}
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-700 disabled:opacity-60"
+              className="inline-flex min-w-[96px] items-center justify-center gap-2 rounded bg-primary-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary-700 disabled:opacity-60"
               disabled={saving}
             >
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}

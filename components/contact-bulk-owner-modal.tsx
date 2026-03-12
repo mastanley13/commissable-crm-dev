@@ -44,8 +44,8 @@ export function ContactBulkOwnerModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-md overflow-hidden rounded-lg bg-white shadow-xl">
-        <ModalHeader kicker="Bulk Action" title="Change Owner" />
+      <div className="w-full max-w-md overflow-hidden rounded-t-lg rounded-b-none bg-white shadow-xl">
+        <ModalHeader kicker="Bulk Action" title="Change Owner" variant="gradient" />
 
         <div className="px-6 py-5">
           <p className="text-sm text-gray-600">
@@ -74,11 +74,11 @@ export function ContactBulkOwnerModal({
           </div>
         </div>
 
-        <div className="flex items-center justify-end gap-3 border-t border-gray-200 bg-gray-50 px-6 py-4">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 px-6 py-4">
           <button
             type="button"
             onClick={onClose}
-            className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex min-w-[88px] items-center justify-center rounded border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
             disabled={isSubmitting}
           >
             Cancel
@@ -87,7 +87,7 @@ export function ContactBulkOwnerModal({
             type="button"
             onClick={handleSubmit}
             disabled={isSubmitting || selectedOwner === ""}
-            className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300"
+            className="inline-flex min-w-[96px] items-center justify-center rounded bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300"
           >
             {isSubmitting ? "Updating..." : "Update Owner"}
           </button>

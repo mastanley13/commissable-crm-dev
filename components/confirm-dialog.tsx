@@ -31,10 +31,10 @@ export function ConfirmDialog({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50">
       <div
-        className="w-full max-w-md rounded-xl bg-white shadow-xl"
+        className="w-full max-w-md rounded-t-xl rounded-b-none bg-white shadow-xl"
         onClick={event => event.stopPropagation()}
       >
-        <ModalHeader kicker="Confirm" title={title} />
+        <ModalHeader kicker="Confirm" title={title} variant="gradient" />
         {error ? (
           <div className="px-6 py-4">
             <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
@@ -42,11 +42,11 @@ export function ConfirmDialog({
             </div>
           </div>
         ) : null}
-        <div className="flex items-center justify-end gap-3 border-t border-gray-200 px-6 py-4">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 px-6 py-4">
           <button
             type="button"
             onClick={onCancel}
-            className="rounded-full bg-gray-200 px-5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-300"
+            className="inline-flex min-w-[88px] items-center justify-center rounded border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
             disabled={loading}
           >
             {cancelLabel}
@@ -55,7 +55,7 @@ export function ConfirmDialog({
             type="button"
             onClick={onConfirm}
             disabled={loading}
-            className="rounded-full bg-red-600 px-6 py-2 text-sm font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-red-300"
+            className="inline-flex min-w-[96px] items-center justify-center rounded bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-red-300"
           >
             {loading ? 'Deleting...' : confirmLabel}
           </button>

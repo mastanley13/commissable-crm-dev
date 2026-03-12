@@ -34,6 +34,9 @@ const candidateScheduleInclude = {
     select: {
       id: true,
       name: true,
+      accountIdHouse: true,
+      accountIdVendor: true,
+      accountIdDistributor: true,
       customerIdVendor: true,
       customerIdHouse: true,
       customerIdDistributor: true,
@@ -371,9 +374,21 @@ function checkAccountIdExact(
   lineItem: NonNullable<DepositLineWithRelations>,
   schedule: RevenueScheduleWithRelations,
 ) {
-  const lineAccountId = cleanId(lineItem.accountId)
-  const scheduleAccountId = cleanId(schedule.accountId)
-  return Boolean(lineAccountId && scheduleAccountId && lineAccountId === scheduleAccountId)
+  const lineAccountIds = parseMultiValueMatchSet(lineItem.accountIdVendor, { kind: "id" })
+  if (lineAccountIds.size === 0) return false
+
+  const scheduleAccountIds = new Set<string>([
+    ...parseMultiValueMatchSet(schedule.opportunity?.accountIdHouse, { kind: "id" }),
+    ...parseMultiValueMatchSet(schedule.opportunity?.accountIdVendor, { kind: "id" }),
+    ...parseMultiValueMatchSet(schedule.opportunity?.accountIdDistributor, { kind: "id" }),
+  ])
+  if (scheduleAccountIds.size === 0) return false
+
+  for (const token of lineAccountIds) {
+    if (scheduleAccountIds.has(token)) return true
+  }
+
+  return false
 }
 
 function checkLocationOrPoExact(
@@ -431,6 +446,7 @@ function hasStrongIdConflict(
     ...parseMultiValueMatchSet(schedule.orderIdHouse, { kind: "id" }),
     ...parseMultiValueMatchSet(schedule.distributorOrderId, { kind: "id" }),
     ...parseMultiValueMatchSet(schedule.opportunity?.orderIdVendor, { kind: "id" }),
+    ...parseMultiValueMatchSet(schedule.opportunity?.orderIdDistributor, { kind: "id" }),
   ])
 
   if (lineOrders.size > 0 && scheduleOrders.size > 0) {
@@ -442,10 +458,15 @@ function hasStrongIdConflict(
   // do not create a hard conflict. Real-world deposits often carry alternate
   // customer identifiers, and we still want fuzzy suggestions in those cases.
 
-  const accountId = cleanId(lineItem.accountId)
-  const scheduleAccountId = cleanId(schedule.accountId)
-  if (accountId && scheduleAccountId && accountId !== scheduleAccountId) {
-    return true
+  const lineAccountIds = parseMultiValueMatchSet(lineItem.accountIdVendor, { kind: "id" })
+  const scheduleAccountIds = new Set<string>([
+    ...parseMultiValueMatchSet(schedule.opportunity?.accountIdHouse, { kind: "id" }),
+    ...parseMultiValueMatchSet(schedule.opportunity?.accountIdVendor, { kind: "id" }),
+    ...parseMultiValueMatchSet(schedule.opportunity?.accountIdDistributor, { kind: "id" }),
+  ])
+  if (lineAccountIds.size > 0 && scheduleAccountIds.size > 0) {
+    const hasOverlap = Array.from(lineAccountIds).some(token => scheduleAccountIds.has(token))
+    if (!hasOverlap) return true
   }
 
   const lineLocations = parseMultiValueMatchSet(lineItem.locationId, { kind: "id" })
@@ -1116,6 +1137,7 @@ function hasOrderIdMatch(orderId: string | null | undefined, schedule: RevenueSc
     ...parseMultiValueMatchSet(schedule.orderIdHouse, { kind: "id" }),
     ...parseMultiValueMatchSet(schedule.distributorOrderId, { kind: "id" }),
     ...parseMultiValueMatchSet(schedule.opportunity?.orderIdVendor, { kind: "id" }),
+    ...parseMultiValueMatchSet(schedule.opportunity?.orderIdDistributor, { kind: "id" }),
   ])
   if (scheduleOrders.size === 0) return false
 

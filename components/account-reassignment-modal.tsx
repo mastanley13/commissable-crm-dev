@@ -551,15 +551,15 @@ export function AccountReassignmentModal({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden">
+      <div className="bg-white rounded-t-lg rounded-b-none max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
+        <div className="flex items-center justify-between border-b border-blue-700 bg-gradient-to-r from-blue-950 via-blue-800 to-blue-700 p-6 text-white">
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
-              {step === 'selection' && <Users className="h-5 w-5 text-blue-600" />}
-              {step === 'preview' && <Calculator className="h-5 w-5 text-orange-600" />}
-              {step === 'confirm' && <CheckCircle className="h-5 w-5 text-green-600" />}
-              <h2 className="text-xl font-semibold text-gray-900">
+              {step === 'selection' && <Users className="h-5 w-5 text-blue-100" />}
+              {step === 'preview' && <Calculator className="h-5 w-5 text-amber-200" />}
+              {step === 'confirm' && <CheckCircle className="h-5 w-5 text-emerald-200" />}
+              <h2 className="text-xl font-semibold text-white">
                 Reassign Accounts ({selectedAccountIds.length})
               </h2>
             </div>
@@ -1158,31 +1158,29 @@ export function AccountReassignmentModal({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between p-6 border-t border-gray-200 bg-gray-50">
-          <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 bg-gray-50 px-6 py-4">
+          <button
+            onClick={onClose}
+            className="inline-flex min-w-[88px] items-center justify-center rounded border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+          >
+            Cancel
+          </button>
+
+          <div className="flex flex-wrap items-center justify-end gap-2">
             {step !== 'selection' && (
               <button
                 onClick={handlePrevious}
-                className="flex items-center gap-2 px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+                className="inline-flex min-w-[96px] items-center justify-center gap-2 rounded border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50"
               >
                 <ChevronLeft className="h-4 w-4" />
                 Previous
               </button>
             )}
-          </div>
-
-          <div className="flex items-center gap-3">
-            <button
-              onClick={onClose}
-              className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
-            >
-              Cancel
-            </button>
 
             {step === 'confirm' ? (
               <button
                 onClick={handleConfirm}
-                className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors font-medium"
+                className="inline-flex min-w-[96px] items-center justify-center rounded bg-green-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-green-700"
               >
                 Confirm Reassignment
               </button>
@@ -1190,7 +1188,7 @@ export function AccountReassignmentModal({
               <button
                 onClick={handleNext}
                 disabled={step === 'selection' && !reassignmentData.newOwnerId}
-                className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+                className="inline-flex min-w-[96px] items-center justify-center gap-2 rounded bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Next
                 <ChevronRight className="h-4 w-4" />

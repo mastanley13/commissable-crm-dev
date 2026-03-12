@@ -405,6 +405,7 @@ export default function RevenueSchedulesPage() {
   const router = useRouter()
   const [revenueSchedules, setRevenueSchedules] = useState<any[]>([])
   const [filteredRevenueSchedules, setFilteredRevenueSchedules] = useState<any[]>([])
+  const [searchQuery, setSearchQuery] = useState<string>('')
   const [sortConfig, setSortConfig] = useState<{ columnId: string; direction: 'asc' | 'desc' } | null>(null)
   const [loading, setLoading] = useState<boolean>(true)
   const [selectedSchedules, setSelectedSchedules] = useState<string[]>([])
@@ -523,6 +524,10 @@ export default function RevenueSchedulesPage() {
         direction: 'desc'
       })
 
+      if (searchQuery.trim().length > 0) {
+        params.set('q', searchQuery.trim())
+      }
+
       const response = await fetch(`/api/revenue-schedules?${params.toString()}`, { cache: 'no-store' })
       if (!response.ok) {
         const payload = await response.json().catch(() => null)
@@ -537,6 +542,7 @@ export default function RevenueSchedulesPage() {
       const data = Array.isArray(payload?.data) ? payload.data : []
       setRevenueSchedules(data)
       setFilteredRevenueSchedules(data)
+      setSelectedSchedules(previous => previous.filter(id => data.some(row => row.id === id)))
     } catch (err) {
       console.error('Failed to fetch revenue schedules', err)
       showError('Failed to load revenue schedules', 'Please try again later.')
@@ -545,7 +551,7 @@ export default function RevenueSchedulesPage() {
     } finally {
       setLoading(false)
     }
-  }, [showError])
+  }, [searchQuery, showError])
 
   useEffect(() => {
     void fetchRevenueSchedules()
@@ -653,23 +659,8 @@ export default function RevenueSchedulesPage() {
   ])
 
   const handleSearch = (query: string) => {
-    const trimmed = query.trim()
     setCurrentPage(1)
-    if (!trimmed) {
-      setFilteredRevenueSchedules(revenueSchedules)
-      return
-    }
-
-    const q = trimmed.toLowerCase()
-    const filtered = revenueSchedules.filter(schedule =>
-      Object.values(schedule).some((value) => {
-        let s = ''
-        if (typeof value === 'string') s = value
-        else if (typeof value === 'number' || typeof value === 'boolean') s = String(value)
-        return s.toLowerCase().includes(q)
-      })
-    )
-    setFilteredRevenueSchedules(filtered)
+    setSearchQuery(query)
   }
 
   const handleSort = useCallback((columnId: string, direction: 'asc' | 'desc') => {
@@ -1683,6 +1674,7 @@ export default function RevenueSchedulesPage() {
       <ListHeader
         pageTitle="REVENUE SCHEDULES LIST"
         searchPlaceholder="Search revenue schedules..."
+        searchQuery={searchQuery}
         onSearch={handleSearch}
         onFilterChange={handleStatusFilterChange}
         showCreateButton={false}

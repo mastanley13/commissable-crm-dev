@@ -75,9 +75,22 @@ export async function GET(request: NextRequest) {
           OR: [
             { scheduleNumber: { contains: query, mode: "insensitive" } },
             { account: { accountName: { contains: query, mode: "insensitive" } } },
+            { account: { accountLegalName: { contains: query, mode: "insensitive" } } },
+            { account: { accountNumber: { contains: query, mode: "insensitive" } } },
             { distributor: { accountName: { contains: query, mode: "insensitive" } } },
+            { distributor: { accountNumber: { contains: query, mode: "insensitive" } } },
             { vendor: { accountName: { contains: query, mode: "insensitive" } } },
-            { opportunity: { name: { contains: query, mode: "insensitive" } } }
+            { vendor: { accountNumber: { contains: query, mode: "insensitive" } } },
+            { opportunity: { is: { name: { contains: query, mode: "insensitive" } } } },
+            { opportunity: { is: { customerIdVendor: { contains: query, mode: "insensitive" } } } },
+            { opportunity: { is: { customerIdDistributor: { contains: query, mode: "insensitive" } } } },
+            { opportunity: { is: { orderIdVendor: { contains: query, mode: "insensitive" } } } },
+            { opportunity: { is: { orderIdDistributor: { contains: query, mode: "insensitive" } } } },
+            { opportunity: { is: { locationId: { contains: query, mode: "insensitive" } } } },
+            { opportunity: { is: { customerPurchaseOrder: { contains: query, mode: "insensitive" } } } },
+            { distributorOrderId: { contains: query, mode: "insensitive" } },
+            { product: { productNameVendor: { contains: query, mode: "insensitive" } } },
+            { product: { productNameHouse: { contains: query, mode: "insensitive" } } },
           ]
         })
       }

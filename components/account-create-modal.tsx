@@ -469,11 +469,12 @@ export function AccountCreateModal({ isOpen, onClose, onSubmit }: AccountCreateM
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 backdrop-blur-sm">
       <div
-        className="w-full max-w-5xl h-[900px] flex flex-col rounded-xl bg-white shadow-xl"
+        className="w-full max-w-5xl h-[900px] flex flex-col rounded-t-xl rounded-b-none bg-white shadow-xl"
       >
-        <ModalHeader kicker="Create Account" title="Add Account" />
+        <ModalHeader kicker="Create Account" title="Add Account" variant="gradient" />
 
-        <form onSubmit={handleSubmit} className="px-6 py-6">
+        <form id="account-create-form" onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
+          <div className="min-h-0 flex-1 overflow-y-auto px-6 py-6">
           {formError && (
             <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
               {formError}
@@ -851,27 +852,30 @@ export function AccountCreateModal({ isOpen, onClose, onSubmit }: AccountCreateM
             </div>
           </div>
 
-          <div className="mt-8 flex justify-end gap-3">
+          </div>
+        </form>
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 px-6 py-4">
+          <div className="flex items-center gap-3">
             <button
               type="button"
               onClick={onClose}
-              className="rounded-full bg-gray-200 px-5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-300"
+              className="inline-flex min-w-[88px] items-center justify-center rounded border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
             >
               Cancel
             </button>
+            {optionsLoading ? <span className="text-xs text-gray-500">Loading options...</span> : null}
+          </div>
+          <div className="flex items-center gap-2">
             <button
               type="submit"
+              form="account-create-form"
               disabled={isSubmitting || optionsLoading}
-              className="rounded-full bg-primary-600 px-6 py-2 text-sm font-semibold text-white transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-primary-400"
+              className="inline-flex min-w-[96px] items-center justify-center rounded bg-primary-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-primary-400"
             >
               {isSubmitting ? "Adding..." : "Add"}
             </button>
           </div>
-        </form>
-
-        {optionsLoading && (
-          <div className="border-t border-gray-200 px-6 py-3 text-xs text-gray-500">Loading options...</div>
-        )}
+        </div>
       </div>
     </div>
   )

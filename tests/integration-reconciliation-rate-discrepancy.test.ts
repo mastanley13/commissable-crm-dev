@@ -249,6 +249,63 @@ integrationTest("REC-RATE-02: rounding-only rate differences stay below the prom
   assert.equal(payload?.data?.rateDiscrepancy ?? null, null)
 })
 
+integrationTest("REC-RATE-02A: preview and apply surface a material rate discrepancy even when usage overage also prompts", async ctx => {
+  const dbModule = await import("../lib/db")
+  const prisma = (dbModule as any).prisma ?? (dbModule as any).default?.prisma
+
+  await upsertReconciliationSettings(prisma, ctx.tenantId, {
+    varianceTolerance: 0,
+    rateDiscrepancyTolerancePercent: 0.05,
+  })
+
+  const scenario = await seedRateDiscrepancyScenario(prisma, ctx, {
+    lineUsage: 110,
+    lineCommission: 17.6,
+    expectedRatePercent: 14,
+  })
+
+  const previewModule = await import(
+    "../app/api/reconciliation/deposits/[depositId]/line-items/[lineId]/match-issues-preview/route"
+  )
+  const previewPOST = (previewModule as any).POST ?? (previewModule as any).default?.POST
+
+  const previewResponse = await previewPOST(
+    authedPost(
+      ctx.sessionToken,
+      `http://localhost/api/reconciliation/deposits/${scenario.depositId}/line-items/${scenario.lineId}/match-issues-preview`,
+      { revenueScheduleId: scenario.baseScheduleId, usageAmount: 110, commissionAmount: 17.6 },
+    ),
+    { params: { depositId: scenario.depositId, lineId: scenario.lineId } },
+  )
+
+  assertStatus(previewResponse, 200)
+  const previewPayload = await readJson<any>(previewResponse)
+  assert.equal(previewPayload?.data?.requiresConfirmation, true)
+  assert.equal(previewPayload?.data?.flexDecision?.action, "prompt")
+  assert.equal(previewPayload?.data?.rateDiscrepancy?.expectedRatePercent, 14)
+  assert.equal(previewPayload?.data?.rateDiscrepancy?.receivedRatePercent, 16)
+  assert.equal(previewPayload?.data?.rateDiscrepancy?.differencePercent, 2)
+
+  const applyModule = await import("../app/api/reconciliation/deposits/[depositId]/line-items/[lineId]/apply-match/route")
+  const applyPOST = (applyModule as any).POST ?? (applyModule as any).default?.POST
+
+  const applyResponse = await applyPOST(
+    authedPost(
+      ctx.sessionToken,
+      `http://localhost/api/reconciliation/deposits/${scenario.depositId}/line-items/${scenario.lineId}/apply-match`,
+      { revenueScheduleId: scenario.baseScheduleId, usageAmount: 110, commissionAmount: 17.6 },
+    ),
+    { params: { depositId: scenario.depositId, lineId: scenario.lineId } },
+  )
+
+  assertStatus(applyResponse, 200)
+  const applyPayload = await readJson<any>(applyResponse)
+  assert.equal(applyPayload?.data?.flexDecision?.action, "prompt")
+  assert.equal(applyPayload?.data?.rateDiscrepancy?.expectedRatePercent, 14)
+  assert.equal(applyPayload?.data?.rateDiscrepancy?.receivedRatePercent, 16)
+  assert.equal(applyPayload?.data?.rateDiscrepancy?.differencePercent, 2)
+})
+
 integrationTest("REC-RATE-03: material rate discrepancy returns prompt data and keep-current leaves future rates unchanged", async ctx => {
   const dbModule = await import("../lib/db")
   const prisma = (dbModule as any).prisma ?? (dbModule as any).default?.prisma

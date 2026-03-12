@@ -29,6 +29,10 @@ import { ReconciliationMatchWizardModal } from "./reconciliation-match-wizard-mo
 import { TicketCreateModal } from "./ticket-create-modal"
 import { useTablePreferences } from "@/hooks/useTablePreferences"
 import { classifyMatchSelection, type MatchSelectionType } from "@/lib/matching/match-selection"
+import {
+  filterVisibleSelections,
+  resetReconciliationSelectionState,
+} from "@/lib/matching/reconciliation-selection-state"
 import { formatDateOnlyUtc, parseDateSortValue } from "@/lib/date-only"
 import {
   DepositLineStatusFilterDropdown,
@@ -111,6 +115,14 @@ const ratePercentFormatter = new Intl.NumberFormat("en-US", {
 function formatRatePercent(value: number) {
   if (!Number.isFinite(value)) return "0.00%"
   return `${ratePercentFormatter.format(value)}%`
+}
+
+const PREVIEW_EPSILON = 0.005
+const previewHighlightClass =
+  "inline-flex w-full items-center justify-end rounded-md bg-amber-200 px-2 py-1 font-semibold text-slate-900 ring-1 ring-amber-300"
+
+function roundPreviewValue(value: number) {
+  return Math.round(value * 100) / 100
 }
 
 const depositFieldLabels = {
@@ -251,6 +263,24 @@ const SCHEDULE_FILTER_COLUMN_IDS = new Set<ScheduleFilterColumnId>(scheduleFilte
 type LineColumnFilter = ColumnFilter & { columnId: LineFilterColumnId }
 type ScheduleColumnFilter = ColumnFilter & { columnId: ScheduleFilterColumnId }
 
+type PreviewAllocation = {
+  lineId: string
+  scheduleId: string
+  usageAmount: number
+  commissionAmount: number
+}
+
+type SchedulePreviewCell = {
+  actualUsage: number
+  actualCommission: number
+  actualCommissionRatePercent: number
+  changed: {
+    actualUsage: boolean
+    actualCommission: boolean
+    actualCommissionRatePercent: boolean
+  }
+}
+
 const lineStatusStyles: Record<DepositLineItemRow["status"] | "Reconciled", string> = {
   Matched: "bg-emerald-100 text-emerald-700 border border-emerald-200",
   "Partially Matched": "bg-amber-100 text-amber-700 border border-amber-200",
@@ -280,6 +310,115 @@ function getAllocationStatusLabel(status: string): string {
     default:
       return status
   }
+}
+
+function buildDefaultPreviewAllocations(params: {
+  matchType: MatchSelectionType
+  lines: DepositLineItemRow[]
+  schedules: SuggestedMatchScheduleRow[]
+}): PreviewAllocation[] {
+  if (params.matchType === "OneToMany") {
+    const line = params.lines[0]
+    if (!line) return []
+
+    const totalUsage = Math.max(0, Number(line.usageUnallocated ?? 0))
+    const totalCommission = Math.max(0, Number(line.commissionUnallocated ?? 0))
+    const weights = params.schedules.map(schedule => ({
+      scheduleId: schedule.id,
+      weight:
+        Math.max(0, Math.abs(Number(schedule.expectedUsageNet ?? 0))) +
+        Math.max(0, Math.abs(Number(schedule.expectedCommissionNet ?? 0))),
+    }))
+    const weightSum = weights.reduce((acc, row) => acc + row.weight, 0)
+    const denom = weightSum > PREVIEW_EPSILON ? weightSum : weights.length || 1
+
+    let usageRemaining = totalUsage
+    let commissionRemaining = totalCommission
+
+    return weights.map((row, index) => {
+      const isLast = index === weights.length - 1
+      const fraction = weightSum > PREVIEW_EPSILON ? row.weight / denom : 1 / denom
+      const usage = isLast ? usageRemaining : roundPreviewValue(totalUsage * fraction)
+      const commission = isLast ? commissionRemaining : roundPreviewValue(totalCommission * fraction)
+      usageRemaining = roundPreviewValue(usageRemaining - usage)
+      commissionRemaining = roundPreviewValue(commissionRemaining - commission)
+
+      return {
+        lineId: line.id,
+        scheduleId: row.scheduleId,
+        usageAmount: usage,
+        commissionAmount: commission,
+      }
+    })
+  }
+
+  if (params.matchType === "ManyToOne") {
+    const scheduleId = params.schedules[0]?.id
+    if (!scheduleId) return []
+
+    return params.lines.map(line => ({
+      lineId: line.id,
+      scheduleId,
+      usageAmount: Math.max(0, Number(line.usageUnallocated ?? 0)),
+      commissionAmount: Math.max(0, Number(line.commissionUnallocated ?? 0)),
+    }))
+  }
+
+  if (params.matchType === "ManyToMany") {
+    const schedulesSorted = [...params.schedules].sort((a, b) => {
+      const dateA = a.revenueScheduleDate ? new Date(a.revenueScheduleDate).getTime() : Number.POSITIVE_INFINITY
+      const dateB = b.revenueScheduleDate ? new Date(b.revenueScheduleDate).getTime() : Number.POSITIVE_INFINITY
+      if (dateA !== dateB) return dateA - dateB
+      return (a.revenueScheduleName ?? "").localeCompare(b.revenueScheduleName ?? "")
+    })
+    const linesSorted = [...params.lines].sort((a, b) => (a.lineItem ?? 0) - (b.lineItem ?? 0))
+
+    const usageRemainingBySchedule = new Map<string, number>()
+    const commissionRemainingBySchedule = new Map<string, number>()
+
+    for (const schedule of schedulesSorted) {
+      usageRemainingBySchedule.set(schedule.id, Math.max(0, Number(schedule.expectedUsageNet ?? 0)))
+      commissionRemainingBySchedule.set(schedule.id, Math.max(0, Number(schedule.expectedCommissionNet ?? 0)))
+    }
+
+    const allocations: PreviewAllocation[] = []
+
+    for (const line of linesSorted) {
+      let usageRemaining = Math.max(0, Number(line.usageUnallocated ?? 0))
+      let commissionRemaining = Math.max(0, Number(line.commissionUnallocated ?? 0))
+
+      for (const schedule of schedulesSorted) {
+        if (usageRemaining <= PREVIEW_EPSILON && commissionRemaining <= PREVIEW_EPSILON) break
+
+        const scheduleUsageRemaining = usageRemainingBySchedule.get(schedule.id) ?? 0
+        const scheduleCommissionRemaining = commissionRemainingBySchedule.get(schedule.id) ?? 0
+
+        const usageAmount = roundPreviewValue(Math.min(usageRemaining, scheduleUsageRemaining))
+        const commissionAmount = roundPreviewValue(Math.min(commissionRemaining, scheduleCommissionRemaining))
+
+        if (usageAmount <= PREVIEW_EPSILON && commissionAmount <= PREVIEW_EPSILON) continue
+
+        allocations.push({
+          lineId: line.id,
+          scheduleId: schedule.id,
+          usageAmount,
+          commissionAmount,
+        })
+
+        usageRemaining = roundPreviewValue(usageRemaining - usageAmount)
+        commissionRemaining = roundPreviewValue(commissionRemaining - commissionAmount)
+        usageRemainingBySchedule.set(schedule.id, roundPreviewValue(scheduleUsageRemaining - usageAmount))
+        commissionRemainingBySchedule.set(
+          schedule.id,
+          roundPreviewValue(scheduleCommissionRemaining - commissionAmount),
+        )
+      }
+    }
+
+    return allocations
+  }
+
+  return []
 }
 
 const TABLE_CONTAINER_PADDING = 1
@@ -561,6 +700,21 @@ export function DepositReconciliationDetailView({
     return parsed
   }, [])
 
+  const clearSuccessfulMatchSelection = useCallback(() => {
+    const nextSelection = resetReconciliationSelectionState()
+    selectedLineIdRef.current = nextSelection.selectedLineId
+    selectedLineItemsRef.current = nextSelection.selectedLineItems
+    selectedSchedulesRef.current = nextSelection.selectedSchedules
+    setSelectedLineItems(nextSelection.selectedLineItems)
+    setSelectedSchedules(nextSelection.selectedSchedules)
+    onLineSelectionChange?.(nextSelection.selectedLineId)
+  }, [onLineSelectionChange])
+
+  const handleSuccessfulMatchMutation = useCallback(() => {
+    clearSuccessfulMatchSelection()
+    onMatchApplied?.()
+  }, [clearSuccessfulMatchSelection, onMatchApplied])
+
   const dismissReconciliationAlert = useCallback(() => {
     setAiAdjustmentModal(null)
     setFlexPrompt(null)
@@ -639,10 +793,7 @@ export function DepositReconciliationDetailView({
             } satisfies RateDiscrepancyModalState)
           : null
 
-      setSelectedLineItems([params.lineId])
-      onLineSelectionChange?.(params.lineId)
-      setSelectedSchedules([])
-      onMatchApplied?.()
+      handleSuccessfulMatchMutation()
 
       if (flexExecution?.action === "ChargebackPending") {
         return {
@@ -660,7 +811,7 @@ export function DepositReconciliationDetailView({
         autoAdjusted: flexDecision?.action === "auto_adjust",
       }
     },
-    [metadata.id, onLineSelectionChange, onMatchApplied],
+    [handleSuccessfulMatchMutation, metadata.id],
   )
 
   const commitPendingMatchIfNeeded = useCallback(async () => {
@@ -793,20 +944,15 @@ export function DepositReconciliationDetailView({
 
   useEffect(() => {
     setLineItemRows(lineItems)
-    setSelectedLineItems(prev => prev.filter(id => lineItems.some(item => item.id === id)))
+    setSelectedLineItems(prev => filterVisibleSelections(prev, lineItems.map(item => item.id)))
     if (selectedLineId && !lineItems.some(item => item.id === selectedLineId)) {
       onLineSelectionChange?.(null)
     }
   }, [lineItems, selectedLineId, onLineSelectionChange])
 
   useEffect(() => {
-    if (!selectedLineId) return
-    setSelectedLineItems(previous => (previous.includes(selectedLineId) ? previous : [selectedLineId, ...previous]))
-  }, [selectedLineId])
-
-  useEffect(() => {
     setScheduleRows(schedules)
-    setSelectedSchedules(previous => previous.filter(id => schedules.some(item => item.id === id)))
+    setSelectedSchedules(previous => filterVisibleSelections(previous, schedules.map(item => item.id)))
   }, [schedules])
 
   useEffect(() => {
@@ -874,6 +1020,116 @@ export function DepositReconciliationDetailView({
     selectedScheduleForMatch?.id,
     selectedScheduleForMatch?.allocatedUsage,
     selectedScheduleForMatch?.allocatedCommission,
+  ])
+
+  const schedulePreviewById = useMemo(() => {
+    const selection = classifyMatchSelection({
+      lineIds: selectedLineItems,
+      scheduleIds: selectedSchedules,
+    })
+    if (!selection.ok) return new Map<string, SchedulePreviewCell>()
+
+    const selectedPreviewSchedules = scheduleRows.filter(row => selectedSchedules.includes(row.id))
+    if (selectedPreviewSchedules.length === 0) return new Map<string, SchedulePreviewCell>()
+
+    const selectedPreviewLines = lineItemRows.filter(row => selectedLineItems.includes(row.id))
+    if (selection.type !== "OneToOne" && selectedPreviewLines.length === 0) {
+      return new Map<string, SchedulePreviewCell>()
+    }
+
+    let allocations: PreviewAllocation[] = []
+
+    if (selection.type === "OneToOne") {
+      if (!selectedLineForMatch || !selectedScheduleForMatch) return new Map<string, SchedulePreviewCell>()
+
+      const usageInput = parseAllocationInput(allocationDraft.usage)
+      const commissionInput = parseAllocationInput(allocationDraft.commission)
+      const usageAmount =
+        usageInput ??
+        (typeof selectedScheduleForMatch.allocatedUsage === "number"
+          ? selectedScheduleForMatch.allocatedUsage
+          : Number(selectedLineForMatch.usageUnallocated ?? selectedLineForMatch.usage ?? 0))
+      const commissionAmount =
+        commissionInput ??
+        (typeof selectedScheduleForMatch.allocatedCommission === "number"
+          ? selectedScheduleForMatch.allocatedCommission
+          : Number(selectedLineForMatch.commissionUnallocated ?? selectedLineForMatch.commission ?? 0))
+
+      if (!Number.isFinite(usageAmount) || !Number.isFinite(commissionAmount)) {
+        return new Map<string, SchedulePreviewCell>()
+      }
+
+      allocations = [
+        {
+          lineId: selectedLineForMatch.id,
+          scheduleId: selectedScheduleForMatch.id,
+          usageAmount,
+          commissionAmount,
+        },
+      ]
+    } else {
+      allocations = buildDefaultPreviewAllocations({
+        matchType: selection.type,
+        lines: selectedPreviewLines,
+        schedules: selectedPreviewSchedules,
+      })
+    }
+
+    if (allocations.length === 0) return new Map<string, SchedulePreviewCell>()
+
+    const scheduleDeltaById = new Map<string, { usage: number; commission: number }>()
+    for (const allocation of allocations) {
+      const previous = scheduleDeltaById.get(allocation.scheduleId) ?? { usage: 0, commission: 0 }
+      scheduleDeltaById.set(allocation.scheduleId, {
+        usage: roundPreviewValue(previous.usage + allocation.usageAmount),
+        commission: roundPreviewValue(previous.commission + allocation.commissionAmount),
+      })
+    }
+
+    if (selection.type === "OneToOne" && selectedScheduleForMatch) {
+      const existingUsage = Number(selectedScheduleForMatch.allocatedUsage ?? 0)
+      const existingCommission = Number(selectedScheduleForMatch.allocatedCommission ?? 0)
+      const current = scheduleDeltaById.get(selectedScheduleForMatch.id) ?? { usage: 0, commission: 0 }
+      scheduleDeltaById.set(selectedScheduleForMatch.id, {
+        usage: roundPreviewValue(current.usage - existingUsage),
+        commission: roundPreviewValue(current.commission - existingCommission),
+      })
+    }
+
+    const previews = new Map<string, SchedulePreviewCell>()
+    for (const schedule of selectedPreviewSchedules) {
+      const delta = scheduleDeltaById.get(schedule.id)
+      if (!delta) continue
+
+      const previewActualUsage = roundPreviewValue(Number(schedule.actualUsage ?? 0) + delta.usage)
+      const previewActualCommission = roundPreviewValue(Number(schedule.actualCommission ?? 0) + delta.commission)
+      const previewActualRate =
+        Math.abs(previewActualUsage) <= PREVIEW_EPSILON ? 0 : previewActualCommission / previewActualUsage
+
+      previews.set(schedule.id, {
+        actualUsage: previewActualUsage,
+        actualCommission: previewActualCommission,
+        actualCommissionRatePercent: previewActualRate,
+        changed: {
+          actualUsage: Math.abs(delta.usage) > PREVIEW_EPSILON,
+          actualCommission: Math.abs(delta.commission) > PREVIEW_EPSILON,
+          actualCommissionRatePercent:
+            Math.abs(previewActualRate - Number(schedule.actualCommissionRatePercent ?? 0)) > PREVIEW_EPSILON,
+        },
+      })
+    }
+
+    return previews
+  }, [
+    allocationDraft.commission,
+    allocationDraft.usage,
+    lineItemRows,
+    parseAllocationInput,
+    scheduleRows,
+    selectedLineForMatch,
+    selectedLineItems,
+    selectedScheduleForMatch,
+    selectedSchedules,
   ])
 
   const matchButtonDisabledReason = useMemo(() => {
@@ -1337,9 +1593,7 @@ export function DepositReconciliationDetailView({
         throw new Error(payload?.error || "Failed to create flex entry")
       }
 
-      setSelectedLineItems([lineId])
-      onLineSelectionChange?.(lineId)
-      onMatchApplied?.()
+      handleSuccessfulMatchMutation()
 
       if (kind === "Chargeback") {
         showSuccess("Chargeback pending", "A Flex Chargeback entry was created and is awaiting approval.")
@@ -1360,7 +1614,7 @@ export function DepositReconciliationDetailView({
       matchingLineIdRef.current = null
       setMatchingLineId(null)
     }
-  }, [lineItemRows, metadata.id, onLineSelectionChange, onMatchApplied, scheduleRows, showError, showSuccess])
+  }, [handleSuccessfulMatchMutation, lineItemRows, metadata.id, scheduleRows, showError, showSuccess])
 
   const unmatchLineById = useCallback(
     async (lineId?: string | null) => {
@@ -2119,6 +2373,32 @@ export function DepositReconciliationDetailView({
     ]
   }, [currencyFormatter, percentFormatter, formatDateValue])
 
+  const renderSchedulePreviewValue = useCallback(
+    (
+      row: SuggestedMatchScheduleRow,
+      field: keyof SchedulePreviewCell["changed"],
+      formatValue: (value: number) => string,
+      fallback: number,
+    ) => {
+      const preview = schedulePreviewById.get(row.id)
+      const displayValue =
+        field === "actualUsage"
+          ? preview?.actualUsage
+          : field === "actualCommission"
+            ? preview?.actualCommission
+            : preview?.actualCommissionRatePercent
+      const value = Number.isFinite(displayValue) ? Number(displayValue) : fallback
+      const formatted = formatValue(value)
+
+      if (!preview?.changed[field]) {
+        return <span className="inline-flex w-full items-center justify-end">{formatted}</span>
+      }
+
+      return <span className={previewHighlightClass}>{formatted}</span>
+    },
+    [schedulePreviewById],
+  )
+
   const baseScheduleColumns = useMemo<Column[]>(() => {
     const minTextWidth = (label: string, sortable = true) => calculateMinWidth({ label, type: "text", sortable })
     return [
@@ -2419,7 +2699,8 @@ export function DepositReconciliationDetailView({
         minWidth: minTextWidth(scheduleFieldLabels.actualUsage),
         sortable: true,
         hideable: false,
-        render: (value: number) => currencyFormatter.format(value)
+        render: (value: number, row: SuggestedMatchScheduleRow) =>
+          renderSchedulePreviewValue(row, "actualUsage", previewValue => currencyFormatter.format(previewValue), value)
       },
       {
         id: "usageBalance",
@@ -2468,7 +2749,13 @@ export function DepositReconciliationDetailView({
         minWidth: minTextWidth(scheduleFieldLabels.actualCommission),
         sortable: true,
         hideable: false,
-        render: (value: number) => currencyFormatter.format(value)
+        render: (value: number, row: SuggestedMatchScheduleRow) =>
+          renderSchedulePreviewValue(
+            row,
+            "actualCommission",
+            previewValue => currencyFormatter.format(previewValue),
+            value,
+          )
       },
       {
         id: "commissionDifference",
@@ -2492,7 +2779,13 @@ export function DepositReconciliationDetailView({
         width: 240,
         minWidth: minTextWidth(scheduleFieldLabels.actualCommissionRatePercent),
         sortable: true,
-        render: (value: number) => percentFormatter.format(value)
+        render: (value: number, row: SuggestedMatchScheduleRow) =>
+          renderSchedulePreviewValue(
+            row,
+            "actualCommissionRatePercent",
+            previewValue => percentFormatter.format(previewValue),
+            value,
+          )
       },
       {
         id: "commissionRateDifference",
@@ -2515,7 +2808,7 @@ export function DepositReconciliationDetailView({
         )
       }
     ]
-  }, [currencyFormatter, percentFormatter, formatDateValue, confidencePrefs.autoMatchMinConfidence])
+  }, [confidencePrefs.autoMatchMinConfidence, currencyFormatter, formatDateValue, percentFormatter, renderSchedulePreviewValue])
 
   // Line items table with persistence
   const {
@@ -2744,7 +3037,7 @@ export function DepositReconciliationDetailView({
         }
 
         setFlexPrompt(null)
-        onMatchApplied?.()
+        handleSuccessfulMatchMutation()
 
         if (action === "Adjust") {
           showSuccess("Adjustment created", "A one-time adjustment entry was created and allocated.")
@@ -2758,7 +3051,7 @@ export function DepositReconciliationDetailView({
         setFlexResolving(false)
       }
     },
-    [commitPendingMatchIfNeeded, flexPrompt, metadata.id, onMatchApplied, showError, showSuccess],
+    [commitPendingMatchIfNeeded, flexPrompt, handleSuccessfulMatchMutation, metadata.id, showError, showSuccess],
   )
 
   const handleApplyManualFlex = useCallback(async () => {
@@ -2797,7 +3090,7 @@ export function DepositReconciliationDetailView({
 
       setFlexPrompt(null)
       setManualFlexEntryOpen(false)
-      onMatchApplied?.()
+      handleSuccessfulMatchMutation()
       showSuccess("Manual adjustment created", "A one-time manual adjustment entry was created and allocated.")
     } catch (err) {
       console.error("Failed to apply manual adjustment", err)
@@ -2807,7 +3100,7 @@ export function DepositReconciliationDetailView({
     } finally {
       setFlexResolving(false)
     }
-  }, [commitPendingMatchIfNeeded, flexPrompt, manualFlexUsageAmount, metadata.id, onMatchApplied, parseAllocationInput, showError, showSuccess])
+  }, [commitPendingMatchIfNeeded, flexPrompt, handleSuccessfulMatchMutation, manualFlexUsageAmount, metadata.id, parseAllocationInput, showError, showSuccess])
 
   const handleOpenAiAdjustment = useCallback(async () => {
     if (!flexPrompt) return
@@ -2916,7 +3209,7 @@ export function DepositReconciliationDetailView({
       await commitPendingMatchIfNeeded()
       await updateCurrentScheduleRate(scheduleId, discrepancy.receivedRatePercent)
       setRateDiscrepancyModal(null)
-      onMatchApplied?.()
+      handleSuccessfulMatchMutation()
       showSuccess(
         "Current schedule rate updated",
         `Updated this schedule to ${formatRatePercent(discrepancy.receivedRatePercent)}.`,
@@ -2933,7 +3226,7 @@ export function DepositReconciliationDetailView({
         previous ? { ...previous, applyingAction: null } : null,
       )
     }
-  }, [commitPendingMatchIfNeeded, onMatchApplied, rateDiscrepancyModal, showError, showSuccess, updateCurrentScheduleRate])
+  }, [commitPendingMatchIfNeeded, handleSuccessfulMatchMutation, rateDiscrepancyModal, showError, showSuccess, updateCurrentScheduleRate])
 
   const handleApplyRateDiscrepancyToFuture = useCallback(async () => {
     if (!rateDiscrepancyModal) return
@@ -2961,7 +3254,7 @@ export function DepositReconciliationDetailView({
       const nextRate = Number(payload?.data?.rateDiscrepancy?.receivedRatePercent ?? discrepancy.receivedRatePercent)
 
       setRateDiscrepancyModal(null)
-      onMatchApplied?.()
+      handleSuccessfulMatchMutation()
       showSuccess(
         "Rate update applied",
         updatedCount > 0
@@ -2980,7 +3273,7 @@ export function DepositReconciliationDetailView({
         previous ? { ...previous, applyingAction: null } : null,
       )
     }
-  }, [commitPendingMatchIfNeeded, metadata.id, onMatchApplied, rateDiscrepancyModal, showError, showSuccess])
+  }, [commitPendingMatchIfNeeded, handleSuccessfulMatchMutation, metadata.id, rateDiscrepancyModal, showError, showSuccess])
 
   const handleApplyAiAdjustment = useCallback(async () => {
     if (!aiAdjustmentModal) return
@@ -3005,7 +3298,7 @@ export function DepositReconciliationDetailView({
       const futureUpdatedCount = applyToFuture ? Math.max(updatedCount - 1, 0) : 0
       setAiAdjustmentModal(null)
       setFlexPrompt(null)
-      onMatchApplied?.()
+      handleSuccessfulMatchMutation()
       showSuccess(
         "Absorb adjustment applied",
         applyToFuture && futureUpdatedCount > 0
@@ -3027,7 +3320,7 @@ export function DepositReconciliationDetailView({
     } finally {
       setAiAdjustmentModal(previous => (previous ? { ...previous, applying: false } : null))
     }
-  }, [aiAdjustmentModal, commitPendingMatchIfNeeded, metadata.id, onMatchApplied, showError, showSuccess])
+  }, [aiAdjustmentModal, commitPendingMatchIfNeeded, handleSuccessfulMatchMutation, metadata.id, showError, showSuccess])
 
   const handleBulkLineExport = useCallback(() => {
     if (selectedLineItems.length === 0) {
@@ -3422,7 +3715,7 @@ export function DepositReconciliationDetailView({
         selectedLines={matchWizard?.selectedLines ?? []}
         selectedSchedules={matchWizard?.selectedSchedules ?? []}
         detectedType={matchWizard?.detectedType ?? "OneToOne"}
-        onApplied={onMatchApplied}
+        onApplied={handleSuccessfulMatchMutation}
       />
       <DepositVendorSummaryFloatingWidget
         open={showVendorSummaryWidget}

@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { ModalHeader } from "./ui/modal-header"
 import { cn } from "@/lib/utils"
 import type { DepositLineItemRow, SuggestedMatchScheduleRow } from "@/lib/mock-data"
@@ -11,6 +11,11 @@ import { deriveMatchWizardValidationState } from "@/lib/matching/match-wizard-va
 const currencyFormatter = new Intl.NumberFormat("en-US", {
   style: "currency",
   currency: "USD",
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+})
+
+const percentFormatter = new Intl.NumberFormat("en-US", {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
 })
@@ -67,6 +72,134 @@ function formatMatchType(type: MatchSelectionType) {
       return exhaustiveCheck
     }
   }
+}
+
+function formatPercent(value: number | null | undefined) {
+  if (!Number.isFinite(Number(value))) return "0.00%"
+  const numeric = Number(value)
+  const normalized = Math.abs(numeric) <= 1.5 ? numeric * 100 : numeric
+  return `${percentFormatter.format(normalized)}%`
+}
+
+function formatDate(value: string | null | undefined) {
+  if (!value) return "-"
+  return value.slice(0, 10)
+}
+
+function formatCount(value: number | null | undefined, fractionDigits = 2) {
+  if (!Number.isFinite(Number(value))) return "0.00"
+  return Number(value).toFixed(fractionDigits)
+}
+
+function MatchWizardSelectionTable(props: {
+  title: string
+  emptyLabel: string
+  headers: string[]
+  rows: ReactNode[][]
+}) {
+  return (
+    <section>
+      <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#2f6fe4]">{props.title}</p>
+      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-blue-700 text-left text-xs">
+            <thead className="bg-[#2f6fe4] text-white">
+              <tr>
+                {props.headers.map(header => (
+                  <th key={header} className="whitespace-nowrap px-4 py-2 font-semibold uppercase tracking-wide">
+                    {header}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {props.rows.length > 0 ? (
+                props.rows.map((row, rowIndex) => (
+                  <tr
+                    key={`${props.title}-${rowIndex}`}
+                    className="border-b border-slate-200 bg-white text-slate-700 last:border-b-0"
+                  >
+                    {row.map((value, cellIndex) => (
+                      <td key={`${props.title}-${rowIndex}-${cellIndex}`} className="whitespace-nowrap px-4 py-3">
+                        {value}
+                      </td>
+                    ))}
+                  </tr>
+                ))
+              ) : (
+                <tr className="bg-white text-slate-700">
+                  <td className="px-4 py-4 text-slate-500" colSpan={props.headers.length}>
+                    {props.emptyLabel}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function MatchWizardPreviewTable(props: {
+  title: string
+  description?: string
+  statusLabel?: string
+  statusTone?: "good" | "warn"
+  rows: Array<{ label: string; current: string; preview: string; changed?: boolean }>
+}) {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-4">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <p className="text-sm font-semibold text-slate-900">{props.title}</p>
+          {props.description ? <p className="mt-1 text-sm text-slate-600">{props.description}</p> : null}
+        </div>
+        {props.statusLabel ? (
+          <span
+            className={cn(
+              "inline-flex rounded-full px-2.5 py-1 text-xs font-semibold",
+              props.statusTone === "good"
+                ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
+                : "border border-amber-200 bg-amber-50 text-amber-900",
+            )}
+          >
+            {props.statusLabel}
+          </span>
+        ) : null}
+      </div>
+      <div className="mt-4 overflow-x-auto">
+        <table className="min-w-full text-left text-sm">
+          <thead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <tr>
+              <th className="px-3 py-2">Field</th>
+              <th className="px-3 py-2">Current</th>
+              <th className="px-3 py-2">Preview</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {props.rows.map(row => (
+              <tr key={row.label}>
+                <td className="px-3 py-2 font-semibold text-slate-800">{row.label}</td>
+                <td className="px-3 py-2 text-slate-600">{row.current}</td>
+                <td className="px-3 py-2">
+                  <span
+                    className={cn(
+                      row.changed
+                        ? "inline-flex rounded-md bg-amber-200 px-2 py-1 font-semibold text-slate-900 ring-1 ring-amber-300"
+                        : "text-slate-900",
+                    )}
+                  >
+                    {row.preview}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
 }
 
 function parseAmount(raw: string): number | null {
@@ -360,6 +493,162 @@ export function ReconciliationMatchWizardModal(props: {
       scheduleExpectedCommission,
     }
   }, [selectedLines, selectedSchedules])
+
+  const selectedLineRows = useMemo<ReactNode[][]>(
+    () =>
+      selectedLines.map(line => [
+        line.accountId || "-",
+        line.accountName || "-",
+        line.productName || "-",
+        line.lineItem ?? "-",
+        currencyFormatter.format(Number(line.usage ?? 0)),
+        currencyFormatter.format(Number(line.usageAllocated ?? 0)),
+        currencyFormatter.format(Number(line.usageUnallocated ?? 0)),
+        formatPercent(line.commissionRate),
+        currencyFormatter.format(Number(line.commission ?? 0)),
+        currencyFormatter.format(Number(line.commissionAllocated ?? 0)),
+      ]),
+    [selectedLines],
+  )
+
+  const selectedScheduleRows = useMemo<ReactNode[][]>(
+    () =>
+      selectedSchedules.map(schedule => [
+        schedule.revenueScheduleName || schedule.id,
+        formatDate(schedule.revenueScheduleDate),
+        formatCount(schedule.quantity),
+        currencyFormatter.format(Number(schedule.priceEach ?? 0)),
+        currencyFormatter.format(Number(schedule.expectedUsageGross ?? 0)),
+        currencyFormatter.format(Number(schedule.expectedUsageAdjustment ?? 0)),
+        currencyFormatter.format(Number(schedule.expectedUsageNet ?? 0)),
+        formatPercent(schedule.expectedCommissionRatePercent),
+        currencyFormatter.format(Number(schedule.expectedCommissionNet ?? 0)),
+        currencyFormatter.format(Number(schedule.actualUsage ?? 0)),
+        currencyFormatter.format(Number(schedule.usageBalance ?? 0)),
+      ]),
+    [selectedSchedules],
+  )
+
+  const schedulePreviewTables = useMemo(() => {
+    const previewIsFresh = Boolean(preview && previewVersion !== null && previewVersion === allocationsVersion)
+    if (!preview || !preview.ok || !previewIsFresh) return []
+
+    return selectedSchedules
+      .map(schedule => {
+        const schedulePreview = preview.schedules.find(item => item.scheduleId === schedule.id)
+        if (!schedulePreview) return null
+
+        const previewActualRate =
+          Math.abs(schedulePreview.actualUsageNetAfter) <= 0.005
+            ? 0
+            : schedulePreview.actualCommissionNetAfter / schedulePreview.actualUsageNetAfter
+
+        return {
+          key: schedule.id,
+          title: schedule.revenueScheduleName || schedule.id,
+          statusLabel: schedulePreview.withinToleranceAfter ? "Within tolerance" : "Outside tolerance",
+          statusTone: schedulePreview.withinToleranceAfter ? ("good" as const) : ("warn" as const),
+          rows: [
+            {
+              label: "Price Each",
+              current: currencyFormatter.format(Number(schedule.priceEach ?? 0)),
+              preview: currencyFormatter.format(Number(schedule.priceEach ?? 0)),
+              changed: false,
+            },
+            {
+              label: "Expected Usage",
+              current: currencyFormatter.format(Number(schedule.expectedUsageNet ?? 0)),
+              preview: currencyFormatter.format(schedulePreview.expectedUsageNet),
+              changed: false,
+            },
+            {
+              label: "Actual Usage",
+              current: currencyFormatter.format(Number(schedule.actualUsage ?? 0)),
+              preview: currencyFormatter.format(schedulePreview.actualUsageNetAfter),
+              changed: Math.abs(schedulePreview.actualUsageNetAfter - Number(schedule.actualUsage ?? 0)) > 0.005,
+            },
+            {
+              label: "Usage Balance",
+              current: currencyFormatter.format(Number(schedule.usageBalance ?? 0)),
+              preview: currencyFormatter.format(schedulePreview.usageBalanceAfter),
+              changed: Math.abs(schedulePreview.usageBalanceAfter - Number(schedule.usageBalance ?? 0)) > 0.005,
+            },
+            {
+              label: "Expected Commission",
+              current: currencyFormatter.format(Number(schedule.expectedCommissionNet ?? 0)),
+              preview: currencyFormatter.format(schedulePreview.expectedCommissionNet),
+              changed: false,
+            },
+            {
+              label: "Actual Commission",
+              current: currencyFormatter.format(Number(schedule.actualCommission ?? 0)),
+              preview: currencyFormatter.format(schedulePreview.actualCommissionNetAfter),
+              changed:
+                Math.abs(schedulePreview.actualCommissionNetAfter - Number(schedule.actualCommission ?? 0)) > 0.005,
+            },
+            {
+              label: "Expected Comm Rate",
+              current: formatPercent(schedule.expectedCommissionRatePercent),
+              preview: formatPercent(schedule.expectedCommissionRatePercent),
+              changed: false,
+            },
+            {
+              label: "Actual Comm Rate",
+              current: formatPercent(schedule.actualCommissionRatePercent),
+              preview: formatPercent(previewActualRate),
+              changed: Math.abs(previewActualRate - Number(schedule.actualCommissionRatePercent ?? 0)) > 0.005,
+            },
+          ],
+        }
+      })
+      .filter((value): value is NonNullable<typeof value> => value !== null)
+  }, [allocationsVersion, preview, previewVersion, selectedSchedules])
+
+  const linePreviewTables = useMemo(() => {
+    const previewIsFresh = Boolean(preview && previewVersion !== null && previewVersion === allocationsVersion)
+    if (!preview || !preview.ok || !previewIsFresh) return []
+
+    return selectedLines
+      .map(line => {
+        const linePreview = preview.lines.find(item => item.lineId === line.id)
+        if (!linePreview) return null
+
+        return {
+          key: line.id,
+          title: `${line.accountName} · ${line.productName}`,
+          rows: [
+            {
+              label: "Allocated Usage",
+              current: currencyFormatter.format(Number(line.usageAllocated ?? 0)),
+              preview: currencyFormatter.format(linePreview.usageAllocatedAfter),
+              changed: Math.abs(linePreview.usageAllocatedAfter - Number(line.usageAllocated ?? 0)) > 0.005,
+            },
+            {
+              label: "Unallocated Usage",
+              current: currencyFormatter.format(Number(line.usageUnallocated ?? 0)),
+              preview: currencyFormatter.format(linePreview.usageUnallocatedAfter),
+              changed:
+                Math.abs(linePreview.usageUnallocatedAfter - Number(line.usageUnallocated ?? 0)) > 0.005,
+            },
+            {
+              label: "Allocated Commission",
+              current: currencyFormatter.format(Number(line.commissionAllocated ?? 0)),
+              preview: currencyFormatter.format(linePreview.commissionAllocatedAfter),
+              changed:
+                Math.abs(linePreview.commissionAllocatedAfter - Number(line.commissionAllocated ?? 0)) > 0.005,
+            },
+            {
+              label: "Unallocated Commission",
+              current: currencyFormatter.format(Number(line.commissionUnallocated ?? 0)),
+              preview: currencyFormatter.format(linePreview.commissionUnallocatedAfter),
+              changed:
+                Math.abs(linePreview.commissionUnallocatedAfter - Number(line.commissionUnallocated ?? 0)) > 0.005,
+            },
+          ],
+        }
+      })
+      .filter((value): value is NonNullable<typeof value> => value !== null)
+  }, [allocationsVersion, preview, previewVersion, selectedLines])
 
   const selectionBlockedReason = useMemo(() => {
     if (!selectionCompatible) return "Selection does not match match type."
@@ -830,100 +1119,17 @@ export function ReconciliationMatchWizardModal(props: {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/40 px-4" onClick={props.onClose}>
       <div
-        className="flex h-[900px] w-full max-w-5xl flex-col rounded-xl bg-white shadow-xl"
+        className="flex h-[900px] w-full max-w-5xl flex-col rounded-t-xl rounded-b-none bg-white shadow-xl"
         onClick={e => e.stopPropagation()}
       >
-        <ModalHeader kicker="Match Wizard" title={`Match ${lineCount} line${lineCount === 1 ? "" : "s"} to ${scheduleCount} schedule${scheduleCount === 1 ? "" : "s"}`} />
-
-        <div className="border-b border-slate-200 px-6 py-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              className={cn(
-                "flex items-center gap-2 rounded-full border px-3 py-1 text-xs",
-                selectionCompatible
-                  ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-                  : "border-amber-200 bg-amber-50 text-amber-900",
-              )}
-              onClick={() => scrollToSection(selectionSectionId)}
-              title={selectionCompatible ? "Selection ready" : selectionBlockedReason ?? "Selection blocked"}
-            >
-              <span className="font-semibold">Selection</span>
-            </button>
-            <button
-              type="button"
-              className={cn(
-                "flex items-center gap-2 rounded-full border px-3 py-1 text-xs",
-                canProceedToAllocation
-                  ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-                  : "border-slate-200 bg-white text-slate-600",
-              )}
-              onClick={() => scrollToSection(allocationSectionId)}
-              title={canProceedToAllocation ? "Allocation ready" : "Complete selection first"}
-            >
-              <span className="font-semibold">Allocation</span>
-            </button>
-            <button
-              type="button"
-              className={cn(
-                "flex items-center gap-2 rounded-full border px-3 py-1 text-xs",
-                validationState === "valid"
-                  ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-                  : validationState === "error" || validationState === "system_error"
-                    ? "border-red-200 bg-red-50 text-red-700"
-                    : validationState === "warning" || validationState === "stale" || validationState === "running"
-                      ? "border-amber-200 bg-amber-50 text-amber-900"
-                      : "border-slate-200 bg-white text-slate-600",
-              )}
-              onClick={() => scrollToSection(validationSectionId)}
-              title={
-                validationState === "valid"
-                  ? "Validation ready"
-                  : validationState === "warning"
-                    ? "Validation has warnings"
-                    : validationState === "error"
-                      ? "Validation has blocking issues"
-                      : validationState === "system_error"
-                        ? "Validation failed"
-                        : validationState === "running"
-                          ? "Validation in progress"
-                          : validationState === "stale"
-                            ? "Validation updating"
-                            : previewBlockedReason ?? "Validation waiting"
-              }
-            >
-              <span className="font-semibold">Validation</span>
-            </button>
-            <button
-              type="button"
-              className={cn(
-                "flex items-center gap-2 rounded-full border px-3 py-1 text-xs",
-                appliedMatchGroupId
-                  ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-                  : canConfirmApply
-                    ? "border-primary-300 bg-primary-50 text-primary-800"
-                    : "border-slate-200 bg-white text-slate-600",
-              )}
-              onClick={() => scrollToSection(applySectionId)}
-              title={
-                appliedMatchGroupId
-                  ? "Applied"
-                  : canConfirmApply
-                    ? "Ready to apply"
-                    : applyBlockedReason ?? "Apply blocked"
-              }
-            >
-              <span className="font-semibold">Apply</span>
-            </button>
-          </div>
-          <p className="mt-2 text-xs text-slate-600">
-            {validationStatus.summary}
-          </p>
-        </div>
+        <ModalHeader
+          kicker="Match Wizard"
+          title={`Match ${lineCount} line${lineCount === 1 ? "" : "s"} to ${scheduleCount} schedule${scheduleCount === 1 ? "" : "s"}`}
+          variant="gradient"
+        />
 
         <div className="flex-1 space-y-6 overflow-y-auto p-6 text-sm text-slate-700">
           <div id={selectionSectionId} className="scroll-mt-4 space-y-3">
-            <p className="font-semibold text-slate-900">Selection</p>
             <div className="space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="space-y-1">
@@ -967,31 +1173,71 @@ export function ReconciliationMatchWizardModal(props: {
                 </div>
               ) : null}
 
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="rounded-md border border-slate-200 p-3">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Selected lines</p>
-                  <p className="mt-1 text-sm">
-                    Usage total: <span className="font-semibold">{currencyFormatter.format(selectionTotals.lineUsageTotal)}</span>
-                  </p>
-                  <p className="text-sm">
-                    Commission total:{" "}
-                    <span className="font-semibold">{currencyFormatter.format(selectionTotals.lineCommissionTotal)}</span>
-                  </p>
-                </div>
-                <div className="rounded-md border border-slate-200 p-3">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Selected schedules</p>
-                  <p className="mt-1 text-sm">
-                    Expected usage net:{" "}
-                    <span className="font-semibold">
-                      {currencyFormatter.format(selectionTotals.scheduleExpectedUsage)}
-                    </span>
-                  </p>
-                  <p className="text-sm">
-                    Expected commission net:{" "}
-                    <span className="font-semibold">
-                      {currencyFormatter.format(selectionTotals.scheduleExpectedCommission)}
-                    </span>
-                  </p>
+              <div className="space-y-3">
+                <MatchWizardSelectionTable
+                  title="Selected Deposit Line Item"
+                  emptyLabel="No deposit line items were selected."
+                  headers={[
+                    "Account ID",
+                    "Account",
+                    "Product",
+                    "Line",
+                    "Act. Usage",
+                    "Allocated",
+                    "Unalloc.",
+                    "Comm %",
+                    "Act. Comm",
+                    "Comm Alloc",
+                  ]}
+                  rows={selectedLineRows}
+                />
+                <div className="space-y-2">
+                  <MatchWizardSelectionTable
+                    title="Matched Revenue Schedule"
+                    emptyLabel="No revenue schedules were selected."
+                    headers={[
+                      "Sched",
+                      "Date",
+                      "Qty",
+                      "Price Each",
+                      "Exp. Gross",
+                      "Exp. Adj.",
+                      "Exp. Net",
+                      "Comm %",
+                      "Exp. Comm",
+                      "Act. Usage",
+                      "Usage Bal.",
+                    ]}
+                    rows={selectedScheduleRows}
+                  />
+                  <div className="rounded-md border border-slate-200 bg-white px-3 py-2">
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-600">
+                      <span className="whitespace-nowrap">
+                        Selected line usage{" "}
+                        <span className="font-semibold text-slate-900">
+                          {currencyFormatter.format(selectionTotals.lineUsageTotal)}
+                        </span>
+                      </span>
+                      <span className="whitespace-nowrap">
+                        Selected line comm{" "}
+                        <span className="font-semibold text-slate-900">
+                          {currencyFormatter.format(selectionTotals.lineCommissionTotal)}
+                        </span>
+                      </span>
+                      <span className="whitespace-nowrap">
+                        Expected usage net{" "}
+                        <span className="font-semibold text-slate-900">
+                          {currencyFormatter.format(selectionTotals.scheduleExpectedUsage)}
+                        </span>
+                      </span>
+                      <span className="whitespace-nowrap">
+                        Expected comm net{" "}
+                        <span className="font-semibold text-slate-900">
+                          {currencyFormatter.format(selectionTotals.scheduleExpectedCommission)}
+                        </span>
+                      </span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1267,6 +1513,42 @@ export function ReconciliationMatchWizardModal(props: {
                 {validationState === "system_error" && previewError ? <p className="mt-2 text-xs">{previewError}</p> : null}
               </div>
 
+              {previewLoading && !previewUpToDate ? (
+                <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
+                  Refreshing live preview…
+                </div>
+              ) : null}
+
+              {previewUpToDate && preview && preview.ok ? (
+                <div className="space-y-3">
+                  <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+                    Changed preview values are highlighted in yellow. Nothing is written until you submit.
+                  </div>
+                  {schedulePreviewTables.map(table => (
+                    <MatchWizardPreviewTable
+                      key={table.key}
+                      title={table.title}
+                      description="Expected and actual values stay aligned vertically so you can compare the pending result before apply."
+                      statusLabel={table.statusLabel}
+                      statusTone={table.statusTone}
+                      rows={table.rows}
+                    />
+                  ))}
+                  {linePreviewTables.length ? (
+                    <div className="grid gap-3 xl:grid-cols-2">
+                      {linePreviewTables.map(table => (
+                        <MatchWizardPreviewTable
+                          key={table.key}
+                          title={table.title}
+                          description="Allocation totals after the pending match."
+                          rows={table.rows}
+                        />
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+
               {previewUpToDate && (validationState === "warning" || validationState === "error") && validationIssues.length ? (
                 <div className="rounded-md border border-slate-200 p-3">
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Issues</p>
@@ -1283,64 +1565,12 @@ export function ReconciliationMatchWizardModal(props: {
                 </div>
               ) : null}
 
-              {preview && preview.ok && previewUpToDate ? (
-                <details className="rounded-md border border-slate-200 p-3">
-                  <summary className="cursor-pointer text-sm font-semibold text-slate-900">Impact details</summary>
-                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                    <div className="rounded-md border border-slate-200 p-3">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Lines after apply</p>
-                      <ul className="mt-2 space-y-1 text-sm">
-                        {preview.lines.map(line => (
-                          <li key={line.lineId} className="flex items-center justify-between gap-2">
-                            <span className="truncate">{line.lineId}</span>
-                            <span className="tabular-nums">
-                              {currencyFormatter.format(line.usageAllocatedAfter)} / {currencyFormatter.format(line.usage)}
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                    <div className="rounded-md border border-slate-200 p-3">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        Schedules after apply
-                      </p>
-                      <ul className="mt-2 space-y-2 text-sm">
-                        {preview.schedules.map(schedule => (
-                          <li key={schedule.scheduleId} className="space-y-1">
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="truncate">{schedule.scheduleId}</span>
-                              <span
-                                className={cn(
-                                  "text-xs font-semibold",
-                                  schedule.withinToleranceAfter ? "text-emerald-700" : "text-amber-800",
-                                )}
-                              >
-                                {schedule.withinToleranceAfter ? "Within tolerance" : "Outside tolerance"}
-                              </span>
-                            </div>
-                            <div className="flex items-center justify-between gap-2 text-xs text-slate-600">
-                              <span>
-                                Balance: {currencyFormatter.format(schedule.usageBalanceAfter)} usage /{" "}
-                                {currencyFormatter.format(schedule.commissionDifferenceAfter)} comm
-                              </span>
-                              <span>
-                                Actual: {currencyFormatter.format(schedule.actualUsageNetAfter)} usage /{" "}
-                                {currencyFormatter.format(schedule.actualCommissionNetAfter)} comm
-                              </span>
-                            </div>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  </div>
-                </details>
-              ) : null}
             </div>
 
           <div id={applySectionId} className="scroll-mt-4 space-y-3">
               <p className="font-semibold text-slate-900">Apply</p>
               <p className="text-sm text-slate-600">
-                Confirm will create a match group and write allocations as Applied matches. Undo reverts the whole group.
+                Submit will create a match group and write allocations as Applied matches. Undo reverts the whole group.
               </p>
 
               {applyError ? <p className="text-sm font-semibold text-red-600">{applyError}</p> : null}
@@ -1388,17 +1618,7 @@ export function ReconciliationMatchWizardModal(props: {
                     </button>
                   </div>
                 </div>
-              ) : (
-                <button
-                  type="button"
-                  className="rounded bg-primary-600 px-3 py-2 text-sm font-semibold text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-slate-300"
-                  onClick={() => void applyMatchGroup()}
-                  disabled={!canConfirmApply}
-                  title={applyBlockedReason ?? undefined}
-                >
-                  {applyLoading ? "Applying..." : "Confirm Apply"}
-                </button>
-              )}
+              ) : null}
             </div>
         </div>
 
@@ -1425,7 +1645,7 @@ export function ReconciliationMatchWizardModal(props: {
               disabled={!canConfirmApply}
               title={applyBlockedReason ?? undefined}
             >
-              {applyLoading ? "Applying..." : appliedMatchGroupId ? "Applied" : "Confirm Apply"}
+              {applyLoading ? "Submitting..." : appliedMatchGroupId ? "Applied" : "Submit Match"}
             </button>
           </div>
         </div>

@@ -2,6 +2,7 @@ import { DepositLineItemStatus, DepositLineMatchStatus, Prisma, PrismaClient } f
 import { getTenantVarianceTolerance } from "@/lib/matching/settings"
 import type { MatchSelectionType } from "@/lib/matching/match-selection"
 import { analyzeBundleLineRates, formatRatePercentFromFraction, roundMoney, toNumber } from "@/lib/matching/bundle-replacement"
+import { findCrossDealGuardIssues } from "@/lib/matching/cross-deal-guard"
 
 type PrismaClientOrTx = PrismaClient | Prisma.TransactionClient
 
@@ -297,6 +298,13 @@ export async function buildMatchGroupPreview(
         createdAt: true,
         status: true,
         reconciled: true,
+        accountId: true,
+        accountIdVendor: true,
+        accountNameRaw: true,
+        customerIdVendor: true,
+        orderIdVendor: true,
+        locationId: true,
+        customerPurchaseOrder: true,
         usage: true,
         commission: true,
         usageAllocated: true,
@@ -304,6 +312,12 @@ export async function buildMatchGroupPreview(
         commissionAllocated: true,
         commissionUnallocated: true,
         commissionRate: true,
+        account: {
+          select: {
+            accountName: true,
+            accountLegalName: true,
+          },
+        },
       },
     }),
     client.revenueSchedule.findMany({
@@ -314,6 +328,8 @@ export async function buildMatchGroupPreview(
       } as any,
       select: {
         id: true,
+        accountId: true,
+        opportunityId: true,
         scheduleDate: true,
         createdAt: true,
         expectedUsage: true,
@@ -321,6 +337,18 @@ export async function buildMatchGroupPreview(
         actualUsageAdjustment: true,
         expectedCommission: true,
         actualCommissionAdjustment: true,
+        account: {
+          select: {
+            accountName: true,
+            accountLegalName: true,
+          },
+        },
+        opportunity: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
       },
     }),
   ])
@@ -342,6 +370,19 @@ export async function buildMatchGroupPreview(
       level: "error",
       code: "missing_schedules",
       message: `Some selected revenue schedules could not be found: ${missingSchedules.join(", ")}`,
+    })
+  }
+
+  const crossDealIssues = await findCrossDealGuardIssues(client, {
+    tenantId: params.tenantId,
+    lines,
+    schedules,
+  })
+  for (const issue of crossDealIssues) {
+    issues.push({
+      level: "error",
+      code: "cross_deal_mismatch",
+      message: issue.message,
     })
   }
 

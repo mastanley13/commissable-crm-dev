@@ -179,6 +179,7 @@ export default function DepositReconciliationDetailPage() {
   }, [])
 
   const handleMatchMutation = useCallback(() => {
+    setSelectedLineId(null)
     setDetailRefresh(previous => previous + 1)
     setCandidatesRefresh(previous => previous + 1)
   }, [])

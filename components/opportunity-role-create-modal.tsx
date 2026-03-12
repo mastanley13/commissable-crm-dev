@@ -229,11 +229,11 @@ export function OpportunityRoleCreateModal({ isOpen, opportunityId, onClose, onS
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-      <div className="w-full max-w-5xl h-[900px] rounded-xl bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
+      <div className="w-full max-w-5xl h-[900px] rounded-t-xl rounded-b-none bg-white shadow-xl">
+        <div className="flex items-center justify-between border-b border-blue-700 bg-gradient-to-r from-blue-950 via-blue-800 to-blue-700 px-6 py-4 text-white">
           <div>
-            <p className="text-xs font-semibold uppercase text-primary-600">Add Opportunity Role</p>
-            <h2 className="text-lg font-semibold text-gray-900">Add Role</h2>
+            <p className="text-xs font-semibold uppercase text-blue-100">Add Opportunity Role</p>
+            <h2 className="text-lg font-semibold text-white">Add Role</h2>
           </div>
         </div>
 
@@ -441,14 +441,14 @@ export function OpportunityRoleCreateModal({ isOpen, opportunityId, onClose, onS
             )}
           </div>
 
-          <div className="flex items-center justify-between border-t border-gray-200 bg-gray-50 px-6 py-3">
-            <div className="text-xs text-gray-500">All fields can be edited later.</div>
-            <div className="flex items-center gap-2">
-              <button type="button" onClick={onClose} className="rounded border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-100">Cancel</button>
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 bg-gray-50 px-6 py-4">
+            <button type="button" onClick={onClose} className="inline-flex min-w-[88px] items-center justify-center rounded border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">Cancel</button>
+            <div className="flex flex-wrap items-center justify-end gap-3">
+              <div className="text-xs text-gray-500">All fields can be edited later.</div>
               <button
                 type="submit"
                 disabled={loading || (mode === "existing" ? !canSubmitExisting : !canSubmitNew)}
-                className="inline-flex items-center gap-1 rounded bg-primary-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="inline-flex min-w-[96px] items-center justify-center gap-1 rounded bg-primary-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading && <Loader2 className="h-4 w-4 animate-spin" />}
                 <span>Add Role</span>

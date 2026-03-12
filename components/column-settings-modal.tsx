@@ -71,10 +71,10 @@ export function ColumnSettingsModal({ isOpen, columns, onApply, onClose }: Colum
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/40">
       <div
-        className="w-full max-w-lg rounded-xl bg-white shadow-xl"
+        className="w-full max-w-lg rounded-t-xl rounded-b-none bg-white shadow-xl"
         onClick={event => event.stopPropagation()}
       >
-        <ModalHeader kicker="Column Settings" title="Customize Columns" />
+        <ModalHeader kicker="Column Settings" title="Customize Columns" variant="gradient" />
 
         <div className="px-6 py-4 space-y-4">
           <div className="flex items-center justify-between text-sm">
@@ -142,18 +142,18 @@ export function ColumnSettingsModal({ isOpen, columns, onApply, onClose }: Colum
           </div>
         </div>
 
-        <footer className="flex items-center justify-end gap-3 border-t border-gray-200 px-6 py-4">
+        <footer className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 px-6 py-4">
           <button
             type="button"
             onClick={onClose}
-            className="rounded-full bg-gray-200 px-5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-300"
+            className="inline-flex min-w-[88px] items-center justify-center rounded border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
           >
             Cancel
           </button>
           <button
             type="button"
             onClick={handleApply}
-            className="rounded-full bg-primary-600 px-6 py-2 text-sm font-semibold text-white transition hover:bg-primary-700 disabled:bg-primary-300"
+            className="inline-flex min-w-[96px] items-center justify-center rounded bg-primary-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary-700 disabled:bg-primary-300"
             disabled={visibleCount < MIN_VISIBLE_COLUMNS}
           >
             Apply

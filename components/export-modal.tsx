@@ -194,12 +194,13 @@ export function ExportModal({ entityType, isOpen, onClose, currentFilters, visib
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 backdrop-blur-sm">
       <div
-        className="w-full max-w-3xl rounded-xl bg-white shadow-xl"
+        className="w-full max-w-3xl rounded-t-xl rounded-b-none bg-white shadow-xl"
         onClick={e => e.stopPropagation()}
       >
         <ModalHeader
           kicker="Export"
           title={`Export ${entityType.charAt(0).toUpperCase() + entityType.slice(1)}`}
+          variant="gradient"
         />
 
         {/* Progress Steps */}
@@ -442,46 +443,40 @@ export function ExportModal({ entityType, isOpen, onClose, currentFilters, visib
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between border-t border-gray-200 px-6 py-4">
-          <div className="text-sm text-gray-500">
-            {step === 'settings' && 'Configure your export settings'}
-            {step === 'processing' && 'Generating your export file...'}
-            {step === 'completed' && 'Ready for download'}
-          </div>
-          <div className="flex gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 px-6 py-4">
+          {(step === 'settings' || step === 'completed') ? (
+            <button
+              onClick={onClose}
+              className="inline-flex min-w-[88px] items-center justify-center rounded border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+            >
+              {step === 'completed' ? 'Close' : 'Cancel'}
+            </button>
+          ) : (
+            <div />
+          )}
+          <div className="flex flex-wrap items-center justify-end gap-3">
+            <div className="text-sm text-gray-500">
+              {step === 'settings' && 'Configure your export settings'}
+              {step === 'processing' && 'Generating your export file...'}
+              {step === 'completed' && 'Ready for download'}
+            </div>
             {step === 'settings' && (
-              <>
-                <button
-                  onClick={onClose}
-                  className="rounded-lg bg-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-300"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={startExport}
-                  disabled={getSelectedColumnsCount() === 0}
-                  className="rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
-                >
-                  Start Export
-                </button>
-              </>
+              <button
+                onClick={startExport}
+                disabled={getSelectedColumnsCount() === 0}
+                className="inline-flex min-w-[96px] items-center justify-center rounded bg-primary-600 px-4 py-2 text-sm font-semibold text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-gray-300"
+              >
+                Start Export
+              </button>
             )}
             {step === 'completed' && (
-              <>
-                <button
-                  onClick={onClose}
-                  className="rounded-lg bg-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-300"
-                >
-                  Close
-                </button>
-                <button
-                  onClick={downloadFile}
-                  className="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700"
-                >
-                  <Download className="h-4 w-4" />
-                  Download File
-                </button>
-              </>
+              <button
+                onClick={downloadFile}
+                className="inline-flex min-w-[96px] items-center justify-center gap-2 rounded bg-primary-600 px-4 py-2 text-sm font-semibold text-white hover:bg-primary-700"
+              >
+                <Download className="h-4 w-4" />
+                Download File
+              </button>
             )}
           </div>
         </div>

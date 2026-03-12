@@ -241,8 +241,8 @@ export function ActivityCreateModal({ isOpen, onClose, onCreated, defaultAccount
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="w-full max-w-5xl h-[900px] flex flex-col rounded-xl bg-white shadow-xl">
-        <ModalHeader kicker="Create Activity" title="Log Activity" />
+      <div className="w-full max-w-5xl h-[900px] flex flex-col rounded-t-xl rounded-b-none bg-white shadow-xl">
+        <ModalHeader kicker="Create Activity" title="Log Activity" variant="gradient" />
         <form onSubmit={handleSubmit} className="flex-1 px-6 py-4">
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="col-span-1">
@@ -404,10 +404,10 @@ export function ActivityCreateModal({ isOpen, onClose, onCreated, defaultAccount
               )}
             </div>
           </div>
-          <div className="mt-6 flex items-center justify-end gap-3 border-t border-gray-200 pt-4">
+          <div className="mt-6 flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 pt-4">
             <button
               type="button"
-              className="inline-flex items-center gap-2 rounded-md border border-gray-300 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500 hover:bg-gray-50"
+              className="inline-flex min-w-[88px] items-center justify-center rounded border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
               onClick={() => { resetForm(); onClose() }}
               disabled={loading}
             >
@@ -415,7 +415,7 @@ export function ActivityCreateModal({ isOpen, onClose, onCreated, defaultAccount
             </button>
             <button
               type="submit"
-              className="inline-flex items-center gap-2 rounded-md bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-60"
+              className="inline-flex min-w-[96px] items-center justify-center gap-2 rounded bg-primary-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary-700 disabled:opacity-60"
               disabled={loading || !isValid}
             >
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}

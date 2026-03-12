@@ -397,11 +397,11 @@ export function ActivityNoteCreateModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-      <div className="w-[1024px] max-w-[1024px] h-[900px] rounded-2xl bg-white shadow-xl flex flex-col">
-        <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4 flex-shrink-0">
+      <div className="w-[1024px] max-w-[1024px] h-[900px] rounded-t-2xl rounded-b-none bg-white shadow-xl flex flex-col">
+        <div className="flex flex-shrink-0 items-center justify-between border-b border-blue-700 bg-gradient-to-r from-blue-950 via-blue-800 to-blue-700 px-6 py-4 text-white">
           <div>
-            <p className="text-xs font-semibold uppercase text-primary-600">{activeTab === "activity" ? "Create Activity" : "Create Note"}</p>
-            <h2 className="text-lg font-semibold text-gray-900">{headerTitle}</h2>
+            <p className="text-xs font-semibold uppercase text-blue-100">{activeTab === "activity" ? "Create Activity" : "Create Note"}</p>
+            <h2 className="text-lg font-semibold text-white">{headerTitle}</h2>
           </div>
         </div>
 
@@ -653,36 +653,38 @@ export function ActivityNoteCreateModal({
           )}
           </div>
 
-          <div className="mt-6 mb-6 flex items-center justify-end gap-3 border-t border-gray-200 pt-4 flex-shrink-0 px-6">
+          <div className="mt-6 mb-6 flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 pt-4 flex-shrink-0 px-6">
             <button
               type="button"
               onClick={handleClose}
-              className="rounded-full border border-gray-300 px-5 py-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500 transition hover:bg-gray-50"
+              className="inline-flex min-w-[88px] items-center justify-center rounded border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
               disabled={loading}
             >
               Cancel
             </button>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.preventDefault()
-                const syntheticEvent = e as unknown as React.FormEvent<HTMLFormElement>
-                handleSubmit(syntheticEvent, true)
-              }}
-              className="flex items-center gap-2 rounded-full border border-primary-600 bg-white px-6 py-2 text-sm font-semibold text-primary-600 transition hover:bg-primary-50 disabled:cursor-not-allowed disabled:border-gray-300 disabled:text-gray-400"
-              disabled={loading || !canSubmit}
-            >
-              {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-              Save and New
-            </button>
-            <button
-              type="submit"
-              className="flex items-center gap-2 rounded-full bg-primary-600 px-6 py-2 text-sm font-semibold text-white transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-primary-400"
-              disabled={loading || !canSubmit}
-            >
-              {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault()
+                  const syntheticEvent = e as unknown as React.FormEvent<HTMLFormElement>
+                  handleSubmit(syntheticEvent, true)
+                }}
+                className="inline-flex min-w-[96px] items-center justify-center gap-2 rounded border border-primary-600 bg-white px-4 py-2 text-sm font-semibold text-primary-600 transition hover:bg-primary-50 disabled:cursor-not-allowed disabled:border-gray-300 disabled:text-gray-400"
+                disabled={loading || !canSubmit}
+              >
+                {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+                Save and New
+              </button>
+              <button
+                type="submit"
+                className="inline-flex min-w-[96px] items-center justify-center gap-2 rounded bg-primary-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-primary-400"
+                disabled={loading || !canSubmit}
+              >
+                {loading && <Loader2 className="h-4 w-4 animate-spin" />}
               Save
-            </button>
+              </button>
+            </div>
           </div>
         </form>
       </div>
