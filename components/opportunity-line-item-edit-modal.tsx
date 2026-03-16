@@ -532,7 +532,7 @@ export function OpportunityLineItemEditModal({
             </div>
           </div>
 
-          <div className="mt-6 flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 pt-4">
+          <div className="mt-6 flex flex-wrap items-center justify-end gap-2 border-t border-slate-200 pt-4">
             <button
               type="button"
               onClick={onClose}

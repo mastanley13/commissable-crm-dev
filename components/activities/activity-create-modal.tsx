@@ -404,7 +404,7 @@ export function ActivityCreateModal({ isOpen, onClose, onCreated, defaultAccount
               )}
             </div>
           </div>
-          <div className="mt-6 flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 pt-4">
+          <div className="mt-6 flex flex-wrap items-center justify-end gap-2 border-t border-slate-200 pt-4">
             <button
               type="button"
               className="inline-flex min-w-[88px] items-center justify-center rounded border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"

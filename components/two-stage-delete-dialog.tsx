@@ -1234,7 +1234,7 @@ export function TwoStageDeleteDialog({
         ) : null}
 
         {isRevenueSchedulesSize && stage === 'initial' && (hasMultipleEntities || !isDeleted) ? (
-          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 px-6 py-4">
+          <div className="flex flex-wrap items-center justify-end gap-2 border-t border-slate-200 px-6 py-4">
             <button
               type="button"
               onClick={onClose}
@@ -1255,7 +1255,7 @@ export function TwoStageDeleteDialog({
         ) : null}
 
         {isRevenueSchedulesSize && (stage === 'confirm-soft' || stage === 'confirm-permanent' || stage === 'confirm-restore') ? (
-          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 px-6 py-4">
+          <div className="flex flex-wrap items-center justify-end gap-2 border-t border-slate-200 px-6 py-4">
             <button
               type="button"
               onClick={() => setStage('initial')}

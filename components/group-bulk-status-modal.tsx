@@ -84,7 +84,7 @@ export function GroupBulkStatusModal({
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 px-6 py-4">
+        <div className="flex flex-wrap items-center justify-end gap-2 border-t border-slate-200 px-6 py-4">
           <button
             type="button"
             onClick={onClose}

@@ -854,8 +854,9 @@ export function AccountCreateModal({ isOpen, onClose, onSubmit }: AccountCreateM
 
           </div>
         </form>
-        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 px-6 py-4">
-          <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3 border-t border-slate-200 px-6 py-4">
+          {optionsLoading ? <span className="mr-auto text-xs text-gray-500">Loading options...</span> : null}
+          <div className="ml-auto flex items-center gap-2">
             <button
               type="button"
               onClick={onClose}
@@ -863,9 +864,6 @@ export function AccountCreateModal({ isOpen, onClose, onSubmit }: AccountCreateM
             >
               Cancel
             </button>
-            {optionsLoading ? <span className="text-xs text-gray-500">Loading options...</span> : null}
-          </div>
-          <div className="flex items-center gap-2">
             <button
               type="submit"
               form="account-create-form"

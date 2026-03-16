@@ -443,23 +443,21 @@ export function ExportModal({ entityType, isOpen, onClose, currentFilters, visib
         </div>
 
         {/* Footer */}
-        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 px-6 py-4">
-          {(step === 'settings' || step === 'completed') ? (
-            <button
-              onClick={onClose}
-              className="inline-flex min-w-[88px] items-center justify-center rounded border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-            >
-              {step === 'completed' ? 'Close' : 'Cancel'}
-            </button>
-          ) : (
-            <div />
-          )}
-          <div className="flex flex-wrap items-center justify-end gap-3">
-            <div className="text-sm text-gray-500">
-              {step === 'settings' && 'Configure your export settings'}
-              {step === 'processing' && 'Generating your export file...'}
-              {step === 'completed' && 'Ready for download'}
-            </div>
+        <div className="flex flex-wrap items-center gap-3 border-t border-slate-200 px-6 py-4">
+          <div className="mr-auto text-sm text-gray-500">
+            {step === 'settings' && 'Configure your export settings'}
+            {step === 'processing' && 'Generating your export file...'}
+            {step === 'completed' && 'Ready for download'}
+          </div>
+          <div className="ml-auto flex flex-wrap items-center justify-end gap-3">
+            {(step === 'settings' || step === 'completed') ? (
+              <button
+                onClick={onClose}
+                className="inline-flex min-w-[88px] items-center justify-center rounded border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                {step === 'completed' ? 'Close' : 'Cancel'}
+              </button>
+            ) : null}
             {step === 'settings' && (
               <button
                 onClick={startExport}

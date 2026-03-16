@@ -1158,15 +1158,14 @@ export function AccountReassignmentModal({
         </div>
 
         {/* Footer */}
-        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 bg-gray-50 px-6 py-4">
-          <button
-            onClick={onClose}
-            className="inline-flex min-w-[88px] items-center justify-center rounded border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-          >
-            Cancel
-          </button>
-
-          <div className="flex flex-wrap items-center justify-end gap-2">
+        <div className="flex flex-wrap items-center gap-2 border-t border-slate-200 bg-gray-50 px-6 py-4">
+          <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+            <button
+              onClick={onClose}
+              className="inline-flex min-w-[88px] items-center justify-center rounded border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+            >
+              Cancel
+            </button>
             {step !== 'selection' && (
               <button
                 onClick={handlePrevious}
