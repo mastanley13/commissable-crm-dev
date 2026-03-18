@@ -3,6 +3,8 @@ import { getTenantVarianceTolerance } from "@/lib/matching/settings"
 import type { MatchSelectionType } from "@/lib/matching/match-selection"
 import { analyzeBundleLineRates, formatRatePercentFromFraction, roundMoney, toNumber } from "@/lib/matching/bundle-replacement"
 import { findCrossDealGuardIssues } from "@/lib/matching/cross-deal-guard"
+import { evaluateFlexDecision } from "@/lib/flex/revenue-schedule-flex-decision"
+import { isBonusLikeProduct } from "@/lib/flex/bonus-detection"
 
 type PrismaClientOrTx = PrismaClient | Prisma.TransactionClient
 
@@ -86,6 +88,24 @@ export type MatchGroupPreviewScheduleSummary = {
   withinToleranceAfter: boolean
 }
 
+export type MatchGroupVariancePrompt = {
+  scheduleId: string
+  scheduleNumber: string
+  scheduleDate: string | null
+  expectedUsageNet: number
+  expectedCommissionNet: number
+  actualUsageNetAfter: number
+  actualCommissionNetAfter: number
+  usageBalanceAfter: number
+  commissionDifferenceAfter: number
+  usageOverage: number
+  commissionOverage: number
+  usageToleranceAmount: number
+  commissionToleranceAmount: number
+  allowedPromptOptions: Array<"Adjust" | "FlexProduct">
+  message: string
+}
+
 export type MatchGroupPreviewResult =
   | {
       ok: true
@@ -97,6 +117,7 @@ export type MatchGroupPreviewResult =
       issues: MatchGroupIssue[]
       lines: MatchGroupPreviewLineSummary[]
       schedules: MatchGroupPreviewScheduleSummary[]
+      variancePrompts: MatchGroupVariancePrompt[]
     }
   | {
       ok: false
@@ -356,6 +377,7 @@ export async function buildMatchGroupPreview(
         id: true,
         accountId: true,
         opportunityId: true,
+        scheduleNumber: true,
         scheduleDate: true,
         createdAt: true,
         expectedUsage: true,
@@ -363,6 +385,13 @@ export async function buildMatchGroupPreview(
         actualUsageAdjustment: true,
         expectedCommission: true,
         actualCommissionAdjustment: true,
+        product: {
+          select: {
+            revenueType: true,
+            productFamilyHouse: true,
+            productNameHouse: true,
+          },
+        },
         account: {
           select: {
             accountName: true,
@@ -474,12 +503,14 @@ export async function buildMatchGroupPreview(
     const actualCommissionAdjustment = toNumber(schedule.actualCommissionAdjustment)
     return {
       id: schedule.id,
+      scheduleNumber: schedule.scheduleNumber ?? null,
       scheduleDate: schedule.scheduleDate,
       createdAt: schedule.createdAt,
       expectedUsageNet,
       expectedCommissionNet,
       actualUsageAdjustment,
       actualCommissionAdjustment,
+      product: schedule.product ?? null,
     }
   })
 
@@ -753,6 +784,7 @@ export async function buildMatchGroupPreview(
   }
 
   const scheduleSummaries: MatchGroupPreviewScheduleSummary[] = []
+  const variancePrompts: MatchGroupVariancePrompt[] = []
   for (const schedule of scheduleMeta) {
     const before = scheduleBeforeMap.get(schedule.id) ?? { actualUsage: 0, actualCommission: 0, matchCount: 0 }
     const delta = scheduleDeltaMap.get(schedule.id) ?? { usage: 0, commission: 0 }
@@ -779,21 +811,61 @@ export async function buildMatchGroupPreview(
       varianceTolerance: tenantVarianceTolerance,
     })
 
+    const tolerance = Math.max(0, Math.min(tenantVarianceTolerance, 1))
+    const commissionToleranceAmount = Math.max(Math.abs(expectedCommissionNet) * tolerance, EPSILON)
+    const scheduleIsBonusLike = isBonusLikeProduct({
+      revenueType: schedule.product?.revenueType ?? null,
+      productFamilyHouse: schedule.product?.productFamilyHouse ?? null,
+      productNameHouse: schedule.product?.productNameHouse ?? null,
+    })
+    const flexDecision = evaluateFlexDecision({
+      expectedUsageNet,
+      usageBalance: usageBalanceAfter,
+      varianceTolerance: tenantVarianceTolerance,
+      hasNegativeLine: false,
+      isBonusLike: scheduleIsBonusLike,
+      expectedCommissionNet,
+      commissionDifference: commissionDifferenceAfter,
+    })
+
     if (!withinToleranceAfter) {
-      const level: MatchGroupIssue["level"] = "warning"
       const kind = usageBalanceAfter < -EPSILON || commissionDifferenceAfter < -EPSILON ? "overpaid" : "underpaid"
       const schedLabel = scheduleLabelMap.get(schedule.id) ?? "Schedule"
       const varianceAmt = Math.max(Math.abs(usageBalanceAfter), Math.abs(commissionDifferenceAfter))
-      const tolerance = Math.max(0, Math.min(tenantVarianceTolerance, 1))
       const toleranceAmt = Math.max(
         roundMoney(Math.abs(expectedUsageNet) * tolerance),
         roundMoney(Math.abs(expectedCommissionNet) * tolerance),
       )
+      const requiresResolution = flexDecision.action === "prompt"
       issues.push({
-        level,
-        code: `schedule_${kind}`,
-        message: `${schedLabel} will be ${kind} by ${fmtMoney(varianceAmt)} after apply (tolerance: ±${fmtMoney(toleranceAmt)}).`,
+        level: "warning",
+        code: requiresResolution ? "schedule_variance_resolution_required" : `schedule_${kind}`,
+        message: requiresResolution
+          ? `${schedLabel} exceeds variance tolerance by ${fmtMoney(varianceAmt)} and must be resolved before apply (tolerance: ±${fmtMoney(toleranceAmt)}).`
+          : `${schedLabel} will be ${kind} by ${fmtMoney(varianceAmt)} after apply (tolerance: ±${fmtMoney(toleranceAmt)}).`,
       })
+
+      if (requiresResolution) {
+        variancePrompts.push({
+          scheduleId: schedule.id,
+          scheduleNumber: schedule.scheduleNumber?.trim() || schedule.id,
+          scheduleDate: schedule.scheduleDate ? schedule.scheduleDate.toISOString() : null,
+          expectedUsageNet: roundMoney(expectedUsageNet),
+          expectedCommissionNet: roundMoney(expectedCommissionNet),
+          actualUsageNetAfter,
+          actualCommissionNetAfter,
+          usageBalanceAfter,
+          commissionDifferenceAfter,
+          usageOverage: roundMoney(flexDecision.usageOverage),
+          commissionOverage: roundMoney(commissionDifferenceAfter < -EPSILON ? Math.abs(commissionDifferenceAfter) : 0),
+          usageToleranceAmount: roundMoney(flexDecision.usageToleranceAmount),
+          commissionToleranceAmount: roundMoney(commissionToleranceAmount),
+          allowedPromptOptions: flexDecision.allowedPromptOptions.filter(
+            option => option === "Adjust" || option === "FlexProduct",
+          ),
+          message: `${schedLabel} exceeds variance tolerance and needs a resolution before this match can be applied.`,
+        })
+      }
     }
 
     scheduleSummaries.push({
@@ -837,5 +909,6 @@ export async function buildMatchGroupPreview(
     issues,
     lines: lineSummaries,
     schedules: scheduleSummaries,
+    variancePrompts,
   }
 }

@@ -322,15 +322,28 @@ html, body {
 /* Reconciliation live preview cells — compact inline diff */
 .recon-preview-cell {
   display: flex;
-  width: calc(100% + 32px);
+  width: calc(100% + var(--cell-px, 12px) * 2);
+  flex: 1 1 0%;
+  min-width: 0;
   min-height: 100%;
   align-items: center;
   justify-content: flex-end;
   gap: 6px;
-  margin: -8px -16px;
-  padding: 6px 14px;
+  margin: calc(-1 * var(--cell-py, 8px)) calc(-1 * var(--cell-px, 12px));
+  padding: var(--cell-py, 8px) var(--cell-px, 12px);
   border: 2px solid #f59e0b;
   background: rgba(255, 251, 235, 0.6);
+}
+
+/* Set CSS vars for each context so the preview cell fills edge-to-edge */
+.table-cell {
+  --cell-px: 12px;
+  --cell-py: 4px;
+}
+
+td > .recon-preview-cell {
+  --cell-px: 16px;
+  --cell-py: 8px;
 }
 
 .recon-preview-old {

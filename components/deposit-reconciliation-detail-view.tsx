@@ -2456,7 +2456,7 @@ export function DepositReconciliationDetailView({
       const formatted = formatValue(value)
 
       if (!preview?.changed[field]) {
-        return <span className="inline-flex w-full items-center justify-end">{formatted}</span>
+        return <span className="flex flex-1 items-center justify-end">{formatted}</span>
       }
 
       return (
@@ -2769,6 +2769,7 @@ export function DepositReconciliationDetailView({
         minWidth: minTextWidth(scheduleFieldLabels.actualUsage),
         sortable: true,
         hideable: false,
+        truncate: false,
         render: (value: number, row: SuggestedMatchScheduleRow) =>
           renderSchedulePreviewValue(row, "actualUsage", previewValue => currencyFormatter.format(previewValue), value)
       },
@@ -2819,6 +2820,7 @@ export function DepositReconciliationDetailView({
         minWidth: minTextWidth(scheduleFieldLabels.actualCommission),
         sortable: true,
         hideable: false,
+        truncate: false,
         render: (value: number, row: SuggestedMatchScheduleRow) =>
           renderSchedulePreviewValue(
             row,
@@ -2849,6 +2851,7 @@ export function DepositReconciliationDetailView({
         width: 240,
         minWidth: minTextWidth(scheduleFieldLabels.actualCommissionRatePercent),
         sortable: true,
+        truncate: false,
         render: (value: number, row: SuggestedMatchScheduleRow) =>
           renderSchedulePreviewValue(
             row,

@@ -138,6 +138,9 @@ export async function POST(
       }
 
       const autoFillAuditLogIdsFromApply = parseStringArray((applyMetadata as any)?.autoFillAuditLogIds)
+      const createdRevenueScheduleIds = parseStringArray((applyMetadata as any)?.createdRevenueScheduleIds)
+      const createdOpportunityProductIds = parseStringArray((applyMetadata as any)?.createdOpportunityProductIds)
+      const createdProductIds = parseStringArray((applyMetadata as any)?.createdProductIds)
 
       const matches = await tx.depositLineMatch.findMany({
         where: { tenantId, matchGroupId },
@@ -231,6 +234,24 @@ export async function POST(
 
       await tx.depositLineMatch.deleteMany({ where: { tenantId, matchGroupId } })
 
+      if (createdRevenueScheduleIds.length > 0) {
+        await tx.revenueSchedule.deleteMany({
+          where: { tenantId, id: { in: createdRevenueScheduleIds } },
+        })
+      }
+
+      if (createdOpportunityProductIds.length > 0) {
+        await tx.opportunityProduct.deleteMany({
+          where: { tenantId, id: { in: createdOpportunityProductIds } },
+        })
+      }
+
+      if (createdProductIds.length > 0) {
+        await tx.product.deleteMany({
+          where: { tenantId, id: { in: createdProductIds } },
+        })
+      }
+
       await tx.depositMatchGroup.update({
         where: { id: matchGroupId },
         data: {
@@ -248,13 +269,23 @@ export async function POST(
         recomputedLines.push(updated)
       }
 
-      const recomputedSchedules = await recomputeRevenueSchedules(tx, scheduleIds, tenantId, {
+      const recomputeScheduleIds = scheduleIds.filter(id => !createdRevenueScheduleIds.includes(id))
+
+      const recomputedSchedules = await recomputeRevenueSchedules(tx, recomputeScheduleIds, tenantId, {
         varianceTolerance,
       })
 
       const deposit = await recomputeDepositAggregates(tx, depositId, tenantId)
 
-      return { deposit, lineIds, scheduleIds, lines: recomputedLines, schedules: recomputedSchedules, schedulesBefore, autoFillUndoResults }
+      return {
+        deposit,
+        lineIds,
+        scheduleIds: recomputeScheduleIds,
+        lines: recomputedLines,
+        schedules: recomputedSchedules,
+        schedulesBefore,
+        autoFillUndoResults,
+      }
     })
 
     await logMatchingMetric({

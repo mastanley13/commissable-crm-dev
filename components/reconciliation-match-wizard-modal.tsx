@@ -31,12 +31,31 @@ const percentFormatter = new Intl.NumberFormat("en-US", {
 type AllocationDraft = MatchWizardAllocationDraft
 
 type PreviewIssue = { level: "error" | "warning"; code: string; message: string }
+type VarianceResolutionAction = "Adjust" | "FlexProduct"
+type PreviewVariancePrompt = {
+  scheduleId: string
+  scheduleNumber: string
+  scheduleDate: string | null
+  expectedUsageNet: number
+  expectedCommissionNet: number
+  actualUsageNetAfter: number
+  actualCommissionNetAfter: number
+  usageBalanceAfter: number
+  commissionDifferenceAfter: number
+  usageOverage: number
+  commissionOverage: number
+  usageToleranceAmount: number
+  commissionToleranceAmount: number
+  allowedPromptOptions: VarianceResolutionAction[]
+  message: string
+}
 type PreviewResponse =
   | { ok: false; issues: PreviewIssue[] }
   | {
       ok: true
       tenantVarianceTolerance: number
       issues: PreviewIssue[]
+      variancePrompts: PreviewVariancePrompt[]
       lines: Array<{
         lineId: string
         usage: number
@@ -73,6 +92,12 @@ type InlineBulkPromptState = {
   selectedCount: number
   entityLabelSingular: string
   entityLabelPlural: string
+}
+type VarianceResolutionModalState = {
+  scheduleId: string
+  selectedAction: VarianceResolutionAction | null
+  submitting: boolean
+  error: string | null
 }
 
 const AUTO_VALIDATION_DEBOUNCE_MS = 300
@@ -162,6 +187,267 @@ function MatchWizardSelectionTable(props: {
         </div>
       </div>
     </section>
+  )
+}
+
+function MatchWizardVarianceResolutionModal(props: {
+  open: boolean
+  prompt: PreviewVariancePrompt | null
+  schedule: SuggestedMatchScheduleRow | null
+  state: VarianceResolutionModalState | null
+  onClose: () => void
+  onSelectAction: (action: VarianceResolutionAction) => void
+  onSubmit: () => void
+}) {
+  if (!props.open || !props.prompt || !props.state) return null
+
+  const selectedAction = props.state.selectedAction
+  const scheduleLabel = props.schedule?.revenueScheduleName?.trim() || props.prompt.scheduleNumber
+  const usageBalanceAfter = props.prompt.usageBalanceAfter
+  const commissionDifferenceAfter = props.prompt.commissionDifferenceAfter
+  const usageBalanceTone = usageBalanceAfter < 0 ? "text-red-700" : "text-slate-700"
+  const commissionDiffTone = commissionDifferenceAfter < 0 ? "text-red-700" : "text-slate-700"
+
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/45 px-4 py-6" onClick={props.onClose}>
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="match-wizard-variance-resolution-title"
+        className="w-full max-w-4xl overflow-hidden rounded-2xl bg-slate-100 shadow-2xl"
+        onClick={event => event.stopPropagation()}
+      >
+        <div className="border-b border-blue-700 bg-gradient-to-r from-blue-950 via-blue-800 to-blue-700 px-6 py-4 text-white">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-100/90">Variance Resolution</p>
+          <h2 id="match-wizard-variance-resolution-title" className="mt-1 text-2xl font-semibold">
+            Resolve out-of-tolerance overage
+          </h2>
+          <p className="mt-1 text-sm text-blue-100/90">
+            {scheduleLabel} exceeds tolerance and must be resolved before this match can be applied.
+          </p>
+        </div>
+
+        <div className="space-y-5 px-6 py-5">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-amber-800">Usage Overage</p>
+              <p className="mt-1 text-xl font-semibold text-amber-950">{currencyFormatter.format(props.prompt.usageOverage)}</p>
+            </div>
+            <div className="rounded-lg border border-sky-200 bg-sky-50 px-4 py-3">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-sky-800">Usage Tolerance</p>
+              <p className="mt-1 text-xl font-semibold text-sky-950">
+                {currencyFormatter.format(props.prompt.usageToleranceAmount)}
+              </p>
+            </div>
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-amber-800">Comm Overage</p>
+              <p className="mt-1 text-xl font-semibold text-amber-950">
+                {currencyFormatter.format(props.prompt.commissionOverage)}
+              </p>
+            </div>
+            <div className="rounded-lg border border-sky-200 bg-sky-50 px-4 py-3">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-sky-800">Comm Tolerance</p>
+              <p className="mt-1 text-xl font-semibold text-sky-950">
+                {currencyFormatter.format(props.prompt.commissionToleranceAmount)}
+              </p>
+            </div>
+          </div>
+
+          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+            <table className="min-w-full text-left text-sm">
+              <thead className="bg-slate-100 text-xs font-semibold uppercase tracking-wide text-slate-600">
+                <tr>
+                  <th className="px-4 py-3">Schedule</th>
+                  <th className="px-4 py-3">Date</th>
+                  <th className="px-4 py-3">Expected Usage</th>
+                  <th className="px-4 py-3">Projected Usage</th>
+                  <th className="px-4 py-3">Usage Balance</th>
+                  <th className="px-4 py-3">Projected Comm</th>
+                  <th className="px-4 py-3">Comm Diff.</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="border-t border-slate-200 text-slate-800">
+                  <td className="px-4 py-3 font-semibold">{scheduleLabel}</td>
+                  <td className="px-4 py-3">{formatDate(props.prompt.scheduleDate)}</td>
+                  <td className="px-4 py-3">{currencyFormatter.format(props.prompt.expectedUsageNet)}</td>
+                  <td className="px-4 py-3">{currencyFormatter.format(props.prompt.actualUsageNetAfter)}</td>
+                  <td className={`px-4 py-3 font-semibold ${usageBalanceTone}`}>
+                    {currencyFormatter.format(props.prompt.usageBalanceAfter)}
+                  </td>
+                  <td className="px-4 py-3">{currencyFormatter.format(props.prompt.actualCommissionNetAfter)}</td>
+                  <td className={`px-4 py-3 font-semibold ${commissionDiffTone}`}>
+                    {currencyFormatter.format(props.prompt.commissionDifferenceAfter)}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <button
+              type="button"
+              onClick={() => props.onSelectAction("Adjust")}
+              className={cn(
+                "rounded-xl border px-4 py-4 text-left shadow-sm transition",
+                selectedAction === "Adjust"
+                  ? "border-[#2f6fe4] bg-[#eef5ff]"
+                  : "border-slate-300 bg-white hover:border-[#2f6fe4]",
+              )}
+            >
+              <p className="text-lg font-semibold text-slate-900">Adjust</p>
+              <p className="mt-2 text-sm text-slate-600">
+                Create an adjustment schedule for the overage and keep the base schedule aligned to expected totals.
+              </p>
+            </button>
+            <button
+              type="button"
+              onClick={() => props.onSelectAction("FlexProduct")}
+              disabled={!props.prompt.allowedPromptOptions.includes("FlexProduct")}
+              className={cn(
+                "rounded-xl border px-4 py-4 text-left shadow-sm transition disabled:cursor-not-allowed disabled:opacity-60",
+                selectedAction === "FlexProduct"
+                  ? "border-[#2f6fe4] bg-[#eef5ff]"
+                  : "border-slate-300 bg-white hover:border-[#2f6fe4]",
+              )}
+            >
+              <p className="text-lg font-semibold text-slate-900">Flex Product</p>
+              <p className="mt-2 text-sm text-slate-600">
+                Route the overage to a dedicated flex product schedule instead of absorbing it into the base schedule.
+              </p>
+            </button>
+          </div>
+
+          {props.state.error ? (
+            <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{props.state.error}</div>
+          ) : null}
+        </div>
+
+        <div className="flex items-center justify-end gap-2 border-t border-slate-200 px-6 py-4">
+          <button
+            type="button"
+            className="rounded border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+            onClick={props.onClose}
+            disabled={props.state.submitting}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="rounded bg-primary-600 px-3 py-2 text-sm font-semibold text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+            onClick={props.onSubmit}
+            disabled={!selectedAction || props.state.submitting}
+          >
+            {props.state.submitting ? "Saving..." : "Continue"}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function InlineEditableCurrencyCell(props: {
+  value: number
+  ariaLabel: string
+  changed: boolean
+  oldValue?: string
+  onCommit: (value: number) => void
+}) {
+  const { ariaLabel, changed, oldValue, onCommit, value } = props
+  const spanRef = useRef<HTMLSpanElement | null>(null)
+  const formattedValue = currencyFormatter.format(value)
+
+  useEffect(() => {
+    if (!spanRef.current) return
+    if (document.activeElement === spanRef.current) return
+    spanRef.current.innerText = formattedValue
+  }, [formattedValue])
+
+  const commit = useCallback(() => {
+    if (!spanRef.current) return
+
+    const rawText = spanRef.current.innerText.trim()
+    if (!rawText) {
+      spanRef.current.innerText = formattedValue
+      return
+    }
+
+    const sanitised = rawText.replace(/[^0-9.\-]/g, "")
+    const parsed = sanitised === "" ? Number.NaN : Number(sanitised)
+    if (Number.isNaN(parsed)) {
+      spanRef.current.innerText = formattedValue
+      return
+    }
+
+    const normalized = Math.max(0, roundAmount(parsed))
+    spanRef.current.innerText = currencyFormatter.format(normalized)
+    onCommit(normalized)
+  }, [formattedValue, onCommit])
+
+  if (changed && oldValue) {
+    return (
+      <span className="recon-preview-cell">
+        <span className="recon-preview-old">{oldValue}</span>
+        <span
+          ref={spanRef}
+          contentEditable
+          suppressContentEditableWarning
+          data-disable-row-click="true"
+          className="recon-preview-new min-w-0 truncate rounded focus:outline-none focus:ring-1 focus:ring-amber-400"
+          onFocus={event => {
+            const selection = window.getSelection()
+            if (!selection) return
+            const range = document.createRange()
+            range.selectNodeContents(event.currentTarget)
+            selection.removeAllRanges()
+            selection.addRange(range)
+          }}
+          onBlur={commit}
+          onKeyDown={event => {
+            if (event.key === "Enter") {
+              event.preventDefault()
+              commit()
+            }
+          }}
+          aria-label={ariaLabel}
+        >
+          {formattedValue}
+        </span>
+      </span>
+    )
+  }
+
+  return (
+    <span
+      ref={spanRef}
+      contentEditable
+      suppressContentEditableWarning
+      data-disable-row-click="true"
+      className={cn(
+        "block min-w-0 truncate rounded px-2 py-1 text-sm focus:outline-none",
+        changed
+          ? "bg-amber-50 font-semibold text-emerald-900 shadow-[inset_0_0_0_1px_rgb(252_191_36)]"
+          : "text-gray-900",
+      )}
+      onFocus={event => {
+        const selection = window.getSelection()
+        if (!selection) return
+        const range = document.createRange()
+        range.selectNodeContents(event.currentTarget)
+        selection.removeAllRanges()
+        selection.addRange(range)
+      }}
+      onBlur={commit}
+      onKeyDown={event => {
+        if (event.key === "Enter") {
+          event.preventDefault()
+          commit()
+        }
+      }}
+      aria-label={ariaLabel}
+    >
+      {formattedValue}
+    </span>
   )
 }
 
@@ -341,6 +627,8 @@ export function ReconciliationMatchWizardModal(props: {
   const [previewError, setPreviewError] = useState<string | null>(null)
   const [applyLoading, setApplyLoading] = useState(false)
   const [applyError, setApplyError] = useState<string | null>(null)
+  const [varianceResolutionSelections, setVarianceResolutionSelections] = useState<Record<string, VarianceResolutionAction>>({})
+  const [varianceResolutionModal, setVarianceResolutionModal] = useState<VarianceResolutionModalState | null>(null)
   const [appliedMatchGroupId, setAppliedMatchGroupId] = useState<string | null>(null)
   const [undoReason, setUndoReason] = useState("")
   const [undoLoading, setUndoLoading] = useState(false)
@@ -395,6 +683,8 @@ export function ReconciliationMatchWizardModal(props: {
     setPreviewError(null)
     setApplyLoading(false)
     setApplyError(null)
+    setVarianceResolutionSelections({})
+    setVarianceResolutionModal(null)
     setAppliedMatchGroupId(null)
     setUndoReason("")
     setUndoLoading(false)
@@ -539,6 +829,43 @@ export function ReconciliationMatchWizardModal(props: {
     return map
   }, [preview, previewUpToDate])
 
+  const variancePrompts = useMemo(() => {
+    if (!previewUpToDate || !preview || !preview.ok) return [] as PreviewVariancePrompt[]
+    return preview.variancePrompts ?? []
+  }, [preview, previewUpToDate])
+
+  const variancePromptMap = useMemo(() => {
+    const map = new Map<string, PreviewVariancePrompt>()
+    for (const prompt of variancePrompts) {
+      map.set(prompt.scheduleId, prompt)
+    }
+    return map
+  }, [variancePrompts])
+
+  const unresolvedVariancePrompts = useMemo(
+    () => variancePrompts.filter(prompt => !varianceResolutionSelections[prompt.scheduleId]),
+    [variancePrompts, varianceResolutionSelections],
+  )
+
+  useEffect(() => {
+    const validScheduleIds = new Set(variancePrompts.map(prompt => prompt.scheduleId))
+    setVarianceResolutionSelections(previous => {
+      const nextEntries = Object.entries(previous).filter(([scheduleId]) => validScheduleIds.has(scheduleId))
+      const isUnchanged =
+        nextEntries.length === Object.keys(previous).length &&
+        nextEntries.every(([scheduleId, action]) => previous[scheduleId] === action)
+      if (isUnchanged) {
+        return previous
+      }
+      return Object.fromEntries(nextEntries) as Record<string, VarianceResolutionAction>
+    })
+
+    setVarianceResolutionModal(previous => {
+      if (!previous) return previous
+      return validScheduleIds.has(previous.scheduleId) ? previous : null
+    })
+  }, [variancePrompts])
+
   const replacementRequiredIssue = useMemo(() => {
     const issues = preview?.issues ?? []
     return issues.find(issue => issue.code === "many_to_one_mixed_rate_requires_replacement") ?? null
@@ -553,8 +880,7 @@ export function ReconciliationMatchWizardModal(props: {
     effectiveType === "ManyToOne" && replacementRequiredIssue && !bundleAuditLogId,
   )
 
-  const inlineScheduleActualEditingEnabled =
-    effectiveType === "OneToMany" && supportsInlineActualEditing(effectiveType)
+  const inlineScheduleActualEditingEnabled = supportsInlineActualEditing(effectiveType)
   const inlineLineAllocationEditingEnabled =
     effectiveType === "ManyToOne" && manyToOneMode === "allocation" && !bundleAuditLogId && !replacementRequired
 
@@ -721,32 +1047,22 @@ export function ReconciliationMatchWizardModal(props: {
       schedule: SuggestedMatchScheduleRow
       field: keyof AllocationDraft
       value: number
-      changed: boolean
       ariaLabel: string
-      oldValue: string
     }) => {
-      const { ariaLabel, changed, field, oldValue, schedule, value } = params
+      const { ariaLabel, field, schedule, value } = params
+      const currentActual = field === "usage" ? Number(schedule.actualUsage ?? 0) : Number(schedule.actualCommission ?? 0)
       return (
-        <label className="flex min-w-[132px] flex-col items-end gap-1">
-          <input
-            type="number"
-            inputMode="decimal"
-            step="0.01"
-            min="0"
-            aria-label={ariaLabel}
-            className={cn(
-              "w-full rounded border px-2 py-1 text-right text-sm tabular-nums shadow-sm outline-none transition",
-              changed
-                ? "border-amber-300 bg-amber-50 font-semibold text-emerald-900"
-                : "border-slate-200 bg-white text-slate-800",
-            )}
-            value={value.toFixed(2)}
-            onChange={event => handleInlineActualEdit(schedule, field, event.target.value)}
-            onBlur={event => maybeOpenScheduleInlineBulkPrompt(schedule, field, event.target.value)}
-            onFocus={event => event.currentTarget.select()}
-          />
-          {changed ? <span className="text-[10px] text-slate-500">Current {oldValue}</span> : null}
-        </label>
+        <InlineEditableCurrencyCell
+          value={value}
+          ariaLabel={ariaLabel}
+          changed={Math.abs(value - currentActual) > 0.005}
+          oldValue={currencyFormatter.format(currentActual)}
+          onCommit={nextValue => {
+            const rawValue = nextValue.toFixed(2)
+            handleInlineActualEdit(schedule, field, rawValue)
+            maybeOpenScheduleInlineBulkPrompt(schedule, field, rawValue)
+          }}
+        />
       )
     },
     [handleInlineActualEdit, maybeOpenScheduleInlineBulkPrompt],
@@ -757,32 +1073,22 @@ export function ReconciliationMatchWizardModal(props: {
       line: DepositLineItemRow
       field: keyof AllocationDraft
       value: number
-      changed: boolean
       ariaLabel: string
-      oldValue: string
     }) => {
-      const { ariaLabel, changed, field, line, oldValue, value } = params
+      const { ariaLabel, field, line, value } = params
+      const currentAllocated = field === "usage" ? Number(line.usageAllocated ?? 0) : Number(line.commissionAllocated ?? 0)
       return (
-        <label className="flex min-w-[132px] flex-col items-end gap-1">
-          <input
-            type="number"
-            inputMode="decimal"
-            step="0.01"
-            min="0"
-            aria-label={ariaLabel}
-            className={cn(
-              "w-full rounded border px-2 py-1 text-right text-sm tabular-nums shadow-sm outline-none transition",
-              changed
-                ? "border-amber-300 bg-amber-50 font-semibold text-emerald-900"
-                : "border-slate-200 bg-white text-slate-800",
-            )}
-            value={value.toFixed(2)}
-            onChange={event => handleInlineLineAllocationEdit(line, field, event.target.value)}
-            onBlur={event => maybeOpenLineInlineBulkPrompt(line, field, event.target.value)}
-            onFocus={event => event.currentTarget.select()}
-          />
-          {changed ? <span className="text-[10px] text-slate-500">Current {oldValue}</span> : null}
-        </label>
+        <InlineEditableCurrencyCell
+          value={value}
+          ariaLabel={ariaLabel}
+          changed={Math.abs(value - currentAllocated) > 0.005}
+          oldValue={currencyFormatter.format(currentAllocated)}
+          onCommit={nextValue => {
+            const rawValue = nextValue.toFixed(2)
+            handleInlineLineAllocationEdit(line, field, rawValue)
+            maybeOpenLineInlineBulkPrompt(line, field, rawValue)
+          }}
+        />
       )
     },
     [handleInlineLineAllocationEdit, maybeOpenLineInlineBulkPrompt],
@@ -814,9 +1120,7 @@ export function ReconciliationMatchWizardModal(props: {
                 line,
                 field: "usage",
                 value: usageAllocatedAfter,
-                changed: Math.abs(usageAllocatedAfter - baseUsageAllocated) > 0.005,
                 ariaLabel: `Allocated usage for ${line.accountName || line.accountId || line.id}`,
-                oldValue: currencyFormatter.format(baseUsageAllocated),
               })
             : renderHighlightedPreviewValue(
                 currencyFormatter.format(usageAllocatedAfter),
@@ -835,9 +1139,7 @@ export function ReconciliationMatchWizardModal(props: {
                 line,
                 field: "commission",
                 value: commissionAllocatedAfter,
-                changed: Math.abs(commissionAllocatedAfter - baseCommissionAllocated) > 0.005,
                 ariaLabel: `Allocated commission for ${line.accountName || line.accountId || line.id}`,
-                oldValue: currencyFormatter.format(baseCommissionAllocated),
               })
             : renderHighlightedPreviewValue(
                 currencyFormatter.format(commissionAllocatedAfter),
@@ -910,9 +1212,7 @@ export function ReconciliationMatchWizardModal(props: {
                 schedule,
                 field: "usage",
                 value: actualUsageAfter,
-                changed: actualUsageChanged,
                 ariaLabel: `Actual usage for ${schedule.revenueScheduleName || schedule.id}`,
-                oldValue: currencyFormatter.format(baseActualUsage),
               })
             : renderHighlightedPreviewValue(
                 currencyFormatter.format(actualUsageAfter),
@@ -924,9 +1224,7 @@ export function ReconciliationMatchWizardModal(props: {
                 schedule,
                 field: "commission",
                 value: actualCommissionAfter,
-                changed: actualCommissionChanged,
                 ariaLabel: `Actual commission for ${schedule.revenueScheduleName || schedule.id}`,
-                oldValue: currencyFormatter.format(baseActualCommission),
               })
             : renderHighlightedPreviewValue(
                 currencyFormatter.format(actualCommissionAfter),
@@ -951,6 +1249,19 @@ export function ReconciliationMatchWizardModal(props: {
         ]
       }),
     [allocations, effectiveType, inlineActualTargets, inlineScheduleActualEditingEnabled, previewScheduleMap, renderEditableActualCell, selectedLines, selectedSchedules],
+  )
+
+  const activeVariancePrompt = useMemo(
+    () => (varianceResolutionModal ? variancePromptMap.get(varianceResolutionModal.scheduleId) ?? null : null),
+    [variancePromptMap, varianceResolutionModal],
+  )
+
+  const activeVarianceSchedule = useMemo(
+    () =>
+      varianceResolutionModal
+        ? selectedSchedules.find(schedule => schedule.id === varianceResolutionModal.scheduleId) ?? null
+        : null,
+    [selectedSchedules, varianceResolutionModal],
   )
 
   const showInlineManyToOneHelper =
@@ -1125,6 +1436,15 @@ export function ReconciliationMatchWizardModal(props: {
   )
 
   const validationStatus = useMemo(() => {
+    if (variancePrompts.length > 0 && validationState !== "error" && validationState !== "system_error") {
+      return {
+        className: "border-amber-200 bg-amber-50 text-amber-900",
+        title: "Variance resolution required",
+        message: "Submit opens the variance-resolution modal for the affected schedules.",
+        summary: "Preview found schedules that exceed tolerance and require resolution before apply.",
+      }
+    }
+
     switch (validationState) {
       case "valid":
         return {
@@ -1175,9 +1495,9 @@ export function ReconciliationMatchWizardModal(props: {
           title: "Preview is waiting",
           message: previewBlockedReason ?? "It will start when selection and allocations are ready.",
           summary: previewBlockedReason ?? "Complete selection and allocation to start preview.",
-        }
+      }
     }
-  }, [previewBlockedReason, validationState])
+  }, [previewBlockedReason, validationState, variancePrompts.length])
 
   const runPreview = useCallback(async () => {
     const runVersion = allocationsVersion
@@ -1283,6 +1603,42 @@ export function ReconciliationMatchWizardModal(props: {
     }
   }, [inlineBulkPrompt, selectedLines, selectedSchedules])
 
+  const openVarianceResolutionModal = useCallback((scheduleId: string) => {
+    setVarianceResolutionModal({
+      scheduleId,
+      selectedAction: varianceResolutionSelections[scheduleId] ?? null,
+      submitting: false,
+      error: null,
+    })
+  }, [varianceResolutionSelections])
+
+  const handleVarianceResolutionSelect = useCallback((action: VarianceResolutionAction) => {
+    setVarianceResolutionModal(previous => (previous ? { ...previous, selectedAction: action, error: null } : previous))
+  }, [])
+
+  const handleVarianceResolutionSubmit = useCallback(() => {
+    if (!varianceResolutionModal?.selectedAction) return
+
+    const nextSelections = {
+      ...varianceResolutionSelections,
+      [varianceResolutionModal.scheduleId]: varianceResolutionModal.selectedAction,
+    }
+    setVarianceResolutionSelections(nextSelections)
+
+    const remainingPrompts = variancePrompts.filter(prompt => !nextSelections[prompt.scheduleId])
+    if (remainingPrompts.length > 0) {
+      setVarianceResolutionModal({
+        scheduleId: remainingPrompts[0]!.scheduleId,
+        selectedAction: nextSelections[remainingPrompts[0]!.scheduleId] ?? null,
+        submitting: false,
+        error: null,
+      })
+      return
+    }
+
+    setVarianceResolutionModal(null)
+  }, [variancePrompts, varianceResolutionModal, varianceResolutionSelections])
+
   useEffect(() => {
     if (!isOpen) return
     if (!canProceedToPreview) return
@@ -1320,6 +1676,11 @@ export function ReconciliationMatchWizardModal(props: {
   }, [bundleAuditLogId, isOpen, replacementRequiredIssue])
 
   const applyMatchGroup = async () => {
+    if (unresolvedVariancePrompts.length > 0) {
+      openVarianceResolutionModal(unresolvedVariancePrompts[0]!.scheduleId)
+      return
+    }
+
     setApplyLoading(true)
     setApplyError(null)
     try {
@@ -1333,10 +1694,26 @@ export function ReconciliationMatchWizardModal(props: {
             lineIds: selectedLines.map(line => line.id),
             scheduleIds: selectedSchedules.map(schedule => schedule.id),
             allocations: allocationsPayload,
+            varianceResolutions: Object.entries(varianceResolutionSelections).map(([scheduleId, action]) => ({
+              scheduleId,
+              action,
+            })),
           }),
         },
       )
       const payload = await response.json().catch(() => null)
+      if (response.status === 409 && payload?.data?.requiresVarianceResolution) {
+        const returnedPreview = payload?.data?.preview as PreviewResponse | undefined
+        if (returnedPreview) {
+          setPreview(returnedPreview)
+          setPreviewVersion(allocationsVersion)
+        }
+        const firstPrompt = (payload?.data?.variancePrompts as PreviewVariancePrompt[] | undefined)?.[0]
+        if (firstPrompt?.scheduleId) {
+          openVarianceResolutionModal(firstPrompt.scheduleId)
+          return
+        }
+      }
       if (!response.ok) {
         const issues = payload?.issues as PreviewIssue[] | undefined
         const message = payload?.error || "Failed to apply match group"
@@ -1677,6 +2054,24 @@ export function ReconciliationMatchWizardModal(props: {
                               <ul className="mt-1 list-disc space-y-1 pl-5 text-sm">
                                 {validationIssues.filter(i => i.level === "warning").map((issue, idx) => (
                                   <li key={`warn-${issue.code}-${idx}`} className="text-amber-800">{issue.message}</li>
+                                ))}
+                              </ul>
+                            </>
+                          ) : null}
+                          {variancePrompts.length > 0 ? (
+                            <>
+                              <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-amber-700">
+                                Resolution Needed
+                              </p>
+                              <ul className="mt-1 list-disc space-y-1 pl-5 text-sm">
+                                {variancePrompts.map(prompt => (
+                                  <li key={`variance-${prompt.scheduleId}`} className="text-amber-800">
+                                    {prompt.scheduleNumber} exceeds tolerance by{" "}
+                                    {currencyFormatter.format(
+                                      Math.max(prompt.usageOverage, prompt.commissionOverage),
+                                    )}
+                                    .
+                                  </li>
                                 ))}
                               </ul>
                             </>
@@ -2051,6 +2446,15 @@ export function ReconciliationMatchWizardModal(props: {
           </button>
         </div>
       </div>
+      <MatchWizardVarianceResolutionModal
+        open={Boolean(activeVariancePrompt && varianceResolutionModal)}
+        prompt={activeVariancePrompt}
+        schedule={activeVarianceSchedule}
+        state={varianceResolutionModal}
+        onClose={() => setVarianceResolutionModal(null)}
+        onSelectAction={handleVarianceResolutionSelect}
+        onSubmit={handleVarianceResolutionSubmit}
+      />
       <RevenueBulkApplyPanel
         isOpen={Boolean(inlineBulkPrompt)}
         selectedCount={inlineBulkPrompt?.selectedCount ?? 0}

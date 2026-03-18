@@ -1,27 +1,301 @@
+import { randomUUID } from "crypto"
 import { NextRequest, NextResponse } from "next/server"
-import { AuditAction, DepositLineMatchSource, DepositLineMatchStatus, DepositMatchGroupStatus, DepositMatchType } from "@prisma/client"
+import {
+  AuditAction,
+  DepositLineMatchSource,
+  DepositLineMatchStatus,
+  DepositMatchGroupStatus,
+  DepositMatchType,
+  RevenueScheduleBillingStatus,
+  RevenueScheduleBillingStatusSource,
+  RevenueScheduleFlexClassification,
+  RevenueScheduleFlexReasonCode,
+  RevenueScheduleType,
+  Prisma,
+} from "@prisma/client"
 import { withPermissions, createErrorResponse } from "@/lib/api-auth"
 import { prisma } from "@/lib/db"
 import { recomputeDepositAggregates } from "@/lib/matching/deposit-aggregates"
 import { recomputeDepositLineItemAllocations } from "@/lib/matching/deposit-line-allocations"
 import { recomputeRevenueSchedules } from "@/lib/matching/revenue-schedule-status"
 import { getTenantVarianceTolerance } from "@/lib/matching/settings"
-import { buildMatchGroupPreview, type MatchGroupAllocationInput } from "@/lib/matching/match-group-preview"
+import {
+  buildMatchGroupPreview,
+  type MatchGroupAllocationInput,
+  type MatchGroupPreviewAllocation,
+} from "@/lib/matching/match-group-preview"
 import type { MatchSelectionType } from "@/lib/matching/match-selection"
 import { autoFillFromDepositMatch } from "@/lib/matching/auto-fill"
 import { getClientIP, getUserAgent, logAudit, logRevenueScheduleAudit } from "@/lib/audit"
 import { logMatchingMetric } from "@/lib/matching/metrics"
+import { generateChildRevenueScheduleName } from "@/lib/revenue-schedule-number"
+import { isBonusLikeProduct } from "@/lib/flex/bonus-detection"
 
 type ApplyRequestBody = {
   matchType: MatchSelectionType
   lineIds: string[]
   scheduleIds: string[]
   allocations?: MatchGroupAllocationInput[] | null
+  varianceResolutions?: Array<{
+    scheduleId: string
+    action: "Adjust" | "FlexProduct"
+  }> | null
 }
 
 function toNumber(value: unknown): number {
   const numeric = Number(value ?? 0)
   return Number.isFinite(numeric) ? numeric : 0
+}
+
+const EPSILON = 0.005
+
+function roundMoney(value: number): number {
+  return Math.round(value * 100) / 100
+}
+
+function isEffectivelyZero(value: number): boolean {
+  return Math.abs(value) <= EPSILON
+}
+
+type NormalizedVarianceResolution = {
+  scheduleId: string
+  action: "Adjust" | "FlexProduct"
+}
+
+function normalizeVarianceResolutionInput(value: ApplyRequestBody["varianceResolutions"]): NormalizedVarianceResolution[] {
+  if (!Array.isArray(value)) return []
+  const out: NormalizedVarianceResolution[] = []
+  for (const item of value) {
+    const scheduleId = typeof item?.scheduleId === "string" ? item.scheduleId.trim() : ""
+    const action = item?.action
+    if (!scheduleId || (action !== "Adjust" && action !== "FlexProduct")) continue
+    out.push({ scheduleId, action })
+  }
+  return out
+}
+
+type ResolutionMutationArtifacts = {
+  createdRevenueScheduleIds: string[]
+  createdOpportunityProductIds: string[]
+  createdProductIds: string[]
+}
+
+type TransformedAllocation = MatchGroupPreviewAllocation
+
+function buildFlexProductScheduleNumber(parentScheduleNumber: string | null | undefined, fallbackId: string): string {
+  const trimmedParent = typeof parentScheduleNumber === "string" ? parentScheduleNumber.trim() : ""
+  const base = trimmedParent || fallbackId.trim() || fallbackId
+  return `FLEX-${base}`
+}
+
+function distributeResolvedAllocation(params: {
+  allocations: TransformedAllocation[]
+  splitUsage: number
+  splitCommission: number
+  childScheduleId: string
+}): TransformedAllocation[] {
+  const remainingUsageByKey = new Map<string, number>()
+  const remainingCommissionByKey = new Map<string, number>()
+
+  let usageRemaining = roundMoney(params.splitUsage)
+  for (const allocation of params.allocations) {
+    const key = `${allocation.lineId}:${allocation.scheduleId}`
+    const moveUsage = Math.min(roundMoney(allocation.usageAmount), usageRemaining)
+    remainingUsageByKey.set(key, moveUsage)
+    usageRemaining = roundMoney(usageRemaining - moveUsage)
+  }
+
+  if (usageRemaining > 0.01) {
+    throw new Error("Unable to split the full usage overage from the selected grouped allocations")
+  }
+
+  let commissionRemaining = roundMoney(params.splitCommission)
+  for (const allocation of params.allocations) {
+    const key = `${allocation.lineId}:${allocation.scheduleId}`
+    const moveCommission = Math.min(roundMoney(allocation.commissionAmount), commissionRemaining)
+    remainingCommissionByKey.set(key, moveCommission)
+    commissionRemaining = roundMoney(commissionRemaining - moveCommission)
+  }
+
+  if (commissionRemaining > 0.01) {
+    throw new Error("Unable to split the full commission overage from the selected grouped allocations")
+  }
+
+  const transformed: TransformedAllocation[] = []
+  for (const allocation of params.allocations) {
+    const key = `${allocation.lineId}:${allocation.scheduleId}`
+    const movedUsage = remainingUsageByKey.get(key) ?? 0
+    const movedCommission = remainingCommissionByKey.get(key) ?? 0
+    const nextBaseUsage = roundMoney(allocation.usageAmount - movedUsage)
+    const nextBaseCommission = roundMoney(allocation.commissionAmount - movedCommission)
+
+    transformed.push({
+      ...allocation,
+      usageAmount: nextBaseUsage,
+      commissionAmount: nextBaseCommission,
+    })
+
+    if (!isEffectivelyZero(movedUsage) || !isEffectivelyZero(movedCommission)) {
+      transformed.push({
+        lineId: allocation.lineId,
+        scheduleId: params.childScheduleId,
+        usageAmount: roundMoney(movedUsage),
+        commissionAmount: roundMoney(movedCommission),
+        existingMatchId: null,
+        existingApplied: false,
+      })
+    }
+  }
+
+  return transformed
+}
+
+async function createResolutionSchedule(
+  tx: Prisma.TransactionClient,
+  params: {
+    tenantId: string
+    scheduleId: string
+    action: "Adjust" | "FlexProduct"
+    splitUsage: number
+    splitCommission: number
+  },
+): Promise<{ scheduleId: string } & ResolutionMutationArtifacts> {
+  const baseSchedule = await tx.revenueSchedule.findFirst({
+    where: { tenantId: params.tenantId, id: params.scheduleId, deletedAt: null },
+    select: {
+      id: true,
+      accountId: true,
+      opportunityId: true,
+      opportunityProductId: true,
+      distributorAccountId: true,
+      vendorAccountId: true,
+      productId: true,
+      scheduleDate: true,
+      scheduleNumber: true,
+      product: {
+        select: {
+          revenueType: true,
+          productNameVendor: true,
+          productFamilyHouse: true,
+          productNameHouse: true,
+        },
+      },
+    },
+  })
+
+  if (!baseSchedule) {
+    throw new Error("Revenue schedule not found")
+  }
+
+  if (params.action === "Adjust") {
+    const isBonusLike = isBonusLikeProduct({
+      revenueType: baseSchedule.product?.revenueType ?? null,
+      productFamilyHouse: baseSchedule.product?.productFamilyHouse ?? null,
+      productNameHouse: baseSchedule.product?.productNameHouse ?? null,
+    })
+    const flexClassification = isBonusLike
+      ? RevenueScheduleFlexClassification.Bonus
+      : RevenueScheduleFlexClassification.Adjustment
+    const flexReasonCode = isBonusLike
+      ? RevenueScheduleFlexReasonCode.BonusVariance
+      : RevenueScheduleFlexReasonCode.OverageOutsideTolerance
+
+    const createdSchedule = await tx.revenueSchedule.create({
+      data: {
+        tenantId: params.tenantId,
+        opportunityId: baseSchedule.opportunityId ?? null,
+        opportunityProductId: baseSchedule.opportunityProductId ?? null,
+        parentRevenueScheduleId: baseSchedule.id,
+        accountId: baseSchedule.accountId,
+        productId: baseSchedule.productId,
+        distributorAccountId: baseSchedule.distributorAccountId,
+        vendorAccountId: baseSchedule.vendorAccountId,
+        scheduleDate: baseSchedule.scheduleDate,
+        scheduleType: RevenueScheduleType.OneTime,
+        expectedUsage: roundMoney(params.splitUsage),
+        expectedCommission: roundMoney(params.splitCommission),
+        flexClassification,
+        flexReasonCode,
+        scheduleNumber: await generateChildRevenueScheduleName(tx as any, baseSchedule.id),
+        billingStatus: RevenueScheduleBillingStatus.Open,
+        billingStatusSource: RevenueScheduleBillingStatusSource.Auto,
+        billingStatusUpdatedAt: new Date(),
+        billingStatusReason: `AutoFlexCreate:${String(flexClassification)}`,
+      } as any,
+      select: { id: true },
+    })
+
+    return {
+      scheduleId: createdSchedule.id,
+      createdRevenueScheduleIds: [createdSchedule.id],
+      createdOpportunityProductIds: [],
+      createdProductIds: [],
+    }
+  }
+
+  const createdProduct = await tx.product.create({
+    data: {
+      tenantId: params.tenantId,
+      productCode: `FLEX-${randomUUID().slice(0, 8).toUpperCase()}`,
+      productNameHouse: "Flex Product",
+      productNameVendor: baseSchedule.product?.productNameVendor ?? "Flex Product",
+      revenueType: baseSchedule.product?.revenueType ?? "MRC_ThirdParty",
+      isActive: true,
+      isFlex: true,
+      flexAccountId: baseSchedule.accountId,
+      flexType: "FlexProduct",
+      vendorAccountId: baseSchedule.vendorAccountId,
+      distributorAccountId: baseSchedule.distributorAccountId,
+    } as any,
+    select: { id: true },
+  })
+
+  const createdOpportunityProduct = baseSchedule.opportunityId
+    ? await tx.opportunityProduct.create({
+        data: {
+          tenantId: params.tenantId,
+          opportunityId: baseSchedule.opportunityId,
+          productId: createdProduct.id,
+          distributorAccountIdSnapshot: baseSchedule.distributorAccountId ?? null,
+          vendorAccountIdSnapshot: baseSchedule.vendorAccountId ?? null,
+          expectedUsage: roundMoney(params.splitUsage),
+          expectedCommission: roundMoney(params.splitCommission),
+        },
+        select: { id: true },
+      })
+    : null
+
+  const createdSchedule = await tx.revenueSchedule.create({
+    data: {
+      tenantId: params.tenantId,
+      opportunityId: baseSchedule.opportunityId ?? null,
+      opportunityProductId: createdOpportunityProduct?.id ?? null,
+      parentRevenueScheduleId: baseSchedule.id,
+      accountId: baseSchedule.accountId,
+      productId: createdProduct.id,
+      distributorAccountId: baseSchedule.distributorAccountId,
+      vendorAccountId: baseSchedule.vendorAccountId,
+      scheduleDate: baseSchedule.scheduleDate,
+      scheduleType: RevenueScheduleType.OneTime,
+      expectedUsage: roundMoney(params.splitUsage),
+      expectedCommission: roundMoney(params.splitCommission),
+      flexClassification: RevenueScheduleFlexClassification.FlexProduct,
+      flexReasonCode: RevenueScheduleFlexReasonCode.OverageOutsideTolerance,
+      scheduleNumber: buildFlexProductScheduleNumber(baseSchedule.scheduleNumber, baseSchedule.id),
+      billingStatus: RevenueScheduleBillingStatus.InDispute,
+      billingStatusSource: RevenueScheduleBillingStatusSource.Auto,
+      billingStatusUpdatedAt: new Date(),
+      billingStatusReason: `AutoFlexCreate:${String(RevenueScheduleFlexClassification.FlexProduct)}`,
+    } as any,
+    select: { id: true },
+  })
+
+  return {
+    scheduleId: createdSchedule.id,
+    createdRevenueScheduleIds: [createdSchedule.id],
+    createdOpportunityProductIds: createdOpportunityProduct ? [createdOpportunityProduct.id] : [],
+    createdProductIds: [createdProduct.id],
+  }
 }
 
 export async function POST(
@@ -63,10 +337,35 @@ export async function POST(
       return NextResponse.json({ error: "Preview validation failed", issues: preview.issues }, { status: 400 })
     }
 
-    const allocations = preview.normalizedAllocations.filter(
+    const requestedResolutions = normalizeVarianceResolutionInput(body.varianceResolutions)
+    const resolutionByScheduleId = new Map(requestedResolutions.map(item => [item.scheduleId, item.action]))
+    const unresolvedVariancePrompts = preview.variancePrompts.filter(prompt => !resolutionByScheduleId.has(prompt.scheduleId))
+    if (unresolvedVariancePrompts.length > 0) {
+      return NextResponse.json(
+        {
+          error: "Variance resolution required",
+          data: {
+            requiresVarianceResolution: true,
+            variancePrompts: preview.variancePrompts,
+            preview,
+          },
+        },
+        { status: 409 },
+      )
+    }
+
+    for (const prompt of preview.variancePrompts) {
+      const selectedAction = resolutionByScheduleId.get(prompt.scheduleId)
+      if (!selectedAction) continue
+      if (!prompt.allowedPromptOptions.includes(selectedAction)) {
+        return createErrorResponse(`Invalid variance resolution selected for schedule ${prompt.scheduleNumber}`, 400)
+      }
+    }
+
+    const baseAllocations = preview.normalizedAllocations.filter(
       allocation => allocation.usageAmount !== 0 || allocation.commissionAmount !== 0,
     )
-    if (allocations.length === 0) {
+    if (baseAllocations.length === 0) {
       return NextResponse.json({ error: "No non-zero allocations provided." }, { status: 400 })
     }
 
@@ -75,10 +374,74 @@ export async function POST(
     const userAgent = getUserAgent(request)
 
     const result = await prisma.$transaction(async tx => {
+      const transformedAllocations = [...preview.normalizedAllocations]
+      const resolutionArtifacts: ResolutionMutationArtifacts = {
+        createdRevenueScheduleIds: [],
+        createdOpportunityProductIds: [],
+        createdProductIds: [],
+      }
+
+      for (const prompt of preview.variancePrompts) {
+        const action = resolutionByScheduleId.get(prompt.scheduleId)
+        if (!action) continue
+
+        const allocationsForSchedule = transformedAllocations.filter(
+          allocation =>
+            allocation.scheduleId === prompt.scheduleId &&
+            (!isEffectivelyZero(allocation.usageAmount) || !isEffectivelyZero(allocation.commissionAmount)),
+        )
+        const totalUsageAvailable = roundMoney(
+          allocationsForSchedule.reduce((sum, allocation) => sum + toNumber(allocation.usageAmount), 0),
+        )
+        const totalCommissionAvailable = roundMoney(
+          allocationsForSchedule.reduce((sum, allocation) => sum + toNumber(allocation.commissionAmount), 0),
+        )
+
+        if (prompt.usageOverage > totalUsageAvailable + 0.01 || prompt.commissionOverage > totalCommissionAvailable + 0.01) {
+          throw new Error(
+            `Unable to resolve variance for ${prompt.scheduleNumber} because the selected grouped allocations do not cover the full overage`,
+          )
+        }
+
+        const created = await createResolutionSchedule(tx, {
+          tenantId,
+          scheduleId: prompt.scheduleId,
+          action,
+          splitUsage: prompt.usageOverage,
+          splitCommission: prompt.commissionOverage,
+        })
+
+        resolutionArtifacts.createdRevenueScheduleIds.push(...created.createdRevenueScheduleIds)
+        resolutionArtifacts.createdOpportunityProductIds.push(...created.createdOpportunityProductIds)
+        resolutionArtifacts.createdProductIds.push(...created.createdProductIds)
+
+        const untouchedAllocations = transformedAllocations.filter(allocation => allocation.scheduleId !== prompt.scheduleId)
+        const redistributedAllocations = distributeResolvedAllocation({
+          allocations: allocationsForSchedule,
+          splitUsage: prompt.usageOverage,
+          splitCommission: prompt.commissionOverage,
+          childScheduleId: created.scheduleId,
+        })
+
+        transformedAllocations.length = 0
+        transformedAllocations.push(...untouchedAllocations, ...redistributedAllocations)
+      }
+
+      const allocationsToPersist = transformedAllocations.filter(
+        allocation => !isEffectivelyZero(allocation.usageAmount) || !isEffectivelyZero(allocation.commissionAmount),
+      )
+      const scheduleIdsToRecompute = Array.from(
+        new Set([
+          ...preview.scheduleIds,
+          ...transformedAllocations.map(allocation => allocation.scheduleId),
+          ...resolutionArtifacts.createdRevenueScheduleIds,
+        ]),
+      )
+
       const schedulesBefore =
-        preview.scheduleIds.length > 0
+        scheduleIdsToRecompute.length > 0
           ? await tx.revenueSchedule.findMany({
-              where: { tenantId, id: { in: preview.scheduleIds } },
+              where: { tenantId, id: { in: scheduleIdsToRecompute } },
               select: { id: true, status: true, actualUsage: true, actualCommission: true },
             })
           : []
@@ -119,9 +482,9 @@ export async function POST(
         }
       >()
 
-      if (allocations.length > 0) {
-        const allocationLineIds = Array.from(new Set(allocations.map(allocation => allocation.lineId)))
-        const allocationScheduleIds = Array.from(new Set(allocations.map(allocation => allocation.scheduleId)))
+      if (transformedAllocations.length > 0) {
+        const allocationLineIds = Array.from(new Set(transformedAllocations.map(allocation => allocation.lineId)))
+        const allocationScheduleIds = Array.from(new Set(transformedAllocations.map(allocation => allocation.scheduleId)))
 
         const existingPairs = await tx.depositLineMatch.findMany({
           where: {
@@ -147,9 +510,9 @@ export async function POST(
       }
 
       const autoFillAuditLogIds: string[] = []
-
       const capturedExistingMatchKeys = new Set<string>()
-      for (const allocation of allocations) {
+
+      for (const allocation of transformedAllocations) {
         const pairKey = `${allocation.lineId}:${allocation.scheduleId}`
         const existing = existingMatchByPairKey.get(pairKey)
         if (existing && !capturedExistingMatchKeys.has(pairKey)) {
@@ -166,6 +529,13 @@ export async function POST(
           })
         }
 
+        if (isEffectivelyZero(allocation.usageAmount) && isEffectivelyZero(allocation.commissionAmount)) {
+          if (existing) {
+            await tx.depositLineMatch.delete({ where: { id: existing.id } })
+          }
+          continue
+        }
+
         const match = await tx.depositLineMatch.upsert({
           where: {
             depositLineItemId_revenueScheduleId: {
@@ -180,14 +550,18 @@ export async function POST(
             usageAmount: allocation.usageAmount,
             commissionAmount: allocation.commissionAmount,
             status: DepositLineMatchStatus.Applied,
-            source: DepositLineMatchSource.Manual,
+            source: resolutionArtifacts.createdRevenueScheduleIds.includes(allocation.scheduleId)
+              ? DepositLineMatchSource.Auto
+              : DepositLineMatchSource.Manual,
             matchGroupId: group.id,
           },
           update: {
             usageAmount: allocation.usageAmount,
             commissionAmount: allocation.commissionAmount,
             status: DepositLineMatchStatus.Applied,
-            source: DepositLineMatchSource.Manual,
+            source: resolutionArtifacts.createdRevenueScheduleIds.includes(allocation.scheduleId)
+              ? DepositLineMatchSource.Auto
+              : DepositLineMatchSource.Manual,
             matchGroupId: group.id,
           },
           select: { id: true, depositLineItemId: true, revenueScheduleId: true },
@@ -216,7 +590,7 @@ export async function POST(
         recomputedLines.push(updated)
       }
 
-      const recomputedSchedules = await recomputeRevenueSchedules(tx, preview.scheduleIds, tenantId, {
+      const recomputedSchedules = await recomputeRevenueSchedules(tx, scheduleIdsToRecompute, tenantId, {
         varianceTolerance,
       })
 
@@ -230,6 +604,8 @@ export async function POST(
         schedulesBefore,
         autoFillAuditLogIds,
         existingMatchesBefore,
+        resolutionArtifacts,
+        appliedAllocationCount: allocationsToPersist.length,
       }
     })
 
@@ -244,7 +620,7 @@ export async function POST(
         matchType: String(preview.matchType),
         lineCount: preview.lineIds.length,
         scheduleCount: preview.scheduleIds.length,
-        allocationCount: allocations.length,
+        allocationCount: result.appliedAllocationCount,
       },
     })
 
@@ -290,10 +666,14 @@ export async function POST(
         matchType: String(preview.matchType),
         lineIds: preview.lineIds,
         scheduleIds: preview.scheduleIds,
-        allocationCount: allocations.length,
+        allocationCount: result.appliedAllocationCount,
         existingMatchCount: (result as any).existingMatchesBefore?.length ?? 0,
         existingMatchesBefore: (result as any).existingMatchesBefore ?? [],
         autoFillAuditLogIds: (result as any).autoFillAuditLogIds ?? [],
+        createdRevenueScheduleIds: (result as any).resolutionArtifacts?.createdRevenueScheduleIds ?? [],
+        createdOpportunityProductIds: (result as any).resolutionArtifacts?.createdOpportunityProductIds ?? [],
+        createdProductIds: (result as any).resolutionArtifacts?.createdProductIds ?? [],
+        varianceResolutions: requestedResolutions,
       },
     })
 
