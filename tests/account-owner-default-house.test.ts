@@ -15,15 +15,7 @@ function makeCreateAccountRequest(params: { sessionToken: string; payload: unkno
   })
 }
 
-integrationTest("RB-ACC-002: House accounts default owner to an active ADMIN user", async ctx => {
-  const routeModule = await import("../app/api/accounts/route")
-  const POST = (routeModule as any).POST ?? (routeModule as any).default?.POST
-  assert.equal(typeof POST, "function")
-
-  const dbModule = await import("../lib/db")
-  const prisma = (dbModule as any).prisma ?? (dbModule as any).default?.prisma
-  assert.ok(prisma, "Expected prisma export from lib/db")
-
+async function ensureAccountsManagePermission(prisma: any, tenantId: string, roleId: string) {
   const accountsManagePerm = await prisma.permission.upsert({
     where: { code: "accounts.manage" },
     update: {},
@@ -33,9 +25,21 @@ integrationTest("RB-ACC-002: House accounts default owner to an active ADMIN use
 
   await prisma.rolePermission
     .create({
-      data: { tenantId: ctx.tenantId, roleId: ctx.roleId, permissionId: accountsManagePerm.id },
+      data: { tenantId, roleId, permissionId: accountsManagePerm.id },
     })
     .catch(() => null)
+}
+
+integrationTest("RB-ACC-002: House accounts default owner to an active ADMIN user", async ctx => {
+  const routeModule = await import("../app/api/accounts/route")
+  const POST = (routeModule as any).POST ?? (routeModule as any).default?.POST
+  assert.equal(typeof POST, "function")
+
+  const dbModule = await import("../lib/db")
+  const prisma = (dbModule as any).prisma ?? (dbModule as any).default?.prisma
+  assert.ok(prisma, "Expected prisma export from lib/db")
+
+  await ensureAccountsManagePermission(prisma, ctx.tenantId, ctx.roleId)
 
   const houseType = await prisma.accountType.create({
     data: { tenantId: ctx.tenantId, code: "HOUSE_REP", name: "House" },
@@ -91,3 +95,68 @@ integrationTest("RB-ACC-002: House accounts default owner to an active ADMIN use
   assert.equal(nonHouseBody.data?.accountOwnerId ?? null, null)
 })
 
+integrationTest("ACC-CREATE-ROLLBACK: duplicate account creation does not leave parent accounts or addresses behind", async ctx => {
+  const routeModule = await import("../app/api/accounts/route")
+  const POST = (routeModule as any).POST ?? (routeModule as any).default?.POST
+  assert.equal(typeof POST, "function")
+
+  const dbModule = await import("../lib/db")
+  const prisma = (dbModule as any).prisma ?? (dbModule as any).default?.prisma
+  assert.ok(prisma, "Expected prisma export from lib/db")
+
+  await ensureAccountsManagePermission(prisma, ctx.tenantId, ctx.roleId)
+
+  const customerType = await prisma.accountType.create({
+    data: { tenantId: ctx.tenantId, code: "ROLLBACK_TEST", name: "Rollback Test" },
+    select: { id: true },
+  })
+
+  await prisma.account.create({
+    data: {
+      tenantId: ctx.tenantId,
+      accountTypeId: customerType.id,
+      accountName: "Duplicate Account",
+    },
+  })
+
+  const addressCountBefore = await prisma.address.count({ where: { tenantId: ctx.tenantId } })
+
+  const response = await POST(
+    makeCreateAccountRequest({
+      sessionToken: ctx.sessionToken,
+      payload: {
+        accountName: "Duplicate Account",
+        accountTypeId: customerType.id,
+        newParentAccountName: "Transient Parent Account",
+        billingSameAsShipping: false,
+        shippingAddress: {
+          line1: "100 Main St",
+          city: "Austin",
+          state: "TX",
+          postalCode: "78701",
+          country: "United States",
+        },
+        billingAddress: {
+          line1: "200 Billing St",
+          city: "Austin",
+          state: "TX",
+          postalCode: "78702",
+          country: "United States",
+        },
+      },
+    }),
+  )
+
+  assertStatus(response, 409)
+  const body = await readJson<{ error?: string }>(response)
+  assert.equal(body.error, "An account with this name already exists.")
+
+  const addressCountAfter = await prisma.address.count({ where: { tenantId: ctx.tenantId } })
+  assert.equal(addressCountAfter, addressCountBefore)
+
+  const transientParent = await prisma.account.findFirst({
+    where: { tenantId: ctx.tenantId, accountName: "Transient Parent Account" },
+    select: { id: true },
+  })
+  assert.equal(transientParent, null)
+})

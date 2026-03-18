@@ -112,8 +112,10 @@ export async function recomputeDepositLineItemAllocations(
           }))
           .sort((a, b) => b.weight - a.weight)[0]?.id ?? null
 
-  const usageUnallocated = Math.max(usage - usageAllocated, 0)
-  const commissionUnallocated = Math.max(commission - commissionAllocated, 0)
+  // Preserve the signed remainder so chargebacks and other negative lines can round-trip
+  // back to their original imported values after an undo/unmatch.
+  const usageUnallocated = usage - usageAllocated
+  const commissionUnallocated = commission - commissionAllocated
 
   const updated = await client.depositLineItem.update({
     where: { id: depositLineItemId },
@@ -139,4 +141,3 @@ export async function recomputeDepositLineItemAllocations(
     } satisfies DepositLineAllocationTotals,
   }
 }
-

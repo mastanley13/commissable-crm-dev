@@ -9,6 +9,7 @@ import {
 } from "@prisma/client"
 import { isActivityOpen } from "@/lib/activity-status"
 import { isSubjectMatterExpertCommissionRole, resolveCommissionRole } from "@/lib/commission-roles"
+import { resolveDisplayAddress } from "@/lib/address-format"
 import { resolveOtherSource, resolveOtherValue } from "@/lib/other-field"
 
 type RelatedAccount = {
@@ -452,28 +453,6 @@ function normalizeStatus(status?: OpportunityStatus | string | null): Opportunit
   return OpportunityStatus.Open
 }
 
-function normalizeStringOrNull(value: unknown): string | null {
-  if (typeof value !== "string") {
-    return null
-  }
-  const trimmed = value.trim()
-  return trimmed.length > 0 ? trimmed : null
-}
-
-function formatAccountAddress(addr?: {
-  line1?: string | null
-  line2?: string | null
-  city?: string | null
-  state?: string | null
-  postalCode?: string | null
-} | null): string | null {
-  if (!addr) return null
-  const parts = [addr.line1, addr.line2, addr.city, addr.state, addr.postalCode]
-    .map((value) => (typeof value === "string" ? value.trim() : ""))
-    .filter(Boolean)
-  return parts.length > 0 ? parts.join(", ") : null
-}
-
 export function mapOpportunityToRow(opportunity: OpportunityWithRelations) {
   const ownerName = opportunity.owner?.fullName
     ?? `${opportunity.owner?.firstName ?? ""} ${opportunity.owner?.lastName ?? ""}`.trim()
@@ -559,15 +538,9 @@ export function mapOpportunityToRow(opportunity: OpportunityWithRelations) {
     [opportunity.orderIdVendor, opportunity.orderIdDistributor],
   ])
 
-  const shippingAddress =
-    normalizeStringOrNull(opportunity.shippingAddress) ??
-    formatAccountAddress(opportunity.account?.shippingAddress) ??
-    null
+  const shippingAddress = resolveDisplayAddress(opportunity.shippingAddress, opportunity.account?.shippingAddress)
 
-  const billingAddress =
-    normalizeStringOrNull(opportunity.billingAddress) ??
-    formatAccountAddress(opportunity.account?.billingAddress) ??
-    null
+  const billingAddress = resolveDisplayAddress(opportunity.billingAddress, opportunity.account?.billingAddress)
 
   return {
     id: opportunity.id,
@@ -1020,8 +993,8 @@ export function mapOpportunityToDetail(opportunity: OpportunityWithRelations): O
     lossReason: opportunity.lossReason ?? null,
     description: opportunity.description ?? null,
     subAgent: extractSubAgent(opportunity.description),
-    shippingAddress: normalizeStringOrNull(opportunity.shippingAddress) ?? formatAccountAddress(opportunity.account?.shippingAddress) ?? null,
-    billingAddress: normalizeStringOrNull(opportunity.billingAddress) ?? formatAccountAddress(opportunity.account?.billingAddress) ?? null,
+    shippingAddress: resolveDisplayAddress(opportunity.shippingAddress, opportunity.account?.shippingAddress),
+    billingAddress: resolveDisplayAddress(opportunity.billingAddress, opportunity.account?.billingAddress),
     subagentPercent: Number.isFinite(toNumber(opportunity.subagentPercent)) ? toNumber(opportunity.subagentPercent) : null,
     houseRepPercent: Number.isFinite(toNumber(opportunity.houseRepPercent)) ? toNumber(opportunity.houseRepPercent) : null,
     houseSplitPercent: Number.isFinite(toNumber(opportunity.houseSplitPercent)) ? toNumber(opportunity.houseSplitPercent) : null,

@@ -369,11 +369,25 @@ integrationTest("REC-UNMATCH-04: bulk unmatch removes suggested flex matches and
 
   const updatedLine = await prisma.depositLineItem.findFirst({
     where: { tenantId: ctx.tenantId, id: lineId },
-    select: { usage: true, commissionRate: true, status: true },
+    select: {
+      usage: true,
+      commission: true,
+      commissionRate: true,
+      status: true,
+      usageAllocated: true,
+      usageUnallocated: true,
+      commissionAllocated: true,
+      commissionUnallocated: true,
+    },
   })
   assert.equal(Number(updatedLine?.usage ?? 0), 0)
+  assert.equal(Number(updatedLine?.commission ?? 0), -5)
   assert.equal(updatedLine?.commissionRate, null)
   assert.equal(updatedLine?.status, "Unmatched")
+  assert.equal(Number(updatedLine?.usageAllocated ?? 0), 0)
+  assert.equal(Number(updatedLine?.usageUnallocated ?? 0), 0)
+  assert.equal(Number(updatedLine?.commissionAllocated ?? 0), 0)
+  assert.equal(Number(updatedLine?.commissionUnallocated ?? 0), -5)
 
   const deletedFlex = await prisma.revenueSchedule.findFirst({
     where: { tenantId: ctx.tenantId, id: createdFlex!.id },

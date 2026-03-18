@@ -1,4 +1,5 @@
 import { Prisma, RevenueScheduleBillingStatus, RevenueScheduleStatus } from "@prisma/client"
+import { resolveDisplayAddress } from "@/lib/address-format"
 import { getRevenueTypeLabel } from "@/lib/revenue-types"
 import { computeRevenueScheduleMetrics } from "@/lib/revenue-schedule-math"
 import { type OtherSource, resolveOtherSource, resolveOtherValue } from "@/lib/other-field"
@@ -249,32 +250,6 @@ function formatDate(value: Date | string | null | undefined): string | null {
     return null
   }
   return date.toISOString().slice(0, 10)
-}
-
-function formatAddress(address?: {
-  line1: string | null
-  line2: string | null
-  city: string | null
-  state: string | null
-  postalCode: string | null
-  country: string | null
-} | null): string | null {
-  if (!address) return null
-  const parts = [
-    address.line1,
-    address.line2,
-    address.city,
-    address.state,
-    address.postalCode,
-    address.country
-  ]
-    .map(part => (part ?? "").trim())
-    .filter(Boolean)
-
-  if (parts.length === 0) {
-    return null
-  }
-  return parts.join(", ")
 }
 
 function mapStatus(
@@ -543,8 +518,8 @@ export function mapRevenueScheduleToDetail(schedule: RevenueScheduleWithRelation
   return {
     ...listValues,
     legalName: schedule.account?.accountLegalName ?? null,
-    shippingAddress: formatAddress(schedule.account?.shippingAddress),
-    billingAddress: formatAddress(schedule.account?.billingAddress),
+    shippingAddress: resolveDisplayAddress(schedule.opportunity?.shippingAddress, schedule.account?.shippingAddress),
+    billingAddress: resolveDisplayAddress(schedule.opportunity?.billingAddress, schedule.account?.billingAddress),
     expectedCommissionRatePercent: formatPercentFromFraction(metrics.expectedRateFraction),
     actualCommissionRatePercent: formatPercentFromFraction(metrics.actualRateFraction),
     commissionRateDifference: formatPercentFromFraction(metrics.commissionRateDifferenceFraction),

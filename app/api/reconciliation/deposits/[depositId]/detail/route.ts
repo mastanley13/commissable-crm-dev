@@ -82,7 +82,7 @@ function mapDepositLineItem(deposit: any, line: any, index: number) {
     commissionAllocated: Number(line.commissionAllocated ?? 0),
     commissionUnallocated: Number(line.commissionUnallocated ?? 0),
     commissionRate: Number(line.commissionRate ?? 0),
-    accountId: line.accountIdVendor ?? line.accountId ?? "",
+    accountId: accountIdOther.value ?? "",
     customerIdVendor: line.customerIdVendor ?? "",
     orderIdVendor: line.orderIdVendor ?? "",
     accountIdOther: accountIdOther.value ?? "",

@@ -326,20 +326,27 @@ export function ReconciliationMatchWizardModal(props: {
   const autoValidationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [allocationExpanded, setAllocationExpanded] = useState(false)
 
+  const isOpen = props.open
+  const onClose = props.onClose
+  const depositId = props.depositId
+  const detectedType = props.detectedType
+  const initialSelectedSchedules = props.selectedSchedules
+  const onApplied = props.onApplied
+
   const selectedLines = props.selectedLines
   const selectedSchedules = wizardSchedules
 
   const lineCount = selectedLines.length
   const scheduleCount = selectedSchedules.length
-  const effectiveType = overrideType ?? props.detectedType
+  const effectiveType = overrideType ?? detectedType
 
   useEffect(() => {
-    if (!props.open) return
+    if (!isOpen) return
     setOverrideType(null)
     setPreview(null)
     setPreviewVersion(null)
     setAllocationsVersion(0)
-    setAllocationExpanded(false)
+    setAllocationExpanded(detectedType === "ManyToOne")
     setPreviewLoading(false)
     setPreviewError(null)
     setApplyLoading(false)
@@ -348,7 +355,7 @@ export function ReconciliationMatchWizardModal(props: {
     setUndoReason("")
     setUndoLoading(false)
     setUndoError(null)
-    setWizardSchedules(props.selectedSchedules)
+    setWizardSchedules(initialSelectedSchedules)
     setManyToOneMode("allocation")
     setBundleApplyMode("keep_old")
     setBundleApplyReason("")
@@ -366,15 +373,27 @@ export function ReconciliationMatchWizardModal(props: {
     }
     setAllocations(
       buildDefaultAllocations({
-        matchType: props.detectedType,
+        matchType: detectedType,
         lines: selectedLines,
-        schedules: props.selectedSchedules,
+        schedules: initialSelectedSchedules,
       }),
     )
-  }, [props.open, props.detectedType, props.selectedLines, props.selectedSchedules, selectedLines])
+  }, [detectedType, initialSelectedSchedules, isOpen, selectedLines])
 
   useEffect(() => {
-    if (!props.open) return
+    if (!isOpen) return
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return
+      onClose()
+    }
+
+    window.addEventListener("keydown", handleEscape)
+    return () => window.removeEventListener("keydown", handleEscape)
+  }, [isOpen, onClose])
+
+  useEffect(() => {
+    if (!isOpen) return
     setPreview(null)
     setPreviewVersion(null)
     setPreviewError(null)
@@ -395,17 +414,17 @@ export function ReconciliationMatchWizardModal(props: {
         schedules: selectedSchedules,
       }),
     )
-  }, [effectiveType, props.open, selectedLines, selectedSchedules])
+  }, [effectiveType, isOpen, selectedLines, selectedSchedules])
 
   const lineIdsKey = useMemo(() => selectedLines.map(line => line.id).join(","), [selectedLines])
   const scheduleIdsKey = useMemo(() => selectedSchedules.map(schedule => schedule.id).join(","), [selectedSchedules])
   const previewInputsKey = `${effectiveType}|${manyToOneMode}|${lineIdsKey}|${scheduleIdsKey}`
 
   useEffect(() => {
-    if (!props.open) return
+    if (!isOpen) return
     setAllocationsVersion(prev => prev + 1)
     setPreviewVersion(null)
-  }, [allocations, previewInputsKey, props.open])
+  }, [allocations, isOpen, previewInputsKey])
 
   const selectionCompatible = useMemo(
     () => isSelectionCompatibleWithType({ type: effectiveType, lineCount, scheduleCount }),
@@ -432,6 +451,28 @@ export function ReconciliationMatchWizardModal(props: {
       scheduleExpectedCommission,
     }
   }, [selectedLines, selectedSchedules])
+
+  const selectionVarianceSummary = useMemo(() => {
+    const usageBase = Math.max(Math.abs(selectionTotals.lineUsageTotal), Math.abs(selectionTotals.scheduleExpectedUsage))
+    const commissionBase = Math.max(
+      Math.abs(selectionTotals.lineCommissionTotal),
+      Math.abs(selectionTotals.scheduleExpectedCommission),
+    )
+    const usageSpread =
+      usageBase > 0.005 ? Math.abs(selectionTotals.lineUsageTotal - selectionTotals.scheduleExpectedUsage) / usageBase : 0
+    const commissionSpread =
+      commissionBase > 0.005
+        ? Math.abs(selectionTotals.lineCommissionTotal - selectionTotals.scheduleExpectedCommission) / commissionBase
+        : 0
+    const needsAttention = usageSpread >= 0.5 || commissionSpread >= 0.5
+
+    if (!needsAttention) return null
+
+    return {
+      usageSpread,
+      commissionSpread,
+    }
+  }, [selectionTotals])
 
   const previewLineMap = useMemo(() => {
     const map = new Map<string, PreviewLineRow>()
@@ -488,7 +529,12 @@ export function ReconciliationMatchWizardModal(props: {
       selectedSchedules.map(schedule => {
         const previewSchedule = previewScheduleMap.get(schedule.id)
         const actualUsageAfter = previewSchedule?.actualUsageNetAfter ?? Number(schedule.actualUsage ?? 0)
+        const actualCommissionAfter = previewSchedule?.actualCommissionNetAfter ?? Number(schedule.actualCommission ?? 0)
         const usageBalanceAfter = previewSchedule?.usageBalanceAfter ?? Number(schedule.usageBalance ?? 0)
+        const commissionDifferenceAfter =
+          previewSchedule?.commissionDifferenceAfter ?? Number(schedule.commissionDifference ?? 0)
+        const actualRateAfter =
+          Math.abs(actualUsageAfter) <= 0.005 ? 0 : actualCommissionAfter / actualUsageAfter
         return [
           schedule.revenueScheduleName || schedule.id,
           formatDate(schedule.revenueScheduleDate),
@@ -504,8 +550,20 @@ export function ReconciliationMatchWizardModal(props: {
             Math.abs(actualUsageAfter - Number(schedule.actualUsage ?? 0)) > 0.005,
           ),
           renderHighlightedPreviewValue(
+            currencyFormatter.format(actualCommissionAfter),
+            Math.abs(actualCommissionAfter - Number(schedule.actualCommission ?? 0)) > 0.005,
+          ),
+          renderHighlightedPreviewValue(
+            formatPercent(actualRateAfter),
+            Math.abs(actualRateAfter - Number(schedule.actualCommissionRatePercent ?? 0)) > 0.005,
+          ),
+          renderHighlightedPreviewValue(
             currencyFormatter.format(usageBalanceAfter),
             Math.abs(usageBalanceAfter - Number(schedule.usageBalance ?? 0)) > 0.005,
+          ),
+          renderHighlightedPreviewValue(
+            currencyFormatter.format(commissionDifferenceAfter),
+            Math.abs(commissionDifferenceAfter - Number(schedule.commissionDifference ?? 0)) > 0.005,
           ),
         ]
       }),
@@ -677,52 +735,52 @@ export function ReconciliationMatchWizardModal(props: {
       case "valid":
         return {
           className: "border-emerald-200 bg-emerald-50 text-emerald-900",
-          title: "No validation issues found",
-          message: "Ready to apply.",
-          summary: "Validation complete. No issues found.",
+          title: "Preview ready",
+          message: "Review looks clear. You can submit this match.",
+          summary: "Preview complete. No blocking issues found.",
         }
       case "warning":
         return {
           className: "border-amber-200 bg-amber-50 text-amber-900",
-          title: "Validation found warnings",
-          message: "Apply is still allowed.",
-          summary: "Validation complete with warnings. Apply is still allowed.",
+          title: "Preview found warnings",
+          message: "Submit is still allowed, but review the warnings first.",
+          summary: "Preview complete with warnings. Submit is still allowed.",
         }
       case "error":
         return {
           className: "border-red-200 bg-red-50 text-red-700",
-          title: "Validation found blocking issues",
-          message: "Fix them before applying.",
-          summary: "Validation found blocking issues.",
+          title: "Preview found blocking issues",
+          message: "Fix them before submitting.",
+          summary: "Preview found blocking issues.",
         }
       case "stale":
         return {
           className: "border-amber-200 bg-amber-50 text-amber-900",
-          title: "Validation is updating",
-          message: "Running again after your latest changes.",
-          summary: "Validation is updating after your latest changes.",
+          title: "Preview is updating",
+          message: "Refreshing after your latest edit.",
+          summary: "Preview is updating after your latest changes.",
         }
       case "system_error":
         return {
           className: "border-red-200 bg-red-50 text-red-700",
-          title: "Validation could not be completed",
+          title: "Preview could not be loaded",
           message: "Try again.",
-          summary: "Validation failed. Retry to continue.",
+          summary: "Preview failed. Retry to continue.",
         }
       case "running":
         return {
           className: "border-primary-200 bg-primary-50 text-primary-900",
-          title: "Running validation",
+          title: "Refreshing preview",
           message: "Checking the current selection and allocations.",
-          summary: "Validation is running.",
+          summary: "Preview is running.",
         }
       case "idle":
       default:
         return {
           className: "border-slate-200 bg-slate-50 text-slate-800",
-          title: "Validation is waiting",
+          title: "Preview is waiting",
           message: previewBlockedReason ?? "It will start when selection and allocations are ready.",
-          summary: previewBlockedReason ?? "Complete selection and allocation to start validation.",
+          summary: previewBlockedReason ?? "Complete selection and allocation to start preview.",
         }
     }
   }, [previewBlockedReason, validationState])
@@ -734,7 +792,7 @@ export function ReconciliationMatchWizardModal(props: {
     setPreviewVersion(null)
     try {
       const response = await fetch(
-        `/api/reconciliation/deposits/${encodeURIComponent(props.depositId)}/matches/preview`,
+        `/api/reconciliation/deposits/${encodeURIComponent(depositId)}/matches/preview`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -758,7 +816,7 @@ export function ReconciliationMatchWizardModal(props: {
     } finally {
       setPreviewLoading(false)
     }
-  }, [allocationsPayload, allocationsVersion, effectiveType, props.depositId, selectedLines, selectedSchedules])
+  }, [allocationsPayload, allocationsVersion, depositId, effectiveType, selectedLines, selectedSchedules])
 
   const openAllocationEditor = useCallback(() => {
     if (effectiveType === "ManyToOne" && !bundleAuditLogId) {
@@ -775,7 +833,7 @@ export function ReconciliationMatchWizardModal(props: {
   }, [manyToOneMode])
 
   useEffect(() => {
-    if (!props.open) return
+    if (!isOpen) return
     if (!canProceedToPreview) return
 
     const requestKey = `${previewInputsKey}|${allocationsVersion}`
@@ -797,25 +855,25 @@ export function ReconciliationMatchWizardModal(props: {
         autoValidationTimeoutRef.current = null
       }
     }
-  }, [allocationsVersion, canProceedToPreview, previewInputsKey, props.open, runPreview])
+  }, [allocationsVersion, canProceedToPreview, isOpen, previewInputsKey, runPreview])
 
   useEffect(() => {
     if (replacementRequired) setAllocationExpanded(true)
   }, [replacementRequired])
 
   useEffect(() => {
-    if (!props.open) return
+    if (!isOpen) return
     if (!replacementRequiredIssue || bundleAuditLogId) return
     setManyToOneMode("bundle")
     setBundleApplyMode("soft_delete_old")
-  }, [bundleAuditLogId, props.open, replacementRequiredIssue])
+  }, [bundleAuditLogId, isOpen, replacementRequiredIssue])
 
   const applyMatchGroup = async () => {
     setApplyLoading(true)
     setApplyError(null)
     try {
       const response = await fetch(
-        `/api/reconciliation/deposits/${encodeURIComponent(props.depositId)}/matches/apply`,
+        `/api/reconciliation/deposits/${encodeURIComponent(depositId)}/matches/apply`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -839,7 +897,7 @@ export function ReconciliationMatchWizardModal(props: {
         throw new Error("Apply succeeded but no matchGroupId was returned.")
       }
       setAppliedMatchGroupId(groupId)
-      props.onApplied?.()
+      onApplied?.()
     } catch (err) {
       setApplyError(err instanceof Error ? err.message : "Unknown error")
     } finally {
@@ -853,7 +911,7 @@ export function ReconciliationMatchWizardModal(props: {
     setUndoError(null)
     try {
       const response = await fetch(
-        `/api/reconciliation/deposits/${encodeURIComponent(props.depositId)}/matches/${encodeURIComponent(appliedMatchGroupId)}/undo`,
+        `/api/reconciliation/deposits/${encodeURIComponent(depositId)}/matches/${encodeURIComponent(appliedMatchGroupId)}/undo`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -865,7 +923,7 @@ export function ReconciliationMatchWizardModal(props: {
         throw new Error(payload?.error || "Failed to undo match group")
       }
       setAppliedMatchGroupId(null)
-      props.onApplied?.()
+      onApplied?.()
     } catch (err) {
       setUndoError(err instanceof Error ? err.message : "Unknown error")
     } finally {
@@ -886,7 +944,7 @@ export function ReconciliationMatchWizardModal(props: {
       }
 
       const response = await fetch(
-        `/api/reconciliation/deposits/${encodeURIComponent(props.depositId)}/bundle-rip-replace/apply`,
+        `/api/reconciliation/deposits/${encodeURIComponent(depositId)}/bundle-rip-replace/apply`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -935,7 +993,7 @@ export function ReconciliationMatchWizardModal(props: {
       setPreviewVersion(null)
       setPreviewError(null)
       setAppliedMatchGroupId(null)
-      props.onApplied?.()
+      onApplied?.()
     } catch (err) {
       setBundleError(err instanceof Error ? err.message : "Unknown error")
     } finally {
@@ -950,7 +1008,7 @@ export function ReconciliationMatchWizardModal(props: {
 
     try {
       const response = await fetch(
-        `/api/reconciliation/deposits/${encodeURIComponent(props.depositId)}/bundle-rip-replace/${encodeURIComponent(bundleAuditLogId)}/undo`,
+        `/api/reconciliation/deposits/${encodeURIComponent(depositId)}/bundle-rip-replace/${encodeURIComponent(bundleAuditLogId)}/undo`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -964,23 +1022,23 @@ export function ReconciliationMatchWizardModal(props: {
       }
 
       setBundleAuditLogId(null)
-      setWizardSchedules(props.selectedSchedules)
+      setWizardSchedules(initialSelectedSchedules)
       setBundleUndoReason("")
       skipAllocationResetRef.current = true
       setOverrideType(null)
       setManyToOneMode("allocation")
       setAllocations(
         buildDefaultAllocations({
-          matchType: props.detectedType,
+          matchType: detectedType,
           lines: selectedLines,
-          schedules: props.selectedSchedules,
+          schedules: initialSelectedSchedules,
         }),
       )
       setPreview(null)
       setPreviewVersion(null)
       setPreviewError(null)
       setAppliedMatchGroupId(null)
-      props.onApplied?.()
+      onApplied?.()
     } catch (err) {
       setBundleUndoError(err instanceof Error ? err.message : "Unknown error")
     } finally {
@@ -988,12 +1046,15 @@ export function ReconciliationMatchWizardModal(props: {
     }
   }
 
-  if (!props.open) return null
+  if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/40 px-4" onClick={props.onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/40 px-4" onClick={onClose}>
       <div
-        className="flex h-[900px] w-full max-w-[1360px] flex-col rounded-2xl bg-white shadow-xl"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Reconciliation match wizard"
+        className="flex max-h-[90vh] w-full max-w-[1360px] flex-col overflow-hidden rounded-2xl bg-white shadow-xl"
         onClick={e => e.stopPropagation()}
       >
         <ModalHeader
@@ -1003,47 +1064,19 @@ export function ReconciliationMatchWizardModal(props: {
         />
 
         <div className="flex-1 space-y-6 overflow-y-auto p-6 text-sm text-slate-700">
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-            <div className="grid gap-3 sm:grid-cols-3">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Match Type</p>
-                <p className="mt-1 text-base font-semibold text-slate-900">{formatMatchType(effectiveType)}</p>
-              </div>
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Deposit Lines</p>
-                <p className="mt-1 text-base font-semibold text-slate-900">{lineCount}</p>
-              </div>
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Schedules</p>
-                <p className="mt-1 text-base font-semibold text-slate-900">{scheduleCount}</p>
-              </div>
-            </div>
-          </div>
-
           <div className="space-y-3">
             <div className="space-y-3">
-              <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-end justify-between gap-4">
                 <div className="space-y-1">
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Comparison layout</p>
-                  <p className="text-base font-semibold text-slate-900">Selected deposit lines and matched schedules</p>
+                  <p className="text-base font-semibold text-slate-900">Selected deposit lines and target schedule preview</p>
                 </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Override (optional)
-                  </label>
-                  <select
-                    className="rounded border border-slate-200 bg-white px-2 py-1 text-sm text-slate-800"
-                    value={overrideType ?? "auto"}
-                    onChange={e =>
-                      setOverrideType(e.target.value === "auto" ? null : (e.target.value as MatchSelectionType))
-                    }
-                  >
-                    <option value="auto">Auto</option>
-                    <option value="OneToOne">1:1</option>
-                    <option value="OneToMany">1:M</option>
-                    <option value="ManyToOne">M:1</option>
-                    <option value="ManyToMany">M:M</option>
-                  </select>
+                <div className="flex shrink-0 items-center gap-x-4 text-sm">
+                  <p><span className="font-medium text-slate-500">Match Type</span>{" "}<span className="font-semibold text-slate-900">{formatMatchType(effectiveType)}</span></p>
+                  <span className="text-slate-300">·</span>
+                  <p><span className="font-medium text-slate-500">Deposit Lines</span>{" "}<span className="font-semibold text-slate-900">{lineCount}</span></p>
+                  <span className="text-slate-300">·</span>
+                  <p><span className="font-medium text-slate-500">Schedules</span>{" "}<span className="font-semibold text-slate-900">{scheduleCount}</span></p>
                 </div>
               </div>
 
@@ -1064,9 +1097,19 @@ export function ReconciliationMatchWizardModal(props: {
                 </div>
               ) : null}
 
+              {selectionVarianceSummary ? (
+                <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-950">
+                  <p className="font-semibold">Large total mismatch detected</p>
+                  <p className="mt-1 text-xs">
+                    Selected deposit totals and schedule totals are materially different. Review whether this should stay as
+                    an edited allocation or move through the bundle/flex path before submitting.
+                  </p>
+                </div>
+              ) : null}
+
               <div className="space-y-3">
                 <MatchWizardSelectionTable
-                  title="Selected Deposit Line Item"
+                  title={lineCount === 1 ? "Selected Deposit Line" : "Selected Deposit Lines"}
                   emptyLabel="No deposit line items were selected."
                   headers={[
                     "Account ID",
@@ -1084,7 +1127,7 @@ export function ReconciliationMatchWizardModal(props: {
                 />
                 <div className="space-y-2">
                   <MatchWizardSelectionTable
-                    title="Matched Revenue Schedule"
+                    title={scheduleCount === 1 ? "Target Revenue Schedule Preview" : "Target Revenue Schedules Preview"}
                     emptyLabel="No revenue schedules were selected."
                     headers={[
                       "Sched",
@@ -1094,10 +1137,13 @@ export function ReconciliationMatchWizardModal(props: {
                       "Exp. Gross",
                       "Exp. Adj.",
                       "Exp. Net",
-                      "Comm %",
+                      "Exp. Rate",
                       "Exp. Comm",
                       "Act. Usage",
+                      "Act. Comm",
+                      "Act. Rate",
                       "Usage Bal.",
+                      "Comm Diff.",
                     ]}
                     rows={selectedScheduleRows}
                   />
@@ -1148,17 +1194,26 @@ export function ReconciliationMatchWizardModal(props: {
                       (validationState === "warning" || validationState === "error") &&
                       validationIssues.length ? (
                         <>
-                          <p className="mt-3 text-xs font-semibold uppercase tracking-wide">Issues</p>
-                          <ul className="mt-2 list-disc space-y-1 pl-5 text-sm">
-                            {validationIssues.map((issue, idx) => (
-                              <li
-                                key={`${issue.code}-${idx}`}
-                                className={issue.level === "error" ? "text-red-700" : "text-amber-800"}
-                              >
-                                {issue.message}
-                              </li>
-                            ))}
-                          </ul>
+                          {validationIssues.some(i => i.level === "error") ? (
+                            <>
+                              <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-red-600">Errors</p>
+                              <ul className="mt-1 list-disc space-y-1 pl-5 text-sm">
+                                {validationIssues.filter(i => i.level === "error").map((issue, idx) => (
+                                  <li key={`err-${issue.code}-${idx}`} className="text-red-700">{issue.message}</li>
+                                ))}
+                              </ul>
+                            </>
+                          ) : null}
+                          {validationIssues.some(i => i.level === "warning") ? (
+                            <>
+                              <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-amber-700">Warnings</p>
+                              <ul className="mt-1 list-disc space-y-1 pl-5 text-sm">
+                                {validationIssues.filter(i => i.level === "warning").map((issue, idx) => (
+                                  <li key={`warn-${issue.code}-${idx}`} className="text-amber-800">{issue.message}</li>
+                                ))}
+                              </ul>
+                            </>
+                          ) : null}
                         </>
                       ) : null}
                     </div>
@@ -1174,7 +1229,7 @@ export function ReconciliationMatchWizardModal(props: {
                 <p className="font-semibold text-slate-900">Edit Allocation</p>
                 <p className="text-xs text-slate-600">
                   {effectiveType === "ManyToOne" && !bundleAuditLogId
-                    ? "Adjust allocations here or switch to bundle."
+                    ? "Edit allocation is the primary path. Bundle stays available when this should break into replacement schedules."
                     : "Adjust allocations here before submitting the match."}
                 </p>
               </div>
@@ -1194,6 +1249,7 @@ export function ReconciliationMatchWizardModal(props: {
                     >
                       Edit Allocation
                     </button>
+                    <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">or</span>
                     <button
                       type="button"
                       className={cn(
@@ -1462,29 +1518,7 @@ export function ReconciliationMatchWizardModal(props: {
             ) : null}
             </div>
 
-          <div className="space-y-3">
-              <p className="font-semibold text-slate-900">Submit Match</p>
-              <p className="text-sm text-slate-600">
-                Submit will create a match group and write allocations as Applied matches. Undo reverts the whole group.
-              </p>
-
-              {applyError ? <p className="text-sm font-semibold text-red-600">{applyError}</p> : null}
-
-              {!canConfirmApply && !appliedMatchGroupId ? (
-                <div
-                  className={cn(
-                    "rounded-md border p-3",
-                    validationState === "error" || validationState === "system_error"
-                      ? "border-red-200 bg-red-50 text-red-700"
-                      : validationState === "idle"
-                        ? "border-slate-200 bg-slate-50 text-slate-800"
-                        : "border-amber-200 bg-amber-50 text-amber-900",
-                  )}
-                >
-                  <p className="font-semibold">Apply is blocked</p>
-                  <p className="mt-1 text-xs">{applyBlockedReason ?? "Validation has not completed yet."}</p>
-                </div>
-              ) : null}
+          {applyError ? <p className="text-sm font-semibold text-red-600">{applyError}</p> : null}
 
               {appliedMatchGroupId ? (
                 <div className="space-y-3 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-emerald-900">
@@ -1514,16 +1548,15 @@ export function ReconciliationMatchWizardModal(props: {
                   </div>
                 </div>
               ) : null}
-            </div>
         </div>
 
         <div className="flex flex-wrap items-center justify-end gap-2 border-t border-slate-200 px-6 py-4">
           <button
             type="button"
             className="rounded border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-            onClick={props.onClose}
+            onClick={onClose}
           >
-            Close
+            Cancel
           </button>
           <button
             type="button"

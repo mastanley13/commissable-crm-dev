@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState, type ReactNode } from "react"
+import { CheckCircle2, Lock } from "lucide-react"
 
 import type { DepositLineItemRow, SuggestedMatchScheduleRow } from "@/lib/mock-data"
 import { cn } from "@/lib/utils"
@@ -219,7 +220,7 @@ function ProjectTabs(props: {
               onClick={() => (isLocked ? null : props.onChange(tab.id))}
               disabled={isLocked}
               className={cn(
-                "rounded-t-md border px-3 py-1.5 text-sm font-semibold shadow-sm transition",
+                "rounded-t-md border px-3 py-2 text-left text-sm font-semibold shadow-sm transition",
                 isActive
                   ? "relative -mb-[1px] z-10 border-primary-700 border-b-transparent bg-primary-700 text-white hover:bg-primary-800"
                   : isLocked
@@ -227,16 +228,46 @@ function ProjectTabs(props: {
                     : "border-blue-300 bg-gradient-to-b from-blue-100 to-blue-200 text-primary-800 hover:border-blue-400 hover:from-blue-200 hover:to-blue-300",
               )}
             >
-              <span className="flex items-center gap-1.5">
+              <span className="flex items-start justify-between gap-3">
+                <span className="space-y-0.5">
+                  <span
+                    className={cn(
+                      "block text-[11px] font-bold uppercase tracking-[0.14em]",
+                      isActive ? "text-blue-100" : isLocked ? "text-slate-400" : "text-primary-700",
+                    )}
+                  >
+                    Step {index + 1}
+                  </span>
+                  <span className="block">{tab.label}</span>
+                </span>
                 <span
                   className={cn(
-                    "text-[11px] font-bold uppercase tracking-[0.14em]",
-                    isActive ? "text-blue-100" : isLocked ? "text-slate-400" : "text-primary-700",
+                    "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em]",
+                    tab.status === "complete"
+                      ? isActive
+                        ? "bg-white/15 text-white"
+                        : "bg-emerald-100 text-emerald-700"
+                      : tab.status === "locked"
+                        ? "bg-slate-200 text-slate-500"
+                        : isActive
+                          ? "bg-white/15 text-white"
+                          : "bg-amber-100 text-amber-800",
                   )}
                 >
-                  {index + 1}
+                  {tab.status === "complete" ? (
+                    <>
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                      Done
+                    </>
+                  ) : tab.status === "locked" ? (
+                    <>
+                      <Lock className="h-3.5 w-3.5" />
+                      Locked
+                    </>
+                  ) : (
+                    "Review"
+                  )}
                 </span>
-                <span>{tab.label}</span>
               </span>
             </button>
           )
@@ -735,7 +766,7 @@ export function ReconciliationAlertModal(props: {
       ? "action_required"
       : "complete"
   const workflowTabs = [
-    { id: "usage-overage", label: "Usage", status: usageStepStatus },
+    { id: "usage-overage", label: "Usage Overage", status: usageStepStatus },
     { id: "commission-rate", label: "Commission Rate", status: rateStepStatus },
     { id: "commission-amount", label: "Commission Amount", status: commissionAmountStepStatus },
   ] satisfies Array<{ id: AlertTabId; label: string; status: "complete" | "action_required" | "locked" }>
@@ -882,7 +913,14 @@ export function ReconciliationAlertModal(props: {
             </div>
 
             <div>
+              <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900">
+                Review each step in order. Selecting an option only previews the outcome. Nothing is saved until you submit
+                that step.
+              </div>
+
+              <div className="mt-3">
               <ProjectTabs activeId={activeTab} tabs={workflowTabs} onChange={setActiveTab} />
+              </div>
 
               <div className="mt-3">
                 {activeTab === "usage-overage" ? (
@@ -896,6 +934,9 @@ export function ReconciliationAlertModal(props: {
                       </div>
 
                       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] lg:items-stretch">
+                        <p className="lg:col-span-3 text-sm text-slate-600">
+                          Choose one of the options below to preview the usage-resolution outcome before submit.
+                        </p>
                         <OptionCard
                           title="Absorb into Price Each"
                           description="Adjust Exp. Usage Gross and recalculate Price Each on the matched schedule."
@@ -1079,6 +1120,9 @@ export function ReconciliationAlertModal(props: {
                       {rateDiscrepancy.direction === "higher" ? (
                         <>
                           <div className="grid gap-4 lg:grid-cols-2">
+                            <p className="lg:col-span-2 text-sm text-slate-600">
+                              Choose one of the options below to preview the commission-rate update before submit.
+                            </p>
                             <OptionCard
                               title="Accept Higher Rate Once"
                               description="Update only the current schedule to the higher received commission rate."
@@ -1197,6 +1241,9 @@ export function ReconciliationAlertModal(props: {
                     {commissionAmountReview.requiresAction ? (
                       <>
                         <div className="grid gap-4 lg:grid-cols-2">
+                          <p className="lg:col-span-2 text-sm text-slate-600">
+                            Choose one of the options below to preview how the remaining commission amount will be handled.
+                          </p>
                           <OptionCard
                             title="Create Adjustment Entry"
                             description="Resolve the remaining commission amount on the current schedule through the flex-adjustment path."
@@ -1260,7 +1307,7 @@ export function ReconciliationAlertModal(props: {
             onClick={handleClose}
             disabled={closeDisabled}
           >
-            Close
+            Cancel
           </button>
         </div>
       </div>

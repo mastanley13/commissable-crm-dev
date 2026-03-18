@@ -12,6 +12,32 @@ function isEffectivelyZero(value: number): boolean {
   return Math.abs(value) <= EPSILON
 }
 
+function fmtMoney(n: number): string {
+  return `$${Math.abs(n).toFixed(2)}`
+}
+
+function getLineLabel(line: {
+  lineNumber: number | null
+  accountNameRaw: string | null
+  account: { accountName: string | null; accountLegalName: string | null } | null
+}): string {
+  const lineNum = line.lineNumber != null ? `Line ${line.lineNumber}` : "Line"
+  const accountName = line.account?.accountLegalName || line.account?.accountName || line.accountNameRaw || null
+  return accountName ? `${lineNum} (${accountName})` : lineNum
+}
+
+function getScheduleDisplayLabel(schedule: {
+  scheduleDate: Date | null
+  account: { accountName: string | null; accountLegalName: string | null } | null
+  opportunity: { name: string | null } | null
+}): string {
+  const parts: string[] = []
+  const name = schedule.opportunity?.name || schedule.account?.accountLegalName || schedule.account?.accountName
+  if (name) parts.push(name)
+  if (schedule.scheduleDate) parts.push(schedule.scheduleDate.toISOString().slice(0, 10))
+  return parts.length ? `Schedule (${parts.join(" — ")})` : "Schedule"
+}
+
 export type MatchGroupIssue = {
   level: "error" | "warning"
   code: string
@@ -353,6 +379,15 @@ export async function buildMatchGroupPreview(
     }),
   ])
 
+  const lineLabelMap = new Map<string, string>()
+  for (const line of lines) {
+    lineLabelMap.set(line.id, getLineLabel(line))
+  }
+  const scheduleLabelMap = new Map<string, string>()
+  for (const schedule of schedules) {
+    scheduleLabelMap.set(schedule.id, getScheduleDisplayLabel(schedule))
+  }
+
   const foundLineIds = new Set(lines.map(row => row.id))
   const missingLines = lineIds.filter(id => !foundLineIds.has(id))
   if (missingLines.length) {
@@ -387,18 +422,19 @@ export async function buildMatchGroupPreview(
   }
 
   for (const line of lines) {
+    const label = lineLabelMap.get(line.id) ?? "Line"
     if (line.reconciled) {
       issues.push({
         level: "error",
         code: "line_locked",
-        message: `Line ${line.id} is reconciled and cannot be changed.`,
+        message: `${label} is reconciled and cannot be changed.`,
       })
     }
     if (line.status === DepositLineItemStatus.Ignored) {
       issues.push({
         level: "error",
         code: "line_ignored",
-        message: `Line ${line.id} is ignored and cannot be allocated.`,
+        message: `${label} is ignored and cannot be allocated.`,
       })
     }
     const usage = toNumber(line.usage)
@@ -407,7 +443,7 @@ export async function buildMatchGroupPreview(
       issues.push({
         level: "error",
         code: "negative_line_not_supported",
-        message: `Line ${line.id} appears to be a chargeback/negative line. Use the Flex/chargeback flow instead of the multi-match wizard.`,
+        message: `${label} appears to be a chargeback/negative line. Use the Flex/chargeback flow instead of the multi-match wizard.`,
       })
     }
   }
@@ -446,6 +482,21 @@ export async function buildMatchGroupPreview(
       actualCommissionAdjustment,
     }
   })
+
+  if (params.matchType === "ManyToOne" && lines.length > 0 && scheduleMeta.length === 1) {
+    const totalLineUsage = roundMoney(lines.reduce((sum, l) => sum + toNumber(l.usage), 0))
+    const sched = scheduleMeta[0]
+    const diff = roundMoney(totalLineUsage - sched.expectedUsageNet)
+    const tolAmt = Math.abs(sched.expectedUsageNet) * Math.max(0, Math.min(tenantVarianceTolerance, 1))
+    if (Math.abs(diff) > Math.max(tolAmt, EPSILON)) {
+      const schedLabel = scheduleLabelMap.get(sched.id) ?? "Schedule"
+      issues.push({
+        level: "warning",
+        code: "line_schedule_total_mismatch",
+        message: `Selected lines total ${fmtMoney(totalLineUsage)} usage but ${schedLabel} expects ${fmtMoney(sched.expectedUsageNet)}. Partial allocations will be applied.`,
+      })
+    }
+  }
 
   const defaultAllocations = buildDefaultAllocationsForMatchGroup({
     matchType: params.matchType,
@@ -631,18 +682,21 @@ export async function buildMatchGroupPreview(
     const afterUsageAllocated = roundMoney(before.usage + delta.usage)
     const afterCommissionAllocated = roundMoney(before.commission + delta.commission)
 
+    const label = lineLabelMap.get(line.id) ?? "Line"
     if (afterUsageAllocated > usage + EPSILON) {
+      const overBy = roundMoney(afterUsageAllocated - usage)
       issues.push({
         level: "error",
         code: "line_over_allocated_usage",
-        message: `Line ${line.id} usage allocations exceed the line usage total.`,
+        message: `${label} usage allocations (${fmtMoney(afterUsageAllocated)}) exceed the line usage total (${fmtMoney(usage)}) by ${fmtMoney(overBy)}.`,
       })
     }
     if (afterCommissionAllocated > commission + EPSILON) {
+      const overBy = roundMoney(afterCommissionAllocated - commission)
       issues.push({
         level: "error",
         code: "line_over_allocated_commission",
-        message: `Line ${line.id} commission allocations exceed the line commission total.`,
+        message: `${label} commission allocations (${fmtMoney(afterCommissionAllocated)}) exceed the line commission total (${fmtMoney(commission)}) by ${fmtMoney(overBy)}.`,
       })
     }
 
@@ -728,10 +782,17 @@ export async function buildMatchGroupPreview(
     if (!withinToleranceAfter) {
       const level: MatchGroupIssue["level"] = "warning"
       const kind = usageBalanceAfter < -EPSILON || commissionDifferenceAfter < -EPSILON ? "overpaid" : "underpaid"
+      const schedLabel = scheduleLabelMap.get(schedule.id) ?? "Schedule"
+      const varianceAmt = Math.max(Math.abs(usageBalanceAfter), Math.abs(commissionDifferenceAfter))
+      const tolerance = Math.max(0, Math.min(tenantVarianceTolerance, 1))
+      const toleranceAmt = Math.max(
+        roundMoney(Math.abs(expectedUsageNet) * tolerance),
+        roundMoney(Math.abs(expectedCommissionNet) * tolerance),
+      )
       issues.push({
         level,
         code: `schedule_${kind}`,
-        message: `Schedule ${schedule.id} will be ${kind} after apply (outside tolerance).`,
+        message: `${schedLabel} will be ${kind} by ${fmtMoney(varianceAmt)} after apply (tolerance: ±${fmtMoney(toleranceAmt)}).`,
       })
     }
 

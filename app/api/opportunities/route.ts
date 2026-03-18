@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db"
 import { withPermissions } from "@/lib/api-auth"
 import { ensureActiveOwnerOrNull } from "@/lib/validation"
 import { hasAnyPermission } from "@/lib/auth"
+import { formatAddressRecord } from "@/lib/address-format"
 import { mapOpportunityToRow } from "./helpers"
 import { dedupeColumnFilters } from "@/lib/filter-utils"
 import type { ColumnFilter } from "@/components/list-header"
@@ -588,24 +589,16 @@ export async function POST(request: NextRequest) {
         const accountWithAddresses = await prisma.account.findFirst({
           where: { id: accountId, tenantId },
           select: {
-            shippingAddress: { select: { line1: true, line2: true, city: true, state: true, postalCode: true } },
-            billingAddress: { select: { line1: true, line2: true, city: true, state: true, postalCode: true } }
+            shippingAddress: { select: { line1: true, line2: true, city: true, state: true, postalCode: true, country: true } },
+            billingAddress: { select: { line1: true, line2: true, city: true, state: true, postalCode: true, country: true } }
           }
         })
 
-        const formatAddr = (addr?: { line1?: string | null; line2?: string | null; city?: string | null; state?: string | null; postalCode?: string | null } | null) => {
-          if (!addr) return null
-          const parts = [addr.line1, addr.line2, addr.city, addr.state, addr.postalCode]
-            .map(v => (typeof v === "string" ? v.trim() : ""))
-            .filter(Boolean)
-          return parts.length > 0 ? parts.join(", ") : null
-        }
-
         if (!shippingAddress) {
-          shippingAddress = formatAddr(accountWithAddresses?.shippingAddress)
+          shippingAddress = formatAddressRecord(accountWithAddresses?.shippingAddress)
         }
         if (!billingAddress) {
-          billingAddress = formatAddr(accountWithAddresses?.billingAddress)
+          billingAddress = formatAddressRecord(accountWithAddresses?.billingAddress)
         }
       }
 

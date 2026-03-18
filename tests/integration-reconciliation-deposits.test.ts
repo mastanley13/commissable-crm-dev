@@ -104,6 +104,7 @@ integrationTest("REC-AUTO-04: deposit detail contract returns metadata + lineIte
       commissionAllocated: 0,
       commissionUnallocated: 10,
       vendorAccountId: ctx.vendorAccountId,
+      accountId: ctx.distributorAccountId,
       accountNameRaw: "Acme Co",
       productNameRaw: "Internet",
       vendorNameRaw: "Test Vendor",
@@ -140,5 +141,5 @@ integrationTest("REC-AUTO-04: deposit detail contract returns metadata + lineIte
   assert.equal(typeof line.accountName, "string")
   assert.equal(typeof line.usage, "number")
   assert.equal(typeof line.commission, "number")
+  assert.equal(line.accountId, "")
 })
-

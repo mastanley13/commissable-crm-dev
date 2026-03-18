@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { AccountStatus, AuditAction, type Prisma } from "@prisma/client"
+import { AccountStatus, AuditAction, Prisma } from "@prisma/client"
 import { prisma } from "@/lib/db"
 import { mapAccountToListRow, accountIncludeForList } from "./helpers"
 import { withPermissions, createErrorResponse } from "@/lib/api-auth"
@@ -55,12 +55,30 @@ function parseAddress(raw: unknown): AddressInput | null {
   }
 }
 
-async function createAddressRecord(tenantId: string, input: AddressInput | null) {
+async function createAddressRecordWithDb(
+  db: {
+    address: {
+      create(args: {
+        data: {
+          tenantId: string
+          line1: string
+          line2: string | null
+          city: string
+          state: string | null
+          postalCode: string | null
+          country: string | null
+        }
+      }): Promise<{ id: string }>
+    }
+  },
+  tenantId: string,
+  input: AddressInput | null
+) {
   if (!input) {
     return null
   }
 
-  const address = await prisma.address.create({
+  const address = await db.address.create({
     data: {
       tenantId,
       line1: input.line1,
@@ -286,43 +304,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid account type" }, { status: 400 })
     }
 
-    let parentAccountId = coerceOptionalId(payload.parentAccountId)
-    
-    // If newParentAccountName is provided and no parentAccountId, create a new parent account
-    const newParentAccountName = typeof payload.newParentAccountName === "string" 
-      ? payload.newParentAccountName.trim() 
+    const parentAccountId = coerceOptionalId(payload.parentAccountId)
+
+    const newParentAccountName = typeof payload.newParentAccountName === "string"
+      ? payload.newParentAccountName.trim()
       : ""
-    
-    if (!parentAccountId && newParentAccountName.length > 0 && accountTypeId) {
-      // Create a minimal parent account with the same account type
-      const parentAccount = await prisma.account.create({
-        data: {
-          tenantId,
-          accountName: newParentAccountName,
-          accountTypeId: accountTypeId,
-          status: AccountStatus.Active,
-          createdById: userId,
-          updatedById: userId
-        }
-      })
-      parentAccountId = parentAccount.id
-      
-      // Log audit event for parent account creation
-      await logAccountAudit(
-        AuditAction.Create,
-        parentAccount.id,
-        userId,
-        tenantId,
-        request,
-        undefined,
-        {
-          accountName: parentAccount.accountName,
-          accountTypeId: parentAccount.accountTypeId,
-          status: parentAccount.status,
-          note: "Created as parent account during account creation"
-        }
-      )
-    }
     
     const isHouseAccountType =
       Boolean(accountType) &&
@@ -366,60 +352,108 @@ export async function POST(request: NextRequest) {
       ? shippingAddressInput
       : parseAddress(payload.billingAddress)
 
-    const [shippingAddressId, billingAddressIdIfAny] = await Promise.all([
-      createAddressRecord(tenantId, shippingAddressInput),
-      syncBillingWithShipping
-        ? Promise.resolve<string | null>(null)
-        : createAddressRecord(tenantId, billingAddressInput)
-    ])
+    const creation = await prisma.$transaction(async tx => {
+      let createdParentAccount: {
+        id: string
+        accountName: string
+        accountTypeId: string
+        status: AccountStatus
+      } | null = null
+      let resolvedParentAccountId = parentAccountId
 
-    const billingAddressId = syncBillingWithShipping ? shippingAddressId : billingAddressIdIfAny
+      if (!resolvedParentAccountId && newParentAccountName.length > 0 && accountTypeId) {
+        createdParentAccount = await tx.account.create({
+          data: {
+            tenantId,
+            accountName: newParentAccountName,
+            accountTypeId,
+            status: AccountStatus.Active,
+            createdById: userId,
+            updatedById: userId
+          },
+          select: {
+            id: true,
+            accountName: true,
+            accountTypeId: true,
+            status: true
+          }
+        })
+        resolvedParentAccountId = createdParentAccount.id
+      }
 
-    const account = await prisma.account.create({
-      data: {
-        tenantId,
-        accountTypeId: accountTypeId!,
-        ...(parentAccountId && { parentAccountId }),
-        ...(ownerId && { ownerId }),
-        ...(industryId && { industryId }),
-        accountName,
-        accountLegalName:
-          typeof payload.accountLegalName === "string" && payload.accountLegalName.trim().length > 0
-            ? payload.accountLegalName.trim()
-            : null,
-        status: isActive ? AccountStatus.Active : AccountStatus.Inactive,
-        websiteUrl:
-          typeof payload.websiteUrl === "string" && payload.websiteUrl.trim().length > 0
-            ? payload.websiteUrl.trim()
-            : null,
-        description:
-          typeof payload.description === "string" && payload.description.trim().length > 0
-            ? payload.description.trim()
-            : null,
-        shippingAddressId,
-        billingAddressId,
-        shippingSyncBilling: syncBillingWithShipping,
-        createdById: userId,
-        updatedById: userId
-      },
-      include: accountIncludeForList
+      const [shippingAddressId, billingAddressIdIfAny] = await Promise.all([
+        createAddressRecordWithDb(tx, tenantId, shippingAddressInput),
+        syncBillingWithShipping
+          ? Promise.resolve<string | null>(null)
+          : createAddressRecordWithDb(tx, tenantId, billingAddressInput)
+      ])
+
+      const billingAddressId = syncBillingWithShipping ? shippingAddressId : billingAddressIdIfAny
+
+      const account = await tx.account.create({
+        data: {
+          tenantId,
+          accountTypeId: accountTypeId!,
+          ...(resolvedParentAccountId && { parentAccountId: resolvedParentAccountId }),
+          ...(ownerId && { ownerId }),
+          ...(industryId && { industryId }),
+          accountName,
+          accountLegalName:
+            typeof payload.accountLegalName === "string" && payload.accountLegalName.trim().length > 0
+              ? payload.accountLegalName.trim()
+              : null,
+          status: isActive ? AccountStatus.Active : AccountStatus.Inactive,
+          websiteUrl:
+            typeof payload.websiteUrl === "string" && payload.websiteUrl.trim().length > 0
+              ? payload.websiteUrl.trim()
+              : null,
+          description:
+            typeof payload.description === "string" && payload.description.trim().length > 0
+              ? payload.description.trim()
+              : null,
+          shippingAddressId,
+          billingAddressId,
+          shippingSyncBilling: syncBillingWithShipping,
+          createdById: userId,
+          updatedById: userId
+        },
+        include: accountIncludeForList
+      })
+
+      return { account, createdParentAccount }
     })
 
-        // Log audit event for account creation
+        if (creation.createdParentAccount) {
+          await logAccountAudit(
+            AuditAction.Create,
+            creation.createdParentAccount.id,
+            userId,
+            tenantId,
+            request,
+            undefined,
+            {
+              accountName: creation.createdParentAccount.accountName,
+              accountTypeId: creation.createdParentAccount.accountTypeId,
+              status: creation.createdParentAccount.status,
+              note: "Created as parent account during account creation"
+            }
+          )
+        }
+
         await logAccountAudit(
           AuditAction.Create,
-          account.id,
+          creation.account.id,
           userId,
           tenantId,
           request,
           undefined,
           {
-            accountName: account.accountName,
-            accountLegalName: account.accountLegalName,
-            accountTypeId: account.accountTypeId,
-            status: account.status,
-            websiteUrl: account.websiteUrl,
-            description: account.description
+            accountName: creation.account.accountName,
+            accountLegalName: creation.account.accountLegalName,
+            accountTypeId: creation.account.accountTypeId,
+            status: creation.account.status,
+            websiteUrl: creation.account.websiteUrl,
+            description: creation.account.description
           }
         )
 
@@ -427,9 +461,12 @@ export async function POST(request: NextRequest) {
         revalidatePath('/accounts')
         revalidatePath('/dashboard')
 
-        return NextResponse.json({ data: mapAccountToListRow(account) }, { status: 201 })
+        return NextResponse.json({ data: mapAccountToListRow(creation.account) }, { status: 201 })
       } catch (error: any) {
         console.error("Failed to create account", error)
+        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+          return NextResponse.json({ error: "An account with this name already exists." }, { status: 409 })
+        }
         const message = error?.message ?? "Failed to create account"
         return NextResponse.json({ error: message }, { status: 500 })
       }

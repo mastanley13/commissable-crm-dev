@@ -957,26 +957,6 @@ export async function createFlexChargebackForNegativeLine(
         commissionRate: 1,
       },
     })
-
-    await recordFieldUndoLog(tx, {
-      tenantId,
-      depositId,
-      depositLineItemId: lineItemId,
-      targetEntityName: "DepositLineItem",
-      targetEntityId: lineItemId,
-      relatedRevenueScheduleIds: [],
-      createdById: userId,
-      fields: {
-        usage: {
-          previousValue: rawUsage,
-          nextValue: usage,
-        },
-        commissionRate: {
-          previousValue: line.commissionRate ?? null,
-          nextValue: 1,
-        },
-      },
-    })
   }
 
   // Remove existing matches on this line to make the automation reversible via Unmatch.
@@ -1023,6 +1003,28 @@ export async function createFlexChargebackForNegativeLine(
     flexSourceDepositId: depositId,
     flexSourceDepositLineItemId: lineItemId,
   })
+
+  if (normalizedChargeback) {
+    await recordFieldUndoLog(tx, {
+      tenantId,
+      depositId,
+      depositLineItemId: lineItemId,
+      targetEntityName: "DepositLineItem",
+      targetEntityId: lineItemId,
+      relatedRevenueScheduleIds: [schedule.id],
+      createdById: userId,
+      fields: {
+        usage: {
+          previousValue: rawUsage,
+          nextValue: usage,
+        },
+        commissionRate: {
+          previousValue: line.commissionRate ?? null,
+          nextValue: 1,
+        },
+      },
+    })
+  }
 
   await tx.depositLineMatch.create({
     data: {

@@ -102,6 +102,8 @@ export function GroupCreateModal({ isOpen, onClose, onCreated }: GroupCreateModa
   }, [isOpen, showError, user?.id])
 
   const canSubmit = useMemo(() => form.name.trim().length >= 3 && form.ownerId.length > 0, [form.name, form.ownerId])
+  const descriptionTextareaClass =
+    "h-[28px] min-h-[28px] w-full resize-vertical overflow-hidden border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs leading-4 focus:outline-none focus:border-primary-500"
 
   const filteredOwners = useMemo(() => {
     if (!ownerQuery.trim()) return owners
@@ -271,8 +273,8 @@ export function GroupCreateModal({ isOpen, onClose, onCreated }: GroupCreateModa
               <textarea
                 value={form.description}
                 onChange={event => setForm(prev => ({ ...prev, description: event.target.value.slice(0, 500) }))}
-                rows={3}
-                className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
+                rows={1}
+                className={descriptionTextareaClass}
                 placeholder="Describe the purpose of this group"
               />
             </div>

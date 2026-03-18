@@ -215,3 +215,75 @@ integrationTest("MTG-0303-008: RS detail keeps account IDs blank when the opport
   assert.notEqual(payload.data?.accountIdHouse, ctx.distributorAccountId)
   assert.notEqual(payload.data?.accountIdOther, ctx.vendorAccountId)
 })
+
+integrationTest("RB-OPP-008: RS detail prefers opportunity snapshot addresses over current account addresses", async (ctx) => {
+  const dbModule = await import("../lib/db")
+  const prisma = (dbModule as any).prisma ?? (dbModule as any).default?.prisma
+
+  const shippingAddress = await prisma.address.create({
+    data: {
+      tenantId: ctx.tenantId,
+      line1: "10 Account Ship St",
+      city: "Austin",
+      state: "TX",
+      postalCode: "78701",
+      country: "United States",
+    },
+    select: { id: true },
+  })
+
+  const billingAddress = await prisma.address.create({
+    data: {
+      tenantId: ctx.tenantId,
+      line1: "20 Account Bill St",
+      city: "Austin",
+      state: "TX",
+      postalCode: "78702",
+      country: "United States",
+    },
+    select: { id: true },
+  })
+
+  await prisma.account.update({
+    where: { id: ctx.distributorAccountId },
+    data: {
+      shippingAddressId: shippingAddress.id,
+      billingAddressId: billingAddress.id,
+    },
+  })
+
+  const opportunity = await prisma.opportunity.create({
+    data: {
+      tenantId: ctx.tenantId,
+      accountId: ctx.distributorAccountId,
+      name: "Address Snapshot Opportunity",
+      shippingAddress: "500 Opportunity Ship Ave, Suite 10, Dallas, TX 75201",
+      billingAddress: "900 Opportunity Bill Ave, Dallas, TX 75202",
+    },
+    select: { id: true },
+  })
+
+  const schedule = await prisma.revenueSchedule.create({
+    data: {
+      tenantId: ctx.tenantId,
+      accountId: ctx.distributorAccountId,
+      opportunityId: opportunity.id,
+      scheduleNumber: "RS-ADDRESS-1",
+    },
+    select: { id: true },
+  })
+
+  const routeModule = await import("../app/api/revenue-schedules/[revenueScheduleId]/route")
+  const GET = (routeModule as any).GET ?? (routeModule as any).default?.GET
+  assert.equal(typeof GET, "function")
+
+  const response = await GET(
+    authedGet(ctx.sessionToken, `http://localhost/api/revenue-schedules/${schedule.id}`),
+    { params: { revenueScheduleId: schedule.id } },
+  )
+  assertStatus(response, 200)
+
+  const payload = await readJson<{ data?: any }>(response)
+  assert.equal(payload.data?.shippingAddress, "500 Opportunity Ship Ave, Suite 10, Dallas, TX 75201")
+  assert.equal(payload.data?.billingAddress, "900 Opportunity Bill Ave, Dallas, TX 75202")
+})
