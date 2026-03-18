@@ -2,8 +2,16 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { ModalHeader } from "./ui/modal-header"
+import { RevenueBulkApplyPanel } from "./revenue-bulk-apply-panel"
 import { cn } from "@/lib/utils"
 import type { DepositLineItemRow, SuggestedMatchScheduleRow } from "@/lib/mock-data"
+import {
+  buildInlineActualTargets,
+  deriveAllocationDraftFromActualTarget,
+  parseMatchWizardAmount,
+  supportsInlineActualEditing,
+  type MatchWizardAllocationDraft,
+} from "@/lib/matching/match-wizard-inline-actuals"
 import type { MatchSelectionType } from "@/lib/matching/match-selection"
 import { isSelectionCompatibleWithType } from "@/lib/matching/match-selection"
 import { deriveMatchWizardValidationState } from "@/lib/matching/match-wizard-validation"
@@ -20,10 +28,7 @@ const percentFormatter = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 2,
 })
 
-type AllocationDraft = {
-  usage: string
-  commission: string
-}
+type AllocationDraft = MatchWizardAllocationDraft
 
 type PreviewIssue = { level: "error" | "warning"; code: string; message: string }
 type PreviewResponse =
@@ -57,6 +62,18 @@ type PreviewResponse =
 
 type PreviewLineRow = Extract<PreviewResponse, { ok: true }>["lines"][number]
 type PreviewScheduleRow = Extract<PreviewResponse, { ok: true }>["schedules"][number]
+type InlineBulkPromptMode = "scheduleActual" | "lineAllocation"
+type InlineBulkPromptState = {
+  mode: InlineBulkPromptMode
+  field: keyof AllocationDraft
+  rawValue: string
+  fieldLabel: string
+  valueLabel: string
+  previousValueLabel?: string
+  selectedCount: number
+  entityLabelSingular: string
+  entityLabelPlural: string
+}
 
 const AUTO_VALIDATION_DEBOUNCE_MS = 300
 
@@ -94,6 +111,10 @@ function formatCount(value: number | null | undefined, fractionDigits = 2) {
   return Number(value).toFixed(fractionDigits)
 }
 
+function roundAmount(value: number) {
+  return Math.round(value * 100) / 100
+}
+
 function MatchWizardSelectionTable(props: {
   title: string
   emptyLabel: string
@@ -102,14 +123,14 @@ function MatchWizardSelectionTable(props: {
 }) {
   return (
     <section>
-      <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#2f6fe4]">{props.title}</p>
-      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+      <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-500">{props.title}</p>
+      <div className="overflow-hidden border-2 border-gray-400 bg-white">
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-blue-700 text-left text-xs">
-            <thead className="bg-[#2f6fe4] text-white">
+          <table className="min-w-full text-left text-xs">
+            <thead className="bg-blue-500 text-white">
               <tr>
                 {props.headers.map(header => (
-                  <th key={header} className="whitespace-nowrap px-4 py-1.5 font-semibold uppercase tracking-wide">
+                  <th key={header} className="whitespace-nowrap px-4 py-1.5 font-semibold text-[11px] uppercase tracking-wide select-none border-b-2 border-blue-700 border-r-2 border-blue-700 last:border-r-0">
                     {header}
                   </th>
                 ))}
@@ -144,17 +165,17 @@ function MatchWizardSelectionTable(props: {
   )
 }
 
-function renderHighlightedPreviewValue(value: string, changed: boolean) {
+function renderHighlightedPreviewValue(value: string, changed: boolean, oldValue?: string) {
   if (!changed) return value
+  if (oldValue) {
+    return (
+      <span className="recon-preview-cell">
+        <span className="recon-preview-old">{oldValue}</span>
+        <span className="recon-preview-new">{value}</span>
+      </span>
+    )
+  }
   return <span className="recon-preview-chip">{value}</span>
-}
-
-function parseAmount(raw: string): number | null {
-  const trimmed = raw.trim()
-  if (!trimmed) return null
-  const numeric = Number(trimmed)
-  if (!Number.isFinite(numeric)) return null
-  return Math.round(numeric * 100) / 100
 }
 
 function allocationKey(lineId: string, scheduleId: string) {
@@ -166,6 +187,21 @@ function buildDefaultAllocations(params: {
   lines: DepositLineItemRow[]
   schedules: SuggestedMatchScheduleRow[]
 }): Record<string, AllocationDraft> {
+  if (params.matchType === "OneToOne") {
+    const line = params.lines[0]
+    const scheduleId = params.schedules[0]?.id
+    if (!line || !scheduleId) return {}
+
+    const usage = Math.max(0, Number(line.usageUnallocated ?? 0))
+    const commission = Math.max(0, Number(line.commissionUnallocated ?? 0))
+    return {
+      [allocationKey(line.id, scheduleId)]: {
+        usage: usage ? usage.toFixed(2) : "",
+        commission: commission ? commission.toFixed(2) : "",
+      },
+    }
+  }
+
   if (params.matchType === "OneToMany") {
     const line = params.lines[0]
     if (!line) return {}
@@ -320,10 +356,18 @@ export function ReconciliationMatchWizardModal(props: {
   const [bundleUndoReason, setBundleUndoReason] = useState("")
   const [bundleUndoLoading, setBundleUndoLoading] = useState(false)
   const [bundleUndoError, setBundleUndoError] = useState<string | null>(null)
+  const [inlineBulkPrompt, setInlineBulkPrompt] = useState<InlineBulkPromptState | null>(null)
+  const [inlineBulkApplying, setInlineBulkApplying] = useState(false)
 
   const skipAllocationResetRef = useRef(false)
   const autoPreviewRequestKeyRef = useRef<string | null>(null)
   const autoValidationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pendingInlineBulkPromptRef = useRef<{
+    mode: InlineBulkPromptMode
+    rowId: string
+    field: keyof AllocationDraft
+    rawValue: string
+  } | null>(null)
   const [allocationExpanded, setAllocationExpanded] = useState(false)
 
   const isOpen = props.open
@@ -365,8 +409,11 @@ export function ReconciliationMatchWizardModal(props: {
     setBundleUndoReason("")
     setBundleUndoLoading(false)
     setBundleUndoError(null)
+    setInlineBulkPrompt(null)
+    setInlineBulkApplying(false)
     skipAllocationResetRef.current = false
     autoPreviewRequestKeyRef.current = null
+    pendingInlineBulkPromptRef.current = null
     if (autoValidationTimeoutRef.current) {
       clearTimeout(autoValidationTimeoutRef.current)
       autoValidationTimeoutRef.current = null
@@ -492,89 +539,6 @@ export function ReconciliationMatchWizardModal(props: {
     return map
   }, [preview, previewUpToDate])
 
-  const selectedLineRows = useMemo<ReactNode[][]>(
-    () =>
-      selectedLines.map(line => {
-        const previewLine = previewLineMap.get(line.id)
-        const usageAllocatedAfter = previewLine?.usageAllocatedAfter ?? Number(line.usageAllocated ?? 0)
-        const usageUnallocatedAfter = previewLine?.usageUnallocatedAfter ?? Number(line.usageUnallocated ?? 0)
-        const commissionAllocatedAfter = previewLine?.commissionAllocatedAfter ?? Number(line.commissionAllocated ?? 0)
-        return [
-          line.accountId || "-",
-          line.accountName || "-",
-          line.productName || "-",
-          line.lineItem ?? "-",
-          currencyFormatter.format(Number(line.usage ?? 0)),
-          renderHighlightedPreviewValue(
-            currencyFormatter.format(usageAllocatedAfter),
-            Math.abs(usageAllocatedAfter - Number(line.usageAllocated ?? 0)) > 0.005,
-          ),
-          renderHighlightedPreviewValue(
-            currencyFormatter.format(usageUnallocatedAfter),
-            Math.abs(usageUnallocatedAfter - Number(line.usageUnallocated ?? 0)) > 0.005,
-          ),
-          formatPercent(line.commissionRate),
-          currencyFormatter.format(Number(line.commission ?? 0)),
-          renderHighlightedPreviewValue(
-            currencyFormatter.format(commissionAllocatedAfter),
-            Math.abs(commissionAllocatedAfter - Number(line.commissionAllocated ?? 0)) > 0.005,
-          ),
-        ]
-      }),
-    [previewLineMap, selectedLines],
-  )
-
-  const selectedScheduleRows = useMemo<ReactNode[][]>(
-    () =>
-      selectedSchedules.map(schedule => {
-        const previewSchedule = previewScheduleMap.get(schedule.id)
-        const actualUsageAfter = previewSchedule?.actualUsageNetAfter ?? Number(schedule.actualUsage ?? 0)
-        const actualCommissionAfter = previewSchedule?.actualCommissionNetAfter ?? Number(schedule.actualCommission ?? 0)
-        const usageBalanceAfter = previewSchedule?.usageBalanceAfter ?? Number(schedule.usageBalance ?? 0)
-        const commissionDifferenceAfter =
-          previewSchedule?.commissionDifferenceAfter ?? Number(schedule.commissionDifference ?? 0)
-        const actualRateAfter =
-          Math.abs(actualUsageAfter) <= 0.005 ? 0 : actualCommissionAfter / actualUsageAfter
-        return [
-          schedule.revenueScheduleName || schedule.id,
-          formatDate(schedule.revenueScheduleDate),
-          formatCount(schedule.quantity),
-          currencyFormatter.format(Number(schedule.priceEach ?? 0)),
-          currencyFormatter.format(Number(schedule.expectedUsageGross ?? 0)),
-          currencyFormatter.format(Number(schedule.expectedUsageAdjustment ?? 0)),
-          currencyFormatter.format(Number(schedule.expectedUsageNet ?? 0)),
-          formatPercent(schedule.expectedCommissionRatePercent),
-          currencyFormatter.format(Number(schedule.expectedCommissionNet ?? 0)),
-          renderHighlightedPreviewValue(
-            currencyFormatter.format(actualUsageAfter),
-            Math.abs(actualUsageAfter - Number(schedule.actualUsage ?? 0)) > 0.005,
-          ),
-          renderHighlightedPreviewValue(
-            currencyFormatter.format(actualCommissionAfter),
-            Math.abs(actualCommissionAfter - Number(schedule.actualCommission ?? 0)) > 0.005,
-          ),
-          renderHighlightedPreviewValue(
-            formatPercent(actualRateAfter),
-            Math.abs(actualRateAfter - Number(schedule.actualCommissionRatePercent ?? 0)) > 0.005,
-          ),
-          renderHighlightedPreviewValue(
-            currencyFormatter.format(usageBalanceAfter),
-            Math.abs(usageBalanceAfter - Number(schedule.usageBalance ?? 0)) > 0.005,
-          ),
-          renderHighlightedPreviewValue(
-            currencyFormatter.format(commissionDifferenceAfter),
-            Math.abs(commissionDifferenceAfter - Number(schedule.commissionDifference ?? 0)) > 0.005,
-          ),
-        ]
-      }),
-    [previewScheduleMap, selectedSchedules],
-  )
-
-  const selectionBlockedReason = useMemo(() => {
-    if (!selectionCompatible) return "Selection does not match match type."
-    return null
-  }, [selectionCompatible])
-
   const replacementRequiredIssue = useMemo(() => {
     const issues = preview?.issues ?? []
     return issues.find(issue => issue.code === "many_to_one_mixed_rate_requires_replacement") ?? null
@@ -589,7 +553,437 @@ export function ReconciliationMatchWizardModal(props: {
     effectiveType === "ManyToOne" && replacementRequiredIssue && !bundleAuditLogId,
   )
 
+  const inlineScheduleActualEditingEnabled =
+    effectiveType === "OneToMany" && supportsInlineActualEditing(effectiveType)
+  const inlineLineAllocationEditingEnabled =
+    effectiveType === "ManyToOne" && manyToOneMode === "allocation" && !bundleAuditLogId && !replacementRequired
+
+  const inlineActualTargets = useMemo(
+    () =>
+      buildInlineActualTargets({
+        matchType: effectiveType,
+        selectedLines,
+        selectedSchedules,
+        allocations,
+      }),
+    [allocations, effectiveType, selectedLines, selectedSchedules],
+  )
+
+  const inlineLineAllocationTargets = useMemo(() => {
+    const targets = new Map<string, { usage: number; commission: number }>()
+    if (effectiveType !== "ManyToOne") return targets
+
+    const scheduleId = selectedSchedules[0]?.id
+    if (!scheduleId) return targets
+
+    for (const line of selectedLines) {
+      const draft = allocations[allocationKey(line.id, scheduleId)]
+      const usageDelta = parseMatchWizardAmount(draft?.usage ?? "") ?? 0
+      const commissionDelta = parseMatchWizardAmount(draft?.commission ?? "") ?? 0
+
+      targets.set(line.id, {
+        usage: roundAmount(Math.max(0, Number(line.usageAllocated ?? 0) + usageDelta)),
+        commission: roundAmount(Math.max(0, Number(line.commissionAllocated ?? 0) + commissionDelta)),
+      })
+    }
+
+    return targets
+  }, [allocations, effectiveType, selectedLines, selectedSchedules])
+
+  const handleAllocationDraftChange = useCallback(
+    (rowKey: string, field: keyof AllocationDraft, value: string) => {
+      setAllocations(prev => ({
+        ...prev,
+        [rowKey]: { ...(prev[rowKey] ?? { usage: "", commission: "" }), [field]: value },
+      }))
+    },
+    [],
+  )
+
+  const handleInlineActualEdit = useCallback(
+    (schedule: SuggestedMatchScheduleRow, field: keyof AllocationDraft, rawValue: string) => {
+      if (!supportsInlineActualEditing(effectiveType)) return
+
+      const lineId = selectedLines[0]?.id
+      if (!lineId) return
+
+      const rowKey = allocationKey(lineId, schedule.id)
+      const currentActual = field === "usage" ? Number(schedule.actualUsage ?? 0) : Number(schedule.actualCommission ?? 0)
+      const nextAllocationValue = deriveAllocationDraftFromActualTarget({
+        currentActual,
+        rawTarget: rawValue,
+      })
+
+      handleAllocationDraftChange(rowKey, field, nextAllocationValue)
+      pendingInlineBulkPromptRef.current =
+        selectedSchedules.length > 1
+          ? { mode: "scheduleActual", rowId: schedule.id, field, rawValue }
+          : null
+    },
+    [effectiveType, handleAllocationDraftChange, selectedLines, selectedSchedules.length],
+  )
+
+  const handleInlineLineAllocationEdit = useCallback(
+    (line: DepositLineItemRow, field: keyof AllocationDraft, rawValue: string) => {
+      if (effectiveType !== "ManyToOne") return
+
+      const scheduleId = selectedSchedules[0]?.id
+      if (!scheduleId) return
+
+      const rowKey = allocationKey(line.id, scheduleId)
+      const currentAllocated =
+        field === "usage" ? Number(line.usageAllocated ?? 0) : Number(line.commissionAllocated ?? 0)
+      const nextAllocationValue = deriveAllocationDraftFromActualTarget({
+        currentActual: currentAllocated,
+        rawTarget: rawValue,
+      })
+
+      handleAllocationDraftChange(rowKey, field, nextAllocationValue)
+      pendingInlineBulkPromptRef.current =
+        selectedLines.length > 1
+          ? { mode: "lineAllocation", rowId: line.id, field, rawValue }
+          : null
+    },
+    [effectiveType, handleAllocationDraftChange, selectedLines.length, selectedSchedules],
+  )
+
+  const maybeOpenScheduleInlineBulkPrompt = useCallback(
+    (schedule: SuggestedMatchScheduleRow, field: keyof AllocationDraft, rawValue: string) => {
+      const pending = pendingInlineBulkPromptRef.current
+      pendingInlineBulkPromptRef.current = null
+
+      if (
+        !pending ||
+        pending.mode !== "scheduleActual" ||
+        pending.rowId !== schedule.id ||
+        pending.field !== field ||
+        selectedSchedules.length <= 1
+      ) {
+        return
+      }
+
+      const targetValue = parseMatchWizardAmount(rawValue)
+      if (targetValue === null) return
+
+      const previousValue = field === "usage" ? Number(schedule.actualUsage ?? 0) : Number(schedule.actualCommission ?? 0)
+      setInlineBulkPrompt({
+        mode: "scheduleActual",
+        field,
+        rawValue,
+        fieldLabel: field === "usage" ? "Actual Usage" : "Actual Commission",
+        valueLabel: currencyFormatter.format(targetValue),
+        previousValueLabel: currencyFormatter.format(previousValue),
+        selectedCount: selectedSchedules.length,
+        entityLabelSingular: "revenue schedule",
+        entityLabelPlural: "revenue schedules",
+      })
+    },
+    [selectedSchedules.length],
+  )
+
+  const maybeOpenLineInlineBulkPrompt = useCallback(
+    (line: DepositLineItemRow, field: keyof AllocationDraft, rawValue: string) => {
+      const pending = pendingInlineBulkPromptRef.current
+      pendingInlineBulkPromptRef.current = null
+
+      if (
+        !pending ||
+        pending.mode !== "lineAllocation" ||
+        pending.rowId !== line.id ||
+        pending.field !== field ||
+        selectedLines.length <= 1
+      ) {
+        return
+      }
+
+      const targetValue = parseMatchWizardAmount(rawValue)
+      if (targetValue === null) return
+
+      const previousValue =
+        field === "usage" ? Number(line.usageAllocated ?? 0) : Number(line.commissionAllocated ?? 0)
+      setInlineBulkPrompt({
+        mode: "lineAllocation",
+        field,
+        rawValue,
+        fieldLabel: field === "usage" ? "Allocated" : "Comm Alloc",
+        valueLabel: currencyFormatter.format(targetValue),
+        previousValueLabel: currencyFormatter.format(previousValue),
+        selectedCount: selectedLines.length,
+        entityLabelSingular: "deposit line",
+        entityLabelPlural: "deposit lines",
+      })
+    },
+    [selectedLines.length],
+  )
+
+  const renderEditableActualCell = useCallback(
+    (params: {
+      schedule: SuggestedMatchScheduleRow
+      field: keyof AllocationDraft
+      value: number
+      changed: boolean
+      ariaLabel: string
+      oldValue: string
+    }) => {
+      const { ariaLabel, changed, field, oldValue, schedule, value } = params
+      return (
+        <label className="flex min-w-[132px] flex-col items-end gap-1">
+          <input
+            type="number"
+            inputMode="decimal"
+            step="0.01"
+            min="0"
+            aria-label={ariaLabel}
+            className={cn(
+              "w-full rounded border px-2 py-1 text-right text-sm tabular-nums shadow-sm outline-none transition",
+              changed
+                ? "border-amber-300 bg-amber-50 font-semibold text-emerald-900"
+                : "border-slate-200 bg-white text-slate-800",
+            )}
+            value={value.toFixed(2)}
+            onChange={event => handleInlineActualEdit(schedule, field, event.target.value)}
+            onBlur={event => maybeOpenScheduleInlineBulkPrompt(schedule, field, event.target.value)}
+            onFocus={event => event.currentTarget.select()}
+          />
+          {changed ? <span className="text-[10px] text-slate-500">Current {oldValue}</span> : null}
+        </label>
+      )
+    },
+    [handleInlineActualEdit, maybeOpenScheduleInlineBulkPrompt],
+  )
+
+  const renderEditableLineAllocationCell = useCallback(
+    (params: {
+      line: DepositLineItemRow
+      field: keyof AllocationDraft
+      value: number
+      changed: boolean
+      ariaLabel: string
+      oldValue: string
+    }) => {
+      const { ariaLabel, changed, field, line, oldValue, value } = params
+      return (
+        <label className="flex min-w-[132px] flex-col items-end gap-1">
+          <input
+            type="number"
+            inputMode="decimal"
+            step="0.01"
+            min="0"
+            aria-label={ariaLabel}
+            className={cn(
+              "w-full rounded border px-2 py-1 text-right text-sm tabular-nums shadow-sm outline-none transition",
+              changed
+                ? "border-amber-300 bg-amber-50 font-semibold text-emerald-900"
+                : "border-slate-200 bg-white text-slate-800",
+            )}
+            value={value.toFixed(2)}
+            onChange={event => handleInlineLineAllocationEdit(line, field, event.target.value)}
+            onBlur={event => maybeOpenLineInlineBulkPrompt(line, field, event.target.value)}
+            onFocus={event => event.currentTarget.select()}
+          />
+          {changed ? <span className="text-[10px] text-slate-500">Current {oldValue}</span> : null}
+        </label>
+      )
+    },
+    [handleInlineLineAllocationEdit, maybeOpenLineInlineBulkPrompt],
+  )
+
+  const selectedLineRows = useMemo<ReactNode[][]>(
+    () =>
+      selectedLines.map(line => {
+        const previewLine = previewLineMap.get(line.id)
+        const inlineAllocationTargetsForLine = inlineLineAllocationTargets.get(line.id)
+        const baseUsageAllocated = Number(line.usageAllocated ?? 0)
+        const baseUsageUnallocated = Number(line.usageUnallocated ?? 0)
+        const baseCommissionAllocated = Number(line.commissionAllocated ?? 0)
+        const usageAllocatedAfter =
+          inlineAllocationTargetsForLine?.usage ?? previewLine?.usageAllocatedAfter ?? baseUsageAllocated
+        const usageAllocatedDelta = usageAllocatedAfter - baseUsageAllocated
+        const usageUnallocatedAfter =
+          previewLine?.usageUnallocatedAfter ?? roundAmount(baseUsageUnallocated - usageAllocatedDelta)
+        const commissionAllocatedAfter =
+          inlineAllocationTargetsForLine?.commission ?? previewLine?.commissionAllocatedAfter ?? baseCommissionAllocated
+        return [
+          line.accountId || "-",
+          line.accountName || "-",
+          line.productName || "-",
+          line.lineItem ?? "-",
+          currencyFormatter.format(Number(line.usage ?? 0)),
+          inlineLineAllocationEditingEnabled
+            ? renderEditableLineAllocationCell({
+                line,
+                field: "usage",
+                value: usageAllocatedAfter,
+                changed: Math.abs(usageAllocatedAfter - baseUsageAllocated) > 0.005,
+                ariaLabel: `Allocated usage for ${line.accountName || line.accountId || line.id}`,
+                oldValue: currencyFormatter.format(baseUsageAllocated),
+              })
+            : renderHighlightedPreviewValue(
+                currencyFormatter.format(usageAllocatedAfter),
+                Math.abs(usageAllocatedAfter - baseUsageAllocated) > 0.005,
+                currencyFormatter.format(baseUsageAllocated),
+              ),
+          renderHighlightedPreviewValue(
+            currencyFormatter.format(usageUnallocatedAfter),
+            Math.abs(usageUnallocatedAfter - baseUsageUnallocated) > 0.005,
+            currencyFormatter.format(baseUsageUnallocated),
+          ),
+          formatPercent(line.commissionRate),
+          currencyFormatter.format(Number(line.commission ?? 0)),
+          inlineLineAllocationEditingEnabled
+            ? renderEditableLineAllocationCell({
+                line,
+                field: "commission",
+                value: commissionAllocatedAfter,
+                changed: Math.abs(commissionAllocatedAfter - baseCommissionAllocated) > 0.005,
+                ariaLabel: `Allocated commission for ${line.accountName || line.accountId || line.id}`,
+                oldValue: currencyFormatter.format(baseCommissionAllocated),
+              })
+            : renderHighlightedPreviewValue(
+                currencyFormatter.format(commissionAllocatedAfter),
+                Math.abs(commissionAllocatedAfter - baseCommissionAllocated) > 0.005,
+                currencyFormatter.format(baseCommissionAllocated),
+              ),
+        ]
+      }),
+    [inlineLineAllocationEditingEnabled, inlineLineAllocationTargets, previewLineMap, renderEditableLineAllocationCell, selectedLines],
+  )
+
+  const selectedScheduleRows = useMemo<ReactNode[][]>(
+    () =>
+      selectedSchedules.map(schedule => {
+        const previewSchedule = previewScheduleMap.get(schedule.id)
+        const inlineTargetsForSchedule = inlineActualTargets.get(schedule.id)
+        const baseActualUsage = Number(schedule.actualUsage ?? 0)
+        const baseActualCommission = Number(schedule.actualCommission ?? 0)
+        const manyToOneUsageDraftTotal =
+          effectiveType === "ManyToOne"
+            ? selectedLines.reduce(
+                (sum, line) =>
+                  sum + (parseMatchWizardAmount(allocations[allocationKey(line.id, schedule.id)]?.usage ?? "") ?? 0),
+                0,
+              )
+            : 0
+        const manyToOneCommissionDraftTotal =
+          effectiveType === "ManyToOne"
+            ? selectedLines.reduce(
+                (sum, line) =>
+                  sum +
+                  (parseMatchWizardAmount(allocations[allocationKey(line.id, schedule.id)]?.commission ?? "") ?? 0),
+                0,
+              )
+            : 0
+        const inlineScheduleUsageAfter =
+          effectiveType === "ManyToOne"
+            ? roundAmount(baseActualUsage + manyToOneUsageDraftTotal)
+            : inlineTargetsForSchedule?.usage
+        const inlineScheduleCommissionAfter =
+          effectiveType === "ManyToOne"
+            ? roundAmount(baseActualCommission + manyToOneCommissionDraftTotal)
+            : inlineTargetsForSchedule?.commission
+        const actualUsageAfter = inlineScheduleUsageAfter ?? previewSchedule?.actualUsageNetAfter ?? baseActualUsage
+        const actualCommissionAfter =
+          inlineScheduleCommissionAfter ?? previewSchedule?.actualCommissionNetAfter ?? baseActualCommission
+        const usageDelta = actualUsageAfter - baseActualUsage
+        const commissionDelta = actualCommissionAfter - baseActualCommission
+        const usageBalanceAfter =
+          previewSchedule?.usageBalanceAfter ?? roundAmount(Number(schedule.usageBalance ?? 0) - usageDelta)
+        const commissionDifferenceAfter =
+          previewSchedule?.commissionDifferenceAfter ??
+          roundAmount(Number(schedule.commissionDifference ?? 0) - commissionDelta)
+        const actualRateAfter =
+          Math.abs(actualUsageAfter) <= 0.005 ? 0 : actualCommissionAfter / actualUsageAfter
+        const actualUsageChanged = Math.abs(actualUsageAfter - baseActualUsage) > 0.005
+        const actualCommissionChanged = Math.abs(actualCommissionAfter - baseActualCommission) > 0.005
+        return [
+          schedule.revenueScheduleName || schedule.id,
+          formatDate(schedule.revenueScheduleDate),
+          formatCount(schedule.quantity),
+          currencyFormatter.format(Number(schedule.priceEach ?? 0)),
+          currencyFormatter.format(Number(schedule.expectedUsageGross ?? 0)),
+          currencyFormatter.format(Number(schedule.expectedUsageAdjustment ?? 0)),
+          currencyFormatter.format(Number(schedule.expectedUsageNet ?? 0)),
+          formatPercent(schedule.expectedCommissionRatePercent),
+          currencyFormatter.format(Number(schedule.expectedCommissionNet ?? 0)),
+          inlineScheduleActualEditingEnabled
+            ? renderEditableActualCell({
+                schedule,
+                field: "usage",
+                value: actualUsageAfter,
+                changed: actualUsageChanged,
+                ariaLabel: `Actual usage for ${schedule.revenueScheduleName || schedule.id}`,
+                oldValue: currencyFormatter.format(baseActualUsage),
+              })
+            : renderHighlightedPreviewValue(
+                currencyFormatter.format(actualUsageAfter),
+                actualUsageChanged,
+                currencyFormatter.format(baseActualUsage),
+              ),
+          inlineScheduleActualEditingEnabled
+            ? renderEditableActualCell({
+                schedule,
+                field: "commission",
+                value: actualCommissionAfter,
+                changed: actualCommissionChanged,
+                ariaLabel: `Actual commission for ${schedule.revenueScheduleName || schedule.id}`,
+                oldValue: currencyFormatter.format(baseActualCommission),
+              })
+            : renderHighlightedPreviewValue(
+                currencyFormatter.format(actualCommissionAfter),
+                actualCommissionChanged,
+                currencyFormatter.format(baseActualCommission),
+              ),
+          renderHighlightedPreviewValue(
+            formatPercent(actualRateAfter),
+            Math.abs(actualRateAfter - Number(schedule.actualCommissionRatePercent ?? 0)) > 0.005,
+            formatPercent(Number(schedule.actualCommissionRatePercent ?? 0)),
+          ),
+          renderHighlightedPreviewValue(
+            currencyFormatter.format(usageBalanceAfter),
+            Math.abs(usageBalanceAfter - Number(schedule.usageBalance ?? 0)) > 0.005,
+            currencyFormatter.format(Number(schedule.usageBalance ?? 0)),
+          ),
+          renderHighlightedPreviewValue(
+            currencyFormatter.format(commissionDifferenceAfter),
+            Math.abs(commissionDifferenceAfter - Number(schedule.commissionDifference ?? 0)) > 0.005,
+            currencyFormatter.format(Number(schedule.commissionDifference ?? 0)),
+          ),
+        ]
+      }),
+    [allocations, effectiveType, inlineActualTargets, inlineScheduleActualEditingEnabled, previewScheduleMap, renderEditableActualCell, selectedLines, selectedSchedules],
+  )
+
+  const showInlineManyToOneHelper =
+    effectiveType === "ManyToOne" && manyToOneMode === "allocation" && !bundleAuditLogId && !replacementRequired
+  const showLegacyAllocationSection = !inlineScheduleActualEditingEnabled && !showInlineManyToOneHelper
+
+  const selectionBlockedReason = useMemo(() => {
+    if (!selectionCompatible) return "Selection does not match match type."
+    return null
+  }, [selectionCompatible])
+
   const allocationRows = useMemo(() => {
+    if (effectiveType === "OneToOne") {
+      const line = selectedLines[0]
+      const schedule = selectedSchedules[0]
+      if (!line || !schedule) return []
+
+      const key = allocationKey(line.id, schedule.id)
+      const draft = allocations[key] ?? { usage: "", commission: "" }
+      return [
+        {
+          key,
+          lineId: line.id,
+          scheduleId: schedule.id,
+          label: schedule.revenueScheduleName ?? schedule.id,
+          expectedUsageNet: Number(schedule.expectedUsageNet ?? 0),
+          expectedCommissionNet: Number(schedule.expectedCommissionNet ?? 0),
+          usage: draft.usage,
+          commission: draft.commission,
+        },
+      ]
+    }
+
     if (effectiveType === "OneToMany") {
       const line = selectedLines[0]
       if (!line) return []
@@ -663,8 +1057,8 @@ export function ReconciliationMatchWizardModal(props: {
     let usage = 0
     let commission = 0
     for (const row of allocationRows) {
-      const usageAmount = parseAmount(row.usage) ?? 0
-      const commissionAmount = parseAmount(row.commission) ?? 0
+      const usageAmount = parseMatchWizardAmount(row.usage) ?? 0
+      const commissionAmount = parseMatchWizardAmount(row.commission) ?? 0
       usage += usageAmount
       commission += commissionAmount
     }
@@ -682,8 +1076,8 @@ export function ReconciliationMatchWizardModal(props: {
     return allocationRows.map(row => ({
       lineId: row.lineId,
       scheduleId: row.scheduleId,
-      usageAmount: parseAmount(row.usage),
-      commissionAmount: parseAmount(row.commission),
+      usageAmount: parseMatchWizardAmount(row.usage),
+      commissionAmount: parseMatchWizardAmount(row.commission),
     }))
   }, [allocationRows])
 
@@ -831,6 +1225,63 @@ export function ReconciliationMatchWizardModal(props: {
     setManyToOneMode("bundle")
     setAllocationExpanded(current => (manyToOneMode === "bundle" ? !current : true))
   }, [manyToOneMode])
+
+  const applyInlineBulkPrompt = useCallback(async () => {
+    if (!inlineBulkPrompt) return
+
+    setInlineBulkApplying(true)
+
+    try {
+      setAllocations(prev => {
+        const nextAllocations = { ...prev }
+
+        if (inlineBulkPrompt.mode === "scheduleActual") {
+          const lineId = selectedLines[0]?.id
+          if (!lineId) return prev
+
+          for (const schedule of selectedSchedules) {
+            const rowKey = allocationKey(lineId, schedule.id)
+            const currentActual =
+              inlineBulkPrompt.field === "usage"
+                ? Number(schedule.actualUsage ?? 0)
+                : Number(schedule.actualCommission ?? 0)
+            nextAllocations[rowKey] = {
+              ...(nextAllocations[rowKey] ?? { usage: "", commission: "" }),
+              [inlineBulkPrompt.field]: deriveAllocationDraftFromActualTarget({
+                currentActual,
+                rawTarget: inlineBulkPrompt.rawValue,
+              }),
+            }
+          }
+
+          return nextAllocations
+        }
+
+        const scheduleId = selectedSchedules[0]?.id
+        if (!scheduleId) return prev
+
+        for (const line of selectedLines) {
+          const rowKey = allocationKey(line.id, scheduleId)
+          const currentAllocated =
+            inlineBulkPrompt.field === "usage"
+              ? Number(line.usageAllocated ?? 0)
+              : Number(line.commissionAllocated ?? 0)
+          nextAllocations[rowKey] = {
+            ...(nextAllocations[rowKey] ?? { usage: "", commission: "" }),
+            [inlineBulkPrompt.field]: deriveAllocationDraftFromActualTarget({
+              currentActual: currentAllocated,
+              rawTarget: inlineBulkPrompt.rawValue,
+            }),
+          }
+        }
+
+        return nextAllocations
+      })
+      setInlineBulkPrompt(null)
+    } finally {
+      setInlineBulkApplying(false)
+    }
+  }, [inlineBulkPrompt, selectedLines, selectedSchedules])
 
   useEffect(() => {
     if (!isOpen) return
@@ -1125,6 +1576,14 @@ export function ReconciliationMatchWizardModal(props: {
                   ]}
                   rows={selectedLineRows}
                 />
+                {inlineLineAllocationEditingEnabled ? (
+                  <p className="text-xs text-slate-600">
+                    Edit <span className="font-semibold text-slate-900">Allocated</span> and{" "}
+                    <span className="font-semibold text-slate-900">Comm Alloc</span> directly in the selected deposit
+                    lines. If the same final value should apply across all selected lines, tab out of the edited cell to
+                    use bulk inline update.
+                  </p>
+                ) : null}
                 <div className="space-y-2">
                   <MatchWizardSelectionTable
                     title={scheduleCount === 1 ? "Target Revenue Schedule Preview" : "Target Revenue Schedules Preview"}
@@ -1147,6 +1606,14 @@ export function ReconciliationMatchWizardModal(props: {
                     ]}
                     rows={selectedScheduleRows}
                   />
+                  {inlineScheduleActualEditingEnabled ? (
+                    <p className="text-xs text-slate-600">
+                      Edit <span className="font-semibold text-slate-900">Actual Usage</span> and{" "}
+                      <span className="font-semibold text-slate-900">Actual Commission</span> directly in the preview
+                      table. If the same final value should apply across all selected schedules, tab out of the edited
+                      cell to use bulk inline update.
+                    </p>
+                  ) : null}
                   <div className="rounded-md border border-slate-200 bg-white px-3 py-2">
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-600">
                       <span className="whitespace-nowrap">
@@ -1223,61 +1690,88 @@ export function ReconciliationMatchWizardModal(props: {
             </div>
           </div>
 
-          <div className="space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <p className="font-semibold text-slate-900">Edit Allocation</p>
-                <p className="text-xs text-slate-600">
-                  {effectiveType === "ManyToOne" && !bundleAuditLogId
-                    ? "Edit allocation is the primary path. Bundle stays available when this should break into replacement schedules."
-                    : "Adjust allocations here before submitting the match."}
-                </p>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                {effectiveType === "ManyToOne" && !bundleAuditLogId ? (
-                  <>
-                    <button
-                      type="button"
-                      className={cn(
-                        "rounded border px-2.5 py-1.5 text-xs font-semibold transition",
-                        manyToOneMode === "allocation"
-                          ? "border-primary-300 bg-primary-50 text-primary-800 hover:bg-primary-100"
-                          : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
-                      )}
-                      onClick={openAllocationEditor}
-                      disabled={replacementRequired}
-                    >
-                      Edit Allocation
-                    </button>
-                    <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">or</span>
-                    <button
-                      type="button"
-                      className={cn(
-                        "rounded border px-2.5 py-1.5 text-xs font-semibold transition",
-                        manyToOneMode === "bundle"
-                          ? "border-primary-300 bg-primary-50 text-primary-800 hover:bg-primary-100"
-                          : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
-                      )}
-                      onClick={openBundleEditor}
-                      disabled={bundleLoading}
-                    >
-                      Bundle
-                    </button>
-                  </>
-                ) : (
+          {showInlineManyToOneHelper ? (
+            <div className="rounded-md border border-slate-200 bg-slate-50 px-4 py-3">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="font-semibold text-slate-900">Inline allocation editing is active</p>
+                  <p className="mt-1 text-xs text-slate-600">
+                    The selected deposit lines above are now the primary allocation editor. Switch to bundle only when
+                    this should break into replacement schedules.
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="rounded-md border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700">
+                    Allocation totals:{" "}
+                    <span className="font-semibold">{currencyFormatter.format(allocationTotals.usage)}</span> usage,{" "}
+                    <span className="font-semibold">{currencyFormatter.format(allocationTotals.commission)}</span>{" "}
+                    commission
+                  </div>
                   <button
                     type="button"
-                    className="rounded border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                    onClick={openAllocationEditor}
+                    className="rounded border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                    onClick={openBundleEditor}
+                    disabled={bundleLoading}
                   >
-                    {allocationExpanded ? "Hide Allocation Editor" : "Edit Allocation"}
+                    Bundle Instead
                   </button>
-                )}
+                </div>
               </div>
             </div>
+          ) : null}
 
-            {allocationExpanded ? (
-              <>
+          {showLegacyAllocationSection ? (
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="font-semibold text-slate-900">Edit Allocation</p>
+                  <p className="text-xs text-slate-600">Adjust allocations here before submitting the match.</p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  {effectiveType === "ManyToOne" && !bundleAuditLogId ? (
+                    <>
+                      <button
+                        type="button"
+                        className={cn(
+                          "rounded border px-2.5 py-1.5 text-xs font-semibold transition",
+                          manyToOneMode === "allocation"
+                            ? "border-primary-300 bg-primary-50 text-primary-800 hover:bg-primary-100"
+                            : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
+                        )}
+                        onClick={openAllocationEditor}
+                        disabled={replacementRequired}
+                      >
+                        Edit Allocation
+                      </button>
+                      <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">or</span>
+                      <button
+                        type="button"
+                        className={cn(
+                          "rounded border px-2.5 py-1.5 text-xs font-semibold transition",
+                          manyToOneMode === "bundle"
+                            ? "border-primary-300 bg-primary-50 text-primary-800 hover:bg-primary-100"
+                            : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
+                        )}
+                        onClick={openBundleEditor}
+                        disabled={bundleLoading}
+                      >
+                        Bundle
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      className="rounded border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                      onClick={openAllocationEditor}
+                    >
+                      {allocationExpanded ? "Hide Allocation Editor" : "Edit Allocation"}
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {allocationExpanded ? (
+                <div className="space-y-3">
                 {!canProceedToAllocation ? (
                   <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-amber-900">
                     <p className="font-semibold">Allocation is blocked</p>
@@ -1460,7 +1954,7 @@ export function ReconciliationMatchWizardModal(props: {
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div className="min-w-[220px]">
                           <p className="font-semibold text-slate-900">{row.label}</p>
-                          {effectiveType === "OneToMany" || effectiveType === "ManyToMany" ? (
+                                {effectiveType === "ManyToMany" ? (
                             <p className="text-xs text-slate-600">
                               Expected: {currencyFormatter.format(row.expectedUsageNet)} usage /{" "}
                               {currencyFormatter.format(row.expectedCommissionNet)} commission
@@ -1478,12 +1972,7 @@ export function ReconciliationMatchWizardModal(props: {
                               min="0"
                               className="w-32 rounded border border-slate-200 px-2 py-1 text-sm text-slate-800"
                               value={row.usage}
-                              onChange={e =>
-                                setAllocations(prev => ({
-                                  ...prev,
-                                  [row.key]: { ...(prev[row.key] ?? { usage: "", commission: "" }), usage: e.target.value },
-                                }))
-                              }
+                              onChange={e => handleAllocationDraftChange(row.key, "usage", e.target.value)}
                             />
                           </div>
                           <div className="space-y-1">
@@ -1496,15 +1985,7 @@ export function ReconciliationMatchWizardModal(props: {
                               min="0"
                               className="w-32 rounded border border-slate-200 px-2 py-1 text-sm text-slate-800"
                               value={row.commission}
-                              onChange={e =>
-                                setAllocations(prev => ({
-                                  ...prev,
-                                  [row.key]: {
-                                    ...(prev[row.key] ?? { usage: "", commission: "" }),
-                                    commission: e.target.value,
-                                  },
-                                }))
-                              }
+                              onChange={e => handleAllocationDraftChange(row.key, "commission", e.target.value)}
                             />
                           </div>
                         </div>
@@ -1513,10 +1994,11 @@ export function ReconciliationMatchWizardModal(props: {
                   ))}
                 </div>
               )}
+                  </div>
+                </div>
+              ) : null}
             </div>
-              </>
-            ) : null}
-            </div>
+          ) : null}
 
           {applyError ? <p className="text-sm font-semibold text-red-600">{applyError}</p> : null}
 
@@ -1569,6 +2051,22 @@ export function ReconciliationMatchWizardModal(props: {
           </button>
         </div>
       </div>
+      <RevenueBulkApplyPanel
+        isOpen={Boolean(inlineBulkPrompt)}
+        selectedCount={inlineBulkPrompt?.selectedCount ?? 0}
+        fieldLabel={inlineBulkPrompt?.fieldLabel ?? "Allocation"}
+        valueLabel={inlineBulkPrompt?.valueLabel ?? currencyFormatter.format(0)}
+        previousValueLabel={inlineBulkPrompt?.previousValueLabel}
+        onClose={() => {
+          pendingInlineBulkPromptRef.current = null
+          setInlineBulkPrompt(null)
+        }}
+        onSubmit={applyInlineBulkPrompt}
+        isSubmitting={inlineBulkApplying}
+        entityLabelSingular={inlineBulkPrompt?.entityLabelSingular ?? "revenue schedule"}
+        entityLabelPlural={inlineBulkPrompt?.entityLabelPlural ?? "revenue schedules"}
+        containerClassName="z-[60]"
+      />
     </div>
   )
 }

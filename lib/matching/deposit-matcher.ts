@@ -1224,6 +1224,14 @@ function dateProximity(lineDate: Date | null, scheduleDate: Date | null) {
   const line = normalizeDate(lineDate)
   const schedule = normalizeDate(scheduleDate)
   if (!line || !schedule) return 0
+  // Revenue schedules are month-based; a deposit paid mid-month should still be
+  // treated as an exact date match for that schedule month.
+  if (
+    line.getUTCFullYear() === schedule.getUTCFullYear() &&
+    line.getUTCMonth() === schedule.getUTCMonth()
+  ) {
+    return 1
+  }
   const diffMs = Math.abs(line.getTime() - schedule.getTime())
   const diffDays = diffMs / (1000 * 60 * 60 * 24)
   if (diffDays >= 90) return 0

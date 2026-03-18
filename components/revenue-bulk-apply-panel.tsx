@@ -6,6 +6,7 @@ interface RevenueBulkApplyPanelProps {
   fieldLabel: string
   valueLabel: string
   previousValueLabel?: string
+  containerClassName?: string
   onClose: () => void
   onSubmit: () => Promise<void> | void
   isSubmitting?: boolean
@@ -24,6 +25,7 @@ export function RevenueBulkApplyPanel({
   fieldLabel,
   valueLabel,
   previousValueLabel,
+  containerClassName,
   onClose,
   onSubmit,
   isSubmitting = false,
@@ -57,7 +59,7 @@ export function RevenueBulkApplyPanel({
     selectedCount > 0 ? `Apply to ${selectedCount} selected` : "Apply changes"
 
   return (
-    <div className="fixed inset-y-0 right-0 z-40 flex max-w-full pointer-events-none">
+    <div className={`fixed inset-y-0 right-0 z-40 flex max-w-full pointer-events-none ${containerClassName ?? ""}`}>
       <div className="pointer-events-auto flex h-full w-screen max-w-md flex-col border-l border-gray-200 bg-white shadow-xl">
         <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
           <div>

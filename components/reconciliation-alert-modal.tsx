@@ -163,14 +163,14 @@ function SectionTable(props: {
 }) {
   return (
     <section>
-      <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#2f6fe4]">{props.title}</p>
-      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+      <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-500">{props.title}</p>
+      <div className="overflow-hidden border-2 border-gray-400 bg-white">
         <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-blue-700 text-left text-xs">
-          <thead className="bg-[#2f6fe4] text-white">
+        <table className="min-w-full text-left text-xs">
+          <thead className="bg-blue-500 text-white">
             <tr>
               {props.headers.map(header => (
-                <th key={header} className="whitespace-nowrap px-4 py-2 font-semibold uppercase tracking-wide">
+                <th key={header} className="whitespace-nowrap px-4 py-2 font-semibold text-[11px] uppercase tracking-wide select-none border-b-2 border-blue-700 border-r-2 border-blue-700 last:border-r-0">
                   {header}
                 </th>
               ))}
@@ -850,7 +850,7 @@ export function ReconciliationAlertModal(props: {
         className="flex h-[900px] w-full max-w-[1360px] min-h-0 flex-col overflow-hidden rounded-2xl bg-slate-100 shadow-2xl"
         onClick={event => event.stopPropagation()}
       >
-        <div className="border-b border-blue-700 bg-gradient-to-r from-blue-950 via-blue-800 to-blue-700 px-6 py-5 text-white">
+        <div className="border-b border-blue-700 bg-gradient-to-r from-blue-950 via-blue-800 to-blue-700 px-6 py-4 text-white">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-100/90">

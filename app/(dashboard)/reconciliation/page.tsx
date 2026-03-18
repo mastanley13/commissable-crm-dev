@@ -27,7 +27,7 @@ const RECONCILIATION_DEFAULT_VISIBLE_COLUMN_IDS = new Set<string>([
   'distributorName',
   'vendorName',
   'month',
-  'totalRevenue',
+  'totalUsage',
   'totalCommissions',
   'status'
 ])
@@ -94,10 +94,10 @@ const reconciliationColumns: Column[] = [
     render: (value) => formatDateYYYYMMDD(value)
   },
   {
-    id: 'totalRevenue',
-    label: 'Total Revenue',
+    id: 'totalUsage',
+    label: 'Total Usage',
     width: 150,
-    minWidth: calculateMinWidth({ label: 'Total Revenue', type: 'text', sortable: true }),
+    minWidth: calculateMinWidth({ label: 'Total Usage', type: 'text', sortable: true }),
     maxWidth: 200,
     sortable: true,
     type: 'text'
@@ -230,10 +230,10 @@ const reconciliationColumns: Column[] = [
     hidden: true
   },
   {
-    id: 'totalUsage',
-    label: 'Total Usage',
+    id: 'totalRevenue',
+    label: 'Total Revenue',
     width: 150,
-    minWidth: calculateMinWidth({ label: 'Total Usage', type: 'text', sortable: true }),
+    minWidth: calculateMinWidth({ label: 'Total Revenue', type: 'text', sortable: true }),
     maxWidth: 220,
     sortable: true,
     type: 'text',
@@ -558,8 +558,8 @@ export default function ReconciliationPage() {
     saveChangesOnModalClose,
   } = useTablePreferences("reconciliation:list", reconciliationColumns)
 
-  // Normalize column visibility on first load only when there are no
-  // saved preferences for this user/page.
+  // Normalize the initial list columns and promote totalUsage if a saved view
+  // still has the legacy totalRevenue column visible.
   useEffect(() => {
     if (reconciliationColumnsNormalized) {
       return
@@ -571,24 +571,51 @@ export default function ReconciliationPage() {
       return
     }
 
-    if (hasServerPreferences) {
-      setReconciliationColumnsNormalized(true)
-      return
+    let normalized = preferenceColumns.map(column => ({ ...column }))
+    const totalUsageIndex = normalized.findIndex(column => column.id === 'totalUsage')
+    const totalRevenueIndex = normalized.findIndex(column => column.id === 'totalRevenue')
+
+    if (totalUsageIndex >= 0 && totalRevenueIndex >= 0) {
+      const totalUsageColumn = normalized[totalUsageIndex]
+      const totalRevenueColumn = normalized[totalRevenueIndex]
+      const shouldPromoteUsageColumn =
+        totalRevenueColumn.hidden === false &&
+        totalUsageColumn.hidden !== false
+
+      if (shouldPromoteUsageColumn) {
+        normalized[totalRevenueIndex] = {
+          ...totalUsageColumn,
+          hidden: false,
+        }
+        normalized[totalUsageIndex] = {
+          ...totalRevenueColumn,
+          hidden: true,
+        }
+      }
     }
 
-    const normalized = preferenceColumns.map(column => {
-      if (column.id === 'multi-action') {
-        return column
-      }
+    if (!hasServerPreferences) {
+      normalized = normalized.map(column => {
+        if (column.id === 'multi-action') {
+          return column
+        }
 
-      if (RECONCILIATION_DEFAULT_VISIBLE_COLUMN_IDS.has(column.id)) {
-        return column.hidden ? { ...column, hidden: false } : column
-      }
+        if (RECONCILIATION_DEFAULT_VISIBLE_COLUMN_IDS.has(column.id)) {
+          return column.hidden ? { ...column, hidden: false } : column
+        }
 
-      return column.hidden === true ? column : { ...column, hidden: true }
+        return column.hidden === true ? column : { ...column, hidden: true }
+      })
+    }
+
+    const changed = normalized.some((column, index) => {
+      const original = preferenceColumns[index]
+      return (
+        column.id !== original.id ||
+        column.label !== original.label ||
+        column.hidden !== original.hidden
+      )
     })
-
-    const changed = normalized.some((column, index) => column.hidden !== preferenceColumns[index].hidden)
 
     if (changed) {
       handleColumnsChange(normalized)

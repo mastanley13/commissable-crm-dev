@@ -143,7 +143,7 @@ interface RevenueScheduleCreateModalProps {
 const labelCls = "mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500"
 const inputCls = "w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:border-primary-500 focus:outline-none"
 const selectCls = "w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:border-primary-500 focus:outline-none"
-const textAreaCls = "min-h-[84px] w-full resize-y border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs leading-5 focus:border-primary-500 focus:outline-none"
+const textAreaCls = "h-[26px] min-h-[26px] w-full resize-y border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs leading-5 focus:border-primary-500 focus:outline-none"
 
 const CADENCE_OPTIONS = [
   { label: "Monthly", value: "Monthly" as const },

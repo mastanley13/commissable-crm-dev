@@ -183,7 +183,7 @@ export function GroupCreateModal({ isOpen, onClose, onCreated }: GroupCreateModa
         </div>
 
         <form onSubmit={handleSubmit} className="max-h-[90vh] overflow-y-auto px-6 py-5">
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 content-start">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 content-start flex-none">
             <div className="md:col-span-2">
               <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Group Name<span className="ml-1 text-red-500">*</span></label>
               <input
@@ -268,7 +268,7 @@ export function GroupCreateModal({ isOpen, onClose, onCreated }: GroupCreateModa
                 </button>
               </div>
             </div>
-            <div className="md:col-span-2">
+            <div className="md:col-span-2 self-start">
               <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Description</label>
               <textarea
                 value={form.description}

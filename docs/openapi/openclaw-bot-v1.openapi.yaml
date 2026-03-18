@@ -1,0 +1,466 @@
+openapi: 3.1.0
+info:
+  title: Commissable OpenClaw Bot API
+  version: 1.0.0
+  description: Bot-facing API for OpenClaw reconciliation and CRM workflows.
+servers:
+  - url: /api/bot/v1
+security:
+  - bearerAuth: []
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: API Key
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+        duplicates:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+    MutationEnvelope:
+      type: object
+      required: [data, transactionId]
+      properties:
+        data:
+          type: object
+          additionalProperties: true
+        transactionId:
+          type: string
+paths:
+  /deposits:
+    get:
+      summary: List deposits
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [unmatched, in-progress, finalized]
+        - in: query
+          name: search
+          schema:
+            type: string
+        - in: query
+          name: page
+          schema:
+            type: integer
+        - in: query
+          name: limit
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deposit list
+        "401":
+          description: Unauthorized
+  /deposits/{id}:
+    get:
+      summary: Get deposit detail with line items
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Deposit detail
+        "404":
+          description: Deposit not found
+  /deposits/{id}/lines/{lineId}:
+    patch:
+      summary: Update deposit line reconciliation state
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: lineId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                matchStatus:
+                  type: string
+                  enum: [matched, unmatched, ignored]
+                linkedScheduleId:
+                  type: string
+                usageAmount:
+                  type: number
+                commissionAmount:
+                  type: number
+                notes:
+                  type: string
+      responses:
+        "200":
+          description: Updated line
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MutationEnvelope"
+        "409":
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /accounts:
+    get:
+      summary: Search accounts
+      parameters:
+        - in: query
+          name: search
+          schema:
+            type: string
+        - in: query
+          name: page
+          schema:
+            type: integer
+        - in: query
+          name: limit
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Account list
+    post:
+      summary: Create account with duplicate check
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [accountName]
+              properties:
+                accountName:
+                  type: string
+                accountLegalName:
+                  type: string
+                accountTypeId:
+                  type: string
+                ownerId:
+                  type: string
+                industryId:
+                  type: string
+                websiteUrl:
+                  type: string
+                description:
+                  type: string
+                active:
+                  type: boolean
+      responses:
+        "201":
+          description: Created
+        "409":
+          description: Duplicate account
+  /accounts/{id}:
+    get:
+      summary: Get account detail
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Account detail
+  /opportunities:
+    get:
+      summary: List opportunities
+      parameters:
+        - in: query
+          name: accountId
+          schema:
+            type: string
+        - in: query
+          name: search
+          schema:
+            type: string
+        - in: query
+          name: page
+          schema:
+            type: integer
+        - in: query
+          name: limit
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Opportunity list
+    post:
+      summary: Create opportunity
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [accountId, name]
+              properties:
+                accountId:
+                  type: string
+                name:
+                  type: string
+                ownerId:
+                  type: string
+                stage:
+                  type: string
+                leadSource:
+                  type: string
+                estimatedCloseDate:
+                  type: string
+                  format: date-time
+      responses:
+        "201":
+          description: Created
+  /opportunities/{id}:
+    get:
+      summary: Get opportunity detail
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Opportunity detail
+  /opportunities/{id}/products:
+    post:
+      summary: Attach product to opportunity
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [productId]
+              properties:
+                productId:
+                  type: string
+                quantity:
+                  type: number
+                unitPrice:
+                  type: number
+                expectedUsage:
+                  type: number
+                expectedRevenue:
+                  type: number
+                expectedCommission:
+                  type: number
+      responses:
+        "201":
+          description: Product attached
+  /products:
+    get:
+      summary: List product catalog
+      parameters:
+        - in: query
+          name: search
+          schema:
+            type: string
+        - in: query
+          name: page
+          schema:
+            type: integer
+        - in: query
+          name: limit
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Product list
+  /schedules:
+    get:
+      summary: List revenue schedules
+      parameters:
+        - in: query
+          name: opportunityId
+          schema:
+            type: string
+        - in: query
+          name: page
+          schema:
+            type: integer
+        - in: query
+          name: limit
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Schedule list
+    post:
+      summary: Create revenue schedule or Flex schedule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [scheduleDate]
+              properties:
+                accountId:
+                  type: string
+                opportunityId:
+                  type: string
+                opportunityProductId:
+                  type: string
+                productId:
+                  type: string
+                scheduleDate:
+                  type: string
+                  format: date-time
+                expectedUsage:
+                  type: number
+                expectedCommission:
+                  type: number
+                expectedCommissionRatePercent:
+                  type: number
+                flexClassification:
+                  type: string
+                flexReasonCode:
+                  type: string
+      responses:
+        "201":
+          description: Created schedule
+  /schedules/{id}:
+    get:
+      summary: Get schedule detail with history
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Schedule detail
+    patch:
+      summary: Update schedule balances or notes
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                scheduleDate:
+                  type: string
+                  format: date-time
+                expectedUsage:
+                  type: number
+                usageAdjustment:
+                  type: number
+                expectedCommission:
+                  type: number
+                expectedCommissionRatePercent:
+                  type: number
+                expectedCommissionAdjustment:
+                  type: number
+                notes:
+                  type: string
+                billingStatus:
+                  type: string
+      responses:
+        "200":
+          description: Updated schedule
+    delete:
+      summary: Soft-delete Flex schedule artifact
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Deleted
+        "409":
+          description: Conflict
+  /audit:
+    get:
+      summary: Fetch audit history for a record
+      parameters:
+        - in: query
+          name: entityId
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: entityType
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: page
+          schema:
+            type: integer
+        - in: query
+          name: limit
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Audit history
+    post:
+      summary: Write audit entry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [entityType, entityId]
+              properties:
+                action:
+                  type: string
+                entityType:
+                  type: string
+                entityId:
+                  type: string
+                user:
+                  type: string
+                timestamp:
+                  type: string
+                before:
+                  type: object
+                  additionalProperties: true
+                after:
+                  type: object
+                  additionalProperties: true
+                payloadDiff:
+                  type: object
+                  additionalProperties: true
+      responses:
+        "201":
+          description: Audit entry created

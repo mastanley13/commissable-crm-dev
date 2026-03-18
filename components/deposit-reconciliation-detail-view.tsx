@@ -16,6 +16,7 @@ import { DepositReconciliationTopSection } from "./deposit-reconciliation-top-se
 import { DepositVendorSummaryFloatingWidget } from "./deposit-vendor-summary-floating-widget"
 import { ColumnChooserModal } from "./column-chooser-modal"
 import { TwoStageDeleteDialog } from "./two-stage-delete-dialog"
+import { ModalHeader } from "./ui/modal-header"
 import {
   ReconciliationAlertModal,
   type AiAdjustmentPreviewPayload,
@@ -1594,16 +1595,6 @@ export function DepositReconciliationDetailView({
       return
     }
 
-    if (classification.type === "OneToOne") {
-      const lineId = selectedLineIdRef.current ?? lineIds[0]
-      if (!lineId) {
-        showError("No line selected", "Select a deposit line item to match.")
-        return
-      }
-      void handleRowMatchClick(lineId)
-      return
-    }
-
     const selectedWizardLines = lineItemRows.filter(row => lineIds.includes(row.id))
     const selectedWizardSchedules = scheduleRows.filter(row => scheduleIds.includes(row.id))
 
@@ -1612,7 +1603,7 @@ export function DepositReconciliationDetailView({
       selectedLines: selectedWizardLines,
       selectedSchedules: selectedWizardSchedules,
     })
-  }, [handleRowMatchClick, lineItemRows, scheduleRows, showError])
+  }, [lineItemRows, scheduleRows, showError])
 
   const handleCreateFlexSelected = useCallback(async () => {
     const lineId = selectedLineIdRef.current ?? selectedLineItemsRef.current[0]
@@ -4235,18 +4226,20 @@ export function DepositReconciliationDetailView({
           style={{ width: "1024px", height: "900px" }}
           onClick={event => event.stopPropagation()}
         >
-          <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
-            <div>
-              <h2 className="text-lg font-semibold text-slate-900">Review allocations before finalizing</h2>
-            </div>
-            <button
-              type="button"
-              onClick={() => setShowFinalizePreview(false)}
-              className="text-sm text-slate-500 hover:text-slate-700"
-            >
-              Close
-            </button>
-          </div>
+          <ModalHeader
+            kicker="Deposit Reconciliation"
+            title="Review allocations before finalizing"
+            variant="gradient"
+            right={
+              <button
+                type="button"
+                onClick={() => setShowFinalizePreview(false)}
+                className="rounded border border-white/20 px-3 py-1.5 text-sm font-semibold text-white/90 transition hover:bg-white/10 hover:text-white"
+              >
+                Close
+              </button>
+            }
+          />
           <div className="grid gap-4 px-6 py-5 md:grid-cols-2">
             <div className="rounded-lg border border-slate-200">
               <div className="border-b border-slate-200 px-4 py-2 text-sm font-semibold text-slate-800">
@@ -4288,234 +4281,8 @@ export function DepositReconciliationDetailView({
                 ) : (
                   <div className="p-4 text-xs text-slate-500">No allocated line items yet.</div>
                 )}
-      </div>
-    </div>
-
-    {showUnreconcilePreview ? (
-      <div
-        className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50"
-        onClick={() => setShowUnreconcilePreview(false)}
-      >
-        <div
-          className="w-full max-w-5xl rounded-2xl bg-white shadow-xl"
-          style={{ width: "1024px", height: "900px" }}
-          onClick={event => event.stopPropagation()}
-        >
-          <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
-            <div>
-              <h2 className="text-lg font-semibold text-slate-900">Review finalized items</h2>
-            </div>
-            <button
-              type="button"
-              onClick={() => setShowUnreconcilePreview(false)}
-              className="text-sm text-slate-500 hover:text-slate-700"
-            >
-              Close
-            </button>
-          </div>
-          <div className="grid gap-4 px-6 py-5 md:grid-cols-2">
-            <div className="rounded-lg border border-slate-200">
-              <div className="border-b border-slate-200 px-4 py-2 text-sm font-semibold text-slate-800">
-                Finalized Line Items ({matchedLineItems.length})
-              </div>
-              <div className="max-h-64 overflow-y-auto">
-                {matchedLineItems.length ? (
-                  <table className="min-w-full divide-y divide-slate-200 text-sm">
-                    <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      <tr>
-                        <th className="px-3 py-2 text-left">Line</th>
-                        <th className="px-3 py-2 text-left">Account</th>
-                        <th className="px-3 py-2 text-left">Product</th>
-                        <th className="px-3 py-2 text-left">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {matchedLineItems.map(item => (
-                        <tr key={item.id}>
-                          <td className="px-3 py-2 text-slate-900">{item.lineItem}</td>
-                          <td className="px-3 py-2 text-slate-700">{item.accountName}</td>
-                          <td className="px-3 py-2 text-slate-700">{item.productName}</td>
-                          <td className="px-3 py-2 text-slate-700">{item.reconciled ? "Reconciled" : item.status}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                ) : (
-                  <div className="p-4 text-xs text-slate-500">No reconciled line items.</div>
-                )}
               </div>
             </div>
-            <div className="rounded-lg border border-slate-200">
-              <div className="border-b border-slate-200 px-4 py-2 text-sm font-semibold text-slate-800">
-                Finalized Revenue Schedules ({matchedSchedules.length})
-              </div>
-              <div className="max-h-64 overflow-y-auto">
-                {matchedSchedules.length ? (
-                  <table className="min-w-full divide-y divide-slate-200 text-sm">
-                    <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      <tr>
-                        <th className="px-3 py-2 text-left">Schedule</th>
-                        <th className="px-3 py-2 text-left">Account</th>
-                        <th className="px-3 py-2 text-left">Product</th>
-                        <th className="px-3 py-2 text-left">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {matchedSchedules.map(schedule => (
-                        <tr key={schedule.id}>
-                          <td className="px-3 py-2 text-slate-900">{schedule.revenueScheduleName}</td>
-                          <td className="px-3 py-2 text-slate-700">{schedule.legalName}</td>
-                          <td className="px-3 py-2 text-slate-700">{schedule.productNameVendor}</td>
-                          <td className="px-3 py-2 text-slate-700">{schedule.status}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                ) : (
-                  <div className="p-4 text-xs text-slate-500">No reconciled schedules.</div>
-                )}
-              </div>
-            </div>
-          </div>
-          <div className="flex items-center justify-end gap-3 border-t border-slate-200 px-6 py-4">
-            <button
-              type="button"
-              onClick={() => setShowUnreconcilePreview(false)}
-              className="rounded border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed"
-              disabled={unfinalizeLoading}
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setShowUnreconcilePreview(false)
-                onUnfinalizeDeposit?.()
-              }}
-              disabled={unfinalizeLoading}
-              className={cn(
-                "rounded bg-primary-600 px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-60",
-              )}
-            >
-              {unfinalizeLoading ? "Reopening..." : "Reopen Deposit"}
-            </button>
-          </div>
-        </div>
-      </div>
-    ) : null}
-
-    {showUnreconcilePreview ? (
-      <div
-        className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50"
-        onClick={() => setShowUnreconcilePreview(false)}
-      >
-        <div
-          className="w-full max-w-5xl rounded-2xl bg-white shadow-xl"
-          style={{ width: "1024px", height: "900px" }}
-          onClick={event => event.stopPropagation()}
-        >
-          <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
-            <div>
-              <h2 className="text-lg font-semibold text-slate-900">Review finalized items</h2>
-            </div>
-            <button
-              type="button"
-              onClick={() => setShowUnreconcilePreview(false)}
-              className="text-sm text-slate-500 hover:text-slate-700"
-            >
-              Close
-            </button>
-          </div>
-          <div className="grid gap-4 px-6 py-5 md:grid-cols-2">
-            <div className="rounded-lg border border-slate-200">
-              <div className="border-b border-slate-200 px-4 py-2 text-sm font-semibold text-slate-800">
-                Finalized Line Items ({matchedLineItems.length})
-              </div>
-              <div className="max-h-64 overflow-y-auto">
-                {matchedLineItems.length ? (
-                  <table className="min-w-full divide-y divide-slate-200 text-sm">
-                    <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      <tr>
-                        <th className="px-3 py-2 text-left">Line</th>
-                        <th className="px-3 py-2 text-left">Account</th>
-                        <th className="px-3 py-2 text-left">Product</th>
-                        <th className="px-3 py-2 text-left">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {matchedLineItems.map(item => (
-                        <tr key={item.id}>
-                          <td className="px-3 py-2 text-slate-900">{item.lineItem}</td>
-                          <td className="px-3 py-2 text-slate-700">{item.accountName}</td>
-                          <td className="px-3 py-2 text-slate-700">{item.productName}</td>
-                          <td className="px-3 py-2 text-slate-700">{item.reconciled ? "Reconciled" : item.status}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                ) : (
-                  <div className="p-4 text-xs text-slate-500">No reconciled line items.</div>
-                )}
-              </div>
-            </div>
-            <div className="rounded-lg border border-slate-200">
-              <div className="border-b border-slate-200 px-4 py-2 text-sm font-semibold text-slate-800">
-                Finalized Revenue Schedules ({matchedSchedules.length})
-              </div>
-              <div className="max-h-64 overflow-y-auto">
-                {matchedSchedules.length ? (
-                  <table className="min-w-full divide-y divide-slate-200 text-sm">
-                    <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      <tr>
-                        <th className="px-3 py-2 text-left">Schedule</th>
-                        <th className="px-3 py-2 text-left">Account</th>
-                        <th className="px-3 py-2 text-left">Product</th>
-                        <th className="px-3 py-2 text-left">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {matchedSchedules.map(schedule => (
-                        <tr key={schedule.id}>
-                          <td className="px-3 py-2 text-slate-900">{schedule.revenueScheduleName}</td>
-                          <td className="px-3 py-2 text-slate-700">{schedule.legalName}</td>
-                          <td className="px-3 py-2 text-slate-700">{schedule.productNameVendor}</td>
-                          <td className="px-3 py-2 text-slate-700">{schedule.status}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                ) : (
-                  <div className="p-4 text-xs text-slate-500">No reconciled schedules.</div>
-                )}
-              </div>
-            </div>
-          </div>
-          <div className="flex items-center justify-end gap-3 border-t border-slate-200 px-6 py-4">
-            <button
-              type="button"
-              onClick={() => setShowUnreconcilePreview(false)}
-              className="rounded border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed"
-              disabled={unfinalizeLoading}
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setShowUnreconcilePreview(false)
-                onUnfinalizeDeposit?.()
-              }}
-              disabled={unfinalizeLoading}
-              className={cn(
-                "rounded bg-primary-600 px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-60",
-              )}
-            >
-              {unfinalizeLoading ? "Reopening..." : "Reopen Deposit"}
-            </button>
-          </div>
-        </div>
-      </div>
-    ) : null}
             <div className="rounded-lg border border-slate-200">
               <div className="border-b border-slate-200 px-4 py-2 text-sm font-semibold text-slate-800">
                 Matched Revenue Schedules ({matchedSchedules.length})
@@ -4569,6 +4336,121 @@ export function DepositReconciliationDetailView({
               )}
             >
               {finalizeLoading ? "Finalizing..." : "Confirm & Finalize"}
+            </button>
+          </div>
+        </div>
+      </div>
+    ) : null}
+
+    {showUnreconcilePreview ? (
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50"
+        onClick={() => setShowUnreconcilePreview(false)}
+      >
+        <div
+          className="w-full max-w-5xl rounded-2xl bg-white shadow-xl"
+          style={{ width: "1024px", height: "900px" }}
+          onClick={event => event.stopPropagation()}
+        >
+          <ModalHeader
+            kicker="Deposit Reconciliation"
+            title="Review finalized items"
+            variant="gradient"
+            right={
+              <button
+                type="button"
+                onClick={() => setShowUnreconcilePreview(false)}
+                className="rounded border border-white/20 px-3 py-1.5 text-sm font-semibold text-white/90 transition hover:bg-white/10 hover:text-white"
+              >
+                Close
+              </button>
+            }
+          />
+          <div className="grid gap-4 px-6 py-5 md:grid-cols-2">
+            <div className="rounded-lg border border-slate-200">
+              <div className="border-b border-slate-200 px-4 py-2 text-sm font-semibold text-slate-800">
+                Finalized Line Items ({matchedLineItems.length})
+              </div>
+              <div className="max-h-64 overflow-y-auto">
+                {matchedLineItems.length ? (
+                  <table className="min-w-full divide-y divide-slate-200 text-sm">
+                    <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      <tr>
+                        <th className="px-3 py-2 text-left">Line</th>
+                        <th className="px-3 py-2 text-left">Account</th>
+                        <th className="px-3 py-2 text-left">Product</th>
+                        <th className="px-3 py-2 text-left">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {matchedLineItems.map(item => (
+                        <tr key={item.id}>
+                          <td className="px-3 py-2 text-slate-900">{item.lineItem}</td>
+                          <td className="px-3 py-2 text-slate-700">{item.accountName}</td>
+                          <td className="px-3 py-2 text-slate-700">{item.productName}</td>
+                          <td className="px-3 py-2 text-slate-700">{item.reconciled ? "Reconciled" : item.status}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  <div className="p-4 text-xs text-slate-500">No reconciled line items.</div>
+                )}
+              </div>
+            </div>
+            <div className="rounded-lg border border-slate-200">
+              <div className="border-b border-slate-200 px-4 py-2 text-sm font-semibold text-slate-800">
+                Finalized Revenue Schedules ({matchedSchedules.length})
+              </div>
+              <div className="max-h-64 overflow-y-auto">
+                {matchedSchedules.length ? (
+                  <table className="min-w-full divide-y divide-slate-200 text-sm">
+                    <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      <tr>
+                        <th className="px-3 py-2 text-left">Schedule</th>
+                        <th className="px-3 py-2 text-left">Account</th>
+                        <th className="px-3 py-2 text-left">Product</th>
+                        <th className="px-3 py-2 text-left">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {matchedSchedules.map(schedule => (
+                        <tr key={schedule.id}>
+                          <td className="px-3 py-2 text-slate-900">{schedule.revenueScheduleName}</td>
+                          <td className="px-3 py-2 text-slate-700">{schedule.legalName}</td>
+                          <td className="px-3 py-2 text-slate-700">{schedule.productNameVendor}</td>
+                          <td className="px-3 py-2 text-slate-700">{schedule.status}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  <div className="p-4 text-xs text-slate-500">No reconciled schedules.</div>
+                )}
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center justify-end gap-3 border-t border-slate-200 px-6 py-4">
+            <button
+              type="button"
+              onClick={() => setShowUnreconcilePreview(false)}
+              className="rounded border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed"
+              disabled={unfinalizeLoading}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setShowUnreconcilePreview(false)
+                onUnfinalizeDeposit?.()
+              }}
+              disabled={unfinalizeLoading}
+              className={cn(
+                "rounded bg-primary-600 px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-60",
+              )}
+            >
+              {unfinalizeLoading ? "Reopening..." : "Reopen Deposit"}
             </button>
           </div>
         </div>
