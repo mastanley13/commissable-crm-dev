@@ -420,7 +420,7 @@ export default function RevenueSchedulesPage() {
   const [statusQuickFilter, setStatusQuickFilter] = useState<'all' | 'open' | 'reconciled' | 'in_dispute'>('all')
   const [startDate, setStartDate] = useState<string>('')
   const [endDate, setEndDate] = useState<string>('')
-  const [activeFilter, setActiveFilter] = useState<'all' | 'active'>('active')
+  const [activeFilter, setActiveFilter] = useState<'all' | 'active'>('all')
   const [columnFilters, setColumnFilters] = useState<{ columnId: FilterableColumnKey; value: string }[]>([])
   const [tableBodyHeight, setTableBodyHeight] = useState<number>()
   const tableAreaNodeRef = useRef<HTMLDivElement | null>(null)

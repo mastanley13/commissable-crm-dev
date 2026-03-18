@@ -397,6 +397,8 @@ export default function AccountsPage() {
   const [bulkActionLoading, setBulkActionLoading] = useState(false);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState<string>("");
+  const [totalAccounts, setTotalAccounts] = useState<number>(0);
   const [activeFilter, setActiveFilter] = useState<'all' | 'active'>('active');
   const [showCreateModal, setShowCreateModal] = useState<boolean>(false);
   const [showColumnSettings, setShowColumnSettings] = useState<boolean>(false);
@@ -526,40 +528,6 @@ export default function AccountsPage() {
     pageSize,
   ])
 
-  const applyFilters = useCallback(
-    (
-      records: AccountRow[],
-      status: "all" | "active",
-      columnFilterState: ColumnFilterState[],
-    ) => {
-      let next =
-        status === "active"
-          ? records.filter((record) => record.active)
-          : records.filter((record) => !record.isDeleted);
-
-      if (Array.isArray(columnFilterState) && columnFilterState.length > 0) {
-        columnFilterState.forEach((filter) => {
-          if (!filter) return;
-          const trimmed = filter.value.trim().toLowerCase();
-          if (trimmed.length === 0) {
-            return;
-          }
-
-          next = next.filter((record) => {
-            const recordValue = record[filter.columnId];
-            if (recordValue === undefined || recordValue === null) {
-              return false;
-            }
-            return String(recordValue).toLowerCase().includes(trimmed);
-          });
-        });
-      }
-
-      return next;
-    },
-    [],
-  );
-
   const loadOptions = useCallback(async () => {
     try {
       const response = await fetch("/api/accounts/options", { cache: "no-store" });
@@ -573,20 +541,36 @@ export default function AccountsPage() {
     }
   }, []);
 
-  const reloadAccounts = useCallback(async (query?: string) => {
+  const reloadAccounts = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
-      if (query && query.trim().length > 0) {
-        params.set("q", query.trim());
-      }
-      const queryString = params.toString();
-      const url =
-        queryString.length > 0
-          ? `/api/accounts?${queryString}`
-          : "/api/accounts";
+      params.set("page", String(page));
+      params.set("pageSize", String(pageSize));
+      params.set("status", activeFilter === "active" ? "active" : "all");
 
-      const response = await fetch(url, { cache: "no-store" });
+      if (searchQuery.trim().length > 0) {
+        params.set("q", searchQuery.trim());
+      }
+
+      if (sortConfig) {
+        params.set("sortBy", String(sortConfig.columnId));
+        params.set("sortDir", sortConfig.direction);
+      }
+
+      const filters = columnFilters
+        .filter((filter): filter is NonNullable<ColumnFilterState> => Boolean(filter))
+        .map((filter) => ({
+          columnId: filter.columnId,
+          value: filter.value.trim(),
+        }))
+        .filter((filter) => filter.value.length > 0);
+
+      if (filters.length > 0) {
+        params.set("filters", JSON.stringify(filters));
+      }
+
+      const response = await fetch(`/api/accounts?${params.toString()}`, { cache: "no-store" });
       if (!response.ok) {
         throw new Error("Failed to load accounts");
       }
@@ -595,21 +579,26 @@ export default function AccountsPage() {
       const rows: AccountRow[] = Array.isArray(payload?.data)
         ? payload.data
         : [];
+      const paginationPayload = payload?.pagination;
+      const nextTotal =
+        typeof paginationPayload?.total === "number" ? paginationPayload.total : rows.length;
 
       setAccounts(rows);
+      setTotalAccounts(nextTotal);
       setSelectedAccounts(prev => prev.filter(id => rows.some(row => row.id === id)));
       setBulkDeleteTargets(prev => prev.filter(account => rows.some(row => row.id === account.id)));
       setError(null);
     } catch (err) {
       console.error(err);
       setAccounts([]);
+      setTotalAccounts(0);
       setSelectedAccounts([]);
       setBulkDeleteTargets([]);
       setError("Unable to load accounts");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [activeFilter, columnFilters, page, pageSize, searchQuery, sortConfig]);
 
   useEffect(() => {
     reloadAccounts().catch(console.error);
@@ -621,7 +610,7 @@ export default function AccountsPage() {
 
   const handleSearch = (query: string) => {
     setPage(1);
-    reloadAccounts(query).catch(console.error);
+    setSearchQuery(query);
   };
 
   const handleSort = (columnId: string, direction: "asc" | "desc") => {
@@ -1014,12 +1003,7 @@ export default function AccountsPage() {
         const newRow: AccountRow | null = payload?.data ?? null;
 
         if (newRow) {
-          setAccounts((previous) => {
-            const withoutDuplicate = previous.filter(
-              (account) => account.id !== newRow.id,
-            );
-            return [newRow, ...withoutDuplicate];
-          });
+          await reloadAccounts();
         }
 
         setShowCreateModal(false);
@@ -1030,7 +1014,7 @@ export default function AccountsPage() {
           : new Error("Failed to create account");
       }
     },
-    [],
+    [reloadAccounts],
   );
 
   const handleStatusFilterChange = (filter: string) => {
@@ -1312,6 +1296,7 @@ export default function AccountsPage() {
 
     if (result.success) {
       setAccounts((previous) => previous.filter((account) => account.id !== accountId));
+      setTotalAccounts((previous) => Math.max(0, previous - 1));
       setSelectedAccounts((prev) => prev.filter((id) => id !== accountId));
       showSuccess("Account deleted", "The account was moved to Archive and can be restored by an Admin if needed.");
     }
@@ -1377,6 +1362,7 @@ export default function AccountsPage() {
         if (softDeleteSuccessIds.length > 0) {
           const successSet = new Set(softDeleteSuccessIds);
           setAccounts((previous) => previous.filter((account) => !successSet.has(account.id)));
+          setTotalAccounts((previous) => Math.max(0, previous - softDeleteSuccessIds.length));
 
           showSuccess(
             `Deleted ${softDeleteSuccessIds.length} account${softDeleteSuccessIds.length === 1 ? "" : "s"}`,
@@ -1465,6 +1451,7 @@ export default function AccountsPage() {
       setAccounts((previous) =>
         previous.filter((account) => account.id !== accountId)
       );
+      setTotalAccounts((previous) => Math.max(0, previous - 1));
 
       return { success: true };
     } catch (err) {
@@ -1524,42 +1511,18 @@ export default function AccountsPage() {
     setAccountToEdit(null);
   };
 
-  const filteredAccounts = useMemo(() => {
-    const filtered = applyFilters(accounts, activeFilter, columnFilters);
-
-    if (!sortConfig) {
-      return filtered;
-    }
-
-    const { columnId, direction } = sortConfig;
-
-    return [...filtered].sort((a, b) => {
-      const aValue = (a[columnId] ?? '').toString();
-      const bValue = (b[columnId] ?? '').toString();
-
-      if (aValue < bValue) return direction === "asc" ? -1 : 1;
-      if (aValue > bValue) return direction === "asc" ? 1 : -1;
-      return 0;
-    });
-  }, [accounts, activeFilter, columnFilters, sortConfig, applyFilters]);
-
   useEffect(() => {
-    const total = filteredAccounts.length;
+    const total = totalAccounts;
     const totalPages = Math.max(1, Math.ceil(total / pageSize));
     if (page > totalPages) {
       setPage(totalPages);
     } else if (page < 1 && totalPages >= 1) {
       setPage(1);
     }
-  }, [filteredAccounts.length, page, pageSize]);
-
-  const paginatedAccounts = useMemo(() => {
-    const startIndex = (page - 1) * pageSize;
-    return filteredAccounts.slice(startIndex, startIndex + pageSize);
-  }, [filteredAccounts, page, pageSize]);
+  }, [page, pageSize, totalAccounts]);
 
   const paginationInfo: PaginationInfo = useMemo(() => {
-    const total = filteredAccounts.length;
+    const total = totalAccounts;
     const totalPages = Math.max(1, Math.ceil(total / pageSize));
     return {
       page,
@@ -1567,7 +1530,7 @@ export default function AccountsPage() {
       total,
       totalPages
     };
-  }, [filteredAccounts.length, page, pageSize]);
+  }, [page, pageSize, totalAccounts]);
 
   const tableLoading = loading || preferenceLoading;
 
@@ -1761,6 +1724,7 @@ export default function AccountsPage() {
       <ListHeader
         pageTitle="ACCOUNTS LIST"
         searchPlaceholder="Search Here"
+        searchQuery={searchQuery}
         onSearch={handleSearch}
         onFilterChange={handleStatusFilterChange}
         onCreateClick={handleCreateAccountClick}
@@ -1786,7 +1750,7 @@ export default function AccountsPage() {
         <div ref={tableAreaRef} className="flex-1 min-h-0">
           <DynamicTable
             columns={tableColumns}
-            data={paginatedAccounts}
+            data={accounts}
             onSort={handleSort}
             onRowClick={handleRowClick}
             loading={tableLoading}

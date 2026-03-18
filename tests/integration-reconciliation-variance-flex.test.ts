@@ -97,8 +97,10 @@ integrationTest("REC-AUTO-09: auto-adjust triggers when overage is within tolera
   assertStatus(response, 200)
   const payload = await readJson<any>(response)
   assert.equal(payload.data?.flexDecision?.action, "auto_adjust")
-  assert.ok(payload.data?.flexExecution)
-  assert.ok((payload.data.flexExecution.createdRevenueScheduleIds?.length ?? 0) >= 1)
+  assert.equal(payload.data?.flexExecution ?? null, null)
+  assert.equal(payload.data?.withinToleranceAdjustment?.applied, true)
+  assert.equal(payload.data?.withinToleranceAdjustment?.revenueScheduleId, scheduleId)
+  assert.equal(Number(payload.data?.withinToleranceAdjustment?.usageDelta ?? 0), 5)
 })
 
 integrationTest("REC-AUTO-10: prompt path returns flexDecision when overage exceeds tolerance", async ctx => {
@@ -226,4 +228,3 @@ integrationTest("REC-AUTO-12: resolve-flex (Adjust) creates adjustment split for
   assert.ok(resolvePayload.data?.flexExecution)
   assert.ok((resolvePayload.data.flexExecution.createdRevenueScheduleIds?.length ?? 0) >= 1)
 })
-

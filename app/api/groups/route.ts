@@ -65,17 +65,42 @@ export async function GET(request: NextRequest) {
       }
 
       if (query.length > 0) {
-        where.OR = [
-          { name: { contains: query, mode: "insensitive" } },
-          { description: { contains: query, mode: "insensitive" } },
+        const queryLower = query.toLowerCase()
+        const matchingGroupTypes = (Object.values(GroupType) as string[]).filter(groupType =>
+          groupType.toLowerCase().includes(queryLower)
+        )
+        const queryFilter = { contains: query, mode: "insensitive" as const }
+        const queryClauses: any[] = [
+          { name: queryFilter },
+          { description: queryFilter },
           {
             owner: {
               is: {
-                fullName: { contains: query, mode: "insensitive" }
+                fullName: queryFilter
+              }
+            }
+          },
+          {
+            owner: {
+              is: {
+                firstName: queryFilter
+              }
+            }
+          },
+          {
+            owner: {
+              is: {
+                lastName: queryFilter
               }
             }
           }
         ]
+
+        if (matchingGroupTypes.length > 0) {
+          queryClauses.push({ groupType: { in: matchingGroupTypes as GroupType[] } })
+        }
+
+        where.OR = queryClauses
       }
 
       if (columnFilters.length > 0) {
@@ -90,7 +115,14 @@ export async function GET(request: NextRequest) {
               where.AND.push({ name: { contains: trimmedValue, mode: "insensitive" } })
               break
             case "groupType":
-              where.AND.push({ groupType: { equals: trimmedValue, mode: "insensitive" } })
+              {
+                const matchingTypes = (Object.values(GroupType) as string[]).filter(groupType =>
+                  groupType.toLowerCase().includes(trimmedValue.toLowerCase())
+                )
+                if (matchingTypes.length > 0) {
+                  where.AND.push({ groupType: { in: matchingTypes as GroupType[] } })
+                }
+              }
               break
             case "description":
               where.AND.push({ description: { contains: trimmedValue, mode: "insensitive" } })

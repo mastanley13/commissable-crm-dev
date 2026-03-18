@@ -2468,7 +2468,12 @@ export function DepositReconciliationDetailView({
         return <span className="inline-flex w-full items-center justify-end">{formatted}</span>
       }
 
-      return <span className={previewHighlightClass}>{formatted}</span>
+      return (
+        <span className={previewHighlightClass}>
+          <span className="recon-preview-old">{formatValue(fallback)}</span>
+          <span className="recon-preview-new">{formatted}</span>
+        </span>
+      )
     },
     [schedulePreviewById],
   )

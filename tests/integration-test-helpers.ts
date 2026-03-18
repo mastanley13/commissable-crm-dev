@@ -142,7 +142,20 @@ async function seedTenantUserAndAccounts(prisma: any): Promise<IntegrationContex
     select: { id: true },
   })
 
-  const [managePerm, viewPerm, mergePerm, dataSettingsManagePerm] = await Promise.all([
+  const [
+    reconcileManagePerm,
+    reconcileViewPerm,
+    mergePerm,
+    dataSettingsManagePerm,
+    accountsReadPerm,
+    accountsManagePerm,
+    contactsReadPerm,
+    contactsManagePerm,
+    opportunitiesReadPerm,
+    opportunitiesManagePerm,
+    activitiesReadPerm,
+    activitiesManagePerm,
+  ] = await Promise.all([
     prisma.permission.upsert({
       where: { code: "reconciliation.manage" },
       update: {},
@@ -167,6 +180,54 @@ async function seedTenantUserAndAccounts(prisma: any): Promise<IntegrationContex
       create: { code: "admin.data_settings.manage", name: "Manage Data Settings", category: "Admin" },
       select: { id: true },
     }),
+    prisma.permission.upsert({
+      where: { code: "accounts.read" },
+      update: {},
+      create: { code: "accounts.read", name: "Read Accounts", category: "Accounts" },
+      select: { id: true },
+    }),
+    prisma.permission.upsert({
+      where: { code: "accounts.manage" },
+      update: {},
+      create: { code: "accounts.manage", name: "Manage Accounts", category: "Accounts" },
+      select: { id: true },
+    }),
+    prisma.permission.upsert({
+      where: { code: "contacts.read" },
+      update: {},
+      create: { code: "contacts.read", name: "Read Contacts", category: "Contacts" },
+      select: { id: true },
+    }),
+    prisma.permission.upsert({
+      where: { code: "contacts.manage" },
+      update: {},
+      create: { code: "contacts.manage", name: "Manage Contacts", category: "Contacts" },
+      select: { id: true },
+    }),
+    prisma.permission.upsert({
+      where: { code: "opportunities.read" },
+      update: {},
+      create: { code: "opportunities.read", name: "Read Opportunities", category: "Opportunities" },
+      select: { id: true },
+    }),
+    prisma.permission.upsert({
+      where: { code: "opportunities.manage" },
+      update: {},
+      create: { code: "opportunities.manage", name: "Manage Opportunities", category: "Opportunities" },
+      select: { id: true },
+    }),
+    prisma.permission.upsert({
+      where: { code: "activities.read" },
+      update: {},
+      create: { code: "activities.read", name: "Read Activities", category: "Activities" },
+      select: { id: true },
+    }),
+    prisma.permission.upsert({
+      where: { code: "activities.manage" },
+      update: {},
+      create: { code: "activities.manage", name: "Manage Activities", category: "Activities" },
+      select: { id: true },
+    }),
   ])
 
   const role = await prisma.role.create({
@@ -176,10 +237,18 @@ async function seedTenantUserAndAccounts(prisma: any): Promise<IntegrationContex
       name: "Test Admin",
       permissions: {
         create: [
-          { permissionId: managePerm.id },
-          { permissionId: viewPerm.id },
+          { permissionId: reconcileManagePerm.id },
+          { permissionId: reconcileViewPerm.id },
           { permissionId: mergePerm.id },
           { permissionId: dataSettingsManagePerm.id },
+          { permissionId: accountsReadPerm.id },
+          { permissionId: accountsManagePerm.id },
+          { permissionId: contactsReadPerm.id },
+          { permissionId: contactsManagePerm.id },
+          { permissionId: opportunitiesReadPerm.id },
+          { permissionId: opportunitiesManagePerm.id },
+          { permissionId: activitiesReadPerm.id },
+          { permissionId: activitiesManagePerm.id },
         ],
       },
     },

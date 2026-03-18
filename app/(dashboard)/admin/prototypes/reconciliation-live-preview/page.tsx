@@ -5,7 +5,7 @@ import { Beaker } from 'lucide-react'
 import { DynamicTable, type Column } from '@/components/dynamic-table'
 import { cn } from '@/lib/utils'
 
-type PreviewVariant = 'minimal' | 'ag-flash' | 'row-band' | 'strikethrough' | 'delta-badge' | 'ghost-prev'
+type PreviewVariant = 'minimal' | 'ag-flash' | 'row-band' | 'strikethrough' | 'delta-badge' | 'ghost-prev' | 'compact-diff'
 
 type PrototypeLineRow = {
   id: string
@@ -97,6 +97,10 @@ const previewVariantCopy: Record<
   'ghost-prev': {
     title: 'Ghost Previous',
     description: 'New value prominent with old value as small muted text — clean revision history pattern.'
+  },
+  'compact-diff': {
+    title: 'Compact Inline Diff',
+    description: 'Old value struck-through inline before the new value — single-line accounting diff with no row height increase.'
   }
 }
 
@@ -438,6 +442,25 @@ export default function ReconciliationLivePreviewPrototypePage() {
         )
       }
 
+      // --- Compact Inline Diff ---
+      if (previewVariant === 'compact-diff') {
+        if (!changed) {
+          return (
+            <span className="inline-flex min-h-[26px] w-full items-center justify-end px-2 py-1 text-slate-900">
+              {formatter(oldValue)}
+            </span>
+          )
+        }
+        return (
+          <span className="inline-flex min-h-[26px] w-full items-center justify-end gap-1.5 rounded-sm border-l-2 border-amber-500 bg-amber-50/60 px-2 py-1">
+            <span className="text-[10px] leading-none text-slate-400 line-through decoration-slate-400/50">
+              {formatter(oldValue)}
+            </span>
+            <span className="font-semibold text-emerald-700">{formatter(newValue)}</span>
+          </span>
+        )
+      }
+
       // --- Original 3 variants (minimal, ag-flash, row-band) ---
       return (
         <span className={previewCellClassName({ changed, variant: previewVariant, selectedRow })}>
@@ -564,7 +587,7 @@ export default function ReconciliationLivePreviewPrototypePage() {
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
           <h1 className="text-2xl font-bold leading-tight text-gray-900">Reconciliation Live Preview</h1>
           <div className="flex flex-wrap gap-1.5">
-            {(['minimal', 'ag-flash', 'row-band', 'strikethrough', 'delta-badge', 'ghost-prev'] as PreviewVariant[]).map(variant => (
+            {(['minimal', 'ag-flash', 'row-band', 'strikethrough', 'delta-badge', 'ghost-prev', 'compact-diff'] as PreviewVariant[]).map(variant => (
               <button
                 key={variant}
                 type="button"

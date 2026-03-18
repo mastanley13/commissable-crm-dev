@@ -514,10 +514,10 @@ export function ActivityNoteCreateModal({
                 <div>
                   <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Description</label>
                   <textarea
-                    rows={3}
+                    rows={1}
                     value={form.activityDescription}
                     onChange={event => setForm(prev => ({ ...prev, activityDescription: event.target.value }))}
-                    className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
+                    className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500 h-[26px] min-h-[26px] resize-vertical"
                     placeholder="Share any relevant details discussed."
                   />
                 </div>

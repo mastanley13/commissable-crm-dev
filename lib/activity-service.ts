@@ -208,12 +208,37 @@ export async function listActivities(tenantId: string, filters: ActivityListFilt
   if (filters.search) {
     const query = filters.search.trim()
     if (query.length > 0) {
-      where.OR = [
+      const valueLower = query.toLowerCase()
+      const matchingTypes = Object.values(ActivityType).filter(type =>
+        type.toLowerCase().includes(valueLower)
+      )
+      const matchingStatuses = Object.values(ActivityStatus).filter(status =>
+        status.toLowerCase().includes(valueLower)
+      )
+
+      const queryConditions: Prisma.ActivityWhereInput[] = [
         { subject: { contains: query, mode: 'insensitive' } },
         { description: { contains: query, mode: 'insensitive' } },
         { account: { accountName: { contains: query, mode: 'insensitive' } } },
         { contact: { fullName: { contains: query, mode: 'insensitive' } } },
-        { opportunity: { name: { contains: query, mode: 'insensitive' } } }
+        { opportunity: { name: { contains: query, mode: 'insensitive' } } },
+        { revenueSchedule: { scheduleNumber: { contains: query, mode: 'insensitive' } } },
+        { assignee: { fullName: { contains: query, mode: 'insensitive' } } },
+        { creator: { fullName: { contains: query, mode: 'insensitive' } } },
+        { updater: { fullName: { contains: query, mode: 'insensitive' } } },
+        { attachments: { some: { fileName: { contains: query, mode: 'insensitive' } } } },
+      ]
+
+      if (matchingTypes.length > 0) {
+        queryConditions.push({ activityType: { in: matchingTypes } })
+      }
+
+      if (matchingStatuses.length > 0) {
+        queryConditions.push({ status: { in: matchingStatuses } })
+      }
+
+      where.OR = [
+        ...queryConditions
       ]
     }
   }

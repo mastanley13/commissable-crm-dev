@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { AuditAction } from "@prisma/client"
+import { AuditAction, ContactMethod } from "@prisma/client"
 import { prisma } from "@/lib/db"
 import { withPermissions, createErrorResponse } from "@/lib/api-auth"
 import { logContactAudit } from "@/lib/audit"
@@ -211,13 +211,32 @@ export async function GET(request: NextRequest) {
 
         // Search across multiple fields
         if (query.length > 0) {
-          whereClause.OR = [
-            { fullName: { contains: query, mode: "insensitive" } },
-            { jobTitle: { contains: query, mode: "insensitive" } },
-            { emailAddress: { contains: query, mode: "insensitive" } },
-            { mobilePhone: { contains: query, mode: "insensitive" } },
-            { workPhone: { contains: query, mode: "insensitive" } }
+          const queryLower = query.toLowerCase()
+          const matchedContactMethods = (Object.values(ContactMethod) as string[]).filter(method =>
+            method.toLowerCase().includes(queryLower)
+          )
+          const queryFilter = { contains: query, mode: "insensitive" as const }
+          const queryClauses: any[] = [
+            { fullName: queryFilter },
+            { firstName: queryFilter },
+            { lastName: queryFilter },
+            { jobTitle: queryFilter },
+            { emailAddress: queryFilter },
+            { mobilePhone: queryFilter },
+            { workPhone: queryFilter },
+            { workPhoneExt: queryFilter },
+            { account: { accountName: queryFilter } },
+            { owner: { firstName: queryFilter } },
+            { owner: { lastName: queryFilter } },
+            { owner: { fullName: queryFilter } },
+            { accountType: { name: queryFilter } },
           ]
+
+          if (matchedContactMethods.length > 0) {
+            queryClauses.push({ preferredContactMethod: { in: matchedContactMethods as ContactMethod[] } })
+          }
+
+          whereClause.OR = queryClauses
         }
 
         // Apply filters

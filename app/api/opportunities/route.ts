@@ -183,11 +183,26 @@ export async function GET(request: NextRequest) {
       }
 
       if (query.length > 0) {
+        const queryFilter = { contains: query, mode: "insensitive" as const }
         andConditions.push({
           OR: [
-            { name: { contains: query, mode: "insensitive" } },
-            { account: { accountName: { contains: query, mode: "insensitive" } } },
-            { owner: { fullName: { contains: query, mode: "insensitive" } } }
+            { name: queryFilter },
+            { account: { accountName: queryFilter } },
+            { account: { accountLegalName: queryFilter } },
+            { owner: { fullName: queryFilter } },
+            { owner: { firstName: queryFilter } },
+            { owner: { lastName: queryFilter } },
+            { orderIdHouse: queryFilter },
+            { orderIdVendor: queryFilter },
+            { orderIdDistributor: queryFilter },
+            { accountIdHouse: queryFilter },
+            { accountIdVendor: queryFilter },
+            { accountIdDistributor: queryFilter },
+            { customerIdHouse: queryFilter },
+            { customerIdVendor: queryFilter },
+            { customerIdDistributor: queryFilter },
+            { locationId: queryFilter },
+            { description: queryFilter },
           ]
         })
       }

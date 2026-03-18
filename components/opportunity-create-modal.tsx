@@ -1454,7 +1454,8 @@ export function OpportunityCreateModal({
                 <textarea
                   value={form.description}
                   onChange={event => setForm(previous => ({ ...previous, description: event.target.value }))}
-                  className={`${textareaClass} min-h-[120px]`}
+                  rows={1}
+                  className={`${inputClass} h-[26px] min-h-[26px] resize-vertical`}
                   placeholder="Enter opportunity description"
                 />
               </div>

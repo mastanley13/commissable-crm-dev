@@ -110,14 +110,23 @@ export async function GET(request: NextRequest) {
       const andConditions: Prisma.ProductWhereInput[] = []
 
       if (query.length > 0) {
+        const queryFilter = { contains: query, mode: "insensitive" as const }
         andConditions.push({
           OR: [
-            { productNameHouse: { contains: query, mode: "insensitive" } },
-            { productNameVendor: { contains: query, mode: "insensitive" } },
-            { productCode: { contains: query, mode: "insensitive" } },
-            { partNumberVendor: { contains: query, mode: "insensitive" } },
-            { distributor: { accountName: { contains: query, mode: "insensitive" } } },
-            { vendor: { accountName: { contains: query, mode: "insensitive" } } },
+            { productNameHouse: queryFilter },
+            { productNameVendor: queryFilter },
+            { productCode: queryFilter },
+            { partNumberVendor: queryFilter },
+            { productDescriptionVendor: queryFilter },
+            { productFamilyVendor: queryFilter },
+            { productFamilyHouse: queryFilter },
+            { productSubtypeVendor: queryFilter },
+            { productSubtypeHouse: queryFilter },
+            { distributorProductFamily: queryFilter },
+            { distributorProductSubtype: queryFilter },
+            { revenueType: queryFilter },
+            { distributor: { accountName: queryFilter } },
+            { vendor: { accountName: queryFilter } },
           ]
         })
       }

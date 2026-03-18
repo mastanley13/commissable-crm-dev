@@ -319,7 +319,33 @@ html, body {
   cursor: pointer;
 }
 
-/* Reconciliation live preview cells */
+/* Reconciliation live preview cells — compact inline diff */
+.recon-preview-cell {
+  display: inline-flex;
+  width: 100%;
+  min-height: 26px;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  border-radius: 4px;
+  border-left: 2px solid #f59e0b;
+  padding: 3px 8px;
+  background: rgba(255, 251, 235, 0.6);
+}
+
+.recon-preview-old {
+  font-size: 10px;
+  line-height: 1;
+  color: #94a3b8;
+  text-decoration: line-through;
+  text-decoration-color: rgba(148, 163, 184, 0.5);
+}
+
+.recon-preview-new {
+  font-weight: 600;
+  color: #166534;
+}
+
 @keyframes reconciliation-preview-flash {
   0% {
     background-position: 100% 0;
@@ -338,22 +364,6 @@ html, body {
       inset 0 0 0 1px rgba(180, 83, 9, 0.16),
       0 1px 2px rgba(15, 23, 42, 0.05);
   }
-}
-
-.recon-preview-cell {
-  display: inline-flex;
-  width: 100%;
-  min-height: 26px;
-  align-items: center;
-  justify-content: flex-end;
-  border-radius: 6px;
-  padding: 3px 10px;
-  background-image: linear-gradient(135deg, #fff7cc 0%, #ffe08a 52%, #fff1b8 100%);
-  background-size: 200% 100%;
-  color: #166534;
-  font-weight: 700;
-  letter-spacing: 0.01em;
-  animation: reconciliation-preview-flash 900ms ease-out;
 }
 
 .recon-preview-chip {

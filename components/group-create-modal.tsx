@@ -102,8 +102,8 @@ export function GroupCreateModal({ isOpen, onClose, onCreated }: GroupCreateModa
   }, [isOpen, showError, user?.id])
 
   const canSubmit = useMemo(() => form.name.trim().length >= 3 && form.ownerId.length > 0, [form.name, form.ownerId])
-  const descriptionTextareaClass =
-    "h-[28px] min-h-[28px] w-full resize-vertical overflow-hidden border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs leading-4 focus:outline-none focus:border-primary-500"
+  const inputClass =
+    "w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
 
   const filteredOwners = useMemo(() => {
     if (!ownerQuery.trim()) return owners
@@ -174,7 +174,7 @@ export function GroupCreateModal({ isOpen, onClose, onCreated }: GroupCreateModa
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="w-full max-w-[1024px] h-[900px] flex flex-col rounded-t-xl rounded-b-none bg-white shadow-xl">
+      <div className="w-full max-w-[1024px] rounded-t-xl rounded-b-none bg-white shadow-xl">
         <div className="flex items-center justify-between border-b border-blue-700 bg-gradient-to-r from-blue-950 via-blue-800 to-blue-700 px-6 py-4 text-white">
           <div>
             <p className="text-xs font-semibold uppercase text-blue-100">Create Group</p>
@@ -182,8 +182,8 @@ export function GroupCreateModal({ isOpen, onClose, onCreated }: GroupCreateModa
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="flex-1 px-6 py-5">
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <form onSubmit={handleSubmit} className="max-h-[90vh] overflow-y-auto px-6 py-5">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 content-start">
             <div className="md:col-span-2">
               <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Group Name<span className="ml-1 text-red-500">*</span></label>
               <input
@@ -274,7 +274,7 @@ export function GroupCreateModal({ isOpen, onClose, onCreated }: GroupCreateModa
                 value={form.description}
                 onChange={event => setForm(prev => ({ ...prev, description: event.target.value.slice(0, 500) }))}
                 rows={1}
-                className={descriptionTextareaClass}
+                className={`${inputClass} h-[26px] min-h-[26px] resize-vertical`}
                 placeholder="Describe the purpose of this group"
               />
             </div>

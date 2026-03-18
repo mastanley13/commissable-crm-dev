@@ -97,6 +97,13 @@ function normalizeAccountTypeCode(value: string): string {
   return value.replace(/[^a-z0-9]/gi, "").toUpperCase()
 }
 
+function buildStringOperator(operator: string, value: string) {
+  if (operator === "equals") return { equals: value, mode: "insensitive" as const }
+  if (operator === "starts_with") return { startsWith: value, mode: "insensitive" as const }
+  if (operator === "ends_with") return { endsWith: value, mode: "insensitive" as const }
+  return { contains: value, mode: "insensitive" as const }
+}
+
 export async function GET(request: NextRequest) {
   return withPermissions(
     request,
@@ -127,10 +134,28 @@ export async function GET(request: NextRequest) {
         const archivedOnly = normalizedStatus === "archived" || normalizedStatus === "deleted"
 
         if (query.length > 0) {
+          const queryFilter = { contains: query, mode: "insensitive" as const }
           whereClause.OR = [
-            { accountName: { contains: query, mode: "insensitive" } },
-            { accountLegalName: { contains: query, mode: "insensitive" } },
-            { owner: { is: { fullName: { contains: query, mode: "insensitive" } } } }
+            { accountName: queryFilter },
+            { accountLegalName: queryFilter },
+            { accountNumber: queryFilter },
+            { owner: { is: { fullName: queryFilter } } },
+            { parent: { is: { accountName: queryFilter } } },
+            { industry: { is: { name: queryFilter } } },
+            { shippingAddress: { is: { line1: queryFilter } } },
+            { shippingAddress: { is: { line2: queryFilter } } },
+            { shippingAddress: { is: { city: queryFilter } } },
+            { shippingAddress: { is: { state: queryFilter } } },
+            { shippingAddress: { is: { postalCode: queryFilter } } },
+            { shippingAddress: { is: { country: queryFilter } } },
+            { billingAddress: { is: { line1: queryFilter } } },
+            { billingAddress: { is: { line2: queryFilter } } },
+            { billingAddress: { is: { city: queryFilter } } },
+            { billingAddress: { is: { state: queryFilter } } },
+            { billingAddress: { is: { postalCode: queryFilter } } },
+            { billingAddress: { is: { country: queryFilter } } },
+            { websiteUrl: queryFilter },
+            { description: queryFilter },
           ]
         }
 
@@ -164,9 +189,28 @@ export async function GET(request: NextRequest) {
               const allowedColumns = new Set([
                 "accountName",
                 "accountLegalName",
+                "accountNumber",
                 "accountType",
                 "accountOwner",
+                "parentAccount",
+                "industry",
+                "websiteUrl",
+                "description",
+                "shippingCity",
+                "shippingState",
+                "shippingZip",
+                "shippingStreet",
+                "shippingStreet2",
+                "shippingCountry",
+                "billingCity",
+                "billingState",
+                "billingZip",
+                "billingStreet",
+                "billingStreet2",
+                "billingCountry",
                 "status",
+                "accountStatus",
+                "active",
               ])
 
               const andClauses: Array<Record<string, unknown>> = []
@@ -178,12 +222,7 @@ export async function GET(request: NextRequest) {
 
                 if (!columnId || !value || !allowedColumns.has(columnId)) continue
 
-                const stringOp = (() => {
-                  if (operator === "equals") return { equals: value, mode: "insensitive" as const }
-                  if (operator === "starts_with") return { startsWith: value, mode: "insensitive" as const }
-                  if (operator === "ends_with") return { endsWith: value, mode: "insensitive" as const }
-                  return { contains: value, mode: "insensitive" as const }
-                })()
+                const stringOp = buildStringOperator(operator, value)
 
                 if (columnId === "accountName") {
                   andClauses.push({ accountName: stringOp })
@@ -192,6 +231,11 @@ export async function GET(request: NextRequest) {
 
                 if (columnId === "accountLegalName") {
                   andClauses.push({ accountLegalName: stringOp })
+                  continue
+                }
+
+                if (columnId === "accountNumber") {
+                  andClauses.push({ accountNumber: stringOp })
                   continue
                 }
 
@@ -205,11 +249,91 @@ export async function GET(request: NextRequest) {
                   continue
                 }
 
-                if (columnId === "status") {
+                if (columnId === "parentAccount") {
+                  andClauses.push({ parent: { is: { accountName: stringOp } } })
+                  continue
+                }
+
+                if (columnId === "industry") {
+                  andClauses.push({ industry: { is: { name: stringOp } } })
+                  continue
+                }
+
+                if (columnId === "websiteUrl") {
+                  andClauses.push({ websiteUrl: stringOp })
+                  continue
+                }
+
+                if (columnId === "description") {
+                  andClauses.push({ description: stringOp })
+                  continue
+                }
+
+                if (columnId === "shippingCity") {
+                  andClauses.push({ shippingAddress: { is: { city: stringOp } } })
+                  continue
+                }
+
+                if (columnId === "shippingState") {
+                  andClauses.push({ shippingAddress: { is: { state: stringOp } } })
+                  continue
+                }
+
+                if (columnId === "shippingZip") {
+                  andClauses.push({ shippingAddress: { is: { postalCode: stringOp } } })
+                  continue
+                }
+
+                if (columnId === "shippingStreet") {
+                  andClauses.push({ shippingAddress: { is: { line1: stringOp } } })
+                  continue
+                }
+
+                if (columnId === "shippingStreet2") {
+                  andClauses.push({ shippingAddress: { is: { line2: stringOp } } })
+                  continue
+                }
+
+                if (columnId === "shippingCountry") {
+                  andClauses.push({ shippingAddress: { is: { country: stringOp } } })
+                  continue
+                }
+
+                if (columnId === "billingCity") {
+                  andClauses.push({ billingAddress: { is: { city: stringOp } } })
+                  continue
+                }
+
+                if (columnId === "billingState") {
+                  andClauses.push({ billingAddress: { is: { state: stringOp } } })
+                  continue
+                }
+
+                if (columnId === "billingZip") {
+                  andClauses.push({ billingAddress: { is: { postalCode: stringOp } } })
+                  continue
+                }
+
+                if (columnId === "billingStreet") {
+                  andClauses.push({ billingAddress: { is: { line1: stringOp } } })
+                  continue
+                }
+
+                if (columnId === "billingStreet2") {
+                  andClauses.push({ billingAddress: { is: { line2: stringOp } } })
+                  continue
+                }
+
+                if (columnId === "billingCountry") {
+                  andClauses.push({ billingAddress: { is: { country: stringOp } } })
+                  continue
+                }
+
+                if (columnId === "status" || columnId === "accountStatus" || columnId === "active") {
                   const normalized = value.toLowerCase()
-                  if (normalized === "active") {
+                  if (normalized === "active" || normalized === "yes" || normalized === "true" || normalized === "y") {
                     andClauses.push({ status: AccountStatus.Active })
-                  } else if (normalized === "inactive") {
+                  } else if (normalized === "inactive" || normalized === "no" || normalized === "false" || normalized === "n") {
                     andClauses.push({ status: AccountStatus.Inactive })
                   } else if (normalized === "archived" || normalized === "deleted") {
                     andClauses.push({ status: AccountStatus.Archived })
@@ -234,15 +358,62 @@ export async function GET(request: NextRequest) {
         const orderBy: Prisma.AccountOrderByWithRelationInput | Prisma.AccountOrderByWithRelationInput[] = (() => {
           if (normalizedSortBy === "accountname") return [{ accountName: sortDirection }, { id: "asc" }]
           if (normalizedSortBy === "accountlegalname") return [{ accountLegalName: sortDirection }, { id: "asc" }]
+          if (normalizedSortBy === "accountnumber") return [{ accountNumber: sortDirection }, { id: "asc" }]
           if (normalizedSortBy === "updatedat") return [{ updatedAt: sortDirection }, { id: "asc" }]
           if (normalizedSortBy === "createdat") return [{ createdAt: sortDirection }, { id: "asc" }]
-          if (normalizedSortBy === "status") return [{ status: sortDirection }, { id: "asc" }]
+          if (normalizedSortBy === "status" || normalizedSortBy === "accountstatus" || normalizedSortBy === "active") {
+            return [{ status: sortDirection }, { id: "asc" }]
+          }
           if (normalizedSortBy === "accounttype") {
             return [{ accountType: { name: sortDirection } }, { id: "asc" }]
           }
           if (normalizedSortBy === "accountowner") {
             return [{ owner: { fullName: sortDirection } }, { id: "asc" }]
           }
+          if (normalizedSortBy === "parentaccount") {
+            return [{ parent: { accountName: sortDirection } }, { id: "asc" }]
+          }
+          if (normalizedSortBy === "industry") {
+            return [{ industry: { name: sortDirection } }, { id: "asc" }]
+          }
+          if (normalizedSortBy === "shippingcity") {
+            return [{ shippingAddress: { city: sortDirection } }, { id: "asc" }]
+          }
+          if (normalizedSortBy === "shippingstate") {
+            return [{ shippingAddress: { state: sortDirection } }, { id: "asc" }]
+          }
+          if (normalizedSortBy === "shippingzip") {
+            return [{ shippingAddress: { postalCode: sortDirection } }, { id: "asc" }]
+          }
+          if (normalizedSortBy === "shippingstreet") {
+            return [{ shippingAddress: { line1: sortDirection } }, { id: "asc" }]
+          }
+          if (normalizedSortBy === "shippingstreet2") {
+            return [{ shippingAddress: { line2: sortDirection } }, { id: "asc" }]
+          }
+          if (normalizedSortBy === "shippingcountry") {
+            return [{ shippingAddress: { country: sortDirection } }, { id: "asc" }]
+          }
+          if (normalizedSortBy === "billingcity") {
+            return [{ billingAddress: { city: sortDirection } }, { id: "asc" }]
+          }
+          if (normalizedSortBy === "billingstate") {
+            return [{ billingAddress: { state: sortDirection } }, { id: "asc" }]
+          }
+          if (normalizedSortBy === "billingzip") {
+            return [{ billingAddress: { postalCode: sortDirection } }, { id: "asc" }]
+          }
+          if (normalizedSortBy === "billingstreet") {
+            return [{ billingAddress: { line1: sortDirection } }, { id: "asc" }]
+          }
+          if (normalizedSortBy === "billingstreet2") {
+            return [{ billingAddress: { line2: sortDirection } }, { id: "asc" }]
+          }
+          if (normalizedSortBy === "billingcountry") {
+            return [{ billingAddress: { country: sortDirection } }, { id: "asc" }]
+          }
+          if (normalizedSortBy === "websiteurl") return [{ websiteUrl: sortDirection }, { id: "asc" }]
+          if (normalizedSortBy === "description") return [{ description: sortDirection }, { id: "asc" }]
           return archivedOnly ? { updatedAt: "desc" } : { createdAt: "desc" }
         })()
 
