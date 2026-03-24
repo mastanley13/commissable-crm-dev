@@ -38,6 +38,7 @@ export async function GET(request: NextRequest) {
       const sortDirection = searchParams.get("direction") === "asc" ? "asc" : "desc"
       const includeDeleted = searchParams.get("includeDeleted") === "true"
       const deletedOnly = searchParams.get("deletedOnly") === "true"
+      const includeChildSchedules = searchParams.get("includeChildSchedules") === "true"
 
       // Define locally to decouple from client-only components
       type ColumnFilter = { columnId: string; value: string; operator?: "equals" | "contains" | "starts_with" | "ends_with" }
@@ -69,6 +70,10 @@ export async function GET(request: NextRequest) {
       }
 
       const andFilters: Prisma.RevenueScheduleWhereInput[] = []
+
+      if (!includeChildSchedules) {
+        andFilters.push({ parentRevenueScheduleId: null })
+      }
 
       if (query) {
         andFilters.push({

@@ -49,6 +49,7 @@ type PreviewVariancePrompt = {
   allowedPromptOptions: VarianceResolutionAction[]
   nextFutureScheduleNumber: string | null
   futureScheduleCount: number
+  proposedChildScheduleNumber: string | null
   message: string
 }
 type PreviewResponse =
@@ -336,9 +337,15 @@ function MatchWizardVarianceResolutionModal(props: {
                   : "border-slate-300 bg-white hover:border-[#2f6fe4]",
               )}
             >
-              <p className="text-lg font-semibold text-slate-900">Option C: Create flex child schedule</p>
+              <p className="text-lg font-semibold text-slate-900">
+                Option C: Create flex child schedule
+                {props.prompt.proposedChildScheduleNumber ? ` (${props.prompt.proposedChildScheduleNumber})` : ""}
+              </p>
               <p className="mt-2 text-sm text-slate-600">
                 Keep the parent schedule aligned to its base amount and create a child schedule only for the unresolved overage.
+                {props.prompt.proposedChildScheduleNumber
+                  ? ` Proposed child: ${props.prompt.proposedChildScheduleNumber}.`
+                  : ""}
               </p>
             </button>
           </div>

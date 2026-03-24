@@ -7,6 +7,7 @@ import { evaluateFlexDecision } from "@/lib/flex/revenue-schedule-flex-decision"
 import { isBonusLikeProduct } from "@/lib/flex/bonus-detection"
 import { findFutureSchedulesInScope, resolveScheduleScopeKey } from "@/lib/reconciliation/future-schedules"
 import { listRevenueScheduleAdjustmentSums } from "@/lib/reconciliation/revenue-schedule-adjustments"
+import { deriveNextChildRevenueScheduleName } from "@/lib/revenue-schedule-number"
 
 type PrismaClientOrTx = PrismaClient | Prisma.TransactionClient
 
@@ -190,6 +191,7 @@ export type MatchGroupVariancePrompt = {
   allowedPromptOptions: Array<"AdjustCurrent" | "AdjustCurrentAndFuture" | "FlexChild">
   nextFutureScheduleNumber: string | null
   futureScheduleCount: number
+  proposedChildScheduleNumber: string | null
   message: string
 }
 
@@ -897,6 +899,7 @@ export async function buildMatchGroupPreview(
       if (requiresResolution) {
         let nextFutureScheduleNumber: string | null = null
         let futureScheduleCount = 0
+        let proposedChildScheduleNumber: string | null = null
 
         if (schedule.scheduleDate) {
           try {
@@ -928,6 +931,22 @@ export async function buildMatchGroupPreview(
           "AdjustCurrentAndFuture",
         ]
         if (flexDecision.allowedPromptOptions.includes("FlexProduct")) {
+          try {
+            const childSchedules = await client.revenueSchedule.findMany({
+              where: {
+                tenantId: params.tenantId,
+                parentRevenueScheduleId: schedule.id,
+                deletedAt: null,
+              },
+              select: { scheduleNumber: true },
+            })
+            proposedChildScheduleNumber = deriveNextChildRevenueScheduleName(
+              schedule.scheduleNumber ?? null,
+              childSchedules.map(row => row.scheduleNumber),
+            )
+          } catch (error) {
+            console.warn("Failed to derive proposed flex child schedule number for match-group preview", error)
+          }
           allowedPromptOptions.push("FlexChild")
         }
 
@@ -948,6 +967,7 @@ export async function buildMatchGroupPreview(
           allowedPromptOptions,
           nextFutureScheduleNumber,
           futureScheduleCount,
+          proposedChildScheduleNumber,
           message: `${schedLabel} exceeds variance tolerance and needs a resolution before this match can be applied.`,
         })
       }

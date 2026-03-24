@@ -54,6 +54,31 @@ function escapeRegex(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
 }
 
+export function deriveNextChildRevenueScheduleName(
+  parentScheduleNumber: string | null | undefined,
+  childScheduleNumbers: Array<string | null | undefined>,
+): string | null {
+  const normalizedParent = typeof parentScheduleNumber === "string" ? parentScheduleNumber.trim() : ""
+  if (!normalizedParent) {
+    return null
+  }
+
+  const pattern = new RegExp(`^${escapeRegex(normalizedParent)}\\.(\\d+)$`)
+  let maxSuffix = 0
+
+  for (const value of childScheduleNumbers) {
+    const scheduleNumber = typeof value === "string" ? value.trim() : ""
+    const match = scheduleNumber.match(pattern)
+    if (!match?.[1]) continue
+    const parsed = Number(match[1])
+    if (Number.isFinite(parsed) && parsed > maxSuffix) {
+      maxSuffix = parsed
+    }
+  }
+
+  return `${normalizedParent}.${maxSuffix + 1}`
+}
+
 /**
  * Generates a child schedule number derived from the parent's stored scheduleNumber.
  *
@@ -93,20 +118,12 @@ export async function generateChildRevenueScheduleName(
       select: { scheduleNumber: true },
     })
 
-    const pattern = new RegExp(`^${escapeRegex(parentScheduleNumber)}\\.(\\d+)$`)
-    let maxSuffix = 0
-
-    for (const row of childRows) {
-      const scheduleNumber = (row.scheduleNumber ?? "").trim()
-      const match = scheduleNumber.match(pattern)
-      if (!match?.[1]) continue
-      const parsed = Number(match[1])
-      if (Number.isFinite(parsed) && parsed > maxSuffix) {
-        maxSuffix = parsed
-      }
-    }
-
-    return `${parentScheduleNumber}.${maxSuffix + 1}`
+    return (
+      deriveNextChildRevenueScheduleName(
+        parentScheduleNumber,
+        childRows.map(row => row.scheduleNumber),
+      ) ?? generateRevenueScheduleName(tx)
+    )
   } catch (error) {
     console.warn("Falling back to non-child revenue schedule name", error)
     return generateRevenueScheduleName(tx)
